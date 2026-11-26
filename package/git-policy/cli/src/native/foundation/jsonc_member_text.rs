@@ -53,7 +53,9 @@ impl MemberReading {
     pub fn text(&self) -> Option<&str> {
         return match self {
             MemberReading::Text(text) => Some(text.as_str()),
-            MemberReading::DocumentNotJsonc | MemberReading::Absent | MemberReading::NotText => None,
+            MemberReading::DocumentNotJsonc | MemberReading::Absent | MemberReading::NotText => {
+                None
+            }
         };
     }
 }
@@ -68,23 +70,34 @@ impl MemberReading {
 /// ```ts
 /// const reading = textOfMember(document, 'cloneMounts', 'checkout');
 /// ```
-pub fn text_of_member(document: &str, object: &str, key: &str) -> MemberReading {
-    let root: monochromatic_jsonc_edit::JsoncValue = match monochromatic_jsonc_edit::parse_jsonc(document) {
-        Ok(value) => value,
-        Err(_error) => return MemberReading::DocumentNotJsonc,
-    };
+pub fn text_of_member(
+    document: &str,
+    object: &str,
+    key: &str,
+) -> MemberReading {
+    let root: monochromatic_jsonc_edit::JsoncValue =
+        match monochromatic_jsonc_edit::parse_jsonc(document) {
+            Ok(value) => value,
+            Err(_error) => return MemberReading::DocumentNotJsonc,
+        };
     let Some(entries) = root.entries() else {
         return MemberReading::Absent;
     };
     let object_units: Vec<u16> = object.encode_utf16().collect();
-    let Some(object_entry) = entries.iter().find(|entry| return entry.key.units == object_units) else {
+    let Some(object_entry) = entries
+        .iter()
+        .find(|entry| return entry.key.units == object_units)
+    else {
         return MemberReading::Absent;
     };
     let Some(object_entries) = object_entry.value.entries() else {
         return MemberReading::Absent;
     };
     let key_units: Vec<u16> = key.encode_utf16().collect();
-    let Some(entry) = object_entries.iter().find(|entry| return entry.key.units == key_units) else {
+    let Some(entry) = object_entries
+        .iter()
+        .find(|entry| return entry.key.units == key_units)
+    else {
         return MemberReading::Absent;
     };
     let Some(units) = entry.value.text_units() else {

@@ -3,12 +3,24 @@
 //! and a
 //!  reboot of the same machine still ends every process in it.
 
+use super::claim_tests::{
+    claim_at,
+    gone_marker,
+    index_in,
+    names_in,
+};
 use super::*;
 use crate::claim_time::current_machine_id;
 use crate::process_identity::ProcessIdentityError;
-use super::claim_tests::{claim_at, gone_marker, index_in, names_in};
 use crate::service_index_marker::own_identity;
-use crate::service_index_marker::{HolderState, LOCK_MARKER, ReaderView, holder_state, holder_state_in, identity_in_view_on};
+use crate::service_index_marker::{
+    HolderState,
+    LOCK_MARKER,
+    ReaderView,
+    holder_state,
+    holder_state_in,
+    identity_in_view_on,
+};
 use crate::test_support::remove;
 
 /// A machine ID that is no host's here.
@@ -33,12 +45,25 @@ fn v2_lock_text(birth: &str) -> String {
     return format!("{without_birth}{birth}\n");
 }
 
-fn view(boot: &'static str, machine: Option<&'static str>) -> ReaderView<'static> {
-    return ReaderView { boot, scope: Some(SCOPE), machine, procfs_agrees: true };
+fn view(
+    boot: &'static str,
+    machine: Option<&'static str>,
+) -> ReaderView<'static> {
+    return ReaderView {
+        boot,
+        scope: Some(SCOPE),
+        machine,
+        procfs_agrees: true,
+    };
 }
 
-fn holder_on(boot: &str, machine: Option<&str>) -> (i64, String) {
-    let tail: String = machine.map_or_else(String::new, |id| { return format!("#{id}"); });
+fn holder_on(
+    boot: &str,
+    machine: Option<&str>,
+) -> (i64, String) {
+    let tail: String = machine.map_or_else(String::new, |id| {
+        return format!("#{id}");
+    });
     return (100, format!("linux:777#{boot}#{SCOPE}{tail}"));
 }
 
@@ -52,7 +77,10 @@ fn nothing_runs(_: i64) -> Result<Option<String>, ProcessIdentityError> {
 #[test]
 fn the_same_machine_in_another_boot_is_gone() {
     let holder = holder_on(BOOT_A, Some(MACHINE_A));
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_A)), &nothing_runs), HolderState::Gone);
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_A)), &nothing_runs),
+        HolderState::Gone
+    );
 }
 
 /// Refused:
@@ -68,10 +96,26 @@ fn another_machine_is_unknown_and_never_gone() {
         asked.set(asked.get() + 1);
         return Ok(None);
     };
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_B)), &counting), HolderState::Unknown, "another boot of another machine");
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_A, Some(MACHINE_B)), &counting), HolderState::Unknown, "the same boot ID of another machine");
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, None), &counting), HolderState::Unknown, "a reader with no machine ID");
-    assert_eq!(asked.get(), 0, "no process is asked about on a machine it does not belong to");
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_B)), &counting),
+        HolderState::Unknown,
+        "another boot of another machine"
+    );
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_A, Some(MACHINE_B)), &counting),
+        HolderState::Unknown,
+        "the same boot ID of another machine"
+    );
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_B, None), &counting),
+        HolderState::Unknown,
+        "a reader with no machine ID"
+    );
+    assert_eq!(
+        asked.get(),
+        0,
+        "no process is asked about on a machine it does not belong to"
+    );
 }
 
 /// Refused:
@@ -80,10 +124,19 @@ fn another_machine_is_unknown_and_never_gone() {
 /// compares with nothing.
 #[test]
 fn a_recorded_machine_id_that_is_not_valid_is_unknown() {
-    let malformed: [&str; 4] = ["0123456789ABCDEF0123456789ABCDEF", "00000000000000000000000000000000", "0123", "uninitialized"];
+    let malformed: [&str; 4] = [
+        "0123456789ABCDEF0123456789ABCDEF",
+        "00000000000000000000000000000000",
+        "0123",
+        "uninitialized",
+    ];
     for recorded in malformed {
         let holder = holder_on(BOOT_A, Some(recorded));
-        assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, Some(recorded)), &nothing_runs), HolderState::Unknown, "{recorded}");
+        assert_eq!(
+            holder_state_in(Some(&holder), &view(BOOT_B, Some(recorded)), &nothing_runs),
+            HolderState::Unknown,
+            "{recorded}"
+        );
     }
 }
 
@@ -107,19 +160,36 @@ fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
         return Ok(None);
     };
     let texts: [(&str, String); 3] = [
-        ("a boot the writer could not read is left out, so its PID namespace stands in the boot's place", format!("linux:777#{SCOPE}")),
-        ("a boot with the dashes the kernel prints", format!("linux:777#{A_BOOT_WITH_THE_KERNEL_DASHES}#{SCOPE}")),
-        ("a machine part with nothing in it", format!("linux:777#{BOOT_A}#{SCOPE}#")),
+        (
+            "a boot the writer could not read is left out, so its PID namespace stands in the boot's place",
+            format!("linux:777#{SCOPE}"),
+        ),
+        (
+            "a boot with the dashes the kernel prints",
+            format!("linux:777#{A_BOOT_WITH_THE_KERNEL_DASHES}#{SCOPE}"),
+        ),
+        (
+            "a machine part with nothing in it",
+            format!("linux:777#{BOOT_A}#{SCOPE}#"),
+        ),
     ];
     for (what, text) in texts {
         // A reader with no machine ID is a container's, and one with MACHINE_A is this host's; neither may call it gone.
         for machine in [None, Some(MACHINE_A)] {
             // `text.clone()` copies the text into the holder the reader is given, which owns the identity it explains.
             let holder: (i64, String) = (100, text.clone());
-            assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, machine), &counting), HolderState::Unknown, "{what}: {holder:?}");
+            assert_eq!(
+                holder_state_in(Some(&holder), &view(BOOT_B, machine), &counting),
+                HolderState::Unknown,
+                "{what}: {holder:?}"
+            );
         }
     }
-    assert_eq!(asked.get(), 0, "no process is asked about on a text whose parts cannot be read like for like");
+    assert_eq!(
+        asked.get(),
+        0,
+        "no process is asked about on a text whose parts cannot be read like for like"
+    );
 }
 
 /// A marker of this release naming the process number `pid_field` and the identity `identity`,
@@ -132,8 +202,14 @@ fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
 /// ```ts
 /// markerNaming('0' + pid, identity) // `cli-git-service v2 0 0<pid> <identity>\n`
 /// ```
-fn marker_naming(pid_field: &str, identity: &str) -> String {
-    return format!("{LOCK_MARKER}{}0 {pid_field} {identity}\n", crate::service_index_marker::MARKER_VERSION);
+fn marker_naming(
+    pid_field: &str,
+    identity: &str,
+) -> String {
+    return format!(
+        "{LOCK_MARKER}{}0 {pid_field} {identity}\n",
+        crate::service_index_marker::MARKER_VERSION
+    );
 }
 
 /// The birth `linux:8423337` with a leading zero on its start tick,
@@ -144,7 +220,10 @@ fn birth_with_a_leading_zero(birth: &str) -> String {
     let Some((prefix, tick)) = birth.split_once(':') else {
         panic!("the birth {birth} is no start tick this control can pad");
     };
-    assert!(!tick.starts_with('0'), "the birth {birth} already leads its tick with a zero");
+    assert!(
+        !tick.starts_with('0'),
+        "the birth {birth} already leads its tick with a zero"
+    );
     return format!("{prefix}:0{tick}");
 }
 
@@ -169,7 +248,9 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
         panic!("the identity {identity} names no boot and PID namespace to respell");
     };
     let head: String = format!("{birth}#{boot}#{scope}");
-    let tail: &str = identity.strip_prefix(head.as_str()).expect("the identity holds its own three parts");
+    let tail: &str = identity
+        .strip_prefix(head.as_str())
+        .expect("the identity holds its own three parts");
     return (birth, boot, scope, tail);
 }
 
@@ -193,7 +274,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let identity: String = own_identity().expect("this process has an identity");
     let (birth, boot, scope, tail) = split_birth_parts(identity.as_str());
     let uppercase_boot: String = boot.to_uppercase();
-    assert_ne!(uppercase_boot, boot, "this host's boot ID {boot} has no letter whose case can change");
+    assert_ne!(
+        uppercase_boot, boot,
+        "this host's boot ID {boot} has no letter whose case can change"
+    );
     let padded_tick: String = birth_with_a_leading_zero(birth);
     let pid: i64 = i64::from(std::process::id());
     let pid_field: String = pid.to_string();
@@ -206,11 +290,41 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     //  that padded the fields writes the same birth.
     let respelled_space: String = format!(" {identity}");
     let arms: [(&str, &str, &str, &str, HolderState); 5] = [
-        ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
-        ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
-        ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
-        ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
-        ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),
+        (
+            "the boot in capitals",
+            "uppercase-boot",
+            pid_field.as_str(),
+            respelled_boot.as_str(),
+            HolderState::Unknown,
+        ),
+        (
+            "a leading zero on the start tick",
+            "padded-tick",
+            pid_field.as_str(),
+            respelled_tick.as_str(),
+            HolderState::Unknown,
+        ),
+        (
+            "a leading zero on the process number",
+            "padded-pid",
+            padded_pid.as_str(),
+            identity.as_str(),
+            HolderState::Running,
+        ),
+        (
+            "a leading zero on the PID namespace",
+            "padded-scope",
+            pid_field.as_str(),
+            respelled_scope.as_str(),
+            HolderState::Unknown,
+        ),
+        (
+            "a space before the birth",
+            "space-before-birth",
+            pid_field.as_str(),
+            respelled_space.as_str(),
+            HolderState::Unknown,
+        ),
     ];
     // Every arm is asked and every wrong answer is kept, so one run of the control names each spelling that was read
     //  as another process instead of the first one that was.
@@ -218,7 +332,8 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     for (what, fixture_name, number, respelled, expected) in arms {
         let (root, _index, lock) = index_in(fixture_name);
         let text: String = marker_naming(number, respelled);
-        std::fs::write(&lock, text.as_bytes()).expect("the marker of a live holder, one part respelled");
+        std::fs::write(&lock, text.as_bytes())
+            .expect("the marker of a live holder, one part respelled");
         let marked = crate::service_index_marker::marker_of(lock.as_path()).expect("a marker");
         let state: HolderState = holder_state(marked.holder.as_ref());
         if state != expected {
@@ -226,7 +341,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
         }
         let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
         if outcome != Reclaimed::Kept || !lock.exists() {
-            wrong.push(format!("{what}: the lock of a live holder was {outcome:?}, and it exists afterwards: {}", lock.exists()));
+            wrong.push(format!(
+                "{what}: the lock of a live holder was {outcome:?}, and it exists afterwards: {}",
+                lock.exists()
+            ));
         }
         remove(root.as_path());
     }
@@ -238,7 +356,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
 #[test]
 fn a_marker_without_a_machine_id_keeps_the_reading_for_a_reader_without_one() {
     let holder = holder_on(BOOT_A, None);
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, None), &nothing_runs), HolderState::Gone);
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_B, None), &nothing_runs),
+        HolderState::Gone
+    );
 }
 
 /// The identity a process writes ends in the machine ID when the host has one,
@@ -247,10 +368,18 @@ fn a_marker_without_a_machine_id_keeps_the_reading_for_a_reader_without_one() {
 fn the_identity_names_the_machine_when_there_is_one() {
     let own: u32 = std::process::id();
     let record: String = format!("{own} (cli) S 1 2 3");
-    let with = identity_in_view_on(record.as_bytes(), own, BOOT_A, Some(SCOPE), Some(MACHINE_A)).expect("an identity");
-    assert!(with.ends_with(&format!("#{BOOT_A}#{SCOPE}#{MACHINE_A}")), "{with}");
-    let without = identity_in_view_on(record.as_bytes(), own, BOOT_A, Some(SCOPE), None).expect("an identity");
-    assert!(without.ends_with(&format!("#{BOOT_A}#{SCOPE}")), "{without}");
+    let with = identity_in_view_on(record.as_bytes(), own, BOOT_A, Some(SCOPE), Some(MACHINE_A))
+        .expect("an identity");
+    assert!(
+        with.ends_with(&format!("#{BOOT_A}#{SCOPE}#{MACHINE_A}")),
+        "{with}"
+    );
+    let without = identity_in_view_on(record.as_bytes(), own, BOOT_A, Some(SCOPE), None)
+        .expect("an identity");
+    assert!(
+        without.ends_with(&format!("#{BOOT_A}#{SCOPE}")),
+        "{without}"
+    );
 }
 
 /// This process writes the machine ID of its host (given by the control),
@@ -262,7 +391,10 @@ fn this_process_writes_its_hosts_machine_id() {
     assert!(identity.ends_with(&format!("#{MACHINE_A}")), "{identity}");
     on_machine(None);
     let bare: String = own_identity().expect("an identity");
-    assert!(!bare.contains(MACHINE_A) && bare.split('#').count() == 3, "{bare}");
+    assert!(
+        !bare.contains(MACHINE_A) && bare.split('#').count() == 3,
+        "{bare}"
+    );
 }
 
 /// The real host:
@@ -274,7 +406,9 @@ fn this_process_writes_its_hosts_machine_id() {
 fn this_process_writes_the_real_hosts_machine_id() {
     let machine: &str = current_machine_id();
     if machine.is_empty() {
-        eprintln!("SKIPPED: this host has no valid machine ID, so the real-host control cannot run; the injected-view controls cover the rule");
+        eprintln!(
+            "SKIPPED: this host has no valid machine ID, so the real-host control cannot run; the injected-view controls cover the rule"
+        );
         return;
     }
     let identity: String = own_identity().expect("an identity");
@@ -282,7 +416,10 @@ fn this_process_writes_the_real_hosts_machine_id() {
 }
 
 /// A lock text for a gone process of the machine `machine` in the boot `boot`.
-fn lock_text_on(machine: &str, boot: &str) -> String {
+fn lock_text_on(
+    machine: &str,
+    boot: &str,
+) -> String {
     let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
     return v2_lock_text(&format!("gone#{boot}#{scope}#{machine}"));
 }
@@ -300,14 +437,24 @@ fn a_lock_of_another_machine_is_left_and_named() {
     std::fs::write(&lock, &text).expect("a lock of another machine");
     let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
     match outcome {
-        Reclaimed::Foreign { file, marked } => {
+        Reclaimed::Foreign {
+            file,
+            marked,
+        } => {
             assert_eq!(file, lock);
             assert_eq!(marked.seq, 5);
         }
         other => panic!("expected the lock to be left as another machine's: {other:?}"),
     }
-    assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), text);
-    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the lock stands"),
+        text
+    );
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index"), String::from("index.lock")],
+        "no claim was placed"
+    );
     remove(root.as_path());
 }
 
@@ -331,7 +478,8 @@ fn a_reader_with_no_machine_id_keeps_the_earlier_reading_of_a_marker_with_none()
     on_machine(None);
     let (root, _index, lock) = index_in("machine-none-lock");
     let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
-    std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}"))).expect("a lock of an earlier boot");
+    std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}")))
+        .expect("a lock of an earlier boot");
     assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed);
     remove(root.as_path());
 }
@@ -345,11 +493,19 @@ fn a_reader_with_no_machine_id_keeps_the_earlier_reading_of_a_marker_with_none()
 fn a_marker_with_no_machine_id_of_another_boot_is_left_by_a_reader_that_has_one() {
     on_machine(Some(MACHINE_A));
     let holder = holder_on(BOOT_A, None);
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_A)), &nothing_runs), HolderState::Unknown);
-    assert_eq!(holder_state_in(Some(&holder), &view(BOOT_A, Some(MACHINE_A)), &nothing_runs), HolderState::Gone, "the same boot is judged by the process");
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_A)), &nothing_runs),
+        HolderState::Unknown
+    );
+    assert_eq!(
+        holder_state_in(Some(&holder), &view(BOOT_A, Some(MACHINE_A)), &nothing_runs),
+        HolderState::Gone,
+        "the same boot is judged by the process"
+    );
     let (root, _index, lock) = index_in("machine-legacy-boot");
     let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
-    std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}"))).expect("a lock of another boot");
+    std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}")))
+        .expect("a lock of another boot");
     assert!(matches!(reclaim(&SYSTEM, &lock), Reclaimed::Foreign { .. }));
     assert!(lock.exists());
     remove(root.as_path());
@@ -361,7 +517,10 @@ fn a_marker_with_no_machine_id_of_another_boot_is_left_by_a_reader_that_has_one(
 #[test]
 fn a_marker_that_names_no_process_is_never_gone() {
     for machine in [Some(MACHINE_A), None] {
-        assert_eq!(holder_state_in(None, &view(BOOT_A, machine), &nothing_runs), HolderState::Unknown);
+        assert_eq!(
+            holder_state_in(None, &view(BOOT_A, machine), &nothing_runs),
+            HolderState::Unknown
+        );
     }
     on_machine(Some(MACHINE_A));
     let (root, _index, lock) = index_in("machine-holderless");
@@ -384,11 +543,17 @@ fn a_claim_of_another_machine_is_left_and_named() {
     std::fs::write(&claim, &text).expect("a claim of another machine");
     let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
     match outcome {
-        Reclaimed::Foreign { file, .. } => assert_eq!(file, claim),
+        Reclaimed::Foreign {
+            file,
+            ..
+        } => assert_eq!(file, claim),
         other => panic!("expected the claim to be left as another machine's: {other:?}"),
     }
     assert!(lock.exists(), "the stale lock stays");
-    assert_eq!(std::fs::read_to_string(&claim).expect("the claim stands"), text);
+    assert_eq!(
+        std::fs::read_to_string(&claim).expect("the claim stands"),
+        text
+    );
     remove(root.as_path());
 }
 
@@ -401,7 +566,13 @@ fn a_claim_of_another_machine_is_left_and_named() {
 fn the_words_for_a_file_of_another_machine_give_the_removal() {
     let marked = parse_marker("cli-git-service v2 7 4242 linux:1#a#b#c\n").expect("a marker");
     let words: String = foreign_words(Path::new("/repo/.git/index.lock"), &marked);
-    for needed in ["/repo/.git/index.lock", "batch 7", "process 4242", "another machine", "rm -- '/repo/.git/index.lock'"] {
+    for needed in [
+        "/repo/.git/index.lock",
+        "batch 7",
+        "process 4242",
+        "another machine",
+        "rm -- '/repo/.git/index.lock'",
+    ] {
         assert!(words.contains(needed), "missing {needed}: {words}");
     }
 }
@@ -414,7 +585,11 @@ fn the_words_for_a_file_of_another_machine_give_the_removal() {
 fn a_landing_names_the_lock_of_another_machine() {
     on_machine(Some(MACHINE_A));
     let (root, index, lock) = index_in("machine-landing");
-    std::fs::write(&lock, lock_text_on(MACHINE_B, crate::claim_time::current_boot_id())).expect("a lock of another machine");
+    std::fs::write(
+        &lock,
+        lock_text_on(MACHINE_B, crate::claim_time::current_boot_id()),
+    )
+    .expect("a lock of another machine");
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let said = std::cell::RefCell::new(Vec::<String>::new());
     let began: std::time::Instant = std::time::Instant::now();
@@ -425,9 +600,15 @@ fn a_landing_names_the_lock_of_another_machine() {
     })
     .expect_err("the lock is not taken");
     assert_eq!(failure.code, FailureCode::IndexInUse);
-    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling, as for a dead owner");
+    assert!(
+        began.elapsed() >= ceiling,
+        "the wait ended before its ceiling, as for a dead owner"
+    );
     assert!(lock.exists());
     let lines: String = said.borrow().join("\n");
-    assert!(lines.contains("another machine") && lines.contains(&format!("rm -- '{}'", lock.display())), "{lines}");
+    assert!(
+        lines.contains("another machine") && lines.contains(&format!("rm -- '{}'", lock.display())),
+        "{lines}"
+    );
     remove(root.as_path());
 }

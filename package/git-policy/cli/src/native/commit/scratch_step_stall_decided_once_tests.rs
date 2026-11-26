@@ -5,11 +5,17 @@ use crate::scratch_step_held_by_the_kernel::HeldProgram;
 
 /// A stand-aside of a step the kernel held,
 /// counted from the step's start.
-fn held_at(waited: Duration, bound: Duration) -> TheStallItWaitsThrough {
+fn held_at(
+    waited: Duration,
+    bound: Duration,
+) -> TheStallItWaitsThrough {
     return TheStallItWaitsThrough {
         stood_aside_after: waited,
         bound,
-        why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram { number: 4242, name: String::from("git") }),
+        why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram {
+            number: 4242,
+            name: String::from("git"),
+        }),
     };
 }
 
@@ -28,12 +34,31 @@ fn held_at(waited: Duration, bound: Duration) -> TheStallItWaitsThrough {
 #[test]
 fn a_ceiling_nothing_is_decided_about_stands_aside_once_and_both_enforcers_read_it() {
     let stall: TheStallDecidedOnce = TheStallDecidedOnce::new();
-    assert_eq!(stall.state(), TheStall::Undecided, "a new ceiling is decided about nothing");
+    assert_eq!(
+        stall.state(),
+        TheStall::Undecided,
+        "a new ceiling is decided about nothing"
+    );
     let stood: TheStallItWaitsThrough = held_at(Duration::from_secs(60), Duration::from_secs(300));
-    assert_eq!(stall.stand_aside(stood.clone()), TheStall::StoodAside(stood.clone()), "the enforcer that saw the hold stands aside");
-    assert_eq!(stall.state(), TheStall::StoodAside(stood.clone()), "the other enforcer reads the same stand-aside");
-    assert!(!stall.the_usual_ceiling_ends_it(), "a ceiling that stood aside cannot have the usual ceiling end the step afterwards");
-    assert_eq!(stall.state(), TheStall::StoodAside(stood), "and the stand-aside it keeps is the one that was made");
+    assert_eq!(
+        stall.stand_aside(stood.clone()),
+        TheStall::StoodAside(stood.clone()),
+        "the enforcer that saw the hold stands aside"
+    );
+    assert_eq!(
+        stall.state(),
+        TheStall::StoodAside(stood.clone()),
+        "the other enforcer reads the same stand-aside"
+    );
+    assert!(
+        !stall.the_usual_ceiling_ends_it(),
+        "a ceiling that stood aside cannot have the usual ceiling end the step afterwards"
+    );
+    assert_eq!(
+        stall.state(),
+        TheStall::StoodAside(stood),
+        "and the stand-aside it keeps is the one that was made"
+    );
 }
 
 /// What:
@@ -51,9 +76,14 @@ fn a_ceiling_nothing_is_decided_about_stands_aside_once_and_both_enforcers_read_
 fn the_first_stand_aside_is_the_one_the_step_keeps() {
     let stall: TheStallDecidedOnce = TheStallDecidedOnce::new();
     let first: TheStallItWaitsThrough = held_at(Duration::from_secs(60), Duration::from_secs(300));
-    let second: TheStallItWaitsThrough = held_at(Duration::from_millis(1), Duration::from_secs(600));
+    let second: TheStallItWaitsThrough =
+        held_at(Duration::from_millis(1), Duration::from_secs(600));
     let _stood: TheStall = stall.stand_aside(first.clone());
-    assert_eq!(stall.stand_aside(second), TheStall::StoodAside(first), "the whole step runs under one bound");
+    assert_eq!(
+        stall.stand_aside(second),
+        TheStall::StoodAside(first),
+        "the whole step runs under one bound"
+    );
 }
 
 /// What:
@@ -70,7 +100,10 @@ fn the_first_stand_aside_is_the_one_the_step_keeps() {
 #[test]
 fn a_ceiling_already_ending_the_step_cannot_stand_aside() {
     let stall: TheStallDecidedOnce = TheStallDecidedOnce::new();
-    assert!(stall.the_usual_ceiling_ends_it(), "nothing was decided, so the usual ceiling ends the step");
+    assert!(
+        stall.the_usual_ceiling_ends_it(),
+        "nothing was decided, so the usual ceiling ends the step"
+    );
     assert_eq!(stall.state(), TheStall::TheUsualCeilingEndsIt);
     assert_eq!(
         stall.stand_aside(held_at(Duration::from_secs(60), Duration::from_secs(300))),
@@ -94,6 +127,9 @@ fn a_stand_aside_is_not_undone_by_the_enforcer_that_found_nothing() {
     let stall: TheStallDecidedOnce = TheStallDecidedOnce::new();
     let stood: TheStallItWaitsThrough = held_at(Duration::from_secs(60), Duration::from_secs(300));
     let _decided: TheStall = stall.stand_aside(stood.clone());
-    assert!(!stall.the_usual_ceiling_ends_it(), "the ceiling that stood aside stays aside");
+    assert!(
+        !stall.the_usual_ceiling_ends_it(),
+        "the ceiling that stood aside stays aside"
+    );
     assert_eq!(stall.state(), TheStall::StoodAside(stood));
 }

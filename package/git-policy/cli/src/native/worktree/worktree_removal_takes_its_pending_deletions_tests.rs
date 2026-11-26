@@ -25,8 +25,14 @@ use super::*;
 #[test]
 fn a_leaving_name_is_the_one_this_program_makes() {
     let mine: &str = "cli-git-deleting-000000000001f5f7";
-    assert!(is_a_leaving_name(Path::new(mine)), "the name a hand-over makes is this program's");
-    assert!(is_a_leaving_name(Path::new(format!("/w/{mine}").as_str())), "the folder above it is no part of the name");
+    assert!(
+        is_a_leaving_name(Path::new(mine)),
+        "the name a hand-over makes is this program's"
+    );
+    assert!(
+        is_a_leaving_name(Path::new(format!("/w/{mine}").as_str())),
+        "the folder above it is no part of the name"
+    );
     for other in [
         "cli-git-deleting-0000000000001f5f7",
         "cli-git-deleting-000000000001f5f",
@@ -36,6 +42,9 @@ fn a_leaving_name_is_the_one_this_program_makes() {
         "cli-git-deleted-000000000001f5f7",
         "removing-00000000-0000-0000-0000-000000000000",
     ] {
-        assert!(!is_a_leaving_name(Path::new(other)), "{other} is not a name this program makes");
+        assert!(
+            !is_a_leaving_name(Path::new(other)),
+            "{other} is not a name this program makes"
+        );
     }
 }

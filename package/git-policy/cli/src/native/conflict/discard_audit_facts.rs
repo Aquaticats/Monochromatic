@@ -61,7 +61,9 @@ impl AuditFact {
     pub fn json(&self) -> String {
         match self {
             AuditFact::Text(_, value) => return quote(value),
-            AuditFact::Flag(_, value) => return String::from(if *value { "true" } else { "false" }),
+            AuditFact::Flag(_, value) => {
+                return String::from(if *value { "true" } else { "false" });
+            }
         }
     }
 }

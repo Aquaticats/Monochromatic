@@ -30,16 +30,25 @@
 //! const problems = await finishInterruptedDestroys(commonDir); // on the next command
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_beneath::ObjectId;
-use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
+use crate::path_bytes_in_records::{
+    hex_of_path,
+    path_of_hex,
+};
 use crate::plain_file::read_plain_file;
 use crate::private_storage::create_private_directory_all;
 use crate::process_identity::current_birth_identity;
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The function that finishes an interrupted removal,
@@ -84,7 +93,10 @@ const LEAVING_PREFIX: &str = "leavingHex=";
 const DESTROYED_MARK: &[u8] = b"destroyed=1\n";
 
 /// The path of the record of one registration.
-pub(crate) fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
+pub(crate) fn record_path(
+    common_dir: &Path,
+    id: &OsStr,
+) -> PathBuf {
     return common_dir.join(RECORD_FOLDER).join(id);
 }
 
@@ -112,7 +124,12 @@ pub(crate) fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
 /// ```ts
 /// await recordDestroy(commonDir, id, identity, target);
 /// ```
-pub fn record_destroy(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &Path) -> Result<(), String> {
+pub fn record_destroy(
+    common_dir: &Path,
+    id: &OsStr,
+    admin: &ObjectId,
+    target: &Path,
+) -> Result<(), String> {
     return record_destroy_with_owner(common_dir, id, admin, target, None);
 }
 
@@ -131,7 +148,13 @@ pub fn record_destroy(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &
 /// ```ts
 /// await recordDestroyWithOwner(commonDir, id, identity, target, '1:ended');
 /// ```
-pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &Path, owner: Option<&str>) -> Result<(), String> {
+pub fn record_destroy_with_owner(
+    common_dir: &Path,
+    id: &OsStr,
+    admin: &ObjectId,
+    target: &Path,
+    owner: Option<&str>,
+) -> Result<(), String> {
     let path: PathBuf = record_path(common_dir, id);
     if let Some(parent) = path.parent()
         && let Err(error) = create_private_directory_all(parent)
@@ -178,7 +201,10 @@ pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId
 /// ```ts
 /// await recordDestroyed(commonDir, id);
 /// ```
-pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
+pub fn record_destroyed(
+    common_dir: &Path,
+    id: &OsStr,
+) {
     let path: PathBuf = record_path(common_dir, id);
     let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
         Ok(read) => read,
@@ -207,7 +233,9 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
         marked.extend_from_slice(format!("{OWNER_PREFIX}{owner}\n").as_bytes());
     }
     if let Some(leaving) = read.leaving.as_ref() {
-        marked.extend_from_slice(format!("{LEAVING_PREFIX}{}\n", hex_of_path(leaving.as_path())).as_bytes());
+        marked.extend_from_slice(
+            format!("{LEAVING_PREFIX}{}\n", hex_of_path(leaving.as_path())).as_bytes(),
+        );
     }
     marked.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
     marked.extend_from_slice(read.target.as_os_str().as_bytes());
@@ -250,7 +278,11 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
 /// ```ts
 /// await recordLeaving(commonDir, id, join(parentPath, deletingName(id)));
 /// ```
-pub fn record_leaving(common_dir: &Path, id: &OsStr, leaving: &Path) {
+pub fn record_leaving(
+    common_dir: &Path,
+    id: &OsStr,
+    leaving: &Path,
+) {
     let path: PathBuf = record_path(common_dir, id);
     let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
         Ok(read) => read,
@@ -277,7 +309,14 @@ pub fn record_leaving(common_dir: &Path, id: &OsStr, leaving: &Path) {
     named.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
     named.extend_from_slice(read.target.as_os_str().as_bytes());
     if let Err(error) = write_beside_then_rename(path.as_path(), named.as_slice()) {
-        debug(TAG, format!("{} cannot be written with the place the subvolume of {id:?} stands ({error})", path.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} cannot be written with the place the subvolume of {id:?} stands ({error})",
+                path.display()
+            )
+            .as_str(),
+        );
     }
 }
 
@@ -291,7 +330,10 @@ pub fn record_leaving(common_dir: &Path, id: &OsStr, leaving: &Path) {
 /// ```ts
 /// await forgetDestroy(commonDir, id);
 /// ```
-pub fn forget_destroy(common_dir: &Path, id: &OsStr) {
+pub fn forget_destroy(
+    common_dir: &Path,
+    id: &OsStr,
+) {
     let path: PathBuf = record_path(common_dir, id);
     match std::fs::remove_file(path.as_path()) {
         Ok(()) => {}
@@ -358,14 +400,18 @@ pub(crate) fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
     let mut leaving: Option<PathBuf> = None;
     let mut destroyed: bool = false;
     loop {
-        let Some(split_at) = rest.iter().position(is_newline) else { break };
+        let Some(split_at) = rest.iter().position(is_newline) else {
+            break;
+        };
         let (line, after): (&[u8], &[u8]) = rest.split_at(split_at);
         if line == DESTROYED_MARK.strip_suffix(b"\n").unwrap_or(DESTROYED_MARK) {
             destroyed = true;
             rest = after.strip_prefix(b"\n").unwrap_or(after);
             continue;
         }
-        let Ok(text) = std::str::from_utf8(line) else { break };
+        let Ok(text) = std::str::from_utf8(line) else {
+            break;
+        };
         if let Some(owner_text) = text.strip_prefix(OWNER_PREFIX) {
             owner = Some(owner_text.to_string());
             rest = after.strip_prefix(b"\n").unwrap_or(after);
@@ -387,13 +433,23 @@ pub(crate) fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
         return Err(String::from("its identity line is not text"));
     };
     // A record of this build spells the field; an earlier one wrote the identity alone.
-    let spelled_identity: &str = identity_text.strip_prefix(IDENTITY_PREFIX).unwrap_or(identity_text);
+    let spelled_identity: &str = identity_text
+        .strip_prefix(IDENTITY_PREFIX)
+        .unwrap_or(identity_text);
     let Some(admin) = ObjectId::decode(spelled_identity) else {
-        return Err(format!("its identity line {spelled_identity} cannot be read"));
+        return Err(format!(
+            "its identity line {spelled_identity} cannot be read"
+        ));
     };
     // Everything after the identity's newline is the target, byte for byte.
     let target: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
-    return Ok(DestroyRecord { owner, admin, leaving, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
+    return Ok(DestroyRecord {
+        owner,
+        admin,
+        leaving,
+        target: PathBuf::from(OsStr::from_bytes(target)),
+        destroyed,
+    });
 }
 
 /// Finish controls stay out of the release executable.

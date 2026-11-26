@@ -15,9 +15,17 @@
 /// The case evaluator,
 /// the fixture reader and the parser.
 use crate::dependent_version_fixture_cases::evaluate;
-use crate::dependent_version_fixture_json::{canonical, elements, field, text};
+use crate::dependent_version_fixture_json::{
+    canonical,
+    elements,
+    field,
+    text,
+};
 use crate::dependent_version_test_support::MemoryWorkspace;
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// The shared fixtures:
 /// every scenario of the incumbent's unit tests,

@@ -14,15 +14,22 @@
 //! // checkBranchWorktree(facts, ['switch', 'topic'])
 //! ```
 
-/// The rule core and its text.
-use crate::rule_branch_worktree::{
-    BRANCH_CREATION_CODE, BranchWorktreeDecision, branch_creation_message, decide_branch_worktree,
-};
 /// The engine's outcomes,
 ///  the three endings every check shares and the facts interface.
-use crate::policy_checks::{clean, fact_unavailable, rejected};
+use crate::policy_checks::{
+    clean,
+    fact_unavailable,
+    rejected,
+};
 use crate::policy_engine::PolicyOutcome;
 use crate::repository_facts::RepositoryFacts;
+/// The rule core and its text.
+use crate::rule_branch_worktree::{
+    BRANCH_CREATION_CODE,
+    BranchWorktreeDecision,
+    branch_creation_message,
+    decide_branch_worktree,
+};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 
@@ -37,13 +44,19 @@ use std::ffi::OsString;
 /// ```ts
 /// async function checkBranchWorktree(facts, args): Promise<PolicyOutcome>;
 /// ```
-pub fn check_branch_worktree(facts: &mut dyn RepositoryFacts, arguments: &[OsString]) -> PolicyOutcome {
+pub fn check_branch_worktree(
+    facts: &mut dyn RepositoryFacts,
+    arguments: &[OsString],
+) -> PolicyOutcome {
     match decide_branch_worktree(arguments) {
         BranchWorktreeDecision::Pass => return clean(),
         BranchWorktreeDecision::Creates(command) => {
             return rejected(BRANCH_CREATION_CODE, branch_creation_message(command, None));
         }
-        BranchWorktreeDecision::NeedsRemoteGuess { command, target } => {
+        BranchWorktreeDecision::NeedsRemoteGuess {
+            command,
+            target,
+        } => {
             // `.as_os_str()` lends the owned name as a borrowed one.
             match facts.remote_guess_creates_branch(target.as_os_str()) {
                 Err(message) => return fact_unavailable(message),

@@ -41,7 +41,11 @@ pub(crate) const OTHER_ACCOUNTS_PROCESS_REASON: &str = "PID of another account "
 #[cfg(unix)]
 pub(crate) fn another_account_owns(process: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
-    let Ok(theirs) = std::fs::metadata(process) else { return false };
-    let Ok(ours) = std::fs::metadata("/proc/self") else { return false };
+    let Ok(theirs) = std::fs::metadata(process) else {
+        return false;
+    };
+    let Ok(ours) = std::fs::metadata("/proc/self") else {
+        return false;
+    };
     return theirs.uid() != ours.uid();
 }

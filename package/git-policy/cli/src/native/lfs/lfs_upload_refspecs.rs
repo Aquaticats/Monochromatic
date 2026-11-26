@@ -18,9 +18,15 @@
 //! ```
 
 /// The plan's refs and the errors it reports.
-use crate::lfs_upload_settings::{PlanError, Query};
+use crate::lfs_upload_settings::{
+    PlanError,
+    Query,
+};
 /// Owned OS text for refs.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// What the source side of a refspec is:
 /// nothing for a deletion (`:dst`),
@@ -54,7 +60,9 @@ pub(crate) fn refspec_source(spec: &OsStr) -> Source {
     if source.is_empty() {
         return Source::Deletion;
     }
-    return Source::Named(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(source.to_vec()));
+    return Source::Named(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(
+        source.to_vec(),
+    ));
 }
 
 /// Whether one byte is the colon that separates the source of a refspec from its destination,
@@ -72,7 +80,11 @@ pub(super) fn is_colon_byte(byte: &u8) -> bool {
 /// only the full names that
 ///  start with `front` and end with `back` without the two overlapping,
 /// and with `None` every name.
-pub(crate) fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result<Vec<OsString>, PlanError> {
+pub(crate) fn list(
+    query: Query<'_>,
+    prefix: &str,
+    pattern: Option<(&str, &str)>,
+) -> Result<Vec<OsString>, PlanError> {
     let listing: String = match query.ask(&["for-each-ref", "--format=%(refname)", prefix]) {
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git for-each-ref {prefix}: {why}"))),
@@ -91,12 +103,17 @@ pub(crate) fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>
 /// ```ts
 /// listing.split('\n').filter((name) => !pattern || (name.length >= front.length + back.length && name.startsWith(front) && name.endsWith(back)));
 /// ```
-pub(crate) fn names_of(listing: &str, pattern: Option<(&str, &str)>) -> Vec<OsString> {
+pub(crate) fn names_of(
+    listing: &str,
+    pattern: Option<(&str, &str)>,
+) -> Vec<OsString> {
     let mut names: Vec<OsString> = Vec::new();
     for name in listing.lines() {
         let kept: bool = match pattern {
             Some((front, back)) => {
-                name.len() >= front.len() + back.len() && name.starts_with(front) && name.ends_with(back)
+                name.len() >= front.len() + back.len()
+                    && name.starts_with(front)
+                    && name.ends_with(back)
             }
             None => true,
         };
@@ -144,6 +161,9 @@ pub(crate) fn star_split(pattern: &str) -> (&str, &str) {
 /// and
 ///  anything between,
 /// `/` included (which a `for-each-ref` pattern does not do).
-pub(crate) fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
+pub(crate) fn expand_pattern(
+    query: Query<'_>,
+    pattern: &str,
+) -> Result<Vec<OsString>, PlanError> {
     return list(query, directory_of(pattern), Some(star_split(pattern)));
 }

@@ -27,10 +27,21 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal;
-use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, read_binding};
-use crate::worktree_clone_binding_record::registration_home::{binding_name, clone_inventory_name, home_folder, origin_inventory_name};
+use crate::worktree_clone_binding_record::record_publication::{
+    RecordRefusalAtTheFile,
+    read_binding,
+};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    clone_inventory_name,
+    home_folder,
+    origin_inventory_name,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What step 12 left for one plan.
@@ -94,7 +105,11 @@ pub enum TheBindingEnd {
 /// ```ts
 /// const end = finishThePlansBinding(commonDir, slot, plan);
 /// ```
-pub fn finish_the_plans_binding(common_dir: &Path, slot: &str, plan: &DestructionPlan) -> TheBindingEnd {
+pub fn finish_the_plans_binding(
+    common_dir: &Path,
+    slot: &str,
+    plan: &DestructionPlan,
+) -> TheBindingEnd {
     let home: PathBuf = home_folder(common_dir);
     let binding_path: PathBuf = home.join(binding_name(slot));
     let record = match read_binding(home.as_path(), slot) {
@@ -102,45 +117,112 @@ pub fn finish_the_plans_binding(common_dir: &Path, slot: &str, plan: &Destructio
         Err(RecordRefusalAtTheFile::Missing) => {
             let files: Vec<String> = remove_the_inventories(home.as_path(), slot);
             return match the_files_are_gone(home.as_path(), files.as_slice()) {
-                true => TheBindingEnd::Missing { files },
-                false => TheBindingEnd::Unreadable { path: binding_path, said: String::from("an inventory still answers after its removal") },
+                true => TheBindingEnd::Missing {
+                    files,
+                },
+                false => TheBindingEnd::Unreadable {
+                    path: binding_path,
+                    said: String::from("an inventory still answers after its removal"),
+                },
             };
         }
-        Err(refusal) => return TheBindingEnd::Unreadable { path: binding_path.clone(), said: refusal.message(binding_path.as_path()) },
+        Err(refusal) => {
+            return TheBindingEnd::Unreadable {
+                path: binding_path.clone(),
+                said: refusal.message(binding_path.as_path()),
+            };
+        }
     };
-    let pairs: [(&'static str, String, String); 1] = [("slot", path_as_hexadecimal(record.slot_path().unwrap_or_default().as_path()), path_as_hexadecimal(plan.facts.target.as_path()))];
+    let pairs: [(&'static str, String, String); 1] = [(
+        "slot",
+        path_as_hexadecimal(record.slot_path().unwrap_or_default().as_path()),
+        path_as_hexadecimal(plan.facts.target.as_path()),
+    )];
     for (field, binding, plan_value) in pairs {
         if binding != plan_value {
-            return TheBindingEnd::Differs { path: binding_path, field, binding, plan: plan_value };
+            return TheBindingEnd::Differs {
+                path: binding_path,
+                field,
+                binding,
+                plan: plan_value,
+            };
         }
     }
-    let binding_clone: String = record.clone_guid.map(|guid| return guid.file_name()).unwrap_or_default();
+    let binding_clone: String = record
+        .clone_guid
+        .map(|guid| return guid.file_name())
+        .unwrap_or_default();
     if binding_clone != plan.facts.clone_guid.file_name() {
         return TheBindingEnd::AnotherClones;
     }
     let origins: [(&'static str, Option<String>, String); 5] = [
-        ("originDataset", record.origin_dataset.clone(), plan.facts.origin_dataset.clone()),
-        ("originDatasetGuid", record.origin_dataset_guid.map(|guid| return guid.file_name()), plan.facts.origin_dataset_guid.file_name()),
-        ("originSnapshot", Some(record.origin_snapshot.clone()), plan.facts.origin_snapshot.clone()),
-        ("originSnapshotGuid", record.origin_snapshot_guid.map(|guid| return guid.file_name()), plan.facts.origin_snapshot_guid.file_name()),
-        ("originSnapshotCreatetxg", record.origin_snapshot_createtxg.map(|txg| return txg.to_string()), plan.facts.origin_snapshot_createtxg.to_string()),
+        (
+            "originDataset",
+            record.origin_dataset.clone(),
+            plan.facts.origin_dataset.clone(),
+        ),
+        (
+            "originDatasetGuid",
+            record
+                .origin_dataset_guid
+                .map(|guid| return guid.file_name()),
+            plan.facts.origin_dataset_guid.file_name(),
+        ),
+        (
+            "originSnapshot",
+            Some(record.origin_snapshot.clone()),
+            plan.facts.origin_snapshot.clone(),
+        ),
+        (
+            "originSnapshotGuid",
+            record
+                .origin_snapshot_guid
+                .map(|guid| return guid.file_name()),
+            plan.facts.origin_snapshot_guid.file_name(),
+        ),
+        (
+            "originSnapshotCreatetxg",
+            record
+                .origin_snapshot_createtxg
+                .map(|txg| return txg.to_string()),
+            plan.facts.origin_snapshot_createtxg.to_string(),
+        ),
     ];
     for (field, binding, plan_value) in origins {
         if binding.as_deref() != Some(plan_value.as_str()) {
-            return TheBindingEnd::Differs { path: binding_path, field, binding: binding.unwrap_or_default(), plan: plan_value };
+            return TheBindingEnd::Differs {
+                path: binding_path,
+                field,
+                binding: binding.unwrap_or_default(),
+                plan: plan_value,
+            };
         }
     }
     let mut files: Vec<String> = Vec::new();
-    for name in [origin_inventory_name(slot), clone_inventory_name(slot), binding_name(slot)] {
+    for name in [
+        origin_inventory_name(slot),
+        clone_inventory_name(slot),
+        binding_name(slot),
+    ] {
         let path: PathBuf = home.join(name.as_str());
         match remove_one_file(path.as_path()) {
             OneFile::Removed | OneFile::AlreadyGone => files.push(name),
-            OneFile::Refused => return TheBindingEnd::Unreadable { path, said: String::from("the file could not be removed, so nothing proves it gone") },
+            OneFile::Refused => {
+                return TheBindingEnd::Unreadable {
+                    path,
+                    said: String::from("the file could not be removed, so nothing proves it gone"),
+                };
+            }
         }
     }
     return match the_files_are_gone(home.as_path(), files.as_slice()) {
-        true => TheBindingEnd::Removed { files },
-        false => TheBindingEnd::Unreadable { path: binding_path, said: String::from("a file still answers after its removal") },
+        true => TheBindingEnd::Removed {
+            files,
+        },
+        false => TheBindingEnd::Unreadable {
+            path: binding_path,
+            said: String::from("a file still answers after its removal"),
+        },
     };
 }
 
@@ -155,7 +237,10 @@ pub fn finish_the_plans_binding(common_dir: &Path, slot: &str, plan: &Destructio
 /// ```ts
 /// const files = removeTheInventories(home, slot);
 /// ```
-fn remove_the_inventories(home: &Path, slot: &str) -> Vec<String> {
+fn remove_the_inventories(
+    home: &Path,
+    slot: &str,
+) -> Vec<String> {
     let mut files: Vec<String> = Vec::new();
     for name in [origin_inventory_name(slot), clone_inventory_name(slot)] {
         let path: PathBuf = home.join(name.as_str());
@@ -215,7 +300,10 @@ fn remove_one_file(path: &Path) -> OneFile {
 /// ```ts
 /// const gone = theFilesAreGone(home, files);
 /// ```
-fn the_files_are_gone(home: &Path, files: &[String]) -> bool {
+fn the_files_are_gone(
+    home: &Path,
+    files: &[String],
+) -> bool {
     for name in files {
         if std::fs::symlink_metadata(home.join(name.as_str()).as_path()).is_ok() {
             return false;

@@ -23,11 +23,23 @@
 //! if (!workersSetAnywhere(args, env, configSnapshot)) args.splice(subcommandIndex, 0, '-c', 'checkout.workers=0');
 //! ```
 
-use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    read_config_snapshot,
+};
 use crate::diagnostic_log::debug;
-use crate::global_arguments::{GlobalOutcome, global_layout};
-use crate::transaction_git::{GitContext, subcommand_of};
-use std::ffi::{OsStr, OsString};
+use crate::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
+use crate::transaction_git::{
+    GitContext,
+    subcommand_of,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 /// The configuration key,
@@ -56,7 +68,11 @@ const PARALLEL: &str = "checkout.workers=0";
 /// ```
 fn global_prefix_length(arguments: &[OsString]) -> usize {
     let layout = global_layout(arguments);
-    return if layout.outcome == GlobalOutcome::Command { layout.prefix_len } else { arguments.len() };
+    return if layout.outcome == GlobalOutcome::Command {
+        layout.prefix_len
+    } else {
+        arguments.len()
+    };
 }
 
 /// What:
@@ -124,7 +140,8 @@ pub fn environment_sets<'a>(variables: impl IntoIterator<Item = (&'a OsStr, &'a 
 /// ```
 fn variable_sets_key((name, value): (&OsStr, &OsStr)) -> bool {
     let variable: String = name.to_string_lossy().into_owned();
-    return (variable.starts_with("GIT_CONFIG_KEY_") || variable == "GIT_CONFIG_PARAMETERS") && value.to_string_lossy().to_lowercase().contains(KEY);
+    return (variable.starts_with("GIT_CONFIG_KEY_") || variable == "GIT_CONFIG_PARAMETERS")
+        && value.to_string_lossy().to_lowercase().contains(KEY);
 }
 
 /// What:
@@ -177,23 +194,46 @@ fn as_os_str_pair((name, value): &(OsString, OsString)) -> (&OsStr, &OsStr) {
 /// ```ts
 /// const wanted = await parallelCheckoutWanted({ context, cwd, arguments });
 /// ```
-pub fn parallel_checkout_wanted(context: &GitContext, cwd: &Path, arguments: &[OsString]) -> bool {
+pub fn parallel_checkout_wanted(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[OsString],
+) -> bool {
     if typed_before_subcommand(arguments) {
-        debug("parallelCheckoutWanted", "the person typed the key; nothing is added");
+        debug(
+            "parallelCheckoutWanted",
+            "the person typed the key; nothing is added",
+        );
         return false;
     }
     let process: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let exported = process.iter().chain(context.overlay.iter()).map(as_os_str_pair);
+    let exported = process
+        .iter()
+        .chain(context.overlay.iter())
+        .map(as_os_str_pair);
     if environment_sets(exported) {
-        debug("parallelCheckoutWanted", "the environment sets the key; nothing is added");
+        debug(
+            "parallelCheckoutWanted",
+            "the environment sets the key; nothing is added",
+        );
         return false;
     }
     let Some(snapshot) = read_config_snapshot(context, cwd) else {
-        debug("parallelCheckoutWanted", "the configuration could not be read; nothing is added");
+        debug(
+            "parallelCheckoutWanted",
+            "the configuration could not be read; nothing is added",
+        );
         return false;
     };
     let wanted: bool = !configured(&snapshot);
-    debug("parallelCheckoutWanted", if wanted { "no configuration file sets the key; the option is added" } else { "a configuration file sets the key; nothing is added" });
+    debug(
+        "parallelCheckoutWanted",
+        if wanted {
+            "no configuration file sets the key; the option is added"
+        } else {
+            "a configuration file sets the key; nothing is added"
+        },
+    );
     return wanted;
 }
 
@@ -213,7 +253,10 @@ pub fn insert_parallel_checkout(arguments: &mut Vec<OsString>) {
     if layout.outcome != GlobalOutcome::Command {
         return;
     }
-    arguments.splice(layout.prefix_len..layout.prefix_len, [OsString::from("-c"), OsString::from(PARALLEL)]);
+    arguments.splice(
+        layout.prefix_len..layout.prefix_len,
+        [OsString::from("-c"), OsString::from(PARALLEL)],
+    );
 }
 
 /// What:
@@ -230,7 +273,8 @@ pub fn insert_parallel_checkout(arguments: &mut Vec<OsString>) {
 /// subcommand(args) === 'reset' && args.includes('--hard')
 /// ```
 pub fn is_fallback_checkout(arguments: &[OsString]) -> bool {
-    return matches!(subcommand_of(arguments), Some((_index, name)) if name == "reset") && arguments.iter().map(OsString::as_os_str).any(is_hard_flag);
+    return matches!(subcommand_of(arguments), Some((_index, name)) if name == "reset")
+        && arguments.iter().map(OsString::as_os_str).any(is_hard_flag);
 }
 
 /// What:

@@ -43,10 +43,22 @@
 //! expect(cpuTicks(pid)).toBeDefined();
 //! ```
 
-use super::support::{cpu_ticks, thread_numbers, thread_ticks, ticks_of_threads};
+use super::support::{
+    cpu_ticks,
+    thread_numbers,
+    thread_ticks,
+    ticks_of_threads,
+};
 use git_policy_cli::thread_quiet::current_thread_id;
-use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::{Duration, Instant};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the control waits for the kernel to remove a joined thread's own file.
 /// This is a ceiling,
@@ -83,7 +95,10 @@ const RELEASE_POLL: Duration = Duration::from_millis(1);
 /// # Panics
 /// When the kernel still lists the thread after [`RELEASE_PATIENCE`],
 /// which is a thread this control could not observe in the state it names.
-fn wait_until_the_thread_file_is_gone(pid: u32, thread: u32) {
+fn wait_until_the_thread_file_is_gone(
+    pid: u32,
+    thread: u32,
+) {
     let began: Instant = Instant::now();
     while thread_ticks(pid, thread).is_some() {
         assert!(
@@ -132,18 +147,24 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
     // runtime starts or ends beside it.
     let waiting: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let number: i32 = current_thread_id().expect("the kernel's number for this thread");
-        report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread waits");
+        report
+            .send(u32::try_from(number).expect("a thread number"))
+            .expect("the control knows which thread waits");
         let _released = held.recv();
     });
     // A thread that only waits stands still, so its clock ticks are improbable to grow between the two readings
     // that follow: the kernel promises nothing, and spending a tick on purpose would burn CPU, which is banned.
     let staying: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let number: i32 = current_thread_id().expect("the kernel's number for this thread");
-        still_report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread stays");
+        still_report
+            .send(u32::try_from(number).expect("a thread number"))
+            .expect("the control knows which thread stays");
         let _left = stayed.recv();
     });
     let ended: u32 = reported.recv().expect("the thread that waits names itself");
-    let still: u32 = still_reported.recv().expect("the thread that stays names itself");
+    let still: u32 = still_reported
+        .recv()
+        .expect("the thread that stays names itself");
     let listing: Vec<u32> = thread_numbers(pid).expect("the threads of this process");
     assert!(
         listing.contains(&ended) && listing.contains(&still),
@@ -171,7 +192,10 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
         over_the_listing >= still_ticks,
         "every thread of the listing spends at least nothing, so the listing sums to no less than the thread that stays: {over_the_listing} against {still_ticks}"
     );
-    assert!(cpu_ticks(pid).is_some(), "the process is still here, so it has counters");
+    assert!(
+        cpu_ticks(pid).is_some(),
+        "the process is still here, so it has counters"
+    );
     leave.send(()).expect("the thread that stays ends");
     staying.join().expect("the thread that stayed ends");
 }

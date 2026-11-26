@@ -19,9 +19,16 @@
 
 use super::gate_paths::GatePaths;
 use super::gate_target::current_target;
-use super::gate_verdict::{Facts, Verdict, VerdictCache, check, check_with};
+use super::gate_verdict::{
+    Facts,
+    Verdict,
+    VerdictCache,
+    check,
+    check_with,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
-    Compatible as LayoutCompatible, CompatibilityStep as Step,
+    CompatibilityStep as Step,
+    Compatible as LayoutCompatible,
 };
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -154,7 +161,11 @@ fn a_missing_module_file_refuses_at_that_step_and_names_it() {
 #[test]
 fn a_scripted_pass_names_the_attributes_the_module_does_not_carry() {
     let fixture: GatePaths = paths("verdict-absent-attributes");
-    for file in [&fixture.module_version, &fixture.module_srcversion, &fixture.module_build_id] {
+    for file in [
+        &fixture.module_version,
+        &fixture.module_srcversion,
+        &fixture.module_build_id,
+    ] {
         std::fs::remove_file(file).expect("the identity file is removed");
     }
     let verdict: Verdict = check_with(&fixture, &|_paths: &GatePaths| {
@@ -244,12 +255,19 @@ fn a_module_whose_source_version_moves_under_the_first_read_passes_after_one_ret
     let verdict: Verdict = check_with(&fixture, &|paths: &GatePaths| {
         calls.set(calls.get().saturating_add(1));
         if !rewritten.get() {
-            std::fs::write(paths.module_srcversion.as_path(), "00000000000000000000000\n").expect("the moved source version");
+            std::fs::write(
+                paths.module_srcversion.as_path(),
+                "00000000000000000000000\n",
+            )
+            .expect("the moved source version");
             rewritten.set(true);
         }
         return Ok(layout());
     });
-    assert!(matches!(verdict, Verdict::Compatible(_)), "the retry did not pass");
+    assert!(
+        matches!(verdict, Verdict::Compatible(_)),
+        "the retry did not pass"
+    );
     assert_eq!(calls.get(), 2);
 }
 
@@ -261,12 +279,16 @@ fn a_module_whose_build_id_moves_under_the_first_read_passes_after_one_retry() {
     let verdict: Verdict = check_with(&fixture, &|paths: &GatePaths| {
         calls.set(calls.get().saturating_add(1));
         if !rewritten.get() {
-            std::fs::write(paths.module_build_id.as_path(), "build two").expect("the moved build ID");
+            std::fs::write(paths.module_build_id.as_path(), "build two")
+                .expect("the moved build ID");
             rewritten.set(true);
         }
         return Ok(layout());
     });
-    assert!(matches!(verdict, Verdict::Compatible(_)), "the retry did not pass");
+    assert!(
+        matches!(verdict, Verdict::Compatible(_)),
+        "the retry did not pass"
+    );
     assert_eq!(calls.get(), 2);
 }
 
@@ -277,7 +299,11 @@ fn a_module_that_moves_under_both_attempts_refuses_at_the_identity() {
     let calls: Cell<usize> = Cell::new(0);
     let verdict: Verdict = check_with(&fixture, &|paths: &GatePaths| {
         calls.set(calls.get().saturating_add(1));
-        let text: &str = if moved.get() { "2.4.4-1\n" } else { "2.4.4-2\n" };
+        let text: &str = if moved.get() {
+            "2.4.4-1\n"
+        } else {
+            "2.4.4-2\n"
+        };
         std::fs::write(paths.module_version.as_path(), text).expect("the moved version");
         moved.set(!moved.get());
         return Ok(layout());
@@ -298,8 +324,14 @@ fn the_cache_reuses_a_verdict_while_the_three_values_and_the_files_hold() {
         calls.set(calls.get().saturating_add(1));
         return Ok(layout());
     };
-    assert!(matches!(cache.answer(&fixture, &compare), Verdict::Compatible(_)));
-    assert!(matches!(cache.answer(&fixture, &compare), Verdict::Compatible(_)));
+    assert!(matches!(
+        cache.answer(&fixture, &compare),
+        Verdict::Compatible(_)
+    ));
+    assert!(matches!(
+        cache.answer(&fixture, &compare),
+        Verdict::Compatible(_)
+    ));
     assert_eq!(calls.get(), 1);
 }
 
@@ -328,7 +360,11 @@ fn the_cache_reruns_when_the_source_version_moves() {
         return Ok(layout());
     };
     let _ = cache.answer(&fixture, &compare);
-    std::fs::write(fixture.module_srcversion.as_path(), "00000000000000000000000\n").expect("the moved source version");
+    std::fs::write(
+        fixture.module_srcversion.as_path(),
+        "00000000000000000000000\n",
+    )
+    .expect("the moved source version");
     let _ = cache.answer(&fixture, &compare);
     assert_eq!(calls.get(), 2);
 }
@@ -375,7 +411,8 @@ fn the_cache_reruns_when_the_module_file_vanishes_and_returns() {
     let _ = cache.answer(&fixture, &compare);
     std::fs::remove_file(fixture.module_btf.as_path()).expect("the module fixture is removed");
     let _ = cache.answer(&fixture, &compare);
-    std::fs::write(fixture.module_btf.as_path(), empty_type_information()).expect("the module returns");
+    std::fs::write(fixture.module_btf.as_path(), empty_type_information())
+        .expect("the module returns");
     let _ = cache.answer(&fixture, &compare);
     assert_eq!(calls.get(), 3);
 }
@@ -383,7 +420,11 @@ fn the_cache_reruns_when_the_module_file_vanishes_and_returns() {
 #[test]
 fn the_cache_reruns_when_a_file_fact_moves_with_no_identity_value() {
     let fixture: GatePaths = paths("verdict-cache-no-values");
-    for file in [&fixture.module_version, &fixture.module_srcversion, &fixture.module_build_id] {
+    for file in [
+        &fixture.module_version,
+        &fixture.module_srcversion,
+        &fixture.module_build_id,
+    ] {
         std::fs::remove_file(file).expect("the identity file is removed");
     }
     let cache: VerdictCache = VerdictCache::new();
@@ -393,7 +434,8 @@ fn the_cache_reruns_when_a_file_fact_moves_with_no_identity_value() {
         return Ok(layout());
     };
     let _ = cache.answer(&fixture, &compare);
-    std::fs::write(fixture.module_btf.as_path(), b"a longer module file").expect("the module moves");
+    std::fs::write(fixture.module_btf.as_path(), b"a longer module file")
+        .expect("the module moves");
     let _ = cache.answer(&fixture, &compare);
     assert_eq!(calls.get(), 2);
 }

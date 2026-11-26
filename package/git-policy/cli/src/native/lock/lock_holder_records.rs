@@ -36,14 +36,25 @@
 /// its birth,
 /// the boot,
 /// the PID namespace and the machine.
-use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
+use crate::claim_time::{
+    current_boot_id,
+    current_machine_id,
+    is_machine_id,
+};
 /// The birth identity the platform reports for a process.
 use crate::process_identity::process_birth_identity;
 /// The one identity spelling the commit service's marker uses,
 /// so one reader judges both.
-use crate::service_index_identity::{BOOT_SEPARATOR, current_pid_scope, own_identity};
+use crate::service_index_identity::{
+    BOOT_SEPARATOR,
+    current_pid_scope,
+    own_identity,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder below a repository's common Git directory that holds the records.
 pub(crate) const HOLDER_FOLDER: &str = "cli-git-lock-holders";
@@ -257,7 +268,11 @@ pub fn record_text(holders: &[(&str, i64, String)]) -> String {
 /// ```ts
 /// recordLine('self', 42, identity) // "self 42 <identity>\n"
 /// ```
-pub fn record_line(kind: &str, pid: i64, identity: &str) -> String {
+pub fn record_line(
+    kind: &str,
+    pid: i64,
+    identity: &str,
+) -> String {
     return format!("{kind} {pid} {identity}\n");
 }
 
@@ -308,7 +323,10 @@ pub fn record_this_process(common_dir: &Path) {
 /// ```ts
 /// recordChild(commonDir, child.pid) // appends `child <pid> <identity>`
 /// ```
-pub fn record_a_child_started(common_dir: &Path, pid: u32) {
+pub fn record_a_child_started(
+    common_dir: &Path,
+    pid: u32,
+) {
     let folder: PathBuf = folder_of(common_dir);
     let _noted = note(folder.as_path(), CHILD_KIND, pid);
 }
@@ -324,26 +342,44 @@ pub fn record_a_child_started(common_dir: &Path, pid: u32) {
 /// ```ts
 /// appendFileSync(file, recordLine(kind, pid, identity))
 /// ```
-fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
+fn note(
+    folder: &Path,
+    kind: &str,
+    pid: u32,
+) -> std::io::Result<()> {
     let Some(path) = record_file_of_this_process(folder) else {
-        return Err(std::io::Error::other("the identity of this process is unavailable"));
+        return Err(std::io::Error::other(
+            "the identity of this process is unavailable",
+        ));
     };
     let Some(identity) = identity_of_process(i64::from(pid)) else {
-        return Err(std::io::Error::other("the identity of that process is unavailable"));
+        return Err(std::io::Error::other(
+            "the identity of that process is unavailable",
+        ));
     };
     use std::io::Write as _;
     if !path.exists() {
         std::fs::create_dir_all(folder)?;
-        let mut made: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
+        let mut made: std::fs::File = match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path.as_path())
+        {
             Ok(file) => file,
             // Another thread of this process made it: the header is there and the append below is enough.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => std::fs::OpenOptions::new().append(true).open(path.as_path())?,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(path.as_path())?
+            }
             Err(error) => return Err(error),
         };
         made.write_all(record_text(&[(kind, i64::from(pid), identity)]).as_bytes())?;
         return Ok(());
     }
-    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path.as_path())?;
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path.as_path())?;
     file.write_all(record_line(kind, i64::from(pid), identity.as_str()).as_bytes())?;
     return Ok(());
 }

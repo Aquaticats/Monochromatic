@@ -14,16 +14,29 @@
 //! ```
 #![cfg(unix)]
 
-use super::{add_outcome, code_and_path, findings_of, os, write};
+use super::{
+    add_outcome,
+    code_and_path,
+    findings_of,
+    os,
+    write,
+};
 use crate::event_hints::finding_hint;
 use crate::event_path::EventPath;
 use crate::policy_engine::PolicyFinding;
-use crate::test_support::{fixture, remove, repository};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use monochromatic_catalog_specifier::FindingKind;
 /// Raw bytes of a name.
 use std::ffi::OsString;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
 use std::path::PathBuf;
 
 /// A directory name that is not UTF-8:
@@ -34,14 +47,20 @@ const LATIN_ONE_DIRECTORY: &[u8] = b"caf\xe9";
 ///  and a finding keeps the exact bytes of the name in its pathname.
 #[test]
 fn a_manifest_below_a_name_that_is_not_utf8_is_still_checked() {
-    if !in_a_fixture_root_taking_any_name("policy::policy_catalog_specifiers::tests::path_cases::a_manifest_below_a_name_that_is_not_utf8_is_still_checked") {
+    if !in_a_fixture_root_taking_any_name(
+        "policy::policy_catalog_specifiers::tests::path_cases::a_manifest_below_a_name_that_is_not_utf8_is_still_checked",
+    ) {
         return;
     }
     let root: PathBuf = fixture("catalog-bytes");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let directory: PathBuf = repo.join(OsString::from_vec(LATIN_ONE_DIRECTORY.to_vec()));
     std::fs::create_dir(&directory).expect("directory");
-    std::fs::write(directory.join("package.json"), br#"{"dependencies": {"zod": "^4.6.7"}}"#).expect("manifest");
+    std::fs::write(
+        directory.join("package.json"),
+        br#"{"dependencies": {"zod": "^4.6.7"}}"#,
+    )
+    .expect("manifest");
     std::fs::write(directory.join("package.yaml"), b"name: x\n").expect("yaml");
     std::fs::write(directory.join("package.json.bak"), b"{}").expect("backup");
     let found: Vec<PolicyFinding> = findings_of(add_outcome(
@@ -64,10 +83,17 @@ fn a_manifest_below_a_name_that_is_not_utf8_is_still_checked() {
     // The exact bytes travel in the pathname; the message shows the replacement character.
     let named: EventPath = found[0].path.clone().expect("path");
     assert_eq!(named.exact(), Some(&b"caf\xe9/package.json"[..]));
-    assert!(found[0].message.starts_with("caf\u{fffd}/package.json: "), "{}", found[0].message);
+    assert!(
+        found[0].message.starts_with("caf\u{fffd}/package.json: "),
+        "{}",
+        found[0].message
+    );
     // A name made only of text bytes needs no extra field.
     assert_eq!(EventPath::from_git_bytes(b"ok/package.json").exact(), None);
-    assert_eq!(OsString::from_vec(LATIN_ONE_DIRECTORY.to_vec()).as_bytes(), LATIN_ONE_DIRECTORY);
+    assert_eq!(
+        OsString::from_vec(LATIN_ONE_DIRECTORY.to_vec()).as_bytes(),
+        LATIN_ONE_DIRECTORY
+    );
     remove(root.as_path());
 }
 
@@ -79,16 +105,28 @@ fn a_manifest_below_a_name_that_is_not_utf8_is_still_checked() {
 fn a_symbolic_link_named_like_a_manifest_is_reported() {
     let root: PathBuf = fixture("catalog-link");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    write(repo.as_path(), "real/package.json", br#"{"dependencies": {"zod": "^4.6.7"}}"#);
+    write(
+        repo.as_path(),
+        "real/package.json",
+        br#"{"dependencies": {"zod": "^4.6.7"}}"#,
+    );
     std::fs::create_dir(repo.join("linked")).expect("directory");
-    std::os::unix::fs::symlink("../real/package.json", repo.join("linked/package.json")).expect("link");
-    std::os::unix::fs::symlink("../real/package.json", repo.join("linked/package.yaml")).expect("yaml link");
+    std::os::unix::fs::symlink("../real/package.json", repo.join("linked/package.json"))
+        .expect("link");
+    std::os::unix::fs::symlink("../real/package.json", repo.join("linked/package.yaml"))
+        .expect("yaml link");
     let found: Vec<PolicyFinding> = findings_of(add_outcome(repo.as_path(), &os(&["linked"])));
     assert_eq!(
         code_and_path(found.as_slice()),
         vec![
-            ("invalid-manifest", EventPath::from_git_bytes(b"linked/package.json")),
-            ("unsupported-manifest-format", EventPath::from_git_bytes(b"linked/package.yaml")),
+            (
+                "invalid-manifest",
+                EventPath::from_git_bytes(b"linked/package.json")
+            ),
+            (
+                "unsupported-manifest-format",
+                EventPath::from_git_bytes(b"linked/package.yaml")
+            ),
         ]
     );
     remove(root.as_path());
@@ -129,5 +167,8 @@ fn every_kind_of_the_rule_has_a_hint() {
             assert!(hint.starts_with("Hint: "), "{}: {hint}", kind.as_str());
         }
     }
-    assert_eq!(finding_hint("mono/catalog-specifiers", "unknown", false), None);
+    assert_eq!(
+        finding_hint("mono/catalog-specifiers", "unknown", false),
+        None
+    );
 }

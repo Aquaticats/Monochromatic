@@ -14,13 +14,17 @@
 
 use super::verify_after_move;
 use crate::testing::test_support::fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A mount ID the worker's own table does not list is refused as unlisted,
 /// never as a pass.
 #[test]
 fn an_unlisted_mount_id_is_refused() {
-    let reading = verify_after_move(Path::new("/no/such/slot"), u64::MAX, "pool/ds@ready").expect_err("the mount is not listed");
+    let reading = verify_after_move(Path::new("/no/such/slot"), u64::MAX, "pool/ds@ready")
+        .expect_err("the mount is not listed");
     let said: String = reading.reason.clone();
     assert!(said.contains("no line for it"), "{said}");
 }

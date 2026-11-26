@@ -24,11 +24,28 @@
 
 #![cfg(unix)]
 
-use crate::repo_read_config_list::{ListedEntry, list_config, listing_bytes};
-use crate::repo_read_object::{ObjectKind, from_hex};
+use crate::repo_read_config_list::{
+    ListedEntry,
+    list_config,
+    listing_bytes,
+};
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_query_request_answer_and_context::{Answer, Context, Parsed, flags_are};
-use crate::repo_read_refs::{Lookup, RefValue, Refs, is_listable_ref_name};
+use crate::repo_read_query_request_answer_and_context::{
+    Answer,
+    Context,
+    Parsed,
+    flags_are,
+};
+use crate::repo_read_refs::{
+    Lookup,
+    RefValue,
+    Refs,
+    is_listable_ref_name,
+};
 use std::ffi::OsString;
 
 /// The `--format` text of the one listing the wrapper asks for.
@@ -66,18 +83,29 @@ fn shared_refs(context: &Context) -> Option<Refs> {
     if context.layout.git_dir != context.layout.common_dir {
         return None;
     }
-    return Some(Refs::new(context.layout.common_dir.as_path(), context.layout.object_format.hex_length()));
+    return Some(Refs::new(
+        context.layout.common_dir.as_path(),
+        context.layout.object_format.hex_length(),
+    ));
 }
 
 /// The listing,
 /// or `None`.
 fn listing(context: &Context) -> Option<Vec<ListedEntry>> {
-    return list_config(context.layout.common_dir.as_path(), context.layout.git_dir.as_path(), &context.scope, context.variables.as_slice());
+    return list_config(
+        context.layout.common_dir.as_path(),
+        context.layout.git_dir.as_path(),
+        &context.scope,
+        context.variables.as_slice(),
+    );
 }
 
 /// Every value of `key` among the listed entries,
 /// in order.
-fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>>> {
+fn values_of<'a>(
+    listed: &'a [ListedEntry],
+    key: &str,
+) -> Vec<&'a Option<Vec<u8>>> {
     let mut values: Vec<&'a Option<Vec<u8>>> = Vec::new();
     for item in listed {
         if item.entry.key == key {
@@ -89,7 +117,10 @@ fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>
 
 /// The last non-empty text value of the variable `name` among `variables`,
 /// or nothing.
-fn text_variable(variables: &[(OsString, OsString)], name: &str) -> Option<String> {
+fn text_variable(
+    variables: &[(OsString, OsString)],
+    name: &str,
+) -> Option<String> {
     for (candidate, value) in variables.iter().rev() {
         if candidate == name {
             return match value.to_str() {
@@ -126,8 +157,14 @@ fn is_newline(byte: &u8) -> bool {
 /// non-symbolic ref or does not exist yet;
 ///  Git follows a chain of symbolic refs,
 /// so a target that is itself symbolic is left to it.
-fn is_terminal(refs: &Refs, name: &str) -> bool {
-    return matches!(refs.lookup(name), Lookup::Missing | Lookup::Found(RefValue::Direct(_)));
+fn is_terminal(
+    refs: &Refs,
+    name: &str,
+) -> bool {
+    return matches!(
+        refs.lookup(name),
+        Lookup::Missing | Lookup::Found(RefValue::Direct(_))
+    );
 }
 
 /// Whether Git's messages are in English under these variables,
@@ -154,17 +191,34 @@ fn messages_are_english(variables: &[(OsString, OsString)]) -> bool {
 }
 
 /// `config --list -z --show-scope`.
-pub(crate) fn config_list(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
-    if !flags_are(&parsed.flags, &["--list", "-z", "--show-scope"], &[]) || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
+pub(crate) fn config_list(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
+    if !flags_are(&parsed.flags, &["--list", "-z", "--show-scope"], &[])
+        || !parsed.operands.is_empty()
+        || !parsed.specs.is_empty()
+    {
         return None;
     }
     let listed: Vec<ListedEntry> = listing(context)?;
-    return Some(Answer { stdout: listing_bytes(listed.as_slice()), stderr: Vec::new(), code: 0 });
+    return Some(Answer {
+        stdout: listing_bytes(listed.as_slice()),
+        stderr: Vec::new(),
+        code: 0,
+    });
 }
 
 /// `remote get-url <name>` for a remote with one plain URL and no rewriting rule anywhere.
-pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
-    if !parsed.flags.is_empty() || !parsed.specs.is_empty() || parsed.operands.len() != 2 || parsed.operands[0] != b"get-url" {
+pub(crate) fn remote_url(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
+    if !parsed.flags.is_empty()
+        || !parsed.specs.is_empty()
+        || parsed.operands.len() != 2
+        || parsed.operands[0] != b"get-url"
+    {
         return None;
     }
     let name: &str = std::str::from_utf8(parsed.operands[1]).ok()?;
@@ -173,7 +227,10 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
     }
     let listed: Vec<ListedEntry> = listing(context)?;
     for item in &listed {
-        if item.entry.key.starts_with("url.") && (item.entry.key.ends_with(".insteadof") || item.entry.key.ends_with(".pushinsteadof")) {
+        if item.entry.key.starts_with("url.")
+            && (item.entry.key.ends_with(".insteadof")
+                || item.entry.key.ends_with(".pushinsteadof"))
+        {
             return None;
         }
     }
@@ -188,7 +245,9 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
         // A remote that is configured nowhere, not even by a legacy `remotes/` or `branches/` file, is Git's own refusal.
         let prefix: String = format!("remote.{name}.");
         for directory in ["remotes", "branches"] {
-            if std::fs::symlink_metadata(context.layout.common_dir.join(directory).join(name)).is_ok() {
+            if std::fs::symlink_metadata(context.layout.common_dir.join(directory).join(name))
+                .is_ok()
+            {
                 return None;
             }
         }
@@ -201,7 +260,11 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
             return None;
         }
         let message: String = format!("error: No such remote '{name}'\n");
-        return Some(Answer { stdout: Vec::new(), stderr: message.into_bytes(), code: 2 });
+        return Some(Answer {
+            stdout: Vec::new(),
+            stderr: message.into_bytes(),
+            code: 2,
+        });
     }
     let [only] = urls.as_slice() else {
         return None;
@@ -212,12 +275,20 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
     }
     let mut stdout: Vec<u8> = value;
     stdout.push(b'\n');
-    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
+    return Some(Answer {
+        stdout,
+        stderr: Vec::new(),
+        code: 0,
+    });
 }
 
 /// The commit a ref name peels to,
 /// through at most a few tags.
-fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> Option<String> {
+fn peel_to_commit(
+    database: &ObjectDatabase,
+    context: &Context,
+    start: &str,
+) -> Option<String> {
     let mut current: Vec<u8> = from_hex(start.as_bytes(), context.layout.object_format)?;
     for _ in 0..PEEL_LIMIT {
         let object = database.read(current.as_slice())?;
@@ -225,7 +296,10 @@ fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> 
             ObjectKind::Commit => return Some(crate::repo_read_object::to_hex(current.as_slice())),
             ObjectKind::Tag => {
                 let first: &[u8] = object.bytes.split(is_newline).next()?;
-                current = from_hex(first.strip_prefix(b"object ")?, context.layout.object_format)?;
+                current = from_hex(
+                    first.strip_prefix(b"object ")?,
+                    context.layout.object_format,
+                )?;
             }
             ObjectKind::Tree | ObjectKind::Blob => return None,
         }
@@ -234,7 +308,10 @@ fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> 
 }
 
 /// `for-each-ref` with the one format the wrapper uses.
-pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn for_each_ref(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
     if parsed.flags != [LISTING_FORMAT] || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
         return None;
     }
@@ -256,21 +333,32 @@ pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
     for (name, value) in listing {
         let (object, symref): (String, &str) = match &value {
             RefValue::Direct(object) => (object.clone(), ""),
-            RefValue::Symbolic(target) if is_terminal(&refs, target.as_str()) => (refs.resolve(name.as_str())?, target.as_str()),
+            RefValue::Symbolic(target) if is_terminal(&refs, target.as_str()) => {
+                (refs.resolve(name.as_str())?, target.as_str())
+            }
             RefValue::Symbolic(_) => return None,
         };
         // Git skips, with a warning, a ref whose object is missing; that case is left to it.
-        if !database.contains(from_hex(object.as_bytes(), context.layout.object_format)?.as_slice()) {
+        if !database.contains(from_hex(object.as_bytes(), context.layout.object_format)?.as_slice())
+        {
             return None;
         }
         stdout.extend_from_slice(format!("{name}\0{object}\0{symref}\n").as_bytes());
     }
-    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
+    return Some(Answer {
+        stdout,
+        stderr: Vec::new(),
+        code: 0,
+    });
 }
 
 /// Whether some ref spelled `prefix` + `short` exists,
 /// which would make the short name ambiguous.
-fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
+fn shadowed(
+    refs: &Refs,
+    prefix: &str,
+    short: &str,
+) -> Option<bool> {
     let name: String = format!("{prefix}{short}");
     if !is_listable_ref_name(name.as_str()) {
         return Some(false);
@@ -283,7 +371,11 @@ fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
 }
 
 /// The tracking ref a fetch refspec maps `merge` to.
-pub(crate) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
+pub(crate) fn tracking_ref(
+    listed: &[ListedEntry],
+    remote: &str,
+    merge: &str,
+) -> Option<String> {
     let key: String = format!("remote.{remote}.fetch");
     for item in listed {
         if item.entry.key != key {
@@ -325,9 +417,16 @@ fn upstream(context: &Context) -> Option<Answer> {
     // More than one entry is a multi-valued setting whose choice Git makes; the reader declines it.
     let (remote_value, merge_value) = (remotes.as_slice(), merges.as_slice());
     let ([Some(remote)], [Some(merge)]) = (remote_value, merge_value) else {
-        if remote_value.is_empty() && merge_value.is_empty() && messages_are_english(context.variables.as_slice()) {
+        if remote_value.is_empty()
+            && merge_value.is_empty()
+            && messages_are_english(context.variables.as_slice())
+        {
             let message: String = format!("fatal: no upstream configured for branch '{branch}'\n");
-            return Some(Answer { stdout: Vec::new(), stderr: message.into_bytes(), code: 128 });
+            return Some(Answer {
+                stdout: Vec::new(),
+                stderr: message.into_bytes(),
+                code: 128,
+            });
         }
         return None;
     };
@@ -352,32 +451,57 @@ fn upstream(context: &Context) -> Option<Answer> {
     if shadowed(&refs, "refs/remotes/", &format!("{short}/HEAD"))? {
         return None;
     }
-    return Some(Answer { stdout: format!("{short}\n").into_bytes(), stderr: Vec::new(), code: 0 });
+    return Some(Answer {
+        stdout: format!("{short}\n").into_bytes(),
+        stderr: Vec::new(),
+        code: 0,
+    });
 }
 
 /// `symbolic-ref --quiet HEAD`:
 /// the branch `HEAD` names,
 /// or a silent failure for a detached `HEAD`.
-pub(crate) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
-    if !flags_are(&parsed.flags, &["--quiet"], &[]) || parsed.operands != [b"HEAD".as_slice()] || !parsed.specs.is_empty() {
+pub(crate) fn symbolic_ref(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
+    if !flags_are(&parsed.flags, &["--quiet"], &[])
+        || parsed.operands != [b"HEAD".as_slice()]
+        || !parsed.specs.is_empty()
+    {
         return None;
     }
     let refs: Refs = shared_refs(context)?;
     return match refs.lookup_head(context.layout.git_dir.as_path())? {
         // Git follows a chain of symbolic refs and prints the last; a target that is symbolic is left to it.
         RefValue::Symbolic(target) if !is_terminal(&refs, target.as_str()) => None,
-        RefValue::Symbolic(target) => Some(Answer { stdout: format!("{target}\n").into_bytes(), stderr: Vec::new(), code: 0 }),
-        RefValue::Direct(_) => Some(Answer { stdout: Vec::new(), stderr: Vec::new(), code: 1 }),
+        RefValue::Symbolic(target) => Some(Answer {
+            stdout: format!("{target}\n").into_bytes(),
+            stderr: Vec::new(),
+            code: 0,
+        }),
+        RefValue::Direct(_) => Some(Answer {
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            code: 1,
+        }),
     };
 }
 
 /// `rev-parse --verify --quiet <ref>^{commit}` and the upstream query.
-pub(crate) fn rev_parse(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn rev_parse(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
     if !parsed.specs.is_empty() || parsed.operands.len() != 1 {
         return None;
     }
     if parsed.operands[0] == b"@{upstream}" {
-        if !flags_are(&parsed.flags, &["--abbrev-ref", "--symbolic-full-name"], &[]) {
+        if !flags_are(
+            &parsed.flags,
+            &["--abbrev-ref", "--symbolic-full-name"],
+            &[],
+        ) {
             return None;
         }
         return upstream(context);
@@ -385,12 +509,18 @@ pub(crate) fn rev_parse(context: &Context, parsed: &Parsed<'_>) -> Option<Answer
     if !flags_are(&parsed.flags, &["--verify", "--quiet"], &[]) {
         return None;
     }
-    let name: &str = std::str::from_utf8(parsed.operands[0]).ok()?.strip_suffix("^{commit}")?;
+    let name: &str = std::str::from_utf8(parsed.operands[0])
+        .ok()?
+        .strip_suffix("^{commit}")?;
     let refs: Refs = shared_refs(context)?;
     let object: String = refs.resolve(name)?;
     let database: ObjectDatabase = context.database()?;
     let commit: String = peel_to_commit(&database, context, object.as_str())?;
-    return Some(Answer { stdout: format!("{commit}\n").into_bytes(), stderr: Vec::new(), code: 0 });
+    return Some(Answer {
+        stdout: format!("{commit}\n").into_bytes(),
+        stderr: Vec::new(),
+        code: 0,
+    });
 }
 
 #[cfg(test)]

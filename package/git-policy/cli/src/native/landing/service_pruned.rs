@@ -44,15 +44,33 @@ use crate::diagnostic_log::warn;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_events::PolicyEvent;
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{ObjectKind, from_hex, name_length};
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+    name_length,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{MODE_GITLINK, is_tree_mode, parse_tree};
-use crate::service_protocol::{Change, CommitRequest};
+use crate::repo_read_tree::{
+    MODE_GITLINK,
+    is_tree_mode,
+    parse_tree,
+};
+use crate::service_protocol::{
+    Change,
+    CommitRequest,
+};
 use crate::transaction_git::GitContext;
-use crate::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase};
+use crate::transaction_phase::{
+    Phase,
+    PhaseMarkerError,
+    reach_transaction_phase,
+};
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The layout of the captured invocation a request was prepared from.
 use crate::capture_invocation::InvocationLayout;
@@ -170,7 +188,12 @@ struct ClosureWalk {
 /// ```ts
 /// walkTrees(roots, { shared: true, budget }).some((entry) => !objectStore.has(entry.id))
 /// ```
-fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat, budget: usize) -> ClosureWalk {
+fn walk_tree_closures(
+    database: &ObjectDatabase,
+    roots: &[&str],
+    format: ObjectFormat,
+    budget: usize,
+) -> ClosureWalk {
     // A root that is not an object name of the repository's format is left out.
     let mut pending: Vec<Vec<u8>> = Vec::new();
     for root in roots {
@@ -185,21 +208,32 @@ fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectF
             continue;
         }
         if examined >= budget {
-            return ClosureWalk { end: ClosureEnd::OutOfBudget, examined };
+            return ClosureWalk {
+                end: ClosureEnd::OutOfBudget,
+                examined,
+            };
         }
         examined += 1;
         let Some(object) = database.read(name.as_slice()) else {
             if database.contains(name.as_slice()) {
                 continue;
             }
-            return ClosureWalk { end: ClosureEnd::Missing, examined };
+            return ClosureWalk {
+                end: ClosureEnd::Missing,
+                examined,
+            };
         };
         if object.kind != ObjectKind::Tree {
             continue;
         }
-        let Some(entries) = parse_tree(object.bytes.as_slice(), name_length(format)) else { continue };
+        let Some(entries) = parse_tree(object.bytes.as_slice(), name_length(format)) else {
+            continue;
+        };
         if entries.len() > budget - examined {
-            return ClosureWalk { end: ClosureEnd::OutOfBudget, examined };
+            return ClosureWalk {
+                end: ClosureEnd::OutOfBudget,
+                examined,
+            };
         }
         examined += entries.len();
         for entry in entries {
@@ -209,20 +243,35 @@ fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectF
             if is_tree_mode(entry.mode) {
                 pending.push(entry.id);
             } else if visited.insert(entry.id.clone()) && !database.contains(entry.id.as_slice()) {
-                return ClosureWalk { end: ClosureEnd::Missing, examined };
+                return ClosureWalk {
+                    end: ClosureEnd::Missing,
+                    examined,
+                };
             }
         }
     }
-    return ClosureWalk { end: ClosureEnd::Intact, examined };
+    return ClosureWalk {
+        end: ClosureEnd::Intact,
+        examined,
+    };
 }
 
 /// Whether the walk found a loss;
 /// an exhausted budget is logged and counts as "not known",
 /// which is `false`.
-fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat) -> bool {
+fn tree_closures_missing(
+    database: &ObjectDatabase,
+    roots: &[&str],
+    format: ObjectFormat,
+) -> bool {
     let walk: ClosureWalk = walk_tree_closures(database, roots, format, CLOSURE_ENTRY_BUDGET);
     if walk.end == ClosureEnd::OutOfBudget {
-        warn(TAG, &format!("the trees of the batch hold more than {CLOSURE_ENTRY_BUDGET} entries; their objects are not checked here and are left to Git"));
+        warn(
+            TAG,
+            &format!(
+                "the trees of the batch hold more than {CLOSURE_ENTRY_BUDGET} entries; their objects are not checked here and are left to Git"
+            ),
+        );
     }
     return walk.end == ClosureEnd::Missing;
 }
@@ -246,16 +295,40 @@ fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: Obje
 /// ```ts
 /// namesOf(request).some((name) => !objectStore.has(name))
 /// ```
-pub fn prepared_content_missing(git: &GitContext, repository: &Path, common_dir: &Path, objects_dir: &Path, object_format: &str, request: &CommitRequest) -> bool {
-    let format: ObjectFormat = if object_format == ObjectFormat::Sha256.name() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+pub fn prepared_content_missing(
+    git: &GitContext,
+    repository: &Path,
+    common_dir: &Path,
+    objects_dir: &Path,
+    object_format: &str,
+    request: &CommitRequest,
+) -> bool {
+    let format: ObjectFormat = if object_format == ObjectFormat::Sha256.name() {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let Some(database) = ObjectDatabase::open(common_dir, Some(objects_dir), format) else {
-        let named: Vec<&str> = request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()).collect();
+        let named: Vec<&str> = request
+            .changes
+            .iter()
+            .filter_map(blob_of_change)
+            .chain(request.tree.as_deref())
+            .collect();
         // A question Git could not be asked says nothing about the content, so it is not an answer here.
-        if crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, named.as_slice()) == Some(true) {
+        if crate::service_object_questions_left_to_git::objects_missing(
+            git,
+            repository,
+            common_dir,
+            named.as_slice(),
+        ) == Some(true)
+        {
             return true;
         }
         return match request.commit.as_deref() {
-            Some(commit) => crate::service_object_questions_left_to_git::object_missing(git, repository, commit),
+            Some(commit) => {
+                crate::service_object_questions_left_to_git::object_missing(git, repository, commit)
+            }
             None => false,
         };
     };
@@ -289,7 +362,12 @@ pub fn prepared_content_missing(git: &GitContext, repository: &Path, common_dir:
 /// ```ts
 /// if (theObjectsItNamesAreGone(git, repository, request, layout)) fail(CONTENT_PRUNED);
 /// ```
-pub(crate) fn the_objects_it_names_are_gone(git: &GitContext, repository: &Path, request: &CommitRequest, layout: &InvocationLayout) -> bool {
+pub(crate) fn the_objects_it_names_are_gone(
+    git: &GitContext,
+    repository: &Path,
+    request: &CommitRequest,
+    layout: &InvocationLayout,
+) -> bool {
     return prepared_content_missing(
         git,
         repository,
@@ -325,7 +403,10 @@ fn blob_of_change(change: &Change) -> Option<&str> {
 /// ```ts
 /// const isLoose = (objects: string, name: string) => name.length > 2 && existsSync(join(objects, name.slice(0, 2), name.slice(2)))
 /// ```
-fn is_loose(objects: &std::path::Path, name: &str) -> bool {
+fn is_loose(
+    objects: &std::path::Path,
+    name: &str,
+) -> bool {
     return name.len() > 2 && objects.join(&name[..2]).join(&name[2..]).is_file();
 }
 
@@ -349,7 +430,12 @@ fn is_loose(objects: &std::path::Path, name: &str) -> bool {
 /// ```ts
 /// requests.flatMap(namesOf).some((name) => !store.has(name))
 /// ```
-pub fn batch_content_missing(git: &GitContext, repository: &Path, common_dir: &Path, requests: &[&CommitRequest]) -> bool {
+pub fn batch_content_missing(
+    git: &GitContext,
+    repository: &Path,
+    common_dir: &Path,
+    requests: &[&CommitRequest],
+) -> bool {
     let objects: std::path::PathBuf = common_dir.join("objects");
     let mut absent: Vec<&str> = Vec::new();
     // The commits are asked apart from the objects: walking a commit walks its history, and presence of the commit
@@ -358,7 +444,12 @@ pub fn batch_content_missing(git: &GitContext, repository: &Path, common_dir: &P
     // An embedded tree is walked whether or not its own object is loose, so a request with one always needs the walk.
     let mut trees: Vec<&str> = Vec::new();
     for request in requests {
-        for name in request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()) {
+        for name in request
+            .changes
+            .iter()
+            .filter_map(blob_of_change)
+            .chain(request.tree.as_deref())
+        {
             if !is_loose(objects.as_path(), name) {
                 absent.push(name);
             }
@@ -372,15 +463,35 @@ pub fn batch_content_missing(git: &GitContext, repository: &Path, common_dir: &P
             trees.push(tree);
         }
     }
-    let Some(sample) = absent.first().or(commits.first()).or(trees.first()) else { return false };
-    let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let Some(sample) = absent.first().or(commits.first()).or(trees.first()) else {
+        return false;
+    };
+    let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
         // A declined reader: Git answers both questions, presence and what the trees hold.
         // Each question is asked even when another could not be: a start that failed says nothing about the content,
         //  and the caller's old answer is only kept when no question answered.
-        return crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, absent.as_slice()) == Some(true)
-            || crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, trees.as_slice()) == Some(true)
-            || crate::service_object_questions_left_to_git::built_commits_missing(git, repository, commits.as_slice());
+        return crate::service_object_questions_left_to_git::objects_missing(
+            git,
+            repository,
+            common_dir,
+            absent.as_slice(),
+        ) == Some(true)
+            || crate::service_object_questions_left_to_git::objects_missing(
+                git,
+                repository,
+                common_dir,
+                trees.as_slice(),
+            ) == Some(true)
+            || crate::service_object_questions_left_to_git::built_commits_missing(
+                git,
+                repository,
+                commits.as_slice(),
+            );
     };
     for name in &absent {
         if let Some(bytes) = from_hex(name.as_bytes(), format)

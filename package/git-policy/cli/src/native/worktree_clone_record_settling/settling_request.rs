@@ -25,7 +25,11 @@
 //! ```
 
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
-use crate::worktree_clone_record_settling::settling_words::{CONFIRM_GUID_FLAG, CONFIRM_REMOVAL_FLAG, carries_a_placeholder};
+use crate::worktree_clone_record_settling::settling_words::{
+    CONFIRM_GUID_FLAG,
+    CONFIRM_REMOVAL_FLAG,
+    carries_a_placeholder,
+};
 use std::ffi::OsString;
 
 /// The separator that would end this command's operands,
@@ -67,7 +71,12 @@ pub struct SettlingRequest {
 /// ```
 fn as_text(argument: &OsString) -> Result<String, SettlingStop> {
     return argument.to_str().map(String::from).ok_or_else(|| {
-        return SettlingStop::Usage { said: format!("one argument `{}` is not text this command can read", argument.to_string_lossy()) };
+        return SettlingStop::Usage {
+            said: format!(
+                "one argument `{}` is not text this command can read",
+                argument.to_string_lossy()
+            ),
+        };
     });
 }
 
@@ -84,13 +93,20 @@ fn as_text(argument: &OsString) -> Result<String, SettlingStop> {
 /// ```
 fn a_slot_name(value: String) -> Result<String, SettlingStop> {
     if value.is_empty() {
-        return Err(SettlingStop::Usage { said: String::from("the slot names no characters") });
+        return Err(SettlingStop::Usage {
+            said: String::from("the slot names no characters"),
+        });
     }
     if value.contains('/') {
-        return Err(SettlingStop::Usage { said: format!("the slot `{value}` holds a `/`, and a slot is one folder name") });
+        return Err(SettlingStop::Usage {
+            said: format!("the slot `{value}` holds a `/`, and a slot is one folder name"),
+        });
     }
     if carries_a_placeholder(value.as_str()) {
-        return Err(SettlingStop::PlaceholderLeft { flag: String::from("the slot"), value });
+        return Err(SettlingStop::PlaceholderLeft {
+            flag: String::from("the slot"),
+            value,
+        });
     }
     return Ok(value);
 }
@@ -119,47 +135,76 @@ pub fn parse_settling_arguments(arguments: &[OsString]) -> Result<SettlingReques
     while let Some(argument) = rest.next() {
         let text: String = as_text(argument)?;
         if text == SEPARATOR {
-            return Err(SettlingStop::Usage { said: String::from("a `--` separator has nothing after it in this command") });
+            return Err(SettlingStop::Usage {
+                said: String::from("a `--` separator has nothing after it in this command"),
+            });
         }
         if text != CONFIRM_REMOVAL_FLAG && text != CONFIRM_GUID_FLAG {
             if text.starts_with("--") {
-                return Err(SettlingStop::Usage { said: format!("`{text}` is no option of this command") });
+                return Err(SettlingStop::Usage {
+                    said: format!("`{text}` is no option of this command"),
+                });
             }
             if slot.is_some() {
-                return Err(SettlingStop::Usage { said: format!("`{text}` is a second slot, and the command names one") });
+                return Err(SettlingStop::Usage {
+                    said: format!("`{text}` is a second slot, and the command names one"),
+                });
             }
             slot = Some(a_slot_name(text)?);
             continue;
         }
         let Some(value) = rest.next() else {
-            return Err(SettlingStop::Usage { said: format!("`{text}` is the last argument and carries no value") });
+            return Err(SettlingStop::Usage {
+                said: format!("`{text}` is the last argument and carries no value"),
+            });
         };
         let typed: String = as_text(value)?;
         if text == CONFIRM_REMOVAL_FLAG {
             if confirmed.is_some() {
-                return Err(SettlingStop::Usage { said: format!("`{CONFIRM_REMOVAL_FLAG}` stands twice") });
+                return Err(SettlingStop::Usage {
+                    said: format!("`{CONFIRM_REMOVAL_FLAG}` stands twice"),
+                });
             }
             confirmed = Some(a_slot_name(typed)?);
         } else {
             if digits.is_some() {
-                return Err(SettlingStop::Usage { said: format!("`{CONFIRM_GUID_FLAG}` stands twice") });
+                return Err(SettlingStop::Usage {
+                    said: format!("`{CONFIRM_GUID_FLAG}` stands twice"),
+                });
             }
             if carries_a_placeholder(typed.as_str()) {
-                return Err(SettlingStop::PlaceholderLeft { flag: String::from(CONFIRM_GUID_FLAG), value: typed });
+                return Err(SettlingStop::PlaceholderLeft {
+                    flag: String::from(CONFIRM_GUID_FLAG),
+                    value: typed,
+                });
             }
             if typed.is_empty() {
-                return Err(SettlingStop::Usage { said: format!("`{CONFIRM_GUID_FLAG}` carries no digits") });
+                return Err(SettlingStop::Usage {
+                    said: format!("`{CONFIRM_GUID_FLAG}` carries no digits"),
+                });
             }
             digits = Some(typed);
         }
     }
-    let (Some(given_slot), Some(given_confirmed), Some(given_digits)) = (slot, confirmed, digits) else {
-        return Err(SettlingStop::Usage { said: String::from("the command needs a slot, `--confirm-removal-of` and `--confirm-clone-guid`") });
+    let (Some(given_slot), Some(given_confirmed), Some(given_digits)) = (slot, confirmed, digits)
+    else {
+        return Err(SettlingStop::Usage {
+            said: String::from(
+                "the command needs a slot, `--confirm-removal-of` and `--confirm-clone-guid`",
+            ),
+        });
     };
     if given_slot != given_confirmed {
-        return Err(SettlingStop::TheSlotIsNamedTwice { asked: given_slot, confirmed: given_confirmed });
+        return Err(SettlingStop::TheSlotIsNamedTwice {
+            asked: given_slot,
+            confirmed: given_confirmed,
+        });
     }
-    return Ok(SettlingRequest { slot: given_slot, confirmed_slot: given_confirmed, digits: given_digits });
+    return Ok(SettlingRequest {
+        slot: given_slot,
+        confirmed_slot: given_confirmed,
+        digits: given_digits,
+    });
 }
 
 /// Controls stay out of the release executable.

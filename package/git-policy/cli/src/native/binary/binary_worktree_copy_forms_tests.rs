@@ -24,8 +24,18 @@
 //! expect(run(wrappedGit, ['worktree', 'add', '--det', '../one']).stderr).toMatch(/^monochromatic-git-policy-cli: copied /);
 //! ```
 
-use super::support::{Fixture, Observed, fixture, remove, run_wrapped, stderr_of};
-use super::worktree_copy::{needle, repository_with_rules};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    remove,
+    run_wrapped,
+    stderr_of,
+};
+use super::worktree_copy::{
+    needle,
+    repository_with_rules,
+};
 use std::path::PathBuf;
 
 /// Where the generated rules file lives,
@@ -39,9 +49,17 @@ const COPIED: &str = "monochromatic-git-policy-cli: copied ";
 const USAGE_ERROR_STATUS: i32 = 129;
 
 /// An add that succeeded and copied the rules file into the worktree at `destination` (relative to the fixture root).
-fn assert_copied(fixture: &Fixture, observed: &Observed, destination: &str) {
+fn assert_copied(
+    fixture: &Fixture,
+    observed: &Observed,
+    destination: &str,
+) {
     assert_eq!(observed.code, Some(0), "{}", stderr_of(observed));
-    assert!(stderr_of(observed).starts_with(COPIED), "{}", stderr_of(observed));
+    assert!(
+        stderr_of(observed).starts_with(COPIED),
+        "{}",
+        stderr_of(observed)
+    );
     assert_eq!(
         std::fs::read(fixture.root.join(destination).join(RULES_FILE)).expect("copied rules"),
         format!("{}\n", needle()).into_bytes(),
@@ -53,11 +71,26 @@ fn assert_copied(fixture: &Fixture, observed: &Observed, destination: &str) {
 /// its own error,
 /// no worktree,
 /// no copy line.
-fn assert_rejected(fixture: &Fixture, observed: &Observed, destination: &str) {
+fn assert_rejected(
+    fixture: &Fixture,
+    observed: &Observed,
+    destination: &str,
+) {
     assert_ne!(observed.code, Some(0), "{}", stderr_of(observed));
-    assert!(!stderr_of(observed).contains(COPIED), "{}", stderr_of(observed));
-    assert!(!stderr_of(observed).contains("does not read"), "Git's error stands alone: {}", stderr_of(observed));
-    assert!(!fixture.root.join(destination).exists(), "{destination} must not exist");
+    assert!(
+        !stderr_of(observed).contains(COPIED),
+        "{}",
+        stderr_of(observed)
+    );
+    assert!(
+        !stderr_of(observed).contains("does not read"),
+        "Git's error stands alone: {}",
+        stderr_of(observed)
+    );
+    assert!(
+        !fixture.root.join(destination).exists(),
+        "{destination} must not exist"
+    );
 }
 
 /// Abbreviations Git accepts,
@@ -71,11 +104,32 @@ fn an_abbreviated_long_option_gets_the_copy() {
     let repo: PathBuf = repository_with_rules(&fixture, true);
     for (arguments, destination) in [
         (vec!["worktree", "add", "--quiet", "--det", "../one"], "one"),
-        (vec!["worktree", "add", "--quiet", "--lock", "--reas", "why", "../two"], "two"),
-        (vec!["worktree", "add", "--quiet", "--lock", "--reas=why", "../three"], "three"),
-        (vec!["worktree", "add", "--quiet", "--no-che", "../four"], "four"),
+        (
+            vec![
+                "worktree", "add", "--quiet", "--lock", "--reas", "why", "../two",
+            ],
+            "two",
+        ),
+        (
+            vec![
+                "worktree",
+                "add",
+                "--quiet",
+                "--lock",
+                "--reas=why",
+                "../three",
+            ],
+            "three",
+        ),
+        (
+            vec!["worktree", "add", "--quiet", "--no-che", "../four"],
+            "four",
+        ),
         (vec!["worktree", "add", "--qu", "--rel", "../five"], "five"),
-        (vec!["worktree", "add", "--quiet", "--orp", "-b", "six", "../six"], "six"),
+        (
+            vec!["worktree", "add", "--quiet", "--orp", "-b", "six", "../six"],
+            "six",
+        ),
     ] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert_copied(&fixture, &observed, destination);
@@ -90,7 +144,11 @@ fn an_exact_name_wins_and_a_negated_abbreviation_negates() {
     let fixture: Fixture = fixture("forms-exact");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     // `--lock` is a prefix of nothing else here, `--quiet` is exact; `--no-lo` negates the abbreviated `--lock`.
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "--lock", "--no-lo", "../one"]);
+    let observed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "--lock", "--no-lo", "../one"],
+    );
     assert_copied(&fixture, &observed, "one");
     remove(&fixture);
 }
@@ -105,11 +163,19 @@ fn an_ambiguous_prefix_is_gits_error_and_gets_no_copy() {
     for (arguments, destination) in [
         (vec!["worktree", "add", "--quiet", "--re", "../one"], "one"),
         (vec!["worktree", "add", "--quiet", "--n", "../two"], "two"),
-        (vec!["worktree", "add", "--quiet", "--no-", "../three"], "three"),
+        (
+            vec!["worktree", "add", "--quiet", "--no-", "../three"],
+            "three",
+        ),
     ] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert_rejected(&fixture, &observed, destination);
-        assert!(stderr_of(&observed).contains("ambiguous option") || observed.code == Some(USAGE_ERROR_STATUS), "{}", stderr_of(&observed));
+        assert!(
+            stderr_of(&observed).contains("ambiguous option")
+                || observed.code == Some(USAGE_ERROR_STATUS),
+            "{}",
+            stderr_of(&observed)
+        );
     }
     remove(&fixture);
 }
@@ -125,11 +191,23 @@ fn forms_git_rejects_keep_gits_error_and_get_no_copy() {
     let fixture: Fixture = fixture("forms-rejected");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     for (arguments, destination) in [
-        (vec!["worktree", "add", "--quiet", "--detach=yes", "../one"], "one"),
-        (vec!["worktree", "add", "--quiet", "--no-no-checkout", "../two"], "two"),
-        (vec!["worktree", "add", "--quiet", "--nonsense", "../three"], "three"),
+        (
+            vec!["worktree", "add", "--quiet", "--detach=yes", "../one"],
+            "one",
+        ),
+        (
+            vec!["worktree", "add", "--quiet", "--no-no-checkout", "../two"],
+            "two",
+        ),
+        (
+            vec!["worktree", "add", "--quiet", "--nonsense", "../three"],
+            "three",
+        ),
         (vec!["worktree", "--quiet", "add", "../four"], "four"),
-        (vec!["worktree", "add", "--quiet", "--reason", "../five"], "five"),
+        (
+            vec!["worktree", "add", "--quiet", "--reason", "../five"],
+            "five",
+        ),
     ] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert_rejected(&fixture, &observed, destination);
@@ -154,19 +232,48 @@ fn git_dir_and_work_tree_globals_get_the_copy() {
     let outside: Observed = run_wrapped(
         &fixture,
         fixture.root.as_path(),
-        &[git_dir_option.as_str(), work_tree_option.as_str(), "worktree", "add", "--quiet", "-b", "one", "one"],
+        &[
+            git_dir_option.as_str(),
+            work_tree_option.as_str(),
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "one",
+            "one",
+        ],
     );
     assert_copied(&fixture, &outside, "one");
     let separate: Observed = run_wrapped(
         &fixture,
         fixture.root.as_path(),
-        &["--git-dir", common.as_str(), "--work-tree", work_tree.as_str(), "worktree", "add", "--quiet", "-b", "two", "two"],
+        &[
+            "--git-dir",
+            common.as_str(),
+            "--work-tree",
+            work_tree.as_str(),
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "two",
+            "two",
+        ],
     );
     assert_copied(&fixture, &separate, "two");
     let inside: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &[git_dir_option.as_str(), work_tree_option.as_str(), "worktree", "add", "--quiet", "-b", "three", "../three"],
+        &[
+            git_dir_option.as_str(),
+            work_tree_option.as_str(),
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "three",
+            "../three",
+        ],
     );
     assert_copied(&fixture, &inside, "three");
     remove(&fixture);
@@ -183,7 +290,11 @@ fn a_refused_add_in_a_form_the_ladder_does_not_serve_leaves_no_destination() {
     let fixture: Fixture = fixture("forms-refused-leftover");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     // The repository's own branch, so `-b main` is the branch Git refuses.
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--force", "-b", "main", "../taken"]);
+    let observed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--force", "-b", "main", "../taken"],
+    );
     assert_rejected(&fixture, &observed, "taken");
     assert!(
         stderr_of(&observed).contains("a branch named 'main' already exists"),
@@ -198,9 +309,28 @@ fn a_refused_add_in_a_form_the_ladder_does_not_serve_leaves_no_destination() {
 fn a_destination_below_missing_directories_gets_the_copy() {
     let fixture: Fixture = fixture("forms-missing-parents");
     let repo: PathBuf = repository_with_rules(&fixture, true);
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "deep", ".claude/worktrees/deep"]);
+    let observed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "deep",
+            ".claude/worktrees/deep",
+        ],
+    );
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
-    assert!(stderr_of(&observed).starts_with(COPIED), "{}", stderr_of(&observed));
-    assert!(repo.join(".claude/worktrees/deep").join(RULES_FILE).exists());
+    assert!(
+        stderr_of(&observed).starts_with(COPIED),
+        "{}",
+        stderr_of(&observed)
+    );
+    assert!(
+        repo.join(".claude/worktrees/deep")
+            .join(RULES_FILE)
+            .exists()
+    );
     remove(&fixture);
 }

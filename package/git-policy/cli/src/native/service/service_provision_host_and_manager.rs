@@ -16,9 +16,20 @@
 //! interface Manager { within(wait: number): void; resetFailed(unit: string): void; start(unit: string): void; stop(unit: string): void; stopAlone(unit: string): void; activeState(unit: string): string | undefined; listen(unit: string): string[] | undefined }
 //! ```
 
-use crate::service_messages::{ClientFailure, Platform};
-use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, manager_is_absent};
-use std::path::{Path, PathBuf};
+use crate::service_messages::{
+    ClientFailure,
+    Platform,
+};
+use crate::systemd_dbus::{
+    Bus,
+    CallError,
+    EXCHANGE_WAIT,
+    manager_is_absent,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";
@@ -77,10 +88,11 @@ pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(
 /// (15 s on this host,
 /// `/etc/systemd/user.conf.d/timeout.conf`).
 /// The margin is the coordinator's pick of 2026-11-08 with the owner's veto open.
-pub const STOP_TIMEOUT_SECONDS: u64 = crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT
-    .saturating_add(crate::bounded_push::STOP_GRACE)
-    .as_secs()
-    .saturating_add(1);
+pub const STOP_TIMEOUT_SECONDS: u64 =
+    crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT
+        .saturating_add(crate::bounded_push::STOP_GRACE)
+        .as_secs()
+        .saturating_add(1);
 
 /// What the manager is asked to do,
 /// so a control can record it instead of reaching a manager.
@@ -91,22 +103,40 @@ pub const STOP_TIMEOUT_SECONDS: u64 = crate::stop_of_the_service_noticed_by_its_
 pub trait Manager {
     /// Gives the calls that follow `wait` from now in all,
     /// so that each phase of provisioning has a time of its own.
-    fn within(&mut self, wait: std::time::Duration);
+    fn within(
+        &mut self,
+        wait: std::time::Duration,
+    );
     /// Clears a unit's failed state and start-rate counter.
-    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError>;
+    fn reset_failed(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError>;
     /// Starts a unit.
-    fn start(&mut self, unit: &str) -> Result<(), CallError>;
+    fn start(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError>;
     /// Stops a unit.
-    fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError>;
     /// Stops a unit and none of the units that require it.
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError>;
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError>;
     /// The unit's state as the manager reports it (`active`,
     /// `deactivating`,
     /// `inactive`,
     /// `failed`),
     /// or nothing when the
     ///  manager holds no such unit.
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError>;
     /// What:
     ///  The addresses the manager made one unit listen at,
     /// or nothing when it holds no such unit.
@@ -116,35 +146,59 @@ pub trait Manager {
     /// so only the manager's answer says whether the address it made is the one a client looks for.
     /// A manager that cannot read the property answers nothing,
     /// and a caller then has no proof either way.
-    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError>;
+    fn listen(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError>;
 }
 
 impl Manager for Bus {
-    fn within(&mut self, wait: std::time::Duration) {
+    fn within(
+        &mut self,
+        wait: std::time::Duration,
+    ) {
         Bus::within(self, wait);
     }
 
-    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return Bus::reset_failed(self, unit);
     }
 
-    fn start(&mut self, unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return Bus::start_unit(self, unit);
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return Bus::stop_unit(self, unit);
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return Bus::stop_unit_alone(self, unit);
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         return Bus::active_state(self, unit);
     }
 
-    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         return Bus::listen_addresses(self, unit);
     }
 }
@@ -154,7 +208,12 @@ pub fn platform_without_manager() -> Platform {
     if cfg!(windows) {
         return Platform::Windows;
     }
-    if cfg!(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly")) {
+    if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )) {
         return Platform::Bsd;
     }
     if cfg!(target_os = "linux") {
@@ -176,16 +235,33 @@ pub(crate) fn refusal(error: CallError) -> ClientFailure {
     return match error {
         // A bus with no user manager on it cannot start anything, and the remedy is the one for an account without user
         //  services; its own words name a bus name, which says nothing to the person.
-        CallError::Manager { name, .. } if manager_is_absent(name.as_str()) => ClientFailure::NoActivation(platform_without_manager()),
-        CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
-        CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
+        CallError::Manager {
+            name,
+            ..
+        } if manager_is_absent(name.as_str()) => {
+            ClientFailure::NoActivation(platform_without_manager())
+        }
+        CallError::Manager {
+            text,
+            ..
+        } if text.is_empty() => {
+            ClientFailure::CouldNotStart(String::from("the service manager refused the request"))
+        }
+        CallError::Manager {
+            text,
+            ..
+        } => ClientFailure::CouldNotStart(format!(
+            "the service manager refused the request ({text})"
+        )),
         // What: An exchange that ran out says so with the time it was given, and never the platform's lack of a manager.
         // Why:  The bus is there and busy, or the manager is stopped inside itself; which of the two is not known, and neither
         //       is an account without user services. Three of the seven stopped records of 2026-11-12 met this after twenty
         //       seconds in one exchange while the person was told to turn user services on. Every call whose timeout arrives
         //       here was given the exchange's own time before it was made (`EXCHANGE_WAIT`), and a call that was given less
         //       answers its own shorter wait elsewhere (`service_provision_earlier_service_retirement.rs`).
-        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer { waited: EXCHANGE_WAIT },
+        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer {
+            waited: EXCHANGE_WAIT,
+        },
         CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => {
             ClientFailure::NoActivation(platform_without_manager())
         }

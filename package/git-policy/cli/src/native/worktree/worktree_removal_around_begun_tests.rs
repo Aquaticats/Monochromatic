@@ -16,7 +16,10 @@
 use super::*;
 use crate::fs_beneath::identity_of;
 use crate::fs_beneath::open_root;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::ffi::OsStr;
 
 /// An identity of the directory at `path`,
@@ -44,21 +47,56 @@ fn a_record_is_read_only_for_the_removal_that_wrote_it() {
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
     std::fs::create_dir_all(other.as_path()).expect("another directory");
     let id: &OsStr = OsStr::new("topic");
-    let which: WhichRemoval<'_> = WhichRemoval { id, admin: identity(common.as_path()), worktree: identity(worktree.as_path()), target: worktree.as_path() };
-    assert!(!around_begun_by(common.as_path(), which), "no record says so yet");
+    let which: WhichRemoval<'_> = WhichRemoval {
+        id,
+        admin: identity(common.as_path()),
+        worktree: identity(worktree.as_path()),
+        target: worktree.as_path(),
+    };
+    assert!(
+        !around_begun_by(common.as_path(), which),
+        "no record says so yet"
+    );
     record_around_begun(common.as_path(), which).expect("the record is written");
-    assert!(around_begun_by(common.as_path(), which), "the record names this removal");
+    assert!(
+        around_begun_by(common.as_path(), which),
+        "the record names this removal"
+    );
 
-    let another_worktree: WhichRemoval<'_> = WhichRemoval { worktree: identity(other.as_path()), ..which };
-    assert!(!around_begun_by(common.as_path(), another_worktree), "another worktree at another identity is not this one");
-    let another_registration: WhichRemoval<'_> = WhichRemoval { admin: identity(other.as_path()), ..which };
-    assert!(!around_begun_by(common.as_path(), another_registration), "a registration that is not the one it was proven against is not this one");
-    let another_path: WhichRemoval<'_> = WhichRemoval { target: other.as_path(), ..which };
-    assert!(!around_begun_by(common.as_path(), another_path), "the path the removal was given is part of it too");
+    let another_worktree: WhichRemoval<'_> = WhichRemoval {
+        worktree: identity(other.as_path()),
+        ..which
+    };
+    assert!(
+        !around_begun_by(common.as_path(), another_worktree),
+        "another worktree at another identity is not this one"
+    );
+    let another_registration: WhichRemoval<'_> = WhichRemoval {
+        admin: identity(other.as_path()),
+        ..which
+    };
+    assert!(
+        !around_begun_by(common.as_path(), another_registration),
+        "a registration that is not the one it was proven against is not this one"
+    );
+    let another_path: WhichRemoval<'_> = WhichRemoval {
+        target: other.as_path(),
+        ..which
+    };
+    assert!(
+        !around_begun_by(common.as_path(), another_path),
+        "the path the removal was given is part of it too"
+    );
 
     forget_around_begun(common.as_path(), id);
-    assert!(!around_begun_by(common.as_path(), which), "a record that is forgotten proves nothing");
-    assert!(!common.join(BEGUN_FOLDER).exists(), "and the folder goes with the last record");
+    assert!(
+        !around_begun_by(common.as_path(), which),
+        "a record that is forgotten proves nothing"
+    );
+    assert!(
+        !common.join(BEGUN_FOLDER).exists(),
+        "and the folder goes with the last record"
+    );
     remove(root.as_path());
 }
 
@@ -77,12 +115,21 @@ fn a_file_this_build_did_not_write_proves_nothing_and_is_kept() {
     std::fs::create_dir_all(common.as_path()).expect("a common Git directory");
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
     let id: &OsStr = OsStr::new("topic");
-    let which: WhichRemoval<'_> = WhichRemoval { id, admin: identity(common.as_path()), worktree: identity(worktree.as_path()), target: worktree.as_path() };
+    let which: WhichRemoval<'_> = WhichRemoval {
+        id,
+        admin: identity(common.as_path()),
+        worktree: identity(worktree.as_path()),
+        target: worktree.as_path(),
+    };
     let folder: PathBuf = common.join(BEGUN_FOLDER);
     std::fs::create_dir_all(folder.as_path()).expect("the records' folder");
     let stranger: PathBuf = folder.join(id);
-    std::fs::write(stranger.as_path(), b"another build's record\n").expect("a file of another shape");
-    assert!(!around_begun_by(common.as_path(), which), "a file this build cannot read proves nothing");
+    std::fs::write(stranger.as_path(), b"another build's record\n")
+        .expect("a file of another shape");
+    assert!(
+        !around_begun_by(common.as_path(), which),
+        "a file this build cannot read proves nothing"
+    );
     assert!(stranger.is_file(), "and it is left where it is");
     remove(root.as_path());
 }
@@ -105,11 +152,36 @@ fn a_record_of_a_registration_that_is_gone_is_dropped() {
     }
     let live: &OsStr = OsStr::new("live");
     let gone: &OsStr = OsStr::new("gone");
-    record_around_begun(common.as_path(), WhichRemoval { id: live, admin: identity(common.as_path()), worktree: identity(worktree.as_path()), target: worktree.as_path() }).expect("the record");
-    record_around_begun(common.as_path(), WhichRemoval { id: gone, admin: identity(common.as_path()), worktree: identity(other.as_path()), target: other.as_path() }).expect("the record");
-    std::fs::create_dir_all(common.join("worktrees/live")).expect("the registration that is still there");
+    record_around_begun(
+        common.as_path(),
+        WhichRemoval {
+            id: live,
+            admin: identity(common.as_path()),
+            worktree: identity(worktree.as_path()),
+            target: worktree.as_path(),
+        },
+    )
+    .expect("the record");
+    record_around_begun(
+        common.as_path(),
+        WhichRemoval {
+            id: gone,
+            admin: identity(common.as_path()),
+            worktree: identity(other.as_path()),
+            target: other.as_path(),
+        },
+    )
+    .expect("the record");
+    std::fs::create_dir_all(common.join("worktrees/live"))
+        .expect("the registration that is still there");
     prune_around_begun(common.as_path());
-    assert!(common.join(BEGUN_FOLDER).join(live).is_file(), "the registration that is still there keeps its record");
-    assert!(!common.join(BEGUN_FOLDER).join(gone).exists(), "the one that is gone does not");
+    assert!(
+        common.join(BEGUN_FOLDER).join(live).is_file(),
+        "the registration that is still there keeps its record"
+    );
+    assert!(
+        !common.join(BEGUN_FOLDER).join(gone).exists(),
+        "the one that is gone does not"
+    );
     remove(root.as_path());
 }

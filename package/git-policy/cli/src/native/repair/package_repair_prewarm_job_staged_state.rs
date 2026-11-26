@@ -16,11 +16,23 @@
 //! ```
 
 /// Import the three names and what a writing of the marker came to.
-use super::names::{TheMarkersAnswer, TheNames};
+use super::names::{
+    TheMarkersAnswer,
+    TheNames,
+};
 /// Import the names the move works in and the proof a marker is this job's own.
-use super::names::{marker_claims, marker_of, staging_of, target_of, write_marker};
+use super::names::{
+    marker_claims,
+    marker_of,
+    staging_of,
+    target_of,
+    write_marker,
+};
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What a staging step came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Staged {
@@ -50,10 +62,17 @@ pub(super) fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
     }
     let marker: PathBuf = marker_of(staging);
     if !marker_claims(marker.as_path()) {
-        return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
+        return Err(format!(
+            "{} holds what no filling of this job staged, so it is left exactly as it is found",
+            staging.display()
+        ));
     }
     let target: PathBuf = target_of(staging);
-    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker) }));
+    return Ok(Some(TheNames {
+        staging: staging.to_path_buf(),
+        target,
+        marker: Some(marker),
+    }));
 }
 
 /// What:
@@ -77,7 +96,10 @@ pub(super) fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
 ///
 /// A staging name another file or directory holds,
 /// and a state that cannot be moved.
-pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<&Path>) -> Result<Staged, String> {
+pub(crate) fn stage_the_worktrees_own_state(
+    destination: &Path,
+    git_dir: Option<&Path>,
+) -> Result<Staged, String> {
     if !destination.exists() {
         return Ok(Staged::Nothing);
     }
@@ -87,7 +109,11 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     let marker: PathBuf = marker_of(staging.as_path());
     if marker_claims(marker.as_path()) {
         // A killed add left the names it claimed; the state is already out of the worktree.
-        return Ok(if staging.exists() { Staged::Staged(staging) } else { Staged::Nothing });
+        return Ok(if staging.exists() {
+            Staged::Staged(staging)
+        } else {
+            Staged::Nothing
+        });
     }
     if staging.exists() || marker.exists() {
         return Err(format!(
@@ -101,7 +127,9 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     if let Some(directory) = git_dir
         && let Err(reason) = exclude_the_staging_names(directory)
     {
-        return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
+        return Err(format!(
+            "{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"
+        ));
     }
     match write_marker(marker.as_path())? {
         TheMarkersAnswer::WrittenByThisRun => {}
@@ -130,7 +158,11 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
 ///
 /// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
 /// because the names stand beside the build directory they take, inside the worktree.
-pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner"];
+pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = [
+    "*.monochromatic-prewarm/",
+    "*.monochromatic-prewarm.target/",
+    "*.monochromatic-prewarm.owner",
+];
 
 /// What:
 ///  Name this job's staging patterns in the repository's exclude file,
@@ -165,13 +197,24 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     }
     // The file is the person's own and Git made it when the repository was, so this appends to it and never rewrites it:
     // a kill in the middle leaves their lines whole and at most adds this job's patterns twice.
-    let opened = std::fs::OpenOptions::new().create(true).append(true).open(exclude.as_path());
+    let opened = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(exclude.as_path());
     let mut file = match opened {
         Ok(file) => file,
-        Err(error) => return Err(format!("{} could not be opened ({error})", exclude.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} could not be opened ({error})",
+                exclude.display()
+            ));
+        }
     };
     return match std::io::Write::write_all(&mut file, &text.as_bytes()[named_before..]) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("{} could not be appended to ({error})", exclude.display())),
+        Err(error) => Err(format!(
+            "{} could not be appended to ({error})",
+            exclude.display()
+        )),
     };
 }

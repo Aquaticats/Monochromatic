@@ -60,15 +60,26 @@
 //! removeIfUnheld(platform, index, scan) // open; empty and unmarked? no pid file? scan complete and empty; own descriptors == 1; same file; unlink
 //! ```
 
-use crate::index_lock_evidence::{LockMetadata, PidFile, host_pid_process, read_pid_file_evidence};
+use crate::index_lock_evidence::{
+    LockMetadata,
+    PidFile,
+    host_pid_process,
+    read_pid_file_evidence,
+};
 use crate::index_lock_holders::HolderEvidence;
 use crate::recovery_files::lock_pid_path;
+use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::marker_of_file;
 use crate::service_index_placement::Platform;
-use crate::service_index_lock::lock_path_of;
-use crate::service_index_reclaim::{open_to_judge, same_file};
+use crate::service_index_reclaim::{
+    open_to_judge,
+    same_file,
+};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the removal acted on:
 /// the lock's identity as opened,
@@ -125,7 +136,10 @@ pub(crate) const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// That matters because this count is the last thing an unheld removal decides on,
 /// and an unknown count keeps an abandoned lock where it is for ever,
 /// which on a container's overlay filesystem is every lock.
-pub(crate) fn own_descriptors_of(device: u64, inode: u64) -> usize {
+pub(crate) fn own_descriptors_of(
+    device: u64,
+    inode: u64,
+) -> usize {
     let Ok(listing) = std::fs::read_dir("/proc/self/fd") else {
         return usize::MAX;
     };
@@ -193,7 +207,11 @@ pub enum Disuse {
 /// ```ts
 /// removeIfTheOwnerIsGone(platform, index, scan) // 'removed' | 'changed' | 'kept'
 /// ```
-pub fn remove_if_the_owner_is_gone(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+pub fn remove_if_the_owner_is_gone(
+    platform: &Platform,
+    index: &Path,
+    scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+) -> Unheld {
     return remove_when(platform, index, scan, Disuse::PidFileOfAGoneProcess);
 }
 
@@ -220,7 +238,11 @@ pub fn remove_if_the_owner_is_gone(platform: &Platform, index: &Path, scan: &dyn
 /// ```ts
 /// removeIfUnheld(platform, index, scan) // 'removed' | 'changed' | 'kept'
 /// ```
-pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+pub fn remove_if_unheld(
+    platform: &Platform,
+    index: &Path,
+    scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+) -> Unheld {
     return remove_when(platform, index, scan, Disuse::NoPidFile);
 }
 
@@ -235,7 +257,12 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
 /// ```ts
 /// function removeWhen(platform, index, scan, disuse): Unheld;
 /// ```
-fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence, disuse: Disuse) -> Unheld {
+fn remove_when(
+    platform: &Platform,
+    index: &Path,
+    scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+    disuse: Disuse,
+) -> Unheld {
     if !cfg!(target_os = "linux") {
         return Unheld::Kept;
     }
@@ -252,16 +279,23 @@ fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64)
     if !opened.is_file() || opened.len() != 0 || marker_of_file(&file).is_some() {
         return Unheld::Kept;
     }
-    let identity: LockMetadata = LockMetadata { device: opened.dev(), inode: opened.ino(), ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000 };
+    let identity: LockMetadata = LockMetadata {
+        device: opened.dev(),
+        inode: opened.ino(),
+        ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000,
+    };
     // A damaged PID file, a file naming a process this table has, and (for the service) any PID file at all are evidence
     //  this removal does not act on.
-    let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(index).as_path(), host_pid_process);
+    let pid_file: PidFile =
+        read_pid_file_evidence(lock_pid_path(index).as_path(), host_pid_process);
     let disuse_proved: bool = match disuse {
         Disuse::NoPidFile => pid_file == PidFile::Absent,
         // A number this table does not have may also be a live Git's of another PID namespace; the empty lock and the
         //  complete scan that finds no holder are the rest of the proof, and only an empty lock is reached here
         //  (cross-vendor review of 2026-11-09, findings 1 and 2).
-        Disuse::PidFileOfAGoneProcess => matches!(&pid_file, PidFile::Owner(_, owner) if owner.gone()),
+        Disuse::PidFileOfAGoneProcess => {
+            matches!(&pid_file, PidFile::Owner(_, owner) if owner.gone())
+        }
     };
     if !disuse_proved {
         return Unheld::Kept;
@@ -304,7 +338,10 @@ fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64)
         Ok(false) => return Unheld::Changed,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Unheld::Changed,
         Err(error) => {
-            crate::service_error!("the index lock {} that no process holds cannot be looked at ({error}), so it is not removed", lock.display());
+            crate::service_error!(
+                "the index lock {} that no process holds cannot be looked at ({error}), so it is not removed",
+                lock.display()
+            );
             return Unheld::Kept;
         }
     }
@@ -312,14 +349,25 @@ fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64)
         (PidFile::Owner(pid, owner), Disuse::PidFileOfAGoneProcess) if owner.gone() => Some(*pid),
         _ => None,
     };
-    let proof: Proof = Proof { lock: lock.clone(), disuse, gone_pid, device: identity.device, inode: identity.inode, size: opened.len(), unreadable };
+    let proof: Proof = Proof {
+        lock: lock.clone(),
+        disuse,
+        gone_pid,
+        device: identity.device,
+        inode: identity.inode,
+        size: opened.len(),
+        unreadable,
+    };
     // The proof is journaled before the removal, so a removal that is then cut short still has its reason on record.
     crate::service_warn!("{}", journal_words(&proof));
     return match (platform.unlink)(lock.as_path()) {
         Ok(()) => Unheld::Removed(proof),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Unheld::Changed,
         Err(error) => {
-            crate::service_error!("the index lock {} that no process holds cannot be removed ({error}); remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays", lock.display());
+            crate::service_error!(
+                "the index lock {} that no process holds cannot be removed ({error}); remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
+                lock.display()
+            );
             Unheld::Kept
         }
     };
@@ -365,8 +413,12 @@ pub fn journal_words(proof: &Proof) -> String {
 fn disuse_words(proof: &Proof) -> String {
     return match (proof.disuse, proof.gone_pid) {
         (Disuse::NoPidFile, _) => String::from("there is no Git lock PID file beside it,"),
-        (Disuse::PidFileOfAGoneProcess, Some(pid)) => format!("its Git lock PID file names PID {pid}, which this process table does not have,"),
-        (Disuse::PidFileOfAGoneProcess, None) => String::from("its Git lock PID file names a process this process table does not have,"),
+        (Disuse::PidFileOfAGoneProcess, Some(pid)) => format!(
+            "its Git lock PID file names PID {pid}, which this process table does not have,"
+        ),
+        (Disuse::PidFileOfAGoneProcess, None) => {
+            String::from("its Git lock PID file names a process this process table does not have,")
+        }
     };
 }
 
@@ -406,8 +458,12 @@ pub fn told_words(proof: &Proof) -> String {
 fn told_disuse_words(proof: &Proof) -> String {
     return match (proof.disuse, proof.gone_pid) {
         (Disuse::NoPidFile, _) => String::from("no Git lock PID file stood beside it"),
-        (Disuse::PidFileOfAGoneProcess, Some(pid)) => format!("its Git lock PID file named PID {pid}, which this process table does not have"),
-        (Disuse::PidFileOfAGoneProcess, None) => String::from("its Git lock PID file named a process this table does not have"),
+        (Disuse::PidFileOfAGoneProcess, Some(pid)) => {
+            format!("its Git lock PID file named PID {pid}, which this process table does not have")
+        }
+        (Disuse::PidFileOfAGoneProcess, None) => {
+            String::from("its Git lock PID file named a process this table does not have")
+        }
     };
 }
 

@@ -13,12 +13,27 @@
 
 /// The reader,
 /// the decisions and the in-memory workspace.
-use super::{ManifestState, bumped_names, duplicate_name, read_manifest_states};
+use super::{
+    ManifestState,
+    bumped_names,
+    duplicate_name,
+    read_manifest_states,
+};
 use crate::dependent_version_content::{
-    PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
+    PlanError,
+    PolicyIncomplete,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 use crate::dependent_version_manifest::shape;
-use crate::dependent_version_test_support::{MemoryWorkspace, Read, changed, unchanged, workspace};
+use crate::dependent_version_test_support::{
+    MemoryWorkspace,
+    Read,
+    changed,
+    unchanged,
+    workspace,
+};
 
 /// Read every state of a workspace.
 fn states(memory: &mut MemoryWorkspace) -> Result<Vec<ManifestState>, PlanError> {

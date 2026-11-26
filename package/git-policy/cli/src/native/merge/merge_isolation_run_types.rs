@@ -18,10 +18,10 @@
 
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
-/// The person's own work in the paths the merge changes.
-use crate::merge_isolation_carry_parts::Capture;
 /// The resolved command.
 use crate::forwarded_command::ResolvedCommand;
+/// The person's own work in the paths the merge changes.
+use crate::merge_isolation_carry_parts::Capture;
 /// The command-line reading.
 use crate::merge_options::MergeShape;
 /// The repository shape.
@@ -178,6 +178,13 @@ pub struct Plan<'a> {
 
 /// The text a finding or failure puts on standard error,
 /// as a finished merge.
-pub fn refused(code: i32, stderr: String) -> Bail {
-    return Bail::Done(IsolatedMerge::Finished { code, stdout: String::new(), stderr });
+pub fn refused(
+    code: i32,
+    stderr: String,
+) -> Bail {
+    return Bail::Done(IsolatedMerge::Finished {
+        code,
+        stdout: String::new(),
+        stderr,
+    });
 }

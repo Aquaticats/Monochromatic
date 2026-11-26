@@ -39,10 +39,16 @@ use crate::service_messages::ClientFailure;
 /// ```
 pub fn failure_code(failure: &ClientFailure) -> &'static str {
     return match failure {
-        ClientFailure::DidNotStart { .. } => "did-not-start",
-        ClientFailure::NothingAnswered { .. } => "nothing-answered",
+        ClientFailure::DidNotStart {
+            ..
+        } => "did-not-start",
+        ClientFailure::NothingAnswered {
+            ..
+        } => "nothing-answered",
         ClientFailure::NoActivation(_) => "no-activation",
-        ClientFailure::ManagerDidNotAnswer { .. } => "manager-did-not-answer",
+        ClientFailure::ManagerDidNotAnswer {
+            ..
+        } => "manager-did-not-answer",
         ClientFailure::OtherAccount => "other-account",
         ClientFailure::MayNotHaveLanded => "may-not-have-landed",
         ClientFailure::NoCommonVersion => "no-common-version",
@@ -51,31 +57,61 @@ pub fn failure_code(failure: &ClientFailure) -> &'static str {
         ClientFailure::RepositoryReadOnly(_) => "repository-read-only",
         ClientFailure::PermissionDenied(_) => "permission-denied",
         ClientFailure::RepositoryFrozen(_) => "repository-frozen",
-        ClientFailure::BranchKeepsChanging { .. } => "branch-keeps-changing",
-        ClientFailure::BranchMoved { .. } => "branch-moved",
-        ClientFailure::ConclusionStateChanged { .. } => "conclusion-state-changed",
-        ClientFailure::BranchMovedMessageSaved { .. } => "branch-moved-message-saved",
-        ClientFailure::BranchSwitched { .. } => "branch-switched",
+        ClientFailure::BranchKeepsChanging {
+            ..
+        } => "branch-keeps-changing",
+        ClientFailure::BranchMoved {
+            ..
+        } => "branch-moved",
+        ClientFailure::ConclusionStateChanged {
+            ..
+        } => "conclusion-state-changed",
+        ClientFailure::BranchMovedMessageSaved {
+            ..
+        } => "branch-moved-message-saved",
+        ClientFailure::BranchSwitched {
+            ..
+        } => "branch-switched",
         ClientFailure::ServiceSilent => "service-silent",
         // The request never reached the service as one line, which is a different end from a service that greeted and stopped:
         //  the one says whether it took any byte at all, because a request it took none of was never made and one it took part
         //  of may still be read.
-        ClientFailure::ServiceNotReading { took_nothing: true } => "service-took-nothing",
-        ClientFailure::ServiceNotReading { took_nothing: false } => "service-stopped-reading",
-        ClientFailure::ServiceSilentAfterPreparing { .. } => "service-silent-after-preparing",
-        ClientFailure::StillWithService { .. } => "still-with-service",
-        ClientFailure::WithdrawalUnconfirmed { .. } => "withdrawal-unconfirmed",
-        ClientFailure::Interrupted { .. } => "interrupted",
-        ClientFailure::InterruptedNotKnown { .. } => "interrupted-not-known",
+        ClientFailure::ServiceNotReading {
+            took_nothing: true,
+        } => "service-took-nothing",
+        ClientFailure::ServiceNotReading {
+            took_nothing: false,
+        } => "service-stopped-reading",
+        ClientFailure::ServiceSilentAfterPreparing {
+            ..
+        } => "service-silent-after-preparing",
+        ClientFailure::StillWithService {
+            ..
+        } => "still-with-service",
+        ClientFailure::WithdrawalUnconfirmed {
+            ..
+        } => "withdrawal-unconfirmed",
+        ClientFailure::Interrupted {
+            ..
+        } => "interrupted",
+        ClientFailure::InterruptedNotKnown {
+            ..
+        } => "interrupted-not-known",
         ClientFailure::StepTooSlow => "step-too-slow",
         ClientFailure::Refused => "refused",
         ClientFailure::IndexInUse(_) => "index-in-use",
-        ClientFailure::ReferenceLocked { .. } => "reference-locked",
+        ClientFailure::ReferenceLocked {
+            ..
+        } => "reference-locked",
         ClientFailure::Unavailable => "unavailable",
         ClientFailure::ProgramMissing(_) => "program-missing",
         ClientFailure::CouldNotStart(_) => "could-not-start",
-        ClientFailure::SocketPathTooLong { .. } => "socket-path-too-long",
-        ClientFailure::ServiceElsewhere { .. } => "service-elsewhere",
+        ClientFailure::SocketPathTooLong {
+            ..
+        } => "socket-path-too-long",
+        ClientFailure::ServiceElsewhere {
+            ..
+        } => "service-elsewhere",
         ClientFailure::UnitInTheWay(_) => "unit-in-the-way",
         ClientFailure::WorkNotHandedOver(_) => "work-not-handed-over",
         ClientFailure::ContentPruned => "content-pruned",

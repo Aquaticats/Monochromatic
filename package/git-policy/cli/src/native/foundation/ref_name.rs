@@ -20,9 +20,18 @@
 //! // const refName = { bytes: Buffer.from(printed) }; refName.toString() /* lossy */; shellQuote(refName.bytes)
 //! ```
 
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
-use std::ffi::{OsStr, OsString};
-use std::fmt::{Display, Formatter};
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::fmt::{
+    Display,
+    Formatter,
+};
 
 /// What:
 ///  Whether one byte ends a line.
@@ -77,8 +86,13 @@ impl RefName {
     /// const refNameFromGit = (printed: Uint8Array) => ({ os: printed.subarray(0, printed.lastIndexOf(10)) })
     /// ```
     pub fn from_git_output(printed: &[u8]) -> Self {
-        let end: usize = printed.iter().rposition(is_a_line_feed).unwrap_or(printed.len());
-        return Self { os: os_from_path_bytes(&printed[..end]) };
+        let end: usize = printed
+            .iter()
+            .rposition(is_a_line_feed)
+            .unwrap_or(printed.len());
+        return Self {
+            os: os_from_path_bytes(&printed[..end]),
+        };
     }
 
     /// What:
@@ -93,7 +107,9 @@ impl RefName {
     /// const refNameOf = (text: string) => ({ os: text })
     /// ```
     pub fn from_text(text: &str) -> Self {
-        return Self { os: OsString::from(text) };
+        return Self {
+            os: OsString::from(text),
+        };
     }
 
     /// What:
@@ -109,7 +125,9 @@ impl RefName {
     /// const refNameOfHex = (hex: string) => ({ os: Buffer.from(hex, 'hex') })
     /// ```
     pub fn from_hex(hex: &str) -> Option<Self> {
-        return Some(Self { os: os_from_path_bytes(crate::path_bytes_in_records::bytes_of_hex(hex)?.as_slice()) });
+        return Some(Self {
+            os: os_from_path_bytes(crate::path_bytes_in_records::bytes_of_hex(hex)?.as_slice()),
+        });
     }
 
     /// What:
@@ -199,8 +217,12 @@ impl RefName {
     /// ```
     pub fn short(&self) -> Self {
         let bytes: &[u8] = self.bytes();
-        let Some(rest) = bytes.strip_prefix(HEADS_PREFIX.as_bytes()) else { return self.clone(); };
-        return Self { os: os_from_path_bytes(rest) };
+        let Some(rest) = bytes.strip_prefix(HEADS_PREFIX.as_bytes()) else {
+            return self.clone();
+        };
+        return Self {
+            os: os_from_path_bytes(rest),
+        };
     }
 
     /// What:
@@ -231,7 +253,12 @@ impl RefName {
     /// const words = ['rev-parse', '--verify', '--quiet', refName.os]
     /// ```
     pub fn value_question(&self) -> [OsString; 4] {
-        return [OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), self.os.clone()];
+        return [
+            OsString::from("rev-parse"),
+            OsString::from("--verify"),
+            OsString::from("--quiet"),
+            self.os.clone(),
+        ];
     }
 
     /// What:
@@ -254,7 +281,10 @@ impl RefName {
 /// where a name that is not text is shown with the replacement characters of its bytes.
 impl Display for RefName {
     /// Writes the name's readable text.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.os.to_string_lossy().as_ref());
     }
 }

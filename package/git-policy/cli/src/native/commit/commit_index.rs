@@ -27,42 +27,76 @@
 //! await initializeCommitIndex({ workspace, gitPath, cwd, mode, pathspecs, baseRevision, ... });
 //! ```
 
-/// One required Git start,
-/// its request builder and the failure text.
-use crate::private_index_request::{CaptureIndexes, indexed_request};
-/// Staged additions carried into the explicit-path index,
-/// and the pathspec-file reader.
-use crate::commit_staged_additions::{
-    StagedAddition, carry_additions, pathspecs_of_file, staged_additions_selected,
+/// The note of how each build was made,
+/// which the commit's timing record takes.
+use crate::commit_index_builds::{
+    IndexBuildKind,
+    note_index_build,
 };
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
-/// Commit selection mode of the transaction.
-use crate::transaction_journal::TransactionMode;
 /// The one read of the real index every private copy of this commit is written from,
 /// kept in a file of its own,
 /// with the failure a read or a copy reports.
 pub use crate::commit_index_bytes::copy_index_with_timestamps;
-use crate::commit_index_bytes::{IndexBytes, copy_index_failure};
-/// Why the private staging of the selection ended,
-/// so a pathspec the caller named and Git refused is reported as the caller's input error.
-use crate::commit_selection_staging::SelectionStagingFailure;
+use crate::commit_index_bytes::{
+    IndexBytes,
+    copy_index_failure,
+};
 /// How an index's bytes may seed an explicit-path commit,
 /// and the copy a reset to a tree follows.
-use crate::commit_index_copying::{PrivateIndexSeed, seed_of_index_bytes, write_index_for_reset};
-/// The note of how each build was made,
-/// which the commit's timing record takes.
-use crate::commit_index_builds::{IndexBuildKind, note_index_build};
+use crate::commit_index_copying::{
+    PrivateIndexSeed,
+    seed_of_index_bytes,
+    write_index_for_reset,
+};
+pub use crate::commit_index_selection::{
+    IndexSelection,
+    prepare_interactive_selection,
+};
 /// The stat-data refresh that keeps the scratch commit inside its ceiling,
 /// and when it is asked for.
-use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale};
+use crate::commit_index_stat_refresh::{
+    StatRefresh,
+    refresh_stat_data_when_stale,
+};
 /// Which paths this commit stages from the worktree,
 /// so their recorded stat data cannot cost the scratch commit a read.
 use crate::commit_index_stat_staleness::WorktreeStaging;
-pub use crate::commit_index_selection::{IndexSelection, prepare_interactive_selection};
+/// Why the private staging of the selection ended,
+/// so a pathspec the caller named and Git refused is reported as the caller's input error.
+use crate::commit_selection_staging::SelectionStagingFailure;
+/// Staged additions carried into the explicit-path index,
+/// and the pathspec-file reader.
+use crate::commit_staged_additions::{
+    StagedAddition,
+    carry_additions,
+    pathspecs_of_file,
+    staged_additions_selected,
+};
+/// One required Git start,
+/// its request builder and the failure text.
+use crate::private_index_request::{
+    CaptureIndexes,
+    indexed_request,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
+/// Commit selection mode of the transaction.
+use crate::transaction_journal::TransactionMode;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Name of the single-consumption stdin snapshot inside the transaction directory.
 pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
@@ -181,7 +215,13 @@ pub fn initialize_commit_index(
     let source: PathBuf = if real_index_present {
         real_index.to_path_buf()
     } else {
-        private_git(context, cwd, indexes.captured_index.as_path(), indexes.object_directory.as_path(), &EMPTY_INDEX)?;
+        private_git(
+            context,
+            cwd,
+            indexes.captured_index.as_path(),
+            indexes.object_directory.as_path(),
+            &EMPTY_INDEX,
+        )?;
         indexes.captured_index.clone()
     };
     // What:
@@ -199,7 +239,15 @@ pub fn initialize_commit_index(
         TransactionMode::ExplicitPath => WorktreeStaging::Named(selection.pathspecs),
         TransactionMode::Index => WorktreeStaging::None,
     };
-    stage_into_the_private_index(context, cwd, worktree_root, source.as_path(), real_index_present, indexes, selection)?;
+    stage_into_the_private_index(
+        context,
+        cwd,
+        worktree_root,
+        source.as_path(),
+        real_index_present,
+        indexes,
+        selection,
+    )?;
     // What:
     //  The refresh of the private commit index's stat data,
     //  which is the index the scratch commit reads.
@@ -218,7 +266,8 @@ pub fn initialize_commit_index(
     // ```ts
     // const refresh = statRefreshIfStale({ context, cwd, index: commitIndex, staging });
     // ```
-    let _outcome: StatRefresh = refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), staging);
+    let _outcome: StatRefresh =
+        refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), staging);
     return Ok(());
 }
 
@@ -271,9 +320,13 @@ fn stage_into_the_private_index(
     // const index = await IndexBytes.read(source);
     // ```
     let index: IndexBytes = IndexBytes::read(source).map_err(copy_index_failure)?;
-    index.write_copy(indexes.captured_index.as_path()).map_err(copy_index_failure)?;
+    index
+        .write_copy(indexes.captured_index.as_path())
+        .map_err(copy_index_failure)?;
     if selection.mode == TransactionMode::Index {
-        index.write_copy(indexes.commit_index.as_path()).map_err(copy_index_failure)?;
+        index
+            .write_copy(indexes.commit_index.as_path())
+            .map_err(copy_index_failure)?;
         // The commit's index is a copy of the real one, so its entries carry the stat data a real index had to keep.
         note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
@@ -328,8 +381,16 @@ fn stage_into_the_private_index(
         // An index holding an intent-to-add entry never takes it: the reset has work to do at those paths, and the
         // additions they name have to be carried, or a force-added ignored file the selection names stays out of the
         // commit where native Git records it (`commit_index_copying.rs`).
-        if seed == PrivateIndexSeed::Copy && index_equals_base(context, cwd, indexes, selection.base_revision) {
-            return crate::commit_selection_staging::add_selected_paths(context, cwd, worktree_root, indexes, selection);
+        if seed == PrivateIndexSeed::Copy
+            && index_equals_base(context, cwd, indexes, selection.base_revision)
+        {
+            return crate::commit_selection_staging::add_selected_paths(
+                context,
+                cwd,
+                worktree_root,
+                indexes,
+                selection,
+            );
         }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
         if seed != PrivateIndexSeed::Base {
@@ -345,7 +406,13 @@ fn stage_into_the_private_index(
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
-    return crate::commit_selection_staging::add_selected_paths(context, cwd, worktree_root, indexes, selection);
+    return crate::commit_selection_staging::add_selected_paths(
+        context,
+        cwd,
+        worktree_root,
+        indexes,
+        selection,
+    );
 }
 
 /// What:
@@ -391,7 +458,13 @@ fn seed_of_the_read_index(read: &IndexBytes) -> PrivateIndexSeed {
 /// ```ts
 /// const index = await readIndexOnce(realIndex); await git(['read-tree', '--reset', tree], { index: commitIndex });
 /// ```
-pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
+pub fn initialize_retry_index(
+    context: &GitContext,
+    cwd: &Path,
+    real_index: &Path,
+    indexes: &CaptureIndexes,
+    tree: &str,
+) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
     // What:
     //  The one read of the real index a rebuild's seed and copy are made from,
@@ -409,11 +482,15 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // const index = await IndexBytes.read(realIndex).catch(() => undefined);
     // ```
     let index: Option<IndexBytes> = IndexBytes::read(real_index).ok();
-    let seed: PrivateIndexSeed = index.as_ref().map_or(PrivateIndexSeed::Base, seed_of_the_read_index);
+    let seed: PrivateIndexSeed = index
+        .as_ref()
+        .map_or(PrivateIndexSeed::Base, seed_of_the_read_index);
     note_index_build(IndexBuildKind::Retry, seed.keeps_stat_data());
     // The copy is written from the bytes this read returned, so the marks it clears and the stat data it keeps describe
     // the one state the read saw.
-    if seed != PrivateIndexSeed::Base && let Some(read) = index.as_ref() {
+    if seed != PrivateIndexSeed::Base
+        && let Some(read) = index.as_ref()
+    {
         write_index_for_reset(
             context,
             cwd,
@@ -426,7 +503,13 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
         arguments.push(String::from("--reset"));
     }
     arguments.push(tree.to_string());
-    private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), &arguments)?;
+    private_git(
+        context,
+        cwd,
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+        &arguments,
+    )?;
     // What:
     //  The refresh of the rebuilt private index's stat data.
     // Why:
@@ -438,7 +521,12 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // ```ts
     // const refresh = statRefreshIfStale({ context, cwd, index: commitIndex, staging: { none: true } });
     // ```
-    let _outcome: StatRefresh = refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), WorktreeStaging::None);
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(
+        context,
+        cwd,
+        indexes.commit_index.as_path(),
+        WorktreeStaging::None,
+    );
     return Ok(());
 }
 
@@ -463,12 +551,20 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
 /// ```ts
 /// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base], privateIndex)?.stdout.length === 0
 /// ```
-fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
+fn index_equals_base(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    base_revision: &str,
+) -> bool {
     // The question is answered in process from the whole captured index and the base tree, which no Git child covers, so the
     // record names it: an explicit-path preparation whose milliseconds went here would otherwise look unexplained.
     let began: std::time::Instant = std::time::Instant::now();
     let equals: bool = reads_itself_as_the_base(context, cwd, indexes, base_revision);
-    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_EQUALS_BASE, began.elapsed());
+    crate::prepare_work_spans::note_span(
+        crate::prepare_work_spans::INDEX_EQUALS_BASE,
+        began.elapsed(),
+    );
     return equals;
 }
 
@@ -481,11 +577,23 @@ fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes,
 /// ```ts
 /// readerAnswer(...)?.stdout.length === 0
 /// ```
-fn reads_itself_as_the_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
+fn reads_itself_as_the_base(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    base_revision: &str,
+) -> bool {
     let request = indexed_request(
         context,
         cwd,
-        &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
+        &[
+            "diff-index",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            base_revision,
+        ],
         Some(indexes.commit_index.as_path()),
         Some(indexes.object_directory.as_path()),
     );
@@ -519,7 +627,10 @@ fn carry_selected_staged_additions(
         // A file that cannot be read now fails in `git add` with Git's own message.
         // The read is the plain one, so a named pipe at the name answers at once instead of holding the commit, and the
         //  handle's own type decides what is read; the bound is the one the selection readers take.
-        let Ok(bytes) = crate::plain_file::read_plain_file(file, crate::commit_selection_staging::PATHSPEC_FILE_LIMIT) else {
+        let Ok(bytes) = crate::plain_file::read_plain_file(
+            file,
+            crate::commit_selection_staging::PATHSPEC_FILE_LIMIT,
+        ) else {
             return Ok(());
         };
         let Some(listed) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else {
@@ -571,7 +682,9 @@ pub fn write_private_tree(
     };
     let oid: &str = text.trim();
     if oid.is_empty() {
-        return Err(GitFailure(String::from("Git returned empty private tree identity.")));
+        return Err(GitFailure(String::from(
+            "Git returned empty private tree identity.",
+        )));
     }
     return Ok(String::from(oid));
 }
@@ -597,7 +710,13 @@ pub fn list_unmerged_index_paths(
     // from a subdirectory would otherwise be answered with names read from that directory.
     let output: GitOutput = run_git_checked(
         context,
-        &indexed_request(context, cwd, &["ls-files", "--unmerged", "-z", "--full-name"], Some(commit_index), None),
+        &indexed_request(
+            context,
+            cwd,
+            &["ls-files", "--unmerged", "-z", "--full-name"],
+            Some(commit_index),
+            None,
+        ),
     )?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for record in output.stdout.split(is_nul_byte) {

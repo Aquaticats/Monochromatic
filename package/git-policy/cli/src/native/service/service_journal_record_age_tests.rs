@@ -15,14 +15,21 @@ const ANOTHER_MACHINE: &str = "0000000000000000000000000000000d";
 
 /// A reading of the clocks a control compares with,
 /// taken at `monotonic` and `wall` in `boot` on `machine`.
-fn reading(boot: &str, machine: &str, monotonic: Duration, wall: Duration) -> ClaimTime {
+fn reading(
+    boot: &str,
+    machine: &str,
+    monotonic: Duration,
+    wall: Duration,
+) -> ClaimTime {
     return ClaimTime::from_parts(boot, monotonic, wall).on_machine(machine);
 }
 
 /// A modification time that is `older` than now,
 /// which is what a wall clock that stepped forward makes a fresh file's time look like.
 fn aged_by(older: Duration) -> std::io::Result<SystemTime> {
-    return Ok(SystemTime::now().checked_sub(older).expect("a control's time after the epoch"));
+    return Ok(SystemTime::now()
+        .checked_sub(older)
+        .expect("a control's time after the epoch"));
 }
 
 /// What:
@@ -33,7 +40,12 @@ fn aged_by(older: Duration) -> std::io::Result<SystemTime> {
 /// and a reader that does not know the key skips the line.
 #[test]
 fn the_line_of_a_record_carries_the_reading_it_was_written_by() {
-    let now: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
+    let now: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
     let text: String = format!("seq=7\n{}", stamp_line(&now));
     assert_eq!(stamp_of(text.as_str()), Some(now));
 }
@@ -61,11 +73,29 @@ fn a_record_of_an_earlier_release_carries_no_reading() {
 /// which is what the cleanup did before the reading was written.
 #[test]
 fn a_wall_clock_step_does_not_age_a_record_of_this_boot() {
-    let written: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
-    let now: ClaimTime = written.advanced(Duration::from_secs(30)).wall_stepped_forward(A_FINISHED_RECORD_IS_READ.saturating_mul(2));
-    assert!(a_client_may_still_read(Some(&written), aged_by(A_FINISHED_RECORD_IS_READ.saturating_mul(2)), &now), "a record a moment old keeps the journal however far the wall clock moved");
+    let written: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
+    let now: ClaimTime = written
+        .advanced(Duration::from_secs(30))
+        .wall_stepped_forward(A_FINISHED_RECORD_IS_READ.saturating_mul(2));
     assert!(
-        !a_client_may_still_read(None, aged_by(A_FINISHED_RECORD_IS_READ.saturating_mul(2)), &now),
+        a_client_may_still_read(
+            Some(&written),
+            aged_by(A_FINISHED_RECORD_IS_READ.saturating_mul(2)),
+            &now
+        ),
+        "a record a moment old keeps the journal however far the wall clock moved"
+    );
+    assert!(
+        !a_client_may_still_read(
+            None,
+            aged_by(A_FINISHED_RECORD_IS_READ.saturating_mul(2)),
+            &now
+        ),
         "the modification time this control is about is older than the window, so the reading is what keeps the record",
     );
 }
@@ -79,11 +109,19 @@ fn a_wall_clock_step_does_not_age_a_record_of_this_boot() {
 /// and a clock that moved says nothing about the wait a client is inside.
 #[test]
 fn a_record_older_than_the_window_on_the_monotonic_clock_is_past() {
-    let written: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
+    let written: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
     let now: ClaimTime = written
         .advanced(A_FINISHED_RECORD_IS_READ.saturating_add(Duration::from_secs(1)))
         .wall_stepped_back(A_FINISHED_RECORD_IS_READ.saturating_mul(2));
-    assert!(!a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &now), "a record no client can still look for is past");
+    assert!(
+        !a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &now),
+        "a record no client can still look for is past"
+    );
 }
 
 /// What:
@@ -93,9 +131,23 @@ fn a_record_older_than_the_window_on_the_monotonic_clock_is_past() {
 ///   Waiting out the window of a boot that ended delays the cleanup of every journal a reboot left.
 #[test]
 fn a_record_of_an_earlier_boot_of_this_machine_is_past() {
-    let written: ClaimTime = reading(ANOTHER_BOOT, MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
-    let now: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(1_001), Duration::from_secs(1_700_000_001));
-    assert!(!a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &now));
+    let written: ClaimTime = reading(
+        ANOTHER_BOOT,
+        MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
+    let now: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(1_001),
+        Duration::from_secs(1_700_000_001),
+    );
+    assert!(!a_client_may_still_read(
+        Some(&written),
+        Ok(SystemTime::now()),
+        &now
+    ));
 }
 
 /// What:
@@ -106,16 +158,34 @@ fn a_record_of_an_earlier_boot_of_this_machine_is_past() {
 /// so its client may still be running there.
 #[test]
 fn a_record_of_another_machine_is_judged_by_the_wall_clock() {
-    let written: ClaimTime = reading(ANOTHER_BOOT, ANOTHER_MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
-    let now: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(9_000), Duration::from_secs(1_700_000_030));
-    assert!(a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &now), "thirty seconds of wall clock keep the record");
+    let written: ClaimTime = reading(
+        ANOTHER_BOOT,
+        ANOTHER_MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
+    let now: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(9_000),
+        Duration::from_secs(1_700_000_030),
+    );
+    assert!(
+        a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &now),
+        "thirty seconds of wall clock keep the record"
+    );
     let later: ClaimTime = reading(
         BOOT,
         MACHINE,
         Duration::from_secs(9_000),
-        Duration::from_secs(1_700_000_000).saturating_add(A_FINISHED_RECORD_IS_READ).saturating_add(Duration::from_secs(1)),
+        Duration::from_secs(1_700_000_000)
+            .saturating_add(A_FINISHED_RECORD_IS_READ)
+            .saturating_add(Duration::from_secs(1)),
     );
-    assert!(!a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &later), "past the window of the wall clock the record goes");
+    assert!(
+        !a_client_may_still_read(Some(&written), Ok(SystemTime::now()), &later),
+        "past the window of the wall clock the record goes"
+    );
 }
 
 /// What:
@@ -126,7 +196,15 @@ fn a_record_of_another_machine_is_judged_by_the_wall_clock() {
 /// and a record discarded on an unproven age is the only copy of what it names.
 #[test]
 fn an_unreadable_modification_time_keeps_a_record_with_no_reading() {
-    let now: ClaimTime = reading(BOOT, MACHINE, Duration::from_secs(1_000), Duration::from_secs(1_700_000_000));
-    let unreadable: std::io::Result<SystemTime> = Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "a file system that gives no time"));
+    let now: ClaimTime = reading(
+        BOOT,
+        MACHINE,
+        Duration::from_secs(1_000),
+        Duration::from_secs(1_700_000_000),
+    );
+    let unreadable: std::io::Result<SystemTime> = Err(std::io::Error::new(
+        std::io::ErrorKind::PermissionDenied,
+        "a file system that gives no time",
+    ));
     assert!(a_client_may_still_read(None, unreadable, &now));
 }

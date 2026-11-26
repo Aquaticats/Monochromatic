@@ -17,21 +17,47 @@
 //! const judge = ContentJudge.new(...); judge.chargeAttributesTo(spent); const applies = judge.convertingAttribute(path, parents);
 //! ```
 
-use crate::worktree_clean_content::ContentJudge;
-use crate::worktree_clean_content::unmodelled;
 use crate::fs_beneath::open_file_at;
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::repo_read_config_list::list_config;
-use crate::repo_read_config_text::{ConfigEntry, last_entry};
-use crate::worktree_attributes::{may_apply, parse_attribute_lines};
-use crate::worktree_clean_content::{ATTRIBUTES_LIMIT, CONTENT_LIMIT, same_state};
-use crate::worktree_clean_content_attribute_sources::{AttributeFile, FixedSources, SystemAttributes, converting_macros, first_converting_token, has_quoted_line};
+use crate::repo_read_config_text::{
+    ConfigEntry,
+    last_entry,
+};
+use crate::worktree_attributes::{
+    may_apply,
+    parse_attribute_lines,
+};
+use crate::worktree_clean_content::ContentJudge;
+use crate::worktree_clean_content::unmodelled;
+use crate::worktree_clean_content::{
+    ATTRIBUTES_LIMIT,
+    CONTENT_LIMIT,
+    same_state,
+};
+use crate::worktree_clean_content_attribute_sources::{
+    AttributeFile,
+    FixedSources,
+    SystemAttributes,
+    converting_macros,
+    first_converting_token,
+    has_quoted_line,
+};
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::HashSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    OpenOptionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which file a path holds,
@@ -45,8 +71,12 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const identityOf = (metadata) => [metadata.dev, metadata.ino];
 /// ```
-fn identity_of(metadata: std::io::Result<std::fs::Metadata>, label: &str) -> Result<(u64, u64), String> {
-    let examined: std::fs::Metadata = subject_failure(metadata, &String::from(label), "cannot be examined")?;
+fn identity_of(
+    metadata: std::io::Result<std::fs::Metadata>,
+    label: &str,
+) -> Result<(u64, u64), String> {
+    let examined: std::fs::Metadata =
+        subject_failure(metadata, &String::from(label), "cannot be examined")?;
     return Ok((examined.dev(), examined.ino()));
 }
 
@@ -83,8 +113,13 @@ fn error_text(error: std::io::Error) -> String {
 /// ```ts
 /// const identityBeneath = (directory) => { const found = lstatAt(directory, '.gitattributes'); return [found.dev, found.ino]; };
 /// ```
-fn identity_beneath(directory: &std::fs::File, _label: &str) -> Result<(u64, u64), String> {
-    let examined: std::fs::Metadata = crate::fs_beneath::entry_metadata_at(directory, OsStr::new(".gitattributes")).map_err(error_text)?;
+fn identity_beneath(
+    directory: &std::fs::File,
+    _label: &str,
+) -> Result<(u64, u64), String> {
+    let examined: std::fs::Metadata =
+        crate::fs_beneath::entry_metadata_at(directory, OsStr::new(".gitattributes"))
+            .map_err(error_text)?;
     return Ok((examined.dev(), examined.ino()));
 }
 
@@ -119,22 +154,52 @@ impl<'a> ContentJudge<'a> {
     /// function readOutside(path) { const file = open(path); const described = fstat(file); const named = stat(path); if (!sameInode(named, described)) return refuse;
     ///   const parsed = parseOpen(file); const after = stat(path); if (!sameInode(after, described)) return refuse; return parsed; }
     /// ```
-    pub(super) fn read_outside(&self, path: &Path, label: String) -> Result<Option<AttributeFile>, String> {
+    pub(super) fn read_outside(
+        &self,
+        path: &Path,
+        label: String,
+    ) -> Result<Option<AttributeFile>, String> {
         // Without blocking, so a named pipe is found out by its type instead of waiting for a writer.
-        let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
+        let file = match std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .open(path)
+        {
             Ok(opened) => opened,
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(None),
-            Err(error) => return Err(format!("the attributes file {} cannot be read ({error})", path.display())),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => {
+                return Err(format!(
+                    "the attributes file {} cannot be read ({error})",
+                    path.display()
+                ));
+            }
         };
-        let described: (u64, u64) = subject_failure(identity_of(file.metadata(), &label), &label, "cannot be examined")?;
-        let named: (u64, u64) = subject_failure(identity_at_path(path), &label, "cannot be looked at")?;
+        let described: (u64, u64) = subject_failure(
+            identity_of(file.metadata(), &label),
+            &label,
+            "cannot be examined",
+        )?;
+        let named: (u64, u64) =
+            subject_failure(identity_at_path(path), &label, "cannot be looked at")?;
         if named != described {
-            return Err(format!("{label} names another file than the one opened, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} names another file than the one opened, so the attributes it sets cannot be ruled out"
+            ));
         }
         let parsed: Option<AttributeFile> = self.parse_open(file, label.clone(), Vec::new())?;
-        let after: (u64, u64) = subject_failure(identity_at_path(path), &label, "cannot be looked at again")?;
+        let after: (u64, u64) =
+            subject_failure(identity_at_path(path), &label, "cannot be looked at again")?;
         if after != described {
-            return Err(format!("{label} was replaced while it was read, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} was replaced while it was read, so the attributes it sets cannot be ruled out"
+            ));
         }
         return Ok(parsed);
     }
@@ -142,21 +207,46 @@ impl<'a> ContentJudge<'a> {
     /// Read the `.gitattributes` of the held directory `directory`;
     /// absent is `None`,
     /// a link or anything but a file is a refusal.
-    pub(super) fn read_in(&self, directory: &std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
+    pub(super) fn read_in(
+        &self,
+        directory: &std::fs::File,
+        label: String,
+        base: Vec<u8>,
+    ) -> Result<Option<AttributeFile>, String> {
         let file = match open_file_at(directory, OsStr::new(".gitattributes")) {
             Ok(opened) => opened,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(format!("{label} cannot be read without following a link ({error}), so the attributes it sets cannot be ruled out")),
+            Err(error) => {
+                return Err(format!(
+                    "{label} cannot be read without following a link ({error}), so the attributes it sets cannot be ruled out"
+                ));
+            }
         };
-        let described: (u64, u64) = subject_failure(identity_of(file.metadata(), &label), &label, "cannot be examined")?;
-        let named: (u64, u64) = subject_failure(identity_beneath(directory, &label), &label, "cannot be looked at")?;
+        let described: (u64, u64) = subject_failure(
+            identity_of(file.metadata(), &label),
+            &label,
+            "cannot be examined",
+        )?;
+        let named: (u64, u64) = subject_failure(
+            identity_beneath(directory, &label),
+            &label,
+            "cannot be looked at",
+        )?;
         if named != described {
-            return Err(format!("{label} names another file than the one opened, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} names another file than the one opened, so the attributes it sets cannot be ruled out"
+            ));
         }
         let parsed: Option<AttributeFile> = self.parse_open(file, label.clone(), base)?;
-        let after: (u64, u64) = subject_failure(identity_beneath(directory, &label), &label, "cannot be looked at again")?;
+        let after: (u64, u64) = subject_failure(
+            identity_beneath(directory, &label),
+            &label,
+            "cannot be looked at again",
+        )?;
         if after != described {
-            return Err(format!("{label} was replaced while it was read, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} was replaced while it was read, so the attributes it sets cannot be ruled out"
+            ));
         }
         return Ok(parsed);
     }
@@ -178,7 +268,9 @@ impl<'a> ContentJudge<'a> {
     /// ```
     pub(super) fn attribute_room(&self) -> u64 {
         return match self.budget {
-            Some(spent) => CONTENT_LIMIT.saturating_sub(spent.get()).min(ATTRIBUTES_LIMIT),
+            Some(spent) => CONTENT_LIMIT
+                .saturating_sub(spent.get())
+                .min(ATTRIBUTES_LIMIT),
             None => ATTRIBUTES_LIMIT,
         };
     }
@@ -186,10 +278,18 @@ impl<'a> ContentJudge<'a> {
     /// Parse an attributes file that is open,
     /// refusing one that is not a plain file or is larger than the room it has,
     /// and charging the bytes it took.
-    pub(super) fn parse_open(&self, file: std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
-        let metadata: std::fs::Metadata = subject_failure(file.metadata(), &label, "cannot be examined")?;
+    pub(super) fn parse_open(
+        &self,
+        file: std::fs::File,
+        label: String,
+        base: Vec<u8>,
+    ) -> Result<Option<AttributeFile>, String> {
+        let metadata: std::fs::Metadata =
+            subject_failure(file.metadata(), &label, "cannot be examined")?;
         if !metadata.file_type().is_file() {
-            return Err(format!("{label} is not a plain file (a named pipe, a device or a directory), so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} is not a plain file (a named pipe, a device or a directory), so the attributes it sets cannot be ruled out"
+            ));
         }
         // What:
         //  A caller that bounds its reads is recording stat data for a file it proves unchanged,
@@ -205,17 +305,32 @@ impl<'a> ContentJudge<'a> {
         // ```ts
         // if (bounded && !stampIsSettled([metadata.ctime, metadata.ctimeNsec])) return undefined;
         // ```
-        if self.budget.is_some() && !crate::worktree_copy_stage_leaf_copying::stamp_is_settled((metadata.ctime(), metadata.ctime_nsec())) {
-            return Err(format!("{label} changed too recently for its attributes to be proven current, so the conversion it sets cannot be ruled out"));
+        if self.budget.is_some()
+            && !crate::worktree_copy_stage_leaf_copying::stamp_is_settled((
+                metadata.ctime(),
+                metadata.ctime_nsec(),
+            ))
+        {
+            return Err(format!(
+                "{label} changed too recently for its attributes to be proven current, so the conversion it sets cannot be ruled out"
+            ));
         }
         let room: u64 = self.attribute_room();
         if metadata.len() > room {
-            return Err(format!("{label} is larger than the {room} bytes this caller may still read, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} is larger than the {room} bytes this caller may still read, so the attributes it sets cannot be ruled out"
+            ));
         }
         let Some(bytes) = self.attribute_bytes(&file, &metadata, room, &label)? else {
-            return Err(format!("{label} changed while it was read, so the attributes it sets cannot be ruled out"));
+            return Err(format!(
+                "{label} changed while it was read, so the attributes it sets cannot be ruled out"
+            ));
         };
-        return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
+        return Ok(Some(AttributeFile {
+            label,
+            base,
+            lines: parse_attribute_lines(bytes.as_slice()),
+        }));
     }
 
     /// What:
@@ -230,7 +345,10 @@ impl<'a> ContentJudge<'a> {
     /// judge.readAttributesWith(read);
     /// ```
     #[cfg(test)]
-    pub fn read_attributes_with(&mut self, read: &'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>) {
+    pub fn read_attributes_with(
+        &mut self,
+        read: &'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>,
+    ) {
         self.attribute_read = Some(read);
     }
 
@@ -275,7 +393,13 @@ impl<'a> ContentJudge<'a> {
     ///   const after = stat(file); return after.ctimeNsec !== 0 && sameState(before, after) ? data : undefined;
     /// }
     /// ```
-    fn attribute_bytes(&self, file: &std::fs::File, before: &std::fs::Metadata, room: u64, label: &dyn std::fmt::Display) -> Result<Option<Vec<u8>>, String> {
+    fn attribute_bytes(
+        &self,
+        file: &std::fs::File,
+        before: &std::fs::Metadata,
+        room: u64,
+        label: &dyn std::fmt::Display,
+    ) -> Result<Option<Vec<u8>>, String> {
         // A file whose change time has no nanoseconds is on a file system that cannot tell two rewrites in one second
         // apart, so nothing it hands over can be proven to be one version.
         if before.ctime_nsec() == 0 {
@@ -283,9 +407,12 @@ impl<'a> ContentJudge<'a> {
         }
         let mut data: Vec<u8> = Vec::new();
         let mut interrupted: usize = 0;
-        let mut buffer: Vec<u8> = vec![0; usize::try_from(room.min(ATTRIBUTES_CHUNK as u64)).unwrap_or(ATTRIBUTES_CHUNK)];
+        let mut buffer: Vec<u8> =
+            vec![0; usize::try_from(room.min(ATTRIBUTES_CHUNK as u64)).unwrap_or(ATTRIBUTES_CHUNK)];
         while (data.len() as u64) < room {
-            let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(ATTRIBUTES_CHUNK);
+            let want: usize = usize::try_from(room - data.len() as u64)
+                .unwrap_or(usize::MAX)
+                .min(ATTRIBUTES_CHUNK);
             let read: std::io::Result<usize> = match self.attribute_read {
                 Some(read) => read(file, &mut buffer[..want]),
                 None => {
@@ -297,7 +424,10 @@ impl<'a> ContentJudge<'a> {
                 Ok(taken) => taken,
                 // An interruption is not a fact about the file, so it is tried again;
                 // a source that interrupts every try is refused rather than waited on.
-                Err(error) if error.kind() == std::io::ErrorKind::Interrupted && interrupted < INTERRUPTED_TRIES => {
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::Interrupted
+                        && interrupted < INTERRUPTED_TRIES =>
+                {
                     interrupted += 1;
                     continue;
                 }
@@ -310,7 +440,8 @@ impl<'a> ContentJudge<'a> {
             data.extend_from_slice(&buffer[..took]);
             self.charge(took as u64);
         }
-        let after: std::fs::Metadata = subject_failure(file.metadata(), label, "cannot be examined")?;
+        let after: std::fs::Metadata =
+            subject_failure(file.metadata(), label, "cannot be examined")?;
         if !same_state(before, &after) {
             return Ok(None);
         }
@@ -324,7 +455,10 @@ impl<'a> ContentJudge<'a> {
     /// ```ts
     /// function charge(bytes) { if (budget) budget.bytes += bytes; }
     /// ```
-    pub(super) fn charge(&self, bytes: u64) {
+    pub(super) fn charge(
+        &self,
+        bytes: u64,
+    ) {
         if let Some(spent) = self.budget {
             spent.set(spent.get() + bytes);
         }
@@ -333,8 +467,15 @@ impl<'a> ContentJudge<'a> {
     /// The configuration Git would list,
     /// read in process.
     pub(super) fn config_entries(&self) -> Result<Vec<ConfigEntry>, String> {
-        let Some(listed) = list_config(self.common_dir, self.git_dir, &self.environment.scope, self.environment.variables.as_slice()) else {
-            return Err(String::from("the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out"));
+        let Some(listed) = list_config(
+            self.common_dir,
+            self.git_dir,
+            &self.environment.scope,
+            self.environment.variables.as_slice(),
+        ) else {
+            return Err(String::from(
+                "the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out",
+            ));
         };
         let mut entries: Vec<ConfigEntry> = Vec::new();
         for item in listed {
@@ -346,28 +487,38 @@ impl<'a> ContentJudge<'a> {
     /// The attributes file `core.attributesFile` names,
     /// or the default one,
     /// from the configuration entries.
-    pub(super) fn global_attributes_path(&self, entries: &[ConfigEntry]) -> Result<Option<PathBuf>, String> {
+    pub(super) fn global_attributes_path(
+        &self,
+        entries: &[ConfigEntry],
+    ) -> Result<Option<PathBuf>, String> {
         if let Some(entry) = last_entry(entries, "core.attributesfile") {
             let Some(value) = entry.value.as_deref() else {
                 return Err(String::from("core.attributesFile has no value"));
             };
             if let Some(rest) = value.strip_prefix(b"~/") {
                 let Some(home) = self.environment.scope.home.as_deref() else {
-                    return Err(String::from("core.attributesFile starts with ~/ but HOME is not set"));
+                    return Err(String::from(
+                        "core.attributesFile starts with ~/ but HOME is not set",
+                    ));
                 };
                 return Ok(Some(home.join(OsStr::from_bytes(rest))));
             }
             let path: PathBuf = PathBuf::from(OsStr::from_bytes(value));
             if !path.is_absolute() {
-                return Err(format!("core.attributesFile is {:?}, which is not an absolute path", String::from_utf8_lossy(value)));
+                return Err(format!(
+                    "core.attributesFile is {:?}, which is not an absolute path",
+                    String::from_utf8_lossy(value)
+                ));
             }
             return Ok(Some(path));
         }
-        return Ok(match (&self.environment.scope.xdg, &self.environment.scope.home) {
-            (Some(directory), _) => Some(directory.join("git/attributes")),
-            (None, Some(home)) => Some(home.join(".config/git/attributes")),
-            (None, None) => None,
-        });
+        return Ok(
+            match (&self.environment.scope.xdg, &self.environment.scope.home) {
+                (Some(directory), _) => Some(directory.join("git/attributes")),
+                (None, Some(home)) => Some(home.join(".config/git/attributes")),
+                (None, None) => None,
+            },
+        );
     }
 
     /// The attributes files that apply whatever the path is,
@@ -381,14 +532,25 @@ impl<'a> ContentJudge<'a> {
             return Err(unmodelled("attr.tree is set"));
         }
         let mut files: Vec<AttributeFile> = Vec::new();
-        if let Some(root_file) = self.read_in(self.root, String::from(".gitattributes"), Vec::new())? {
+        if let Some(root_file) =
+            self.read_in(self.root, String::from(".gitattributes"), Vec::new())?
+        {
             files.push(root_file);
         }
-        let mut outside: Vec<(PathBuf, String)> = vec![(self.common_dir.join("info/attributes"), String::from("info/attributes"))];
+        let mut outside: Vec<(PathBuf, String)> = vec![(
+            self.common_dir.join("info/attributes"),
+            String::from("info/attributes"),
+        )];
         match &self.environment.system_attributes {
             SystemAttributes::Disabled => {}
-            SystemAttributes::File(path) => outside.push((path.clone(), path.display().to_string())),
-            SystemAttributes::Unknown => return Err(String::from("the location of the system attributes file cannot be established without running Git, so what it sets cannot be ruled out")),
+            SystemAttributes::File(path) => {
+                outside.push((path.clone(), path.display().to_string()))
+            }
+            SystemAttributes::Unknown => {
+                return Err(String::from(
+                    "the location of the system attributes file cannot be established without running Git, so what it sets cannot be ruled out",
+                ));
+            }
         }
         if let Some(path) = self.global_attributes_path(entries.as_slice())? {
             outside.push((path.clone(), path.display().to_string()));
@@ -399,12 +561,18 @@ impl<'a> ContentJudge<'a> {
             }
         }
         let macros: HashSet<Vec<u8>> = converting_macros(files.as_slice());
-        return Ok(FixedSources { files, macros });
+        return Ok(FixedSources {
+            files,
+            macros,
+        });
     }
 
     /// The `.gitattributes` of the directory below the root named by `parents`,
     /// read once.
-    pub(super) fn directory_file(&mut self, parents: &[OsString]) -> Result<Option<AttributeFile>, String> {
+    pub(super) fn directory_file(
+        &mut self,
+        parents: &[OsString],
+    ) -> Result<Option<AttributeFile>, String> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         for name in parents {
             names.push(name.as_bytes().to_vec());
@@ -413,9 +581,15 @@ impl<'a> ContentJudge<'a> {
         if !self.directories.contains_key(&key) {
             let directory = match open_directory_beneath(self.root, parents) {
                 Ok(opened) => opened,
-                Err(error) => return Err(format!("{} cannot be opened below the worktree ({error})", String::from_utf8_lossy(key.as_slice()))),
+                Err(error) => {
+                    return Err(format!(
+                        "{} cannot be opened below the worktree ({error})",
+                        String::from_utf8_lossy(key.as_slice())
+                    ));
+                }
             };
-            let label: String = format!("{}/.gitattributes", String::from_utf8_lossy(key.as_slice()));
+            let label: String =
+                format!("{}/.gitattributes", String::from_utf8_lossy(key.as_slice()));
             let file: Option<AttributeFile> = self.read_in(&directory, label, key.clone())?;
             self.directories.insert(key.clone(), file);
         }
@@ -424,7 +598,11 @@ impl<'a> ContentJudge<'a> {
 
     /// The first converting attribute that may apply to the file at `path` and where it is set,
     /// or nothing.
-    pub(super) fn converting_attribute(&mut self, path: &[u8], parents: &[OsString]) -> Result<Option<(String, String)>, String> {
+    pub(super) fn converting_attribute(
+        &mut self,
+        path: &[u8],
+        parents: &[OsString],
+    ) -> Result<Option<(String, String)>, String> {
         if self.fixed.is_none() {
             self.fixed = Some(self.load_fixed());
         }
@@ -452,9 +630,15 @@ impl<'a> ContentJudge<'a> {
                 if line.is_macro {
                     continue;
                 }
-                let Some(token) = first_converting_token(line.tokens.as_slice(), &fixed.macros) else { continue };
+                let Some(token) = first_converting_token(line.tokens.as_slice(), &fixed.macros)
+                else {
+                    continue;
+                };
                 if may_apply(line.subject.as_slice(), file.base.as_slice(), path) {
-                    return Ok(Some((String::from_utf8_lossy(token.as_slice()).into_owned(), file.label.clone())));
+                    return Ok(Some((
+                        String::from_utf8_lossy(token.as_slice()).into_owned(),
+                        file.label.clone(),
+                    )));
                 }
             }
         }

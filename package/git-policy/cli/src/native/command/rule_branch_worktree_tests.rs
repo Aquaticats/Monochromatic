@@ -19,15 +19,32 @@
 ///  its message,
 ///  the guess query and the real-Git fixture helpers.
 use super::{
-    BRANCH_CREATION_CODE, BranchWorktreeDecision, branch_creation_message, decide_branch_worktree,
-    remote_guess_creates_branch, remote_guess_query_arguments,
+    BRANCH_CREATION_CODE,
+    BranchWorktreeDecision,
+    branch_creation_message,
+    decide_branch_worktree,
+    remote_guess_creates_branch,
+    remote_guess_query_arguments,
 };
 use crate::command_branch_create::BranchCreationCommand;
 use crate::command_test_support::{
-    byte_argument, fixture, git, git_output, git_status, os_arguments, remove, repository,
+    byte_argument,
+    fixture,
+    git,
+    git_output,
+    git_status,
+    os_arguments,
+    remove,
+    repository,
 };
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Decide one invocation written as text.
@@ -240,7 +257,10 @@ fn the_listing_is_compared_line_by_line() {
 }
 
 /// Run the guess query through real Git and read its listing.
-fn guessed(root: &Path, target: &str) -> bool {
+fn guessed(
+    root: &Path,
+    target: &str,
+) -> bool {
     let listing: Output = git_output(
         root,
         remote_guess_query_arguments(&[], OsStr::new(target)).as_slice(),
@@ -251,7 +271,10 @@ fn guessed(root: &Path, target: &str) -> bool {
 
 /// Whether a local branch of that name exists after `git switch <name>` in real Git;
 ///  the branch is removed again.
-fn switch_created(root: &Path, target: &str) -> bool {
+fn switch_created(
+    root: &Path,
+    target: &str,
+) -> bool {
     let before: bool = git_status(
         root,
         &[

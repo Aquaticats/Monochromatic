@@ -16,7 +16,10 @@
 
 use crate::blocking_job::run_blocking_job;
 use crate::lazy_runtime::run_on_runtime;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// What:
@@ -29,12 +32,20 @@ use std::time::Duration;
 /// ```ts
 /// await scanUnderCeiling(look, ceiling, procRoot, scan, cannotLook)
 /// ```
-pub(crate) async fn scan_under_ceiling<Look, Found>(look: Look, ceiling: Duration, proc_root: PathBuf, scanner: fn(&Look, &Path) -> Found, when_unanswered: fn() -> Found) -> Found
+pub(crate) async fn scan_under_ceiling<Look, Found>(
+    look: Look,
+    ceiling: Duration,
+    proc_root: PathBuf,
+    scanner: fn(&Look, &Path) -> Found,
+    when_unanswered: fn() -> Found,
+) -> Found
 where
     Look: Send + 'static,
     Found: Send + 'static,
 {
-    let scan = run_blocking_job(move || { return scanner(&look, proc_root.as_path()); });
+    let scan = run_blocking_job(move || {
+        return scanner(&look, proc_root.as_path());
+    });
     return match tokio::time::timeout(ceiling, scan).await {
         Ok(Ok(found)) => found,
         Ok(Err(error)) => {
@@ -53,15 +64,29 @@ where
 /// a runtime that cannot start,
 /// or a call from inside it,
 /// is a scan that could not be made.
-pub(crate) fn scan_under_ceiling_to_its_end<Look, Found>(look: Look, ceiling: Duration, proc_root: &Path, scanner: fn(&Look, &Path) -> Found, when_unanswered: fn() -> Found) -> Found
+pub(crate) fn scan_under_ceiling_to_its_end<Look, Found>(
+    look: Look,
+    ceiling: Duration,
+    proc_root: &Path,
+    scanner: fn(&Look, &Path) -> Found,
+    when_unanswered: fn() -> Found,
+) -> Found
 where
     Look: Send + 'static,
     Found: Send + 'static,
 {
-    return match run_on_runtime(scan_under_ceiling(look, ceiling, proc_root.to_path_buf(), scanner, when_unanswered)) {
+    return match run_on_runtime(scan_under_ceiling(
+        look,
+        ceiling,
+        proc_root.to_path_buf(),
+        scanner,
+        when_unanswered,
+    )) {
         Ok(found) => found,
         Err(error) => {
-            crate::service_error!("the scan could not be started ({error}), so it is taken as not made");
+            crate::service_error!(
+                "the scan could not be started ({error}), so it is taken as not made"
+            );
             when_unanswered()
         }
     };

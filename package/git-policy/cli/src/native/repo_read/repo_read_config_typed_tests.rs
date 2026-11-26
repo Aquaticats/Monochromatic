@@ -9,9 +9,24 @@
 
 use super::*;
 use crate::repo_read_layout::read_layout_with;
-use crate::repo_read_query::{Answer, Query, answer_with};
 use crate::repo_read_query::tests::scope;
-use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, fixture, git, git_output, real_git_within, remove, repository};
+use crate::repo_read_query::{
+    Answer,
+    Query,
+    answer_with,
+};
+use crate::test_support::{
+    FIXTURE_GIT_BOUND,
+    QueryAnswer,
+    QueryEnding,
+    REAL_GIT,
+    fixture,
+    git,
+    git_output,
+    real_git_within,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// The malformed spellings the sweep tries for every documented key:
@@ -21,7 +36,15 @@ use std::path::PathBuf;
 /// a negative number,
 /// a small number,
 /// an overflowing number and a `~user` path of a user that does not exist.
-const MALFORMED_VARIANTS: [Option<&str>; 7] = [Some("maybe"), None, Some(""), Some("-1"), Some("3"), Some("99999999999999999999"), Some("~no-such-user-here/x")];
+const MALFORMED_VARIANTS: [Option<&str>; 7] = [
+    Some("maybe"),
+    None,
+    Some(""),
+    Some("-1"),
+    Some("3"),
+    Some("99999999999999999999"),
+    Some("~no-such-user-here/x"),
+];
 
 /// Sections whose text values name remotes,
 /// branches and rewrites that the query readers interpret.
@@ -39,10 +62,19 @@ fn query_repository(root: &Path) -> PathBuf {
     let repo = repository(root, "typed");
     std::fs::write(repo.join("a.txt"), "one\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
-    git(repo.as_path(), &["remote", "add", "origin", "https://example.invalid/r.git"]);
-    git(repo.as_path(), &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", "https://example.invalid/r.git"],
+    );
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/remotes/origin/main", "HEAD"],
+    );
     git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
-    git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(
+        repo.as_path(),
+        &["config", "branch.main.merge", "refs/heads/main"],
+    );
     return repo;
 }
 
@@ -53,20 +85,59 @@ type Shape = (Vec<String>, Option<Vec<u8>>);
 /// The eleven shapes the readers answer,
 /// with `head` as the object name the shapes that take one use.
 fn shapes(head: &str) -> Vec<Shape> {
-    let plain = |arguments: &[&str]| -> Shape { return (arguments.iter().map(|argument| { return (*argument).to_string(); }).collect(), None); };
+    let plain = |arguments: &[&str]| -> Shape {
+        return (
+            arguments
+                .iter()
+                .map(|argument| {
+                    return (*argument).to_string();
+                })
+                .collect(),
+            None,
+        );
+    };
     return vec![
         plain(&["ls-files", "--stage", "-z", "--full-name"]),
-        plain(&["diff-index", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev", head]),
+        plain(&[
+            "diff-index",
+            "--cached",
+            "--raw",
+            "-z",
+            "--no-renames",
+            "--no-abbrev",
+            head,
+        ]),
         plain(&["diff", "--cached", "--name-only", "-z", head]),
-        plain(&["diff-tree", "--root", "--no-commit-id", "-r", "-z", "-m", "--no-renames", "--no-abbrev", head]),
+        plain(&[
+            "diff-tree",
+            "--root",
+            "--no-commit-id",
+            "-r",
+            "-z",
+            "-m",
+            "--no-renames",
+            "--no-abbrev",
+            head,
+        ]),
         plain(&["show", "--no-patch", "--format=%s", head]),
         plain(&["config", "--list", "-z", "--show-scope"]),
         plain(&["remote", "get-url", "origin"]),
         plain(&["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]),
-        plain(&["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]),
-        plain(&["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]),
+        plain(&[
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)%00%(symref)",
+        ]),
+        plain(&[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ]),
         plain(&["symbolic-ref", "--quiet", "HEAD"]),
-        (vec!["cat-file".to_string(), "--batch".to_string()], Some(format!("{head}\n").into_bytes())),
+        (
+            vec!["cat-file".to_string(), "--batch".to_string()],
+            Some(format!("{head}\n").into_bytes()),
+        ),
     ];
 }
 
@@ -74,12 +145,36 @@ fn shapes(head: &str) -> Vec<Shape> {
 ///  Every query of this control runs under the bound a control gives its fixture Git,
 /// so a Git that never answers ends this control with a verdict that names the shape and the bound
 /// instead of holding the suite.
-fn real(repo: &Path, shape: &Shape) -> (Vec<u8>, Vec<u8>, Option<i32>) {
+fn real(
+    repo: &Path,
+    shape: &Shape,
+) -> (Vec<u8>, Vec<u8>, Option<i32>) {
     let words: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
-    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), &hermetic_environment(repo), words.as_slice(), shape.1.as_deref(), FIXTURE_GIT_BOUND);
-    assert_eq!(answer.ending, QueryEnding::Itself, "the query {:?} did not answer within {} s: the bound ended it", shape.0, FIXTURE_GIT_BOUND.as_secs());
-    assert!(!answer.held_open, "the query {:?} ended, and a descendant of it still holds its output", shape.0);
-    return (answer.output.stdout, answer.output.stderr, answer.output.status.code());
+    let answer: QueryAnswer = real_git_within(
+        Path::new(REAL_GIT),
+        Some(repo),
+        &hermetic_environment(repo),
+        words.as_slice(),
+        shape.1.as_deref(),
+        FIXTURE_GIT_BOUND,
+    );
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the query {:?} did not answer within {} s: the bound ended it",
+        shape.0,
+        FIXTURE_GIT_BOUND.as_secs()
+    );
+    assert!(
+        !answer.held_open,
+        "the query {:?} ended, and a descendant of it still holds its output",
+        shape.0
+    );
+    return (
+        answer.output.stdout,
+        answer.output.stderr,
+        answer.output.status.code(),
+    );
 }
 
 /// The environment every real-Git query of this control runs with:
@@ -89,20 +184,42 @@ fn hermetic_environment(repo: &Path) -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
-        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
-        (OsString::from("HOME"), repo.join("no-home").into_os_string()),
+        (
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            OsString::from("/nonexistent-global-config"),
+        ),
+        (
+            OsString::from("HOME"),
+            repo.join("no-home").into_os_string(),
+        ),
     ];
 }
 
 /// What the readers answer for a shape.
-fn ours(root: &Path, repo: &Path, shape: &Shape) -> Option<Answer> {
+fn ours(
+    root: &Path,
+    repo: &Path,
+    shape: &Shape,
+) -> Option<Answer> {
     let given: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
-    return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[], input: shape.1.as_deref() }, Vec::new(), &scope(root));
+    return answer_with(
+        &Query {
+            arguments: given.as_slice(),
+            directory: Some(repo),
+            variables: &[],
+            input: shape.1.as_deref(),
+        },
+        Vec::new(),
+        &scope(root),
+    );
 }
 
 /// The `[section "subsection"]` header and the line for one key and value,
 /// in Git's configuration syntax.
-fn config_text(key: &str, value: Option<&str>) -> String {
+fn config_text(
+    key: &str,
+    value: Option<&str>,
+) -> String {
     let (section, rest) = key.split_once('.').expect("a dotted key");
     let (header, name) = match rest.rsplit_once('.') {
         Some((subsection, name)) => (format!("[{section} \"{subsection}\"]"), name),
@@ -131,15 +248,30 @@ impl Trial {
     fn new(name: &str) -> Trial {
         let root = fixture(name);
         let repo = query_repository(root.as_path());
-        let head = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim().to_string();
+        let head = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout)
+            .expect("UTF-8")
+            .trim()
+            .to_string();
         let base = std::fs::read_to_string(repo.join(".git/config")).expect("config");
         let shapes = shapes(head.as_str());
-        return Trial { root, repo, base, shapes };
+        return Trial {
+            root,
+            repo,
+            base,
+            shapes,
+        };
     }
 
     /// Replace the repository's configuration with the base plus `extra`.
-    fn configure(&self, extra: &str) {
-        std::fs::write(self.repo.join(".git/config"), format!("{}{extra}", self.base)).expect("config");
+    fn configure(
+        &self,
+        extra: &str,
+    ) {
+        std::fs::write(
+            self.repo.join(".git/config"),
+            format!("{}{extra}", self.base),
+        )
+        .expect("config");
     }
 
     /// Whether the readers answer the location at all under the current configuration.
@@ -155,12 +287,27 @@ impl Trial {
             return found;
         }
         let location: Shape = (
-            ["rev-parse", "--path-format=absolute", "--is-bare-repository", "--git-dir", "--git-common-dir", "--show-toplevel", "--show-prefix"].iter().map(|word| { return (*word).to_string(); }).collect(),
+            [
+                "rev-parse",
+                "--path-format=absolute",
+                "--is-bare-repository",
+                "--git-dir",
+                "--git-common-dir",
+                "--show-toplevel",
+                "--show-prefix",
+            ]
+            .iter()
+            .map(|word| {
+                return (*word).to_string();
+            })
+            .collect(),
             None,
         );
         let (_, _, location_code) = real(self.repo.as_path(), &location);
         if location_code != Some(0) {
-            found.push(format!("location: the readers answered and Git exits {location_code:?}"));
+            found.push(format!(
+                "location: the readers answered and Git exits {location_code:?}"
+            ));
         }
         for shape in &self.shapes {
             let Some(answer) = ours(self.root.as_path(), self.repo.as_path(), shape) else {
@@ -168,22 +315,45 @@ impl Trial {
             };
             let (stdout, stderr, code) = real(self.repo.as_path(), shape);
             if answer.stdout != stdout || answer.stderr != stderr || Some(answer.code) != code {
-                found.push(format!("{:?}: readers {:?} {:?} {}, Git {:?} {:?} {code:?}", shape.0, String::from_utf8_lossy(&answer.stdout), String::from_utf8_lossy(&answer.stderr), answer.code, String::from_utf8_lossy(&stdout), String::from_utf8_lossy(&stderr)));
+                found.push(format!(
+                    "{:?}: readers {:?} {:?} {}, Git {:?} {:?} {code:?}",
+                    shape.0,
+                    String::from_utf8_lossy(&answer.stdout),
+                    String::from_utf8_lossy(&answer.stderr),
+                    answer.code,
+                    String::from_utf8_lossy(&stdout),
+                    String::from_utf8_lossy(&stderr)
+                ));
             }
         }
         return found;
     }
 
     /// Whether Git prints exactly what it prints under the base configuration on every shape.
-    fn git_is_unchanged_by(&self, extra: &str) -> Option<String> {
+    fn git_is_unchanged_by(
+        &self,
+        extra: &str,
+    ) -> Option<String> {
         self.configure("");
-        let before: Vec<(Vec<u8>, Vec<u8>, Option<i32>)> = self.shapes.iter().map(|shape| { return real(self.repo.as_path(), shape); }).collect();
+        let before: Vec<(Vec<u8>, Vec<u8>, Option<i32>)> = self
+            .shapes
+            .iter()
+            .map(|shape| {
+                return real(self.repo.as_path(), shape);
+            })
+            .collect();
         self.configure(extra);
         for (shape, expected) in self.shapes.iter().zip(before) {
             let now = real(self.repo.as_path(), shape);
             // The listing of the configuration legitimately gains the entry.
             if shape.0[0] != "config" && now != expected {
-                return Some(format!("{:?}: {:?} {:?} {:?}", shape.0, String::from_utf8_lossy(&now.0), String::from_utf8_lossy(&now.1), now.2));
+                return Some(format!(
+                    "{:?}: {:?} {:?} {:?}",
+                    shape.0,
+                    String::from_utf8_lossy(&now.0),
+                    String::from_utf8_lossy(&now.1),
+                    now.2
+                ));
             }
         }
         return None;
@@ -198,8 +368,16 @@ impl Trial {
 /// set alone,
 /// makes the readers answer where Git differs;
 /// the batch is split to find them.
-fn culprits(trial: &Trial, pairs: &[(String, Option<String>)]) -> Vec<String> {
-    let text: String = pairs.iter().map(|(key, value)| { return config_text(key.as_str(), value.as_deref()); }).collect();
+fn culprits(
+    trial: &Trial,
+    pairs: &[(String, Option<String>)],
+) -> Vec<String> {
+    let text: String = pairs
+        .iter()
+        .map(|(key, value)| {
+            return config_text(key.as_str(), value.as_deref());
+        })
+        .collect();
     trial.configure(text.as_str());
     // A batch the readers decline as a whole may hide a key they would answer for, so it is split down to single keys.
     let declined_as_a_whole: bool = !trial.answers_location();
@@ -207,7 +385,15 @@ fn culprits(trial: &Trial, pairs: &[(String, Option<String>)]) -> Vec<String> {
         return Vec::new();
     }
     if pairs.len() == 1 {
-        return if declined_as_a_whole { Vec::new() } else { vec![format!("{:?}: {}", pairs[0], trial.disagreements().join("; "))] };
+        return if declined_as_a_whole {
+            Vec::new()
+        } else {
+            vec![format!(
+                "{:?}: {}",
+                pairs[0],
+                trial.disagreements().join("; ")
+            )]
+        };
     }
     let (left, right) = pairs.split_at(pairs.len() / 2);
     let mut found: Vec<String> = culprits(trial, left);
@@ -223,14 +409,25 @@ fn documented_keys() -> Vec<String> {
     let mut keys: Vec<String> = String::from_utf8(listing.stdout)
         .expect("UTF-8")
         .lines()
-        .filter(|line| { return line.contains('.') && !line.contains('*') && !line.contains(':') && !line.contains(' '); })
+        .filter(|line| {
+            return line.contains('.')
+                && !line.contains('*')
+                && !line.contains(':')
+                && !line.contains(' ');
+        })
         .map(|line| {
             let mut spelled: String = String::new();
             let mut rest: &str = line;
             while let Some((before, after)) = rest.split_once('<') {
                 spelled.push_str(before);
                 let (_, tail) = after.split_once('>').expect("a closed placeholder");
-                spelled.push_str(if line.starts_with("branch.") { "main" } else if line.starts_with("remote.") { "origin" } else { "x" });
+                spelled.push_str(if line.starts_with("branch.") {
+                    "main"
+                } else if line.starts_with("remote.") {
+                    "origin"
+                } else {
+                    "x"
+                });
                 rest = tail;
             }
             spelled.push_str(rest);
@@ -276,31 +473,64 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
     for (key, value) in cases {
         let extra: String = config_text(key, value);
         // The control must be able to show a difference: Git either fails or says something under this value.
-        assert!(trial.git_is_unchanged_by(extra.as_str()).is_some(), "{key} = {value:?}: Git accepts it silently, so it proves nothing");
+        assert!(
+            trial.git_is_unchanged_by(extra.as_str()).is_some(),
+            "{key} = {value:?}: Git accepts it silently, so it proves nothing"
+        );
         trial.configure(extra.as_str());
-        assert!(!trial.answers_location(), "{key} = {value:?}: the readers answered the location");
+        assert!(
+            !trial.answers_location(),
+            "{key} = {value:?}: the readers answered the location"
+        );
         assert!(trial.disagreements().is_empty(), "{key} = {value:?}");
         for shape in &trial.shapes {
-            assert!(ours(trial.root.as_path(), trial.repo.as_path(), shape).is_none(), "{key} = {value:?}: the readers answered {:?}", shape.0);
+            assert!(
+                ours(trial.root.as_path(), trial.repo.as_path(), shape).is_none(),
+                "{key} = {value:?}: the readers answered {:?}",
+                shape.0
+            );
         }
     }
     // The same values through a global file, an included file and the environment.
     let global = trial.root.join("global-config");
     std::fs::write(&global, config_text("core.fileMode", Some("maybe"))).expect("global");
-    let through_global = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    let through_global = ScopeEnvironment {
+        global: Some(global.clone()),
+        ..scope(trial.root.as_path())
+    };
     trial.configure("");
-    assert!(read_layout_with(trial.repo.as_path(), &[], &through_global).is_none(), "a global file with a malformed value");
+    assert!(
+        read_layout_with(trial.repo.as_path(), &[], &through_global).is_none(),
+        "a global file with a malformed value"
+    );
     let included = trial.root.join("included-config");
     std::fs::write(&included, config_text("diff.context", Some("maybe"))).expect("included");
     trial.configure(format!("[include]\n\tpath = {}\n", included.display()).as_str());
-    assert!(!trial.answers_location(), "an included file with a malformed value");
+    assert!(
+        !trial.answers_location(),
+        "an included file with a malformed value"
+    );
     trial.configure("");
     let injected: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-        (OsString::from("GIT_CONFIG_KEY_0"), OsString::from("core.fileMode")),
-        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("maybe")),
+        (
+            OsString::from("GIT_CONFIG_KEY_0"),
+            OsString::from("core.fileMode"),
+        ),
+        (
+            OsString::from("GIT_CONFIG_VALUE_0"),
+            OsString::from("maybe"),
+        ),
     ];
-    assert!(read_layout_with(trial.repo.as_path(), injected.as_slice(), &scope(trial.root.as_path())).is_none(), "an injected entry with a malformed value");
+    assert!(
+        read_layout_with(
+            trial.repo.as_path(),
+            injected.as_slice(),
+            &scope(trial.root.as_path())
+        )
+        .is_none(),
+        "an injected entry with a malformed value"
+    );
     trial.finish();
 }
 
@@ -314,11 +544,32 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
 #[test]
 fn index_max_path_len_is_a_number_git_reads_before_any_command() {
     let one_past_the_maximum: String = (i64::from(i32::MAX) + 1).to_string();
-    for refused in [Some(b"maybe".as_slice()), None, Some(b""), Some(b"-0"), Some(b"-0k"), Some(b"-1"), Some(b"99999999999999999999"), Some(b"~no-such-user-here/x"), Some(one_past_the_maximum.as_bytes())] {
-        assert!(!entry_is_accepted("index.maxpathlen", refused), "{refused:?}");
+    for refused in [
+        Some(b"maybe".as_slice()),
+        None,
+        Some(b""),
+        Some(b"-0"),
+        Some(b"-0k"),
+        Some(b"-1"),
+        Some(b"99999999999999999999"),
+        Some(b"~no-such-user-here/x"),
+        Some(one_past_the_maximum.as_bytes()),
+    ] {
+        assert!(
+            !entry_is_accepted("index.maxpathlen", refused),
+            "{refused:?}"
+        );
     }
-    for accepted in [Some(b"0".as_slice()), Some(b"3"), Some(b"3k"), Some(b"999999999")] {
-        assert!(entry_is_accepted("index.maxpathlen", accepted), "{accepted:?}");
+    for accepted in [
+        Some(b"0".as_slice()),
+        Some(b"3"),
+        Some(b"3k"),
+        Some(b"999999999"),
+    ] {
+        assert!(
+            entry_is_accepted("index.maxpathlen", accepted),
+            "{accepted:?}"
+        );
     }
 }
 
@@ -330,12 +581,30 @@ fn index_max_path_len_is_a_number_git_reads_before_any_command() {
 /// a unit suffix on each signed spelling,
 /// no value at all,
 /// and two numbers past 64 bits.
-const EDGE_SPELLINGS: [Option<&str>; 14] = [Some("-0"), Some("+0"), Some("0"), Some(" 0"), Some("0 "), Some("0x10"), Some("010"), Some("0k"), Some("-0k"), Some("+0k"), Some(""), None, Some("99999999999999999999"), Some("18446744073709551616")];
+const EDGE_SPELLINGS: [Option<&str>; 14] = [
+    Some("-0"),
+    Some("+0"),
+    Some("0"),
+    Some(" 0"),
+    Some("0 "),
+    Some("0x10"),
+    Some("010"),
+    Some("0k"),
+    Some("-0k"),
+    Some("+0k"),
+    Some(""),
+    None,
+    Some("99999999999999999999"),
+    Some("18446744073709551616"),
+];
 
 /// Whether one kind reads a number,
 ///  and so is swept for the edge spellings of one.
 fn is_numeric_kind(kind: Kind) -> bool {
-    return matches!(kind, Kind::Integer { .. } | Kind::IntegerOrBoolean | Kind::Abbreviation);
+    return matches!(
+        kind,
+        Kind::Integer { .. } | Kind::IntegerOrBoolean | Kind::Abbreviation
+    );
 }
 
 /// The key as the configuration parser hands it to the table:
@@ -350,8 +619,17 @@ fn canonical_key(key: &str) -> String {
         return key.to_ascii_lowercase();
     };
     return match rest.rsplit_once('.') {
-        Some((subsection, name)) => format!("{}.{}.{}", section.to_ascii_lowercase(), subsection, name.to_ascii_lowercase()),
-        None => format!("{}.{}", section.to_ascii_lowercase(), rest.to_ascii_lowercase()),
+        Some((subsection, name)) => format!(
+            "{}.{}.{}",
+            section.to_ascii_lowercase(),
+            subsection,
+            name.to_ascii_lowercase()
+        ),
+        None => format!(
+            "{}.{}",
+            section.to_ascii_lowercase(),
+            rest.to_ascii_lowercase()
+        ),
     };
 }
 
@@ -359,8 +637,17 @@ fn canonical_key(key: &str) -> String {
 ///  the shared edges,
 /// and a number one past each bound the kind states.
 fn edge_spellings(kind: Kind) -> Vec<Option<String>> {
-    let mut spellings: Vec<Option<String>> = EDGE_SPELLINGS.iter().map(|spelling| { return spelling.map(str::to_string); }).collect();
-    if let Kind::Integer { low, high } = kind {
+    let mut spellings: Vec<Option<String>> = EDGE_SPELLINGS
+        .iter()
+        .map(|spelling| {
+            return spelling.map(str::to_string);
+        })
+        .collect();
+    if let Kind::Integer {
+        low,
+        high,
+    } = kind
+    {
         spellings.push(Some((high + 1).to_string()));
         spellings.push(Some((low - 1).to_string()));
     }
@@ -380,7 +667,15 @@ fn edge_spellings(kind: Kind) -> Vec<Option<String>> {
 #[test]
 fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
     let trial = Trial::new("repo-read-typed-edges");
-    let shape: &Shape = trial.shapes.iter().find(|shape| { return shape.0.first().is_some_and(|word| { return *word == "ls-files"; }); }).expect("the listing shape");
+    let shape: &Shape = trial
+        .shapes
+        .iter()
+        .find(|shape| {
+            return shape.0.first().is_some_and(|word| {
+                return *word == "ls-files";
+            });
+        })
+        .expect("the listing shape");
     let mut keys: Vec<(String, Kind)> = Vec::new();
     for key in documented_keys() {
         let Some(kind) = kind_of(canonical_key(key.as_str()).as_str()) else {
@@ -390,7 +685,11 @@ fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
             keys.push((key, kind));
         }
     }
-    assert!(keys.len() > 5, "git help --config listed {} numeric keys", keys.len());
+    assert!(
+        keys.len() > 5,
+        "git help --config listed {} numeric keys",
+        keys.len()
+    );
     let mut failures: Vec<String> = Vec::new();
     for (key, kind) in keys {
         for spelling in edge_spellings(kind) {
@@ -400,12 +699,20 @@ fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
             };
             let (_stdout, stderr, code) = real(trial.repo.as_path(), shape);
             if code != Some(0) {
-                failures.push(format!("{key} = {spelling:?}: the readers answered {:?} where Git exits {code:?}: {}", String::from_utf8_lossy(&answer.stdout), String::from_utf8_lossy(&stderr)));
+                failures.push(format!(
+                    "{key} = {spelling:?}: the readers answered {:?} where Git exits {code:?}: {}",
+                    String::from_utf8_lossy(&answer.stdout),
+                    String::from_utf8_lossy(&stderr)
+                ));
             }
         }
     }
     trial.configure("");
-    assert!(failures.is_empty(), "{} spellings of a numeric key are answered where Git refuses them: {failures:#?}", failures.len());
+    assert!(
+        failures.is_empty(),
+        "{} spellings of a numeric key are answered where Git refuses them: {failures:#?}",
+        failures.len()
+    );
     trial.finish();
 }
 
@@ -421,27 +728,99 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
         };
         // The query readers read these values themselves and decline the ones they cannot follow, so Git changing its
         // answer for an arbitrary text value is no evidence about the proof.
-        if SEMANTIC_SECTIONS.iter().any(|section| { return key.starts_with(format!("{section}.").as_str()); }) && matches!(kind, Kind::Text) {
+        if SEMANTIC_SECTIONS.iter().any(|section| {
+            return key.starts_with(format!("{section}.").as_str());
+        }) && matches!(kind, Kind::Text)
+        {
             continue;
         }
         let mut spellings: Vec<Option<String>> = vec![None, Some(String::new())];
         match kind {
-            Kind::Boolean | Kind::IntegerOrBoolean => spellings.extend(["true", "yes", "on", "false", "no", "off", "1", "0", "-1", "TRUE"].map(|word| { return Some(word.to_string()); })),
-            Kind::BooleanOr(words) | Kind::OneOf { words, .. } => spellings.extend(words.iter().map(|word| { return Some((*word).to_string()); })),
-            Kind::Words { words, negatable, .. } => {
-                spellings.extend(words.iter().map(|word| { return Some((*word).to_string()); }));
+            Kind::Boolean | Kind::IntegerOrBoolean => spellings.extend(
+                [
+                    "true", "yes", "on", "false", "no", "off", "1", "0", "-1", "TRUE",
+                ]
+                .map(|word| {
+                    return Some(word.to_string());
+                }),
+            ),
+            Kind::BooleanOr(words)
+            | Kind::OneOf {
+                words,
+                ..
+            } => spellings.extend(words.iter().map(|word| {
+                return Some((*word).to_string());
+            })),
+            Kind::Words {
+                words,
+                negatable,
+                ..
+            } => {
+                spellings.extend(words.iter().map(|word| {
+                    return Some((*word).to_string());
+                }));
                 if negatable {
-                    spellings.extend(words.iter().take(2).map(|word| { return Some(format!("-{word}")); }));
+                    spellings.extend(words.iter().take(2).map(|word| {
+                        return Some(format!("-{word}"));
+                    }));
                 }
-                spellings.push(Some(words.iter().take(2).copied().collect::<Vec<&str>>().join(",")));
+                spellings.push(Some(
+                    words
+                        .iter()
+                        .take(2)
+                        .copied()
+                        .collect::<Vec<&str>>()
+                        .join(","),
+                ));
             }
-            Kind::Integer { low, high } => spellings.extend([low, high, (low + high) / 2].map(|number| { return Some(number.to_string()); })),
-            Kind::Color => spellings.extend(["red", "bold red", "red blue", "bold ul green", "brightblue", "12", "#00ff7f", "nobold", "no-dim", "normal", "default"].map(|word| { return Some(word.to_string()); })),
-            Kind::Abbreviation => spellings.extend(["auto", "false", "4", "40"].map(|word| { return Some(word.to_string()); })),
-            Kind::Refspec => spellings.extend(["refs/heads/*:refs/remotes/origin/*", "+refs/heads/*:refs/remotes/origin/*", "refs/heads/main:refs/heads/main"].map(|word| { return Some(word.to_string()); })),
-            Kind::Text | Kind::Pathname | Kind::CommentText => spellings.extend(["plain", "~/x", "/abs/path"].map(|word| { return Some(word.to_string()); })),
-            Kind::TraceTarget => spellings.extend(["0", "false", "FALSE"].map(|word| { return Some(word.to_string()); })),
-            Kind::OffOrBuiltinDaemon => spellings.extend(["false", "0"].map(|word| { return Some(word.to_string()); })),
+            Kind::Integer {
+                low,
+                high,
+            } => spellings.extend([low, high, (low + high) / 2].map(|number| {
+                return Some(number.to_string());
+            })),
+            Kind::Color => spellings.extend(
+                [
+                    "red",
+                    "bold red",
+                    "red blue",
+                    "bold ul green",
+                    "brightblue",
+                    "12",
+                    "#00ff7f",
+                    "nobold",
+                    "no-dim",
+                    "normal",
+                    "default",
+                ]
+                .map(|word| {
+                    return Some(word.to_string());
+                }),
+            ),
+            Kind::Abbreviation => spellings.extend(["auto", "false", "4", "40"].map(|word| {
+                return Some(word.to_string());
+            })),
+            Kind::Refspec => spellings.extend(
+                [
+                    "refs/heads/*:refs/remotes/origin/*",
+                    "+refs/heads/*:refs/remotes/origin/*",
+                    "refs/heads/main:refs/heads/main",
+                ]
+                .map(|word| {
+                    return Some(word.to_string());
+                }),
+            ),
+            Kind::Text | Kind::Pathname | Kind::CommentText => {
+                spellings.extend(["plain", "~/x", "/abs/path"].map(|word| {
+                    return Some(word.to_string());
+                }))
+            }
+            Kind::TraceTarget => spellings.extend(["0", "false", "FALSE"].map(|word| {
+                return Some(word.to_string());
+            })),
+            Kind::OffOrBuiltinDaemon => spellings.extend(["false", "0"].map(|word| {
+                return Some(word.to_string());
+            })),
             Kind::Refused => {}
         }
         for spelling in spellings {
@@ -455,14 +834,27 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
     let mut failures: Vec<String> = Vec::new();
     let mut rounds: Vec<Vec<(String, Option<String>)>> = Vec::new();
     for pair in pairs {
-        match rounds.iter_mut().find(|round| { return round.len() < BATCH_SIZE && !round.iter().any(|(key, _)| { return *key == pair.0; }); }) {
+        match rounds.iter_mut().find(|round| {
+            return round.len() < BATCH_SIZE
+                && !round.iter().any(|(key, _)| {
+                    return *key == pair.0;
+                });
+        }) {
             Some(round) => round.push(pair),
             None => rounds.push(vec![pair]),
         }
     }
     for round in rounds {
-        let text: String = round.iter().map(|(key, value)| { return config_text(key.as_str(), value.as_deref()); }).collect();
-        if trial.git_is_unchanged_by(text.as_str()).is_none() && trial.answers_location() && trial.disagreements().is_empty() {
+        let text: String = round
+            .iter()
+            .map(|(key, value)| {
+                return config_text(key.as_str(), value.as_deref());
+            })
+            .collect();
+        if trial.git_is_unchanged_by(text.as_str()).is_none()
+            && trial.answers_location()
+            && trial.disagreements().is_empty()
+        {
             continue;
         }
         // Find the pairs that fail alone.
@@ -471,7 +863,9 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
             if let Some(why) = trial.git_is_unchanged_by(single.as_str()) {
                 failures.push(format!("{pair:?}: Git is not silent: {why}"));
             } else if !trial.answers_location() {
-                failures.push(format!("{pair:?}: the readers declined an accepted spelling"));
+                failures.push(format!(
+                    "{pair:?}: the readers declined an accepted spelling"
+                ));
             }
         }
     }
@@ -486,16 +880,29 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
 fn every_documented_key_with_a_malformed_value_is_declined_or_equals_git() {
     let trial = Trial::new("repo-read-typed-sweep");
     let keys: Vec<String> = documented_keys();
-    assert!(keys.len() > 100, "git help --config listed only {} keys", keys.len());
+    assert!(
+        keys.len() > 100,
+        "git help --config listed only {} keys",
+        keys.len()
+    );
     let mut failures: Vec<String> = Vec::new();
     for variant in MALFORMED_VARIANTS {
         for chunk in keys.chunks(BATCH_SIZE) {
-            let pairs: Vec<(String, Option<String>)> = chunk.iter().map(|key| { return (key.clone(), variant.map(str::to_string)); }).collect();
+            let pairs: Vec<(String, Option<String>)> = chunk
+                .iter()
+                .map(|key| {
+                    return (key.clone(), variant.map(str::to_string));
+                })
+                .collect();
             failures.extend(culprits(&trial, pairs.as_slice()));
         }
     }
     trial.configure("");
-    assert!(failures.is_empty(), "{} keys make the readers answer where Git differs: {failures:#?}", failures.len());
+    assert!(
+        failures.is_empty(),
+        "{} keys make the readers answer where Git differs: {failures:#?}",
+        failures.len()
+    );
     trial.finish();
 }
 
@@ -510,7 +917,18 @@ fn numbers_are_read_only_when_decimal_and_small() {
     assert_eq!(number_of("-3"), Some(-3));
     assert_eq!(number_of("2k"), Some(2 << 10));
     assert_eq!(number_of("1G"), Some(1 << 30));
-    for refused in ["", "-", "k", "010", "0x10", "1.5", "1234567890", "9999999999g", "1 2", "+"] {
+    for refused in [
+        "",
+        "-",
+        "k",
+        "010",
+        "0x10",
+        "1.5",
+        "1234567890",
+        "9999999999g",
+        "1 2",
+        "+",
+    ] {
         assert_eq!(number_of(refused), None, "{refused:?}");
     }
 }
@@ -521,7 +939,11 @@ const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
 /// Real Git in `repo` with `global` as the user's configuration file,
 /// and nothing else of the user's environment,
 ///  run under the bound a control gives its fixture Git.
-fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::Output {
+fn real_under(
+    repo: &Path,
+    global: &Path,
+    arguments: &[&str],
+) -> std::process::Output {
     // The monitor daemon changes to the home directory when it starts,
     // so the home must exist.
     let home: PathBuf = repo.with_file_name("monitor-home");
@@ -529,13 +951,36 @@ fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::O
     let environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
-        (OsString::from("GIT_CONFIG_GLOBAL"), global.as_os_str().to_os_string()),
+        (
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            global.as_os_str().to_os_string(),
+        ),
         (OsString::from("HOME"), home.into_os_string()),
     ];
-    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
-    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND);
-    assert_eq!(answer.ending, QueryEnding::Itself, "the query {arguments:?} did not answer within {} s: the bound ended it", FIXTURE_GIT_BOUND.as_secs());
-    assert!(!answer.held_open, "the query {arguments:?} ended, and a descendant of it still holds its output");
+    let words: Vec<OsString> = arguments
+        .iter()
+        .map(|argument| {
+            return OsString::from(*argument);
+        })
+        .collect();
+    let answer: QueryAnswer = real_git_within(
+        Path::new(REAL_GIT),
+        Some(repo),
+        environment.as_slice(),
+        words.as_slice(),
+        None,
+        FIXTURE_GIT_BOUND,
+    );
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the query {arguments:?} did not answer within {} s: the bound ended it",
+        FIXTURE_GIT_BOUND.as_secs()
+    );
+    assert!(
+        !answer.held_open,
+        "the query {arguments:?} ended, and a descendant of it still holds its output"
+    );
     return answer.output;
 }
 
@@ -550,7 +995,11 @@ impl Drop for StopsMonitor {
     fn drop(&mut self) {
         // No daemon running is the usual case for a failed premise,
         // and stopping it is the whole job.
-        let _stopped = real_under(self.repo.as_path(), self.global.as_path(), &["fsmonitor--daemon", "stop"]);
+        let _stopped = real_under(
+            self.repo.as_path(),
+            self.global.as_path(),
+            &["fsmonitor--daemon", "stop"],
+        );
     }
 }
 
@@ -561,13 +1010,31 @@ impl Drop for StopsMonitor {
 /// and every other value is left to Git.
 #[test]
 fn core_fsmonitor_accepts_the_switch_words_and_nothing_that_names_a_program() {
-    for word in ["true", "yes", "on", "TRUE", "On", "false", "no", "off", "0", ""] {
-        assert!(entry_is_accepted("core.fsmonitor", Some(word.as_bytes())), "{word:?}");
+    for word in [
+        "true", "yes", "on", "TRUE", "On", "false", "no", "off", "0", "",
+    ] {
+        assert!(
+            entry_is_accepted("core.fsmonitor", Some(word.as_bytes())),
+            "{word:?}"
+        );
     }
-    for text in ["maybe", "/usr/bin/watchman-hook", ".git/hooks/fsmonitor-watchman", "1", "2", "-1"] {
-        assert!(!entry_is_accepted("core.fsmonitor", Some(text.as_bytes())), "{text:?}");
+    for text in [
+        "maybe",
+        "/usr/bin/watchman-hook",
+        ".git/hooks/fsmonitor-watchman",
+        "1",
+        "2",
+        "-1",
+    ] {
+        assert!(
+            !entry_is_accepted("core.fsmonitor", Some(text.as_bytes())),
+            "{text:?}"
+        );
     }
-    assert!(!entry_is_accepted("core.fsmonitor", None), "the bare name is left to Git");
+    assert!(
+        !entry_is_accepted("core.fsmonitor", None),
+        "the bare name is left to Git"
+    );
 }
 
 /// A user whose own configuration file holds `core.fsmonitor = true` keeps the location reader answering,
@@ -578,21 +1045,39 @@ fn a_user_level_fsmonitor_true_keeps_the_layout_reader_answering() {
     let trial = Trial::new("repo-read-typed-monitor-layout");
     let global = trial.root.join("user.gitconfig");
     std::fs::write(&global, MONITOR_ON).expect("user configuration");
-    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
-    let layout = read_layout_with(trial.repo.as_path(), &[], &user_scope).expect("the reader answers for this user");
-    let asked = real_under(trial.repo.as_path(), global.as_path(), &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
-    assert_eq!(String::from_utf8_lossy(&asked.stdout).trim_end(), layout.git_dir.display().to_string());
+    let user_scope = ScopeEnvironment {
+        global: Some(global.clone()),
+        ..scope(trial.root.as_path())
+    };
+    let layout = read_layout_with(trial.repo.as_path(), &[], &user_scope)
+        .expect("the reader answers for this user");
+    let asked = real_under(
+        trial.repo.as_path(),
+        global.as_path(),
+        &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&asked.stdout).trim_end(),
+        layout.git_dir.display().to_string()
+    );
     // A hook program named there is run by Git,
     // so the reader still leaves such a user to Git.
-    std::fs::write(&global, "[core]\n\tfsmonitor = /usr/bin/watchman-hook\n").expect("hook configuration");
+    std::fs::write(&global, "[core]\n\tfsmonitor = /usr/bin/watchman-hook\n")
+        .expect("hook configuration");
     assert!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_none());
     trial.finish();
 }
 
 /// Every query shape the readers answer for the user whose file is `global` prints what real Git prints under the same file,
 ///  and the readers answer enough shapes for that to compare something.
-fn readers_equal_git_under(trial: &Trial, global: &Path) {
-    let user_scope = ScopeEnvironment { global: Some(global.to_path_buf()), ..scope(trial.root.as_path()) };
+fn readers_equal_git_under(
+    trial: &Trial,
+    global: &Path,
+) {
+    let user_scope = ScopeEnvironment {
+        global: Some(global.to_path_buf()),
+        ..scope(trial.root.as_path())
+    };
     let mut answered: usize = 0;
     for shape in &trial.shapes {
         let arguments: Vec<&str> = shape.0.iter().map(String::as_str).collect();
@@ -602,10 +1087,24 @@ fn readers_equal_git_under(trial: &Trial, global: &Path) {
             continue;
         }
         let given: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
-        let query = |scope: &ScopeEnvironment| { return answer_with(&Query { arguments: given.as_slice(), directory: Some(trial.repo.as_path()), variables: &[], input: None }, Vec::new(), scope); };
+        let query = |scope: &ScopeEnvironment| {
+            return answer_with(
+                &Query {
+                    arguments: given.as_slice(),
+                    directory: Some(trial.repo.as_path()),
+                    variables: &[],
+                    input: None,
+                },
+                Vec::new(),
+                scope,
+            );
+        };
         // A shape the readers decline for every user is no finding about this one.
         let Some(answer) = query(&user_scope) else {
-            assert!(query(&scope(trial.root.as_path())).is_none(), "the readers answer {arguments:?} for a user without the setting and decline it for this one");
+            assert!(
+                query(&scope(trial.root.as_path())).is_none(),
+                "the readers answer {arguments:?} for a user without the setting and decline it for this one"
+            );
             continue;
         };
         answered += 1;
@@ -614,7 +1113,10 @@ fn readers_equal_git_under(trial: &Trial, global: &Path) {
         assert_eq!(answer.stderr, expected.stderr, "{arguments:?}");
         assert_eq!(Some(answer.code), expected.status.code(), "{arguments:?}");
     }
-    assert!(answered >= 5, "the readers answered only {answered} shapes, which compares too little");
+    assert!(
+        answered >= 5,
+        "the readers answered only {answered} shapes, which compares too little"
+    );
 }
 
 /// With the built-in monitor daemon running and an index it has extended,
@@ -626,16 +1128,40 @@ fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
     let trial = Trial::new("repo-read-typed-monitor-queries");
     let global = trial.root.join("user.gitconfig");
     std::fs::write(&global, MONITOR_ON).expect("user configuration");
-    let stops = StopsMonitor { repo: trial.repo.clone(), global: global.clone() };
+    let stops = StopsMonitor {
+        repo: trial.repo.clone(),
+        global: global.clone(),
+    };
     // A command that refreshes the index starts the daemon and makes Git write its extension into the index.
-    let refreshed = real_under(trial.repo.as_path(), global.as_path(), &["status", "--short"]);
-    assert!(refreshed.status.success(), "{}", String::from_utf8_lossy(&refreshed.stderr));
-    let watching: bool = real_under(trial.repo.as_path(), global.as_path(), &["fsmonitor--daemon", "status"]).status.success();
+    let refreshed = real_under(
+        trial.repo.as_path(),
+        global.as_path(),
+        &["status", "--short"],
+    );
+    assert!(
+        refreshed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&refreshed.stderr)
+    );
+    let watching: bool = real_under(
+        trial.repo.as_path(),
+        global.as_path(),
+        &["fsmonitor--daemon", "status"],
+    )
+    .status
+    .success();
     let index: Vec<u8> = std::fs::read(trial.repo.join(".git/index")).expect("index");
     if watching {
-        assert!(index.windows(4).any(|window| { return window == b"FSMN"; }), "the daemon's extension is in the index");
+        assert!(
+            index.windows(4).any(|window| {
+                return window == b"FSMN";
+            }),
+            "the daemon's extension is in the index"
+        );
     } else {
-        eprintln!("note: this file system cannot host the monitor daemon, so the index has no extension");
+        eprintln!(
+            "note: this file system cannot host the monitor daemon, so the index has no extension"
+        );
     }
     readers_equal_git_under(&trial, global.as_path());
     // The daemon watches the repository,
@@ -661,13 +1187,26 @@ fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
     let trial = Trial::new("repo-read-typed-monitor-blocked");
     let global = trial.root.join("user.gitconfig");
     std::fs::write(&global, MONITOR_ON).expect("user configuration");
-    let stops = StopsMonitor { repo: trial.repo.clone(), global: global.clone() };
-    std::fs::create_dir(trial.repo.join(".git/fsmonitor--daemon.ipc")).expect("a directory where the socket would go");
+    let stops = StopsMonitor {
+        repo: trial.repo.clone(),
+        global: global.clone(),
+    };
+    std::fs::create_dir(trial.repo.join(".git/fsmonitor--daemon.ipc"))
+        .expect("a directory where the socket would go");
     readers_equal_git_under(&trial, global.as_path());
     // The premise:
     // every Git run above tried to start the monitor and could not.
-    let watching = real_under(trial.repo.as_path(), global.as_path(), &["fsmonitor--daemon", "status"]).status.success();
-    assert!(!watching, "the monitor must not be running, or the control compares nothing about a failure");
+    let watching = real_under(
+        trial.repo.as_path(),
+        global.as_path(),
+        &["fsmonitor--daemon", "status"],
+    )
+    .status
+    .success();
+    assert!(
+        !watching,
+        "the monitor must not be running, or the control compares nothing about a failure"
+    );
     drop(stops);
     trial.finish();
 }
@@ -685,17 +1224,27 @@ fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
 fn a_malformed_dependent_fsmonitor_key_declines_with_the_true_word() {
     let trial = Trial::new("repo-read-typed-monitor-dependent");
     let global = trial.root.join("user.gitconfig");
-    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    let user_scope = ScopeEnvironment {
+        global: Some(global.clone()),
+        ..scope(trial.root.as_path())
+    };
     for (key_text, answers) in [
         ("[fsmonitor]\n\tallowRemote = true\n", true),
         ("[fsmonitor]\n\tallowRemote = false\n", true),
         ("[fsmonitor]\n\tallowRemote = maybe\n", false),
         ("[fsmonitor]\n\tsocketDir = /run/user/1000\n", true),
         ("[fsmonitor]\n\tsocketDir = ~/sockets\n", true),
-        ("[fsmonitor]\n\tsocketDir = ~no-such-user-here/sockets\n", false),
+        (
+            "[fsmonitor]\n\tsocketDir = ~no-such-user-here/sockets\n",
+            false,
+        ),
     ] {
         std::fs::write(&global, format!("{MONITOR_ON}{key_text}")).expect("user configuration");
-        assert_eq!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(), answers, "{key_text:?}");
+        assert_eq!(
+            read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(),
+            answers,
+            "{key_text:?}"
+        );
     }
     trial.finish();
 }
@@ -712,7 +1261,10 @@ fn a_malformed_dependent_fsmonitor_key_declines_with_the_true_word() {
 fn a_configured_trace2_target_declines_and_an_inactive_one_does_not() {
     let trial = Trial::new("repo-read-typed-trace2");
     let global = trial.root.join("user.gitconfig");
-    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    let user_scope = ScopeEnvironment {
+        global: Some(global.clone()),
+        ..scope(trial.root.as_path())
+    };
     for (target, active) in [
         ("normalTarget = 2", true),
         ("eventTarget = 2", true),
@@ -724,10 +1276,24 @@ fn a_configured_trace2_target_declines_and_an_inactive_one_does_not() {
         ("eventTarget = false", false),
         ("perfTarget =", false),
     ] {
-        std::fs::write(&global, format!("{MONITOR_ON}[trace2]\n\t{target}\n")).expect("user configuration");
-        let printed: std::process::Output = real_under(trial.repo.as_path(), global.as_path(), &["rev-parse", "--git-dir"]);
-        assert_eq!(!printed.stderr.is_empty(), active, "{target}: Git's standard error is {:?}", String::from_utf8_lossy(&printed.stderr));
-        assert_eq!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(), !active, "{target}");
+        std::fs::write(&global, format!("{MONITOR_ON}[trace2]\n\t{target}\n"))
+            .expect("user configuration");
+        let printed: std::process::Output = real_under(
+            trial.repo.as_path(),
+            global.as_path(),
+            &["rev-parse", "--git-dir"],
+        );
+        assert_eq!(
+            !printed.stderr.is_empty(),
+            active,
+            "{target}: Git's standard error is {:?}",
+            String::from_utf8_lossy(&printed.stderr)
+        );
+        assert_eq!(
+            read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(),
+            !active,
+            "{target}"
+        );
     }
     trial.finish();
 }

@@ -33,26 +33,61 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
-use crate::add_timing::{begin_work, end_work};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
 use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
-use crate::package_repair_cargo::{repair_cargo, repair_cargo_awaiting};
-use crate::package_repair_pnpm::{PnpmNeed, repair_pnpm, repair_pnpm_awaiting};
+use crate::package_repair_cargo::{
+    repair_cargo,
+    repair_cargo_awaiting,
+};
+use crate::package_repair_pnpm::{
+    PnpmNeed,
+    repair_pnpm,
+    repair_pnpm_awaiting,
+};
 use crate::package_repair_prewarm::common_directory_awaiting;
-use crate::package_repair_relink::{NotTaken, QueuedRelink, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
+use crate::package_repair_relink::{
+    NotTaken,
+    QueuedRelink,
+    RelinkEntry,
+    RelinkTool,
+    SearchPathOfTheAdd,
+    hand_over_in_a_job,
+};
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+    Tool,
+    render,
+};
 /// What the repairs read,
 /// who asks,
 /// and the switches of the person;
 /// kept in a file of their own and named here so the paths
 ///  outside this folder stay the same.
-pub use crate::package_repair_request::{RepairEnvironment, RepairRequest, RepairSwitch, workers_for};
-use crate::package_repair_report::{Finding, Outcome, Tool, render};
-use crate::package_repair_toolchain::{MANUAL_COMMAND as TOOLCHAIN_MANUAL_COMMAND, ToolchainNeed, repair_toolchain, repair_toolchain_awaiting};
+pub use crate::package_repair_request::{
+    RepairEnvironment,
+    RepairRequest,
+    RepairSwitch,
+    workers_for,
+};
+use crate::package_repair_toolchain::{
+    MANUAL_COMMAND as TOOLCHAIN_MANUAL_COMMAND,
+    ToolchainNeed,
+    repair_toolchain,
+    repair_toolchain_awaiting,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -121,7 +156,13 @@ impl OwnedRequest {
     /// What one repair reads,
     /// lent for the length of its own work.
     fn lent(&self) -> RepairRequest<'_> {
-        return RepairRequest { git: &self.git, source: self.source.as_path(), destination: self.destination.as_path(), switch: self.switch, environment: self.environment.as_ref() };
+        return RepairRequest {
+            git: &self.git,
+            source: self.source.as_path(),
+            destination: self.destination.as_path(),
+            switch: self.switch,
+            environment: self.environment.as_ref(),
+        };
     }
 }
 
@@ -140,12 +181,16 @@ impl OwnedRequest {
 /// ```
 async fn repair_cargo_one(request: RepairRequest<'_>) -> Vec<Finding> {
     let began: Instant = begin_work();
-    let repaired: Result<Vec<Finding>, String> = call_catching_panics_awaiting(repair_cargo_awaiting(&request)).await;
+    let repaired: Result<Vec<Finding>, String> =
+        call_catching_panics_awaiting(repair_cargo_awaiting(&request)).await;
     end_work("repairCargo", began);
     return match repaired {
         Ok(findings) => findings,
         Err(_words) => {
-            debug(TAG, "the cargo repair stopped unexpectedly and reports nothing");
+            debug(
+                TAG,
+                "the cargo repair stopped unexpectedly and reports nothing",
+            );
             Vec::new()
         }
     };
@@ -170,8 +215,23 @@ async fn repair_cargo_one(request: RepairRequest<'_>) -> Vec<Finding> {
 /// ```ts
 /// function report(destination: string, findings: Finding[], quiet: boolean, notices: Write, started: Instant): Finding[];
 /// ```
-fn report(destination: &Path, findings: Vec<Finding>, quiet: bool, notices: &mut dyn Write, started: Instant) -> Vec<Finding> {
-    debug(TAG, format!("{}: {} findings in {} ms", destination.display(), findings.len(), started.elapsed().as_millis()).as_str());
+fn report(
+    destination: &Path,
+    findings: Vec<Finding>,
+    quiet: bool,
+    notices: &mut dyn Write,
+    started: Instant,
+) -> Vec<Finding> {
+    debug(
+        TAG,
+        format!(
+            "{}: {} findings in {} ms",
+            destination.display(),
+            findings.len(),
+            started.elapsed().as_millis()
+        )
+        .as_str(),
+    );
     let text: String = render(destination, findings.as_slice(), quiet);
     // A closed standard error leaves nowhere to say it; the worktree is whole either way.
     let _written = notices.write_all(text.as_bytes());
@@ -191,13 +251,36 @@ fn report(destination: &Path, findings: Vec<Finding>, quiet: bool, notices: &mut
 /// ```ts
 /// const handedOver = (tool, millis, destination) => Finding
 /// ```
-fn handed_over(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
+fn handed_over(
+    tool: RelinkTool,
+    millis: u128,
+    destination: &Path,
+) -> Finding {
     let (as_report, detail): (Tool, &str) = match tool {
         RelinkTool::Pnpm => (Tool::Pnpm, "pnpm will relink the copied node_modules here"),
-        RelinkTool::Toolchain => (Tool::Toolchain, "mpm-shadow will rebuild the toolchain links here"),
+        RelinkTool::Toolchain => (
+            Tool::Toolchain,
+            "mpm-shadow will rebuild the toolchain links here",
+        ),
     };
-    debug(TAG, format!("{}: {} is the service's work", destination.display(), tool.name()).as_str());
-    return Finding { tool: as_report, outcome: Outcome::Repaired { detail: format!("{detail}, because the commit service runs it after this command returns"), millis } };
+    debug(
+        TAG,
+        format!(
+            "{}: {} is the service's work",
+            destination.display(),
+            tool.name()
+        )
+        .as_str(),
+    );
+    return Finding {
+        tool: as_report,
+        outcome: Outcome::Repaired {
+            detail: format!(
+                "{detail}, because the commit service runs it after this command returns"
+            ),
+            millis,
+        },
+    };
 }
 
 /// What:
@@ -221,7 +304,10 @@ enum Told {
     /// so the add relinks the worktree here;
     /// the text says why the hand-over failed,
     /// and the record still queued is taken back after this run has finished.
-    Stays { reason: String, queued: Option<QueuedRelink> },
+    Stays {
+        reason: String,
+        queued: Option<QueuedRelink>,
+    },
 }
 
 /// What:
@@ -239,9 +325,13 @@ enum Told {
 /// ```ts
 /// async function handOverTheRecord(request, entry): Promise<Told>
 /// ```
-async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) -> Told {
+async fn hand_over_the_record(
+    request: &RepairRequest<'_>,
+    entry: &RelinkEntry,
+) -> Told {
     let began: Instant = begin_work();
-    let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
+    let common_dir: Result<PathBuf, String> =
+        common_directory_awaiting(request.git, request.destination).await;
     let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
         Ok(common) => {
             let state: crate::package_repair_relink::TheHandOver = (
@@ -253,14 +343,23 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
             );
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
+        Err(reason) => Ok(Err(NotTaken {
+            reason,
+            queued: None,
+        })),
     };
     end_work("relinkHandOver", began);
     let millis: u128 = began.elapsed().as_millis();
     return match told {
         Ok(Ok(())) => Told::Taken(millis),
-        Ok(Err(not_taken)) => Told::Stays { reason: not_taken.reason, queued: not_taken.queued },
-        Err(refusal) => Told::Stays { reason: format!("{refusal}"), queued: None },
+        Ok(Err(not_taken)) => Told::Stays {
+            reason: not_taken.reason,
+            queued: not_taken.queued,
+        },
+        Err(refusal) => Told::Stays {
+            reason: format!("{refusal}"),
+            queued: None,
+        },
     };
 }
 
@@ -277,26 +376,34 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
 /// ```ts
 /// async function relinkHere(request, tools): Promise<LinksHandedOver>
 /// ```
-async fn relink_here(request: &RepairRequest<'_>, tools: &[RelinkTool]) -> LinksHandedOver {
+async fn relink_here(
+    request: &RepairRequest<'_>,
+    tools: &[RelinkTool],
+) -> LinksHandedOver {
     let mut pnpm: Vec<Finding> = Vec::new();
     let mut toolchain: Vec<Finding> = Vec::new();
     for tool in tools {
         match tool {
             RelinkTool::Pnpm => {
                 let began: Instant = begin_work();
-                let found: Option<Finding> = repair_pnpm_awaiting(request.destination, request.environment).await;
+                let found: Option<Finding> =
+                    repair_pnpm_awaiting(request.destination, request.environment).await;
                 end_work("repairPnpm", began);
                 pnpm.extend(found);
             }
             RelinkTool::Toolchain => {
                 let began: Instant = begin_work();
-                let found: Option<Finding> = repair_toolchain_awaiting(request.destination, request.environment).await;
+                let found: Option<Finding> =
+                    repair_toolchain_awaiting(request.destination, request.environment).await;
                 end_work("repairToolchain", began);
                 toolchain.extend(found);
             }
         }
     }
-    return LinksHandedOver { pnpm, toolchain };
+    return LinksHandedOver {
+        pnpm,
+        toolchain,
+    };
 }
 
 /// What:
@@ -315,20 +422,33 @@ async fn relink_here(request: &RepairRequest<'_>, tools: &[RelinkTool]) -> Links
 /// async function handTheLinksOver(request): Promise<LinksHandedOver>
 /// ```
 async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
-    let mut findings: LinksHandedOver = LinksHandedOver { pnpm: Vec::new(), toolchain: Vec::new() };
+    let mut findings: LinksHandedOver = LinksHandedOver {
+        pnpm: Vec::new(),
+        toolchain: Vec::new(),
+    };
     let mut tools: Vec<RelinkTool> = Vec::new();
     match crate::package_repair_pnpm::need_of(request.destination, request.environment) {
         PnpmNeed::Nothing => {}
         PnpmNeed::NoProgram(finding) => findings.pnpm.push(finding),
         PnpmNeed::Needed => tools.push(RelinkTool::Pnpm),
     }
-    match crate::package_repair_toolchain::need_within_the_budget(request.destination, request.environment).await {
+    match crate::package_repair_toolchain::need_within_the_budget(
+        request.destination,
+        request.environment,
+    )
+    .await
+    {
         Ok(ToolchainNeed::Nothing) => {}
         Ok(ToolchainNeed::NoProgram(finding)) => findings.toolchain.push(finding),
         Ok(ToolchainNeed::Needed) => tools.push(RelinkTool::Toolchain),
         Err(refusal) => findings.toolchain.push(Finding {
             tool: Tool::Toolchain,
-            outcome: Outcome::Failed { reason: format!("the launcher records of the worktree could not be read ({refusal})"), run_instead: String::from(TOOLCHAIN_MANUAL_COMMAND) },
+            outcome: Outcome::Failed {
+                reason: format!(
+                    "the launcher records of the worktree could not be read ({refusal})"
+                ),
+                run_instead: String::from(TOOLCHAIN_MANUAL_COMMAND),
+            },
         }),
     }
     if tools.is_empty() {
@@ -340,7 +460,11 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
         None => SearchPathOfTheAdd::Unset,
         Some(path) => SearchPathOfTheAdd::Set(path.clone()),
     };
-    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path, tools: tools.clone() };
+    let entry: RelinkEntry = RelinkEntry {
+        root: request.destination.to_path_buf(),
+        search_path,
+        tools: tools.clone(),
+    };
     let told: Told = hand_over_the_record(request, &entry).await;
     match told {
         Told::Taken(millis) => {
@@ -352,8 +476,18 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
                 }
             }
         }
-        Told::Stays { reason, queued } => {
-            debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
+        Told::Stays {
+            reason,
+            queued,
+        } => {
+            debug(
+                TAG,
+                format!(
+                    "{}: no service took the relink ({reason}), so it runs here",
+                    request.destination.display()
+                )
+                .as_str(),
+            );
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
             // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
             //  worktree this record names rather than nothing at all.
@@ -382,9 +516,19 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
 /// ```ts
 /// await repairWorktreeAwaiting(request, stderr);
 /// ```
-pub(crate) async fn repair_worktree_awaiting(request: &RepairRequest<'_>, notices: &mut dyn Write) -> Vec<Finding> {
+pub(crate) async fn repair_worktree_awaiting(
+    request: &RepairRequest<'_>,
+    notices: &mut dyn Write,
+) -> Vec<Finding> {
     if request.switch.no_checkout {
-        debug(TAG, format!("{}: --no-checkout, so there is nothing to repair", request.destination.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{}: --no-checkout, so there is nothing to repair",
+                request.destination.display()
+            )
+            .as_str(),
+        );
         return Vec::new();
     }
     let started: Instant = Instant::now();
@@ -393,10 +537,24 @@ pub(crate) async fn repair_worktree_awaiting(request: &RepairRequest<'_>, notice
     //  a thread, so they overlap without a task of their own.
     let links_request: RepairRequest<'_> = owned.lent();
     let cargo_request: RepairRequest<'_> = owned.lent();
-    let (links, cargo): (LinksHandedOver, Vec<Finding>) = tokio::join!(hand_the_links_over(&links_request), repair_cargo_one(cargo_request));
+    let (links, cargo): (LinksHandedOver, Vec<Finding>) = tokio::join!(
+        hand_the_links_over(&links_request),
+        repair_cargo_one(cargo_request)
+    );
     // The report's order has always been pnpm's findings, then Cargo's, then the toolchain's.
-    let findings: Vec<Finding> = links.pnpm.into_iter().chain(cargo).chain(links.toolchain).collect();
-    return report(request.destination, findings, request.switch.quiet, notices, started);
+    let findings: Vec<Finding> = links
+        .pnpm
+        .into_iter()
+        .chain(cargo)
+        .chain(links.toolchain)
+        .collect();
+    return report(
+        request.destination,
+        findings,
+        request.switch.quiet,
+        notices,
+        started,
+    );
 }
 
 /// What:
@@ -413,13 +571,22 @@ pub(crate) async fn repair_worktree_awaiting(request: &RepairRequest<'_>, notice
 /// ```ts
 /// function repairWithoutTheRuntime(request, stderr) { return report(pnpm(request), toolchain(request), cargo(request)); }
 /// ```
-fn repair_without_the_runtime(request: &RepairRequest<'_>, notices: &mut dyn Write) -> Vec<Finding> {
+fn repair_without_the_runtime(
+    request: &RepairRequest<'_>,
+    notices: &mut dyn Write,
+) -> Vec<Finding> {
     let started: Instant = Instant::now();
     let pnpm: Option<Finding> = repair_pnpm(request.destination, request.environment);
     let toolchain: Option<Finding> = repair_toolchain(request.destination, request.environment);
     let cargo: Vec<Finding> = repair_cargo(request);
     let findings: Vec<Finding> = pnpm.into_iter().chain(cargo).chain(toolchain).collect();
-    return report(request.destination, findings, request.switch.quiet, notices, started);
+    return report(
+        request.destination,
+        findings,
+        request.switch.quiet,
+        notices,
+        started,
+    );
 }
 
 /// What:
@@ -438,16 +605,33 @@ fn repair_without_the_runtime(request: &RepairRequest<'_>, notices: &mut dyn Wri
 /// ```ts
 /// const findings = repairWorktree(request, stderr);
 /// ```
-pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> Vec<Finding> {
+pub fn repair_worktree(
+    request: &RepairRequest<'_>,
+    notices: &mut dyn Write,
+) -> Vec<Finding> {
     if request.switch.no_checkout {
-        debug(TAG, format!("{}: --no-checkout, so there is nothing to repair", request.destination.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{}: --no-checkout, so there is nothing to repair",
+                request.destination.display()
+            )
+            .as_str(),
+        );
         return Vec::new();
     }
     return match run_on_runtime(repair_worktree_awaiting(request, notices)) {
         Ok(findings) => findings,
         // No runtime could be built, so the tools run in turn and each says in its own words that it could not run.
         Err(refusal) => {
-            debug(TAG, format!("{}: the repairs run in turn ({refusal})", request.destination.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{}: the repairs run in turn ({refusal})",
+                    request.destination.display()
+                )
+                .as_str(),
+            );
             repair_without_the_runtime(request, notices)
         }
     };

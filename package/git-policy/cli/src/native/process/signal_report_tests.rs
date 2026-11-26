@@ -17,13 +17,20 @@ static CAPTURED: std::sync::Mutex<Option<(libc::c_int, Vec<u8>)>> = std::sync::M
 
 /// The handler that keeps the report the kernel hands it,
 /// so a control can read the layout the kernel really used.
-extern "C" fn capture(signal: libc::c_int, info: *mut libc::siginfo_t, _context: *mut std::ffi::c_void) {
+extern "C" fn capture(
+    signal: libc::c_int,
+    info: *mut libc::siginfo_t,
+    _context: *mut std::ffi::c_void,
+) {
     if info.is_null() {
         return;
     }
     // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t` of `size_of::<siginfo_t>()` bytes, and this copies
     //  those bytes to the heap; a poisoned lock cannot be helped from a handler, so a failure to take it drops the report.
-    let bytes: Vec<u8> = unsafe { std::slice::from_raw_parts(info.cast::<u8>(), std::mem::size_of::<libc::siginfo_t>()) }.to_vec();
+    let bytes: Vec<u8> = unsafe {
+        std::slice::from_raw_parts(info.cast::<u8>(), std::mem::size_of::<libc::siginfo_t>())
+    }
+    .to_vec();
     if let Ok(mut held) = CAPTURED.lock() {
         *held = Some((signal, bytes));
     }
@@ -51,17 +58,31 @@ fn report_the_kernel_wrote() -> Vec<u8> {
         action.sa_sigaction = capture as *const () as usize;
         action.sa_flags = libc::SA_SIGINFO;
         libc::sigemptyset(&mut action.sa_mask);
-        assert_eq!(libc::sigaction(libc::SIGTERM, &action, &mut before), 0, "the capture handler is installed");
+        assert_eq!(
+            libc::sigaction(libc::SIGTERM, &action, &mut before),
+            0,
+            "the capture handler is installed"
+        );
     }
     // SAFETY: `raise` sends one signal to this thread, whose handler copies the report and returns.
     let raised: libc::c_int = unsafe { libc::raise(libc::SIGTERM) };
     // SAFETY: the disposition read above is this process's own; putting it back touches no memory.
     let _restored = unsafe { libc::sigaction(libc::SIGTERM, &before, std::ptr::null_mut()) };
     assert_eq!(raised, 0, "the stop was sent");
-    let captured: Option<(libc::c_int, Vec<u8>)> = CAPTURED.lock().expect("the captured report").take();
-    let (signal, bytes): (libc::c_int, Vec<u8>) = captured.expect("the handler kept the report the kernel delivered");
-    assert_eq!(signal, libc::SIGTERM, "the report is the signal that was sent");
-    assert_eq!(bytes.len(), std::mem::size_of::<libc::siginfo_t>(), "the report is one `siginfo_t`");
+    let captured: Option<(libc::c_int, Vec<u8>)> =
+        CAPTURED.lock().expect("the captured report").take();
+    let (signal, bytes): (libc::c_int, Vec<u8>) =
+        captured.expect("the handler kept the report the kernel delivered");
+    assert_eq!(
+        signal,
+        libc::SIGTERM,
+        "the report is the signal that was sent"
+    );
+    assert_eq!(
+        bytes.len(),
+        std::mem::size_of::<libc::siginfo_t>(),
+        "the report is one `siginfo_t`"
+    );
     return bytes;
 }
 
@@ -80,7 +101,9 @@ fn as_report(bytes: &[u8]) -> libc::siginfo_t {
     // SAFETY: all zero bytes are a valid `siginfo_t`, and `bytes` is exactly its size.
     let mut report: libc::siginfo_t = unsafe { std::mem::zeroed() };
     // SAFETY: `report` is the local `siginfo_t` above, and `bytes` is exactly its size.
-    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), (&raw mut report).cast::<u8>(), bytes.len()) };
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), (&raw mut report).cast::<u8>(), bytes.len())
+    };
     return report;
 }
 
@@ -102,9 +125,17 @@ fn the_kernel_puts_the_sender_where_the_report_reads_it() {
     let bytes: Vec<u8> = report_the_kernel_wrote();
     let mut report: libc::siginfo_t = as_report(bytes.as_slice());
     let mine: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
-    assert_eq!(read_report(&raw mut report), (true, Some(mine)), "the report names this process, where the report is read");
+    assert_eq!(
+        read_report(&raw mut report),
+        (true, Some(mine)),
+        "the report names this process, where the report is read"
+    );
     // SAFETY: the same report, read through the platform's own accessor, which is the reading this one must agree with.
-    assert_eq!(unsafe { report.si_pid() }, mine, "the kernel's own accessor names the same process");
+    assert_eq!(
+        unsafe { report.si_pid() },
+        mine,
+        "the kernel's own accessor names the same process"
+    );
 }
 
 /// What:
@@ -134,13 +165,25 @@ fn a_process_signal_with_no_sender_is_still_a_process_signal() {
             found.push(at);
         }
     }
-    assert_eq!(found.len(), 1, "the sender appears once in the report: {found:?}");
+    assert_eq!(
+        found.len(),
+        1,
+        "the sender appears once in the report: {found:?}"
+    );
     let at: usize = found[0];
     bytes[at..at + 4].fill(0);
     let mut report: libc::siginfo_t = as_report(bytes.as_slice());
-    assert_eq!(read_report(&raw mut report), (true, None), "the signal is a process's and names none");
+    assert_eq!(
+        read_report(&raw mut report),
+        (true, None),
+        "the signal is a process's and names none"
+    );
     let nothing: *mut libc::siginfo_t = std::ptr::null_mut();
-    assert_eq!(read_report(nothing), (false, None), "a handler given no report has nothing to read");
+    assert_eq!(
+        read_report(nothing),
+        (false, None),
+        "a handler given no report has nothing to read"
+    );
 }
 
 /// What:
@@ -161,5 +204,9 @@ fn a_sender_code_no_process_sent_names_no_process() {
     let bytes: Vec<u8> = report_the_kernel_wrote();
     let mut report: libc::siginfo_t = as_report(bytes.as_slice());
     report.si_code = libc::SI_KERNEL;
-    assert_eq!(read_report(&raw mut report), (false, None), "a terminal's report is no process's");
+    assert_eq!(
+        read_report(&raw mut report),
+        (false, None),
+        "a terminal's report is no process's"
+    );
 }

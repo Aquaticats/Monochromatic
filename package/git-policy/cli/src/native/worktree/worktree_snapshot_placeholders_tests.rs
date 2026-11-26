@@ -10,15 +10,39 @@
 
 use super::*;
 use crate::fixture_content_decision::content_environment;
-use crate::fs_beneath::{identity_at, identity_of, open_root};
-use crate::fs_btrfs_ioctl::{snapshot_create_at, subvolume_create_at};
+use crate::fs_beneath::{
+    identity_at,
+    identity_of,
+    open_root,
+};
+use crate::fs_btrfs_ioctl::{
+    snapshot_create_at,
+    subvolume_create_at,
+};
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, git, git_context, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+};
 use crate::worktree_ladder_run::discard_stage;
-use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
+use crate::worktree_ladder_test_support::{
+    main_identity,
+    plan_to,
+    subvolume_repository,
+};
 use crate::worktree_snapshot::take_snapshot;
-use crate::worktree_snapshot_source::{SnapshotSource, choose_snapshot_source};
-use crate::worktree_trash::{TRASH_PARENT, TrashManifest, entry_name, prune_snapshot};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    choose_snapshot_source,
+};
+use crate::worktree_trash::{
+    TRASH_PARENT,
+    TrashManifest,
+    entry_name,
+    prune_snapshot,
+};
 
 /// A main checkout that is a subvolume with `count` worktrees in its worktree folder,
 /// each a subvolume of its own,
@@ -27,14 +51,26 @@ use crate::worktree_trash::{TRASH_PARENT, TrashManifest, entry_name, prune_snaps
 ///   A snapshot carries a stand-in where the source holds a nested subvolume,
 /// so this is what the folders this step reads
 ///  hold in the state that matters.
-fn main_with_nested_subvolumes(root: &Path, count: usize) -> PathBuf {
+fn main_with_nested_subvolumes(
+    root: &Path,
+    count: usize,
+) -> PathBuf {
     let repo: PathBuf = subvolume_repository(root);
     std::fs::write(repo.join(".git/info/exclude"), b".claude/\ntarget/\n").expect("exclude");
     std::fs::create_dir_all(repo.join(".claude/worktrees")).expect("the worktree folder");
     for index in 0..count {
         let nested: PathBuf = repo.join(".claude/worktrees").join(format!("w{index}"));
         subvolume_create_at(nested.as_path()).expect("a nested subvolume");
-        git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", format!(".claude/worktrees/w{index}").as_str()]);
+        git(
+            repo.as_path(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "--detach",
+                format!(".claude/worktrees/w{index}").as_str(),
+            ],
+        );
     }
     return repo;
 }
@@ -50,23 +86,60 @@ fn with_run_state(repo: &Path) {
 /// Take the snapshot the snapshot rung takes for the worktree `destination` of the repository,
 /// and answer the stage and what the add would hand the service.
 /// `trash_ignored` says whether Git ignores the place a snapshot sets its left-out directories aside.
-fn snapshot_into(root: &Path, repo: &Path, destination: &str, trash_ignored: bool) -> (PathBuf, Option<TrashManifest>) {
-    git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination]);
+fn snapshot_into(
+    root: &Path,
+    repo: &Path,
+    destination: &str,
+    trash_ignored: bool,
+) -> (PathBuf, Option<TrashManifest>) {
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            destination,
+        ],
+    );
     let made: PathBuf = std::fs::canonicalize(repo.join(destination)).expect("destination");
     let pointer: Vec<u8> = std::fs::read(made.join(".git")).expect("pointer");
-    let admin: File = open_root(repo.join(".git/worktrees/topic").as_path()).expect("administrative directory");
+    let admin: File =
+        open_root(repo.join(".git/worktrees/topic").as_path()).expect("administrative directory");
     let plan = plan_to(made);
-    let mut source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
+    let mut source: SnapshotSource =
+        choose_snapshot_source(&git_context(), &main_identity(repo), &plan)
+            .expect("a snapshot source");
     source.trash_ignored = trash_ignored;
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &content_environment(), &std::collections::HashSet::new()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    let taken = take_snapshot(
+        &source,
+        &plan,
+        stage.as_path(),
+        &admin,
+        pointer.as_slice(),
+        &content_environment(),
+        &std::collections::HashSet::new(),
+    )
+    .map_err(|failure| {
+        return failure.reason;
+    })
+    .expect("snapshot");
     return (stage, taken.trash);
 }
 
 /// The names of a directory,
 /// for the listings these controls read.
 fn names_in(directory: &Path) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(directory).expect("listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .expect("listing")
+        .flatten()
+        .map(|entry: std::fs::DirEntry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     names.sort();
     return names;
 }
@@ -89,7 +162,10 @@ fn folder_of_ordinary_entries(root: &Path) -> (File, File) {
     std::fs::write(root.join("folder/full/inner"), b"someone's data").expect("a file in it");
     std::fs::create_dir_all(root.join("elsewhere/inner")).expect("a directory outside the folder");
     std::os::unix::fs::symlink(root.join("elsewhere"), root.join("folder/link")).expect("a link");
-    return (open_root(root).expect("the fixture"), open_root(root.join("folder").as_path()).expect("the folder"));
+    return (
+        open_root(root).expect("the fixture"),
+        open_root(root.join("folder").as_path()).expect("the folder"),
+    );
 }
 
 /// The parent of each registered worktree and of the destination is named once,
@@ -98,11 +174,26 @@ fn folder_of_ordinary_entries(root: &Path) -> (File, File) {
 #[test]
 fn the_folders_that_hold_worktrees_are_each_named_once_and_only_below_the_source() {
     let source_root: &Path = Path::new("/repo");
-    let nested: Vec<PathBuf> = vec![PathBuf::from("/repo/.claude/worktrees/first"), PathBuf::from("/repo/.claude/worktrees/second"), PathBuf::from("/elsewhere/worktree")];
+    let nested: Vec<PathBuf> = vec![
+        PathBuf::from("/repo/.claude/worktrees/first"),
+        PathBuf::from("/repo/.claude/worktrees/second"),
+        PathBuf::from("/elsewhere/worktree"),
+    ];
     let destination: &Path = Path::new("/repo/.claude/worktrees/topic");
-    assert_eq!(worktree_folders(nested.as_slice(), destination, source_root), vec![PathBuf::from("/repo/.claude/worktrees")]);
+    assert_eq!(
+        worktree_folders(nested.as_slice(), destination, source_root),
+        vec![PathBuf::from("/repo/.claude/worktrees")]
+    );
     let none: Vec<PathBuf> = Vec::new();
-    assert_eq!(worktree_folders(none.as_slice(), Path::new("/repo-parent/topic"), source_root), Vec::<PathBuf>::new(), "a destination beside the source is in no snapshot of it");
+    assert_eq!(
+        worktree_folders(
+            none.as_slice(),
+            Path::new("/repo-parent/topic"),
+            source_root
+        ),
+        Vec::<PathBuf>::new(),
+        "a destination beside the source is in no snapshot of it"
+    );
 }
 
 /// A source of a fixture that is nothing more than the root a folder is read below,
@@ -112,12 +203,23 @@ fn the_folders_that_hold_worktrees_are_each_named_once_and_only_below_the_source
 /// the registered worktrees and whether Git ignores the trash place,
 /// so a
 ///  fixture that names only those three exercises the step without a repository.
-fn source_of(root: &Path, trash_ignored: bool) -> SnapshotSource {
+fn source_of(
+    root: &Path,
+    trash_ignored: bool,
+) -> SnapshotSource {
     return SnapshotSource {
         root: root.to_path_buf(),
         git_dir: root.join(".git"),
         common_dir: root.join(".git"),
-        clean: crate::worktree_clean::CleanSource { head_commit: String::new(), head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
+        clean: crate::worktree_clean::CleanSource {
+            head_commit: String::new(),
+            head_tree: Vec::new(),
+            tracked: 0,
+            index_seconds: 0,
+            hash_length: 20,
+            attribute_blobs: Vec::new(),
+            index_bytes: Vec::new(),
+        },
         nested: Vec::new(),
         config: crate::config_snapshot::ConfigSnapshot::parse(&[], true).expect("an empty listing"),
         trash_ignored,
@@ -136,16 +238,34 @@ fn no_ordinary_entry_is_a_stand_in() {
     let root: PathBuf = fixture("snapshot-placeholders-ordinary");
     let (held, folder) = folder_of_ordinary_entries(root.as_path());
     for name in ["empty", "plain", "full", "link", "missing"] {
-        assert!(!is_stand_in(&folder, OsStr::new(name)), "{name} is no stand-in");
-        assert!(!is_an_empty_stand_in(&folder, OsStr::new(name)), "{name} is no empty stand-in");
+        assert!(
+            !is_stand_in(&folder, OsStr::new(name)),
+            "{name} is no stand-in"
+        );
+        assert!(
+            !is_an_empty_stand_in(&folder, OsStr::new(name)),
+            "{name} is no empty stand-in"
+        );
     }
     let source: SnapshotSource = source_of(root.as_path(), false);
     let plan = plan_to(root.join("folder/topic"));
     let mut set_aside: HandOver = HandOver::starting(None);
-    assert_eq!(remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside), Ok(()), "nothing is to be emptied");
+    assert_eq!(
+        remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside),
+        Ok(()),
+        "nothing is to be emptied"
+    );
     assert_eq!(set_aside.finish(), None, "and no trash is made");
-    assert_eq!(names_in(root.join("folder").as_path()), vec!["empty", "full", "link", "plain"], "every ordinary entry stays");
-    assert_eq!(std::fs::read(root.join("folder/full/inner")).expect("the data"), b"someone's data", "nothing that holds something is removed");
+    assert_eq!(
+        names_in(root.join("folder").as_path()),
+        vec!["empty", "full", "link", "plain"],
+        "every ordinary entry stays"
+    );
+    assert_eq!(
+        std::fs::read(root.join("folder/full/inner")).expect("the data"),
+        b"someone's data",
+        "nothing that holds something is removed"
+    );
     remove(root.as_path());
 }
 
@@ -154,14 +274,30 @@ fn no_ordinary_entry_is_a_stand_in() {
 fn a_folder_the_snapshot_does_not_carry_and_a_folder_outside_the_source_are_left_alone() {
     let root: PathBuf = fixture("snapshot-placeholders-absent");
     let (held, _folder) = folder_of_ordinary_entries(root.as_path());
-    assert!(open_below_stand_ins(&held, &[OsString::from("missing"), OsString::from("deep")], "missing/deep").expect("nothing is opened").is_none(), "a folder the snapshot does not carry is nothing to do");
+    assert!(
+        open_below_stand_ins(
+            &held,
+            &[OsString::from("missing"), OsString::from("deep")],
+            "missing/deep"
+        )
+        .expect("nothing is opened")
+        .is_none(),
+        "a folder the snapshot does not carry is nothing to do"
+    );
     let source: SnapshotSource = source_of(root.as_path(), false);
     let plan = plan_to(root.join("folder/topic"));
     let outside: SnapshotSource = source_of(root.join("elsewhere").as_path(), false);
     let mut set_aside: HandOver = HandOver::starting(None);
-    assert_eq!(remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside), Ok(()));
+    assert_eq!(
+        remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside),
+        Ok(())
+    );
     let mut elsewhere: HandOver = HandOver::starting(None);
-    assert_eq!(remove_snapshot_placeholders(&held, &outside, &plan, &mut elsewhere), Ok(()), "a folder outside the source names no folder of the snapshot");
+    assert_eq!(
+        remove_snapshot_placeholders(&held, &outside, &plan, &mut elsewhere),
+        Ok(()),
+        "a folder outside the source names no folder of the snapshot"
+    );
     assert!(root.join("folder/empty").exists());
     remove(root.as_path());
 }
@@ -172,14 +308,27 @@ fn a_folder_the_snapshot_does_not_carry_and_a_folder_outside_the_source_are_left
 fn a_folder_reached_through_a_link_is_refused() {
     let root: PathBuf = fixture("snapshot-placeholders-link");
     let (held, _folder) = folder_of_ordinary_entries(root.as_path());
-    let error: String = open_below_stand_ins(&held, &[OsString::from("folder"), OsString::from("link"), OsString::from("inner")], "folder/link/inner").expect_err("refused");
+    let error: String = open_below_stand_ins(
+        &held,
+        &[
+            OsString::from("folder"),
+            OsString::from("link"),
+            OsString::from("inner"),
+        ],
+        "folder/link/inner",
+    )
+    .expect_err("refused");
     assert!(error.contains("link"), "{error}");
     let source: SnapshotSource = source_of(root.as_path(), false);
     let plan = plan_to(root.join("folder/link/inner/topic"));
     let mut set_aside: HandOver = HandOver::starting(None);
-    let refused: String = remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside).expect_err("refused");
+    let refused: String =
+        remove_snapshot_placeholders(&held, &source, &plan, &mut set_aside).expect_err("refused");
     assert!(refused.contains("link"), "{refused}");
-    assert!(root.join("elsewhere/inner").exists(), "the tree the link points at is untouched");
+    assert!(
+        root.join("elsewhere/inner").exists(),
+        "the tree the link points at is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -195,23 +344,55 @@ fn a_folder_reached_through_a_link_is_refused() {
 /// the fold a snapshot shows of a repository with many worktrees is one such stand-in per worktree.
 #[test]
 fn btrfs_a_worktree_folder_that_holds_only_stand_ins_goes_into_the_trash_whole() {
-    let Some(root) = btrfs_fixture("placeholders-whole-folder") else { return };
+    let Some(root) = btrfs_fixture("placeholders-whole-folder") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 5);
-    let (stage, trash) = snapshot_into(root.as_path(), repo.as_path(), ".claude/worktrees/topic", true);
-    let manifest: TrashManifest = trash.expect("the stand-ins are handed to the trash the leave-out made");
+    let (stage, trash) = snapshot_into(
+        root.as_path(),
+        repo.as_path(),
+        ".claude/worktrees/topic",
+        true,
+    );
+    let manifest: TrashManifest =
+        trash.expect("the stand-ins are handed to the trash the leave-out made");
     let trash_dir: PathBuf = stage.join(TRASH_PARENT).join(manifest.name.as_str());
     // The snapshot's own `.git` is the last entry the add sets aside, so the folder is the one before it.
     let last: usize = manifest.entries.len() - 2;
     let held: Vec<String> = names_in(trash_dir.join(entry_name(last)).as_path());
-    assert_eq!(held, vec!["w0", "w1", "w2", "w3", "w4"], "every stand-in went with the folder");
+    assert_eq!(
+        held,
+        vec!["w0", "w1", "w2", "w3", "w4"],
+        "every stand-in went with the folder"
+    );
     let trash_root: File = open_root(trash_dir.as_path()).expect("the trash");
-    assert_eq!(identity_at(&trash_root, OsStr::new(entry_name(last).as_str())).expect("the entry"), manifest.entries[last], "the entry the manifest names is the folder that went in");
+    assert_eq!(
+        identity_at(&trash_root, OsStr::new(entry_name(last).as_str())).expect("the entry"),
+        manifest.entries[last],
+        "the entry the manifest names is the folder that went in"
+    );
     let fresh: PathBuf = stage.join(".claude/worktrees");
     assert!(fresh.is_dir(), "a fresh worktree folder takes its place");
-    assert_eq!(names_in(fresh.as_path()), Vec::<String>::new(), "and it is empty");
+    assert_eq!(
+        names_in(fresh.as_path()),
+        Vec::<String>::new(),
+        "and it is empty"
+    );
     for index in 0..5 {
-        assert!(std::fs::symlink_metadata(fresh.join(format!("w{index}"))).is_err(), "w{index} is no stand-in of the new worktree");
-        assert_eq!(inode_of(trash_dir.join(entry_name(last)).join(format!("w{index}")).as_path()), BTRFS_STAND_IN_INODE, "w{index} in the trash is the stand-in btrfs showed");
+        assert!(
+            std::fs::symlink_metadata(fresh.join(format!("w{index}"))).is_err(),
+            "w{index} is no stand-in of the new worktree"
+        );
+        assert_eq!(
+            inode_of(
+                trash_dir
+                    .join(entry_name(last))
+                    .join(format!("w{index}"))
+                    .as_path()
+            ),
+            BTRFS_STAND_IN_INODE,
+            "w{index} in the trash is the stand-in btrfs showed"
+        );
     }
     remove(root.as_path());
 }
@@ -228,7 +409,9 @@ fn btrfs_a_worktree_folder_that_holds_only_stand_ins_goes_into_the_trash_whole()
 ///  someone's data.
 #[test]
 fn btrfs_a_worktree_folder_that_holds_someone_elses_entries_stays_and_only_the_stand_ins_go() {
-    let Some(root) = btrfs_fixture("placeholders-mixed-folder") else { return };
+    let Some(root) = btrfs_fixture("placeholders-mixed-folder") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
     let folder: PathBuf = repo.join(".claude/worktrees");
     std::fs::create_dir_all(folder.join("empty")).expect("an empty directory");
@@ -237,13 +420,38 @@ fn btrfs_a_worktree_folder_that_holds_someone_elses_entries_stays_and_only_the_s
     std::fs::write(folder.join("plain"), b"a file").expect("a file");
     std::fs::create_dir_all(root.join("someone")).expect("a directory outside the folder");
     std::os::unix::fs::symlink(root.join("someone"), folder.join("link")).expect("a link");
-    let (stage, _trash) = snapshot_into(root.as_path(), repo.as_path(), ".claude/worktrees/topic", true);
+    let (stage, _trash) = snapshot_into(
+        root.as_path(),
+        repo.as_path(),
+        ".claude/worktrees/topic",
+        true,
+    );
     let kept: PathBuf = stage.join(".claude/worktrees");
-    assert_eq!(names_in(kept.as_path()), vec!["empty", "full", "link", "plain"], "every entry of someone else's stays and the stand-ins go");
-    assert!(kept.join("empty").is_dir(), "an ordinary empty directory stays");
-    assert_eq!(std::fs::read(kept.join("full/data")).expect("the data"), b"someone's data", "a directory that holds something keeps it");
-    assert_eq!(std::fs::read(kept.join("plain")).expect("the file"), b"a file", "a file keeps its bytes");
-    assert!(std::fs::symlink_metadata(kept.join("link")).expect("the link").is_symlink(), "a link stays a link");
+    assert_eq!(
+        names_in(kept.as_path()),
+        vec!["empty", "full", "link", "plain"],
+        "every entry of someone else's stays and the stand-ins go"
+    );
+    assert!(
+        kept.join("empty").is_dir(),
+        "an ordinary empty directory stays"
+    );
+    assert_eq!(
+        std::fs::read(kept.join("full/data")).expect("the data"),
+        b"someone's data",
+        "a directory that holds something keeps it"
+    );
+    assert_eq!(
+        std::fs::read(kept.join("plain")).expect("the file"),
+        b"a file",
+        "a file keeps its bytes"
+    );
+    assert!(
+        std::fs::symlink_metadata(kept.join("link"))
+            .expect("the link")
+            .is_symlink(),
+        "a link stays a link"
+    );
     remove(root.as_path());
 }
 
@@ -253,13 +461,27 @@ fn btrfs_a_worktree_folder_that_holds_someone_elses_entries_stays_and_only_the_s
 /// and nothing is handed over.
 #[test]
 fn btrfs_a_source_with_no_ignored_trash_place_removes_the_stand_ins_in_place() {
-    let Some(root) = btrfs_fixture("placeholders-no-trash-place") else { return };
+    let Some(root) = btrfs_fixture("placeholders-no-trash-place") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
-    let (stage, trash) = snapshot_into(root.as_path(), repo.as_path(), ".claude/worktrees/topic", false);
+    let (stage, trash) = snapshot_into(
+        root.as_path(),
+        repo.as_path(),
+        ".claude/worktrees/topic",
+        false,
+    );
     assert_eq!(trash, None, "there is no trash to hand over");
     assert!(stage.join(".claude/worktrees").is_dir(), "the folder stays");
-    assert_eq!(names_in(stage.join(".claude/worktrees").as_path()), Vec::<String>::new(), "and its stand-ins are removed where they were");
-    assert!(std::fs::symlink_metadata(stage.join(TRASH_PARENT)).is_err(), "no trash is made where Git does not ignore it");
+    assert_eq!(
+        names_in(stage.join(".claude/worktrees").as_path()),
+        Vec::<String>::new(),
+        "and its stand-ins are removed where they were"
+    );
+    assert!(
+        std::fs::symlink_metadata(stage.join(TRASH_PARENT)).is_err(),
+        "no trash is made where Git does not ignore it"
+    );
     remove(root.as_path());
 }
 
@@ -269,15 +491,34 @@ fn btrfs_a_source_with_no_ignored_trash_place_removes_the_stand_ins_in_place() {
 /// in the one trash the service is told about.
 #[test]
 fn btrfs_the_stand_ins_join_the_trash_the_leave_out_made() {
-    let Some(root) = btrfs_fixture("placeholders-join-trash") else { return };
+    let Some(root) = btrfs_fixture("placeholders-join-trash") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 3);
     with_run_state(repo.as_path());
-    let (stage, trash) = snapshot_into(root.as_path(), repo.as_path(), ".claude/worktrees/topic", true);
+    let (stage, trash) = snapshot_into(
+        root.as_path(),
+        repo.as_path(),
+        ".claude/worktrees/topic",
+        true,
+    );
     let manifest: TrashManifest = trash.expect("a trash to hand over");
-    assert_eq!(manifest.entries.len(), 4, "the incremental directory, Git's directory for the new worktree, the worktree folder and the snapshot's own .git");
+    assert_eq!(
+        manifest.entries.len(),
+        4,
+        "the incremental directory, Git's directory for the new worktree, the worktree folder and the snapshot's own .git"
+    );
     let trash_dir: PathBuf = stage.join(TRASH_PARENT).join(manifest.name.as_str());
-    assert_eq!(names_in(stage.join(TRASH_PARENT).as_path()), vec![manifest.name.clone()], "the one trash the add hands over");
-    assert_eq!(names_in(trash_dir.join(entry_name(2)).as_path()), vec!["w0", "w1", "w2"], "the folder is the last entry");
+    assert_eq!(
+        names_in(stage.join(TRASH_PARENT).as_path()),
+        vec![manifest.name.clone()],
+        "the one trash the add hands over"
+    );
+    assert_eq!(
+        names_in(trash_dir.join(entry_name(2)).as_path()),
+        vec!["w0", "w1", "w2"],
+        "the folder is the last entry"
+    );
     remove(root.as_path());
 }
 
@@ -297,19 +538,43 @@ struct BeforeTheSweep {
 
 /// The snapshot of `repo` at `destination`,
 /// taken as the rung takes it and left before the stand-in sweep.
-fn snapshot_before_the_sweep(root: &Path, repo: &Path, destination: &str) -> BeforeTheSweep {
-    git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination]);
+fn snapshot_before_the_sweep(
+    root: &Path,
+    repo: &Path,
+    destination: &str,
+) -> BeforeTheSweep {
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            destination,
+        ],
+    );
     let made: PathBuf = std::fs::canonicalize(repo.join(destination)).expect("destination");
     let plan = plan_to(made);
-    let mut source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
+    let mut source: SnapshotSource =
+        choose_snapshot_source(&git_context(), &main_identity(repo), &plan)
+            .expect("a snapshot source");
     source.trash_ignored = true;
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     snapshot_create_at(source.root.as_path(), stage.as_path()).expect("the snapshot");
-    std::fs::set_permissions(&stage, std::fs::Permissions::from_mode(0o700)).expect("a private stage");
+    std::fs::set_permissions(&stage, std::fs::Permissions::from_mode(0o700))
+        .expect("a private stage");
     let held: File = open_root(stage.as_path()).expect("the stage");
     let pruned = prune_snapshot(stage.as_path(), &source).expect("the leave-out");
     let hand_over: HandOver = HandOver::starting(pruned.trash);
-    return BeforeTheSweep { stage, source, plan, root: held, hand_over };
+    return BeforeTheSweep {
+        stage,
+        source,
+        plan,
+        root: held,
+        hand_over,
+    };
 }
 
 /// A directory a person made in place of a stand-in after the check stays where it is:
@@ -324,9 +589,12 @@ fn snapshot_before_the_sweep(root: &Path, repo: &Path, destination: &str) -> Bef
 /// whatever the folder held when it was checked (`never discard user data`).
 #[test]
 fn btrfs_a_directory_made_between_the_check_and_the_take_is_not_deleted() {
-    let Some(root) = btrfs_fixture("placeholders-made-after-the-check") else { return };
+    let Some(root) = btrfs_fixture("placeholders-made-after-the-check") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
-    let mut prepared: BeforeTheSweep = snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
+    let mut prepared: BeforeTheSweep =
+        snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
     let planted: std::cell::Cell<bool> = std::cell::Cell::new(false);
     let folder: PathBuf = prepared.stage.join(".claude/worktrees");
     let mut seams: FoldSeams<'_> = FoldSeams {
@@ -340,9 +608,25 @@ fn btrfs_a_directory_made_between_the_check_and_the_take_is_not_deleted() {
         },
         before_put_back: &mut do_nothing,
     };
-    remove_snapshot_placeholders_with(&prepared.root, &prepared.source, &prepared.plan, &mut prepared.hand_over, &mut seams).expect("the sweep");
-    assert_eq!(std::fs::read(folder.join("w0/keep")).expect("the person's file is still where they put it"), b"someone's data", "the directory a person made after the check is never taken with the folder");
-    assert_eq!(names_in(folder.as_path()), vec!["w0"], "and the stand-in beside it goes as before");
+    remove_snapshot_placeholders_with(
+        &prepared.root,
+        &prepared.source,
+        &prepared.plan,
+        &mut prepared.hand_over,
+        &mut seams,
+    )
+    .expect("the sweep");
+    assert_eq!(
+        std::fs::read(folder.join("w0/keep"))
+            .expect("the person's file is still where they put it"),
+        b"someone's data",
+        "the directory a person made after the check is never taken with the folder"
+    );
+    assert_eq!(
+        names_in(folder.as_path()),
+        vec!["w0"],
+        "and the stand-in beside it goes as before"
+    );
     remove(root.as_path());
 }
 
@@ -361,9 +645,12 @@ fn btrfs_a_directory_made_between_the_check_and_the_take_is_not_deleted() {
 ///  (`never discard user data`).
 #[test]
 fn btrfs_a_folder_whose_put_back_is_blocked_is_kept_where_the_stage_cleanup_cannot_take_it() {
-    let Some(root) = btrfs_fixture("placeholders-put-back-blocked") else { return };
+    let Some(root) = btrfs_fixture("placeholders-put-back-blocked") else {
+        return;
+    };
     let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
-    let mut prepared: BeforeTheSweep = snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
+    let mut prepared: BeforeTheSweep =
+        snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
     let folder: PathBuf = prepared.stage.join(".claude/worktrees");
     let trash_parent: PathBuf = prepared.stage.join(TRASH_PARENT);
     let planted: std::cell::Cell<bool> = std::cell::Cell::new(false);
@@ -384,17 +671,57 @@ fn btrfs_a_folder_whose_put_back_is_blocked_is_kept_where_the_stage_cleanup_cann
             std::fs::create_dir(folder.as_path()).expect("a directory where the folder was");
         },
     };
-    remove_snapshot_placeholders_with(&prepared.root, &prepared.source, &prepared.plan, &mut prepared.hand_over, &mut seams).expect("the sweep");
-    let kept: Vec<String> = names_in(trash_parent.as_path()).into_iter().filter(|name: &String| { return name.starts_with(crate::worktree_kept_folders::KEPT_PREFIX); }).collect();
-    assert_eq!(kept.len(), 1, "the folder is kept in one place beside the trash, and nowhere else: {kept:?}");
+    remove_snapshot_placeholders_with(
+        &prepared.root,
+        &prepared.source,
+        &prepared.plan,
+        &mut prepared.hand_over,
+        &mut seams,
+    )
+    .expect("the sweep");
+    let kept: Vec<String> = names_in(trash_parent.as_path())
+        .into_iter()
+        .filter(|name: &String| {
+            return name.starts_with(crate::worktree_kept_folders::KEPT_PREFIX);
+        })
+        .collect();
+    assert_eq!(
+        kept.len(),
+        1,
+        "the folder is kept in one place beside the trash, and nowhere else: {kept:?}"
+    );
     let kept_folder: PathBuf = trash_parent.join(kept[0].as_str());
-    assert_eq!(std::fs::read(kept_folder.join("w0/keep")).expect("the person's file is kept"), b"someone's data", "the bytes somebody put in the folder survive the put back that could not happen");
-    assert_eq!(names_in(folder.as_path()), Vec::<String>::new(), "the directory that took the name is left exactly as it was made");
-    let moved = prepared.hand_over.take_entry(&prepared.root, &prepared.source, &prepared.root, OsStr::new(".git"), Path::new(".git"));
-    assert!(moved.is_ok(), "the next directory the add sets aside finds its trash entry name free: {moved:?}");
+    assert_eq!(
+        std::fs::read(kept_folder.join("w0/keep")).expect("the person's file is kept"),
+        b"someone's data",
+        "the bytes somebody put in the folder survive the put back that could not happen"
+    );
+    assert_eq!(
+        names_in(folder.as_path()),
+        Vec::<String>::new(),
+        "the directory that took the name is left exactly as it was made"
+    );
+    let moved = prepared.hand_over.take_entry(
+        &prepared.root,
+        &prepared.source,
+        &prepared.root,
+        OsStr::new(".git"),
+        Path::new(".git"),
+    );
+    assert!(
+        moved.is_ok(),
+        "the next directory the add sets aside finds its trash entry name free: {moved:?}"
+    );
     let made = identity_of(&prepared.root).expect("the stage's identity");
     discard_stage(prepared.stage.as_path(), Some(made));
-    assert!(prepared.stage.is_dir(), "the cleanup leaves the stage that holds what the add kept");
-    assert_eq!(std::fs::read(kept_folder.join("w0/keep")).expect("the kept folder outlives the cleanup"), b"someone's data", "the cleanup that would remove the stage takes nothing of the folder that was kept");
+    assert!(
+        prepared.stage.is_dir(),
+        "the cleanup leaves the stage that holds what the add kept"
+    );
+    assert_eq!(
+        std::fs::read(kept_folder.join("w0/keep")).expect("the kept folder outlives the cleanup"),
+        b"someone's data",
+        "the cleanup that would remove the stage takes nothing of the folder that was kept"
+    );
     remove(root.as_path());
 }

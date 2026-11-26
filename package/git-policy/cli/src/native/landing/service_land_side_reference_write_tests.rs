@@ -27,18 +27,47 @@
 //! plant('refs/heads/main.lock'); expect(await landBatch(...)).toEqual([{ held: ... }]);
 //! ```
 
-use super::*;
-use super::tests::{World, built_request, world};
-use crate::service_land_side_reference_write::{
-    AKeptCommit, ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
+use super::tests::{
+    World,
+    built_request,
+    world,
 };
-use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_dropped_batch, kept_ref, scratch_ref};
-use crate::service_index_lock::{Announce, Announcer};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository, while_test_lives};
+use super::*;
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
+use crate::service_land_side_reference_write::{
+    AKeptCommit,
+    ASideRefWrite,
+    keep_on_a_side_ref,
+    keep_on_the_scratch_reference,
+    keep_on_the_scratch_reference_awaiting,
+    keep_unlanded,
+    keep_unlanded_awaiting,
+};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    ScratchRefRemoval,
+    clear_after_dropped_batch,
+    kept_ref,
+    scratch_ref,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+    while_test_lives,
+};
 use crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD;
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// What:
 ///  The lines a landing announces to its clients,
@@ -54,7 +83,10 @@ use std::time::{Duration, SystemTime};
 struct Announced(RefCell<Vec<String>>);
 
 impl Announcer for Announced {
-    fn announce(&self, note: Announce) {
+    fn announce(
+        &self,
+        note: Announce,
+    ) {
         if let Announce::Waiting(line) = note {
             self.0.borrow_mut().push(line);
         }
@@ -105,7 +137,8 @@ fn git_slow_to_write_a_side_ref(world: &World) -> PathBuf {
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(&program, script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     return program;
 }
 
@@ -119,7 +152,8 @@ fn git_slow_to_write_a_side_ref(world: &World) -> PathBuf {
 ///  and starting Git is the wait these controls must not be about.
 fn make_the_side_reference_directories(world: &World) {
     for directory in ["refs/cli-git/kept", "refs/worktree/cli-git-service"] {
-        std::fs::create_dir_all(world.repo.join(".git").join(directory)).expect("the reference's directory");
+        std::fs::create_dir_all(world.repo.join(".git").join(directory))
+            .expect("the reference's directory");
     }
 }
 
@@ -146,9 +180,13 @@ fn invocations_of(world: &World) -> String {
 /// and give the thread its shipped bound back afterwards,
 /// whatever `run` did.
 fn with_a_short_wait<T>(run: impl FnOnce() -> T) -> T {
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ONE_SECOND)); });
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(ONE_SECOND));
+    });
     let ended: T = run();
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
     return ended;
 }
 
@@ -167,12 +205,25 @@ fn with_a_short_wait<T>(run: impl FnOnce() -> T) -> T {
 fn a_side_ref_write_whose_wait_ran_out_is_answered_by_the_reference() {
     let world: World = world("service-land-side-ref-slow");
     let tip: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let git_context: GitContext = GitContext { real_git: git_slow_to_write_a_side_ref(&world), ..world.context.git.clone() };
-    let kept: Option<String> = with_a_short_wait(|| { return keep_on_a_side_ref(&git_context, world.repo.as_path(), kept_ref(1).as_str(), tip.as_str()); });
+    let git_context: GitContext = GitContext {
+        real_git: git_slow_to_write_a_side_ref(&world),
+        ..world.context.git.clone()
+    };
+    let kept: Option<String> = with_a_short_wait(|| {
+        return keep_on_a_side_ref(
+            &git_context,
+            world.repo.as_path(),
+            kept_ref(1).as_str(),
+            tip.as_str(),
+        );
+    });
     let asked: String = invocations_of(&world);
     let named: String = git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]);
     remove(world.root.as_path());
-    assert_eq!(kept, None, "the reference answers for the write whose wait ran out; the Git asked was:\n{asked}");
+    assert_eq!(
+        kept, None,
+        "the reference answers for the write whose wait ran out; the Git asked was:\n{asked}"
+    );
     assert_eq!(named, tip, "the side reference names the commit");
 }
 
@@ -200,20 +251,39 @@ fn a_held_commit_git_built_is_kept_when_its_side_ref_write_outlasts_the_wait_for
     // The repository names a shared-file mode, even the one that shares nothing, which is one of the settings whose write the
     //  landing leaves to Git (`side_reference_written_here.rs`): this control is about the wait for Git's write, so it must
     //  be Git's. A mode that shares nothing leaves every other write of the fixture as Git makes it here.
-    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
+    git(
+        world.repo.as_path(),
+        &["config", "core.sharedRepository", "false"],
+    );
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let lock: PathBuf = world.repo.join(".git/refs/heads/main.lock");
-    let planted: std::fs::File = std::fs::File::create(lock.as_path()).expect("the lock a killed Git leaves");
-    planted.set_modified(SystemTime::now() - LOCK_AGE).expect("the lock's age");
+    let planted: std::fs::File =
+        std::fs::File::create(lock.as_path()).expect("the lock a killed Git leaves");
+    planted
+        .set_modified(SystemTime::now() - LOCK_AGE)
+        .expect("the lock's age");
     world.context.git.real_git = git_slow_to_write_a_side_ref(&world);
-    let landed: Result<Vec<Outcome>, FailureCode> = with_a_short_wait(|| { return land_batch(&world.context, 1, &[built]); });
+    let landed: Result<Vec<Outcome>, FailureCode> = with_a_short_wait(|| {
+        return land_batch(&world.context, 1, &[built]);
+    });
     let outcomes: Vec<Outcome> = landed.expect("the commit is made and held");
-    assert!(matches!(outcomes.as_slice(), [Outcome::Held { .. }]), "{outcomes:?}");
+    assert!(
+        matches!(outcomes.as_slice(), [Outcome::Held { .. }]),
+        "{outcomes:?}"
+    );
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", scratch.as_str()]), commit, "the side reference the answer names holds the held commit");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", scratch.as_str()]),
+        commit,
+        "the side reference the answer names holds the held commit"
+    );
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", commit.as_str()]), "commit", "the held commit survives a maintenance that drops what no reference names");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["cat-file", "-t", commit.as_str()]),
+        "commit",
+        "the held commit survives a maintenance that drops what no reference names"
+    );
     std::fs::remove_file(lock.as_path()).expect("the holder lets go");
     crate::service_durable::drain();
     remove(world.root.as_path());
@@ -240,8 +310,12 @@ fn a_held_commit_git_built_is_kept_when_its_side_ref_write_outlasts_the_wait_for
 fn a_competing_kept_commit_is_not_replaced_by_the_write_after_an_unknown_one() {
     let world: World = world("service-land-side-ref-competing-commit");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let competing_built: CommitRequest = built_request(&world, "competing", "competing.txt", &[base.as_str()]);
-    let competing: String = competing_built.commit.clone().expect("the competing commit");
+    let competing_built: CommitRequest =
+        built_request(&world, "competing", "competing.txt", &[base.as_str()]);
+    let competing: String = competing_built
+        .commit
+        .clone()
+        .expect("the competing commit");
     let built: CommitRequest = built_request(&world, "kept", "kept.txt", &[base.as_str()]);
     let requested: String = built.commit.clone().expect("the requested commit");
     let entered: PathBuf = world.root.join("competing-write-entered");
@@ -254,16 +328,39 @@ fn a_competing_kept_commit_is_not_replaced_by_the_write_after_an_unknown_one() {
         alive = while_test_lives(world.root.as_path()),
     );
     std::fs::write(&program, script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
-    let git_context: GitContext = GitContext { real_git: program, ..world.context.git.clone() };
-    let kept: Option<String> = with_a_short_wait(|| { return keep_on_a_side_ref(&git_context, world.repo.as_path(), kept_ref(1).as_str(), requested.as_str()); });
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
+    let git_context: GitContext = GitContext {
+        real_git: program,
+        ..world.context.git.clone()
+    };
+    let kept: Option<String> = with_a_short_wait(|| {
+        return keep_on_a_side_ref(
+            &git_context,
+            world.repo.as_path(),
+            kept_ref(1).as_str(),
+            requested.as_str(),
+        );
+    });
     let actual: String = git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
+    let surviving: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["cat-file", "-e", competing.as_str()],
+    );
     remove(world.root.as_path());
-    assert_eq!(actual, competing, "the reference another command wrote keeps its commit, not the one this write asked for");
-    assert!(surviving.status.success(), "the competing commit survives a maintenance that drops what no reference names");
-    assert!(kept.is_some(), "the write the name refused is answered with Git's refusal: {kept:?}");
+    assert_eq!(
+        actual, competing,
+        "the reference another command wrote keeps its commit, not the one this write asked for"
+    );
+    assert!(
+        surviving.status.success(),
+        "the competing commit survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        kept.is_some(),
+        "the write the name refused is answered with Git's refusal: {kept:?}"
+    );
 }
 
 /// What:
@@ -286,16 +383,46 @@ fn a_refused_write_is_not_answered_by_what_a_symbolic_reference_leads_to() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "refs/temporary/target", commit.as_str()]);
-    git(world.repo.as_path(), &["symbolic-ref", "refs/cli-git/kept/1", "refs/temporary/target"]);
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "refs/temporary/target",
+            commit.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "symbolic-ref",
+            "refs/cli-git/kept/1",
+            "refs/temporary/target",
+        ],
+    );
     let lock: PathBuf = world.repo.join(".git/refs/cli-git/kept/1.lock");
     std::fs::File::create(lock.as_path()).expect("the lock that refuses the direct write");
-    let kept: Option<String> = keep_on_a_side_ref(&world.context.git, world.repo.as_path(), kept_ref(1).as_str(), commit.as_str());
-    let still: String = git_text(world.repo.as_path(), &["symbolic-ref", "refs/cli-git/kept/1"]);
+    let kept: Option<String> = keep_on_a_side_ref(
+        &world.context.git,
+        world.repo.as_path(),
+        kept_ref(1).as_str(),
+        commit.as_str(),
+    );
+    let still: String = git_text(
+        world.repo.as_path(),
+        &["symbolic-ref", "refs/cli-git/kept/1"],
+    );
     std::fs::remove_file(lock.as_path()).expect("the holder lets go");
     remove(world.root.as_path());
-    assert_eq!(still, "refs/temporary/target", "the symbolic reference is unchanged, so the write did not happen");
-    assert!(kept.is_some(), "the write was refused, so the answer is Git's refusal: {kept:?}");
+    assert_eq!(
+        still, "refs/temporary/target",
+        "the symbolic reference is unchanged, so the write did not happen"
+    );
+    assert!(
+        kept.is_some(),
+        "the write was refused, so the answer is Git's refusal: {kept:?}"
+    );
 }
 
 /// What:
@@ -318,15 +445,54 @@ fn a_symbolic_kept_reference_does_not_let_the_scratch_reference_go() {
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let scratch: String = scratch_ref(1);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), commit.as_str()]);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "refs/temporary/target", commit.as_str()]);
-    git(world.repo.as_path(), &["symbolic-ref", "refs/cli-git/kept/1", "refs/temporary/target"]);
-    let removal: ScratchRefRemoval = clear_after_dropped_batch(&world.context.git, world.repo.as_path(), 1);
-    let scratch_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
-    let still: String = String::from_utf8_lossy(scratch_read.stdout.as_slice()).trim().to_string();
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            scratch.as_str(),
+            commit.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "refs/temporary/target",
+            commit.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "symbolic-ref",
+            "refs/cli-git/kept/1",
+            "refs/temporary/target",
+        ],
+    );
+    let removal: ScratchRefRemoval =
+        clear_after_dropped_batch(&world.context.git, world.repo.as_path(), 1);
+    let scratch_read: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+    );
+    let still: String = String::from_utf8_lossy(scratch_read.stdout.as_slice())
+        .trim()
+        .to_string();
     remove(world.root.as_path());
-    assert_eq!(removal, ScratchRefRemoval::Left, "a symbolic reference is not a reference that keeps the commit");
-    assert_eq!(still, commit, "the scratch reference still holds the batch's commit");
+    assert_eq!(
+        removal,
+        ScratchRefRemoval::Left,
+        "a symbolic reference is not a reference that keeps the commit"
+    );
+    assert_eq!(
+        still, commit,
+        "the scratch reference still holds the batch's commit"
+    );
 }
 
 /// What:
@@ -345,14 +511,30 @@ fn a_symbolic_kept_reference_does_not_let_the_scratch_reference_go() {
 fn a_kept_reference_another_command_wrote_after_the_read_is_not_replaced() {
     let world: World = world("service-land-side-ref-kept-written-in-between");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let competing_built: CommitRequest = built_request(&world, "competing", "competing.txt", &[base.as_str()]);
-    let competing: String = competing_built.commit.clone().expect("the competing commit");
+    let competing_built: CommitRequest =
+        built_request(&world, "competing", "competing.txt", &[base.as_str()]);
+    let competing: String = competing_built
+        .commit
+        .clone()
+        .expect("the competing commit");
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let scratch: String = scratch_ref(1);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), commit.as_str()]);
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            scratch.as_str(),
+            commit.as_str(),
+        ],
+    );
     let entered: PathBuf = world.root.join("kept-read-answered");
-    let program: PathBuf = world.root.join("git-that-writes-the-kept-name-after-the-read");
+    let program: PathBuf = world
+        .root
+        .join("git-that-writes-the-kept-name-after-the-read");
     let script: String = format!(
         "#!/bin/sh\ncase \" $* \" in\n  *\" rev-parse --verify --quiet refs/cli-git/kept/1 \"*)\n    if [ ! -e '{entered}' ]; then\n      : > '{entered}'\n      '{real}' \"$@\"\n      answered=$?\n      '{real}' -c core.logAllRefUpdates=false update-ref refs/cli-git/kept/1 '{competing}'\n      exit $answered\n    fi;;\nesac\nexec '{real}' \"$@\"\n",
         entered = entered.display(),
@@ -360,16 +542,34 @@ fn a_kept_reference_another_command_wrote_after_the_read_is_not_replaced() {
         competing = competing,
     );
     std::fs::write(&program, script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
-    let git_context: GitContext = GitContext { real_git: program, ..world.context.git.clone() };
-    let removal: ScratchRefRemoval = clear_after_dropped_batch(&git_context, world.repo.as_path(), 1);
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
+    let git_context: GitContext = GitContext {
+        real_git: program,
+        ..world.context.git.clone()
+    };
+    let removal: ScratchRefRemoval =
+        clear_after_dropped_batch(&git_context, world.repo.as_path(), 1);
     let kept_still: String = git_text(world.repo.as_path(), &["rev-parse", kept_ref(1).as_str()]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
+    let surviving: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["cat-file", "-e", competing.as_str()],
+    );
     remove(world.root.as_path());
-    assert_eq!(removal, ScratchRefRemoval::Left, "the kept name is taken, so nothing proven holds the commit and the scratch reference stays");
-    assert_eq!(kept_still, competing, "the kept reference another command wrote is not replaced");
-    assert!(surviving.status.success(), "the commit that other command kept survives a maintenance that drops what no reference names");
+    assert_eq!(
+        removal,
+        ScratchRefRemoval::Left,
+        "the kept name is taken, so nothing proven holds the commit and the scratch reference stays"
+    );
+    assert_eq!(
+        kept_still, competing,
+        "the kept reference another command wrote is not replaced"
+    );
+    assert!(
+        surviving.status.success(),
+        "the commit that other command kept survives a maintenance that drops what no reference names"
+    );
 }
 
 /// What:
@@ -388,16 +588,42 @@ fn a_kept_reference_another_command_wrote_after_the_read_is_not_replaced() {
 fn a_scratch_reference_another_command_wrote_after_the_read_is_not_removed() {
     let world: World = world("service-land-side-ref-scratch-written-in-between");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let competing_built: CommitRequest = built_request(&world, "competing", "competing.txt", &[base.as_str()]);
-    let competing: String = competing_built.commit.clone().expect("the competing commit");
+    let competing_built: CommitRequest =
+        built_request(&world, "competing", "competing.txt", &[base.as_str()]);
+    let competing: String = competing_built
+        .commit
+        .clone()
+        .expect("the competing commit");
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let scratch: String = scratch_ref(1);
     let kept: String = kept_ref(1);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), commit.as_str()]);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", kept.as_str(), commit.as_str()]);
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            scratch.as_str(),
+            commit.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            kept.as_str(),
+            commit.as_str(),
+        ],
+    );
     let entered: PathBuf = world.root.join("kept-read-answered");
-    let program: PathBuf = world.root.join("git-that-writes-the-scratch-name-after-the-read");
+    let program: PathBuf = world
+        .root
+        .join("git-that-writes-the-scratch-name-after-the-read");
     let script: String = format!(
         "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{invocations}'\ncase \" $* \" in\n  *\" rev-parse --verify --quiet refs/cli-git/kept/1 \"*)\n    if [ ! -e '{entered}' ]; then\n      : > '{entered}'\n      '{real}' \"$@\"\n      answered=$?\n      '{real}' -c core.logAllRefUpdates=false update-ref --no-deref refs/worktree/cli-git-service/1 '{competing}'\n      exit $answered\n    fi;;\nesac\nexec '{real}' \"$@\"\n",
         invocations = side_ref_git_invocations(&world).display(),
@@ -406,17 +632,40 @@ fn a_scratch_reference_another_command_wrote_after_the_read_is_not_removed() {
         competing = competing,
     );
     std::fs::write(&program, script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
-    let git_context: GitContext = GitContext { real_git: program, ..world.context.git.clone() };
-    let removal: ScratchRefRemoval = clear_after_dropped_batch(&git_context, world.repo.as_path(), 1);
-    let scratch_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
-    let scratch_still: String = String::from_utf8_lossy(scratch_read.stdout.as_slice()).trim().to_string();
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
+    let git_context: GitContext = GitContext {
+        real_git: program,
+        ..world.context.git.clone()
+    };
+    let removal: ScratchRefRemoval =
+        clear_after_dropped_batch(&git_context, world.repo.as_path(), 1);
+    let scratch_read: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+    );
+    let scratch_still: String = String::from_utf8_lossy(scratch_read.stdout.as_slice())
+        .trim()
+        .to_string();
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
+    let surviving: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["cat-file", "-e", competing.as_str()],
+    );
     remove(world.root.as_path());
-    assert_eq!(removal, ScratchRefRemoval::Left, "the scratch name is taken, so it is not removed");
-    assert_eq!(scratch_still, competing, "the scratch reference another command wrote is not removed");
-    assert!(surviving.status.success(), "the commit that other command wrote survives a maintenance that drops what no reference names");
+    assert_eq!(
+        removal,
+        ScratchRefRemoval::Left,
+        "the scratch name is taken, so it is not removed"
+    );
+    assert_eq!(
+        scratch_still, competing,
+        "the scratch reference another command wrote is not removed"
+    );
+    assert!(
+        surviving.status.success(),
+        "the commit that other command wrote survives a maintenance that drops what no reference names"
+    );
 }
 /// What:
 ///  The side reference a landing keeps its batch on is written by both faces the same way,
@@ -438,20 +687,40 @@ fn the_awaited_side_reference_write_keeps_what_the_synchronous_one_keeps() {
     let context: GitContext = git_context();
     let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
-    let synchronous: ASideRefWrite = keep_on_the_scratch_reference(&context, repo.as_path(), scratch.as_str(), tip.as_str());
-    assert_eq!(synchronous, ASideRefWrite::Written, "the synchronous face writes the batch's side reference");
+    let synchronous: ASideRefWrite =
+        keep_on_the_scratch_reference(&context, repo.as_path(), scratch.as_str(), tip.as_str());
     assert_eq!(
-        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]),
+        synchronous,
+        ASideRefWrite::Written,
+        "the synchronous face writes the batch's side reference"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", scratch.as_str()]
+        ),
         tip,
         "the synchronous reference names the batch's commit"
     );
     // The reference goes, so the awaited face writes the name nothing holds rather than reading one the synchronous face made.
     git(repo.as_path(), &["update-ref", "-d", scratch.as_str()]);
     let awaited: ASideRefWrite =
-        crate::lazy_runtime::run_on_runtime(keep_on_the_scratch_reference_awaiting(&context, repo.as_path(), scratch.as_str(), tip.as_str())).expect("the runtime");
-    assert_eq!(awaited, synchronous, "the two faces answer the write of a side reference the same way");
+        crate::lazy_runtime::run_on_runtime(keep_on_the_scratch_reference_awaiting(
+            &context,
+            repo.as_path(),
+            scratch.as_str(),
+            tip.as_str(),
+        ))
+        .expect("the runtime");
     assert_eq!(
-        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]),
+        awaited, synchronous,
+        "the two faces answer the write of a side reference the same way"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", scratch.as_str()]
+        ),
         tip,
         "the reference the awaited face wrote names the batch's commit"
     );
@@ -484,16 +753,48 @@ fn the_awaited_kept_commit_is_the_one_the_synchronous_line_names() {
     let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let kept: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(BATCH);
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(BATCH);
-    let synchronous: AKeptCommit = keep_unlanded(&context, repo.as_path(), BATCH, scratch.as_str(), tip.as_str());
-    assert!(synchronous.named, "the synchronous face proves another reference names the commit");
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]), tip, "the synchronous line names a reference the commit is kept on");
+    let synchronous: AKeptCommit = keep_unlanded(
+        &context,
+        repo.as_path(),
+        BATCH,
+        scratch.as_str(),
+        tip.as_str(),
+    );
+    assert!(
+        synchronous.named,
+        "the synchronous face proves another reference names the commit"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", kept.as_str()]
+        ),
+        tip,
+        "the synchronous line names a reference the commit is kept on"
+    );
     // The reference goes, so the awaited face keeps the commit on a name nothing holds yet.
     git(repo.as_path(), &["update-ref", "-d", kept.as_str()]);
-    let awaited: AKeptCommit = crate::lazy_runtime::run_on_runtime(keep_unlanded_awaiting(&context, repo.as_path(), BATCH, scratch.as_str(), tip.as_str())).expect("the runtime");
-    assert_eq!(awaited.line, synchronous.line, "both faces tell the person one thing about where their commit is kept");
-    assert_eq!(awaited.named, synchronous.named, "and both prove the keep the same way");
+    let awaited: AKeptCommit = crate::lazy_runtime::run_on_runtime(keep_unlanded_awaiting(
+        &context,
+        repo.as_path(),
+        BATCH,
+        scratch.as_str(),
+        tip.as_str(),
+    ))
+    .expect("the runtime");
     assert_eq!(
-        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]),
+        awaited.line, synchronous.line,
+        "both faces tell the person one thing about where their commit is kept"
+    );
+    assert_eq!(
+        awaited.named, synchronous.named,
+        "and both prove the keep the same way"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", kept.as_str()]
+        ),
         tip,
         "the reference the awaited face wrote names the batch's commit"
     );
@@ -524,7 +825,8 @@ fn git_that_refuses_every_reference_write(world: &World) -> PathBuf {
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(program.as_path(), script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     return program;
 }
 
@@ -553,17 +855,33 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     // The repository names a shared-file mode, so the landing leaves the write of the batch's own reference to Git
     //  (`side_reference_written_here.rs`), and the stand-in below is the Git that refuses it.
-    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
+    git(
+        world.repo.as_path(),
+        &["config", "core.sharedRepository", "false"],
+    );
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     world.context.git.real_git = git_that_refuses_every_reference_write(&world);
     let announced: Announced = Announced(RefCell::new(Vec::new()));
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return land_batch_announcing(&world.context, 1, std::slice::from_ref(&built), &announced);
-    });
-    let kept_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", kept_ref(1).as_str()]);
-    let scratch_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch_ref(1).as_str()]);
-    let still_there: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let landed: Result<Vec<Outcome>, FailureCode> =
+        crate::landing_state_carried_by_its_task::in_a_landing(|| {
+            return land_batch_announcing(
+                &world.context,
+                1,
+                std::slice::from_ref(&built),
+                &announced,
+            );
+        });
+    let kept_read: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", kept_ref(1).as_str()],
+    );
+    let scratch_read: std::process::Output = crate::test_support::git_output(
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch_ref(1).as_str()],
+    );
+    let still_there: std::process::Output =
+        crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
     let lines: Vec<String> = announced.0.borrow().clone();
     let asked: String = invocations_of(&world);
     remove(world.root.as_path());
@@ -572,12 +890,26 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
         Some(FailureCode::ReferenceLocked),
         "the branch write the stand-in refused is what answers the batch, and its own words are the reason; the Git asked was:\n{asked}"
     );
-    assert!(!kept_read.status.success(), "no kept reference names the commit");
-    assert!(!scratch_read.status.success(), "the batch's own reference names nothing");
-    assert!(still_there.status.success(), "the commit object is still in the store");
-    let found: Option<&String> = lines.iter().find(|line| { return line.contains(commit.as_str()); });
+    assert!(
+        !kept_read.status.success(),
+        "no kept reference names the commit"
+    );
+    assert!(
+        !scratch_read.status.success(),
+        "the batch's own reference names nothing"
+    );
+    assert!(
+        still_there.status.success(),
+        "the commit object is still in the store"
+    );
+    let found: Option<&String> = lines.iter().find(|line| {
+        return line.contains(commit.as_str());
+    });
     let Some(named) = found else {
         panic!("the person is told the commit's name; the lines were {lines:?}");
     };
-    assert!(named.contains("no reference"), "the line says no reference is proven to name it: {named}");
+    assert!(
+        named.contains("no reference"),
+        "the line says no reference is proven to name it: {named}"
+    );
 }

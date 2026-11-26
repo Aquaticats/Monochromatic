@@ -8,7 +8,10 @@
 
 use super::*;
 use crate::output_capture::STEP_OUTPUT_LIMIT;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 use std::process::Stdio;
 
@@ -31,7 +34,9 @@ fn shell(line: &str) -> Command {
 
 /// How many descriptors this process holds.
 fn open_descriptors() -> usize {
-    return std::fs::read_dir("/proc/self/fd").expect("the descriptor table").count();
+    return std::fs::read_dir("/proc/self/fd")
+        .expect("the descriptor table")
+        .count();
 }
 
 /// A step that writes more than the kept tail on both streams returns every byte of both,
@@ -45,15 +50,34 @@ fn a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams() {
     );
     let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
     let output: Output = crate::lazy_runtime::run_on_runtime(async {
-        return output_watched_within_for_a_stop_awaiting(&mut shell(line.as_str()), "a loud step", "a loud step", long_window_terms(), true, bound, false).await;
+        return output_watched_within_for_a_stop_awaiting(
+            &mut shell(line.as_str()),
+            "a loud step",
+            "a loud step",
+            long_window_terms(),
+            true,
+            bound,
+            false,
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("the step ran to its end");
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(output.stdout.len(), BEYOND_THE_KEPT_TAIL);
     assert_eq!(output.stderr.len(), BEYOND_THE_KEPT_TAIL);
-    assert!(output.stdout.iter().all(|byte| { return *byte == b'a'; }), "standard output holds only what the step wrote to it");
-    assert!(output.stderr.iter().all(|byte| { return *byte == b'b'; }), "standard error holds only what the step wrote to it");
+    assert!(
+        output.stdout.iter().all(|byte| {
+            return *byte == b'a';
+        }),
+        "standard output holds only what the step wrote to it"
+    );
+    assert!(
+        output.stderr.iter().all(|byte| {
+            return *byte == b'b';
+        }),
+        "standard error holds only what the step wrote to it"
+    );
 }
 
 /// What:
@@ -69,10 +93,22 @@ fn a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams() {
 fn the_synchronous_face_of_the_same_step_is_refused_from_inside_the_runtime() {
     let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
     let refused: std::io::Result<Output> = crate::lazy_runtime::run_on_runtime(async {
-        return crate::child_watch::output_watched_within_for_a_stop(&mut shell("exit 0"), "a step", "a step", long_window_terms(), true, bound, false, None);
+        return crate::child_watch::output_watched_within_for_a_stop(
+            &mut shell("exit 0"),
+            "a step",
+            "a step",
+            long_window_terms(),
+            true,
+            bound,
+            false,
+            None,
+        );
     })
     .expect("the runtime");
-    assert!(refused.is_err(), "the synchronous face registers its pipes by entering the runtime, which is refused from inside it");
+    assert!(
+        refused.is_err(),
+        "the synchronous face registers its pipes by entering the runtime, which is refused from inside it"
+    );
 }
 
 /// A step the landing waits for without a bound is awaited to its own end,
@@ -81,8 +117,16 @@ fn the_synchronous_face_of_the_same_step_is_refused_from_inside_the_runtime() {
 #[test]
 fn a_step_that_is_never_ended_is_awaited_to_its_own_end() {
     let output: Output = crate::lazy_runtime::run_on_runtime(async {
-        return output_watched_within_for_a_stop_awaiting(&mut shell("printf landed; exit 0"), "a landing step", "a landing step", long_window_terms(), false, StepBound::Unbounded, false)
-            .await;
+        return output_watched_within_for_a_stop_awaiting(
+            &mut shell("printf landed; exit 0"),
+            "a landing step",
+            "a landing step",
+            long_window_terms(),
+            false,
+            StepBound::Unbounded,
+            false,
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("the step ran to its end");
@@ -98,21 +142,44 @@ fn a_step_awaited_on_the_runtime_leaves_no_descriptor_open() {
     let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
     // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
     crate::lazy_runtime::run_on_runtime(async {
-        return output_watched_within_for_a_stop_awaiting(&mut shell("exit 0"), "the warm-up", "the warm-up", long_window_terms(), true, bound, false).await;
+        return output_watched_within_for_a_stop_awaiting(
+            &mut shell("exit 0"),
+            "the warm-up",
+            "the warm-up",
+            long_window_terms(),
+            true,
+            bound,
+            false,
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("the warm-up ran");
     let before: usize = open_descriptors();
     for _run in 0..2 {
         let output: Output = crate::lazy_runtime::run_on_runtime(async {
-            return output_watched_within_for_a_stop_awaiting(&mut shell("exit 0"), "a dull step", "a dull step", long_window_terms(), true, bound, false).await;
+            return output_watched_within_for_a_stop_awaiting(
+                &mut shell("exit 0"),
+                "a dull step",
+                "a dull step",
+                long_window_terms(),
+                true,
+                bound,
+                false,
+            )
+            .await;
         })
         .expect("the runtime")
         .expect("the step ran to its end");
         assert_eq!(output.status.code(), Some(0));
     }
     let after: usize = open_descriptors();
-    assert_eq!(after, before, "the run left {} descriptors of its own open", after.saturating_sub(before));
+    assert_eq!(
+        after,
+        before,
+        "the run left {} descriptors of its own open",
+        after.saturating_sub(before)
+    );
 }
 
 /// A step whose input and output are files of its own runs on the blocking-pool-free path the same way:
@@ -128,8 +195,16 @@ fn a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker() {
     let mut command: Command = Command::new("/bin/sh");
     command.arg("-c").arg(line.as_str()).stdin(Stdio::null());
     let refused: std::io::Result<Output> = crate::lazy_runtime::run_on_runtime(async {
-        return output_watched_within_for_a_stop_awaiting(&mut command, "a step on a temporary directory", "a step on a temporary directory", long_window_terms(), true, bound, false)
-            .await;
+        return output_watched_within_for_a_stop_awaiting(
+            &mut command,
+            "a step on a temporary directory",
+            "a step on a temporary directory",
+            long_window_terms(),
+            true,
+            bound,
+            false,
+        )
+        .await;
     })
     .expect("the runtime");
     let output: Output = refused.expect("the step ran to its end");
@@ -150,30 +225,51 @@ fn a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker() {
 ///  A step that ends while this process lives and is not collected is a zombie of it,
 /// which
 ///  `process_tree::use_of` reports with the state the kernel holds it in.
-async fn a_step_left_running_released_and_collected(step_name: &str, bound: StepBound) -> (std::io::Error, bool) {
+async fn a_step_left_running_released_and_collected(
+    step_name: &str,
+    bound: StepBound,
+) -> (std::io::Error, bool) {
     let directory: PathBuf = fixture(step_name);
     let pid_file: PathBuf = directory.join("pid");
     let release: PathBuf = directory.join("release");
     let script: PathBuf = directory.join("step.sh");
     std::fs::write(
         &script,
-        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+        format!(
+            "echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            pid = pid_file.display(),
+            release = release.display()
+        ),
     )
     .expect("the step");
     let mut command: Command = Command::new("/bin/sh");
     command.arg(script.as_path()).stdin(Stdio::null());
-    let failure: std::io::Error = output_watched_within_for_a_stop_awaiting(&mut command, "a write", "a write", long_window_terms(), false, bound, false)
-        .await
-        .expect_err("the command stopped waiting for the step");
+    let failure: std::io::Error = output_watched_within_for_a_stop_awaiting(
+        &mut command,
+        "a write",
+        "a write",
+        long_window_terms(),
+        false,
+        bound,
+        false,
+    )
+    .await
+    .expect_err("the command stopped waiting for the step");
     // The step was started before the command stopped waiting, and it writes its number as it begins.
     let mut waited: u32 = 0;
     while !pid_file.exists() && waited < 250 {
         tokio::time::sleep(Duration::from_millis(20)).await;
         waited = waited.saturating_add(1);
     }
-    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    let pid: i32 = std::fs::read_to_string(&pid_file)
+        .expect("the step recorded its process")
+        .trim()
+        .parse()
+        .expect("a process number");
     // The start time proves which process the number names, so a number that passed to another one is not read as the step.
-    let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
+    let started: u64 = crate::process_tree::use_of(pid)
+        .expect("the step runs as it waits")
+        .started;
     // The step ends now, and whoever was given it must collect that end.
     std::fs::write(&release, b"").expect("let the step end");
     let mut collected: bool = false;
@@ -214,20 +310,37 @@ async fn a_step_left_running_released_and_collected(step_name: &str, bound: Step
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late() {
-    let late: crate::lazy_runtime::LateRuntimeForTheControl = crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
+    let late: crate::lazy_runtime::LateRuntimeForTheControl =
+        crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
     assert!(
-        matches!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline)),
+        matches!(
+            crate::lazy_runtime::built_flavor(),
+            Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline)
+        ),
         "the control stands in for a build that missed its deadline"
     );
-    assert!(crate::lazy_runtime::tasks_can_run(), "the runtime this process built can run a task, so the late build has workers");
-    let (failure, collected): (std::io::Error, bool) = crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
-        "child-watch-late-runtime",
-        StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(200) },
-    ))
-    .expect("the runtime");
+    assert!(
+        crate::lazy_runtime::tasks_can_run(),
+        "the runtime this process built can run a task, so the late build has workers"
+    );
+    let (failure, collected): (std::io::Error, bool) =
+        crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+            "child-watch-late-runtime",
+            StepBound::LeaveRunning {
+                after: Duration::from_millis(300),
+                extra: Duration::from_millis(200),
+            },
+        ))
+        .expect("the runtime");
     drop(late);
-    assert!(failure.to_string().contains("left running"), "the command reports the step as left running: {failure}");
-    assert!(collected, "the step that was left running on the runtime was never collected: nothing waited for it");
+    assert!(
+        failure.to_string().contains("left running"),
+        "the command reports the step as left running: {failure}"
+    );
+    assert!(
+        collected,
+        "the step that was left running on the runtime was never collected: nothing waited for it"
+    );
 }
 
 /// What:
@@ -243,14 +356,28 @@ fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtim
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper() {
-    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
-    assert!(!crate::lazy_runtime::tasks_can_run(), "the control stands in for a system that can run no task of this process");
-    let (failure, collected): (std::io::Error, bool) = crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
-        "child-watch-no-task-to-wait",
-        StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(200) },
-    ))
-    .expect("the runtime");
+    let refused: crate::lazy_runtime::RefusalForTheControl =
+        crate::lazy_runtime::a_control_refuses_every_task();
+    assert!(
+        !crate::lazy_runtime::tasks_can_run(),
+        "the control stands in for a system that can run no task of this process"
+    );
+    let (failure, collected): (std::io::Error, bool) =
+        crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+            "child-watch-no-task-to-wait",
+            StepBound::LeaveRunning {
+                after: Duration::from_millis(300),
+                extra: Duration::from_millis(200),
+            },
+        ))
+        .expect("the runtime");
     drop(refused);
-    assert!(failure.to_string().contains("left running"), "the command reports the step as left running: {failure}");
-    assert!(collected, "the step that was left running where no task could run was never collected: nothing waited for it");
+    assert!(
+        failure.to_string().contains("left running"),
+        "the command reports the step as left running: {failure}"
+    );
+    assert!(
+        collected,
+        "the step that was left running where no task could run was never collected: nothing waited for it"
+    );
 }

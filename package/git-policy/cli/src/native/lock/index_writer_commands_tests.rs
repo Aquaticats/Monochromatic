@@ -7,8 +7,16 @@
 //!  separators and non-built-in routes.
 
 use super::*;
-use crate::command_test_support::{git, git_status, remove, repository_with_tracked_file};
-use crate::forwarded_command::{ResolvedCommand, Route};
+use crate::command_test_support::{
+    git,
+    git_status,
+    remove,
+    repository_with_tracked_file,
+};
+use crate::forwarded_command::{
+    ResolvedCommand,
+    Route,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -37,11 +45,18 @@ fn every_always_writing_command_writes_the_index() {
     let mut unique: Vec<&[u8]> = ALWAYS_WRITING_COMMANDS.to_vec();
     unique.sort_unstable();
     unique.dedup();
-    assert_eq!(ALWAYS_WRITING_COMMANDS.len(), unique.len(), "each command is listed once");
+    assert_eq!(
+        ALWAYS_WRITING_COMMANDS.len(),
+        unique.len(),
+        "each command is listed once"
+    );
     for name in ALWAYS_WRITING_COMMANDS {
         let word: &str = std::str::from_utf8(name).expect("ASCII command name");
         assert!(writes(&[word]), "{word} must write the index");
-        assert!(writes(&[word, "--no-such-option", "file"]), "{word} with options must write the index");
+        assert!(
+            writes(&[word, "--no-such-option", "file"]),
+            "{word} with options must write the index"
+        );
     }
 }
 
@@ -103,7 +118,12 @@ fn reset_does_not_read_an_option_value_as_a_mode() {
     assert!(writes(&["reset", "--pathspec-from-file", "--soft"]));
     assert!(writes(&["reset", "--pathspec-from-file=--soft"]));
     assert!(writes(&["reset", "-U", "--soft"]));
-    assert!(!writes(&["reset", "--pathspec-from-file", "--soft", "--soft"]));
+    assert!(!writes(&[
+        "reset",
+        "--pathspec-from-file",
+        "--soft",
+        "--soft"
+    ]));
     // An option with an optional value takes it only when it is attached, so this `--soft` is the mode.
     assert!(!writes(&["reset", "--recurse-submodules", "--soft"]));
     assert!(writes(&["reset", "--recurse-submodules=no", "--mixed"]));
@@ -129,7 +149,8 @@ fn reset_writes_no_index_when_git_refuses_the_region() {
 /// git(root, ['diff', '--cached', '--name-only']).stdout
 /// ```
 fn staged_paths(root: &std::path::Path) -> String {
-    return String::from_utf8_lossy(&git(root, &["diff", "--cached", "--name-only"]).stdout).into_owned();
+    return String::from_utf8_lossy(&git(root, &["diff", "--cached", "--name-only"]).stdout)
+        .into_owned();
 }
 
 /// Every reading of a reset agrees with what real Git does to the index,
@@ -151,15 +172,27 @@ fn every_reset_reading_matches_the_index_git_writes() {
         // Stage a change, so a reset that writes the index has something to take back.
         std::fs::write(root.join("tracked.txt"), b"staged change\n").expect("modify tracked file");
         git(root.as_path(), &["add", "--", "tracked.txt"]);
-        assert_eq!(staged_paths(root.as_path()), "tracked.txt\n", "{region:?} starts staged");
+        assert_eq!(
+            staged_paths(root.as_path()),
+            "tracked.txt\n",
+            "{region:?} starts staged"
+        );
         let mut words: Vec<&str> = vec!["reset", "--quiet"];
         words.extend(region.iter().copied());
         let output: std::process::Output = git_status(root.as_path(), words.as_slice());
-        assert!(output.status.success(), "{region:?} failed: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "{region:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         let written: bool = staged_paths(root.as_path()).is_empty();
         let mut command: Vec<&str> = vec!["reset"];
         command.extend(region.iter().copied());
-        assert_eq!(writes(command.as_slice()), written, "{region:?} classification against real Git");
+        assert_eq!(
+            writes(command.as_slice()),
+            written,
+            "{region:?} classification against real Git"
+        );
         // Restore the tracked file for the next region, whatever this one did to it.
         git(root.as_path(), &["reset", "--quiet", "--hard"]);
     }
@@ -254,7 +287,10 @@ fn only_builtin_routes_can_write_the_index() {
 #[test]
 fn global_options_before_the_subcommand_do_not_hide_it() {
     let command: ResolvedCommand = ResolvedCommand {
-        arguments: ["-C", "/repo", "rm", "x"].iter().map(OsString::from).collect(),
+        arguments: ["-C", "/repo", "rm", "x"]
+            .iter()
+            .map(OsString::from)
+            .collect(),
         subcommand_index: 2,
         subcommand: Some(OsString::from("rm")),
         route: Route::Direct,

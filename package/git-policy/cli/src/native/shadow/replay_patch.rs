@@ -75,7 +75,10 @@ pub struct PatchHunk {
 pub struct ReplayPatchFormatError(pub String);
 
 impl fmt::Display for ReplayPatchFormatError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.0);
     }
 }
@@ -217,7 +220,10 @@ fn mark_incomplete(parsed: &mut [PatchLine]) -> Result<(), ReplayPatchFormatErro
 /// ```ts
 /// parseHunk({ lines, start }); // { hunk, next }
 /// ```
-fn parse_hunk(lines: &[Vec<u8>], start: usize) -> Result<(PatchHunk, usize), ReplayPatchFormatError> {
+fn parse_hunk(
+    lines: &[Vec<u8>],
+    start: usize,
+) -> Result<(PatchHunk, usize), ReplayPatchFormatError> {
     let header: &[u8] = &lines[start];
     let end: usize = match find_bytes(header, b" @@", 4) {
         Some(found) => found,
@@ -267,8 +273,15 @@ fn parse_hunk(lines: &[Vec<u8>], start: usize) -> Result<(PatchHunk, usize), Rep
         if marker != b'-' {
             new_left -= 1;
         }
-        let text: Vec<u8> = if line == b"\n" { b"\n".to_vec() } else { line[1..].to_vec() };
-        parsed.push(PatchLine { op: marker, text });
+        let text: Vec<u8> = if line == b"\n" {
+            b"\n".to_vec()
+        } else {
+            line[1..].to_vec()
+        };
+        parsed.push(PatchLine {
+            op: marker,
+            text,
+        });
     }
     let marks_missing_newline: bool = match lines.get(cursor) {
         Some(line) => line.starts_with(b"\\"),
@@ -300,7 +313,11 @@ fn parse_hunk(lines: &[Vec<u8>], start: usize) -> Result<(PatchHunk, usize), Rep
 /// lineMarker('\n'); // ' '
 /// ```
 fn line_marker(line: &[u8]) -> Result<u8, ReplayPatchFormatError> {
-    let first: u8 = if line == b"\n" { b' ' } else { line.first().copied().unwrap_or(0) };
+    let first: u8 = if line == b"\n" {
+        b' '
+    } else {
+        line.first().copied().unwrap_or(0)
+    };
     if matches!(first, b' ' | b'-' | b'+' | b'\\') {
         return Ok(first);
     }
@@ -319,7 +336,11 @@ fn line_marker(line: &[u8]) -> Result<u8, ReplayPatchFormatError> {
 /// ```ts
 /// haystack.indexOf(needle, from)
 /// ```
-fn find_bytes(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+fn find_bytes(
+    haystack: &[u8],
+    needle: &[u8],
+    from: usize,
+) -> Option<usize> {
     if haystack.len() < needle.len() {
         return None;
     }
@@ -344,7 +365,7 @@ fn find_bytes(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 /// parseIndexedPatch(text); // ReadonlyMap<string, readonly PatchHunk[]>
 /// ```
 pub fn parse_indexed_patch(
-    text: &[u8],
+    text: &[u8]
 ) -> Result<BTreeMap<Vec<u8>, Vec<PatchHunk>>, ReplayPatchFormatError> {
     let lines: Vec<Vec<u8>> = split_keeping_newlines(text);
     // `mut` allows the sections and the cursor to advance.

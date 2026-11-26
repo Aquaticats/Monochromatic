@@ -51,7 +51,12 @@ impl CallError {
 /// What one call's failure is,
 /// read from the thread's own error the moment the call returned.
 pub(super) fn failed(call: &'static str) -> CallError {
-    return CallError { call, errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EIO) };
+    return CallError {
+        call,
+        errno: std::io::Error::last_os_error()
+            .raw_os_error()
+            .unwrap_or(libc::EIO),
+    };
 }
 
 /// Controls stay out of the release executable.

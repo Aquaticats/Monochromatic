@@ -15,10 +15,19 @@
 //! const ended = await runActingOnLine(command, 'waits for the index lock', () => rm(lock));
 //! ```
 
-use super::support::{TIMED_OUT_SIGNAL, without_hint_fields};
-use std::io::{BufRead, Read};
+use super::support::{
+    TIMED_OUT_SIGNAL,
+    without_hint_fields,
+};
+use std::io::{
+    BufRead,
+    Read,
+};
 use std::os::unix::process::ExitStatusExt;
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// How long a control waits for something that must happen,
 /// so a broken wrapper fails it and never holds it.
@@ -36,8 +45,17 @@ pub(super) struct Ended {
 /// Run `command` to its end,
 /// and run `act` once,
 /// when a line of standard error contains `needle`.
-pub(super) fn run_acting_on_line(command: &mut Command, needle: &str, act: &mut dyn FnMut()) -> Ended {
-    let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("process starts");
+pub(super) fn run_acting_on_line(
+    command: &mut Command,
+    needle: &str,
+    act: &mut dyn FnMut(),
+) -> Ended {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("process starts");
     let mut standard_output = child.stdout.take().expect("piped stdout");
     // Read concurrently, so a full pipe never blocks the child while this thread waits on its standard error.
     let output_reader = std::thread::spawn(move || {
@@ -50,7 +68,11 @@ pub(super) fn run_acting_on_line(command: &mut Command, needle: &str, act: &mut 
     let mut acted: bool = false;
     loop {
         let line_start: usize = stderr.len();
-        if errors.read_until(b'\n', &mut stderr).expect("read standard error") == 0 {
+        if errors
+            .read_until(b'\n', &mut stderr)
+            .expect("read standard error")
+            == 0
+        {
             break;
         }
         if !acted && String::from_utf8_lossy(&stderr[line_start..]).contains(needle) {
@@ -59,7 +81,15 @@ pub(super) fn run_acting_on_line(command: &mut Command, needle: &str, act: &mut 
         }
     }
     let status = child.wait().expect("process finishes");
-    assert_ne!(status.signal(), Some(TIMED_OUT_SIGNAL), "the command hit its bound before it ended");
+    assert_ne!(
+        status.signal(),
+        Some(TIMED_OUT_SIGNAL),
+        "the command hit its bound before it ended"
+    );
     let _output = output_reader.join().expect("standard output reader");
-    return Ended { code: status.code(), stderr: String::from_utf8_lossy(without_hint_fields(stderr.as_slice()).as_slice()).into_owned() };
+    return Ended {
+        code: status.code(),
+        stderr: String::from_utf8_lossy(without_hint_fields(stderr.as_slice()).as_slice())
+            .into_owned(),
+    };
 }

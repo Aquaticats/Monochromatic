@@ -17,7 +17,10 @@
 //! ```
 
 use crate::repository_link_paths::resolve_as_far_as_it_exists;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file name of the freeze manifest in the runner's state folder (`FREEZE_MANIFEST` in the runner's `constants.ts`).
 pub const FREEZE_MANIFEST_NAME: &str = "freeze-manifest.tsv";
@@ -64,7 +67,10 @@ fn path_below_home(home: PathBuf) -> PathBuf {
 /// ```ts
 /// freezeCovers(stateFolder, repository)
 /// ```
-pub fn freeze_covers(state_folder: &Path, repository: &Path) -> bool {
+pub fn freeze_covers(
+    state_folder: &Path,
+    repository: &Path,
+) -> bool {
     let Ok(table) = std::fs::read_to_string(state_folder.join(FREEZE_MANIFEST_NAME)) else {
         return false;
     };
@@ -76,7 +82,9 @@ pub fn freeze_covers(state_folder: &Path, repository: &Path) -> bool {
         if path.is_empty() {
             continue;
         }
-        if repository.starts_with(path) || held.starts_with(resolve_as_far_as_it_exists(Path::new(path))) {
+        if repository.starts_with(path)
+            || held.starts_with(resolve_as_far_as_it_exists(Path::new(path)))
+        {
             return true;
         }
     }

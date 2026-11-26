@@ -15,22 +15,46 @@
 //! const advanced = await advanceLocalBranch(git, branchRef, local, mergeOid); // false | true | refusal text
 //! ```
 
-use crate::auto_push_single_flight::{
-    PushGit, SingleFlightError, run_query_awaiting,
+use crate::auto_push_dirty_paths::{
+    diff_paths,
+    listed,
+    overlapping_paths,
+    status_paths,
 };
-use crate::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
-use crate::diagnostic_log::{debug, warn};
-use std::future::Future;
-use std::path::{Path, PathBuf};
-use std::pin::Pin;
+use crate::auto_push_reconcile_basics_and_limits::{
+    TAG,
+    argv,
+};
+use crate::auto_push_single_flight::{
+    PushGit,
+    SingleFlightError,
+    run_query_awaiting,
+};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::inner_git_words::record_streams;
 use crate::iso_time::now_iso;
-use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
-use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge_awaiting};
+use crate::merge_isolation_journal::{
+    MergeIntent,
+    remove_merge_intent,
+    write_merge_intent,
+};
+use crate::merge_isolation_recovery::{
+    MergeRecoveryAction,
+    RecoveryPlace,
+    settle_failed_merge_awaiting,
+};
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::transaction_owner::current_transaction_owner;
-use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
+use std::future::Future;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::pin::Pin;
 /// What:
 ///  Whether the status read after a fast-forward differs from the one read before it.
 ///  `&[u8]` borrows Git's output.
@@ -42,7 +66,10 @@ use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 /// ```ts
 /// function statusDiffers(before: Uint8Array, after: Uint8Array): boolean;
 /// ```
-pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
+pub(crate) fn status_differs(
+    before: &[u8],
+    after: &[u8],
+) -> bool {
     return before != after;
 }
 
@@ -85,7 +112,8 @@ impl BranchMove for MoveTheNamedBranch {
         branch_ref: &'a str,
         local: &'a str,
         merge_oid: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>>
+    {
         return move_the_named_branch(git, branch_ref, local, merge_oid);
     }
 }
@@ -105,9 +133,15 @@ impl BranchMove for MoveTheNamedBranch {
 /// ```ts
 /// const head = await git.symbolicRefQuiet('HEAD'); const tip = await git.revParse('HEAD^{commit}'); return head === branchRef && tip === local;
 /// ```
-async fn still_on_the_branch(git: &PushGit, branch_ref: &str, local: &str) -> Result<bool, SingleFlightError> {
+async fn still_on_the_branch(
+    git: &PushGit,
+    branch_ref: &str,
+    local: &str,
+) -> Result<bool, SingleFlightError> {
     let checked_out = run_query_awaiting(git, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
-    if checked_out.code != Some(0) || String::from_utf8_lossy(&checked_out.stdout).trim() != branch_ref {
+    if checked_out.code != Some(0)
+        || String::from_utf8_lossy(&checked_out.stdout).trim() != branch_ref
+    {
         return Ok(false);
     }
     let head = run_query_awaiting(git, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
@@ -129,7 +163,9 @@ thread_local! {
 /// until the guard drops.
 #[cfg(test)]
 pub(crate) fn between_look_and_write_in_a_control(step: impl Fn() + 'static) -> BetweenGuard {
-    BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
+    BETWEEN_LOOK_AND_WRITE.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(step));
+    });
     return BetweenGuard;
 }
 
@@ -140,7 +176,9 @@ pub(crate) struct BetweenGuard;
 #[cfg(test)]
 impl Drop for BetweenGuard {
     fn drop(&mut self) {
-        BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = None; });
+        BETWEEN_LOOK_AND_WRITE.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
     }
 }
 
@@ -149,10 +187,14 @@ impl Drop for BetweenGuard {
 #[cfg(test)]
 fn play_between_look_and_write() {
     // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
-    let played: Option<Box<dyn Fn()>> = BETWEEN_LOOK_AND_WRITE.with(|slot| { return slot.borrow_mut().take(); });
+    let played: Option<Box<dyn Fn()>> = BETWEEN_LOOK_AND_WRITE.with(|slot| {
+        return slot.borrow_mut().take();
+    });
     if let Some(step) = played {
         step();
-        BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(step); });
+        BETWEEN_LOOK_AND_WRITE.with(|slot| {
+            *slot.borrow_mut() = Some(step);
+        });
     }
 }
 
@@ -169,12 +211,25 @@ fn play_between_look_and_write() {
 /// ```ts
 /// const tree = await git.revParseQuiet(`${revision}^{tree}`); return tree === undefined ? undefined : tree.trim();
 /// ```
-async fn tree_of(git: &PushGit, revision: &str) -> Result<Option<String>, SingleFlightError> {
-    let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{revision}^{{tree}}").as_str()])).await?;
+async fn tree_of(
+    git: &PushGit,
+    revision: &str,
+) -> Result<Option<String>, SingleFlightError> {
+    let asked = run_query_awaiting(
+        git,
+        &argv(&[
+            "rev-parse",
+            "--verify",
+            format!("{revision}^{{tree}}").as_str(),
+        ]),
+    )
+    .await?;
     if asked.code != Some(0) {
         return Ok(None);
     }
-    return Ok(Some(String::from_utf8_lossy(&asked.stdout).trim().to_owned()));
+    return Ok(Some(
+        String::from_utf8_lossy(&asked.stdout).trim().to_owned(),
+    ));
 }
 
 /// What:
@@ -203,34 +258,58 @@ async fn tree_of(git: &PushGit, revision: &str) -> Result<Option<String>, Single
 /// ```ts
 /// await git.readTreeUpdateIndex(['-u','-m',local,mergeOid]); await git.updateRef(['-m',message,branchRef,mergeOid,local]);
 /// ```
-pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, local: &'a str, merge_oid: &'a str) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+pub(crate) fn move_the_named_branch<'a>(
+    git: &'a PushGit,
+    branch_ref: &'a str,
+    local: &'a str,
+    merge_oid: &'a str,
+) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
     return Box::pin(async move {
         // The branch tip must be the merge's ancestor: `read-tree` moves between any two trees, and `update-ref` moves a branch
         //  to any commit, so this is the check `--ff-only` made for the move.
-        let ancestry = run_query_awaiting(git, &argv(&["merge-base", "--is-ancestor", local, merge_oid])).await?;
+        let ancestry = run_query_awaiting(
+            git,
+            &argv(&["merge-base", "--is-ancestor", local, merge_oid]),
+        )
+        .await?;
         match ancestry.code {
             Some(0) => {}
             // Git's own words for the refusal a `merge --ff-only` prints.
-            Some(1) => return Ok(Err(String::from("Git refused the fast-forward: fatal: Not possible to fast-forward, aborting."))),
+            Some(1) => {
+                return Ok(Err(String::from(
+                    "Git refused the fast-forward: fatal: Not possible to fast-forward, aborting.",
+                )));
+            }
             other => {
                 let how: String = match other {
                     Some(code) => code.to_string(),
                     None => String::from("on a signal"),
                 };
-                return Ok(Err(format!("Git refused the fast-forward: merge-base --is-ancestor exited {how}")));
+                return Ok(Err(format!(
+                    "Git refused the fast-forward: merge-base --is-ancestor exited {how}"
+                )));
             }
         }
         if !still_on_the_branch(git, branch_ref, local).await? {
-            debug(TAG, "another branch is checked out here, so the fast-forward moves the branch and leaves that checkout as it is");
+            debug(
+                TAG,
+                "another branch is checked out here, so the fast-forward moves the branch and leaves that checkout as it is",
+            );
         } else {
             #[cfg(test)]
             play_between_look_and_write();
-            let checked_out = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", local, merge_oid])).await?;
+            let checked_out =
+                run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", local, merge_oid]))
+                    .await?;
             if checked_out.code != Some(0) {
                 return Ok(Err(refusal_of(&checked_out.stderr)));
             }
             // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-            record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
+            record_streams(
+                &["read-tree", "-u", "-m", local, merge_oid],
+                &checked_out.stdout,
+                &checked_out.stderr,
+            );
             // The question again, after the write: a `git switch` that landed inside it was given the merge's files, and they go
             //  back before the branch moves below. They go back to the tree this fast-forward started from, never to the checkout's
             //  whole tree: `read-tree -u -m` changes only the paths where the merge and that tree differ, which are exactly the paths
@@ -240,16 +319,27 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
                 let shown_here: Option<String> = tree_of(git, "HEAD").await?;
                 if merged.is_some() && merged == shown_here {
                     // The checkout already shows the merge's tree: nothing of this fast-forward is in it.
-                    debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");
+                    debug(
+                        TAG,
+                        "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back",
+                    );
                 } else {
-                    let put_back = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", merge_oid, local])).await?;
+                    let put_back = run_query_awaiting(
+                        git,
+                        &argv(&["read-tree", "-u", "-m", merge_oid, local]),
+                    )
+                    .await?;
                     if put_back.code != Some(0) {
                         return Ok(Err(format!(
                             "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
                             refusal_of(&put_back.stderr)
                         )));
                     }
-                    record_streams(&["read-tree", "-u", "-m", merge_oid, local], &put_back.stdout, &put_back.stderr);
+                    record_streams(
+                        &["read-tree", "-u", "-m", merge_oid, local],
+                        &put_back.stdout,
+                        &put_back.stderr,
+                    );
                     warn(
                         TAG,
                         "another command checked out another branch while the fast-forward wrote its files; the merge's own paths were put back to the tree it started from and only the branch moved",
@@ -257,12 +347,28 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
                 }
             }
         }
-        let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
-        let moved = run_query_awaiting(git, &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local])).await?;
+        let message: String =
+            format!("merge: fast-forward {branch_ref} to the published reconcile merge");
+        let moved = run_query_awaiting(
+            git,
+            &argv(&[
+                "update-ref",
+                "-m",
+                message.as_str(),
+                branch_ref,
+                merge_oid,
+                local,
+            ]),
+        )
+        .await?;
         if moved.code != Some(0) {
             return Ok(Err(refusal_of(&moved.stderr)));
         }
-        record_streams(&["update-ref", branch_ref, merge_oid, local], &moved.stdout, &moved.stderr);
+        record_streams(
+            &["update-ref", branch_ref, merge_oid, local],
+            &moved.stdout,
+            &moved.stderr,
+        );
         return Ok(Ok(()));
     });
 }
@@ -291,43 +397,77 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
 /// ```ts
 /// const refusal = await fastForwardRecorded({ git, branchRef, local, mergeOid }); // undefined when it moved
 /// ```
-pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: &dyn BranchMove) -> Result<Result<(), String>, SingleFlightError> {
+pub(crate) async fn fast_forward_recorded(
+    git: &PushGit,
+    branch_ref: &str,
+    local: &str,
+    merge_oid: &str,
+    move_branch: &dyn BranchMove,
+) -> Result<Result<(), String>, SingleFlightError> {
     let git_dir: Option<PathBuf> = {
         let named = run_query_awaiting(git, &argv(&["rev-parse", "--absolute-git-dir"])).await?;
         // Git prints the directory's bytes and ends them with one line break that belongs to no path, so the record is
         //  written in the worktree a path that is not text names and not in a directory made from its text.
-        let printed: &[u8] = named.stdout.strip_suffix(b"\n".as_slice()).unwrap_or(named.stdout.as_slice());
-        if named.code == Some(0) { Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(printed))) } else { None }
+        let printed: &[u8] = named
+            .stdout
+            .strip_suffix(b"\n".as_slice())
+            .unwrap_or(named.stdout.as_slice());
+        if named.code == Some(0) {
+            Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(
+                printed,
+            )))
+        } else {
+            None
+        }
     };
     let mut recorded: Option<(PathBuf, MergeIntent)> = None;
     if let Some(dir) = git_dir.as_deref() {
         recorded = record_merge_intent(dir, git, branch_ref, local, merge_oid);
     }
-    let moved: Result<(), String> = move_branch.move_branch(git, branch_ref, local, merge_oid).await?;
+    let moved: Result<(), String> = move_branch
+        .move_branch(git, branch_ref, local, merge_oid)
+        .await?;
     let Some((record, intent)) = recorded else {
         // Without a record the fast-forward runs as it always did, and Git's refusal is the reason.
         return Ok(moved);
     };
     if moved.is_ok() {
         if let Err(error) = remove_merge_intent(record.as_path()) {
-            debug(TAG, &format!("the merge record could not be removed: {error}"));
+            debug(
+                TAG,
+                &format!("the merge record could not be removed: {error}"),
+            );
         }
         return Ok(Ok(()));
     }
     let refusal: String = moved.err().unwrap_or_default();
     let place: RecoveryPlace = RecoveryPlace {
-        git: GitContext { real_git: git.real_git.clone(), overlay: git.environment.clone(), global_prefix: Vec::new(), common_dir: git_dir.clone() },
+        git: GitContext {
+            real_git: git.real_git.clone(),
+            overlay: git.environment.clone(),
+            global_prefix: Vec::new(),
+            common_dir: git_dir.clone(),
+        },
         cwd: git.cwd.clone(),
         common_dir: git_dir.clone().unwrap_or_default(),
         git_dir: git_dir.unwrap_or_default(),
     };
     // The settle reads Git, so it is the awaited face: a task can start no child through the synchronous one,
     //  which registers its step's pipes by entering the runtime.
-    return Ok(match settle_failed_merge_awaiting(&place, record.as_path(), &intent, &mut std::io::stderr()).await {
-        Ok(MergeRecoveryAction::Completed) => Ok(()),
-        Ok(_) => Err(refusal),
-        Err(error) => Err(format!("{refusal} ({})", error.error.0)),
-    });
+    return Ok(
+        match settle_failed_merge_awaiting(
+            &place,
+            record.as_path(),
+            &intent,
+            &mut std::io::stderr(),
+        )
+        .await
+        {
+            Ok(MergeRecoveryAction::Completed) => Ok(()),
+            Ok(_) => Err(refusal),
+            Err(error) => Err(format!("{refusal} ({})", error.error.0)),
+        },
+    );
 }
 
 /// The step the shipped reconcile moves with,
@@ -338,7 +478,10 @@ pub(crate) const SHIPPED_MOVE: MoveTheNamedBranch = MoveTheNamedBranch;
 /// its first line of words.
 pub(crate) fn refusal_of(stderr: &[u8]) -> String {
     let detail = String::from_utf8_lossy(stderr);
-    return format!("Git refused the fast-forward: {}", detail.lines().next().unwrap_or_default().trim());
+    return format!(
+        "Git refused the fast-forward: {}",
+        detail.lines().next().unwrap_or_default().trim()
+    );
 }
 
 /// What:
@@ -385,9 +528,13 @@ pub(crate) fn advance_local_branch(
     local: &str,
     merge_oid: &str,
 ) -> Result<Result<bool, String>, SingleFlightError> {
-    return match crate::lazy_runtime::run_on_runtime(advance_local_branch_awaiting(git, branch_ref, local, merge_oid)) {
+    return match crate::lazy_runtime::run_on_runtime(advance_local_branch_awaiting(
+        git, branch_ref, local, merge_oid,
+    )) {
         Ok(moved) => moved,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -454,7 +601,14 @@ pub(crate) async fn advance_local_branch_moving(
     if kept {
         let incoming = run_query_awaiting(
             git,
-            &argv(&["diff", "--name-only", "-z", "--no-renames", local, merge_oid]),
+            &argv(&[
+                "diff",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                local,
+                merge_oid,
+            ]),
         )
         .await?;
         if incoming.code != Some(0) {
@@ -470,7 +624,9 @@ pub(crate) async fn advance_local_branch_moving(
             )));
         }
     }
-    if let Err(reason) = fast_forward_recorded(git, branch_ref, local, merge_oid, move_branch).await? {
+    if let Err(reason) =
+        fast_forward_recorded(git, branch_ref, local, merge_oid, move_branch).await?
+    {
         return Ok(Err(reason));
     }
     if kept {
@@ -488,7 +644,13 @@ pub(crate) async fn advance_local_branch_moving(
 
 /// Write the record that says a fast-forward of the branch is about to happen,
 /// or nothing when the record cannot be made.
-pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str) -> Option<(PathBuf, MergeIntent)> {
+pub(crate) fn record_merge_intent(
+    dir: &Path,
+    git: &PushGit,
+    branch_ref: &str,
+    local: &str,
+    merge_oid: &str,
+) -> Option<(PathBuf, MergeIntent)> {
     let owner = current_transaction_owner(random_uuid().ok()?.as_str(), now_iso().as_str()).ok()?;
     let intent: MergeIntent = MergeIntent {
         owner,

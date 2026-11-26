@@ -15,8 +15,16 @@
 //! held.record({ offset, from, to }); // a new last line, durable before the append starts
 //! ```
 
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::fs::{
+    File,
+    OpenOptions,
+};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+    Write,
+};
 use std::path::Path;
 
 /// The place in the current log and the bytes of the moved log that one round of a fold adds.
@@ -48,7 +56,11 @@ fn parse_journal_line(whole_line: &str) -> Option<Round> {
     if numbers.next().is_some() || from > to {
         return None;
     }
-    return Some(Round { offset, from, to });
+    return Some(Round {
+        offset,
+        from,
+        to,
+    });
 }
 
 /// The round a journal's text records:
@@ -61,7 +73,10 @@ fn parse_journal_line(whole_line: &str) -> Option<Round> {
 ///  grows,
 /// so a round is never recorded by overwriting the one before it.
 pub(crate) fn parse_journal(text: &str) -> Option<Round> {
-    return text.split_inclusive('\n').rev().find_map(parse_journal_line);
+    return text
+        .split_inclusive('\n')
+        .rev()
+        .find_map(parse_journal_line);
 }
 
 /// The journal file,
@@ -90,7 +105,10 @@ pub(crate) struct HeldJournal {
 #[cfg(unix)]
 pub(crate) fn hold_journal(path: &Path) -> std::io::Result<Option<HeldJournal>> {
     use std::os::fd::AsRawFd;
-    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        OpenOptionsExt,
+    };
     // The loop ends: each pass either returns or follows the removal of the name by a finished fold, which happens once per fold.
     loop {
         let file: File = OpenOptions::new()
@@ -112,7 +130,11 @@ pub(crate) fn hold_journal(path: &Path) -> std::io::Result<Option<HeldJournal>> 
         }
         let held = file.metadata()?;
         match std::fs::symlink_metadata(path) {
-            Ok(named) if (named.dev(), named.ino()) == (held.dev(), held.ino()) => return Ok(Some(HeldJournal { file })),
+            Ok(named) if (named.dev(), named.ino()) == (held.dev(), held.ino()) => {
+                return Ok(Some(HeldJournal {
+                    file,
+                }));
+            }
             Ok(_) | Err(_) => {}
         }
     }
@@ -142,7 +164,10 @@ impl HeldJournal {
     /// A last line that a kill cut
     ///  short is ended first,
     /// so the new line is a line of its own and the cut one stays unreadable.
-    pub(crate) fn record(&mut self, round: Round) -> std::io::Result<()> {
+    pub(crate) fn record(
+        &mut self,
+        round: Round,
+    ) -> std::io::Result<()> {
         let length: u64 = self.file.seek(SeekFrom::End(0))?;
         let mut line: Vec<u8> = Vec::new();
         if length > 0 {

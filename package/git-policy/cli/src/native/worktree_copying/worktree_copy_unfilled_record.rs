@@ -18,14 +18,31 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::path_bytes_in_records::{hex_of_bytes, hex_of_path, path_of_hex};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, write_atomic_unsynced};
+use crate::path_bytes_in_records::{
+    hex_of_bytes,
+    hex_of_path,
+    path_of_hex,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_journal::{
+    Role,
+    assert_private_path,
+    journal_root,
+    write_atomic_unsynced,
+};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::js_order;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The suffix of a record that names a worktree left without part of its ignored state.
@@ -134,9 +151,14 @@ pub struct UnfilledCopy {
 /// ```ts
 /// const fieldOf = (text, key) => text.split('\n').find((line) => line.startsWith(`${key}=`))?.slice(key.length + 1);
 /// ```
-fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+fn field_of<'a>(
+    text: &'a str,
+    key: &str,
+) -> Option<&'a str> {
     for line in text.lines() {
-        let Some(rest) = line.strip_prefix(key) else { continue };
+        let Some(rest) = line.strip_prefix(key) else {
+            continue;
+        };
         if let Some(value) = rest.strip_prefix('=') {
             return Some(value);
         }
@@ -213,12 +235,19 @@ pub fn encode_unfilled(copy: &UnfilledCopy) -> String {
 /// const decodeUnfilled = (text) => ({ destination: pathOfHex(fieldOf(text, 'destination')), ... });
 /// ```
 pub fn decode_unfilled(text: &str) -> Result<UnfilledCopy, String> {
-    let destination: PathBuf = path_of_hex(field_of(text, DESTINATION_FIELD).ok_or("it names no worktree")?).ok_or("its worktree is not a path")?;
+    let destination: PathBuf =
+        path_of_hex(field_of(text, DESTINATION_FIELD).ok_or("it names no worktree")?)
+            .ok_or("its worktree is not a path")?;
     let identity: crate::fs_beneath::ObjectId = field_of(text, IDENTITY_FIELD)
         .and_then(crate::fs_beneath::ObjectId::decode)
         .ok_or("it holds no identity of the worktree")?;
-    let source: PathBuf = path_of_hex(field_of(text, SOURCE_FIELD).ok_or("it names no source worktree")?).ok_or("its source worktree is not a path")?;
-    let said: Vec<u8> = bytes_of_hex(field_of(text, REASON_FIELD).ok_or("it does not say what the copy ended with")?).ok_or("what it says the copy ended with is not bytes")?;
+    let source: PathBuf =
+        path_of_hex(field_of(text, SOURCE_FIELD).ok_or("it names no source worktree")?)
+            .ok_or("its source worktree is not a path")?;
+    let said: Vec<u8> = bytes_of_hex(
+        field_of(text, REASON_FIELD).ok_or("it does not say what the copy ended with")?,
+    )
+    .ok_or("what it says the copy ended with is not bytes")?;
     let reason: String = String::from_utf8(said).map_err(not_text)?;
     let owner: Option<String> = match field_of(text, OWNER_FIELD) {
         Some(token) if !token.is_empty() => Some(token.to_string()),
@@ -275,7 +304,14 @@ pub fn remember_unfilled(
     source: &Path,
     owner: Option<&str>,
 ) -> Result<(), WorktreeCopyError> {
-    return remember_unfilled_with(journal, destination, identity, source, owner, "the copy did not finish");
+    return remember_unfilled_with(
+        journal,
+        destination,
+        identity,
+        source,
+        owner,
+        "the copy did not finish",
+    );
 }
 
 /// What:
@@ -311,7 +347,11 @@ pub fn remember_unfilled_with(
     let path: PathBuf = unfilled_path_of(journal);
     // Published whole by its rename and flushed by nobody: it names a worktree whose copy did not finish, and a power
     // cut that loses it loses a notice, never a byte (`SPEC.md`, "The records an add writes for itself").
-    return write_atomic_unsynced(path.as_path(), encode_unfilled(&copy).as_bytes(), "unfilled-copy record");
+    return write_atomic_unsynced(
+        path.as_path(),
+        encode_unfilled(&copy).as_bytes(),
+        "unfilled-copy record",
+    );
 }
 
 /// What:
@@ -348,7 +388,11 @@ pub(crate) fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyErr
     };
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
-        let name: String = listed.map_err(raw_failure_of)?.file_name().to_string_lossy().into_owned();
+        let name: String = listed
+            .map_err(raw_failure_of)?
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if name.ends_with(UNFILLED_SUFFIX) {
             names.push(name);
         }
@@ -366,7 +410,10 @@ pub(crate) fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyErr
 /// ```ts
 /// names.sort((left, right) => compareJs(left, right))
 /// ```
-fn by_record_name<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
+fn by_record_name<Name: AsRef<str>>(
+    left: &Name,
+    right: &Name,
+) -> std::cmp::Ordering {
     return js_order(left.as_ref(), right.as_ref());
 }
 
@@ -418,7 +465,9 @@ pub enum UnfilledFile {
 /// ```ts
 /// const reading = await unfilledFileReading(path); // undefined when the file is gone
 /// ```
-pub(crate) fn unfilled_file_reading(path: &Path) -> Result<Option<UnfilledFile>, WorktreeCopyError> {
+pub(crate) fn unfilled_file_reading(
+    path: &Path
+) -> Result<Option<UnfilledFile>, WorktreeCopyError> {
     assert_private_path(path, Role::JournalFile)?;
     // `match` on the read: a record another command settled while this one looked is nobody's fault.
     let bytes: Vec<u8> = match std::fs::read(path) {
@@ -433,11 +482,15 @@ pub(crate) fn unfilled_file_reading(path: &Path) -> Result<Option<UnfilledFile>,
         }
     };
     let Ok(text) = String::from_utf8(bytes) else {
-        return Ok(Some(UnfilledFile::Unreadable { reason: String::from("its bytes are not text") }));
+        return Ok(Some(UnfilledFile::Unreadable {
+            reason: String::from("its bytes are not text"),
+        }));
     };
     return match decode_unfilled(text.as_str()) {
         Ok(copy) => Ok(Some(UnfilledFile::Record(copy))),
-        Err(reason) => Ok(Some(UnfilledFile::Unreadable { reason: reason.to_string() })),
+        Err(reason) => Ok(Some(UnfilledFile::Unreadable {
+            reason: reason.to_string(),
+        })),
     };
 }
 
@@ -457,7 +510,10 @@ pub(crate) fn unfilled_file_reading(path: &Path) -> Result<Option<UnfilledFile>,
 fn read_unfilled(path: &Path) -> Result<Option<UnfilledCopy>, WorktreeCopyError> {
     return match unfilled_file_reading(path)? {
         Some(UnfilledFile::Record(copy)) => Ok(Some(copy)),
-        Some(UnfilledFile::Unreadable { .. }) | None => Ok(None),
+        Some(UnfilledFile::Unreadable {
+            ..
+        })
+        | None => Ok(None),
     };
 }
 
@@ -477,10 +533,14 @@ fn read_unfilled(path: &Path) -> Result<Option<UnfilledCopy>, WorktreeCopyError>
 /// ```ts
 /// `monochromatic-git-policy-cli: ${shown} was left without part of the ignored state of ${source}: ${reason} ...`
 /// ```
-fn unfilled_notice(copy: &UnfilledCopy, worktree: &Path) -> String {
+fn unfilled_notice(
+    copy: &UnfilledCopy,
+    worktree: &Path,
+) -> String {
     let shown: String = quote(worktree.to_string_lossy().as_ref());
     let source: String = quote(copy.source.to_string_lossy().as_ref());
-    let commands_destination: String = crate::shell_quote::shell_quote(worktree.as_os_str().as_bytes());
+    let commands_destination: String =
+        crate::shell_quote::shell_quote(worktree.as_os_str().as_bytes());
     return format!(
         "monochromatic-git-policy-cli: {shown} holds less than {source} ignores: the ignored-state copy ended before it finished ({}). Nothing in that worktree was changed by this command, and the files it did not receive are still in {source}. `git worktree remove --force {commands_destination}` removes that worktree, and running the same `git worktree add` line again copies the ignored state; this line comes again from every command in this repository until that worktree is removed or replaced.",
         copy.reason
@@ -553,13 +613,23 @@ enum Standing {
 /// ```ts
 /// const standingAt = (commonDir, copy) => identityAt(copy.destination) === copy.destinationIdentity ? { path: copy.destination } : registeredObject(commonDir, copy.destinationIdentity);
 /// ```
-fn standing_at(common_dir: &Path, copy: &UnfilledCopy) -> Standing {
+fn standing_at(
+    common_dir: &Path,
+    copy: &UnfilledCopy,
+) -> Standing {
     // The recorded path answers for every worktree that was never moved, so no registration is read then.
-    if crate::worktree_add_binding::path_identity(copy.destination.as_path()) == Some(copy.destination_identity) {
+    if crate::worktree_add_binding::path_identity(copy.destination.as_path())
+        == Some(copy.destination_identity)
+    {
         return Standing::At(copy.destination.clone());
     }
-    return match crate::worktree_copy_registration_naming::registered_object(common_dir, copy.destination_identity) {
-        crate::worktree_copy_registration_naming::RegisteredObject::Root(root) => Standing::At(root),
+    return match crate::worktree_copy_registration_naming::registered_object(
+        common_dir,
+        copy.destination_identity,
+    ) {
+        crate::worktree_copy_registration_naming::RegisteredObject::Root(root) => {
+            Standing::At(root)
+        }
         crate::worktree_copy_registration_naming::RegisteredObject::None => Standing::Nowhere,
         crate::worktree_copy_registration_naming::RegisteredObject::Unknown => Standing::Unproven,
     };
@@ -580,7 +650,10 @@ fn standing_at(common_dir: &Path, copy: &UnfilledCopy) -> Standing {
 /// ```ts
 /// const standing = await standingRecords(commonDir).find((record) => record.identity === identityAt(sourceRoot));
 /// ```
-pub(crate) fn standing_record_of(common_dir: &Path, destination: &Path) -> Result<Option<StandingRecord>, WorktreeCopyError> {
+pub(crate) fn standing_record_of(
+    common_dir: &Path,
+    destination: &Path,
+) -> Result<Option<StandingRecord>, WorktreeCopyError> {
     let Some(asked) = crate::worktree_add_binding::path_identity(destination) else {
         return Ok(None);
     };
@@ -609,7 +682,9 @@ fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCo
     let mut standing: Vec<StandingRecord> = Vec::new();
     for name in unfilled_names(root.as_path())? {
         let path: PathBuf = root.join(name.as_str());
-        let Some(copy) = read_unfilled(path.as_path())? else { continue };
+        let Some(copy) = read_unfilled(path.as_path())? else {
+            continue;
+        };
         // Only a worktree that is still the object the record captured is one it describes: one that was removed or
         // replaced settles the record instead, and one Git moved is still described, at the path it stands at now.
         // A record nobody has proven either way is not one this caller can hold a copy back with, and it is not settled.
@@ -649,7 +724,9 @@ pub fn report_unfilled_records(common_dir: &Path) -> Result<Vec<String>, Worktre
     let mut notices: Vec<String> = Vec::new();
     for name in unfilled_names(root.as_path())? {
         let path: PathBuf = root.join(name.as_str());
-        let Some(copy) = read_unfilled(path.as_path())? else { continue };
+        let Some(copy) = read_unfilled(path.as_path())? else {
+            continue;
+        };
         // A copy that still runs wrote the record before its first entry: it is filling this worktree now.
         if !token_owner_is_dead(copy.owner.as_deref(), path.as_path())? {
             continue;
@@ -661,7 +738,9 @@ pub fn report_unfilled_records(common_dir: &Path) -> Result<Vec<String>, Worktre
             Standing::Nowhere => {
                 remove_file_if_present(path.as_path())?;
             }
-            Standing::At(destination) => notices.push(unfilled_notice(&copy, destination.as_path())),
+            Standing::At(destination) => {
+                notices.push(unfilled_notice(&copy, destination.as_path()))
+            }
             Standing::Unproven => {}
         }
     }

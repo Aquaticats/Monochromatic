@@ -27,10 +27,26 @@
 /// import { DETACH, GUESS /* ... */ } from './command_checkout_table.ts';
 /// ```
 use crate::command_checkout_table::{
-    DETACH, GUESS, NEW_BRANCH, NEW_BRANCH_FORCE, ORPHAN, OVERLAY, PATCH, STAGE, TRACK,
+    DETACH,
+    GUESS,
+    NEW_BRANCH,
+    NEW_BRANCH_FORCE,
+    ORPHAN,
+    OVERLAY,
+    PATCH,
+    STAGE,
+    TRACK,
 };
-use crate::command_options::{Boundary, ParsedOptions};
-use crate::command_options_query::{is_enabled, is_stated, last_occurrence, positional_tokens};
+use crate::command_options::{
+    Boundary,
+    ParsedOptions,
+};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    last_occurrence,
+    positional_tokens,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -134,7 +150,10 @@ fn has_wildcard(name: &[u8]) -> bool {
 /// ```ts
 /// function checkoutTarget(parsed: ParsedOptions, region: string[]): number | undefined;
 /// ```
-pub(crate) fn checkout_target(parsed: &ParsedOptions, region: &[OsString]) -> Option<usize> {
+pub(crate) fn checkout_target(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+) -> Option<usize> {
     // Git keeps `--` for checkout: its arguments are the leading ones, the `--`, the rest.
     let mut arguments: Vec<usize> = parsed.leading.clone();
     // Where the rest starts; the region length means "no rest".
@@ -185,7 +204,10 @@ pub(crate) fn checkout_target(parsed: &ParsedOptions, region: &[OsString]) -> Op
 /// ```ts
 /// function switchTarget(parsed: ParsedOptions, region: string[]): number | undefined;
 /// ```
-pub(crate) fn switch_target(parsed: &ParsedOptions, region: &[OsString]) -> Option<usize> {
+pub(crate) fn switch_target(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+) -> Option<usize> {
     let arguments: Vec<usize> = positional_tokens(parsed, region.len());
     if arguments.len() != 1 {
         return None;

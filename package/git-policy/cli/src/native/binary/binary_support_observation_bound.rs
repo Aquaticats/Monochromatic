@@ -40,14 +40,30 @@
 //! const answer = waitUnderBound(child, group, line, input); // { status, stdout, stderr, ending, heldOpen }
 //! ```
 
-use std::ffi::{OsStr, OsString};
+use crate::supervisor::{
+    Occupied,
+    take_kill,
+    waiting_for,
+};
+use crate::supervisor_pin::{
+    Delivered,
+    Pin,
+};
+use crate::supervisor_proc::{
+    stat_of,
+    tick,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::io::Write;
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::Path;
-use std::process::{Child, Command};
-use crate::supervisor::{Occupied, take_kill, waiting_for};
-use crate::supervisor_pin::{Delivered, Pin};
-use crate::supervisor_proc::{stat_of, tick};
+use std::process::{
+    Child,
+    Command,
+};
 
 /// How long the pipes of a command may take to reach their end once the command is gone
 /// before this wait leaves them to whoever holds them.
@@ -118,7 +134,10 @@ impl LineBound {
     /// Why a constant:
     ///  the supervisor's controls spawn their child themselves,
     ///  so no `timeout` line of this harness is in front of it.
-    pub const UNSTATED: LineBound = LineBound { kept: UNSTATED_BOUND, stated: None };
+    pub const UNSTATED: LineBound = LineBound {
+        kept: UNSTATED_BOUND,
+        stated: None,
+    };
 }
 
 /// Who ended one command this wait ran.
@@ -175,9 +194,17 @@ impl Answer {
     ///  and a pipe another process may still write to,
     ///  are the two ways it is not,
     ///  and each is said in the control's own failure instead of being passed off as a status.
-    pub fn refuse_a_second_ending(&self, spelled: &str, directory: Option<&Path>) {
+    pub fn refuse_a_second_ending(
+        &self,
+        spelled: &str,
+        directory: Option<&Path>,
+    ) {
         let bound: std::time::Duration = self.line.kept;
-        let location: String = directory.map(|at| { return format!(" in {}", at.display()); }).unwrap_or_default();
+        let location: String = directory
+            .map(|at| {
+                return format!(" in {}", at.display());
+            })
+            .unwrap_or_default();
         let held_sentence: Option<String> = match self.held_open.as_slice() {
             [] => None,
             pipes => Some(format!(
@@ -188,10 +215,18 @@ impl Answer {
         };
         match (self.ending, held_sentence) {
             (Ending::Itself, None) => {}
-            (Ending::Itself, Some(named)) => panic!("{spelled}{location} ended by itself, and {named}"),
+            (Ending::Itself, Some(named)) => {
+                panic!("{spelled}{location} ended by itself, and {named}")
+            }
             (Ending::AtTheBound, named) => {
-                let also: String = named.map(|sentence| { return format!(", and {sentence}"); }).unwrap_or_default();
-                panic!("the command was ended at its {bound:?} wall-clock bound: {spelled}{location}{also}");
+                let also: String = named
+                    .map(|sentence| {
+                        return format!(", and {sentence}");
+                    })
+                    .unwrap_or_default();
+                panic!(
+                    "the command was ended at its {bound:?} wall-clock bound: {spelled}{location}{also}"
+                );
             }
         }
     }
@@ -210,8 +245,14 @@ impl Answer {
 /// ```ts
 /// const { bytes, ended } = drain(child.stdout); // ended: a message when the pipe reaches its end
 /// ```
-pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::sync::Mutex<Vec<u8>>>, std::sync::mpsc::Receiver<()>) {
-    let kept: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+pub fn draining<R: std::io::Read + Send + 'static>(
+    mut reader: R
+) -> (
+    std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    std::sync::mpsc::Receiver<()>,
+) {
+    let kept: std::sync::Arc<std::sync::Mutex<Vec<u8>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
     let sink: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&kept);
     let _reader: std::thread::JoinHandle<()> = std::thread::Builder::new()
@@ -220,7 +261,10 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => break,
-                    Ok(read) => sink.lock().expect("the bytes of a command's pipe").extend_from_slice(&buffer[..read]),
+                    Ok(read) => sink
+                        .lock()
+                        .expect("the bytes of a command's pipe")
+                        .extend_from_slice(&buffer[..read]),
                     Err(_) => break,
                 }
             }
@@ -255,16 +299,24 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
 ///  the bound this wait keeps and the bound that line states,
 ///  and the stated bound is what tells the death that line's `timeout` deals there from a command's own `SIGKILL`,
 ///  because the status alone cannot say which of the two sent the signal (`ending_of_an_exit_read_first`).
-pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: LineBound, input: &[u8]) -> Answer {
+pub fn wait_under_bound(
+    mut child: Child,
+    group: Option<libc::pid_t>,
+    line: LineBound,
+    input: &[u8],
+) -> Answer {
     let id: u32 = child.id();
     // What: the mark saying a wait of this process is inside for this command, held until this function returns or unwinds.
     // Why:  the monitor aborts the process for a kill no wait will claim, and this wait is the one that claims the kill of
     //       the command it was given, so the monitor must know it is running however long this host takes to schedule it.
     let _waiting: Occupied = waiting_for(id);
     let pid: libc::pid_t = libc::pid_t::try_from(id).expect("a process ID fits the pid type");
-    let started: u64 = stat_of(pid).expect("a command this wait holds is readable until it is reaped").started;
+    let started: u64 = stat_of(pid)
+        .expect("a command this wait holds is readable until it is reaped")
+        .started;
     let remaining: std::time::Duration = remaining_of(started, line.kept);
-    let (standard_output, output_end) = draining(child.stdout.take().expect("piped standard output"));
+    let (standard_output, output_end) =
+        draining(child.stdout.take().expect("piped standard output"));
     let (standard_error, error_end) = draining(child.stderr.take().expect("piped standard error"));
     if let Some(mut standard_input) = child.stdin.take() {
         let owned: Vec<u8> = input.to_vec();
@@ -272,7 +324,9 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
         // The writer is not joined: a process that holds the other end of that pipe could hold this wait,
         //  and the thread ends with this process.
         let _writer: std::thread::JoinHandle<()> = std::thread::Builder::new()
-            .spawn(move || { let _ = standard_input.write_all(owned.as_slice()); })
+            .spawn(move || {
+                let _ = standard_input.write_all(owned.as_slice());
+            })
             .expect("the writer of a command's input starts");
     }
     // The wait blocks on the child instead of looking at the clock,
@@ -281,7 +335,9 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
     //  because the number a signal has to name must still be the child's when it goes out.
     let (exit_sender, exit_receiver) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let waiter: std::thread::JoinHandle<()> = std::thread::Builder::new()
-        .spawn(move || { let _ = exit_sender.send(wait_for_the_exit(pid)); })
+        .spawn(move || {
+            let _ = exit_sender.send(wait_for_the_exit(pid));
+        })
         .expect("the waiter of a command starts");
     let (ending, supervisor_message, status): (Ending, Option<String>, std::process::ExitStatus) =
         match exit_receiver.recv_timeout(remaining) {
@@ -292,7 +348,11 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
                 // The claim comes before the reap for the same reason as the other arm's.
                 let claimed: Option<String> = take_kill(id);
                 let status: std::process::ExitStatus = reaped(&mut child);
-                (ending_of_an_exit_read_first(line, started, status), claimed, status)
+                (
+                    ending_of_an_exit_read_first(line, started, status),
+                    claimed,
+                    status,
+                )
             }
             Ok(Err(error)) => panic!("the ending of the command {id} cannot be read: {error}"),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -303,7 +363,11 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
                     //  so a `SIGKILL` that arrives here is the bound's, never a command's own death long before it.
                     let claimed: Option<String> = take_kill(id);
                     let status: std::process::ExitStatus = reaped(&mut child);
-                    let by_the_bound: Ending = if status.signal() == Some(libc::SIGKILL) { Ending::AtTheBound } else { Ending::Itself };
+                    let by_the_bound: Ending = if status.signal() == Some(libc::SIGKILL) {
+                        Ending::AtTheBound
+                    } else {
+                        Ending::Itself
+                    };
                     (by_the_bound, claimed, status)
                 } else {
                     let claimed: Option<String> = take_kill(id);
@@ -315,17 +379,25 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
                     let ended: std::io::Result<()> = exit_receiver.recv_timeout(REAPING).unwrap_or_else(|_| {
                         panic!("the command {id} was ended at its bound of {:?} and not reaped within {REAPING:?}", line.kept)
                     });
-                    ended.unwrap_or_else(|error| panic!("the ending of the command {id} cannot be read: {error}"));
+                    ended.unwrap_or_else(|error| {
+                        panic!("the ending of the command {id} cannot be read: {error}")
+                    });
                     (Ending::AtTheBound, claimed, reaped(&mut child))
                 }
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the command {id} ended without its ending"),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("the waiter of the command {id} ended without its ending")
+            }
         };
     let _joined = waiter.join();
     // What the pipes gave, under one grace for both, and never a wait past it.
     let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
-    let output_ended: bool = output_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
-    let error_ended: bool = error_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
+    let output_ended: bool = output_end
+        .recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now()))
+        .is_ok();
+    let error_ended: bool = error_end
+        .recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now()))
+        .is_ok();
     let mut held_open: Vec<&'static str> = Vec::new();
     if !output_ended {
         held_open.push("standard output");
@@ -336,8 +408,14 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
     return Answer {
         line,
         status,
-        stdout: standard_output.lock().expect("the bytes of a command's standard output").clone(),
-        stderr: standard_error.lock().expect("the bytes of a command's standard error").clone(),
+        stdout: standard_output
+            .lock()
+            .expect("the bytes of a command's standard output")
+            .clone(),
+        stderr: standard_error
+            .lock()
+            .expect("the bytes of a command's standard error")
+            .clone(),
         ending,
         held_open,
         supervisor_message,
@@ -371,9 +449,15 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: Line
 /// if (remainingOf(started, line.stated) > 0) return Ending.Itself; // the line's bound was not reached yet
 /// return Ending.AtTheBound;
 /// ```
-fn ending_of_an_exit_read_first(line: LineBound, started: u64, status: std::process::ExitStatus) -> Ending {
+fn ending_of_an_exit_read_first(
+    line: LineBound,
+    started: u64,
+    status: std::process::ExitStatus,
+) -> Ending {
     // `undefined` here is `None`: a line that states no bound of its own carries no timer that could have ended it.
-    let Some(line_bound) = line.stated else { return Ending::Itself; };
+    let Some(line_bound) = line.stated else {
+        return Ending::Itself;
+    };
     // Only a death by `SIGKILL` can be the line's own `timeout`, which dies by the signal it sends to its group.
     if status.signal() != Some(libc::SIGKILL) {
         return Ending::Itself;
@@ -405,7 +489,10 @@ fn ending_of_an_exit_read_first(line: LineBound, started: u64, status: std::proc
 /// ```ts
 /// const left = birthTicks * tick + bound - bootNow(); // never longer than the bound
 /// ```
-fn remaining_of(started: u64, bound: std::time::Duration) -> std::time::Duration {
+fn remaining_of(
+    started: u64,
+    bound: std::time::Duration,
+) -> std::time::Duration {
     let period_ns: u128 = tick().as_nanos();
     let birth_ns: u128 = u128::from(started).saturating_mul(period_ns);
     let deadline_ns: u128 = birth_ns.saturating_add(bound.as_nanos());
@@ -417,13 +504,19 @@ fn remaining_of(started: u64, bound: std::time::Duration) -> std::time::Duration
 ///  in nanoseconds:
 ///  the clock a process's start is recorded in.
 fn boot_now_ns() -> u128 {
-    let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut now: libc::timespec = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     // SAFETY: `clock_gettime` writes the one `timespec` it is given and reads no memory of ours.
     let asked: libc::c_int = unsafe { libc::clock_gettime(libc::CLOCK_BOOTTIME, &raw mut now) };
     assert_eq!(asked, 0, "the boot clock answers");
     let seconds: u128 = u128::try_from(now.tv_sec).expect("a boot time is not before the boot");
-    let nanoseconds: u128 = u128::try_from(now.tv_nsec).expect("a part of a second is not negative");
-    return seconds.saturating_mul(1_000_000_000).saturating_add(nanoseconds);
+    let nanoseconds: u128 =
+        u128::try_from(now.tv_nsec).expect("a part of a second is not negative");
+    return seconds
+        .saturating_mul(1_000_000_000)
+        .saturating_add(nanoseconds);
 }
 
 /// What:
@@ -439,7 +532,14 @@ fn wait_for_the_exit(pid: libc::pid_t) -> std::io::Result<()> {
     loop {
         // SAFETY: `waitid` writes the one `siginfo_t` it is given and reads no memory of ours;
         //  `WNOWAIT` says the child is not reaped.
-        let answered: libc::c_int = unsafe { libc::waitid(libc::P_PID, libc::id_t::try_from(pid).expect("a pid fits the id type"), &raw mut ended, libc::WEXITED | libc::WNOWAIT) };
+        let answered: libc::c_int = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                libc::id_t::try_from(pid).expect("a pid fits the id type"),
+                &raw mut ended,
+                libc::WEXITED | libc::WNOWAIT,
+            )
+        };
         if answered == 0 {
             return Ok(());
         }
@@ -456,13 +556,22 @@ fn exited_without_reaping(pid: libc::pid_t) -> bool {
     let mut ended: libc::siginfo_t = unsafe { std::mem::zeroed() };
     // SAFETY: as `wait_for_the_exit`; `WNOHANG` makes the look answer at once,
     //  and `WNOWAIT` keeps the child unreaped either way.
-    let answered: libc::c_int = unsafe { libc::waitid(libc::P_PID, libc::id_t::try_from(pid).expect("a pid fits the id type"), &raw mut ended, libc::WEXITED | libc::WNOWAIT | libc::WNOHANG) };
+    let answered: libc::c_int = unsafe {
+        libc::waitid(
+            libc::P_PID,
+            libc::id_t::try_from(pid).expect("a pid fits the id type"),
+            &raw mut ended,
+            libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
+        )
+    };
     return answered == 0 && unsafe { ended.si_pid() } != 0;
 }
 
 /// Reap the child this wait holds and answer what it came to.
 fn reaped(child: &mut Child) -> std::process::ExitStatus {
-    return child.wait().expect("a command this wait holds unreaped is reaped at once");
+    return child
+        .wait()
+        .expect("a command this wait holds unreaped is reaped at once");
 }
 
 /// What:
@@ -474,8 +583,13 @@ fn reaped(child: &mut Child) -> std::process::ExitStatus {
 ///  the command is a zombie here and is not reaped until after these signals,
 ///  so its own number and its group's number are still its own,
 ///  and the pin is checked again before the signal goes out.
-fn signal_the_child_and_its_group(pid: libc::pid_t, started: u64, group: Option<libc::pid_t>) {
-    let pin: Pin = Pin::open(pid, started).expect("a command this wait holds unreaped is still the process it started");
+fn signal_the_child_and_its_group(
+    pid: libc::pid_t,
+    started: u64,
+    group: Option<libc::pid_t>,
+) {
+    let pin: Pin = Pin::open(pid, started)
+        .expect("a command this wait holds unreaped is still the process it started");
     let _delivered: Delivered = pin.signal(libc::SIGKILL);
     if let Some(leader) = group {
         // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours;
@@ -541,10 +655,14 @@ fn in_front_of_a_bounded_program(command: &Command) -> Option<u64> {
 /// ```
 pub fn line_bound_of(command: &Command) -> LineBound {
     // `.map` converts the seconds the line names, and `undefined` in TS is the `None` of a line that names none.
-    let stated: Option<std::time::Duration> = in_front_of_a_bounded_program(command).map(std::time::Duration::from_secs);
+    let stated: Option<std::time::Duration> =
+        in_front_of_a_bounded_program(command).map(std::time::Duration::from_secs);
     // `??` in TS: a line that states no bound runs under the shared backstop.
     let kept: std::time::Duration = stated.unwrap_or(UNSTATED_BOUND);
-    return LineBound { kept, stated };
+    return LineBound {
+        kept,
+        stated,
+    };
 }
 
 /// The command line as a person reads it:
@@ -552,6 +670,8 @@ pub fn line_bound_of(command: &Command) -> LineBound {
 ///  separated by spaces.
 pub fn spelled_command(command: &Command) -> String {
     let mut words: Vec<String> = vec![command.get_program().to_string_lossy().into_owned()];
-    words.extend(command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }));
+    words.extend(command.get_args().map(|argument| {
+        return argument.to_string_lossy().into_owned();
+    }));
     return words.join(" ");
 }

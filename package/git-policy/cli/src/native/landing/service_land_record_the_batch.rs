@@ -20,12 +20,28 @@
 //! ```
 
 use crate::service_built_checks::commit_content;
-use crate::service_journal::{Intent, write_intent};
+use crate::service_journal::{
+    Intent,
+    write_intent,
+};
 use crate::service_land_context::LandContext;
 use crate::service_land_follow::storage_failure;
-use crate::service_land_git_steps_and_import_stream::{holders_of, ids_of, transports_of};
-use crate::service_land_reflog::{Committed, conclusion_copy, kind, message};
-use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
+use crate::service_land_git_steps_and_import_stream::{
+    holders_of,
+    ids_of,
+    transports_of,
+};
+use crate::service_land_reflog::{
+    Committed,
+    conclusion_copy,
+    kind,
+    message,
+};
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+    is_zero_object,
+};
 use crate::service_timing::LandTiming;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -75,19 +91,35 @@ pub(crate) struct TheBatch<'a> {
 ///
 /// The storage failure of the journal the record could not be written in.
 pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), FailureCode> {
-    let TheBatch { context, timing, seq, first, batch, commits, old, new, unborn } = the;
+    let TheBatch {
+        context,
+        timing,
+        seq,
+        first,
+        batch,
+        commits,
+        old,
+        new,
+        unborn,
+    } = the;
     // What the reflog row says: the kind of commit and the first line of its message, as native Git words both
     // (`builtin/commit.c`, `update_head_with_reflog` in `sequencer.c`). A landing answers a batch with one branch move, so
     // the row names the commit that landed last, which is the value the branch now holds.
     // The commit's own object carries the message a commit Git built was never told here, and its parents say whether it
     // concludes a merge: a store the reader declines is asked of Git (`service_built_checks.rs`), never taken as no parents.
     let last: &CommitRequest = batch.last().copied().unwrap_or(first);
-    let content: Option<crate::service_built_checks::CommitContent> = commit_content(&context.git, first.repository.as_path(), first.common_dir.as_path(), new);
+    let content: Option<crate::service_built_checks::CommitContent> = commit_content(
+        &context.git,
+        first.repository.as_path(),
+        first.common_dir.as_path(),
+        new,
+    );
     let parents: usize = match &content {
         Some(read) => read.parents.len(),
         None => 0,
     };
-    let copy: Option<PathBuf> = conclusion_copy(context.journal.as_path(), seq, first.cleanup.is_some());
+    let copy: Option<PathBuf> =
+        conclusion_copy(context.journal.as_path(), seq, first.cleanup.is_some());
     let initial: bool = unborn || is_zero_object(old);
     let committed: Committed = kind(last.amend, initial, parents, copy.as_deref());
     let subject: Vec<u8> = match content {
@@ -97,7 +129,11 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
     let reflog: std::ffi::OsString = message(committed, subject.as_slice());
     // A commit Git built carries no list of changes: its index entries are the paths that differ from the old branch.
     let derived: bool = first.commit.is_some();
-    let paths: Vec<Vec<u8>> = if derived { Vec::new() } else { changed_paths(batch) };
+    let paths: Vec<Vec<u8>> = if derived {
+        Vec::new()
+    } else {
+        changed_paths(batch)
+    };
     let intent: Intent = Intent {
         seq,
         repository: first.repository.clone(),
@@ -123,7 +159,12 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
     // so a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`), and the
     //  copy's own line names the worktree it was made for.
     let conclusion_began: Instant = Instant::now();
-    crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq, first.repository.as_path());
+    crate::conclusion_state_copy::keep_of_intent(
+        intent.cleanup.as_ref(),
+        context.journal.as_path(),
+        seq,
+        first.repository.as_path(),
+    );
     timing.reads_split.conclusion += conclusion_began.elapsed();
     let journal_began: Instant = Instant::now();
     let written = write_intent(context.journal.as_path(), &intent);

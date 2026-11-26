@@ -65,7 +65,10 @@ const VERSION_KEY: &[u8] = b"\"version\"";
 /// ```ts
 /// function stringLiteralEnd({ text, start }): number | undefined;
 /// ```
-fn literal_end(bytes: &[u8], start: usize) -> Option<usize> {
+fn literal_end(
+    bytes: &[u8],
+    start: usize,
+) -> Option<usize> {
     let mut escaped: bool = false;
     for (index, byte) in bytes.iter().enumerate().skip(start + 1) {
         if escaped {
@@ -93,7 +96,10 @@ fn literal_end(bytes: &[u8], start: usize) -> Option<usize> {
 /// ```ts
 /// function skipWhitespace({ text, start }): number;
 /// ```
-fn skip_whitespace(bytes: &[u8], start: usize) -> usize {
+fn skip_whitespace(
+    bytes: &[u8],
+    start: usize,
+) -> usize {
     for (offset, byte) in bytes.iter().skip(start).enumerate() {
         if !matches!(byte, b' ' | b'\t' | b'\r' | b'\n') {
             return start + offset;

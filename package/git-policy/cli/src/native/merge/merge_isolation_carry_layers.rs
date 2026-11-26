@@ -29,10 +29,23 @@
 //! const end = decide(runner, path, { base, ours, theirs }); // { outcome: 'merges' | 'ours' | 'merged' | 'kept' | 'gone', mode }
 //! ```
 
-use crate::merge_second_pass::{Conflict, GitRunner, Left, Stage, Verdict, second_pass, unfit, write_blob};
-use crate::word_merge::MergedPart;
 use crate::merge_second_pass::AttributeSource;
-use crate::word_merge::{WordMerge, keep_both, merge_by_word};
+use crate::merge_second_pass::{
+    Conflict,
+    GitRunner,
+    Left,
+    Stage,
+    Verdict,
+    second_pass,
+    unfit,
+    write_blob,
+};
+use crate::word_merge::MergedPart;
+use crate::word_merge::{
+    WordMerge,
+    keep_both,
+    merge_by_word,
+};
 
 /// The labels the two sides carry between conflict markers.
 ///  A person reads them in their editor,
@@ -52,7 +65,8 @@ pub const MODIFY_DELETE: &str = "the merge deletes it";
 ///  command set aside before the capture leaves the same state,
 /// and the line about that copy names it
 ///  (`merge_isolation_kept_copies.rs`).
-pub const DELETE_MODIFY: &str = "nothing stood there when the merge captured it, and the merge changes it";
+pub const DELETE_MODIFY: &str =
+    "nothing stood there when the merge captured it, and the merge changes it";
 
 /// The reason a path is named when both sides hold a kind of entry the text merge cannot take.
 pub const NOT_TEXT: &str = "its changes cannot be merged as text";
@@ -199,10 +213,16 @@ fn the_kind_of(mode: &str) -> Kind {
 /// ```ts
 /// const equal = (a, b) => (a === null && b === null) || (a !== null && b !== null && a.oid === b.oid && kindOf(a.mode) === kindOf(b.mode));
 /// ```
-fn the_same_entry(left: &Option<Side>, right: &Option<Side>) -> bool {
+fn the_same_entry(
+    left: &Option<Side>,
+    right: &Option<Side>,
+) -> bool {
     return match (left, right) {
         (None, None) => true,
-        (Some(one), Some(other)) => one.oid == other.oid && the_kind_of(one.mode.as_str()) == the_kind_of(other.mode.as_str()),
+        (Some(one), Some(other)) => {
+            one.oid == other.oid
+                && the_kind_of(one.mode.as_str()) == the_kind_of(other.mode.as_str())
+        }
         _ => false,
     };
 }
@@ -287,8 +307,12 @@ fn end_mode(layer: &Layer) -> Option<String> {
 /// ```ts
 /// const readable = (ours, theirs) => kindOf(ours.mode) === 'file' && kindOf(theirs.mode) === 'file';
 /// ```
-fn the_pass_reads_both_sides(ours: &Side, theirs: &Side) -> bool {
-    return the_kind_of(ours.mode.as_str()) == Kind::File && the_kind_of(theirs.mode.as_str()) == Kind::File;
+fn the_pass_reads_both_sides(
+    ours: &Side,
+    theirs: &Side,
+) -> bool {
+    return the_kind_of(ours.mode.as_str()) == Kind::File
+        && the_kind_of(theirs.mode.as_str()) == Kind::File;
 }
 
 /// What:
@@ -303,10 +327,16 @@ fn the_pass_reads_both_sides(ours: &Side, theirs: &Side) -> bool {
 /// ```ts
 /// async function bytes(runner, oid: string): Promise<Uint8Array>;
 /// ```
-async fn bytes_of(runner: &dyn GitRunner, oid: &str) -> Result<Vec<u8>, String> {
+async fn bytes_of(
+    runner: &dyn GitRunner,
+    oid: &str,
+) -> Result<Vec<u8>, String> {
     let reply = runner.run(&["cat-file", "blob", oid], None, None).await?;
     if reply.code != Some(0) {
-        return Err(format!("git cat-file {oid} failed: {}", String::from_utf8_lossy(reply.stderr.as_slice()).trim()));
+        return Err(format!(
+            "git cat-file {oid} failed: {}",
+            String::from_utf8_lossy(reply.stderr.as_slice()).trim()
+        ));
     }
     return Ok(reply.stdout);
 }
@@ -323,7 +353,10 @@ async fn bytes_of(runner: &dyn GitRunner, oid: &str) -> Result<Vec<u8>, String> 
 /// const stage = (side) => side === null ? null : { mode: parseInt(side.mode, 8), oid: side.oid };
 /// ```
 fn stage_of(found: &Side) -> Stage {
-    return Stage { mode: u32::from_str_radix(found.mode.as_str(), 8).unwrap_or(0), oid: found.oid.clone() };
+    return Stage {
+        mode: u32::from_str_radix(found.mode.as_str(), 8).unwrap_or(0),
+        oid: found.oid.clone(),
+    };
 }
 
 /// What:
@@ -357,24 +390,52 @@ fn stage(side: &Option<Side>) -> Option<Stage> {
 /// ```ts
 /// function decide(runner, path, layer): Decision; // throws when Git cannot be read
 /// ```
-pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Decision, String> {
+pub async fn decide(
+    runner: &dyn GitRunner,
+    path: &[u8],
+    layer: &Layer,
+) -> Result<Decision, String> {
     if the_same_entry(&layer.base, &layer.ours) {
-        return Ok(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
+        return Ok(Decision {
+            outcome: Outcome::Merges,
+            mode: end_mode(layer),
+        });
     }
     if the_same_entry(&layer.ours, &layer.theirs) || the_same_entry(&layer.theirs, &layer.base) {
-        return Ok(Decision { outcome: Outcome::Ours, mode: end_mode(layer) });
+        return Ok(Decision {
+            outcome: Outcome::Ours,
+            mode: end_mode(layer),
+        });
     }
     match (&layer.ours, &layer.theirs) {
-        (Some(ours), None) => return Ok(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(ours.mode.clone()) }),
-        (None, Some(_)) => return Ok(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
-        (None, None) => return Ok(Decision { outcome: Outcome::Merges, mode: None }),
+        (Some(ours), None) => {
+            return Ok(Decision {
+                outcome: Outcome::Kept(MODIFY_DELETE),
+                mode: Some(ours.mode.clone()),
+            });
+        }
+        (None, Some(_)) => {
+            return Ok(Decision {
+                outcome: Outcome::Gone(DELETE_MODIFY),
+                mode: None,
+            });
+        }
+        (None, None) => {
+            return Ok(Decision {
+                outcome: Outcome::Merges,
+                mode: None,
+            });
+        }
         // A link and a file, two links, and a submodule and a file are not two texts a word pass can merge: measured, a
         //  merge wrote the person's link target and the merge's lines between markers into a link whose target was that whole
         //  text, so the link they made was gone. Their entry is kept whole, with their own mode, and named with the merge's
         //  version in the merge commit.
         (Some(ours), Some(theirs)) => {
             if !the_pass_reads_both_sides(ours, theirs) {
-                return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
+                return Ok(Decision {
+                    outcome: Outcome::Kept(NOT_TEXT),
+                    mode: Some(ours.mode.clone()),
+                });
             }
         }
     }
@@ -387,13 +448,33 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
         let ours_bytes: Vec<u8> = bytes_of(runner, ours.oid.as_str()).await?;
         let theirs_bytes: Vec<u8> = bytes_of(runner, theirs.oid.as_str()).await?;
         if unfit(ours_bytes.as_slice()).is_some() || unfit(theirs_bytes.as_slice()).is_some() {
-            return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
+            return Ok(Decision {
+                outcome: Outcome::Kept(NOT_TEXT),
+                mode: Some(ours.mode.clone()),
+            });
         }
         return match merge_by_word(b"", ours_bytes.as_slice(), theirs_bytes.as_slice()) {
-            WordMerge::Resolved { merged, parts } => Ok(Decision { outcome: Outcome::Merged { bytes: merged, conflict: false, parts }, mode: end_mode(layer) }),
-            WordMerge::Conflict { .. } => Ok(Decision {
+            WordMerge::Resolved {
+                merged,
+                parts,
+            } => Ok(Decision {
                 outcome: Outcome::Merged {
-                    bytes: keep_both(b"", ours_bytes.as_slice(), theirs_bytes.as_slice(), (OUR_LABEL, THEIR_LABEL)),
+                    bytes: merged,
+                    conflict: false,
+                    parts,
+                },
+                mode: end_mode(layer),
+            }),
+            WordMerge::Conflict {
+                ..
+            } => Ok(Decision {
+                outcome: Outcome::Merged {
+                    bytes: keep_both(
+                        b"",
+                        ours_bytes.as_slice(),
+                        theirs_bytes.as_slice(),
+                        (OUR_LABEL, THEIR_LABEL),
+                    ),
                     conflict: true,
                     parts: Vec::new(),
                 },
@@ -401,21 +482,45 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
             }),
         };
     }
-    let conflict: Conflict = Conflict { path: path.to_vec(), base: stage(&layer.base), ours: stage(&layer.ours), theirs: stage(&layer.theirs) };
-    let verdicts: Vec<Verdict> = second_pass(runner, &[conflict], AttributeSource::Invocation).await?;
+    let conflict: Conflict = Conflict {
+        path: path.to_vec(),
+        base: stage(&layer.base),
+        ours: stage(&layer.ours),
+        theirs: stage(&layer.theirs),
+    };
+    let verdicts: Vec<Verdict> =
+        second_pass(runner, &[conflict], AttributeSource::Invocation).await?;
     let Some(verdict) = verdicts.into_iter().next() else {
-        return Err(String::from("the second pass answered nothing for a path it was given"));
+        return Err(String::from(
+            "the second pass answered nothing for a path it was given",
+        ));
     };
     match verdict {
         Verdict::Merged(file) => {
-            return Ok(Decision { outcome: Outcome::Merged { bytes: file.bytes, conflict: false, parts: file.parts }, mode: end_mode(layer) });
+            return Ok(Decision {
+                outcome: Outcome::Merged {
+                    bytes: file.bytes,
+                    conflict: false,
+                    parts: file.parts,
+                },
+                mode: end_mode(layer),
+            });
         }
-        Verdict::Left { why, .. } => {
+        Verdict::Left {
+            why,
+            ..
+        } => {
             if !matches!(why, Left::Overlap(_)) {
-                return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: mode_of(&layer.ours) });
+                return Ok(Decision {
+                    outcome: Outcome::Kept(NOT_TEXT),
+                    mode: mode_of(&layer.ours),
+                });
             }
-            let (Some(base), Some(ours), Some(theirs)) = (&layer.base, &layer.ours, &layer.theirs) else {
-                return Err(String::from("a conflict the pass resolved as an overlap holds every stage"));
+            let (Some(base), Some(ours), Some(theirs)) = (&layer.base, &layer.ours, &layer.theirs)
+            else {
+                return Err(String::from(
+                    "a conflict the pass resolved as an overlap holds every stage",
+                ));
             };
             let bytes: Vec<u8> = keep_both(
                 bytes_of(runner, base.oid.as_str()).await?.as_slice(),
@@ -423,7 +528,14 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
                 bytes_of(runner, theirs.oid.as_str()).await?.as_slice(),
                 (OUR_LABEL, THEIR_LABEL),
             );
-            return Ok(Decision { outcome: Outcome::Merged { bytes, conflict: true, parts: Vec::new() }, mode: end_mode(layer) });
+            return Ok(Decision {
+                outcome: Outcome::Merged {
+                    bytes,
+                    conflict: true,
+                    parts: Vec::new(),
+                },
+                mode: end_mode(layer),
+            });
         }
     }
 }
@@ -442,20 +554,44 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
 /// ```
 pub fn decide_without_the_pass(layer: &Layer) -> Option<Decision> {
     if the_same_entry(&layer.base, &layer.ours) {
-        return Some(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
+        return Some(Decision {
+            outcome: Outcome::Merges,
+            mode: end_mode(layer),
+        });
     }
     if the_same_entry(&layer.ours, &layer.theirs) || the_same_entry(&layer.theirs, &layer.base) {
-        return Some(Decision { outcome: Outcome::Ours, mode: end_mode(layer) });
+        return Some(Decision {
+            outcome: Outcome::Ours,
+            mode: end_mode(layer),
+        });
     }
     match (&layer.ours, &layer.theirs) {
-        (Some(ours), None) => return Some(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(ours.mode.clone()) }),
-        (None, Some(_)) => return Some(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
-        (None, None) => return Some(Decision { outcome: Outcome::Merges, mode: None }),
+        (Some(ours), None) => {
+            return Some(Decision {
+                outcome: Outcome::Kept(MODIFY_DELETE),
+                mode: Some(ours.mode.clone()),
+            });
+        }
+        (None, Some(_)) => {
+            return Some(Decision {
+                outcome: Outcome::Gone(DELETE_MODIFY),
+                mode: None,
+            });
+        }
+        (None, None) => {
+            return Some(Decision {
+                outcome: Outcome::Merges,
+                mode: None,
+            });
+        }
         (Some(ours), Some(theirs)) => {
             if the_pass_reads_both_sides(ours, theirs) {
                 return None;
             }
-            return Some(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
+            return Some(Decision {
+                outcome: Outcome::Kept(NOT_TEXT),
+                mode: Some(ours.mode.clone()),
+            });
         }
     }
 }
@@ -466,7 +602,10 @@ pub fn decide_without_the_pass(layer: &Layer) -> Option<Decision> {
 /// ```ts
 /// async function writeLayerBytes(runner, bytes): Promise<string>;
 /// ```
-pub async fn write_layer_bytes(runner: &dyn GitRunner, bytes: &[u8]) -> Result<String, String> {
+pub async fn write_layer_bytes(
+    runner: &dyn GitRunner,
+    bytes: &[u8],
+) -> Result<String, String> {
     return write_blob(runner, bytes).await;
 }
 

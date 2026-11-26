@@ -22,7 +22,10 @@ use crate::ref_files::RefFilesLayout;
 /// The ref storage backend.
 use crate::transaction_journal::RefFormat;
 /// Borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The most `packed-refs` bytes this check reads;
 ///  a bigger file is left to Git.
@@ -54,7 +57,10 @@ const PACKED_REFS_LIMIT: u64 = 64 * 1024 * 1024;
 /// ```ts
 /// [join(gitDir, name), join(commonDir, 'refs', name), join(commonDir, 'refs/tags', name), ...]
 /// ```
-fn lookup_paths(layout: &RefFilesLayout<'_>, name: &str) -> Vec<PathBuf> {
+fn lookup_paths(
+    layout: &RefFilesLayout<'_>,
+    name: &str,
+) -> Vec<PathBuf> {
     return vec![
         layout.git_dir.join(name),
         layout.common_dir.join(format!("refs/{name}")),
@@ -124,7 +130,10 @@ fn packed_refs_bytes(common_dir: &Path) -> Option<Vec<u8>> {
 /// ```ts
 /// haystack.includes(needle)
 /// ```
-fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+fn contains_bytes(
+    haystack: &[u8],
+    needle: &[u8],
+) -> bool {
     if needle.is_empty() {
         return true;
     }
@@ -149,7 +158,10 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
 /// ```ts
 /// names.map((name) => layout.refFormat !== 'files' || maybePresent(layout, name))
 /// ```
-pub fn markers_maybe_present(layout: &RefFilesLayout<'_>, names: &[&str]) -> Vec<bool> {
+pub fn markers_maybe_present(
+    layout: &RefFilesLayout<'_>,
+    names: &[&str],
+) -> Vec<bool> {
     if layout.ref_format != RefFormat::Files {
         return vec![true; names.len()];
     }

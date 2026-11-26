@@ -18,7 +18,14 @@
 use super::fresh_the_record;
 use super::run_a_zfs_add;
 use super::run_the_route;
-use crate::test_support::{REAL_GIT, fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_preflight::Preflight;
@@ -26,12 +33,18 @@ use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
-use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
+use crate::worktree_clone_binding_record::registration_home::{
+    home_folder,
+    plans_folder,
+};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_copy_forward::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_ladder_test_support::main_identity;
-use crate::worktree_snapshot_source::{SnapshotSource, common_source};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    common_source,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -47,17 +60,47 @@ fn a_fixture(name: &str) -> (PathBuf, CopyFacts) {
     std::fs::create_dir_all(root.join(".git")).expect("the common directory");
     std::fs::create_dir_all(root.join(".claude").join("worktrees")).expect("the worktrees folder");
     let destination: PathBuf = root.join(".claude").join("worktrees").join("topic");
-    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: root.join(".git"), git_dir: root.join(".git"), worktree_root: root.clone() };
-    let plan: AddPlan = AddPlan { destination: destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
-    let facts: CopyFacts = CopyFacts { identity, creates: true, destination: Some(destination), add_plan: Some(plan), remove_plan: None, removal_target: None, quiet: false };
+    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: root.join(".git"),
+        git_dir: root.join(".git"),
+        worktree_root: root.clone(),
+    };
+    let plan: AddPlan = AddPlan {
+        destination: destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: true,
+    };
+    let facts: CopyFacts = CopyFacts {
+        identity,
+        creates: true,
+        destination: Some(destination),
+        add_plan: Some(plan),
+        remove_plan: None,
+        removal_target: None,
+        quiet: false,
+    };
     return (root, facts);
 }
 
 #[test]
 fn this_machine_s_own_filesystem_keeps_the_ordinary_add() {
     let (root, facts) = a_fixture("route-entry-filesystem");
-    let arguments: Vec<OsString> = ["worktree", "add", "--no-checkout", "/tmp/topic", "main"].iter().map(OsString::from).collect();
-    assert_eq!(run_a_zfs_add(std::path::Path::new("/usr/bin/git"), arguments.as_slice(), &[], &facts), None, "a checkout that is not the design's dataset takes the ladder");
+    let arguments: Vec<OsString> = ["worktree", "add", "--no-checkout", "/tmp/topic", "main"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    assert_eq!(
+        run_a_zfs_add(
+            std::path::Path::new("/usr/bin/git"),
+            arguments.as_slice(),
+            &[],
+            &facts
+        ),
+        None,
+        "a checkout that is not the design's dataset takes the ladder"
+    );
     remove(root.as_path());
 }
 
@@ -65,8 +108,19 @@ fn this_machine_s_own_filesystem_keeps_the_ordinary_add() {
 fn a_command_with_no_plan_is_never_the_route_s() {
     let (root, mut facts) = a_fixture("route-entry-no-plan");
     facts.add_plan = None;
-    let arguments: Vec<OsString> = ["worktree", "add", "/tmp/topic"].iter().map(OsString::from).collect();
-    assert_eq!(run_a_zfs_add(std::path::Path::new("/usr/bin/git"), arguments.as_slice(), &[], &facts), None);
+    let arguments: Vec<OsString> = ["worktree", "add", "/tmp/topic"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    assert_eq!(
+        run_a_zfs_add(
+            std::path::Path::new("/usr/bin/git"),
+            arguments.as_slice(),
+            &[],
+            &facts
+        ),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -100,7 +154,8 @@ fn a_command_with_no_plan_is_never_the_route_s() {
 #[test]
 fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
     let root: PathBuf = fixture("route-a2-plan-sentence");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
     let route: RouteFacts = RouteFacts {
         source_root: repo.clone(),
         common_dir: repo.join(".git"),
@@ -113,16 +168,33 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
     };
     let folder: PathBuf = plans_folder(route.common_dir.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
-    let plan_text: String = format!("{PLAN_HEADER}\ncloneDataset={}\ncloneGuid={THE_PLANS_KEY}\nhead=present\nattempts=0\n", route.clone_dataset());
+    let plan_text: String = format!(
+        "{PLAN_HEADER}\ncloneDataset={}\ncloneGuid={THE_PLANS_KEY}\nhead=present\nattempts=0\n",
+        route.clone_dataset()
+    );
     let plan_path: PathBuf = folder.join(THE_PLANS_KEY);
     std::fs::write(plan_path.as_path(), plan_text.as_bytes()).expect("the standing plan");
-    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
-    let source: SnapshotSource = common_source(&git_context(), &main_identity(route.source_root.as_path())).expect("a clean source");
+    let plan: AddPlan = AddPlan {
+        destination: route.destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: true,
+    };
+    let source: SnapshotSource =
+        common_source(&git_context(), &main_identity(route.source_root.as_path()))
+            .expect("a clean source");
     let device_file: PathBuf = root.join("a-file-opened-as-the-device");
-    std::fs::write(device_file.as_path(), b"every request through this file refuses").expect("the device file");
+    std::fs::write(
+        device_file.as_path(),
+        b"every request through this file refuses",
+    )
+    .expect("the device file");
     let preflight: Preflight = Preflight {
         source,
-        device: OpenedDevice { device: ZfsDevice::open_at(device_file.as_path()).expect("the device file opens") },
+        device: OpenedDevice {
+            device: ZfsDevice::open_at(device_file.as_path()).expect("the device file opens"),
+        },
         checkout_guid: DatasetGuid::parse("4821193048571903102").expect("the checkout's guid"),
         pool_guid: DatasetGuid::parse("4821193048571903103").expect("the pool's guid"),
         warnings: Vec::new(),
@@ -130,17 +202,43 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
     let home_path: PathBuf = root.join("the-adds-record-home");
     std::fs::write(home_path.as_path(), b"").expect("the home file");
     let home: std::fs::File = std::fs::File::open(home_path.as_path()).expect("the home opens");
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let refusal: StepRefusal = match fresh_the_record(&route, &plan, arguments.as_slice(), &preflight, &home, 1) {
-        Ok(_) => panic!("the standing plan stops the record before its first write"),
-        Err(refusal) => refusal,
-    };
+    let arguments: Vec<OsString> = [
+        String::from("worktree"),
+        String::from("add"),
+        route.destination.display().to_string(),
+        String::from("main"),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    let refusal: StepRefusal =
+        match fresh_the_record(&route, &plan, arguments.as_slice(), &preflight, &home, 1) {
+            Ok(_) => panic!("the standing plan stops the record before its first write"),
+            Err(refusal) => refusal,
+        };
     let message: &str = refusal.message.as_str();
-    assert!(message.contains(plan_path.display().to_string().as_str()), "the plan's own path is named: {message}");
-    assert!(message.contains("settle-worktree-clone-record"), "a `present` head the pool cannot answer for names the settling command: {message}");
-    assert!(message.contains("cancel-worktree-removal"), "a plan witnessing nothing destroyed names the cancel command beside it: {message}");
-    for leak in ["APlanThatNamesTheClone", "PlanUnreadable", "ClonePresence", "{:?}"] {
-        assert!(!message.contains(leak), "no `Debug` rendering of a stop reaches the person (`{leak}`): {message}");
+    assert!(
+        message.contains(plan_path.display().to_string().as_str()),
+        "the plan's own path is named: {message}"
+    );
+    assert!(
+        message.contains("settle-worktree-clone-record"),
+        "a `present` head the pool cannot answer for names the settling command: {message}"
+    );
+    assert!(
+        message.contains("cancel-worktree-removal"),
+        "a plan witnessing nothing destroyed names the cancel command beside it: {message}"
+    );
+    for leak in [
+        "APlanThatNamesTheClone",
+        "PlanUnreadable",
+        "ClonePresence",
+        "{:?}",
+    ] {
+        assert!(
+            !message.contains(leak),
+            "no `Debug` rendering of a stop reaches the person (`{leak}`): {message}"
+        );
     }
     remove(root.as_path());
 }
@@ -172,7 +270,8 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
 #[test]
 fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
     let root: PathBuf = fixture("route-nested-repository-declines");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
     let route: RouteFacts = RouteFacts {
         source_root: repo.clone(),
         common_dir: repo.join(".git"),
@@ -183,21 +282,53 @@ fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
         container_dataset: String::from("tank/clones"),
         pool: String::from("tank"),
     };
-    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
+    let plan: AddPlan = AddPlan {
+        destination: route.destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: true,
+    };
     let nested: PathBuf = repo.join("nested");
     std::fs::create_dir(nested.as_path()).expect("the repository's directory");
     git(nested.as_path(), &["init", "--quiet"]);
     std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
     let context: GitContext = git_context();
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(&route, &plan, &context, std::path::Path::new(REAL_GIT), arguments.as_slice(), &[]);
+    let arguments: Vec<OsString> = [
+        String::from("worktree"),
+        String::from("add"),
+        route.destination.display().to_string(),
+        String::from("main"),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(
+        &route,
+        &plan,
+        &context,
+        std::path::Path::new(REAL_GIT),
+        arguments.as_slice(),
+        &[],
+    );
     match answer {
         Ok(None) => {}
-        Ok(Some(lines)) => panic!("the route served an add from a source its own restore cannot prove and printed {lines:?}"),
-        Err(refusal) => panic!("the route fails the add instead of leaving it to the ladder: {}", refusal.message),
+        Ok(Some(lines)) => panic!(
+            "the route served an add from a source its own restore cannot prove and printed {lines:?}"
+        ),
+        Err(refusal) => panic!(
+            "the route fails the add instead of leaving it to the ladder: {}",
+            refusal.message
+        ),
     }
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "the claim, and the record written after it, stay unwritten"
+    );
+    assert!(
+        !route.destination.exists(),
+        "the slot stays empty when the route declines"
+    );
     remove(root.as_path());
 }
 
@@ -221,7 +352,8 @@ fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
 #[test]
 fn a_lock_word_from_a_declined_source_leaves_the_add_to_the_ladder() {
     let root: PathBuf = fixture("route-nested-repository-lock-word");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
     let route: RouteFacts = RouteFacts {
         source_root: repo.clone(),
         common_dir: repo.join(".git"),
@@ -232,20 +364,53 @@ fn a_lock_word_from_a_declined_source_leaves_the_add_to_the_ladder() {
         container_dataset: String::from("tank/clones"),
         pool: String::from("tank"),
     };
-    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
+    let plan: AddPlan = AddPlan {
+        destination: route.destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: true,
+    };
     let nested: PathBuf = repo.join("nested");
     std::fs::create_dir(nested.as_path()).expect("the repository's directory");
     git(nested.as_path(), &["init", "--quiet"]);
     std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
     let context: GitContext = git_context();
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), String::from("--lock"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(&route, &plan, &context, std::path::Path::new(REAL_GIT), arguments.as_slice(), &[]);
+    let arguments: Vec<OsString> = [
+        String::from("worktree"),
+        String::from("add"),
+        String::from("--lock"),
+        route.destination.display().to_string(),
+        String::from("main"),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(
+        &route,
+        &plan,
+        &context,
+        std::path::Path::new(REAL_GIT),
+        arguments.as_slice(),
+        &[],
+    );
     match answer {
         Ok(None) => {}
-        Ok(Some(lines)) => panic!("the route served an add from a source its own restore cannot prove and printed {lines:?}"),
-        Err(refusal) => panic!("the route fails an add given `--lock` from a source it declines, so the ladder never makes the worktree Git's `--lock` asks for: {}", refusal.message),
+        Ok(Some(lines)) => panic!(
+            "the route served an add from a source its own restore cannot prove and printed {lines:?}"
+        ),
+        Err(refusal) => panic!(
+            "the route fails an add given `--lock` from a source it declines, so the ladder never makes the worktree Git's `--lock` asks for: {}",
+            refusal.message
+        ),
     }
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "the claim, and the record written after it, stay unwritten"
+    );
+    assert!(
+        !route.destination.exists(),
+        "the slot stays empty when the route declines"
+    );
     remove(root.as_path());
 }

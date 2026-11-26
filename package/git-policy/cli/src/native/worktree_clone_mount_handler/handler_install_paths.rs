@@ -41,15 +41,18 @@ use crate::worktree_clone_mount_handler::root_mode_names::ROOT_GROUP_WORD;
 /// ```ts
 /// const rootModePath = '/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets';
 /// ```
-pub const ROOT_MODE_INSTALL_PATH: &str = "/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets";
+pub const ROOT_MODE_INSTALL_PATH: &str =
+    "/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets";
 
 /// The ZED history event file:
 /// the link ZED looks for the executable one event starts.
-pub const ZEDLET_INSTALL_PATH: &str = "/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets";
+pub const ZEDLET_INSTALL_PATH: &str =
+    "/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets";
 
 /// The handler's configuration,
 /// which stays root-controlled beside the root modes' install folder.
-pub const CONFIGURATION_PATH: &str = "/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc";
+pub const CONFIGURATION_PATH: &str =
+    "/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc";
 
 /// What:
 ///  The one record that says which dataset is the served checkout,
@@ -65,7 +68,8 @@ pub const CONFIGURATION_PATH: &str = "/etc/monochromatic-git-policy-cli/git-work
 /// ```ts
 /// const checkoutRecordPath = '/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json';
 /// ```
-pub const CHECKOUT_RECORD_PATH: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json";
+pub const CHECKOUT_RECORD_PATH: &str =
+    "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json";
 
 /// What:
 ///  The words every root-mode line and every root-mode refusal names:

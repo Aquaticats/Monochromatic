@@ -14,8 +14,22 @@
 //! ```
 
 /// The recorder under test.
-use super::{ADD_TIMING_FILE, Recorder, begin, begin_step, begin_work, end_step, end_work, finish, git_step_label, note};
-use crate::command_test_support::{fixture, remove};
+use super::{
+    ADD_TIMING_FILE,
+    Recorder,
+    begin,
+    begin_step,
+    begin_work,
+    end_step,
+    end_work,
+    finish,
+    git_step_label,
+    note,
+};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -55,8 +69,13 @@ fn parsed(line: &str) -> serde_json::Value {
 }
 
 /// The milliseconds of the step `name` in a parsed record.
-fn step_ms(record: &serde_json::Value, name: &str) -> f64 {
-    return record["steps"][name]["ms"].as_f64().expect("the step has milliseconds");
+fn step_ms(
+    record: &serde_json::Value,
+    name: &str,
+) -> f64 {
+    return record["steps"][name]["ms"]
+        .as_f64()
+        .expect("the step has milliseconds");
 }
 
 /// A step inside another is taken out of the outer one,
@@ -127,7 +146,8 @@ fn steps_nest_through_the_thread_recorder() {
     end_step(inner);
     end_step(outer);
     finish(0);
-    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let text: String =
+        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record = parsed(text.lines().next().expect("one line"));
     assert_eq!(record["steps"]["outer"]["calls"], 1);
     assert_eq!(record["steps"]["inner"]["calls"], 1);
@@ -155,7 +175,8 @@ fn records_append_as_lines() {
         begin(common.clone(), false);
         finish(0);
     }
-    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the records were appended");
+    let text: String =
+        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the records were appended");
     assert_eq!(text.lines().count(), 2);
     remove(root.as_path());
 }
@@ -163,10 +184,30 @@ fn records_append_as_lines() {
 /// The subcommand is named past the global options that take a value and the flags that do not.
 #[test]
 fn a_git_run_is_named_by_its_subcommand() {
-    let words = |list: &[&str]| -> Vec<OsString> { return list.iter().map(OsString::from).collect(); };
-    assert_eq!(git_step_label(words(&["-C", "status", "--no-optional-locks", "ls-files", "--others"]).as_slice()), "git ls-files");
-    assert_eq!(git_step_label(words(&["-c", "core.x=1", "read-tree", "-m"]).as_slice()), "git read-tree");
-    assert_eq!(git_step_label(words(&["--no-optional-locks"]).as_slice()), "git");
+    let words = |list: &[&str]| -> Vec<OsString> {
+        return list.iter().map(OsString::from).collect();
+    };
+    assert_eq!(
+        git_step_label(
+            words(&[
+                "-C",
+                "status",
+                "--no-optional-locks",
+                "ls-files",
+                "--others"
+            ])
+            .as_slice()
+        ),
+        "git ls-files"
+    );
+    assert_eq!(
+        git_step_label(words(&["-c", "core.x=1", "read-tree", "-m"]).as_slice()),
+        "git read-tree"
+    );
+    assert_eq!(
+        git_step_label(words(&["--no-optional-locks"]).as_slice()),
+        "git"
+    );
 }
 
 /// Work done on other threads is summed by name beside the steps,
@@ -188,10 +229,17 @@ fn work_on_other_threads_is_summed_by_name() {
         }
     });
     finish(0);
-    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let text: String =
+        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record = parsed(text.lines().next().expect("one line"));
     assert_eq!(record["work"]["clone"]["calls"], 2);
-    assert!(record["work"]["clone"]["ms"].as_f64().expect("milliseconds") >= 10.0, "two sleeps of five milliseconds add up");
+    assert!(
+        record["work"]["clone"]["ms"]
+            .as_f64()
+            .expect("milliseconds")
+            >= 10.0,
+        "two sleeps of five milliseconds add up"
+    );
     assert!(record["steps"].get("clone").is_none(), "work is not a step");
     remove(root.as_path());
 }
@@ -206,7 +254,8 @@ fn work_without_a_recording_is_forgotten() {
     std::fs::create_dir_all(common.as_path()).expect("common directory");
     begin(common.clone(), false);
     finish(0);
-    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let text: String =
+        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record = parsed(text.lines().next().expect("one line"));
     assert!(record["work"].get("early").is_none());
     remove(root.as_path());
@@ -217,11 +266,17 @@ fn work_without_a_recording_is_forgotten() {
 #[test]
 fn the_line_carries_the_quiet_gaps() {
     let mut recorder: Recorder = nested();
-    recorder.quiet = vec![(String::from("pnpm install"), Duration::from_millis(1500)), (String::from("git ls-files"), Duration::from_millis(20))];
+    recorder.quiet = vec![
+        (String::from("pnpm install"), Duration::from_millis(1500)),
+        (String::from("git ls-files"), Duration::from_millis(20)),
+    ];
     let record = parsed(recorder.line(at(TOTAL_MS), 0).as_str());
     assert_eq!(record["quiet"]["pnpm install"].as_f64(), Some(1500.0));
     assert_eq!(record["quiet"]["git ls-files"].as_f64(), Some(20.0));
-    assert_eq!(parsed(nested().line(at(TOTAL_MS), 0).as_str())["quiet"], serde_json::json!({}));
+    assert_eq!(
+        parsed(nested().line(at(TOTAL_MS), 0).as_str())["quiet"],
+        serde_json::json!({})
+    );
 }
 
 /// What:
@@ -244,13 +299,22 @@ fn an_add_the_ladder_does_not_serve_records_the_route_it_took() {
     let root: PathBuf = fixture("add-timing-plain-route");
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("a common directory");
-    let clause: String = String::from("because the folder it goes in, \"/never/made\", does not exist yet");
+    let clause: String =
+        String::from("because the folder it goes in, \"/never/made\", does not exist yet");
     super::begin_on_route(common.clone(), false, Some(clause.clone()));
     note("steps", "none of the ladder's");
     finish(0);
-    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let text: String =
+        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record: serde_json::Value = parsed(text.lines().next().expect("one line"));
-    assert_eq!(record["notes"]["route"], "plain", "the record says the add ran as plain Git: {text}");
-    assert_eq!(record["notes"]["whyPlain"], clause.as_str(), "and why it did: {text}");
+    assert_eq!(
+        record["notes"]["route"], "plain",
+        "the record says the add ran as plain Git: {text}"
+    );
+    assert_eq!(
+        record["notes"]["whyPlain"],
+        clause.as_str(),
+        "and why it did: {text}"
+    );
     remove(root.as_path());
 }

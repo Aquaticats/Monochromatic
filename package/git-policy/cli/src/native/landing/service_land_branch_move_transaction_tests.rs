@@ -10,7 +10,10 @@
 //! ```
 
 /// The lines under test.
-use super::{branch_commit_question, reference_move_transaction};
+use super::{
+    branch_commit_question,
+    reference_move_transaction,
+};
 /// A reference name as the bytes Git printed it.
 use crate::ref_name::RefName;
 
@@ -33,8 +36,14 @@ const RAW_NAME: &[u8] = b"refs/heads/topic-\xff";
 fn the_branch_question_names_the_branch_by_its_bytes() {
     let reference: RefName = RefName::from_git_output(RAW_NAME);
     let words: [std::ffi::OsString; 4] = branch_commit_question(&reference);
-    assert_eq!(crate::path_bytes::argument_bytes(words[3].as_os_str()), b"refs/heads/topic-\xff^{commit}");
-    assert_eq!(crate::path_bytes::argument_bytes(words[0].as_os_str()), b"rev-parse");
+    assert_eq!(
+        crate::path_bytes::argument_bytes(words[3].as_os_str()),
+        b"refs/heads/topic-\xff^{commit}"
+    );
+    assert_eq!(
+        crate::path_bytes::argument_bytes(words[0].as_os_str()),
+        b"rev-parse"
+    );
 }
 
 /// What:

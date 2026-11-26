@@ -12,7 +12,11 @@
 //! setpgid(0, 0); prctl(PR_SET_PDEATHSIG, SIGKILL); getppid();
 //! ```
 
-use super::{join_own_process_group, parent_death_signal, parent_id};
+use super::{
+    join_own_process_group,
+    parent_death_signal,
+    parent_id,
+};
 
 /// A process can join a group of its own,
 /// ask for a parent-death signal,

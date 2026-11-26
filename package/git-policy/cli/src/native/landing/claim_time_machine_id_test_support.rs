@@ -27,5 +27,7 @@ pub(crate) fn injected() -> Option<&'static str> {
 
 /// Gives this thread the machine ID `id` (empty for a host with none) until the thread ends.
 pub(crate) fn inject(id: &'static str) {
-    INJECTED.with(|cell| { cell.set(Some(id)); });
+    INJECTED.with(|cell| {
+        cell.set(Some(id));
+    });
 }

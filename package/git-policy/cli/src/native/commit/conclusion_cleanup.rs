@@ -21,19 +21,34 @@ use crate::diagnostic_log::debug;
 /// Tree removal and private files.
 use crate::private_storage::remove_tree;
 /// The fail-closed recovery failure.
-use crate::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{
+    RecoveryError,
+    io_failure,
+};
 /// Exact reads and existence probes.
-use crate::recovery_files::{path_present, read_optional, remove_file_if_present};
+use crate::recovery_files::{
+    path_present,
+    read_optional,
+    remove_file_if_present,
+};
 /// Shadow commands.
 use crate::shadow_git::shadow_request;
 /// Running real Git.
-use crate::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+    run_git_checked,
+};
 /// The ref storage backend.
 use crate::transaction_journal::RefFormat;
 /// `BTreeMap` is a sorted map.
 use std::collections::BTreeMap;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The rerere resolution cache Git rewrites during a conflicted merge,
 ///  copied back after landing.
@@ -89,7 +104,10 @@ pub const STORE_RECORD_FILENAME: &str = "store-held.json";
 /// ```ts
 /// isStoreHeld({ refFormat, name })
 /// ```
-pub fn is_store_held(format: RefFormat, name: &str) -> bool {
+pub fn is_store_held(
+    format: RefFormat,
+    name: &str,
+) -> bool {
     return format == RefFormat::Reftable && STORE_HELD_PSEUDOREFS.contains(&name);
 }
 
@@ -103,7 +121,10 @@ pub fn is_store_held(format: RefFormat, name: &str) -> bool {
 /// ```ts
 /// async function resolvePseudoref({ gitPath, cwd, name }): Promise<string | typeof ENTRY_ABSENT>;
 /// ```
-pub fn resolve_pseudoref(context: &GitContext, request: GitRequest) -> Option<String> {
+pub fn resolve_pseudoref(
+    context: &GitContext,
+    request: GitRequest,
+) -> Option<String> {
     let output: crate::transaction_git::GitOutput = run_git(context, &request).ok()?;
     if !output.succeeded() {
         return None;
@@ -175,7 +196,10 @@ fn read_tree(root: &Path) -> Result<BTreeMap<PathBuf, Vec<u8>>, RecoveryError> {
 /// ```ts
 /// async function sameTree({ left, right }): Promise<boolean>;
 /// ```
-pub fn same_tree(left: &Path, right: &Path) -> Result<bool, RecoveryError> {
+pub fn same_tree(
+    left: &Path,
+    right: &Path,
+) -> Result<bool, RecoveryError> {
     let first: BTreeMap<PathBuf, Vec<u8>> = read_tree(left)?;
     let second: BTreeMap<PathBuf, Vec<u8>> = read_tree(right)?;
     return Ok(!first.is_empty() && first == second);
@@ -216,11 +240,16 @@ pub fn store_names_conclusions(format: RefFormat) -> bool {
 /// ```ts
 /// async function readStoreRecord({ copies, format }): Promise<Value>;
 /// ```
-fn read_store_record(copies: &Path, format: RefFormat) -> Result<serde_json::Value, RecoveryError> {
+fn read_store_record(
+    copies: &Path,
+    format: RefFormat,
+) -> Result<serde_json::Value, RecoveryError> {
     let path: PathBuf = copies.join(STORE_RECORD_FILENAME);
     let bytes: Vec<u8> = match std::fs::read(&path) {
         Ok(read) => read,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !store_names_conclusions(format) => {
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound && !store_names_conclusions(format) =>
+        {
             return Ok(serde_json::Value::Object(serde_json::Map::new()));
         }
         Err(error) => return Err(io_failure("reading", path.as_path(), &error)),
@@ -328,7 +357,10 @@ pub fn reproduce_conclusion_cleanup(
         }
     }
     if let Some(merge_rr) = read_optional(shadow.join(MERGE_RR_FILENAME).as_path())? {
-        let temporary: PathBuf = git_dir.join(format!("{MERGE_RR_FILENAME}.cli-git-{}", std::process::id()));
+        let temporary: PathBuf = git_dir.join(format!(
+            "{MERGE_RR_FILENAME}.cli-git-{}",
+            std::process::id()
+        ));
         if let Err(error) = std::fs::write(&temporary, merge_rr.as_slice()) {
             return Err(io_failure("writing", temporary.as_path(), &error));
         }

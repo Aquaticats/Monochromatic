@@ -69,7 +69,10 @@ pub enum RuntimeError {
 }
 
 impl std::fmt::Display for RuntimeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             RuntimeError::Nested => write!(
                 formatter,
@@ -128,7 +131,9 @@ fn cap_malloc_arenas() {
 /// no worker,
 /// the calling thread runs every task.
 fn current_thread() -> std::io::Result<Runtime> {
-    return tokio::runtime::Builder::new_current_thread().enable_all().build();
+    return tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build();
 }
 
 /// The variable that makes the build of the multi-thread runtime wait before it starts its workers,
@@ -149,7 +154,8 @@ pub const SLOW_BUILD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
 /// A control asks this of a build made without the switches, where it answers no pause.
 pub(crate) fn the_pause_a_control_asks_for() -> Duration {
     // The milliseconds a control named, or nothing in every shipped build.
-    let named: Option<u64> = crate::test_only_switches::text(SLOW_BUILD_VARIABLE).and_then(milliseconds_of);
+    let named: Option<u64> =
+        crate::test_only_switches::text(SLOW_BUILD_VARIABLE).and_then(milliseconds_of);
     return named.map_or(Duration::ZERO, Duration::from_millis);
 }
 
@@ -160,7 +166,10 @@ fn milliseconds_of(text: String) -> Option<u64> {
 }
 
 /// The multi-thread runtime with `workers` workers and at most `blocking` blocking-pool threads.
-fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
+fn multi_thread(
+    workers: usize,
+    blocking: usize,
+) -> std::io::Result<Runtime> {
     let pause: Duration = the_pause_a_control_asks_for();
     if !pause.is_zero() {
         std::thread::sleep(pause);
@@ -226,7 +235,9 @@ static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::n
 /// ```ts
 /// let theCallersMoment: (() => void) | undefined; // run once between the caller's last read and its close
 /// ```
-#[cfg(test)] static THE_CALLER_STOPS_WAITING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> = std::sync::Mutex::new(None);
+#[cfg(test)]
+static THE_CALLER_STOPS_WAITING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> =
+    std::sync::Mutex::new(None);
 
 /// What:
 ///  A control's own code at the build's moment between a hand-over the caller was too late for and the keeping of the runtime it carries,
@@ -241,7 +252,9 @@ static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::n
 /// ```ts
 /// let theBuildsMomentBeforeKeeping: (() => void) | undefined; // run once between a failed send and the keep
 /// ```
-#[cfg(test)] static THE_BUILD_STOPS_BEFORE_KEEPING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> = std::sync::Mutex::new(None);
+#[cfg(test)]
+static THE_BUILD_STOPS_BEFORE_KEEPING: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> =
+    std::sync::Mutex::new(None);
 
 /// What:
 ///  Builds the runtime `plan` names.
@@ -263,7 +276,11 @@ static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::n
 /// const built = await Promise.race([buildMulti(workers, blocking), sleep(deadline).then(() => 'late')]);
 /// return built === 'late' ? currentThreadRuntime() : built;
 /// ```
-pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B) -> std::io::Result<BuiltRuntime>
+pub fn build_with_deadline<B>(
+    plan: RuntimePlan,
+    deadline: Duration,
+    multi_thread_builder: B,
+) -> std::io::Result<BuiltRuntime>
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
@@ -282,58 +299,107 @@ where
 /// ```ts
 /// const built = buildWithDeadlineAnd(plan, deadline, multiThread, fallback);
 /// ```
-fn build_with_deadline_and<B, F>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B, fallback: F) -> std::io::Result<BuiltRuntime>
+fn build_with_deadline_and<B, F>(
+    plan: RuntimePlan,
+    deadline: Duration,
+    multi_thread_builder: B,
+    fallback: F,
+) -> std::io::Result<BuiltRuntime>
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
     F: FnOnce() -> std::io::Result<Runtime>,
 {
-    let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
-        return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
+    let RuntimePlan::MultiThread {
+        workers,
+        blocking_threads,
+    } = plan
+    else {
+        return Ok(BuiltRuntime {
+            runtime: current_thread()?,
+            flavor: BuiltFlavor::CurrentThread,
+        });
     };
     let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Runtime>>();
-    let started = std::thread::Builder::new().name(String::from("git-policy-runtime-build")).spawn(move || {
-        // A refused thread panics inside tokio's build; the panic is caught here and reported as a replaced runtime.
-        let outcome: std::thread::Result<std::io::Result<Runtime>> =
-            crate::panic_notice::while_panics_are_expected((multi_thread_builder, workers, blocking_threads), run_multi_thread_builder::<B>);
-        let result: std::io::Result<Runtime> = match outcome {
-            Ok(built) => built,
-            Err(_payload) => Err(std::io::Error::other("the build of the multi-thread runtime panicked")),
-        };
-        // The caller reads the channel once more and closes it under this same moment, so a runtime sent just before it gives up is
-        //  taken there rather than dropped with the channel.
-        let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Err(unsent) = sender.send(result)
-            && let Ok(late) = unsent.0
-        {
-            // The caller moved on: a working runtime that arrived after the deadline is kept for the work it was built for
-            //  (`spawn_on_runtime`), and one that cannot be kept is never dropped here (dropping waits for its tasks
-            //  without end).
-            #[cfg(test)] if let Some(moment) = THE_BUILD_STOPS_BEFORE_KEEPING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() { moment(); }
-            if let Err(unkept) = LATE_RUNTIME.set(late) {
-                std::mem::forget(unkept);
+    let started = std::thread::Builder::new()
+        .name(String::from("git-policy-runtime-build"))
+        .spawn(move || {
+            // A refused thread panics inside tokio's build; the panic is caught here and reported as a replaced runtime.
+            let outcome: std::thread::Result<std::io::Result<Runtime>> =
+                crate::panic_notice::while_panics_are_expected(
+                    (multi_thread_builder, workers, blocking_threads),
+                    run_multi_thread_builder::<B>,
+                );
+            let result: std::io::Result<Runtime> = match outcome {
+                Ok(built) => built,
+                Err(_payload) => Err(std::io::Error::other(
+                    "the build of the multi-thread runtime panicked",
+                )),
+            };
+            // The caller reads the channel once more and closes it under this same moment, so a runtime sent just before it gives up is
+            //  taken there rather than dropped with the channel.
+            let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Err(unsent) = sender.send(result)
+                && let Ok(late) = unsent.0
+            {
+                // The caller moved on: a working runtime that arrived after the deadline is kept for the work it was built for
+                //  (`spawn_on_runtime`), and one that cannot be kept is never dropped here (dropping waits for its tasks
+                //  without end).
+                #[cfg(test)]
+                if let Some(moment) = THE_BUILD_STOPS_BEFORE_KEEPING
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .take()
+                {
+                    moment();
+                }
+                if let Err(unkept) = LATE_RUNTIME.set(late) {
+                    std::mem::forget(unkept);
+                }
             }
-        }
-    });
+        });
     let flavor_when_replaced: BuiltFlavor = match started {
         Err(_no_thread) => BuiltFlavor::CurrentThreadAfterFailure,
         Ok(_helper) => match receiver.recv_timeout(deadline) {
-            Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
+            Ok(Ok(runtime)) => {
+                return Ok(BuiltRuntime {
+                    runtime,
+                    flavor: BuiltFlavor::MultiThread {
+                        workers,
+                    },
+                });
+            }
             Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // A build that finished between the deadline and here is already in the channel, and one that finishes
                 //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
                 // The read and the close are one moment with the build's send, so a runtime sent as the caller gives up is
                 //  taken here rather than dropped with the channel.
-                let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let _kept: bool = keep_a_late_build(receiver.try_recv());
-                #[cfg(test)] if let Some(moment) = THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() { moment(); }
+                #[cfg(test)]
+                if let Some(moment) = THE_CALLER_STOPS_WAITING
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .take()
+                {
+                    moment();
+                }
                 drop(receiver);
                 BuiltFlavor::CurrentThreadAfterDeadline
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                BuiltFlavor::CurrentThreadAfterFailure
+            }
         },
     };
-    return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
+    return Ok(BuiltRuntime {
+        runtime: fallback()?,
+        flavor: flavor_when_replaced,
+    });
 }
 
 /// What:
@@ -352,7 +418,9 @@ where
 /// ```ts
 /// const kept = keepALateBuild(receiver.tryRecv()); // true when a runtime was kept
 /// ```
-fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>) -> bool {
+fn keep_a_late_build(
+    outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>
+) -> bool {
     let Ok(Ok(late)) = outcome else { return false };
     if let Err(unkept) = LATE_RUNTIME.set(late) {
         std::mem::forget(unkept);
@@ -399,7 +467,10 @@ static LATE_RUNTIME: std::sync::OnceLock<Runtime> = std::sync::OnceLock::new();
 /// const late = lateRuntime(); // undefined until the build that missed its deadline arrives
 /// ```
 fn the_late_runtime() -> Option<&'static Runtime> {
-    #[cfg(test)] if tests::this_read_of_the_late_runtime_is_held_back() { return None; }
+    #[cfg(test)]
+    if tests::this_read_of_the_late_runtime_is_held_back() {
+        return None;
+    }
     return LATE_RUNTIME.get();
 }
 
@@ -437,9 +508,13 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
     cap_malloc_arenas();
     let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
     let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
-    let plan: RuntimePlan = crate::runtime_plan::capped_at(crate::runtime_plan::plan_runtime(&host, &limits), WORKER_CAP.load(std::sync::atomic::Ordering::SeqCst));
+    let plan: RuntimePlan = crate::runtime_plan::capped_at(
+        crate::runtime_plan::plan_runtime(&host, &limits),
+        WORKER_CAP.load(std::sync::atomic::Ordering::SeqCst),
+    );
     let began: std::time::Instant = std::time::Instant::now();
-    let built: Result<BuiltRuntime, String> = build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
+    let built: Result<BuiltRuntime, String> =
+        build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
     let _kept: bool = THE_BUILD_SPENT.set(began.elapsed()).is_ok();
     return built;
 }
@@ -474,7 +549,10 @@ pub struct RuntimeBuild {
 pub fn runtime_build() -> Option<RuntimeBuild> {
     let flavor: BuiltFlavor = built_flavor()?;
     let spent: Duration = *THE_BUILD_SPENT.get()?;
-    return Some(RuntimeBuild { flavor, spent });
+    return Some(RuntimeBuild {
+        flavor,
+        spent,
+    });
 }
 
 /// What:
@@ -491,12 +569,20 @@ pub fn runtime_build() -> Option<RuntimeBuild> {
 /// ```
 pub fn flavor_words(flavor: BuiltFlavor) -> String {
     return match flavor {
-        BuiltFlavor::CurrentThread => String::from("the current-thread runtime, because not one worker fitted under this process's thread and address-space limits"),
-        BuiltFlavor::MultiThread { workers } => format!("the multi-thread runtime with {workers} workers"),
+        BuiltFlavor::CurrentThread => String::from(
+            "the current-thread runtime, because not one worker fitted under this process's thread and address-space limits",
+        ),
+        BuiltFlavor::MultiThread {
+            workers,
+        } => format!("the multi-thread runtime with {workers} workers"),
         BuiltFlavor::CurrentThreadAfterDeadline => {
-            format!("a current-thread stand-in, because the multi-thread build outlasted its {BUILD_DEADLINE:?} deadline")
+            format!(
+                "a current-thread stand-in, because the multi-thread build outlasted its {BUILD_DEADLINE:?} deadline"
+            )
         }
-        BuiltFlavor::CurrentThreadAfterFailure => String::from("a current-thread stand-in, because the multi-thread build failed or could not get its own helper thread"),
+        BuiltFlavor::CurrentThreadAfterFailure => String::from(
+            "a current-thread stand-in, because the multi-thread build failed or could not get its own helper thread",
+        ),
     };
 }
 
@@ -549,11 +635,25 @@ pub(crate) fn the_worker_answers() -> WorkerAnswers {
     //  A control stands in for a build that missed its deadline in `built_flavor`, which is what a caller is told;
     // a control that stood in here too would report no worker for a process whose workers run,
     // and every watcher of a wait would be refused in the very state the control exists to measure.
-    let can_run: bool = arrived_late || matches!(the_flavor_of_the_runtime_this_process_built(), Some(BuiltFlavor::MultiThread { .. }));
+    let can_run: bool = arrived_late
+        || matches!(
+            the_flavor_of_the_runtime_this_process_built(),
+            Some(BuiltFlavor::MultiThread { .. })
+        );
     // The flavor a caller is told, which a control may stand in for.
-    let a_build_is_coming: bool = !arrived_late && built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline);
-    #[cfg(test)] if REFUSED.load(std::sync::atomic::Ordering::SeqCst) { return WorkerAnswers { can_run: false, a_build_is_coming }; }
-    return WorkerAnswers { can_run, a_build_is_coming };
+    let a_build_is_coming: bool =
+        !arrived_late && built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    #[cfg(test)]
+    if REFUSED.load(std::sync::atomic::Ordering::SeqCst) {
+        return WorkerAnswers {
+            can_run: false,
+            a_build_is_coming,
+        };
+    }
+    return WorkerAnswers {
+        can_run,
+        a_build_is_coming,
+    };
 }
 
 /// What:
@@ -670,7 +770,9 @@ where
         return None;
     }
     return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
+        Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => {
+            Some(built.runtime.spawn(future))
+        }
         // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
         //  built for runs there.
         Ok(_) | Err(_) => spawn_on_the_late_runtime(future),
@@ -726,7 +828,10 @@ pub fn await_a_worker_within(within: Duration) -> bool {
 /// ```ts
 /// const task = spawnOnRuntimeWithin(60_000, work); // undefined when no worker arrived in time
 /// ```
-pub fn spawn_on_runtime_within<F>(within: Duration, future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+pub fn spawn_on_runtime_within<F>(
+    within: Duration,
+    future: F,
+) -> Option<tokio::task::JoinHandle<F::Output>>
 where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
@@ -756,7 +861,8 @@ pub(crate) fn late_build_arrived() -> bool {
 /// while `tasks_can_run` and `spawn_on_runtime` keep answering for the runtime this process really has,
 ///  which is the whole shape of that state.
 #[cfg(test)]
-static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Makes `built_flavor` answer the stand-in of a build that missed its deadline until the returned value is dropped.
 #[cfg(test)]

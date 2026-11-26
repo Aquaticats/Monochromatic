@@ -13,21 +13,49 @@
 //! const committed = await commitMerge({ git, attributed, local, remote }); // { oid, merged } | conflicting paths
 //! ```
 
+use crate::auto_push_reconcile_basics_and_limits::argv;
 use crate::auto_push_single_flight::{
-    PushGit, SingleFlightError, git_command, git_output_awaiting, run_query_awaiting,
+    PushGit,
+    SingleFlightError,
+    git_command,
+    git_output_awaiting,
+    run_query_awaiting,
 };
 /// The synchronous faces of the two single questions,
 /// which only the control that compares the two faces still asks.
 #[cfg(test)]
-use crate::auto_push_single_flight::{git_output, run_query};
-use crate::bounded_push::{MAX_PUSH_OUTPUT, STOP_GRACE};
-use crate::bounded_query::{QueryOutput, query_window, run_bounded_git_awaiting};
-use crate::merge_second_pass::{GitReply, GitRunner, LARGEST_STAGE_BYTES, Merged, conflicts_of_merge_tree};
-use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables, report, resolve_tree};
+use crate::auto_push_single_flight::{
+    git_output,
+    run_query,
+};
+use crate::bounded_push::{
+    MAX_PUSH_OUTPUT,
+    STOP_GRACE,
+};
+use crate::bounded_query::{
+    QueryOutput,
+    query_window,
+    run_bounded_git_awaiting,
+};
+use crate::merge_second_pass::{
+    GitReply,
+    GitRunner,
+    LARGEST_STAGE_BYTES,
+    Merged,
+    conflicts_of_merge_tree,
+};
+use crate::merge_second_pass_tree::{
+    AttributeProbe,
+    attribute_tree_variables,
+    report,
+    resolve_tree,
+};
 use crate::path_bytes::path_message_text;
 use crate::push_deadline_and_patience_settings::merge_ceiling;
-use std::path::{Path, PathBuf};
-use crate::auto_push_reconcile_basics_and_limits::argv;
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The coordinator's Git as a runner for the second pass:
 /// its commands,
 /// its environment,
@@ -111,7 +139,10 @@ const MERGE_FILE_ANSWER_BYTES: u64 = MERGE_ANSWER_CONTENT_BYTES + MERGE_ANSWER_M
 /// ```ts
 /// const cap = (args, input) => args[0] === 'cat-file' ? Math.max(MAX_PUSH_OUTPUT, names * (LARGEST_STAGE_BYTES + 128)) : args[0] === 'merge-file' ? MERGE_FILE_ANSWER_BYTES : MAX_PUSH_OUTPUT;
 /// ```
-fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
+fn answer_cap(
+    arguments: &[&str],
+    input: Option<&[u8]>,
+) -> u64 {
     match arguments.first() {
         // The names `cat-file` asks for are counted from its input; every other command gets a fixed ceiling.
         Some(&"cat-file") => {
@@ -121,7 +152,9 @@ fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
                     asked += 1;
                 }
             }
-            return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
+            return asked
+                .saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES))
+                .max(MAX_PUSH_OUTPUT);
         }
         Some(&"merge-file") => return MERGE_FILE_ANSWER_BYTES,
         _ => return MAX_PUSH_OUTPUT,
@@ -155,7 +188,8 @@ impl GitRunner for PushRunner<'_> {
         arguments: &'a [&'a str],
         input: Option<&'a [u8]>,
         index_file: Option<&'a Path>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>>
+    {
         return Box::pin(async move {
             let mut command = git_command(self.git, &argv(arguments));
             if let Some(index) = index_file {
@@ -163,7 +197,8 @@ impl GitRunner for PushRunner<'_> {
             }
             let shown: String = arguments.join(" ");
             let cap: u64 = answer_cap(arguments, input);
-            let ceiling: Option<std::time::Duration> = Some(merge_ceiling(self.git.environment.as_slice()));
+            let ceiling: Option<std::time::Duration> =
+                Some(merge_ceiling(self.git.environment.as_slice()));
             let output: QueryOutput = match run_bounded_git_awaiting(
                 command,
                 shown.as_str(),
@@ -179,14 +214,21 @@ impl GitRunner for PushRunner<'_> {
                 Ok(output) => output,
                 Err(refusal) => return Err(could_not_run(shown.as_str(), refusal)),
             };
-            return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
+            return Ok(GitReply {
+                code: output.code,
+                stdout: output.stdout,
+                stderr: output.stderr,
+            });
         });
     }
 }
 
 /// The words of a command that could not be run at all,
 /// naming the command and the reason.
-fn could_not_run(shown: &str, refusal: SingleFlightError) -> String {
+fn could_not_run(
+    shown: &str,
+    refusal: SingleFlightError,
+) -> String {
     return format!("git {shown} could not be run: {refusal}");
 }
 
@@ -228,9 +270,13 @@ pub(crate) fn commit_merge(
     remote: &str,
     message: &str,
 ) -> Result<Result<CommittedMerge, Vec<String>>, SingleFlightError> {
-    return match crate::lazy_runtime::run_on_runtime(commit_merge_awaiting(git, local, remote, message)) {
+    return match crate::lazy_runtime::run_on_runtime(commit_merge_awaiting(
+        git, local, remote, message,
+    )) {
         Ok(found) => found,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -257,14 +303,28 @@ pub(crate) async fn commit_merge_awaiting(
     remote: &str,
     message: &str,
 ) -> Result<Result<CommittedMerge, Vec<String>>, SingleFlightError> {
-    let probe = AttributeProbe { directory: git.cwd.as_path(), global_prefix: &[], variables: git.environment.as_slice(), runner: &PushRunner { git } };
+    let probe = AttributeProbe {
+        directory: git.cwd.as_path(),
+        global_prefix: &[],
+        variables: git.environment.as_slice(),
+        runner: &PushRunner {
+            git,
+        },
+    };
     let attributed = PushGit {
         real_git: git.real_git.clone(),
         cwd: git.cwd.clone(),
-        environment: git.environment.iter().cloned().chain(attribute_tree_variables(local, &probe).await).collect(),
+        environment: git
+            .environment
+            .iter()
+            .cloned()
+            .chain(attribute_tree_variables(local, &probe).await)
+            .collect(),
         lfs: git.lfs,
     };
-    let runner = PushRunner { git: &attributed };
+    let runner = PushRunner {
+        git: &attributed,
+    };
     let merge_arguments = [
         "merge-tree",
         "--write-tree",
@@ -289,14 +349,26 @@ pub(crate) async fn commit_merge_awaiting(
     if merged.code == Some(1) {
         let common = common_dir_of_awaiting(git).await?;
         // The second pass reads paths from the top of the worktree, whatever directory the commit landed in.
-        let top = PathBuf::from(git_output_awaiting(git, &argv(&["rev-parse", "--show-toplevel"])).await?);
+        let top = PathBuf::from(
+            git_output_awaiting(git, &argv(&["rev-parse", "--show-toplevel"])).await?,
+        );
         let from_top = PushGit {
             real_git: attributed.real_git.clone(),
             cwd: top,
             environment: attributed.environment.clone(),
             lfs: attributed.lfs,
         };
-        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts, &probe).await {
+        match resolve_tree(
+            &PushRunner {
+                git: &from_top,
+            },
+            common.as_path(),
+            &tree,
+            &conflicts,
+            &probe,
+        )
+        .await
+        {
             Some(resolved) => {
                 tree = resolved.tree;
                 second_pass_files = resolved.merged;
@@ -340,7 +412,10 @@ pub(crate) async fn commit_merge_awaiting(
     }
     let shown: Vec<&str> = commit_tree.iter().map(String::as_str).collect();
     let description: String = format!("commit-tree -p {local} -p {remote} -F - {tree}");
-    let created: GitReply = match runner.run(shown.as_slice(), Some(full_message.as_bytes()), None).await {
+    let created: GitReply = match runner
+        .run(shown.as_slice(), Some(full_message.as_bytes()), None)
+        .await
+    {
         Ok(reply) => reply,
         Err(reason) => {
             return Err(SingleFlightError::Git {
@@ -358,7 +433,10 @@ pub(crate) async fn commit_merge_awaiting(
         });
     }
     let oid: String = String::from_utf8_lossy(&created.stdout).trim().to_owned();
-    return Ok(Ok(CommittedMerge { oid, merged: second_pass_files }));
+    return Ok(Ok(CommittedMerge {
+        oid,
+        merged: second_pass_files,
+    }));
 }
 
 /// The repository's common Git directory,

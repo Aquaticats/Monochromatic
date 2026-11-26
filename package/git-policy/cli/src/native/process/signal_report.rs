@@ -19,12 +19,12 @@
 //! const [fromProcess, sender] = readReport(info);
 //! ```
 
-/// `c_int` is the C integer type signal numbers and sender codes use.
-#[cfg(unix)]
-use std::ffi::c_int;
 /// Whether a sender code says a process sent the signal.
 #[cfg(unix)]
 use crate::signal_relay::is_process_sender;
+/// `c_int` is the C integer type signal numbers and sender codes use.
+#[cfg(unix)]
+use std::ffi::c_int;
 
 /// What:
 ///  Whether the kernel attributes this report to a process,

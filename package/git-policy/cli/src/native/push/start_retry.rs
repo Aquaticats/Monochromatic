@@ -22,9 +22,18 @@
 use crate::diagnostic_log::warn;
 /// Error kinds,
 /// and the result type of a start.
-use std::io::{Error, ErrorKind, Result};
+use std::io::{
+    Error,
+    ErrorKind,
+    Result,
+};
 /// The child process types a start produces.
-use std::process::{Child, Command, ExitStatus, Output};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Output,
+};
 /// A span of time.
 use std::time::Duration;
 
@@ -78,7 +87,11 @@ struct RefusalSchedule {
 impl RefusalSchedule {
     /// A run that has seen no refusal.
     const fn new() -> Self {
-        return Self { refusals: 0, paused: Duration::ZERO, delay: FIRST_PAUSE };
+        return Self {
+            refusals: 0,
+            paused: Duration::ZERO,
+            delay: FIRST_PAUSE,
+        };
     }
 
     /// What:
@@ -95,12 +108,21 @@ impl RefusalSchedule {
     /// ```ts
     /// schedule.pauseAfter(what, budgetMs, error) // the pause to take, or throws the final error
     /// ```
-    fn pause_after(&mut self, what: &str, budget: Duration, error: Error) -> Result<Duration> {
+    fn pause_after(
+        &mut self,
+        what: &str,
+        budget: Duration,
+        error: Error,
+    ) -> Result<Duration> {
         self.refusals += 1;
         if self.paused + self.delay > budget {
             return Err(Error::new(
                 ErrorKind::WouldBlock,
-                format!("{error}; the start was refused {} times over {} ms", self.refusals, self.paused.as_millis()),
+                format!(
+                    "{error}; the start was refused {} times over {} ms",
+                    self.refusals,
+                    self.paused.as_millis()
+                ),
             ));
         }
         warn(
@@ -219,7 +241,11 @@ pub trait RefusableAwaitingStart<T> {
 /// ```ts
 /// await retryRefusedAwaitingStart({ what, budgetMs, start }); // resolves with Git's last words after the budget
 /// ```
-pub async fn retry_refused_awaiting_start<T, Start: RefusableAwaitingStart<T>>(what: &str, budget: Duration, start: &mut Start) -> Result<T> {
+pub async fn retry_refused_awaiting_start<T, Start: RefusableAwaitingStart<T>>(
+    what: &str,
+    budget: Duration,
+    start: &mut Start,
+) -> Result<T> {
     // `mut` lets the loop count its refusals and the time it has paused.
     let mut schedule: RefusalSchedule = RefusalSchedule::new();
     loop {
@@ -243,7 +269,10 @@ pub async fn retry_refused_awaiting_start<T, Start: RefusableAwaitingStart<T>>(w
 /// ```ts
 /// await retryRefusedStart({ what, start });
 /// ```
-pub fn retry_refused_start<T>(what: &str, start: &mut dyn RefusableStart<T>) -> Result<T> {
+pub fn retry_refused_start<T>(
+    what: &str,
+    start: &mut dyn RefusableStart<T>,
+) -> Result<T> {
     return retry_refused_start_with(what, START_RETRY_BUDGET, &mut sleep_for, start);
 }
 
@@ -288,7 +317,14 @@ impl RefusableStart<Child> for SpawnStart<'_> {
 /// ```
 pub async fn spawn_retrying_without_blocking(command: &mut Command) -> Result<Child> {
     let what: String = command.get_program().to_string_lossy().into_owned();
-    return retry_refused_start_awaiting_within(what.as_str(), START_RETRY_BUDGET, &mut SpawnStart { command }).await;
+    return retry_refused_start_awaiting_within(
+        what.as_str(),
+        START_RETRY_BUDGET,
+        &mut SpawnStart {
+            command,
+        },
+    )
+    .await;
 }
 
 /// `Command::output` as a start the retry can run again.
@@ -322,7 +358,12 @@ impl RetryStart for Command {
     /// retried.
     fn spawn_retrying(&mut self) -> Result<Child> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut SpawnStart { command: self });
+        return retry_refused_start(
+            what.as_str(),
+            &mut SpawnStart {
+                command: self,
+            },
+        );
     }
 
     /// `Command::output`,
@@ -331,14 +372,24 @@ impl RetryStart for Command {
     /// so no child has run when it is retried.
     fn output_retrying(&mut self) -> Result<Output> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut OutputStart { command: self });
+        return retry_refused_start(
+            what.as_str(),
+            &mut OutputStart {
+                command: self,
+            },
+        );
     }
 
     /// `Command::status`,
     /// retried.
     fn status_retrying(&mut self) -> Result<ExitStatus> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut StatusStart { command: self });
+        return retry_refused_start(
+            what.as_str(),
+            &mut StatusStart {
+                command: self,
+            },
+        );
     }
 }
 
@@ -374,7 +425,12 @@ impl RefusableStart<()> for ExecStart<'_> {
 #[cfg(unix)]
 pub fn exec_retrying(command: &mut Command) -> Error {
     let what: String = command.get_program().to_string_lossy().into_owned();
-    let refused: Result<()> = retry_refused_start(what.as_str(), &mut ExecStart { command });
+    let refused: Result<()> = retry_refused_start(
+        what.as_str(),
+        &mut ExecStart {
+            command,
+        },
+    );
     match refused {
         Err(error) => return error,
         // `exec` never returns success; the start above only ever returns an error.

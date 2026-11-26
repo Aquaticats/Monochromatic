@@ -14,8 +14,13 @@
 
 /// The loop under test and its interface.
 use super::{
-    Convergence, FIX_CYCLE_MESSAGE, FIX_PASS_LIMIT_MESSAGE, FixPasses, MAXIMUM_CHANGED_PASSES,
-    PassResult, converge,
+    Convergence,
+    FIX_CYCLE_MESSAGE,
+    FIX_PASS_LIMIT_MESSAGE,
+    FixPasses,
+    MAXIMUM_CHANGED_PASSES,
+    PassResult,
+    converge,
 };
 
 /// An implementer that answers from a script and logs every call.
@@ -33,17 +38,27 @@ struct Scripted {
 }
 
 impl FixPasses for Scripted {
-    fn run_pass(&mut self, candidate_version: usize) -> PassResult {
+    fn run_pass(
+        &mut self,
+        candidate_version: usize,
+    ) -> PassResult {
         self.log.push(format!("pass {candidate_version}"));
         return self.passes[candidate_version];
     }
 
-    fn apply(&mut self, snapshot: usize) -> bool {
+    fn apply(
+        &mut self,
+        snapshot: usize,
+    ) -> bool {
         self.log.push(format!("apply {snapshot}"));
         return self.failing_apply != Some(snapshot);
     }
 
-    fn snapshots_equal(&mut self, left: usize, right: usize) -> bool {
+    fn snapshots_equal(
+        &mut self,
+        left: usize,
+        right: usize,
+    ) -> bool {
         return self.states[left] == self.states[right];
     }
 }
@@ -70,7 +85,10 @@ fn run(
 const DISTINCT: [&str; 10] = ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"];
 
 /// `count` proposing passes followed by `last`.
-fn proposing(count: usize, last: PassResult) -> Vec<PassResult> {
+fn proposing(
+    count: usize,
+    last: PassResult,
+) -> Vec<PassResult> {
     let mut passes: Vec<PassResult> = vec![PassResult::Proposed; count];
     passes.push(last);
     return passes;
@@ -82,7 +100,9 @@ fn stable_first_pass_settles_at_once() {
     assert_eq!(
         run(&[PassResult::Stable], &["a"], None),
         (
-            Convergence::Settled { changed_passes: 0 },
+            Convergence::Settled {
+                changed_passes: 0
+            },
             vec![String::from("pass 0")]
         )
     );
@@ -102,7 +122,9 @@ fn changes_restart_the_pass_until_stable() {
             None
         ),
         (
-            Convergence::Settled { changed_passes: 2 },
+            Convergence::Settled {
+                changed_passes: 2
+            },
             vec![
                 String::from("pass 0"),
                 String::from("apply 1"),
@@ -151,7 +173,9 @@ fn unchanged_state_after_corrections_is_stable() {
     assert_eq!(
         run(&[PassResult::Proposed], &["a", "a"], None),
         (
-            Convergence::Settled { changed_passes: 0 },
+            Convergence::Settled {
+                changed_passes: 0
+            },
             vec![String::from("pass 0"), String::from("apply 1")]
         )
     );
@@ -162,7 +186,9 @@ fn unchanged_state_after_corrections_is_stable() {
             None
         )
         .0,
-        Convergence::Settled { changed_passes: 1 }
+        Convergence::Settled {
+            changed_passes: 1
+        }
     );
 }
 
@@ -199,7 +225,12 @@ fn the_changed_passes_limit_is_enforced() {
         &DISTINCT[..states],
         None,
     );
-    assert_eq!(settled, Convergence::Settled { changed_passes: limit });
+    assert_eq!(
+        settled,
+        Convergence::Settled {
+            changed_passes: limit
+        }
+    );
     // The log names each applied change and each pass: two lines per change and the confirming pass.
     assert_eq!(settled_log.len(), limit * 2 + 1);
     assert_eq!(settled_log[settled_log.len() - 2], format!("apply {limit}"));
@@ -230,7 +261,9 @@ fn the_changed_passes_limit_is_enforced() {
             None
         )
         .0,
-        Convergence::Settled { changed_passes: inside }
+        Convergence::Settled {
+            changed_passes: inside
+        }
     );
 }
 

@@ -154,7 +154,10 @@ fn apply_the_planted_cut(attempt: u32) {
 /// ```ts
 /// noteInitAttempt(request, attempt)
 /// ```
-pub(crate) fn note_init_attempt(request: &mut GitRequest, attempt: u32) {
+pub(crate) fn note_init_attempt(
+    request: &mut GitRequest,
+    attempt: u32,
+) {
     #[cfg(test)]
     {
         INIT_ATTEMPTS.with(|counter| {
@@ -164,7 +167,10 @@ pub(crate) fn note_init_attempt(request: &mut GitRequest, attempt: u32) {
         request.environment.retain(|(name, _)| {
             return name.as_os_str() != INIT_ATTEMPT_VARIABLE;
         });
-        request.environment.push((OsString::from(INIT_ATTEMPT_VARIABLE), OsString::from(attempt.to_string())));
+        request.environment.push((
+            OsString::from(INIT_ATTEMPT_VARIABLE),
+            OsString::from(attempt.to_string()),
+        ));
         apply_the_planted_cut(attempt);
     }
     #[cfg(not(test))]

@@ -55,9 +55,18 @@ use crate::thread_quiet::QuietMeasurement;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
+use std::task::{
+    Context,
+    Poll,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The most answer bytes one call reads:
@@ -160,7 +169,10 @@ pub struct Reply {
 /// ```ts
 /// const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body, signal });
 /// ```
-pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
+pub fn post_decision(
+    gateway: &Gateway,
+    body: &str,
+) -> Result<Reply, String> {
     // The quiet gap of the call is measured beside it; the call itself ends on the transport's idle timeouts below.
     let measurement: QuietMeasurement = QuietMeasurement::begin("standards review gateway call");
     let reply: Result<Reply, String> = post_decision_unmeasured(gateway, body);
@@ -199,7 +211,10 @@ impl Progress {
 
     /// How long nothing has moved.
     fn quiet_for(&self) -> Duration {
-        return Duration::from_millis(self.elapsed_ms().saturating_sub(self.last_ms.load(Ordering::Relaxed)));
+        return Duration::from_millis(
+            self.elapsed_ms()
+                .saturating_sub(self.last_ms.load(Ordering::Relaxed)),
+        );
     }
 }
 
@@ -213,7 +228,11 @@ struct Marking<T> {
 }
 
 impl<T: hyper::rt::Read + Unpin> hyper::rt::Read for Marking<T> {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: hyper::rt::ReadBufCursor<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
+    ) -> Poll<std::io::Result<()>> {
         let polled = Pin::new(&mut self.inner).poll_read(cx, buf);
         if let Poll::Ready(Ok(())) = &polled {
             self.progress.mark();
@@ -223,7 +242,11 @@ impl<T: hyper::rt::Read + Unpin> hyper::rt::Read for Marking<T> {
 }
 
 impl<T: hyper::rt::Write + Unpin> hyper::rt::Write for Marking<T> {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
         let polled = Pin::new(&mut self.inner).poll_write(cx, buf);
         if let Poll::Ready(Ok(count)) = &polled
             && *count > 0
@@ -233,16 +256,24 @@ impl<T: hyper::rt::Write + Unpin> hyper::rt::Write for Marking<T> {
         return polled;
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
         return Pin::new(&mut self.inner).poll_flush(cx);
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
         return Pin::new(&mut self.inner).poll_shutdown(cx);
     }
 }
 
-impl<T: hyper_util::client::legacy::connect::Connection> hyper_util::client::legacy::connect::Connection for Marking<T> {
+impl<T: hyper_util::client::legacy::connect::Connection>
+    hyper_util::client::legacy::connect::Connection for Marking<T>
+{
     fn connected(&self) -> hyper_util::client::legacy::connect::Connected {
         return self.inner.connected();
     }
@@ -263,17 +294,26 @@ impl tower_service::Service<hyper::Uri> for MarkingConnector {
     type Error = <hyper_util::client::legacy::connect::HttpConnector<PoolResolver> as tower_service::Service<hyper::Uri>>::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
         return self.inner.poll_ready(cx);
     }
 
-    fn call(&mut self, uri: hyper::Uri) -> Self::Future {
+    fn call(
+        &mut self,
+        uri: hyper::Uri,
+    ) -> Self::Future {
         let connecting = self.inner.call(uri);
         let progress: Arc<Progress> = Arc::clone(&self.progress);
         return Box::pin(async move {
             let stream = connecting.await?;
             progress.mark();
-            return Ok(Marking { inner: stream, progress });
+            return Ok(Marking {
+                inner: stream,
+                progress,
+            });
         });
     }
 }
@@ -288,7 +328,10 @@ impl tower_service::Service<hyper::Uri> for MarkingConnector {
 /// ```ts
 /// while (progress.quietFor() < window) await sleep(window - progress.quietFor());
 /// ```
-async fn silence(progress: Arc<Progress>, window: Duration) {
+async fn silence(
+    progress: Arc<Progress>,
+    window: Duration,
+) {
     loop {
         let quiet: Duration = progress.quiet_for();
         if quiet >= window {
@@ -306,7 +349,8 @@ fn client_config(trusted_pem: Option<&[u8]>) -> Result<rustls::ClientConfig, Str
     let mut roots: rustls::RootCertStore = rustls::RootCertStore::empty();
     match trusted_pem {
         Some(pem) => {
-            let authority = rustls::pki_types::CertificateDer::from_pem_slice(pem).map_err(authority_unreadable)?;
+            let authority = rustls::pki_types::CertificateDer::from_pem_slice(pem)
+                .map_err(authority_unreadable)?;
             roots.add(authority).map_err(authority_unreadable)?;
         }
         None => roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
@@ -373,27 +417,44 @@ fn error_chain(error: &dyn std::error::Error) -> String {
 /// ```ts
 /// const response = await fetch(url, { method: 'POST', headers, body, redirect: 'error' });
 /// ```
-async fn exchange(gateway: &Gateway<'_>, body: &str, progress: Arc<Progress>) -> Result<Reply, String> {
+async fn exchange(
+    gateway: &Gateway<'_>,
+    body: &str,
+    progress: Arc<Progress>,
+) -> Result<Reply, String> {
     let tls: rustls::ClientConfig = client_config(gateway.trusted_pem)?;
-    let mut http = hyper_util::client::legacy::connect::HttpConnector::new_with_resolver(PoolResolver);
+    let mut http =
+        hyper_util::client::legacy::connect::HttpConnector::new_with_resolver(PoolResolver);
     http.enforce_http(false);
     http.set_nodelay(true);
     let connector = hyper_rustls::HttpsConnectorBuilder::new()
         .with_tls_config(tls)
         .https_or_http()
         .enable_http1()
-        .wrap_connector(MarkingConnector { inner: http, progress });
+        .wrap_connector(MarkingConnector {
+            inner: http,
+            progress,
+        });
     let client: hyper_util::client::legacy::Client<_, http_body_util::Full<bytes::Bytes>> =
-        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(connector);
+        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+            .build(connector);
     let request = hyper::Request::post(gateway.url)
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", gateway.api_key))
-        .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(body.as_bytes())))
+        .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(
+            body.as_bytes(),
+        )))
         .map_err(fetch_failed)?;
-    let response = client.request(request).await.map_err(fetch_failed_with_causes)?;
+    let response = client
+        .request(request)
+        .await
+        .map_err(fetch_failed_with_causes)?;
     let status: u16 = response.status().as_u16();
     let text: String = read_body(response.into_body()).await?;
-    return Ok(Reply { status, body: text });
+    return Ok(Reply {
+        status,
+        body: text,
+    });
 }
 
 /// What:
@@ -451,7 +512,10 @@ enum Raced {
 /// ```ts
 /// await Promise.race([call.then(Finished), quiet.then(() => Quiet)]);
 /// ```
-async fn race<F, Q>(call_future: F, quiet_future: Q) -> Raced
+async fn race<F, Q>(
+    call_future: F,
+    quiet_future: Q,
+) -> Raced
 where
     F: Future<Output = Result<Reply, String>>,
     Q: Future<Output = ()>,
@@ -468,11 +532,24 @@ where
 }
 
 /// `post_decision` without the measuring thread.
-fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
-    let progress: Arc<Progress> = Arc::new(Progress { began: Instant::now(), last_ms: AtomicU64::new(0) });
+fn post_decision_unmeasured(
+    gateway: &Gateway,
+    body: &str,
+) -> Result<Reply, String> {
+    let progress: Arc<Progress> = Arc::new(Progress {
+        began: Instant::now(),
+        last_ms: AtomicU64::new(0),
+    });
     let (ceiling, window): (Duration, Duration) = (gateway.ceiling, gateway.quiet_window);
     let outcome = crate::lazy_runtime::run_on_runtime(async {
-        return tokio::time::timeout(ceiling, race(exchange(gateway, body, Arc::clone(&progress)), silence(Arc::clone(&progress), window))).await;
+        return tokio::time::timeout(
+            ceiling,
+            race(
+                exchange(gateway, body, Arc::clone(&progress)),
+                silence(Arc::clone(&progress), window),
+            ),
+        )
+        .await;
     })
     .map_err(text_of)?;
     return match outcome {

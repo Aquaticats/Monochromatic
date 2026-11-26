@@ -59,20 +59,56 @@
 //! const outcome = sweepOneClone(context, 'zpcachyos/…/clones/one');
 //! ```
 
-use super::sweep_attach_step::{AttachRequest, AttachStepOutcome, CloneAttachStep};
-use super::sweep_clone_check::{VerifiedClone, verify};
-use super::sweep_dataset_facts::{CloneObjectFacts, facts_of};
+use super::sweep_attach_step::{
+    AttachRequest,
+    AttachStepOutcome,
+    CloneAttachStep,
+};
+use super::sweep_clone_check::{
+    VerifiedClone,
+    verify,
+};
+use super::sweep_dataset_facts::{
+    CloneObjectFacts,
+    facts_of,
+};
 use super::sweep_dataset_reader::DatasetReader;
 use super::sweep_first_attach::FirstAttachRecorder;
-use super::sweep_one_clone_answers::{answer_the_attach, answer_the_standing_mount, answer_unmount, record_the_first_attach, refused_by_the_checks, the_first_attach_outcome, the_first_attach_refusal};
-use crate::diagnostic_log::{debug, warn};
+use super::sweep_one_clone_answers::{
+    answer_the_attach,
+    answer_the_standing_mount,
+    answer_unmount,
+    record_the_first_attach,
+    refused_by_the_checks,
+    the_first_attach_outcome,
+    the_first_attach_refusal,
+};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::start_probe::first_attach_record::FirstAttachClaim;
 use crate::worktree_clone_mount::{
-    HoldCloneSlotRequest, LookAgainAtSlotRequest, SlotIdentityStore, StoreRefusal, observe_the_clone_slot_under_root_control, publish_slot_identity_under_root_control, read_the_slot_git_pointer,
+    HoldCloneSlotRequest,
+    LookAgainAtSlotRequest,
+    SlotIdentityStore,
+    StoreRefusal,
+    observe_the_clone_slot_under_root_control,
+    publish_slot_identity_under_root_control,
+    read_the_slot_git_pointer,
 };
 use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;
-use crate::worktree_clone_mount_protocol::{IntentReading, MountIntent, MountOperation, ReceiptsFolder, read_intent};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_mount_protocol::{
+    IntentReading,
+    MountIntent,
+    MountOperation,
+    ReceiptsFolder,
+    read_intent,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "sweepOneClone";
@@ -127,11 +163,21 @@ pub struct SweepContext<'a> {
     pub standing: &'a dyn StandingMounts,
 }
 
-pub use super::sweep_standing_mounts::{LiveStandingMounts, StandingMounts};
 #[cfg(test)]
-pub(crate) use super::sweep_standing_mount_source::{MountSourceAnswer, MountSourceByNumber};
+pub(crate) use super::sweep_standing_mount_source::{
+    MountSourceAnswer,
+    MountSourceByNumber,
+};
 #[cfg(test)]
-pub(crate) use super::sweep_standing_mounts::{LiveMountTableSource, MountTableSource, is_this_clones_own_mount};
+pub(crate) use super::sweep_standing_mounts::{
+    LiveMountTableSource,
+    MountTableSource,
+    is_this_clones_own_mount,
+};
+pub use super::sweep_standing_mounts::{
+    LiveStandingMounts,
+    StandingMounts,
+};
 
 /// What:
 ///  What one clone's turn answered.
@@ -230,15 +276,34 @@ impl CloneOutcome {
     /// The dataset this outcome is about.
     pub fn name(&self) -> &str {
         return match self {
-            CloneOutcome::NothingAsked { name, .. }
-            | CloneOutcome::Attached { name, .. }
-            | CloneOutcome::Unmounted { name, .. }
-            | CloneOutcome::Reattached { name, .. }
-            | CloneOutcome::Refused { name, .. }
-            | CloneOutcome::Failed { name, .. }
-            | CloneOutcome::Held { name, .. } => {
-                name.as_str()
+            CloneOutcome::NothingAsked {
+                name,
+                ..
             }
+            | CloneOutcome::Attached {
+                name,
+                ..
+            }
+            | CloneOutcome::Unmounted {
+                name,
+                ..
+            }
+            | CloneOutcome::Reattached {
+                name,
+                ..
+            }
+            | CloneOutcome::Refused {
+                name,
+                ..
+            }
+            | CloneOutcome::Failed {
+                name,
+                ..
+            }
+            | CloneOutcome::Held {
+                name,
+                ..
+            } => name.as_str(),
         };
     }
 
@@ -248,13 +313,54 @@ impl CloneOutcome {
     /// and says what a person does next when the answer was no.
     pub fn line(&self) -> String {
         return match self {
-            CloneOutcome::NothingAsked { name, slot, why } => format!("nothing {name} slot={slot} why={why}"),
-            CloneOutcome::Attached { name, slot, mount_id, canonical_slot } => format!("attached {name} slot={slot} mount={mount_id} at={}", canonical_slot.display()),
-            CloneOutcome::Unmounted { name, slot, mount_id } => format!("unmounted {name} slot={slot} mount={mount_id}"),
-            CloneOutcome::Reattached { name, slot, mount_id, bind_gone } => format!("reattached {name} slot={slot} mount={mount_id} bind-gone={bind_gone}"),
-            CloneOutcome::Refused { name, slot, step, said } => format!("refused {name} slot={} step={step}: {said}", slot.as_deref().unwrap_or("none")),
-            CloneOutcome::Failed { name, slot, step, said } => format!("failed {name} slot={} step={step}: {said}", slot.as_deref().unwrap_or("none")),
-            CloneOutcome::Held { name, slot, said } => format!("held {name} slot={slot}: {said}"),
+            CloneOutcome::NothingAsked {
+                name,
+                slot,
+                why,
+            } => format!("nothing {name} slot={slot} why={why}"),
+            CloneOutcome::Attached {
+                name,
+                slot,
+                mount_id,
+                canonical_slot,
+            } => format!(
+                "attached {name} slot={slot} mount={mount_id} at={}",
+                canonical_slot.display()
+            ),
+            CloneOutcome::Unmounted {
+                name,
+                slot,
+                mount_id,
+            } => format!("unmounted {name} slot={slot} mount={mount_id}"),
+            CloneOutcome::Reattached {
+                name,
+                slot,
+                mount_id,
+                bind_gone,
+            } => format!("reattached {name} slot={slot} mount={mount_id} bind-gone={bind_gone}"),
+            CloneOutcome::Refused {
+                name,
+                slot,
+                step,
+                said,
+            } => format!(
+                "refused {name} slot={} step={step}: {said}",
+                slot.as_deref().unwrap_or("none")
+            ),
+            CloneOutcome::Failed {
+                name,
+                slot,
+                step,
+                said,
+            } => format!(
+                "failed {name} slot={} step={step}: {said}",
+                slot.as_deref().unwrap_or("none")
+            ),
+            CloneOutcome::Held {
+                name,
+                slot,
+                said,
+            } => format!("held {name} slot={slot}: {said}"),
         };
     }
 }
@@ -275,7 +381,10 @@ impl CloneOutcome {
 /// ```ts
 /// const outcome = sweepOneClone(context, name);
 /// ```
-pub fn sweep_one_clone(context: &SweepContext<'_>, name: &str) -> CloneOutcome {
+pub fn sweep_one_clone(
+    context: &SweepContext<'_>,
+    name: &str,
+) -> CloneOutcome {
     return sweep_one_clone_once(context, name, true);
 }
 
@@ -286,24 +395,56 @@ pub fn sweep_one_clone(context: &SweepContext<'_>, name: &str) -> CloneOutcome {
 /// ```ts
 /// const outcome = sweepOneCloneOnce(context, name, mayReadAgain);
 /// ```
-fn sweep_one_clone_once(context: &SweepContext<'_>, name: &str, may_read_again: bool) -> CloneOutcome {
+fn sweep_one_clone_once(
+    context: &SweepContext<'_>,
+    name: &str,
+    may_read_again: bool,
+) -> CloneOutcome {
     let facts: CloneObjectFacts = match context.reader.identity(name) {
         Ok(identity) => facts_of(name, &identity),
         Err(reason) => {
-            warn(TAG, format!("`{name}` could not be read: {reason}").as_str());
-            return CloneOutcome::Refused { name: String::from(name), slot: None, step: String::from("read"), said: reason.message() };
+            warn(
+                TAG,
+                format!("`{name}` could not be read: {reason}").as_str(),
+            );
+            return CloneOutcome::Refused {
+                name: String::from(name),
+                slot: None,
+                step: String::from("read"),
+                said: reason.message(),
+            };
         }
     };
-    let verified: VerifiedClone = match verify(&facts, context.parent_dataset, context.checkout_dataset) {
-        Ok(verified) => verified,
-        Err(refusal) => return refused_by_the_checks(context, name, &facts, &refusal),
-    };
+    let verified: VerifiedClone =
+        match verify(&facts, context.parent_dataset, context.checkout_dataset) {
+            Ok(verified) => verified,
+            Err(refusal) => return refused_by_the_checks(context, name, &facts, &refusal),
+        };
     let request: MountIntent = match read_intent(Some(&facts.properties), name) {
-        IntentReading::Absent => return CloneOutcome::NothingAsked { name: String::from(name), slot: verified.slot, why: String::from("no local mount intent") },
-        IntentReading::Inherited { from } => {
-            return CloneOutcome::NothingAsked { name: String::from(name), slot: verified.slot, why: format!("the mount intent is inherited from {from}") };
+        IntentReading::Absent => {
+            return CloneOutcome::NothingAsked {
+                name: String::from(name),
+                slot: verified.slot,
+                why: String::from("no local mount intent"),
+            };
         }
-        IntentReading::Refused(refusal) => return CloneOutcome::Refused { name: String::from(name), slot: Some(verified.slot), step: String::from(INTENT_STEP), said: refusal.message() },
+        IntentReading::Inherited {
+            from,
+        } => {
+            return CloneOutcome::NothingAsked {
+                name: String::from(name),
+                slot: verified.slot,
+                why: format!("the mount intent is inherited from {from}"),
+            };
+        }
+        IntentReading::Refused(refusal) => {
+            return CloneOutcome::Refused {
+                name: String::from(name),
+                slot: Some(verified.slot),
+                step: String::from(INTENT_STEP),
+                said: refusal.message(),
+            };
+        }
         IntentReading::Request(request) => request,
     };
     if request.operation == MountOperation::Unmount {
@@ -332,19 +473,35 @@ fn sweep_one_clone_once(context: &SweepContext<'_>, name: &str, may_read_again: 
 /// ```ts
 /// const outcome = mountTheClone(context, name, verified, request, mayReadAgain);
 /// ```
-fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedClone, request: &MountIntent, may_read_again: bool) -> CloneOutcome {
+fn mount_the_clone(
+    context: &SweepContext<'_>,
+    name: &str,
+    verified: &VerifiedClone,
+    request: &MountIntent,
+    may_read_again: bool,
+) -> CloneOutcome {
     let claim = match context.claims.claim(verified.slot.as_str()) {
         Ok(claim) => claim,
-        Err(refusal) => return CloneOutcome::Held { name: String::from(name), slot: verified.slot.clone(), said: refusal.message() },
+        Err(refusal) => {
+            return CloneOutcome::Held {
+                name: String::from(name),
+                slot: verified.slot.clone(),
+                said: refusal.message(),
+            };
+        }
     };
-    let under_the_claim: (VerifiedClone, MountIntent) = match reread_under_the_claim(context, name) {
+    let under_the_claim: (VerifiedClone, MountIntent) = match reread_under_the_claim(context, name)
+    {
         Ok(reread) => reread,
         Err(outcome) => {
             claim.release();
             return turn_again_after_the_release(context, name, request, outcome, may_read_again);
         }
     };
-    if under_the_claim.0.dataset != verified.dataset || under_the_claim.1.nonce != request.nonce || under_the_claim.1.operation != request.operation {
+    if under_the_claim.0.dataset != verified.dataset
+        || under_the_claim.1.nonce != request.nonce
+        || under_the_claim.1.operation != request.operation
+    {
         claim.release();
         let after_the_release: &str = if may_read_again {
             "and the intent is read again after the claim is released"
@@ -362,10 +519,21 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
             under_the_claim.1.nonce.as_str()
         );
         warn(TAG, said.as_str());
-        let refused: CloneOutcome = CloneOutcome::Refused { name: String::from(name), slot: Some(verified.slot.clone()), step: String::from(INTENT_STEP), said };
+        let refused: CloneOutcome = CloneOutcome::Refused {
+            name: String::from(name),
+            slot: Some(verified.slot.clone()),
+            step: String::from(INTENT_STEP),
+            said,
+        };
         return turn_again_after_the_release(context, name, request, refused, may_read_again);
     }
-    if let Some(mount) = context.standing.standing_mount_of(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }, verified.dataset_name.as_str()) {
+    if let Some(mount) = context.standing.standing_mount_of(
+        &LookAgainAtSlotRequest {
+            checkout: context.checkout,
+            slot: verified.slot.as_str(),
+        },
+        verified.dataset_name.as_str(),
+    ) {
         claim.release();
         let answered: CloneOutcome = answer_the_standing_mount(context, verified, request, mount);
         return turn_again_after_the_release(context, name, request, answered, may_read_again);
@@ -376,12 +544,30 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
     let first_attach: Option<FirstAttachClaim> = context.first_attach.claim();
     if let Err(said) = ensure_the_slot_record(context, verified) {
         claim.release();
-        record_the_first_attach(context, first_attach, &the_first_attach_refusal(verified, IDENTITY_RECORD_STEP, None));
-        let refused: CloneOutcome = CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(IDENTITY_RECORD_STEP), said };
+        record_the_first_attach(
+            context,
+            first_attach,
+            &the_first_attach_refusal(verified, IDENTITY_RECORD_STEP, None),
+        );
+        let refused: CloneOutcome = CloneOutcome::Refused {
+            name: verified.dataset_name.clone(),
+            slot: Some(verified.slot.clone()),
+            step: String::from(IDENTITY_RECORD_STEP),
+            said,
+        };
         return turn_again_after_the_release(context, name, request, refused, may_read_again);
     }
-    let outcome: AttachStepOutcome = context.attach.attach(&AttachRequest { checkout: context.checkout, slot: verified.slot.as_str(), clone: name, store: context.store });
-    record_the_first_attach(context, first_attach, &the_first_attach_outcome(verified, &outcome));
+    let outcome: AttachStepOutcome = context.attach.attach(&AttachRequest {
+        checkout: context.checkout,
+        slot: verified.slot.as_str(),
+        clone: name,
+        store: context.store,
+    });
+    record_the_first_attach(
+        context,
+        first_attach,
+        &the_first_attach_outcome(verified, &outcome),
+    );
     // The answer is filed before the intent is read once more, so a mount this turn made is answered under the nonce it
     // was made for even when a request arrived meanwhile.
     let answered: CloneOutcome = answer_the_attach(context, verified, request, outcome);
@@ -411,7 +597,13 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
 /// ```ts
 /// const outcome = turnAgainAfterTheRelease(context, name, request, answered, mayReadAgain);
 /// ```
-fn turn_again_after_the_release(context: &SweepContext<'_>, name: &str, request: &MountIntent, answered: CloneOutcome, may_read_again: bool) -> CloneOutcome {
+fn turn_again_after_the_release(
+    context: &SweepContext<'_>,
+    name: &str,
+    request: &MountIntent,
+    answered: CloneOutcome,
+    may_read_again: bool,
+) -> CloneOutcome {
     if !may_read_again || !the_intent_changed(context, name, request) {
         return answered;
     }
@@ -443,30 +635,57 @@ fn turn_again_after_the_release(context: &SweepContext<'_>, name: &str, request:
 /// the checks refused it,
 /// or its intent is absent,
 /// inherited or malformed now.
-fn reread_under_the_claim(context: &SweepContext<'_>, name: &str) -> Result<(VerifiedClone, MountIntent), CloneOutcome> {
+fn reread_under_the_claim(
+    context: &SweepContext<'_>,
+    name: &str,
+) -> Result<(VerifiedClone, MountIntent), CloneOutcome> {
     let facts: CloneObjectFacts = match context.reader.identity(name) {
         Ok(identity) => facts_of(name, &identity),
-        Err(reason) => return Err(CloneOutcome::Refused { name: String::from(name), slot: None, step: String::from("read"), said: reason.message() }),
+        Err(reason) => {
+            return Err(CloneOutcome::Refused {
+                name: String::from(name),
+                slot: None,
+                step: String::from("read"),
+                said: reason.message(),
+            });
+        }
     };
-    let verified: VerifiedClone = verify(&facts, context.parent_dataset, context.checkout_dataset).map_err(|refusal| {
-        warn(TAG, refusal.message().as_str());
-        return CloneOutcome::Refused { name: String::from(name), slot: None, step: String::from(refusal.step()), said: refusal.message() };
-    })?;
+    let verified: VerifiedClone = verify(&facts, context.parent_dataset, context.checkout_dataset)
+        .map_err(|refusal| {
+            warn(TAG, refusal.message().as_str());
+            return CloneOutcome::Refused {
+                name: String::from(name),
+                slot: None,
+                step: String::from(refusal.step()),
+                said: refusal.message(),
+            };
+        })?;
     return match read_intent(Some(&facts.properties), name) {
         IntentReading::Request(request) => Ok((verified, request)),
         IntentReading::Absent => Err(CloneOutcome::Refused {
             name: String::from(name),
             slot: Some(verified.slot),
             step: String::from(INTENT_STEP),
-            said: String::from("the clone's mount intent is gone under the claim, so nothing was attached on the reading that saw it"),
+            said: String::from(
+                "the clone's mount intent is gone under the claim, so nothing was attached on the reading that saw it",
+            ),
         }),
-        IntentReading::Inherited { from } => Err(CloneOutcome::Refused {
+        IntentReading::Inherited {
+            from,
+        } => Err(CloneOutcome::Refused {
             name: String::from(name),
             slot: Some(verified.slot),
             step: String::from(INTENT_STEP),
-            said: format!("the clone's mount intent is inherited from {from} under the claim, so nothing was attached"),
+            said: format!(
+                "the clone's mount intent is inherited from {from} under the claim, so nothing was attached"
+            ),
         }),
-        IntentReading::Refused(refusal) => Err(CloneOutcome::Refused { name: String::from(name), slot: Some(verified.slot), step: String::from(INTENT_STEP), said: refusal.message() }),
+        IntentReading::Refused(refusal) => Err(CloneOutcome::Refused {
+            name: String::from(name),
+            slot: Some(verified.slot),
+            step: String::from(INTENT_STEP),
+            said: refusal.message(),
+        }),
     };
 }
 
@@ -476,14 +695,24 @@ fn reread_under_the_claim(context: &SweepContext<'_>, name: &str) -> Result<(Ver
 /// ```ts
 /// const changed = theIntentChanged(context, name, request); // true when a read answers another request
 /// ```
-fn the_intent_changed(context: &SweepContext<'_>, name: &str, request: &MountIntent) -> bool {
+fn the_intent_changed(
+    context: &SweepContext<'_>,
+    name: &str,
+    request: &MountIntent,
+) -> bool {
     let Ok(identity) = context.reader.identity(name) else {
         return false;
     };
     let facts: CloneObjectFacts = facts_of(name, &identity);
     return match read_intent(Some(&facts.properties), name) {
-        IntentReading::Request(now) => now.nonce != request.nonce || now.operation != request.operation,
-        IntentReading::Absent | IntentReading::Inherited { .. } | IntentReading::Refused(_) => true,
+        IntentReading::Request(now) => {
+            now.nonce != request.nonce || now.operation != request.operation
+        }
+        IntentReading::Absent
+        | IntentReading::Inherited {
+            ..
+        }
+        | IntentReading::Refused(_) => true,
     };
 }
 
@@ -512,11 +741,17 @@ fn the_intent_changed(context: &SweepContext<'_>, name: &str, request: &MountInt
 /// the first observation's walk refusal,
 /// a slot whose Git pointer is not this checkout's registration,
 /// or a publication the store did not keep.
-fn ensure_the_slot_record(context: &SweepContext<'_>, verified: &VerifiedClone) -> Result<(), String> {
-    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(context.store).map_err(|refusal| return refusal.message())?;
+fn ensure_the_slot_record(
+    context: &SweepContext<'_>,
+    verified: &VerifiedClone,
+) -> Result<(), String> {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(context.store)
+        .map_err(|refusal| return refusal.message())?;
     return match store.slot(verified.slot.as_str()) {
         Ok(_recorded) => Ok(()),
-        Err(StoreRefusal::NoSlotRecord { .. }) => publish_the_first_observation(context, verified),
+        Err(StoreRefusal::NoSlotRecord {
+            ..
+        }) => publish_the_first_observation(context, verified),
         Err(refusal) => Err(refusal.message()),
     };
 }
@@ -527,20 +762,48 @@ fn ensure_the_slot_record(context: &SweepContext<'_>, verified: &VerifiedClone) 
 /// The first observation's walk refusal,
 /// a Git pointer this route does not accept,
 /// or a publication the store did not keep.
-fn publish_the_first_observation(context: &SweepContext<'_>, verified: &VerifiedClone) -> Result<(), String> {
-    let request: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: context.checkout, slot: verified.slot.as_str(), store: context.store };
-    let observed = observe_the_clone_slot_under_root_control(&request).map_err(|refusal| return refusal.message())?;
-    let registration: PathBuf = read_the_slot_git_pointer(&observed.slot, context.checkout, verified.slot.as_str()).map_err(|refusal| return refusal.message())?;
-    debug(TAG, format!("the slot `{}` holds the registration {}", verified.slot, registration.display()).as_str());
-    let published = publish_slot_identity_under_root_control(context.store, verified.slot.as_str(), &observed.slot_identity, &observed.parent_identity);
+fn publish_the_first_observation(
+    context: &SweepContext<'_>,
+    verified: &VerifiedClone,
+) -> Result<(), String> {
+    let request: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest {
+        checkout: context.checkout,
+        slot: verified.slot.as_str(),
+        store: context.store,
+    };
+    let observed = observe_the_clone_slot_under_root_control(&request)
+        .map_err(|refusal| return refusal.message())?;
+    let registration: PathBuf =
+        read_the_slot_git_pointer(&observed.slot, context.checkout, verified.slot.as_str())
+            .map_err(|refusal| return refusal.message())?;
+    debug(
+        TAG,
+        format!(
+            "the slot `{}` holds the registration {}",
+            verified.slot,
+            registration.display()
+        )
+        .as_str(),
+    );
+    let published = publish_slot_identity_under_root_control(
+        context.store,
+        verified.slot.as_str(),
+        &observed.slot_identity,
+        &observed.parent_identity,
+    );
     return match published {
         Ok(()) => {
-            debug(TAG, format!("recorded the first observation of slot `{}`", verified.slot).as_str());
+            debug(
+                TAG,
+                format!("recorded the first observation of slot `{}`", verified.slot).as_str(),
+            );
             Ok(())
         }
         // Another sweep recorded the slot between this sweep's read and its link, and its record is the one that stands:
         // the attach that follows compares the folder against it, so a folder that moved is refused there.
-        Err(StoreRefusal::SlotAlreadyRecorded { .. }) => Ok(()),
+        Err(StoreRefusal::SlotAlreadyRecorded {
+            ..
+        }) => Ok(()),
         Err(refusal) => Err(refusal.message()),
     };
 }

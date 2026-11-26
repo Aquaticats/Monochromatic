@@ -20,16 +20,23 @@
 //! const indexPath = stripOneLineFeed((await nanoSpawn(gitPath, [...globalArgs, 'rev-parse', '--path-format=absolute', '--git-path', 'index'])).stdout);
 //! ```
 
+use crate::git_system_config::with_real_git;
 /// Running real Git for the location queries.
 use crate::path_bytes::os_from_path_bytes;
 use crate::repo_read_adapter::landing_of;
-use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The index paths of one repository selection.
@@ -114,11 +121,17 @@ fn without_the_terminator(answer: &[u8]) -> &[u8] {
 /// ```ts
 /// const bytes = stripOneLineFeed(answer); if (bytes.length === 0) throw new TypeError(...); Buffer.from(bytes)
 /// ```
-fn path_of_answer(answer: &[u8], what: &str) -> Result<PathBuf, String> {
+fn path_of_answer(
+    answer: &[u8],
+    what: &str,
+) -> Result<PathBuf, String> {
     let bytes: &[u8] = without_the_terminator(answer);
     if bytes.is_empty() {
         // A refusal names the text a person reads, with replacement characters for bytes that are not UTF-8.
-        return Err(format!("Unexpected rev-parse {what}: {:?}", String::from_utf8_lossy(answer)));
+        return Err(format!(
+            "Unexpected rev-parse {what}: {:?}",
+            String::from_utf8_lossy(answer)
+        ));
     }
     return Ok(PathBuf::from(os_from_path_bytes(bytes)));
 }
@@ -135,7 +148,10 @@ fn path_of_answer(answer: &[u8], what: &str) -> Result<PathBuf, String> {
 /// ```ts
 /// const gitDir = pathOfAnswer(gitDirAnswer); return { gitDir, indexPath: pathOfAnswer(indexAnswer), realIndexPath: join(gitDir, 'index') }
 /// ```
-pub fn landing_location_of(git_dir_answer: &[u8], index_answer: &[u8]) -> Result<LandingLocation, String> {
+pub fn landing_location_of(
+    git_dir_answer: &[u8],
+    index_answer: &[u8],
+) -> Result<LandingLocation, String> {
     let git_dir: PathBuf = path_of_answer(git_dir_answer, "Git directory")?;
     let index_path: PathBuf = path_of_answer(index_answer, "index path")?;
     return Ok(LandingLocation {
@@ -161,7 +177,13 @@ pub fn resolve_landing_location(
     global_arguments: &[OsString],
 ) -> Result<Option<LandingLocation>, String> {
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
-    if let Some(found) = read_layout(global_arguments, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(landing_of) {
+    if let Some(found) = read_layout(
+        global_arguments,
+        with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice(),
+    )
+    .as_ref()
+    .and_then(landing_of)
+    {
         return Ok(Some(found));
     }
     return answer_of(context, global_arguments);
@@ -179,7 +201,11 @@ pub fn resolve_landing_location(
 /// ```ts
 /// const answer = await git(globalArgs, tail); answer.status === 0 ? answer.stdout : undefined
 /// ```
-fn ask(context: &GitContext, global_arguments: &[OsString], tail: &[&str]) -> Result<Option<Vec<u8>>, String> {
+fn ask(
+    context: &GitContext,
+    global_arguments: &[OsString],
+    tail: &[&str],
+) -> Result<Option<Vec<u8>>, String> {
     let mut arguments: Vec<OsString> = global_arguments.to_vec();
     for part in tail {
         arguments.push(OsString::from(*part));
@@ -211,8 +237,16 @@ fn ask(context: &GitContext, global_arguments: &[OsString], tail: &[&str]) -> Re
 /// const index = await ask(globalArgs, ['rev-parse', '--path-format=absolute', '--git-path', 'index']); if (!index) return LANDING_LOCATION_ABSENT;
 /// return landingLocationOf(gitDir, index);
 /// ```
-fn answer_of(context: &GitContext, global_arguments: &[OsString]) -> Result<Option<LandingLocation>, String> {
-    let Some(git_dir_answer) = ask(context, global_arguments, git_directory_arguments().as_slice())? else {
+fn answer_of(
+    context: &GitContext,
+    global_arguments: &[OsString],
+) -> Result<Option<LandingLocation>, String> {
+    let Some(git_dir_answer) = ask(
+        context,
+        global_arguments,
+        git_directory_arguments().as_slice(),
+    )?
+    else {
         return Ok(None);
     };
     let Some(index_answer) = ask(context, global_arguments, index_arguments().as_slice())? else {

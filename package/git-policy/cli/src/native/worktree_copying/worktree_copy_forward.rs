@@ -20,19 +20,32 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
+use crate::forwarding::{
+    ChildOutcome,
+    ChildStarted,
+    run_real_git,
+    run_real_git_naming,
+    run_real_git_until,
+};
 /// Who a real-Git start runs for:
 /// the person's command,
 /// or the ladder's own step.
 use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
-use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
+use crate::worktree_removal_stops_units::{
+    WorktreeAboutToGo,
+    before_removal,
+    stop_units_of_removed_worktree,
+};
+use crate::worktree_remove_plan::RemovePlan;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Everything the copy needs to know about one forwarded invocation,
@@ -113,7 +126,10 @@ fn words_of(arguments: &[OsString]) -> String {
 /// ```ts
 /// identity.kind !== 'outside-worktree' && (identity.kind !== 'main-worktree' || (creates && paths.length > 0))
 /// ```
-pub fn copy_applies(identity: &WorktreeIdentity, creates: bool) -> bool {
+pub fn copy_applies(
+    identity: &WorktreeIdentity,
+    creates: bool,
+) -> bool {
     return copy_applies_with(identity, creates, false);
 }
 
@@ -132,15 +148,26 @@ pub fn copy_applies(identity: &WorktreeIdentity, creates: bool) -> bool {
 /// ```ts
 /// copyApplies(identity, creates) || (servesLadder && identity.kind === 'main-worktree')
 /// ```
-pub fn copy_applies_with(identity: &WorktreeIdentity, creates: bool, serves_ladder: bool) -> bool {
+pub fn copy_applies_with(
+    identity: &WorktreeIdentity,
+    creates: bool,
+    serves_ladder: bool,
+) -> bool {
     // `match` on the repository shape; the main checkout takes the lifecycle when the command creates a worktree
     // or the ladder serves it.
     match identity {
         WorktreeIdentity::OutsideWorktree => return false,
-        WorktreeIdentity::MainWorktree { .. } => {
+        WorktreeIdentity::MainWorktree {
+            ..
+        } => {
             return serves_ladder || creates;
         }
-        WorktreeIdentity::LinkedWorktree { .. } | WorktreeIdentity::BareRepository { .. } => {
+        WorktreeIdentity::LinkedWorktree {
+            ..
+        }
+        | WorktreeIdentity::BareRepository {
+            ..
+        } => {
             return true;
         }
     }
@@ -195,9 +222,18 @@ pub enum ForwardedRun {
 fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
     // `match` on the repository shape: only a place outside a repository has none.
     match identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.as_path()),
+        WorktreeIdentity::MainWorktree {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => return Some(common_dir.as_path()),
         WorktreeIdentity::OutsideWorktree => return None,
     }
 }
@@ -219,9 +255,18 @@ fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
 fn query_directory(identity: &WorktreeIdentity) -> PathBuf {
     // `match` on the repository shape: a worktree root, or the bare repository's directory.
     match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. }
-        | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => return worktree_root.clone(),
-        WorktreeIdentity::BareRepository { common_dir, .. } => return common_dir.clone(),
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => return worktree_root.clone(),
+        WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => return common_dir.clone(),
         WorktreeIdentity::OutsideWorktree => return PathBuf::new(),
     }
 }
@@ -254,16 +299,25 @@ fn run_plain_of(
     // const relayed = relayWhenSshCarries(git, argv, env, owner); if (relayed?.value) return forwardedRun(relayed.value);
     // ```
     #[cfg(unix)]
-    match crate::typed_network_command_relay::relay_when_ssh_carries(real_git, arguments, overlay, owner) {
+    match crate::typed_network_command_relay::relay_when_ssh_carries(
+        real_git, arguments, overlay, owner,
+    ) {
         Some(Ok(ending)) => {
             return match ending {
-                crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code) => ForwardedRun::Ran(code),
-                crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal) => ForwardedRun::Killed(signal),
+                crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code) => {
+                    ForwardedRun::Ran(code)
+                }
+                crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(
+                    signal,
+                ) => ForwardedRun::Killed(signal),
             };
         }
         Some(Err(error)) => {
             return ForwardedRun::Failed {
-                stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()),
+                stderr: format!(
+                    "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+                    real_git.display()
+                ),
                 code: crate::action::ENGINE_FAILURE_EXIT_CODE,
             };
         }
@@ -280,7 +334,10 @@ fn run_plain_of(
         Ok(ChildOutcome::Signaled(signal)) => return ForwardedRun::Killed(signal),
         Err(error) => {
             return ForwardedRun::Failed {
-                stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()),
+                stderr: format!(
+                    "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+                    real_git.display()
+                ),
                 code: crate::action::ENGINE_FAILURE_EXIT_CODE,
             };
         }
@@ -307,7 +364,13 @@ pub fn run_forwarded_git(
     overlay: &[(OsString, OsString)],
     copy: Option<&CopyFacts>,
 ) -> ForwardedRun {
-    return run_forwarded_git_with_unit_stop(real_git, arguments, overlay, copy, &stop_units_of_removed_worktree);
+    return run_forwarded_git_with_unit_stop(
+        real_git,
+        arguments,
+        overlay,
+        copy,
+        &stop_units_of_removed_worktree,
+    );
 }
 
 /// What:
@@ -341,7 +404,10 @@ pub fn run_forwarded_git_with_unit_stop(
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
                 stop_units(gone);
                 // The pool of a worktree is named from the same registration the removal deleted, and nothing of the repository looks at it again once the worktree is gone.
-                clear_the_pool_of_a_removed_worktree(gone.common_dir.as_path(), gone.git_dir.as_path());
+                clear_the_pool_of_a_removed_worktree(
+                    gone.common_dir.as_path(),
+                    gone.git_dir.as_path(),
+                );
             }
             return finished;
         }
@@ -368,7 +434,11 @@ pub fn run_forwarded_git_with_unit_stop(
 /// ```ts
 /// await runGitWithWrapperOptions({ args, gitPath });
 /// ```
-pub fn run_wrapper_own_git(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
+pub fn run_wrapper_own_git(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> ForwardedRun {
     return run_plain_of(StartOwner::Wrapper, real_git, arguments, overlay);
 }
 
@@ -403,19 +473,27 @@ fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo>
 /// (await removeBySubvolume(facts)) ?? (await runSettled(facts));
 /// ```
 #[cfg(unix)]
-fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> ForwardedRun {
+fn run_served(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    facts: &CopyFacts,
+) -> ForwardedRun {
     // The ZFS clone route serves one `git worktree add` on the design's checkout
     // dataset, and answers nothing for every other command or checkout
     // (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10).
     #[cfg(target_os = "linux")]
     if facts.creates
         && facts.add_plan.is_some()
-        && let Some(finished) = crate::worktree_clone_add_route::run_a_zfs_add(real_git, arguments, overlay, facts)
+        && let Some(finished) =
+            crate::worktree_clone_add_route::run_a_zfs_add(real_git, arguments, overlay, facts)
     {
         return finished;
     }
     #[cfg(target_os = "linux")]
-    if let Some(finished) = crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone(facts) {
+    if let Some(finished) =
+        crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone(facts)
+    {
         return finished;
     }
     #[cfg(target_os = "linux")]
@@ -442,9 +520,17 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
 /// facts.removePlan === undefined ? undefined : outcomeToRun(await removeSubvolumeWorktree(request))
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
+fn remove_by_subvolume(
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+    facts: &CopyFacts,
+) -> Option<ForwardedRun> {
+    use crate::worktree_remove::{
+        RemoveOutcome,
+        RemoveRequest,
+        remove_subvolume_worktree,
+    };
     use std::io::Write;
-    use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
     let plan = facts.remove_plan.as_ref()?;
     let common_dir: &Path = common_directory(&facts.identity)?;
     let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
@@ -453,7 +539,13 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None });
+    let outcome: crate::worktree_remove::RemoveOutcome =
+        remove_subvolume_worktree(&RemoveRequest {
+            context: &context,
+            plan,
+            common_dir,
+            last_look: None,
+        });
     match outcome {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace => {
@@ -466,7 +558,11 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         RemoveOutcome::RemovedAround(left) => {
             // The worktree is gone from Git's records and what was not this removal's stands where it was, so the command did
             // what it was asked and says the rest in the same breath: the path is still taken, and this is what frees it.
-            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(plan.target.as_path(), left.as_slice());
+            let report: String =
+                crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(
+                    plan.target.as_path(),
+                    left.as_slice(),
+                );
             let _closed = writeln!(std::io::stderr(), "{report}");
             return Some(ForwardedRun::Ran(0));
         }
@@ -474,17 +570,26 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
             // The destroy's line says a delete the commit service still has to make, and this path has none: the files went
             // one by one here, the volume that kept the root standing went away during that pass, and the empty root went
             // with one `rmdir`.
-            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(plan.target.as_path());
+            let report: String =
+                crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(
+                    plan.target.as_path(),
+                );
             let _closed = writeln!(std::io::stderr(), "{report}");
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {
-            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::action::ENGINE_FAILURE_EXIT_CODE });
+            return Some(ForwardedRun::Failed {
+                stderr: format!("{report}\n"),
+                code: crate::action::ENGINE_FAILURE_EXIT_CODE,
+            });
         }
         RemoveOutcome::Refused(report) => {
             // A refusal is not a failure of a step: nothing changed, and the status is the one every refusal of this wrapper
             // uses.
-            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::subvolume_command::REFUSED_EXIT_CODE });
+            return Some(ForwardedRun::Failed {
+                stderr: format!("{report}\n"),
+                code: crate::subvolume_command::REFUSED_EXIT_CODE,
+            });
         }
     }
 }
@@ -507,11 +612,22 @@ fn run_settled(
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
 ) -> ForwardedRun {
-    use std::io::Write;
-    use crate::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
+    use crate::checkout_workers::{
+        insert_parallel_checkout,
+        is_fallback_checkout,
+        parallel_checkout_wanted,
+    };
     use crate::transaction_git::GitContext;
-    use crate::worktree_copy::{GitRunner, GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
+    use crate::worktree_copy::{
+        GitRunner,
+        GitStatus,
+        GitStep,
+        Invocation,
+        exit_code,
+        run_with_worktree_copy,
+    };
     use crate::worktree_copy_error::WorktreeCopyError;
+    use std::io::Write;
 
     /// What:
     ///  Decide once whether the checkout gets parallel workers,
@@ -524,9 +640,17 @@ fn run_settled(
     /// ```ts
     /// parallel ??= parallelCheckoutWanted(context, cwd, arguments); return parallel;
     /// ```
-    fn decided_parallel(parallel: &mut Option<bool>, invocation: &Invocation, arguments: &[OsString]) -> bool {
+    fn decided_parallel(
+        parallel: &mut Option<bool>,
+        invocation: &Invocation,
+        arguments: &[OsString],
+    ) -> bool {
         if parallel.is_none() {
-            *parallel = Some(parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments));
+            *parallel = Some(parallel_checkout_wanted(
+                &invocation.context,
+                invocation.effective_cwd.as_path(),
+                arguments,
+            ));
         }
         return *parallel == Some(true);
     }
@@ -601,75 +725,112 @@ fn run_settled(
     /// relayedStep(owner, argv, env, step) { return step.kind === 'person' ? relayWhenSshCarries(git, argv, env, owner) : undefined; }
     /// ```
     impl ForwardedGit<'_> {
-    #[cfg(unix)]
-    fn relayed_step(&self, owner: StartOwner, arguments: &[OsString], overlay: &[(OsString, OsString)], step: &GitStep<'_>) -> Option<std::io::Result<ChildOutcome>> {
-        // What: `matches!` asks which step this is: only the person's own step is their command.
-        // Why:   The ladder's own steps are the wrapper's work and carry no typed command.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (step.kind !== 'person') return undefined;
-        // ```
-        if !matches!(step, GitStep::Person) {
+        #[cfg(unix)]
+        fn relayed_step(
+            &self,
+            owner: StartOwner,
+            arguments: &[OsString],
+            overlay: &[(OsString, OsString)],
+            step: &GitStep<'_>,
+        ) -> Option<std::io::Result<ChildOutcome>> {
+            // What: `matches!` asks which step this is: only the person's own step is their command.
+            // Why:   The ladder's own steps are the wrapper's work and carry no typed command.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (step.kind !== 'person') return undefined;
+            // ```
+            if !matches!(step, GitStep::Person) {
+                return None;
+            }
+            // What: `Some(..)` carries the ending as a `ChildOutcome`, the way the other starts of this runner report.
+            // Why:   The call site already knows how to report an exit code and a death by a signal.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const relayed = relayWhenSshCarries(self.realGit, argv, env, owner);
+            // return relayed && ('ran' in relayed ? { exited: relayed.ran } : { signaled: relayed.signalled });
+            // ```
+            return match crate::typed_network_command_relay::relay_when_ssh_carries(
+                self.real_git,
+                arguments,
+                overlay,
+                owner,
+            ) {
+                Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(
+                    code,
+                ))) => Some(Ok(ChildOutcome::Exited(code))),
+                Some(Ok(
+                    crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(
+                        signal,
+                    ),
+                )) => Some(Ok(ChildOutcome::Signaled(signal))),
+                Some(Err(error)) => Some(Err(error)),
+                None => None,
+            };
+        }
+
+        /// What:
+        ///  The same for a system with no relay:
+        ///  no step is relayed,
+        ///  so every step keeps the start it had.
+        /// Why:
+        ///   Keeps the call site identical on every platform.
+        ///
+        /// In TS you'd write (pseudocode):
+        /// ```ts
+        /// relayedStep(): undefined
+        /// ```
+        // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+        #[cfg(not(unix))]
+        fn relayed_step(
+            &self,
+            _owner: StartOwner,
+            _arguments: &[OsString],
+            _overlay: &[(OsString, OsString)],
+            _step: &GitStep<'_>,
+        ) -> Option<std::io::Result<ChildOutcome>> {
             return None;
         }
-        // What: `Some(..)` carries the ending as a `ChildOutcome`, the way the other starts of this runner report.
-        // Why:   The call site already knows how to report an exit code and a death by a signal.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const relayed = relayWhenSshCarries(self.realGit, argv, env, owner);
-        // return relayed && ('ran' in relayed ? { exited: relayed.ran } : { signaled: relayed.signalled });
-        // ```
-        return match crate::typed_network_command_relay::relay_when_ssh_carries(self.real_git, arguments, overlay, owner) {
-            Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code))) => Some(Ok(ChildOutcome::Exited(code))),
-            Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal))) => Some(Ok(ChildOutcome::Signaled(signal))),
-            Some(Err(error)) => Some(Err(error)),
-            None => None,
-        };
-    }
-
-    /// What:
-    ///  The same for a system with no relay:
-    ///  no step is relayed,
-    ///  so every step keeps the start it had.
-    /// Why:
-    ///   Keeps the call site identical on every platform.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// relayedStep(): undefined
-    /// ```
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    fn relayed_step(&self, _owner: StartOwner, _arguments: &[OsString], _overlay: &[(OsString, OsString)], _step: &GitStep<'_>) -> Option<std::io::Result<ChildOutcome>> {
-        return None;
-    }
     }
 
     impl GitRunner for ForwardedGit<'_> {
-        fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError> {
+        fn run(
+            &mut self,
+            step: &GitStep<'_>,
+            child_started: &mut dyn ChildStarted,
+        ) -> Result<GitStatus, WorktreeCopyError> {
             let mut child_overlay: Vec<(OsString, OsString)> = self.overlay.to_vec();
             let mut child_arguments: Vec<OsString> = self.arguments.to_vec();
             match step {
                 GitStep::Person => {
                     // The person's `git worktree add` is the checkout of the new worktree: it gets parallel workers where nothing sets them.
-                    if self.facts.creates && decided_parallel(&mut self.parallel, self.invocation, self.arguments) {
+                    if self.facts.creates
+                        && decided_parallel(&mut self.parallel, self.invocation, self.arguments)
+                    {
                         insert_parallel_checkout(&mut child_arguments);
                     }
                 }
                 GitStep::WithoutCheckout(at) => {
                     // The index was read from the same arguments, so the word before it is `add`.
-                    if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
-                        return Err(WorktreeCopyError(String::from("monochromatic-git-policy-cli: the worktree plan does not match the arguments.")));
+                    if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add"
+                    {
+                        return Err(WorktreeCopyError(String::from(
+                            "monochromatic-git-policy-cli: the worktree plan does not match the arguments.",
+                        )));
                     }
                     child_arguments.insert(*at, OsString::from("--no-checkout"));
                 }
-                GitStep::Other { arguments: other, environment } => {
+                GitStep::Other {
+                    arguments: other,
+                    environment,
+                } => {
                     child_arguments = other.to_vec();
                     child_overlay.extend(environment.iter().cloned());
                     // The ladder's own checkout after a failed snapshot is the same checkout, so it takes the same option.
-                    if is_fallback_checkout(child_arguments.as_slice()) && decided_parallel(&mut self.parallel, self.invocation, self.arguments) {
+                    if is_fallback_checkout(child_arguments.as_slice())
+                        && decided_parallel(&mut self.parallel, self.invocation, self.arguments)
+                    {
                         insert_parallel_checkout(&mut child_arguments);
                     }
                 }
@@ -679,24 +840,58 @@ fn run_settled(
             //  forever).
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
             // The person's step is the person's command and keeps the person's monitor setting; a ladder step is the wrapper's own.
-            let owner: StartOwner = if ladder_started { StartOwner::Wrapper } else { StartOwner::Person };
-            let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
+            let owner: StartOwner = if ladder_started {
+                StartOwner::Wrapper
+            } else {
+                StartOwner::Person
+            };
+            let ceiling: Option<std::time::Duration> = if ladder_started {
+                crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice())
+            } else {
+                None
+            };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
-                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest, owner),
-                None => match self.relayed_step(owner, child_arguments.as_slice(), child_overlay.as_slice(), step) {
+                Some(longest) => run_real_git_until(
+                    self.real_git,
+                    child_arguments.as_slice(),
+                    child_overlay.as_slice(),
+                    longest,
+                    owner,
+                ),
+                None => match self.relayed_step(
+                    owner,
+                    child_arguments.as_slice(),
+                    child_overlay.as_slice(),
+                    step,
+                ) {
                     Some(answered) => answered,
-                    None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),
+                    None => run_real_git_naming(
+                        self.real_git,
+                        child_arguments.as_slice(),
+                        child_overlay.as_slice(),
+                        child_started,
+                        owner,
+                    ),
                 },
             };
             match ran {
-                Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
+                Ok(ChildOutcome::Exited(code)) => {
+                    return Ok(GitStatus {
+                        code: Some(code),
+                    });
+                }
                 Ok(ChildOutcome::Signaled(signal)) => {
                     self.signalled = Some(signal);
-                    return Ok(GitStatus { code: None });
+                    return Ok(GitStatus {
+                        code: None,
+                    });
                 }
                 // A step that was ended at its ceiling did start, so the failure says what happened rather than that it could not start.
                 Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` did not finish: {error}", words_of(child_arguments.as_slice()))));
+                    return Err(WorktreeCopyError(format!(
+                        "monochromatic-git-policy-cli: the step `{}` did not finish: {error}",
+                        words_of(child_arguments.as_slice())
+                    )));
                 }
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(
@@ -705,11 +900,18 @@ fn run_settled(
                     )));
                 }
             }
-
         }
     }
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
-    let mut run_git: ForwardedGit<'_> = ForwardedGit { overlay, arguments, facts, invocation: &invocation, real_git, parallel: None, signalled: None };
+    let mut run_git: ForwardedGit<'_> = ForwardedGit {
+        overlay,
+        arguments,
+        facts,
+        invocation: &invocation,
+        real_git,
+        parallel: None,
+        signalled: None,
+    };
     match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {
@@ -736,7 +938,9 @@ fn run_settled(
                 && let Some(destination) = facts.destination.as_ref()
             {
                 let left: Vec<crate::subvolume_remove_walk::Boundary> =
-                    crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(destination.as_path());
+                    crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(
+                        destination.as_path(),
+                    );
                 if !left.is_empty() {
                     let line: String = crate::worktree_removal_goes_around_a_foreign_volume::add_beside_a_volume_line(destination.as_path(), left.as_slice());
                     let _written = writeln!(stderr, "{line}");
@@ -748,9 +952,15 @@ fn run_settled(
             if facts.creates
                 && settlement.copy_failure.is_none()
                 && settlement.git.code == Some(0)
-                && let (Some(destination), Some(common_dir)) = (facts.destination.as_ref(), common_directory(&facts.identity))
+                && let (Some(destination), Some(common_dir)) = (
+                    facts.destination.as_ref(),
+                    common_directory(&facts.identity),
+                )
             {
-                crate::worktree_added_by_the_wrapper::record_or_log(common_dir, destination.as_path());
+                crate::worktree_added_by_the_wrapper::record_or_log(
+                    common_dir,
+                    destination.as_path(),
+                );
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

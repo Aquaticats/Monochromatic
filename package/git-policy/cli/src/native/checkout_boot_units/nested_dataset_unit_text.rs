@@ -29,9 +29,22 @@
 //! const text = nestedDatasetUnit({ dataset, mountpoint, slug }, facts);
 //! ```
 
-use crate::checkout_boot_units::boot_unit_facts::{CheckoutBootFacts, NestedDatasetMount, UnitTextRefusal, check_word, path_text};
-use crate::checkout_boot_units::unit_file_text::{file_text, path_comment};
-use crate::checkout_boot_units::boot_unit_names::{BOOT_GATE_UNIT_NAME, nested_unit_name, root_words};
+use crate::checkout_boot_units::boot_unit_facts::{
+    CheckoutBootFacts,
+    NestedDatasetMount,
+    UnitTextRefusal,
+    check_word,
+    path_text,
+};
+use crate::checkout_boot_units::boot_unit_names::{
+    BOOT_GATE_UNIT_NAME,
+    nested_unit_name,
+    root_words,
+};
+use crate::checkout_boot_units::unit_file_text::{
+    file_text,
+    path_comment,
+};
 use std::path::PathBuf;
 
 /// The mode word that mounts one nested dataset under the recorded checkout.
@@ -57,20 +70,32 @@ pub const DATASET_OPTION: &str = "--dataset";
 /// A dataset name,
 /// mountpoint,
 /// slug or root file a systemd line cannot carry.
-pub fn nested_dataset_unit(nested: &NestedDatasetMount, facts: &CheckoutBootFacts) -> Result<String, UnitTextRefusal> {
+pub fn nested_dataset_unit(
+    nested: &NestedDatasetMount,
+    facts: &CheckoutBootFacts,
+) -> Result<String, UnitTextRefusal> {
     facts.checked()?;
     nested.checked()?;
     check_word("the nested dataset's name", nested.dataset.as_str())?;
     let name: String = nested_unit_name(nested.slug.as_str());
     let path: PathBuf = crate::checkout_boot_units::boot_unit_names::unit_path(name.as_str());
-    let mountpoint: &str = path_text("the nested dataset's mountpoint", nested.mountpoint.as_path())?;
+    let mountpoint: &str = path_text(
+        "the nested dataset's mountpoint",
+        nested.mountpoint.as_path(),
+    )?;
     let root: &str = path_text("the root-owned file's path", facts.root_file.as_path())?;
     let words: String = root_words();
-    let command: String = format!("{root} {words} {MOUNT_PATH_DESCENDANT_MODE_WORD} {DATASET_OPTION} {}", nested.dataset);
+    let command: String = format!(
+        "{root} {words} {MOUNT_PATH_DESCENDANT_MODE_WORD} {DATASET_OPTION} {}",
+        nested.dataset
+    );
     return Ok(file_text(vec![
         path_comment(path.as_path()),
         String::from("[Unit]"),
-        format!("Description=Mount {} under the verified checkout", nested.dataset),
+        format!(
+            "Description=Mount {} under the verified checkout",
+            nested.dataset
+        ),
         format!("Requires={BOOT_GATE_UNIT_NAME}"),
         format!("After={BOOT_GATE_UNIT_NAME}"),
         format!("ConditionPathIsMountPoint=!{mountpoint}"),

@@ -46,14 +46,23 @@ fn the_count_separates_one_pass_from_a_scan() {
         }
     }
     let scan: u64 = looked_at() - before_scan;
-    assert_eq!(once, scanned, "both answers collect every item once, in order");
-    assert_eq!(pass, size as u64, "a set looks at one collected element per question");
+    assert_eq!(
+        once, scanned,
+        "both answers collect every item once, in order"
+    );
+    assert_eq!(
+        pass, size as u64,
+        "a set looks at one collected element per question"
+    );
     assert_eq!(
         scan,
         (size * (size - 1) / 2) as u64,
         "a scan looks at every collected element before the candidate"
     );
-    assert!(scan > pass, "{scan} elements looked at by a scan against {pass} by one pass");
+    assert!(
+        scan > pass,
+        "{scan} elements looked at by a scan against {pass} by one pass"
+    );
 }
 
 /// Each thread counts its own work,
@@ -62,12 +71,17 @@ fn the_count_separates_one_pass_from_a_scan() {
 fn another_thread_counts_its_own_work() {
     let here: u64 = looked_at();
     note_looked_at(3);
-    let there: Vec<std::thread::Result<u64>> = crate::side_by_side_threads::run_all_side_by_side(vec![()], count_and_report);
+    let there: Vec<std::thread::Result<u64>> =
+        crate::side_by_side_threads::run_all_side_by_side(vec![()], count_and_report);
     assert_eq!(there.len(), 1, "one job ran");
     let mut results = there.into_iter();
     let other: u64 = results.next().expect("one result").expect("no panic");
     assert_eq!(other, 5, "the other thread counted only what it looked at");
-    assert_eq!(looked_at(), here + 3, "this thread counted only what it looked at");
+    assert_eq!(
+        looked_at(),
+        here + 3,
+        "this thread counted only what it looked at"
+    );
 }
 
 /// Look at five collected elements on the calling thread and report this thread's count.

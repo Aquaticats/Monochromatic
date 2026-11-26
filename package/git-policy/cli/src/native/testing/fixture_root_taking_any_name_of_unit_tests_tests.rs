@@ -73,8 +73,7 @@ fn a_program_started_from_the_any_name_root_holds_no_capability() {
     for set in REPORTED_SETS {
         let held: u64 = capability_set_from(status.as_str(), set);
         assert_eq!(
-            held,
-            NO_CAPABILITIES_HELD,
+            held, NO_CAPABILITIES_HELD,
             "the program started from the fixture root holds {set}={held:#018x}, and a program a fixture starts must hold \
              none of them, as an ordinary account's Git does when it commits in such a fixture\n{status}"
         );
@@ -125,14 +124,19 @@ fn capabilities_of_a_started_program() -> String {
 ///   return BigInt(`0x${line.slice(set.length + 1).trim()}`);
 /// }
 /// ```
-fn capability_set_from(status: &str, set: &str) -> u64 {
+fn capability_set_from(
+    status: &str,
+    set: &str,
+) -> u64 {
     let printed: &str = status
         .lines()
         .find_map(|line| {
             let (name, word) = line.split_once(':')?;
             return if name == set { Some(word.trim()) } else { None };
         })
-        .unwrap_or_else(|| panic!("{set} is not in the status file of the program that was started:\n{status}"));
+        .unwrap_or_else(|| {
+            panic!("{set} is not in the status file of the program that was started:\n{status}")
+        });
     return u64::from_str_radix(printed, 16)
         .unwrap_or_else(|error| panic!("the status file prints {set} as {printed}, which is not a hexadecimal capability word: {error}"));
 }

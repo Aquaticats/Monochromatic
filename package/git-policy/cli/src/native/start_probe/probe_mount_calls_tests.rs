@@ -14,7 +14,12 @@
 //! expect(bindMount('/no/such/source', '/no/such/target').call).toBe('mount bind');
 //! ```
 
-use super::{SCRATCH_TMPFS_OPTIONS, bind_mount, read_own_mount_table, unmount};
+use super::{
+    SCRATCH_TMPFS_OPTIONS,
+    bind_mount,
+    read_own_mount_table,
+    unmount,
+};
 use crate::testing::test_support::fixture;
 use std::path::PathBuf;
 
@@ -23,7 +28,8 @@ use std::path::PathBuf;
 #[test]
 fn a_refused_bind_names_its_call() {
     let root: PathBuf = fixture("start-probe-mount-bind");
-    let refusal = bind_mount(root.join("no-such-source").as_path(), root.as_path()).expect_err("the bind is refused");
+    let refusal = bind_mount(root.join("no-such-source").as_path(), root.as_path())
+        .expect_err("the bind is refused");
     assert_eq!(refusal.call, "mount bind");
 }
 
@@ -34,7 +40,11 @@ fn an_unmount_of_a_plain_folder_is_refused() {
     let root: PathBuf = fixture("start-probe-mount-unmount");
     let refusal = unmount(root.as_path()).expect_err("the unmount is refused");
     assert_eq!(refusal.call, "umount2");
-    assert!(matches!(refusal.errno, libc::EINVAL | libc::EPERM), "{}", refusal.errno);
+    assert!(
+        matches!(refusal.errno, libc::EINVAL | libc::EPERM),
+        "{}",
+        refusal.errno
+    );
 }
 
 /// The scratch tmpfs names a size and an inode count,

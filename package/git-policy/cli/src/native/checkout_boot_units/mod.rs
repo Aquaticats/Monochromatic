@@ -69,20 +69,59 @@ pub mod boot_unit_facts;
 pub mod boot_unit_install_plan;
 pub mod boot_unit_names;
 pub mod nested_dataset_unit_text;
-pub mod unit_file_text;
 pub mod propagation_unit_text;
+pub mod unit_file_text;
 
-pub use boot_gate_unit_text::{boot_gate_unit, provider_restart_drop_in, stop_failure_drop_in};
-pub use boot_unit_facts::{CheckoutBootFacts, InstalledUnitFile, NestedDatasetMount, UnitTextRefusal};
+pub use boot_gate_unit_text::{
+    boot_gate_unit,
+    provider_restart_drop_in,
+    stop_failure_drop_in,
+};
+pub use boot_unit_facts::{
+    CheckoutBootFacts,
+    InstalledUnitFile,
+    NestedDatasetMount,
+    UnitTextRefusal,
+};
 pub use boot_unit_install_plan::install_plan;
 pub use boot_unit_names::{
-    BOOT_GATE_UNIT_NAME, BOOT_GATE_UNIT_PATH, BOOT_RECONCILE_MODE_WORD, EXECUTABLE_SYSTEMCTL, GATE_START_BOUND, GATE_STOP_BOUND, NESTED_UNIT_NAME_PREFIX, NESTED_UNIT_NAME_SUFFIX,
-    PROPAGATION_MOUNT_DROP_IN_NAME, PROPAGATION_SERVICE_NAME, PROVIDER_DROP_IN_NAME, PROVIDER_UNIT_NAME, SHUTDOWN_UNMOUNT_MODE_WORD, START_PROBE_MODE_WORD, STOP_FAILURE_DROP_IN_NAME,
-    STOP_FAILURE_MODE_WORD, SYSTEM_UNIT_DIRECTORY, drop_in_path, mount_unit_name, nested_unit_name, propagation_service_path, root_words, unit_path,
+    BOOT_GATE_UNIT_NAME,
+    BOOT_GATE_UNIT_PATH,
+    BOOT_RECONCILE_MODE_WORD,
+    EXECUTABLE_SYSTEMCTL,
+    GATE_START_BOUND,
+    GATE_STOP_BOUND,
+    NESTED_UNIT_NAME_PREFIX,
+    NESTED_UNIT_NAME_SUFFIX,
+    PROPAGATION_MOUNT_DROP_IN_NAME,
+    PROPAGATION_SERVICE_NAME,
+    PROVIDER_DROP_IN_NAME,
+    PROVIDER_UNIT_NAME,
+    SHUTDOWN_UNMOUNT_MODE_WORD,
+    START_PROBE_MODE_WORD,
+    STOP_FAILURE_DROP_IN_NAME,
+    STOP_FAILURE_MODE_WORD,
+    SYSTEM_UNIT_DIRECTORY,
+    drop_in_path,
+    mount_unit_name,
+    nested_unit_name,
+    propagation_service_path,
+    root_words,
+    unit_path,
 };
-pub use nested_dataset_unit_text::{DATASET_OPTION, MOUNT_PATH_DESCENDANT_MODE_WORD, nested_dataset_unit};
-pub use unit_file_text::{file_text, path_comment};
-pub use propagation_unit_text::{propagation_mount_drop_in, propagation_service};
+pub use nested_dataset_unit_text::{
+    DATASET_OPTION,
+    MOUNT_PATH_DESCENDANT_MODE_WORD,
+    nested_dataset_unit,
+};
+pub use propagation_unit_text::{
+    propagation_mount_drop_in,
+    propagation_service,
+};
+pub use unit_file_text::{
+    file_text,
+    path_comment,
+};
 
 /// The units' arm in a throwaway guest:
 /// every file written at the path systemd reads,

@@ -27,8 +27,14 @@
 //! const candidates = refLockCandidates(roots); // packed-refs.lock, HEAD.lock, refs/**/*.lock, reftable/tables.list.lock
 //! ```
 
-use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
-use std::path::{Path, PathBuf};
+use crate::stopped_git_locks::{
+    LOCK_SUFFIX,
+    PID_LOCK_SUFFIX,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The staging file Git writes beside `packed-refs.lock` while it holds that lock (`refs/packed-backend.c:1398`).
 const PACKED_STAGING: &str = "packed-refs.new";
@@ -81,17 +87,26 @@ fn is_missing(path: &Path) -> bool {
 }
 
 /// Order two candidates by lock path.
-fn by_lock(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {
+fn by_lock(
+    left: &Candidate,
+    right: &Candidate,
+) -> std::cmp::Ordering {
     return left.lock.cmp(&right.lock);
 }
 
 /// Whether two neighbours in a sorted list name the same lock.
-fn same_lock(left: &mut Candidate, right: &mut Candidate) -> bool {
+fn same_lock(
+    left: &mut Candidate,
+    right: &mut Candidate,
+) -> bool {
     return left.lock == right.lock;
 }
 
 /// Whether a directory entry is a regular file whose name makes it a reference lock.
-fn is_reference_lock(path: &Path, is_file: bool) -> bool {
+fn is_reference_lock(
+    path: &Path,
+    is_file: bool,
+) -> bool {
     let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
@@ -114,12 +129,20 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
         for name in REFERENCE_LOCKS {
             let path: PathBuf = root.join(name);
             if is_regular_file(path.as_path()) {
-                found.push(Candidate { root: root.clone(), lock: path, orphan_staging: false });
+                found.push(Candidate {
+                    root: root.clone(),
+                    lock: path,
+                    orphan_staging: false,
+                });
             }
         }
         let staging: PathBuf = root.join(PACKED_STAGING);
         if is_regular_file(staging.as_path()) && is_missing(root.join(PACKED_LOCK).as_path()) {
-            found.push(Candidate { root: root.clone(), lock: staging, orphan_staging: true });
+            found.push(Candidate {
+                root: root.clone(),
+                lock: staging,
+                orphan_staging: true,
+            });
         }
         let mut pending: Vec<PathBuf> = vec![root.join("refs")];
         while let Some(directory) = pending.pop() {
@@ -133,7 +156,11 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
                 if kind.is_dir() {
                     pending.push(entry.path());
                 } else if is_reference_lock(entry.path().as_path(), kind.is_file()) {
-                    found.push(Candidate { root: root.clone(), lock: entry.path(), orphan_staging: false });
+                    found.push(Candidate {
+                        root: root.clone(),
+                        lock: entry.path(),
+                        orphan_staging: false,
+                    });
                 }
             }
         }
@@ -155,7 +182,10 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
 /// ```ts
 /// const lockOfAReference = (root, name) => `${root}/${name}.lock`
 /// ```
-pub fn lock_of_a_reference(root: &Path, name: &[u8]) -> PathBuf {
+pub fn lock_of_a_reference(
+    root: &Path,
+    name: &[u8],
+) -> PathBuf {
     let mut lock: PathBuf = root.join(crate::path_bytes::os_from_path_bytes(name));
     lock.as_mut_os_string().push(LOCK_SUFFIX);
     return lock;
@@ -189,11 +219,18 @@ pub fn shared_backend_locks(root: &Path) -> [PathBuf; 2] {
 /// ```ts
 /// const candidateAt = (root, lock) => isRegularFile(lock) ? { root, lock } : undefined
 /// ```
-pub fn candidate_at(root: &Path, lock: PathBuf) -> Option<Candidate> {
+pub fn candidate_at(
+    root: &Path,
+    lock: PathBuf,
+) -> Option<Candidate> {
     if !is_regular_file(lock.as_path()) {
         return None;
     }
-    return Some(Candidate { root: root.to_path_buf(), lock, orphan_staging: false });
+    return Some(Candidate {
+        root: root.to_path_buf(),
+        lock,
+        orphan_staging: false,
+    });
 }
 
 /// What:
@@ -214,11 +251,18 @@ pub fn candidate_at(root: &Path, lock: PathBuf) -> Option<Candidate> {
 /// ```ts
 /// const locksThatCanRefuseAWrite = (roots, reference, alsoDeleted) => roots.flatMap((root) => [lockOfAReference(root, reference), lockOfAReference(root, alsoDeleted), ...sharedBackendLocks(root)]).filter(exists)
 /// ```
-pub fn locks_that_can_refuse_a_write(roots: &[PathBuf], reference: &[u8], also_deleted: &[u8]) -> Vec<Candidate> {
+pub fn locks_that_can_refuse_a_write(
+    roots: &[PathBuf],
+    reference: &[u8],
+    also_deleted: &[u8],
+) -> Vec<Candidate> {
     let mut wanted: Vec<(PathBuf, PathBuf)> = Vec::new();
     for root in roots {
         wanted.push((root.clone(), lock_of_a_reference(root.as_path(), reference)));
-        wanted.push((root.clone(), lock_of_a_reference(root.as_path(), also_deleted)));
+        wanted.push((
+            root.clone(),
+            lock_of_a_reference(root.as_path(), also_deleted),
+        ));
         for lock in shared_backend_locks(root.as_path()) {
             wanted.push((root.clone(), lock));
         }

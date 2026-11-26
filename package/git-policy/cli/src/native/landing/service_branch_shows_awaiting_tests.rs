@@ -5,7 +5,12 @@
 //! and it keeps the honest "not known" for both.
 
 use super::*;
-use crate::test_support::{fixture, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -20,10 +25,17 @@ use std::path::PathBuf;
 /// ```ts
 /// const [sync, awaited] = bothAnswers(context, repo, reference, prepared);
 /// ```
-fn both_answers(context: &GitContext, repo: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
+fn both_answers(
+    context: &GitContext,
+    repo: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: &str,
+) -> (WhatTheBranchShows, WhatTheBranchShows) {
     let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, reference, prepared);
-    let awaited: WhatTheBranchShows =
-        crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, reference, prepared)).expect("the runtime");
+    let awaited: WhatTheBranchShows = crate::lazy_runtime::run_on_runtime(
+        what_the_branch_shows_awaiting(context, repo, reference, prepared),
+    )
+    .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -52,18 +64,43 @@ fn the_awaited_branch_read_answers_what_the_synchronous_one_answers() {
     let root: PathBuf = fixture("service-branch-shows-awaiting");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let made: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
-    let elsewhere: String = crate::test_support::git_text(repo.as_path(), &["commit-tree", "-m", "elsewhere", "HEAD^{tree}"]).trim().to_string();
+    let made: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
+    let elsewhere: String = crate::test_support::git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "elsewhere", "HEAD^{tree}"],
+    )
+    .trim()
+    .to_string();
     let cases: [(&str, &str, WhatTheBranchShows); 3] = [
-        ("a commit the branch holds", made.as_str(), WhatTheBranchShows::Made),
-        ("a commit the branch does not hold", elsewhere.as_str(), WhatTheBranchShows::NotMade),
-        ("a commit no object store has", "0000000000000000000000000000000000000000", WhatTheBranchShows::Unread),
+        (
+            "a commit the branch holds",
+            made.as_str(),
+            WhatTheBranchShows::Made,
+        ),
+        (
+            "a commit the branch does not hold",
+            elsewhere.as_str(),
+            WhatTheBranchShows::NotMade,
+        ),
+        (
+            "a commit no object store has",
+            "0000000000000000000000000000000000000000",
+            WhatTheBranchShows::Unread,
+        ),
     ];
     let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
         let (synchronous, awaited) = both_answers(&context, repo.as_path(), &main, prepared);
-        assert_eq!(synchronous, expected, "{label}: the synchronous read is what the two faces are compared on");
-        assert_eq!(awaited, synchronous, "{label}: the two faces answer one thing about the branch");
+        assert_eq!(
+            synchronous, expected,
+            "{label}: the synchronous read is what the two faces are compared on"
+        );
+        assert_eq!(
+            awaited, synchronous,
+            "{label}: the two faces answer one thing about the branch"
+        );
     }
     remove(root.as_path());
 }
@@ -91,29 +128,48 @@ fn the_awaited_silence_reports_what_the_synchronous_one_reports() {
     let root: PathBuf = fixture("service-branch-shows-awaiting-silence");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let made: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
-    let elsewhere: String = crate::test_support::git_text(repo.as_path(), &["commit-tree", "-m", "elsewhere", "HEAD^{tree}"]).trim().to_string();
+    let made: String = crate::test_support::git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
+    let elsewhere: String = crate::test_support::git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "elsewhere", "HEAD^{tree}"],
+    )
+    .trim()
+    .to_string();
     let cases: [(&str, Option<&str>, Option<ClientFailure>); 3] = [
         ("a branch that holds the commit", Some(made.as_str()), None),
         (
             "a branch that does not hold the commit",
             Some(elsewhere.as_str()),
-            Some(ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade }),
+            Some(ClientFailure::ServiceSilentAfterPreparing {
+                shows: WhatTheBranchShows::NotMade,
+            }),
         ),
-        ("a request with no prepared commit", None, Some(ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread })),
+        (
+            "a request with no prepared commit",
+            None,
+            Some(ClientFailure::ServiceSilentAfterPreparing {
+                shows: WhatTheBranchShows::Unread,
+            }),
+        ),
     ];
     let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
-        let synchronous: Option<ClientFailure> = the_silent_service_after_a_prepare(&context, repo.as_path(), &main, prepared);
-        let awaited: Option<ClientFailure> = crate::lazy_runtime::run_on_runtime(the_silent_service_after_a_prepare_awaiting(
-            &context,
-            repo.as_path(),
-            &main,
-            prepared,
-        ))
+        let synchronous: Option<ClientFailure> =
+            the_silent_service_after_a_prepare(&context, repo.as_path(), &main, prepared);
+        let awaited: Option<ClientFailure> = crate::lazy_runtime::run_on_runtime(
+            the_silent_service_after_a_prepare_awaiting(&context, repo.as_path(), &main, prepared),
+        )
         .expect("the runtime");
-        assert_eq!(synchronous, expected, "{label}: the synchronous report is what the two faces are compared on");
-        assert_eq!(awaited, synchronous, "{label}: the two faces report one silence the same way");
+        assert_eq!(
+            synchronous, expected,
+            "{label}: the synchronous report is what the two faces are compared on"
+        );
+        assert_eq!(
+            awaited, synchronous,
+            "{label}: the two faces report one silence the same way"
+        );
     }
     remove(root.as_path());
 }

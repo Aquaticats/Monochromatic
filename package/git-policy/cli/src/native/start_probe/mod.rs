@@ -124,101 +124,117 @@
 //! const status = gitWorktreeCloneMountHandler.run(['start-probe']); // the mode writes /run/git-worktree-clone-mount-probe/result
 //! ```
 
+/// This boot's first real attach:
+/// its claim,
+/// its started record and its outcome.
+pub mod first_attach_record;
 /// The nine arms and every step.
 pub mod probe_arms;
-/// The word every status line begins with.
-pub mod probe_status_prefix;
-/// The closed errno and reason vocabularies.
-pub mod probe_errno_names;
-/// Why a status line could not be read.
-pub mod probe_line_refusal;
-/// One step's line,
-/// its parse and the feed.
-pub mod probe_status_line;
+/// The exclusive attach itself.
+pub mod probe_attach_arm;
+/// The read-back after the move.
+pub mod probe_attach_verify;
 /// One failed call and its errno.
 pub mod probe_call_error;
-/// The control's own `openat2` and the handle a mount lands on.
-pub mod probe_open_beneath;
-/// Pipes,
-/// the fork,
-/// the group,
-/// the pid descriptor and the waits.
-pub mod probe_processes;
 /// What a child does to itself before its steps.
 pub mod probe_child_prelude;
-/// Whole lines on a pipe.
-pub mod probe_pipe_lines;
+/// The two names the configuration supplies,
+/// and the mount table's own.
+pub mod probe_configuration;
+/// Why the source or the checkout could not be told,
+/// and the record's words.
+pub mod probe_configuration_refusal;
+/// The bound the mode enforces.
+pub mod probe_deadline;
+/// The file-system context,
+/// the create and the two moves.
+pub mod probe_descriptor_calls;
+/// The closed errno and reason vocabularies.
+pub mod probe_errno_names;
+/// What the record pins about the machine and the build.
+pub mod probe_fingerprint;
+/// The child that holds the source in a second namespace.
+pub mod probe_holder;
+/// The mode's side of that holder.
+pub mod probe_holder_control;
+/// Why a status line could not be read.
+pub mod probe_line_refusal;
+/// The mode itself.
+pub mod probe_mode;
+/// The mode's words and readings.
+pub mod probe_mode_words;
 /// The namespace,
 /// propagation,
 /// tmpfs,
 /// bind,
 /// unmount and table calls.
 pub mod probe_mount_calls;
-/// The file-system context,
-/// the create and the two moves.
-pub mod probe_descriptor_calls;
-/// What the record pins about the machine and the build.
-pub mod probe_fingerprint;
-/// The dataset-name rule and the fixed snapshot.
-pub mod probe_source_name;
-/// Why the source or the checkout could not be told,
-/// and the record's words.
-pub mod probe_configuration_refusal;
-/// The two names the configuration supplies,
-/// and the mount table's own.
-pub mod probe_configuration;
 /// What the read-back must find.
 pub mod probe_mount_verify;
 /// The scan's grouping and its comparisons.
 pub mod probe_namespace_scan;
-/// The read-back after the move.
-pub mod probe_attach_verify;
-/// The exclusive attach itself.
-pub mod probe_attach_arm;
-/// The walk,
-/// its refusal controls and the checkout open.
-pub mod probe_walk_arm;
-/// The lines folded into arms and a verdict.
-pub mod probe_report;
+/// The control's own `openat2` and the handle a mount lands on.
+pub mod probe_open_beneath;
+/// Whole lines on a pipe.
+pub mod probe_pipe_lines;
+/// Pipes,
+/// the fork,
+/// the group,
+/// the pid descriptor and the waits.
+pub mod probe_processes;
 /// The record's keys and its started form.
 pub mod probe_record;
 /// The record's directory,
 /// its mode and its atomic write.
 pub mod probe_record_files;
-/// This boot's first real attach:
-/// its claim,
-/// its started record and its outcome.
-pub mod first_attach_record;
-/// The bound the mode enforces.
-pub mod probe_deadline;
-/// The child that moves and unmounts.
-pub mod probe_unmount_child;
-/// The child that holds the source in a second namespace.
-pub mod probe_holder;
-/// The mode's side of that holder.
-pub mod probe_holder_control;
+/// The lines folded into arms and a verdict.
+pub mod probe_report;
+/// The dataset-name rule and the fixed snapshot.
+pub mod probe_source_name;
 /// One status pipe drained into the report.
 pub mod probe_status_drain;
-/// The worker's arms.
-pub mod probe_worker;
+/// One step's line,
+/// its parse and the feed.
+pub mod probe_status_line;
+/// The word every status line begins with.
+pub mod probe_status_prefix;
 /// The test-only switch the timing and deadline arms set.
 pub mod probe_test_switch;
-/// The mode's words and readings.
-pub mod probe_mode_words;
-/// The mode itself.
-pub mod probe_mode;
+/// The child that moves and unmounts.
+pub mod probe_unmount_child;
+/// The walk,
+/// its refusal controls and the checkout open.
+pub mod probe_walk_arm;
+/// The worker's arms.
+pub mod probe_worker;
 
+/// The bound the mode enforces and its margin.
+pub use probe_deadline::{
+    PROBE_DEADLINE,
+    PROBE_DEADLINE_MARGIN,
+};
+/// What the record pins about the machine and the build.
+pub use probe_fingerprint::FingerprintPaths;
 /// The mode the handler runs.
 pub use probe_mode::ProbeMode;
 /// The record a refused gate writes.
 pub use probe_mode_words::skip_after_gate_refusal;
-/// The test-only switch the timing and deadline arms set.
-pub use probe_test_switch::{TEST_SWITCH_VARIABLE, TestSwitch, test_switch_from_environment};
-/// The record's place and its two mount points.
-pub use probe_record_files::{HOLDER_NAME, RECORD_DIRECTORY, RecordPlace, RESULT_NAME, SCRATCH_NAME};
 /// The record's text.
-pub use probe_record::{ProbeRecord, started_text};
-/// The bound the mode enforces and its margin.
-pub use probe_deadline::{PROBE_DEADLINE, PROBE_DEADLINE_MARGIN};
-/// What the record pins about the machine and the build.
-pub use probe_fingerprint::FingerprintPaths;
+pub use probe_record::{
+    ProbeRecord,
+    started_text,
+};
+/// The record's place and its two mount points.
+pub use probe_record_files::{
+    HOLDER_NAME,
+    RECORD_DIRECTORY,
+    RESULT_NAME,
+    RecordPlace,
+    SCRATCH_NAME,
+};
+/// The test-only switch the timing and deadline arms set.
+pub use probe_test_switch::{
+    TEST_SWITCH_VARIABLE,
+    TestSwitch,
+    test_switch_from_environment,
+};

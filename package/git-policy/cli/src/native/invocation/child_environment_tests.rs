@@ -12,9 +12,23 @@
 
 /// Import the functions under test and native string types.
 use super::{
-    ASKPASS_REQUIRE_FORCE, ASKPASS_REQUIRE_VARIABLE, ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, NO_ANSWER_PROGRAM,
-    SSH_ASKPASS_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay, environment_with_overlay, invocation_overlay, lockfile_pid_overlay,
-    never_prompt_overlay, no_prompt_overlay, service_child_overlay, ssh_no_answer_overlay,
+    ASKPASS_REQUIRE_FORCE,
+    ASKPASS_REQUIRE_VARIABLE,
+    ASKPASS_VARIABLE,
+    CHILD_SET_PREFIX,
+    COUNT_VARIABLE,
+    FORWARD_TARGET_VARIABLE,
+    NO_ANSWER_PROGRAM,
+    SSH_ASKPASS_VARIABLE,
+    TERMINAL_PROMPT_VARIABLE,
+    child_environment_overlay,
+    environment_with_overlay,
+    invocation_overlay,
+    lockfile_pid_overlay,
+    never_prompt_overlay,
+    no_prompt_overlay,
+    service_child_overlay,
+    ssh_no_answer_overlay,
 };
 use std::ffi::OsString;
 use std::path::Path;
@@ -250,7 +264,11 @@ fn native_git_reads_the_overlay_and_explicit_configuration_wins() {
 /// ahead of the overlay's entries.
 #[test]
 fn an_overlaid_environment_keeps_the_callers_variables_and_appends_the_overlay() {
-    let caller = environment(&[("HOME", "/home/user"), ("PATH", "/usr/bin"), ("SSH_AUTH_SOCK", "/run/agent")]);
+    let caller = environment(&[
+        ("HOME", "/home/user"),
+        ("PATH", "/usr/bin"),
+        ("SSH_AUTH_SOCK", "/run/agent"),
+    ]);
     let overlay = environment(&[("CLI_GIT_NATIVE_FORWARD_TARGET", "/usr/bin/git")]);
     assert_eq!(
         environment_with_overlay(caller.as_slice(), overlay.as_slice()),
@@ -267,8 +285,15 @@ fn an_overlaid_environment_keeps_the_callers_variables_and_appends_the_overlay()
 /// wherever the caller had it.
 #[test]
 fn an_overlaid_environment_replaces_a_name_the_overlay_sets() {
-    let caller = environment(&[("GIT_CONFIG_COUNT", "1"), ("HOME", "/home/user"), ("GIT_CONFIG_COUNT", "7")]);
-    let overlay = environment(&[("GIT_CONFIG_COUNT", "2"), ("GIT_CONFIG_KEY_1", "core.lockfilePid")]);
+    let caller = environment(&[
+        ("GIT_CONFIG_COUNT", "1"),
+        ("HOME", "/home/user"),
+        ("GIT_CONFIG_COUNT", "7"),
+    ]);
+    let overlay = environment(&[
+        ("GIT_CONFIG_COUNT", "2"),
+        ("GIT_CONFIG_KEY_1", "core.lockfilePid"),
+    ]);
     assert_eq!(
         environment_with_overlay(caller.as_slice(), overlay.as_slice()),
         environment(&[
@@ -297,19 +322,29 @@ fn never_prompt_overlay_sets_an_empty_askpass_and_no_terminal_prompt() {
         never_prompt_overlay(),
         vec![
             (OsString::from(ASKPASS_VARIABLE), OsString::new()),
-            (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
+            (
+                OsString::from(TERMINAL_PROMPT_VARIABLE),
+                OsString::from("0")
+            ),
         ]
     );
 }
 
 /// The value a child's environment must carry for a variable,
 /// the last entry winning as an environment block reads it.
-fn last_value(environment: &[(OsString, OsString)], name: &str) -> Option<OsString> {
+fn last_value(
+    environment: &[(OsString, OsString)],
+    name: &str,
+) -> Option<OsString> {
     return environment
         .iter()
-        .filter(|(key, _value)| { return key == name; })
+        .filter(|(key, _value)| {
+            return key == name;
+        })
         .next_back()
-        .map(|(_key, found)| { return found.clone(); });
+        .map(|(_key, found)| {
+            return found.clone();
+        });
 }
 
 /// What the commit service adds for its own Git children is the lock PID injection,
@@ -348,11 +383,26 @@ fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair_then_o
 /// ```
 #[test]
 fn the_service_overlay_gives_openssh_a_program_that_answers_nothing_and_a_typed_command_does_too() {
-    let inherited = environment(&[("SSH_ASKPASS", "/usr/bin/ksshaskpass"), ("SSH_ASKPASS_REQUIRE", "prefer")]);
-    let service = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
-    assert_eq!(last_value(service.as_slice(), SSH_ASKPASS_VARIABLE), Some(OsString::from(NO_ANSWER_PROGRAM)));
-    assert_eq!(last_value(service.as_slice(), ASKPASS_REQUIRE_VARIABLE), Some(OsString::from(ASKPASS_REQUIRE_FORCE)));
-    let typed = environment_with_overlay(inherited.as_slice(), invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git")).as_slice());
+    let inherited = environment(&[
+        ("SSH_ASKPASS", "/usr/bin/ksshaskpass"),
+        ("SSH_ASKPASS_REQUIRE", "prefer"),
+    ]);
+    let service = environment_with_overlay(
+        inherited.as_slice(),
+        service_child_overlay(inherited.as_slice()).as_slice(),
+    );
+    assert_eq!(
+        last_value(service.as_slice(), SSH_ASKPASS_VARIABLE),
+        Some(OsString::from(NO_ANSWER_PROGRAM))
+    );
+    assert_eq!(
+        last_value(service.as_slice(), ASKPASS_REQUIRE_VARIABLE),
+        Some(OsString::from(ASKPASS_REQUIRE_FORCE))
+    );
+    let typed = environment_with_overlay(
+        inherited.as_slice(),
+        invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git")).as_slice(),
+    );
     assert_eq!(
         last_value(typed.as_slice(), SSH_ASKPASS_VARIABLE),
         Some(OsString::from(NO_ANSWER_PROGRAM)),
@@ -403,11 +453,26 @@ fn the_service_overlay_replaces_every_inherited_prompt_setting() {
         ("SSH_ASKPASS", "/usr/bin/ksshaskpass"),
         ("SSH_ASKPASS_REQUIRE", "prefer"),
     ]);
-    let complete = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
-    assert_eq!(last_value(complete.as_slice(), "GIT_ASKPASS"), Some(OsString::new()));
-    assert_eq!(last_value(complete.as_slice(), "GIT_TERMINAL_PROMPT"), Some(OsString::from("0")));
-    assert_eq!(last_value(complete.as_slice(), "SSH_ASKPASS"), Some(OsString::from(NO_ANSWER_PROGRAM)));
-    assert_eq!(last_value(complete.as_slice(), "SSH_ASKPASS_REQUIRE"), Some(OsString::from(ASKPASS_REQUIRE_FORCE)));
+    let complete = environment_with_overlay(
+        inherited.as_slice(),
+        service_child_overlay(inherited.as_slice()).as_slice(),
+    );
+    assert_eq!(
+        last_value(complete.as_slice(), "GIT_ASKPASS"),
+        Some(OsString::new())
+    );
+    assert_eq!(
+        last_value(complete.as_slice(), "GIT_TERMINAL_PROMPT"),
+        Some(OsString::from("0"))
+    );
+    assert_eq!(
+        last_value(complete.as_slice(), "SSH_ASKPASS"),
+        Some(OsString::from(NO_ANSWER_PROGRAM))
+    );
+    assert_eq!(
+        last_value(complete.as_slice(), "SSH_ASKPASS_REQUIRE"),
+        Some(OsString::from(ASKPASS_REQUIRE_FORCE))
+    );
 }
 
 /// What:
@@ -445,10 +510,25 @@ fn every_command_the_wrapper_forwards_never_prompts() {
 /// the never-prompt pair comes after it.
 #[test]
 fn the_never_prompt_pair_wins_over_a_caller_set_child_variable() {
-    let inherited = environment(&[(format!("{CHILD_SET_PREFIX}{ASKPASS_VARIABLE}").as_str(), "/usr/bin/ksshaskpass")]);
+    let inherited = environment(&[(
+        format!("{CHILD_SET_PREFIX}{ASKPASS_VARIABLE}").as_str(),
+        "/usr/bin/ksshaskpass",
+    )]);
     let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"));
-    let askpass: Vec<&OsString> = overlay.iter().filter(|(name, _value)| { return name == ASKPASS_VARIABLE; }).map(|(_name, value)| { return value; }).collect();
-    assert_eq!(askpass.last(), Some(&&OsString::new()), "the last entry wins, as an environment block reads it: {askpass:?}");
+    let askpass: Vec<&OsString> = overlay
+        .iter()
+        .filter(|(name, _value)| {
+            return name == ASKPASS_VARIABLE;
+        })
+        .map(|(_name, value)| {
+            return value;
+        })
+        .collect();
+    assert_eq!(
+        askpass.last(),
+        Some(&&OsString::new()),
+        "the last entry wins, as an environment block reads it: {askpass:?}"
+    );
 }
 
 /// What:

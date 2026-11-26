@@ -106,34 +106,62 @@ impl PlanRefusalCause {
     /// The clause a message prints before the field and the value.
     fn clause(self) -> &'static str {
         return match self {
-            PlanRefusalCause::NotThisRecord => "does not begin with this route's destruction-plan header",
-            PlanRefusalCause::UnknownVersion => "carries a destruction-plan version this build does not read",
+            PlanRefusalCause::NotThisRecord => {
+                "does not begin with this route's destruction-plan header"
+            }
+            PlanRefusalCause::UnknownVersion => {
+                "carries a destruction-plan version this build does not read"
+            }
             PlanRefusalCause::EndsEarly => "stops before the header fields it declares",
-            PlanRefusalCause::MissingAttemptLines => "stops before the attempt lines its header declares",
+            PlanRefusalCause::MissingAttemptLines => {
+                "stops before the attempt lines its header declares"
+            }
             PlanRefusalCause::UnknownKey => "holds a key the plan grammar does not have",
-            PlanRefusalCause::OutOfOrderKey => "writes its keys out of the one order the grammar allows",
+            PlanRefusalCause::OutOfOrderKey => {
+                "writes its keys out of the one order the grammar allows"
+            }
             PlanRefusalCause::RepeatedKey => "writes one key twice",
             PlanRefusalCause::MissingKey => "lacks a key the grammar requires",
             PlanRefusalCause::NotCanonical => "holds a field that is not its canonical spelling",
-            PlanRefusalCause::CountDisagrees => "declares an attempt count that disagrees with the lines it holds",
-            PlanRefusalCause::WrongAttemptKind => "holds an attempt line whose kind is not `snapshot`",
-            PlanRefusalCause::UnknownOutcome => "holds an outcome word outside the five the grammar has",
+            PlanRefusalCause::CountDisagrees => {
+                "declares an attempt count that disagrees with the lines it holds"
+            }
+            PlanRefusalCause::WrongAttemptKind => {
+                "holds an attempt line whose kind is not `snapshot`"
+            }
+            PlanRefusalCause::UnknownOutcome => {
+                "holds an outcome word outside the five the grammar has"
+            }
             PlanRefusalCause::UnknownHead => "holds a head word outside the five the grammar has",
-            PlanRefusalCause::DuplicateAttempt => "writes one snapshot name and attempt number twice",
+            PlanRefusalCause::DuplicateAttempt => {
+                "writes one snapshot name and attempt number twice"
+            }
             PlanRefusalCause::AttemptsOutOfOrder => "writes one snapshot's attempts out of order",
-            PlanRefusalCause::DestroyedHistoryReopened => "writes a line for a snapshot whose history a `destroyed` line closed",
+            PlanRefusalCause::DestroyedHistoryReopened => {
+                "writes a line for a snapshot whose history a `destroyed` line closed"
+            }
             PlanRefusalCause::LineTooWide => "holds a line wider than the grammar's line bound",
             PlanRefusalCause::Oversized => "is larger than its declared attempt count allows",
-            PlanRefusalCause::ForeignName => "is filed under a name that is not a clone's canonical numeric GUID",
-            PlanRefusalCause::NameDisagreesWithTheRecord => "is filed under a name its own `cloneGuid` does not carry",
+            PlanRefusalCause::ForeignName => {
+                "is filed under a name that is not a clone's canonical numeric GUID"
+            }
+            PlanRefusalCause::NameDisagreesWithTheRecord => {
+                "is filed under a name its own `cloneGuid` does not carry"
+            }
             PlanRefusalCause::NotARegularFile => "is not a regular file",
             PlanRefusalCause::Unreadable => "could not be read",
             PlanRefusalCause::FolderMode => "sits in a folder whose mode is not `0700`",
-            PlanRefusalCause::WrongOwner => "is not owned by the account that owns the common Git directory",
+            PlanRefusalCause::WrongOwner => {
+                "is not owned by the account that owns the common Git directory"
+            }
             PlanRefusalCause::MissingErrno => "carries a `refused` line with no errno",
-            PlanRefusalCause::ErrnoOnAnotherLine => "carries an errno on a line whose outcome is not a refusal",
+            PlanRefusalCause::ErrnoOnAnotherLine => {
+                "carries an errno on a line whose outcome is not a refusal"
+            }
             PlanRefusalCause::FieldTooWide => "holds a field wider than its own bound",
-            PlanRefusalCause::WriterWouldNotReadItBack => "is a record this build's own reader would refuse",
+            PlanRefusalCause::WriterWouldNotReadItBack => {
+                "is a record this build's own reader would refuse"
+            }
         };
     }
 }
@@ -163,13 +191,28 @@ pub struct PlanRefusal {
 
 impl PlanRefusal {
     /// One refusal with the field it names.
-    pub fn at(cause: PlanRefusalCause, field: impl Into<String>, found: impl Into<String>) -> PlanRefusal {
-        return PlanRefusal { cause, field: Some(field.into()), found: found.into() };
+    pub fn at(
+        cause: PlanRefusalCause,
+        field: impl Into<String>,
+        found: impl Into<String>,
+    ) -> PlanRefusal {
+        return PlanRefusal {
+            cause,
+            field: Some(field.into()),
+            found: found.into(),
+        };
     }
 
     /// One refusal that names no single field.
-    pub fn of(cause: PlanRefusalCause, found: impl Into<String>) -> PlanRefusal {
-        return PlanRefusal { cause, field: None, found: found.into() };
+    pub fn of(
+        cause: PlanRefusalCause,
+        found: impl Into<String>,
+    ) -> PlanRefusal {
+        return PlanRefusal {
+            cause,
+            field: None,
+            found: found.into(),
+        };
     }
 
     /// What:
@@ -184,7 +227,10 @@ impl PlanRefusal {
     /// ```ts
     /// refusal.message(path) // "the plan at ... ; nothing was destroyed ..."
     /// ```
-    pub fn message(&self, plan: &Path) -> String {
+    pub fn message(
+        &self,
+        plan: &Path,
+    ) -> String {
         let where_: String = match &self.field {
             Some(field) => format!("at `{field}`"),
             None => String::from("in its bytes"),

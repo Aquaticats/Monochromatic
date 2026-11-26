@@ -32,15 +32,32 @@
 //! await save(dir, plan); const plans = await load(dir); await remove(dir, gitDir, branchRef);
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_once_awaited_no_longer_than,
+};
 use crate::path_bytes_in_records as path_bytes;
-use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
+use crate::private_storage::{
+    ReadRefusal,
+    create_private_directory_all,
+    read_regular_file,
+    write_private_file_unsynced,
+};
 use crate::push_failure_notice::fnv_hex;
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::work_item::WorkItem;
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The record format version.
 pub const PLAN_VERSION: u64 = 1;
@@ -85,7 +102,10 @@ pub struct StoredPlan {
 /// so two directories whose paths differ only in a byte that is not text get a key each;
 /// their text is the same,
 /// and a shared key would let the plan of the second remove the plan of the first.
-fn branch_key(git_dir: &Path, branch_ref: &str) -> String {
+fn branch_key(
+    git_dir: &Path,
+    branch_ref: &str,
+) -> String {
     return fnv_hex(format!("{}\n{branch_ref}", path_bytes::hex_of_path(git_dir)).as_str());
 }
 
@@ -94,7 +114,10 @@ fn branch_key(git_dir: &Path, branch_ref: &str) -> String {
 /// Why:
 ///   A plan file an earlier release wrote carries this key,
 /// and `remove` after an upgrade would otherwise leave it to be read again at every start.
-fn earlier_branch_key(git_dir: &Path, branch_ref: &str) -> String {
+fn earlier_branch_key(
+    git_dir: &Path,
+    branch_ref: &str,
+) -> String {
     return fnv_hex(format!("{}\n{branch_ref}", git_dir.display()).as_str());
 }
 
@@ -102,7 +125,12 @@ fn earlier_branch_key(git_dir: &Path, branch_ref: &str) -> String {
 /// the branch's key,
 /// the try number and a hash of the commit.
 fn plan_name(plan: &StoredPlan) -> String {
-    return format!("{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}", branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), plan.attempt, fnv_hex(plan.item.oid.as_str()));
+    return format!(
+        "{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}",
+        branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()),
+        plan.attempt,
+        fnv_hex(plan.item.oid.as_str())
+    );
 }
 
 /// The text of a plan file.
@@ -157,7 +185,11 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
         return Err(String::from("the plan holds no push item"));
     };
     let item: WorkItem = WorkItem::decode(item_text)?;
-    return Ok(StoredPlan { git_dir: path_bytes::read_field(&value, "gitDir")?, item, attempt });
+    return Ok(StoredPlan {
+        git_dir: path_bytes::read_field(&value, "gitDir")?,
+        item,
+        attempt,
+    });
 }
 
 /// What:
@@ -171,12 +203,18 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
 /// ```ts
 /// await writeExclusive(join(dir, name(plan)), encode(plan)); await removeOthersOfBranch(dir, plan);
 /// ```
-pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
+pub fn save(
+    directory: &Path,
+    plan: &StoredPlan,
+) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the plan directory failed: {error}"));
     }
     let name: String = plan_name(plan);
-    match write_private_file_unsynced(directory.join(name.as_str()).as_path(), encode(plan).as_bytes()) {
+    match write_private_file_unsynced(
+        directory.join(name.as_str()).as_path(),
+        encode(plan).as_bytes(),
+    ) {
         Ok(()) => {}
         // The same try of the same commit is already there.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -186,7 +224,10 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         directory,
         plan.git_dir.as_path(),
         plan.item.branch_ref.as_str(),
-        &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())],
+        &[
+            branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()),
+            earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()),
+        ],
         std::slice::from_ref(&name),
     );
     return Ok(());
@@ -210,8 +251,21 @@ pub fn name_of(plan: &StoredPlan) -> String {
 /// ```ts
 /// removeFilesOf(gitDir, branchRef, keys, [])
 /// ```
-pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
+pub fn remove(
+    directory: &Path,
+    git_dir: &Path,
+    branch_ref: &str,
+) {
+    remove_files_of(
+        directory,
+        git_dir,
+        branch_ref,
+        &[
+            branch_key(git_dir, branch_ref),
+            earlier_branch_key(git_dir, branch_ref),
+        ],
+        &[],
+    );
 }
 
 /// What:
@@ -235,15 +289,19 @@ pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
 /// ```ts
 /// await aPlanFileStep(AFTER_COMMIT_STATE_CEILING, () => save(dir, plan))
 /// ```
-async fn a_plan_file_step_awaited_no_longer_than(ceiling: Duration, step: &str, job: impl FnOnce() -> Result<(), String> + Send + 'static) -> Result<(), String> {
+async fn a_plan_file_step_awaited_no_longer_than(
+    ceiling: Duration,
+    step: &str,
+    job: impl FnOnce() -> Result<(), String> + Send + 'static,
+) -> Result<(), String> {
     return match run_a_job_once_awaited_no_longer_than(ceiling, job).await {
         TheAnswerOfAJobAwaited::Ran(answer) => answer,
-        TheAnswerOfAJobAwaited::NotRun => {
-            Err(format!("{step} did not run, because no place of the process's bound and no thread came within {ceiling:?}"))
-        }
-        TheAnswerOfAJobAwaited::NoAnswer => {
-            Err(format!("{step} gave no answer within {ceiling:?}, so what it began may still be being written"))
-        }
+        TheAnswerOfAJobAwaited::NotRun => Err(format!(
+            "{step} did not run, because no place of the process's bound and no thread came within {ceiling:?}"
+        )),
+        TheAnswerOfAJobAwaited::NoAnswer => Err(format!(
+            "{step} gave no answer within {ceiling:?}, so what it began may still be being written"
+        )),
     };
 }
 
@@ -276,11 +334,18 @@ struct PlanJournal {
 /// ```ts
 /// await saveAwaiting(dir, plan)
 /// ```
-pub async fn save_awaiting(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
+pub async fn save_awaiting(
+    directory: &Path,
+    plan: &StoredPlan,
+) -> Result<(), String> {
     let state: (PathBuf, StoredPlan) = (directory.to_path_buf(), plan.clone());
-    return a_plan_file_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the write of a retry plan", move || {
-        return save(state.0.as_path(), &state.1);
-    })
+    return a_plan_file_step_awaited_no_longer_than(
+        AFTER_COMMIT_STATE_CEILING,
+        "the write of a retry plan",
+        move || {
+            return save(state.0.as_path(), &state.1);
+        },
+    )
     .await;
 }
 
@@ -297,12 +362,28 @@ pub async fn save_awaiting(directory: &Path, plan: &StoredPlan) -> Result<(), St
 /// ```ts
 /// await removeAwaiting(dir, gitDir, branchRef)
 /// ```
-pub async fn remove_awaiting(directory: &Path, git_dir: &Path, branch_ref: &str) -> Result<(), String> {
-    let state: PlanJournal = PlanJournal { directory: directory.to_path_buf(), git_dir: git_dir.to_path_buf(), branch_ref: String::from(branch_ref) };
-    return a_plan_file_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the removal of a branch's retry plan", move || {
-        remove(state.directory.as_path(), state.git_dir.as_path(), state.branch_ref.as_str());
-        return Ok(());
-    })
+pub async fn remove_awaiting(
+    directory: &Path,
+    git_dir: &Path,
+    branch_ref: &str,
+) -> Result<(), String> {
+    let state: PlanJournal = PlanJournal {
+        directory: directory.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: String::from(branch_ref),
+    };
+    return a_plan_file_step_awaited_no_longer_than(
+        AFTER_COMMIT_STATE_CEILING,
+        "the removal of a branch's retry plan",
+        move || {
+            remove(
+                state.directory.as_path(),
+                state.git_dir.as_path(),
+                state.branch_ref.as_str(),
+            );
+            return Ok(());
+        },
+    )
     .await;
 }
 
@@ -324,13 +405,22 @@ pub async fn remove_awaiting(directory: &Path, git_dir: &Path, branch_ref: &str)
 /// since deleting it needs permission on its directory alone.
 ///  The names in `keep` are the plans a round is about to write,
 /// which a forget of the same round must not take.
-fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String]) {
+fn remove_files_of(
+    directory: &Path,
+    git_dir: &Path,
+    branch_ref: &str,
+    keys: &[String],
+    keep: &[String],
+) {
     let listing = match std::fs::read_dir(directory) {
         Ok(listing) => listing,
         // A journal that never held a plan.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
         Err(error) => {
-            crate::service_warn!("the plan files of {branch_ref} in {} could not be listed, so the next start reads them again: {error}", directory.display());
+            crate::service_warn!(
+                "the plan files of {branch_ref} in {} could not be listed, so the next start reads them again: {error}",
+                directory.display()
+            );
             return;
         }
     };
@@ -339,7 +429,10 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
             Ok(entry) => entry,
             // An entry the listing could not read may be a plan of this branch, and it stays to be read again.
             Err(error) => {
-                crate::service_warn!("the plan files of {branch_ref} in {} could not all be listed, so the next start reads them again: {error}", directory.display());
+                crate::service_warn!(
+                    "the plan files of {branch_ref} in {} could not all be listed, so the next start reads them again: {error}",
+                    directory.display()
+                );
                 continue;
             }
         };
@@ -353,7 +446,10 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
         }
         // A plan that stays says so, so a try the person was told about is not lost in silence.
         if let Err(error) = std::fs::remove_file(path.as_path()) {
-            crate::service_warn!("the retry plan file {} could not be removed, so the next start reads it again: {error}", path.display());
+            crate::service_warn!(
+                "the retry plan file {} could not be removed, so the next start reads it again: {error}",
+                path.display()
+            );
         }
     }
 }
@@ -368,15 +464,28 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
 /// (`private_storage::read_regular_file`):
 /// never through a link,
 /// and never waiting inside `open(2)` for a writer that a name holding a pipe waits for.
-fn records_this_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
-    let Ok(bytes) = read_regular_file(path, PLAN_FILE_LIMIT) else { return false };
-    let Ok(text) = std::str::from_utf8(bytes.as_slice()) else { return false };
-    let Ok(found) = decode(text) else { return false };
+fn records_this_branch(
+    path: &Path,
+    git_dir: &Path,
+    branch_ref: &str,
+) -> bool {
+    let Ok(bytes) = read_regular_file(path, PLAN_FILE_LIMIT) else {
+        return false;
+    };
+    let Ok(text) = std::str::from_utf8(bytes.as_slice()) else {
+        return false;
+    };
+    let Ok(found) = decode(text) else {
+        return false;
+    };
     return found.git_dir == git_dir && found.item.branch_ref == branch_ref;
 }
 
 /// Whether a plan file's name begins with the key of one of the branch's plans.
-fn names_the_branch(keys: &[String], name: &str) -> bool {
+fn names_the_branch(
+    keys: &[String],
+    name: &str,
+) -> bool {
     for key in keys {
         if name.starts_with(format!("{key}{NAME_SEPARATOR}").as_str()) {
             return true;
@@ -387,7 +496,10 @@ fn names_the_branch(keys: &[String], name: &str) -> bool {
 
 /// Order two stored plans with the one written later first;
 /// equal times keep their order (the sort is stable).
-fn newest_first(left: &(SystemTime, StoredPlan), right: &(SystemTime, StoredPlan)) -> std::cmp::Ordering {
+fn newest_first(
+    left: &(SystemTime, StoredPlan),
+    right: &(SystemTime, StoredPlan),
+) -> std::cmp::Ordering {
     return right.0.cmp(&left.0);
 }
 
@@ -447,10 +559,18 @@ pub fn load_reporting(directory: &Path) -> LoadedPlans {
     let listing = match std::fs::read_dir(directory) {
         Ok(listing) => listing,
         // A journal that never held a plan.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return LoadedPlans::default(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return LoadedPlans::default();
+        }
         Err(error) => {
-            crate::service_warn!("the retry plans in {} could not be listed, so they are read again after a pause: {error}", directory.display());
-            return LoadedPlans { plans: Vec::new(), unread: true };
+            crate::service_warn!(
+                "the retry plans in {} could not be listed, so they are read again after a pause: {error}",
+                directory.display()
+            );
+            return LoadedPlans {
+                plans: Vec::new(),
+                unread: true,
+            };
         }
     };
     let listed = listing.map(|listed| {
@@ -459,7 +579,10 @@ pub fn load_reporting(directory: &Path) -> LoadedPlans {
             Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
             Err(_) => SystemTime::UNIX_EPOCH,
         };
-        return Ok(ListedPlan { path: entry.path(), written });
+        return Ok(ListedPlan {
+            path: entry.path(),
+            written,
+        });
     });
     return read_the_plans(directory, listed);
 }
@@ -502,7 +625,10 @@ struct ListedPlan {
 /// ```ts
 /// readThePlans(dir, listed) // an entry error sets unread
 /// ```
-fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result<ListedPlan>>) -> LoadedPlans {
+fn read_the_plans(
+    directory: &Path,
+    listed: impl Iterator<Item = std::io::Result<ListedPlan>>,
+) -> LoadedPlans {
     let mut unread: bool = false;
     let mut found: Vec<(SystemTime, StoredPlan)> = Vec::new();
     for listed_plan in listed {
@@ -510,7 +636,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
             Ok(plan) => (plan.path, plan.written),
             // An entry the listing could not read may be a plan, and no wake comes for the push it schedules.
             Err(error) => {
-                crate::service_warn!("the retry plans in {} could not all be listed, so they are read again after a pause: {error}", directory.display());
+                crate::service_warn!(
+                    "the retry plans in {} could not all be listed, so they are read again after a pause: {error}",
+                    directory.display()
+                );
                 unread = true;
                 continue;
             }
@@ -524,7 +653,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
             Err(ReadRefusal::Missing) => continue,
             // Nothing this store writes: a pipe, a link, a directory or a file no plan fits in.
             Err(ReadRefusal::NotRegular) => {
-                crate::service_warn!("the retry plan file {} is not a regular file, so it holds no plan and stays", path.display());
+                crate::service_warn!(
+                    "the retry plan file {} is not a regular file, so it holds no plan and stays",
+                    path.display()
+                );
                 continue;
             }
             Err(ReadRefusal::TooLarge) => {
@@ -536,7 +668,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
             }
             // A read that failed is no proof about the plan inside the file, so the file stays for the next read.
             Err(ReadRefusal::Io(error)) => {
-                crate::service_warn!("the retry plan file {} could not be read, so it stays and is read again after a pause: {error}", path.display());
+                crate::service_warn!(
+                    "the retry plan file {} could not be read, so it stays and is read again after a pause: {error}",
+                    path.display()
+                );
                 unread = true;
                 continue;
             }
@@ -544,7 +679,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
         let text: &str = match std::str::from_utf8(bytes.as_slice()) {
             Ok(text) => text,
             Err(_not_text) => {
-                crate::service_warn!("the retry plan file {} holds no plan and is removed: the plan is not text", path.display());
+                crate::service_warn!(
+                    "the retry plan file {} holds no plan and is removed: the plan is not text",
+                    path.display()
+                );
                 let _removed = std::fs::remove_file(path.as_path());
                 continue;
             }
@@ -552,7 +690,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
         match decode(text) {
             Ok(plan) => found.push((written, plan)),
             Err(reason) => {
-                crate::service_warn!("the retry plan file {} holds no plan and is removed: {reason}", path.display());
+                crate::service_warn!(
+                    "the retry plan file {} holds no plan and is removed: {reason}",
+                    path.display()
+                );
                 let _removed = std::fs::remove_file(path.as_path());
             }
         }
@@ -571,7 +712,10 @@ fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result
             plans.push(plan);
         }
     }
-    return LoadedPlans { plans, unread };
+    return LoadedPlans {
+        plans,
+        unread,
+    };
 }
 
 /// Plan file controls stay out of the release executable.

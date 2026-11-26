@@ -50,10 +50,19 @@ fn action_of(signal: std::os::raw::c_int) -> libc::sigaction {
 #[cfg(unix)]
 #[test]
 fn the_first_signal_is_noted_and_the_command_goes_on() {
-    if let Some(directory) = crate::helper_process_test_support::helper_directory(FIRST_SIGNAL_CHILD) {
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), the_first_signal_verdict()));
+    if let Some(directory) =
+        crate::helper_process_test_support::helper_directory(FIRST_SIGNAL_CHILD)
+    {
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            the_first_signal_verdict(),
+        ));
     }
-    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(FIRST_SIGNAL_CHILD, "service-interrupted-first-signal", "service::service_client_interrupted::tests::the_first_signal_is_noted_and_the_command_goes_on");
+    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(
+        FIRST_SIGNAL_CHILD,
+        "service-interrupted-first-signal",
+        "service::service_client_interrupted::tests::the_first_signal_is_noted_and_the_command_goes_on",
+    );
     assert!(failures.is_empty(), "{failures:?}");
 }
 
@@ -71,7 +80,9 @@ fn the_first_signal_verdict() -> Vec<String> {
         failures.push(String::from("the interrupt was sent"));
     }
     if stop() != Some((libc::SIGINT, own_process())) {
-        failures.push(String::from("the wait is told which signal came, and this process sent it"));
+        failures.push(String::from(
+            "the wait is told which signal came, and this process sent it",
+        ));
     }
     drop(watch);
     if stop().is_some() {
@@ -104,19 +115,27 @@ fn the_first_signal_verdict() -> Vec<String> {
 #[cfg(unix)]
 #[test]
 fn a_stop_wakes_the_read_the_wait_is_inside() {
-    if let Some(directory) = crate::helper_process_test_support::helper_directory(WAKING_READ_CHILD) {
+    if let Some(directory) = crate::helper_process_test_support::helper_directory(WAKING_READ_CHILD)
+    {
         // What: `exit` ends this helper with the verdict as its status, so the parent reads either the file or the status.
         // Why:  A helper that exited 0 without measuring would pass a parent that only read the status.
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), waking_read_verdict(directory.as_path())));
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            waking_read_verdict(directory.as_path()),
+        ));
     }
     let failures: Vec<String> = crate::helper_process_test_support::in_a_helper_then(
         WAKING_READ_CHILD,
         "service-interrupted-waking-read",
         "service::service_client_interrupted::tests::a_stop_wakes_the_read_the_wait_is_inside",
         |root, helper| {
-            crate::helper_process_test_support::wait_for_file_while_a_helper_runs(root.join(READING_MARKER).as_path(), helper);
+            crate::helper_process_test_support::wait_for_file_while_a_helper_runs(
+                root.join(READING_MARKER).as_path(),
+                helper,
+            );
             // SAFETY: `kill` takes no pointers, and the target is the helper this control started, never this test binary.
-            let target: libc::pid_t = libc::pid_t::try_from(helper.id()).expect("a helper pid fits the pid type");
+            let target: libc::pid_t =
+                libc::pid_t::try_from(helper.id()).expect("a helper pid fits the pid type");
             let sent: libc::c_int = unsafe { libc::kill(target, libc::SIGINT) };
             assert_eq!(sent, 0, "the interrupt was sent to the helper");
         },
@@ -153,7 +172,9 @@ static THE_STOP_WORD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// ```
 #[cfg(unix)]
 fn hold_the_stop_word() -> std::sync::MutexGuard<'static, ()> {
-    return THE_STOP_WORD.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+    return THE_STOP_WORD
+        .lock()
+        .unwrap_or_else(|poisoned| return poisoned.into_inner());
 }
 
 /// The variable that makes a run of the first-signal control its helper.
@@ -198,7 +219,8 @@ fn waking_read_verdict(directory: &std::path::Path) -> Vec<String> {
             let _held = libc::pthread_sigmask(libc::SIG_BLOCK, &held, std::ptr::null_mut());
         }
         let began: std::time::Instant = std::time::Instant::now();
-        let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> = std::io::BufReader::new(client);
+        let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> =
+            std::io::BufReader::new(client);
         let mut line: String = String::new();
         let awake = waking_the_read_of(reader.get_ref());
         // The marker is written after the descriptor is declared, so the parent's stop finds the wake already in place.
@@ -207,19 +229,27 @@ fn waking_read_verdict(directory: &std::path::Path) -> Vec<String> {
         drop(awake);
         return (read.is_ok(), began.elapsed());
     });
-    let (read_answered, waited): (bool, std::time::Duration) = reading.join().expect("the reading thread ends");
+    let (read_answered, waited): (bool, std::time::Duration) =
+        reading.join().expect("the reading thread ends");
     if !read_answered {
-        failures.push(String::from("the read ended with an answer, not with its timeout"));
+        failures.push(String::from(
+            "the read ended with an answer, not with its timeout",
+        ));
     }
     if waited >= std::time::Duration::from_secs(2) {
-        failures.push(format!("the read ended {} ms after it began", waited.as_millis()));
+        failures.push(format!(
+            "the read ended {} ms after it began",
+            waited.as_millis()
+        ));
     }
     // What: `getppid` is the process that started this helper, which is the test binary the parent ran the control in.
     // Why:  The kernel names the sender, and the parent is the only process that sent anything.
     let sender: i32 = i32::try_from(unsafe { libc::getppid() }).expect("a parent process ID fits");
     let stopped: Option<(i32, Option<i32>)> = stop();
     if stopped != Some((libc::SIGINT, Some(sender))) {
-        failures.push(format!("the stop is noted for the wait, with the sending process as its sender: {stopped:?}"));
+        failures.push(format!(
+            "the stop is noted for the wait, with the sending process as its sender: {stopped:?}"
+        ));
     }
     drop(watch);
     return failures;
@@ -243,9 +273,17 @@ fn waking_read_verdict(directory: &std::path::Path) -> Vec<String> {
 fn a_stop_that_names_its_sender_is_kept() {
     let _stop_word: std::sync::MutexGuard<'_, ()> = hold_the_stop_word();
     stop_requested_for_test(libc::SIGTERM, Some(4_242));
-    assert_eq!(stop(), Some((libc::SIGTERM, Some(4_242))), "the process that sent the stop is kept");
+    assert_eq!(
+        stop(),
+        Some((libc::SIGTERM, Some(4_242))),
+        "the process that sent the stop is kept"
+    );
     stop_requested_for_test(libc::SIGINT, None);
-    assert_eq!(stop(), Some((libc::SIGINT, None)), "a keyboard's interrupt names no process");
+    assert_eq!(
+        stop(),
+        Some((libc::SIGINT, None)),
+        "a keyboard's interrupt names no process"
+    );
 }
 
 /// What:
@@ -264,9 +302,16 @@ fn a_stop_that_names_its_sender_is_kept() {
 #[test]
 fn the_wait_answers_a_hangup_and_a_quit_too() {
     if let Some(directory) = crate::helper_process_test_support::helper_directory(HANGUP_CHILD) {
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), the_hangup_verdict()));
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            the_hangup_verdict(),
+        ));
     }
-    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(HANGUP_CHILD, "service-interrupted-hangup", "service::service_client_interrupted::tests::the_wait_answers_a_hangup_and_a_quit_too");
+    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(
+        HANGUP_CHILD,
+        "service-interrupted-hangup",
+        "service::service_client_interrupted::tests::the_wait_answers_a_hangup_and_a_quit_too",
+    );
     assert!(failures.is_empty(), "{failures:?}");
 }
 
@@ -277,7 +322,10 @@ fn the_hangup_verdict() -> Vec<String> {
     // No core file for the quit this control sends a process that may not answer it yet.
     // SAFETY: `setrlimit` takes a number, a `rlimit` of this local and the value of the constant; it touches no other
     //  memory and this is the one process the call changes.
-    let bounded: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let bounded: libc::rlimit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
     let _limited = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &bounded) };
     for signal in [libc::SIGHUP, libc::SIGQUIT] {
         let watch: StopWatch = watch_for_a_stop();
@@ -287,7 +335,9 @@ fn the_hangup_verdict() -> Vec<String> {
             failures.push(format!("signal {signal} was sent"));
         }
         if stop() != Some((signal, own_process())) {
-            failures.push(format!("the wait is told which signal came, and this control sent it: {signal}"));
+            failures.push(format!(
+                "the wait is told which signal came, and this control sent it: {signal}"
+            ));
         }
         drop(watch);
         if stop().is_some() {
@@ -323,7 +373,8 @@ fn a_second_signal_ends_the_process_by_it() {
         std::process::exit(0);
     }
     // The death by signal is the assertion, so this asks for the raw ending rather than for a passing test.
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(SECOND_SIGNAL_CHILD, std::ffi::OsStr::new("1"))];
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(SECOND_SIGNAL_CHILD, std::ffi::OsStr::new("1"))];
     let output: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
         exact_test: "service::service_client_interrupted::tests::a_second_signal_ends_the_process_by_it",
         environment: environment.as_slice(),
@@ -355,10 +406,18 @@ fn a_second_signal_ends_the_process_by_it() {
 #[cfg(unix)]
 #[test]
 fn the_actions_in_place_come_back_when_the_watch_ends() {
-    if let Some(directory) = crate::helper_process_test_support::helper_directory(DISPOSITION_CHILD) {
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), the_actions_come_back_verdict()));
+    if let Some(directory) = crate::helper_process_test_support::helper_directory(DISPOSITION_CHILD)
+    {
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            the_actions_come_back_verdict(),
+        ));
     }
-    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(DISPOSITION_CHILD, "service-interrupted-disposition", "service::service_client_interrupted::tests::the_actions_in_place_come_back_when_the_watch_ends");
+    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(
+        DISPOSITION_CHILD,
+        "service-interrupted-disposition",
+        "service::service_client_interrupted::tests::the_actions_in_place_come_back_when_the_watch_ends",
+    );
     assert!(failures.is_empty(), "{failures:?}");
 }
 
@@ -406,9 +465,16 @@ fn the_actions_come_back_verdict() -> Vec<String> {
 #[test]
 fn a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop() {
     if let Some(directory) = crate::helper_process_test_support::helper_directory(IGNORE_CHILD) {
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), the_ignored_signal_verdict()));
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            the_ignored_signal_verdict(),
+        ));
     }
-    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(IGNORE_CHILD, "service-interrupted-ignored", "service::service_client_interrupted::tests::a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop");
+    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(
+        IGNORE_CHILD,
+        "service-interrupted-ignored",
+        "service::service_client_interrupted::tests::a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop",
+    );
     assert!(failures.is_empty(), "{failures:?}");
 }
 
@@ -429,18 +495,25 @@ fn the_ignored_signal_verdict() -> Vec<String> {
     }
     let watch: StopWatch = watch_for_a_stop();
     if action_of(libc::SIGHUP).sa_sigaction != libc::SIG_IGN {
-        failures.push(String::from("the caller's ignore of the hang-up is left in place"));
+        failures.push(String::from(
+            "the caller's ignore of the hang-up is left in place",
+        ));
     }
     if action_of(libc::SIGQUIT).sa_sigaction != libc::SIG_IGN {
-        failures.push(String::from("the caller's ignore of the quit is left in place"));
+        failures.push(String::from(
+            "the caller's ignore of the quit is left in place",
+        ));
     }
     // SAFETY: `raise` sends one signal to this thread; both signals are ignored, so neither can end this control.
-    let raised: (libc::c_int, libc::c_int) = unsafe { (libc::raise(libc::SIGHUP), libc::raise(libc::SIGQUIT)) };
+    let raised: (libc::c_int, libc::c_int) =
+        unsafe { (libc::raise(libc::SIGHUP), libc::raise(libc::SIGQUIT)) };
     if raised != (0, 0) {
         failures.push(String::from("the shielded signals were sent"));
     }
     if stop().is_some() {
-        failures.push(String::from("a signal the caller ignored is no stop of the commit"));
+        failures.push(String::from(
+            "a signal the caller ignored is no stop of the commit",
+        ));
     }
     // The other watched signals are still answered: the ignore is what is honoured, not the whole watch.
     // SAFETY: `raise` sends one signal to this thread, whose watch notes it.
@@ -449,7 +522,9 @@ fn the_ignored_signal_verdict() -> Vec<String> {
         failures.push(String::from("the stop was sent"));
     }
     if stop() != Some((libc::SIGTERM, own_process())) {
-        failures.push(String::from("a signal the caller did not ignore is still a stop, and this control sent it"));
+        failures.push(String::from(
+            "a signal the caller did not ignore is still a stop, and this control sent it",
+        ));
     }
     drop(watch);
     // SAFETY: the two dispositions read at the start are the process's own; putting them back touches no memory.
@@ -480,10 +555,18 @@ fn a_stop_relayed_during_the_preparation_keeps_the_sender_the_kernel_named() {
     let _stale = crate::signal_relay_relayed_stop::take();
     stop_requested_for_test(0, None);
     crate::signal_relay_relayed_stop::note(libc::SIGTERM, Some(4_242));
-    assert_eq!(stop(), Some((libc::SIGTERM, Some(4_242))), "the wait learns the signal the relay kept, with the process the kernel named");
+    assert_eq!(
+        stop(),
+        Some((libc::SIGTERM, Some(4_242))),
+        "the wait learns the signal the relay kept, with the process the kernel named"
+    );
     // A relayed stop with no sender is no sender, and never the one the last stop named.
     crate::signal_relay_relayed_stop::note(libc::SIGTERM, None);
-    assert_eq!(stop(), Some((libc::SIGTERM, None)), "the second stop is taken too, and names no process");
+    assert_eq!(
+        stop(),
+        Some((libc::SIGTERM, None)),
+        "the second stop is taken too, and names no process"
+    );
 }
 
 /// What:
@@ -531,7 +614,11 @@ fn a_stop_that_arrives_while_the_first_is_answered_never_renames_its_sender() {
     // And the shape the handler writes reads back as one fact: both halves in one call.
     stop_requested_for_test(0, None);
     stop_requested_for_test(libc::SIGTERM, Some(FIRST_SENDER));
-    assert_eq!(stop(), Some((libc::SIGTERM, Some(FIRST_SENDER))), "a stop's signal and sender come back together");
+    assert_eq!(
+        stop(),
+        Some((libc::SIGTERM, Some(FIRST_SENDER))),
+        "a stop's signal and sender come back together"
+    );
 }
 
 /// What:

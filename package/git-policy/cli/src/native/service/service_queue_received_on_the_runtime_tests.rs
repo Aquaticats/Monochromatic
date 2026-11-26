@@ -21,7 +21,10 @@ fn an_item_queued_before_the_wait_is_received() {
     let (sender, mut receiver) = unbounded_channel::<u8>();
     sender.send(1).expect("queued");
     sender.send(2).expect("queued");
-    assert_eq!(receive_for_at_most(&mut receiver, Some(PATIENCE)), Received::Item(1));
+    assert_eq!(
+        receive_for_at_most(&mut receiver, Some(PATIENCE)),
+        Received::Item(1)
+    );
     assert_eq!(receive_for_at_most(&mut receiver, None), Received::Item(2));
 }
 
@@ -34,7 +37,10 @@ fn an_item_sent_during_the_wait_is_received_before_the_bound() {
         std::thread::sleep(SHORT_BOUND);
         sender.send(7).expect("queued");
     });
-    assert_eq!(receive_for_at_most(&mut receiver, Some(PATIENCE)), Received::Item(7));
+    assert_eq!(
+        receive_for_at_most(&mut receiver, Some(PATIENCE)),
+        Received::Item(7)
+    );
     assert!(began.elapsed() < PATIENCE, "the item ended the wait");
     sending.join().expect("the sender");
 }
@@ -44,7 +50,10 @@ fn an_item_sent_during_the_wait_is_received_before_the_bound() {
 fn an_empty_queue_times_out_at_its_bound() {
     let (_sender, mut receiver) = unbounded_channel::<u8>();
     let began: Instant = Instant::now();
-    assert_eq!(receive_for_at_most(&mut receiver, Some(SHORT_BOUND)), Received::Timeout);
+    assert_eq!(
+        receive_for_at_most(&mut receiver, Some(SHORT_BOUND)),
+        Received::Timeout
+    );
     assert!(began.elapsed() >= SHORT_BOUND, "{:?}", began.elapsed());
 }
 
@@ -55,7 +64,13 @@ fn a_queue_whose_senders_are_gone_gives_its_items_then_closes() {
     let (sender, mut receiver) = unbounded_channel::<u8>();
     sender.send(3).expect("queued");
     drop(sender);
-    assert_eq!(receive_for_at_most(&mut receiver, Some(PATIENCE)), Received::Item(3));
-    assert_eq!(receive_for_at_most(&mut receiver, Some(PATIENCE)), Received::Closed);
+    assert_eq!(
+        receive_for_at_most(&mut receiver, Some(PATIENCE)),
+        Received::Item(3)
+    );
+    assert_eq!(
+        receive_for_at_most(&mut receiver, Some(PATIENCE)),
+        Received::Closed
+    );
     assert_eq!(receive_for_at_most(&mut receiver, None), Received::Closed);
 }

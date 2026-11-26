@@ -2,7 +2,10 @@
 //!  each in its own disposable directory.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A staging file for `path` with `content` in it,
@@ -10,11 +13,20 @@ use std::path::PathBuf;
 ///  nor hard links gives (`s3fs-fuse` answers `ENOTSUP` to the link),
 /// as `persist_noclobber` reports it with the file handed back.
 #[cfg(unix)]
-fn refused_publish(path: &Path, content: &[u8]) -> (PathBuf, Result<std::fs::File, tempfile::PersistError>) {
+fn refused_publish(
+    path: &Path,
+    content: &[u8],
+) -> (PathBuf, Result<std::fs::File, tempfile::PersistError>) {
     let mut staged: tempfile::NamedTempFile = staging_beside(path).expect("staging file");
-    staged.as_file_mut().write_all(content).expect("staged content");
+    staged
+        .as_file_mut()
+        .write_all(content)
+        .expect("staged content");
     let staged_path: PathBuf = staged.path().to_path_buf();
-    let refusal: tempfile::PersistError = tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged };
+    let refusal: tempfile::PersistError = tempfile::PersistError {
+        error: std::io::Error::from_raw_os_error(libc::ENOTSUP),
+        file: staged,
+    };
     return (staged_path, Err(refusal));
 }
 
@@ -30,9 +42,13 @@ fn a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename
     let root: PathBuf = fixture("publish-neither");
     let path: PathBuf = root.join("published");
     let (staged_path, outcome) = refused_publish(path.as_path(), b"whole");
-    assert!(staged_path.exists(), "the control: the staged file exists before the publish");
+    assert!(
+        staged_path.exists(),
+        "the control: the staged file exists before the publish"
+    );
     assert!(!path.exists(), "the control: nothing is published yet");
-    settle_exclusive_publish(path.as_path(), outcome).expect("the refusal is answered by the rename");
+    settle_exclusive_publish(path.as_path(), outcome)
+        .expect("the refusal is answered by the rename");
     assert_eq!(std::fs::read(&path).expect("published content"), b"whole");
     assert!(!staged_path.exists(), "the rename moved the staged file");
     remove(root.as_path());
@@ -49,10 +65,14 @@ fn the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file() {
     let path: PathBuf = root.join("record");
     std::fs::write(&path, b"old").expect("record");
     let (staged_path, outcome) = refused_publish(path.as_path(), b"new");
-    let error: std::io::Error = settle_exclusive_publish(path.as_path(), outcome).expect_err("the name is taken");
+    let error: std::io::Error =
+        settle_exclusive_publish(path.as_path(), outcome).expect_err("the name is taken");
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(std::fs::read(&path).expect("record"), b"old");
-    assert!(!staged_path.exists(), "the refused publish removed its staging file");
+    assert!(
+        !staged_path.exists(),
+        "the refused publish removed its staging file"
+    );
     remove(root.as_path());
 }
 
@@ -67,11 +87,22 @@ fn a_taken_name_is_refused_with_the_operating_systems_error() {
     let root: PathBuf = fixture("publish-taken");
     let path: PathBuf = root.join("record");
     std::fs::write(&path, b"old").expect("record");
-    let error: std::io::Error = write_private_file(path.as_path(), b"new").expect_err("the name is taken");
+    let error: std::io::Error =
+        write_private_file(path.as_path(), b"new").expect_err("the name is taken");
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
-    assert_eq!(error.raw_os_error(), Some(libc::EEXIST), "the publish's own refusal, not a rebuilt one");
+    assert_eq!(
+        error.raw_os_error(),
+        Some(libc::EEXIST),
+        "the publish's own refusal, not a rebuilt one"
+    );
     assert_eq!(std::fs::read(&path).expect("record"), b"old");
-    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    let names: Vec<String> = std::fs::read_dir(&root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     assert_eq!(names, vec![String::from("record")], "no staging file stays");
     remove(root.as_path());
 }
@@ -88,15 +119,38 @@ fn a_published_record_is_private_and_a_failed_publish_leaves_nothing() {
     let root: PathBuf = fixture("publish-private");
     let path: PathBuf = root.join("record");
     write_private_file_unsynced(path.as_path(), b"whole").expect("publish");
-    assert_eq!(std::fs::metadata(&path).expect("record").permissions().mode() & 0o777, PRIVATE_FILE_MODE);
+    assert_eq!(
+        std::fs::metadata(&path)
+            .expect("record")
+            .permissions()
+            .mode()
+            & 0o777,
+        PRIVATE_FILE_MODE
+    );
     let other: PathBuf = root.join("other");
-    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the disk filled")); })); });
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(|| {
+            return Err(std::io::Error::other("the disk filled"));
+        }));
+    });
     let failed: std::io::Result<()> = write_private_file_unsynced(other.as_path(), b"cut");
-    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = None;
+    });
     failed.expect_err("the injected failure");
-    let mut names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    let mut names: Vec<String> = std::fs::read_dir(&root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     names.sort();
-    assert_eq!(names, vec![String::from("record")], "the failed write left no record and no staging file");
+    assert_eq!(
+        names,
+        vec![String::from("record")],
+        "the failed write left no record and no staging file"
+    );
     remove(root.as_path());
 }
 
@@ -108,8 +162,11 @@ fn a_published_record_is_private_and_a_failed_publish_leaves_nothing() {
 #[test]
 fn a_failed_directory_flush_stays_an_error() {
     for code in [libc::EIO, libc::ENOSPC, libc::EDQUOT] {
-        let error: std::io::Error = settle_directory_sync(Path::new("/unused"), Err(std::io::Error::from_raw_os_error(code)))
-            .expect_err("a failed flush is not skipped");
+        let error: std::io::Error = settle_directory_sync(
+            Path::new("/unused"),
+            Err(std::io::Error::from_raw_os_error(code)),
+        )
+        .expect_err("a failed flush is not skipped");
         assert_eq!(error.raw_os_error(), Some(code));
     }
 }
@@ -122,8 +179,11 @@ fn a_failed_directory_flush_stays_an_error() {
 #[test]
 fn a_filesystem_without_directory_sync_counts_as_synced() {
     for code in [libc::EINVAL, libc::ENOTSUP, libc::ENOSYS] {
-        settle_directory_sync(Path::new("/unused"), Err(std::io::Error::from_raw_os_error(code)))
-            .expect("an unsupported directory sync is skipped");
+        settle_directory_sync(
+            Path::new("/unused"),
+            Err(std::io::Error::from_raw_os_error(code)),
+        )
+        .expect("an unsupported directory sync is skipped");
     }
     settle_directory_sync(Path::new("/unused"), Ok(())).expect("a sync that worked");
 }
@@ -138,10 +198,22 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
 #[test]
 fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
     let source: &str = include_str!("private_storage.rs");
-    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
-    assert!(code.contains("persist_noclobber"), "private_storage.rs does not publish through `persist_noclobber`");
+    let code: String = source
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    assert!(
+        code.contains("persist_noclobber"),
+        "private_storage.rs does not publish through `persist_noclobber`"
+    );
     for needle in ["hard_link", "random_uuid", "fn staging_path"] {
-        assert!(!code.contains(needle), "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate");
+        assert!(
+            !code.contains(needle),
+            "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate"
+        );
     }
 }
 
@@ -154,7 +226,8 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
 fn a_staging_file_that_cannot_be_made_reports_the_plain_system_error() {
     let root: PathBuf = fixture("publish-no-directory");
     let path: PathBuf = root.join("absent-directory").join("record");
-    let error: std::io::Error = write_private_file(path.as_path(), b"x").expect_err("the directory is missing");
+    let error: std::io::Error =
+        write_private_file(path.as_path(), b"x").expect_err("the directory is missing");
     assert_eq!(error.raw_os_error(), Some(libc::ENOENT));
     assert_eq!(error.to_string(), "No such file or directory (os error 2)");
     remove(root.as_path());

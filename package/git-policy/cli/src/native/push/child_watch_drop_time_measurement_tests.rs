@@ -10,9 +10,17 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::test_support::{SharedSink, fixture, remove, repository};
+use crate::test_support::{
+    SharedSink,
+    fixture,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// The longest time a stopped step took past its window until the call returned,
 /// in microseconds,
@@ -51,8 +59,12 @@ const OWNER_MARGIN: u32 = 3;
 #[test]
 fn the_end_bound_covers_a_stop_at_its_longest_and_the_longest_tail_measured() {
     let longest_stop: Duration = Duration::from_micros(LONGEST_DELAY_SEEN_MICROS) * OWNER_MARGIN;
-    let covered: Duration = longest_stop + Duration::from_micros(LONGEST_STOP_TAIL_SEEN_MICROS) * STOP_TAIL_MARGIN;
-    assert!(WATCHER_END_BOUND >= covered, "{WATCHER_END_BOUND:?} does not cover {covered:?}");
+    let covered: Duration =
+        longest_stop + Duration::from_micros(LONGEST_STOP_TAIL_SEEN_MICROS) * STOP_TAIL_MARGIN;
+    assert!(
+        WATCHER_END_BOUND >= covered,
+        "{WATCHER_END_BOUND:?} does not cover {covered:?}"
+    );
 }
 
 /// How many drops of each kind are timed.
@@ -67,9 +79,14 @@ const STOPS: usize = 20;
 /// the middle,
 /// the 99th and 99.9th percentile and the largest,
 /// in microseconds.
-fn print_spread(label: &str, mut micros: Vec<u128>) {
+fn print_spread(
+    label: &str,
+    mut micros: Vec<u128>,
+) {
     micros.sort_unstable();
-    let at = |per_thousand: usize| -> u128 { return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)]; };
+    let at = |per_thousand: usize| -> u128 {
+        return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)];
+    };
     println!(
         "{label}: n={} median={}us p99={}us p99.9={}us max={}us",
         micros.len(),
@@ -81,10 +98,16 @@ fn print_spread(label: &str, mut micros: Vec<u128>) {
 }
 
 /// Terms with a long window and a quick cadence.
-fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
+fn terms(
+    limit: Duration,
+    sink: &SharedSink,
+) -> WatchTerms {
     return WatchTerms {
         limit,
-        cadence: crate::wait_progress::Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) },
+        cadence: crate::wait_progress::Cadence {
+            grace: Duration::from_millis(60),
+            interval: Duration::from_millis(60),
+        },
         notices: Box::new(sink.clone()),
     };
 }
@@ -97,18 +120,27 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
 #[ignore = "a measurement for the handover, not a control"]
 fn measure_how_long_dropping_a_watch_takes() {
     let mut child: std::process::Child =
-        crate::test_support::spawn_owned(Command::new("sleep").arg("120").stdin(Stdio::null())).expect("a child to name");
+        crate::test_support::spawn_owned(Command::new("sleep").arg("120").stdin(Stdio::null()))
+            .expect("a child to name");
     let sink: SharedSink = SharedSink::default();
     let mut idle: Vec<u128> = Vec::new();
     let mut in_a_wait: Vec<u128> = Vec::new();
     for _ in 0..DROPS {
-        let idle_watch: ChildWatch = ChildWatch::start("an idle watch", child.id(), terms(Duration::from_secs(3600), &sink));
+        let idle_watch: ChildWatch = ChildWatch::start(
+            "an idle watch",
+            child.id(),
+            terms(Duration::from_secs(3600), &sink),
+        );
         // The task is started on a worker; let it reach its first wait for a mark.
         std::thread::sleep(Duration::from_millis(2));
         let idle_started: Instant = Instant::now();
         drop(idle_watch);
         idle.push(idle_started.elapsed().as_micros());
-        let waiting_watch: ChildWatch = ChildWatch::start("a watch in a wait", child.id(), terms(Duration::from_secs(3600), &sink));
+        let waiting_watch: ChildWatch = ChildWatch::start(
+            "a watch in a wait",
+            child.id(),
+            terms(Duration::from_secs(3600), &sink),
+        );
         waiting_watch.begin();
         std::thread::sleep(Duration::from_millis(80));
         let waiting_started: Instant = Instant::now();
@@ -118,15 +150,26 @@ fn measure_how_long_dropping_a_watch_takes() {
     child.kill().expect("end the child");
     child.wait().expect("collect the child");
     print_spread("drop between waits", idle);
-    print_spread("drop in the middle of a wait (a notice may be out)", in_a_wait);
+    print_spread(
+        "drop in the middle of a wait (a notice may be out)",
+        in_a_wait,
+    );
     let window: Duration = Duration::from_millis(300);
     let mut overshoot: Vec<u128> = Vec::new();
     for _ in 0..STOPS {
         let started: Instant = Instant::now();
-        output_watched(Command::new("sleep").arg("120").stdin(Stdio::null()), "a silent step", terms(window, &sink)).expect_err("ended");
+        output_watched(
+            Command::new("sleep").arg("120").stdin(Stdio::null()),
+            "a silent step",
+            terms(window, &sink),
+        )
+        .expect_err("ended");
         overshoot.push(started.elapsed().saturating_sub(window).as_micros());
     }
-    print_spread("a stopped step: time past its window until the call returns (signal, grace, lock sweep, drop)", overshoot);
+    print_spread(
+        "a stopped step: time past its window until the call returns (signal, grace, lock sweep, drop)",
+        overshoot,
+    );
     let root: PathBuf = fixture("drop-time-measurement");
     let repo: PathBuf = repository(root.as_path(), "repo");
     for number in 0..40 {
@@ -141,6 +184,9 @@ fn measure_how_long_dropping_a_watch_takes() {
         ledger.sweep();
         sweeps.push(started.elapsed().as_micros());
     }
-    print_spread("the lock sweep alone, in a repository of forty branches", sweeps);
+    print_spread(
+        "the lock sweep alone, in a repository of forty branches",
+        sweeps,
+    );
     remove(root.as_path());
 }

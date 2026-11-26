@@ -14,8 +14,18 @@
 //! ```
 
 use super::super::*;
-use super::fixtures::{World, an_earlier_releases_name, dead_owner, place, record_of, world};
-use super::readings::{judged_changes, the_bytes_of_a_commit};
+use super::fixtures::{
+    World,
+    an_earlier_releases_name,
+    dead_owner,
+    place,
+    record_of,
+    world,
+};
+use super::readings::{
+    judged_changes,
+    the_bytes_of_a_commit,
+};
 /// The put-back of the files a killed take left beside their paths.
 use crate::merge_isolation_recovery_steps::put_back_stranded_takes_awaiting;
 use crate::test_support::remove;
@@ -47,11 +57,19 @@ use std::path::PathBuf;
 fn a_copy_an_earlier_release_left_of_the_merges_own_file_is_put_back() {
     let world: World = world("merge-recovery-earlier-release-copy");
     let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
-    let _record: PathBuf = record_of(&world, dead_owner("23232323-0000-4000-8000-000000000023"), Some("refs/heads/main"));
+    let _record: PathBuf = record_of(
+        &world,
+        dead_owner("23232323-0000-4000-8000-000000000023"),
+        Some("refs/heads/main"),
+    );
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = an_earlier_releases_name(location.as_path());
     // The copy holds the branch's own file, which is what a take of an interrupted install moved aside.
-    std::fs::write(aside.as_path(), the_bytes_of_a_commit(&world, world.old_oid.as_str(), "f.txt")).expect("the copy");
+    std::fs::write(
+        aside.as_path(),
+        the_bytes_of_a_commit(&world, world.old_oid.as_str(), "f.txt"),
+    )
+    .expect("the copy");
     std::fs::remove_file(location.as_path()).expect("the path a killed take emptied");
     let mut said: Vec<u8> = Vec::new();
     crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
@@ -65,14 +83,20 @@ fn a_copy_an_earlier_release_left_of_the_merges_own_file_is_put_back() {
     ))
     .expect("the runtime of the controls");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(location.exists(), "the path holds the file the merge judged again");
+    assert!(
+        location.exists(),
+        "the path holds the file the merge judged again"
+    );
     assert_eq!(
         std::fs::read(location.as_path()).expect("the file is back"),
         the_bytes_of_a_commit(&world, world.old_oid.as_str(), "f.txt"),
         "its bytes are the ones it had"
     );
     assert!(!aside.exists(), "the copy is not a copy any more");
-    assert!(text.contains("put back"), "the putting back is said: {text}");
+    assert!(
+        text.contains("put back"),
+        "the putting back is said: {text}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -99,7 +123,11 @@ fn a_copy_an_earlier_release_left_of_the_merges_own_file_is_put_back() {
 fn a_copy_an_earlier_release_left_of_newer_bytes_stays_and_is_recorded() {
     let world: World = world("merge-recovery-earlier-release-newer");
     let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
-    let _record: PathBuf = record_of(&world, dead_owner("24242424-0000-4000-8000-000000000024"), Some("refs/heads/main"));
+    let _record: PathBuf = record_of(
+        &world,
+        dead_owner("24242424-0000-4000-8000-000000000024"),
+        Some("refs/heads/main"),
+    );
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = an_earlier_releases_name(location.as_path());
     std::fs::write(aside.as_path(), b"the person's own newer bytes\n").expect("the copy");
@@ -116,13 +144,30 @@ fn a_copy_an_earlier_release_left_of_newer_bytes_stays_and_is_recorded() {
     ))
     .expect("the runtime of the controls");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(!location.exists(), "the path the person emptied stays empty");
-    assert!(aside.exists(), "the bytes nothing else holds are kept");
-    assert_eq!(std::fs::read(aside.as_path()).expect("the copy"), b"the person's own newer bytes\n", "and they are whole");
-    assert!(text.contains(aside.to_string_lossy().as_ref()), "the copy is named: {text}");
-    assert!(text.contains("mv --"), "the line says how to put it back: {text}");
     assert!(
-        crate::merge_isolation_kept_copies::record_of_a_control(world.git_dir.as_path(), aside.as_path()).exists(),
+        !location.exists(),
+        "the path the person emptied stays empty"
+    );
+    assert!(aside.exists(), "the bytes nothing else holds are kept");
+    assert_eq!(
+        std::fs::read(aside.as_path()).expect("the copy"),
+        b"the person's own newer bytes\n",
+        "and they are whole"
+    );
+    assert!(
+        text.contains(aside.to_string_lossy().as_ref()),
+        "the copy is named: {text}"
+    );
+    assert!(
+        text.contains("mv --"),
+        "the line says how to put it back: {text}"
+    );
+    assert!(
+        crate::merge_isolation_kept_copies::record_of_a_control(
+            world.git_dir.as_path(),
+            aside.as_path()
+        )
+        .exists(),
         "the copy is recorded, so a later command decides it again"
     );
     remove(world.parent.as_path());
@@ -162,8 +207,15 @@ fn a_copy_the_persons_file_holds_again_is_removed() {
     .expect("the runtime of the controls");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(!aside.exists(), "the second copy goes");
-    assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), b"mine\n", "their file is untouched");
-    assert!(text.contains("holds those same bytes again"), "the line says why the copy went: {text}");
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("the person's file"),
+        b"mine\n",
+        "their file is untouched"
+    );
+    assert!(
+        text.contains("holds those same bytes again"),
+        "the line says why the copy went: {text}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -201,24 +253,46 @@ fn a_kept_copy_is_decided_once_more_and_ends_when_the_file_holds_its_bytes() {
         &mut said,
     ))
     .expect("the runtime of the controls");
-    let record: PathBuf = crate::merge_isolation_kept_copies::record_of_a_control(world.git_dir.as_path(), aside.as_path());
+    let record: PathBuf = crate::merge_isolation_kept_copies::record_of_a_control(
+        world.git_dir.as_path(),
+        aside.as_path(),
+    );
     assert!(record.exists(), "the copy is recorded");
     // A later command with no merge record in this worktree: the file the merge held is gone, so nothing judges the copy's
     //  bytes again, and the copy still ends.
     let mut later: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later)
+        .expect("recovery");
     assert!(outcomes.is_empty(), "no merge record is left to settle");
     let text: String = String::from_utf8(later).expect("the notices are UTF-8");
-    assert!(text.contains(aside.to_string_lossy().as_ref()), "the copy is named again: {text}");
-    assert_eq!(std::fs::read(location.as_path()).expect("the world's file"), b"f.txt base\n", "nothing was put back on a guess");
+    assert!(
+        text.contains(aside.to_string_lossy().as_ref()),
+        "the copy is named again: {text}"
+    );
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("the world's file"),
+        b"f.txt base\n",
+        "nothing was put back on a guess"
+    );
     // The person copies their bytes into the file themselves, which is the end the line named.
     std::fs::write(location.as_path(), kept).expect("the person's file holds the bytes again");
     let mut last: Vec<u8> = Vec::new();
-    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut last).expect("recovery");
+    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut last)
+        .expect("recovery");
     let ending: String = String::from_utf8(last).expect("the notices are UTF-8");
-    assert!(!aside.exists(), "the copy goes once the file holds its bytes");
+    assert!(
+        !aside.exists(),
+        "the copy goes once the file holds its bytes"
+    );
     assert!(!record.exists(), "and its record goes with it");
-    assert!(ending.contains("removed"), "the line says the copy went: {ending}");
-    assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), kept, "their file is untouched");
+    assert!(
+        ending.contains("removed"),
+        "the line says the copy went: {ending}"
+    );
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("the person's file"),
+        kept,
+        "their file is untouched"
+    );
     remove(world.parent.as_path());
 }

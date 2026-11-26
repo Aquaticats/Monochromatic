@@ -27,7 +27,11 @@
 //! ```
 
 /// The request value and the binding's own snapshot-destroy constructor.
-use monochromatic_zfs_request_to_openzfs_kernel_device::{NvList, Request, destroy_snaps};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    NvList,
+    Request,
+    destroy_snaps,
+};
 
 /// The refusal a set this route will not submit reports.
 use super::request_refusal::BatchRefusal;
@@ -48,7 +52,10 @@ pub const DEFER_KEY: &str = "defer";
 ///
 /// [`BatchRefusal::Unbuildable`] when the pool name does not fit the command
 /// field or a snapshot name cannot be packed.
-pub fn destroy_request(pool: &str, names: &[String]) -> Result<Request, BatchRefusal> {
+pub fn destroy_request(
+    pool: &str,
+    names: &[String],
+) -> Result<Request, BatchRefusal> {
     let borrowed: Vec<&str> = names
         .iter()
         .map(|name| {
@@ -77,7 +84,10 @@ pub fn destroy_request(pool: &str, names: &[String]) -> Result<Request, BatchRef
 /// # Throws
 ///
 /// [`BatchRefusal::Unbuildable`] as [`destroy_request`] does.
-pub fn encoded_request_bytes(pool: &str, names: &[String]) -> Result<usize, BatchRefusal> {
+pub fn encoded_request_bytes(
+    pool: &str,
+    names: &[String],
+) -> Result<usize, BatchRefusal> {
     let request: Request = destroy_request(pool, names)?;
     return Ok(request.input_bytes().len());
 }

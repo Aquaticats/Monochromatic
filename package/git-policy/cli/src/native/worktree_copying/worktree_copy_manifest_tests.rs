@@ -1,11 +1,18 @@
 //! Manifest and mode checks on real filesystem trees.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A manifest entry shorthand for expected values.
-fn entry(kind: EntryKind, mode: u32, relative_path: &[u8]) -> WorktreeCopyEntry {
+fn entry(
+    kind: EntryKind,
+    mode: u32,
+    relative_path: &[u8],
+) -> WorktreeCopyEntry {
     return WorktreeCopyEntry {
         kind,
         mode,
@@ -62,12 +69,9 @@ fn excluded_roots_are_omitted_with_descendants() {
     let root: PathBuf = fixture("manifest-excluded");
     tree(root.as_path());
     let excluded: Vec<PathBuf> = vec![root.join("cache/deep")];
-    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(
-        root.as_path(),
-        &[b"cache".to_vec()],
-        excluded.as_slice(),
-    )
-    .expect("manifest");
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(root.as_path(), &[b"cache".to_vec()], excluded.as_slice())
+            .expect("manifest");
     assert!(
         entries
             .iter()
@@ -215,7 +219,9 @@ fn retained_mode_of(path: &Path) -> u32 {
 #[cfg(unix)]
 #[test]
 fn a_name_that_is_not_text_is_one_entry_with_its_own_bytes() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_manifest::tests::a_name_that_is_not_text_is_one_entry_with_its_own_bytes") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_manifest::tests::a_name_that_is_not_text_is_one_entry_with_its_own_bytes",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStrExt;
@@ -233,7 +239,11 @@ fn a_name_that_is_not_text_is_one_entry_with_its_own_bytes() {
         .collect();
     assert_eq!(
         paths,
-        vec![b"cache".as_slice(), b"cache/bad\xff.bin", b"cache/plain.bin"],
+        vec![
+            b"cache".as_slice(),
+            b"cache/bad\xff.bin",
+            b"cache/plain.bin"
+        ],
         "the walk keeps the bytes of every name"
     );
     remove(root.as_path());

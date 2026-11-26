@@ -14,13 +14,24 @@
 //! expect(isSecondsWithOffset(nowWithOffset())).toBe(true);
 //! ```
 
-use super::{STAMP_WITH_OFFSET_BYTES, is_seconds_with_offset, now_with_offset};
+use super::{
+    STAMP_WITH_OFFSET_BYTES,
+    is_seconds_with_offset,
+    now_with_offset,
+};
 
 #[test]
 fn the_moment_this_process_writes_is_one_the_grammar_reads() {
     let now: String = now_with_offset();
-    assert_eq!(now.len(), STAMP_WITH_OFFSET_BYTES, "the stamp is its own fixed width: {now}");
-    assert!(is_seconds_with_offset(now.as_str()), "{now} is an ISO 8601 second with an offset");
+    assert_eq!(
+        now.len(),
+        STAMP_WITH_OFFSET_BYTES,
+        "the stamp is its own fixed width: {now}"
+    );
+    assert!(
+        is_seconds_with_offset(now.as_str()),
+        "{now} is an ISO 8601 second with an offset"
+    );
 }
 
 #[test]
@@ -37,6 +48,9 @@ fn a_stamp_without_an_offset_a_fraction_or_another_shape_is_refused() {
         "2026-11-22T18:40-05:00",
         "",
     ] {
-        assert!(!is_seconds_with_offset(refused), "`{refused}` is not this field's shape");
+        assert!(
+            !is_seconds_with_offset(refused),
+            "`{refused}` is not this field's shape"
+        );
     }
 }

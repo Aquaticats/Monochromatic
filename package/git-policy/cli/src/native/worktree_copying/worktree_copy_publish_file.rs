@@ -23,12 +23,31 @@
 //! await linkUnnamed(unnamed, destinationPath); // fails when anything is there
 //! ```
 
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use std::ffi::{CString, OsStr, OsString};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
+use std::ffi::{
+    CString,
+    OsStr,
+    OsString,
+};
 use std::io::Write;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::path::{Path, PathBuf};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The name a fallback temporary gets while it is being filled.
@@ -119,7 +138,10 @@ const RENAME_UNSUPPORTED_CODES: [i32; 3] = [libc::EINVAL, libc::ENOSYS, libc::EO
 /// ```ts
 /// const unsupported = (error, codes) => codes.includes(error.errno);
 /// ```
-fn is_unsupported(error: &std::io::Error, codes: &[i32]) -> bool {
+fn is_unsupported(
+    error: &std::io::Error,
+    codes: &[i32],
+) -> bool {
     return match error.raw_os_error() {
         Some(code) => codes.contains(&code),
         None => false,
@@ -215,7 +237,10 @@ fn last_name(path: &Path) -> Result<&OsStr, WorktreeCopyError> {
 /// ```ts
 /// const descriptor = openat(dir, '.', O_TMPFILE | O_WRONLY, mode);
 /// ```
-fn open_unnamed(directory: &std::fs::File, mode: u32) -> std::io::Result<std::fs::File> {
+fn open_unnamed(
+    directory: &std::fs::File,
+    mode: u32,
+) -> std::io::Result<std::fs::File> {
     let dot: CString = match CString::new(".") {
         Ok(text) => text,
         Err(_nul) => return Err(std::io::Error::from_raw_os_error(libc::EINVAL)),
@@ -233,7 +258,9 @@ fn open_unnamed(directory: &std::fs::File, mode: u32) -> std::io::Result<std::fs
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: `openat` returned a new descriptor that nothing else owns.
-    return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) }));
+    return Ok(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    }));
 }
 
 /// What:
@@ -248,7 +275,11 @@ fn open_unnamed(directory: &std::fs::File, mode: u32) -> std::io::Result<std::fs
 /// ```ts
 /// const descriptor = openat(dir, name, O_CREAT | O_EXCL | O_WRONLY, mode);
 /// ```
-fn create_named(directory: &std::fs::File, name: &OsStr, mode: u32) -> std::io::Result<std::fs::File> {
+fn create_named(
+    directory: &std::fs::File,
+    name: &OsStr,
+    mode: u32,
+) -> std::io::Result<std::fs::File> {
     let text: CString = CString::new(name.as_bytes()).map_err(invalid_name)?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
     let descriptor: libc::c_int = unsafe {
@@ -263,7 +294,9 @@ fn create_named(directory: &std::fs::File, name: &OsStr, mode: u32) -> std::io::
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: `openat` returned a new descriptor that nothing else owns.
-    return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) }));
+    return Ok(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    }));
 }
 
 /// What:
@@ -279,10 +312,14 @@ fn create_named(directory: &std::fs::File, name: &OsStr, mode: u32) -> std::io::
 /// ```ts
 /// await linkat(unnamed, destination); // EEXIST when anything is there
 /// ```
-fn link_unnamed(file: &std::fs::File, destination: &Path) -> std::io::Result<()> {
+fn link_unnamed(
+    file: &std::fs::File,
+    destination: &Path,
+) -> std::io::Result<()> {
     let text: CString = CString::new(destination.as_os_str().as_bytes()).map_err(invalid_name)?;
     // The descriptor's path is the file itself, so the link names the object and not a directory entry.
-    let through_descriptor: CString = CString::new(format!("/proc/self/fd/{}", file.as_raw_fd())).map_err(invalid_name)?;
+    let through_descriptor: CString =
+        CString::new(format!("/proc/self/fd/{}", file.as_raw_fd())).map_err(invalid_name)?;
     // SAFETY: both strings are NUL-terminated and outlive the call.
     let linked: libc::c_int = unsafe {
         libc::linkat(
@@ -366,7 +403,8 @@ fn move_temporary_into_place(
             return Err(std::io::Error::last_os_error());
         }
         // SAFETY: the string is NUL-terminated and outlives the call, and `directory` is an open descriptor.
-        let _unlinked: libc::c_int = unsafe { libc::unlinkat(directory.as_raw_fd(), from.as_ptr(), 0) };
+        let _unlinked: libc::c_int =
+            unsafe { libc::unlinkat(directory.as_raw_fd(), from.as_ptr(), 0) };
         return Ok(());
     }
     return Err(refusal);
@@ -383,7 +421,10 @@ fn move_temporary_into_place(
 /// ```ts
 /// await unlinkat(dir, name).catch((e) => { if (e.code !== 'ENOENT') throw e; });
 /// ```
-fn remove_present(directory: &std::fs::File, name: &OsStr) -> std::io::Result<()> {
+fn remove_present(
+    directory: &std::fs::File,
+    name: &OsStr,
+) -> std::io::Result<()> {
     let text: CString = CString::new(name.as_bytes()).map_err(invalid_name)?;
     // SAFETY: the string is NUL-terminated and outlives the call, and `directory` is an open descriptor.
     let removed: libc::c_int = unsafe { libc::unlinkat(directory.as_raw_fd(), text.as_ptr(), 0) };
@@ -410,7 +451,10 @@ fn remove_present(directory: &std::fs::File, name: &OsStr) -> std::io::Result<()
 /// ```ts
 /// const temporaryName = (token, relativePath) => TEMPORARY_PREFIX + fnv1a(token + '\0' + relativePath).toString(16).padStart(16, '0');
 /// ```
-pub fn temporary_name_of(token: &str, relative_path: &[u8]) -> OsString {
+pub fn temporary_name_of(
+    token: &str,
+    relative_path: &[u8],
+) -> OsString {
     let mut digest: u64 = FNV_OFFSET;
     for byte in token
         .as_bytes()
@@ -423,7 +467,10 @@ pub fn temporary_name_of(token: &str, relative_path: &[u8]) -> OsString {
         digest = digest.wrapping_mul(FNV_PRIME);
     }
     let text: String = format!("{TEMPORARY_PREFIX}{digest:016x}");
-    debug_assert_eq!(text.len(), TEMPORARY_PREFIX.len() + TEMPORARY_DIGEST_CHARACTERS);
+    debug_assert_eq!(
+        text.len(),
+        TEMPORARY_PREFIX.len() + TEMPORARY_DIGEST_CHARACTERS
+    );
     return OsString::from_vec(text.into_bytes());
 }
 
@@ -490,7 +537,10 @@ pub fn publish_copy_of_file_with(
         Ok(held) => (held, false),
         Err(error) if is_unsupported(&error, &UNNAMED_UNSUPPORTED_CODES) => {
             remove_present(&directory, temporary).map_err(raw_failure_of)?;
-            (create_named(&directory, temporary, mode).map_err(raw_failure_of)?, true)
+            (
+                create_named(&directory, temporary, mode).map_err(raw_failure_of)?,
+                true,
+            )
         }
         Err(error) => return Err(raw_failure(&error)),
     };
@@ -584,7 +634,10 @@ fn fill_and_publish(filling: Filling<'_>) -> Result<(), WorktreeCopyError> {
 /// ```ts
 /// await pipeline(createReadStream(stagePath), unnamed);
 /// ```
-fn fill_from_stage(stage_path: &Path, output: &mut std::fs::File) -> Result<(), WorktreeCopyError> {
+fn fill_from_stage(
+    stage_path: &Path,
+    output: &mut std::fs::File,
+) -> Result<(), WorktreeCopyError> {
     let mut input: std::fs::File = std::fs::File::open(stage_path).map_err(raw_failure_of)?;
     std::io::copy(&mut input, output).map_err(raw_failure_of)?;
     output.flush().map_err(raw_failure_of)?;
@@ -610,7 +663,8 @@ fn publish(
     named: bool,
 ) -> Result<(), WorktreeCopyError> {
     if named {
-        move_temporary_into_place(directory, temporary, destination_name).map_err(raw_failure_of)?;
+        move_temporary_into_place(directory, temporary, destination_name)
+            .map_err(raw_failure_of)?;
         return Ok(());
     }
     link_unnamed(file, destination_path).map_err(raw_failure_of)?;

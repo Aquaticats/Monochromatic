@@ -24,15 +24,37 @@
 //! ```
 
 use crate::lock::single_owner_claim::OwnerClaim;
-use crate::worktree_clone_binding_record::lock_words::{LockStanding, lock_file_bytes, lock_standing_of};
-use crate::worktree_clone_binding_record::registration_home::{binding_name, claim_prefix, clone_inventory_name, home_folder, origin_inventory_name, plans_folder};
-use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, RecipeRefusal, ToClear, clear_registration};
+use crate::worktree_clone_binding_record::lock_words::{
+    LockStanding,
+    lock_file_bytes,
+    lock_standing_of,
+};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    claim_prefix,
+    clone_inventory_name,
+    home_folder,
+    origin_inventory_name,
+    plans_folder,
+};
+use crate::worktree_clone_binding_record::registration_recipe::{
+    NoSeams,
+    RecipeRefusal,
+    ToClear,
+    clear_registration,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_record_settling::settling_steps::SettlingStep;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The lock file's name inside a registration.
 const LOCK_NAME: &str = "locked";
@@ -110,9 +132,17 @@ pub struct RemovalsGone {
 /// const name = registrationNameOf(path);
 /// ```
 pub fn the_registration_name(registration: &Path) -> Result<OsString, SettlingStop> {
-    return registration.file_name().map(OsStr::to_os_string).ok_or_else(|| {
-        return SettlingStop::TheRecipeStopped { said: format!("the registration {} names no folder below Git's `worktrees`", registration.display()) };
-    });
+    return registration
+        .file_name()
+        .map(OsStr::to_os_string)
+        .ok_or_else(|| {
+            return SettlingStop::TheRecipeStopped {
+                said: format!(
+                    "the registration {} names no folder below Git's `worktrees`",
+                    registration.display()
+                ),
+            };
+        });
 }
 
 /// What:
@@ -132,22 +162,40 @@ pub fn the_registration_name(registration: &Path) -> Result<OsString, SettlingSt
 /// ```ts
 /// const written = writeTheLostLock(registration, nonce);
 /// ```
-fn write_the_lost_lock(registration: &Path, nonce: &RequestNonce) -> Result<bool, SettlingStop> {
+fn write_the_lost_lock(
+    registration: &Path,
+    nonce: &RequestNonce,
+) -> Result<bool, SettlingStop> {
     let path: PathBuf = registration.join(LOCK_NAME);
     let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
         // A lock that is not there is the one this command writes again; every other state is read below.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return write_the_lock_sentence(path.as_path(), nonce),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return write_the_lock_sentence(path.as_path(), nonce);
+        }
         Ok(found) => found,
-        Err(error) => return Err(SettlingStop::TheRecipeStopped { said: format!("the registration's lock {} could not be read ({error})", path.display()) }),
+        Err(error) => {
+            return Err(SettlingStop::TheRecipeStopped {
+                said: format!(
+                    "the registration's lock {} could not be read ({error})",
+                    path.display()
+                ),
+            });
+        }
     };
     match lock_standing_of(bytes.as_slice(), nonce) {
         LockStanding::Verified => return Ok(false),
         // A proper prefix of this add's sentence is a killed write, which the next run completes (the lock design's
         // S2), and it is the only short form this command writes over.
-        LockStanding::CutShort { .. } => return write_the_lock_sentence(path.as_path(), nonce),
+        LockStanding::CutShort {
+            ..
+        } => return write_the_lock_sentence(path.as_path(), nonce),
         // Anything else is a person's own words, the reasonless lock Git's `worktree lock` leaves included, and a
         // removal refuses it until `git worktree unlock` (the lock design's S3).
-        LockStanding::Foreign => return Err(SettlingStop::TheLockIsNotThisAdds { path }),
+        LockStanding::Foreign => {
+            return Err(SettlingStop::TheLockIsNotThisAdds {
+                path,
+            });
+        }
     }
 }
 
@@ -165,16 +213,31 @@ fn write_the_lost_lock(registration: &Path, nonce: &RequestNonce) -> Result<bool
 /// ```ts
 /// writeTheLockSentence(path, nonce);
 /// ```
-fn write_the_lock_sentence(path: &Path, nonce: &RequestNonce) -> Result<bool, SettlingStop> {
+fn write_the_lock_sentence(
+    path: &Path,
+    nonce: &RequestNonce,
+) -> Result<bool, SettlingStop> {
     let mut file: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(path)
-        .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the lock {} could not be written ({error})", path.display()) })?;
+        .map_err(|error| {
+            return SettlingStop::TheRecipeStopped {
+                said: format!("the lock {} could not be written ({error})", path.display()),
+            };
+        })?;
     file.write_all(lock_file_bytes(nonce).as_slice())
-        .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the lock {} could not be written ({error})", path.display()) })?;
-    file.sync_all().map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the lock {} could not be synced ({error})", path.display()) })?;
+        .map_err(|error| {
+            return SettlingStop::TheRecipeStopped {
+                said: format!("the lock {} could not be written ({error})", path.display()),
+            };
+        })?;
+    file.sync_all().map_err(|error| {
+        return SettlingStop::TheRecipeStopped {
+            said: format!("the lock {} could not be synced ({error})", path.display()),
+        };
+    })?;
     return Ok(true);
 }
 
@@ -195,23 +258,51 @@ fn write_the_lock_sentence(path: &Path, nonce: &RequestNonce) -> Result<bool, Se
 /// ```
 fn clear_the_registration(to: &RemovalsToMake<'_>) -> Result<(), SettlingStop> {
     let registration_name: OsString = the_registration_name(to.registration)?;
-    let slot_parent_path: PathBuf = to.slot_path.parent().map(Path::to_path_buf).ok_or_else(|| {
-        return SettlingStop::TheRecipeStopped { said: format!("the slot {} names no parent folder", to.slot_path.display()) };
-    })?;
+    let slot_parent_path: PathBuf =
+        to.slot_path
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| {
+                return SettlingStop::TheRecipeStopped {
+                    said: format!("the slot {} names no parent folder", to.slot_path.display()),
+                };
+            })?;
     let worktrees_parent_path: PathBuf = to.common_dir.join("worktrees");
     let slot_parent: std::fs::File = crate::fs_beneath::open_root(slot_parent_path.as_path())
-        .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the folder {} cannot be opened ({error})", slot_parent_path.display()) })?;
-    let worktrees_parent: std::fs::File = crate::fs_beneath::open_root(worktrees_parent_path.as_path())
-        .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the folder {} cannot be opened ({error})", worktrees_parent_path.display()) })?;
+        .map_err(|error| {
+            return SettlingStop::TheRecipeStopped {
+                said: format!(
+                    "the folder {} cannot be opened ({error})",
+                    slot_parent_path.display()
+                ),
+            };
+        })?;
+    let worktrees_parent: std::fs::File =
+        crate::fs_beneath::open_root(worktrees_parent_path.as_path()).map_err(|error| {
+            return SettlingStop::TheRecipeStopped {
+                said: format!(
+                    "the folder {} cannot be opened ({error})",
+                    worktrees_parent_path.display()
+                ),
+            };
+        })?;
     let to_clear: ToClear<'_> = ToClear {
         slot_parent: &slot_parent,
-        slot_pointer_name: to.slot_path.file_name().ok_or_else(|| return SettlingStop::TheRecipeStopped { said: String::from("the slot names no folder") })?,
+        slot_pointer_name: to.slot_path.file_name().ok_or_else(|| {
+            return SettlingStop::TheRecipeStopped {
+                said: String::from("the slot names no folder"),
+            };
+        })?,
         slot: to.slot_path,
         worktrees_parent: &worktrees_parent,
         registration_name: registration_name.as_os_str(),
         registration: to.registration,
     };
-    return clear_registration(&to_clear, &mut NoSeams).map_err(|refusal: RecipeRefusal| return SettlingStop::TheRecipeStopped { said: refusal.message() });
+    return clear_registration(&to_clear, &mut NoSeams).map_err(|refusal: RecipeRefusal| {
+        return SettlingStop::TheRecipeStopped {
+            said: refusal.message(),
+        };
+    });
 }
 
 /// What:
@@ -231,12 +322,23 @@ fn remove_and_prove(path: &Path) -> Result<(), SettlingStop> {
     match std::fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(SettlingStop::TheRecordCouldNotGo { path: path.to_path_buf(), said: error.to_string() }),
+        Err(error) => {
+            return Err(SettlingStop::TheRecordCouldNotGo {
+                path: path.to_path_buf(),
+                said: error.to_string(),
+            });
+        }
     }
     return match std::fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(SettlingStop::TheRecordCouldNotGo { path: path.to_path_buf(), said: error.to_string() }),
-        Ok(_) => Err(SettlingStop::TheRecordCouldNotGo { path: path.to_path_buf(), said: String::from("the name still answers after its removal") }),
+        Err(error) => Err(SettlingStop::TheRecordCouldNotGo {
+            path: path.to_path_buf(),
+            said: error.to_string(),
+        }),
+        Ok(_) => Err(SettlingStop::TheRecordCouldNotGo {
+            path: path.to_path_buf(),
+            said: String::from("the name still answers after its removal"),
+        }),
     };
 }
 
@@ -255,7 +357,11 @@ fn remove_and_prove(path: &Path) -> Result<(), SettlingStop> {
 /// ```ts
 /// const gone = makeTheRemovals(to, steps, claim);
 /// ```
-pub fn make_the_removals(to: &RemovalsToMake<'_>, steps: &[SettlingStep], claim: &mut OwnerClaim) -> Result<RemovalsGone, SettlingStop> {
+pub fn make_the_removals(
+    to: &RemovalsToMake<'_>,
+    steps: &[SettlingStep],
+    claim: &mut OwnerClaim,
+) -> Result<RemovalsGone, SettlingStop> {
     let home: PathBuf = home_folder(to.common_dir);
     let mut gone: RemovalsGone = RemovalsGone {
         steps: Vec::new(),
@@ -283,7 +389,9 @@ pub fn make_the_removals(to: &RemovalsToMake<'_>, steps: &[SettlingStep], claim:
                     gone.plan_folder_removed = true;
                 }
             }
-            SettlingStep::TheOriginInventory | SettlingStep::TheCloneInventory | SettlingStep::TheBinding => {
+            SettlingStep::TheOriginInventory
+            | SettlingStep::TheCloneInventory
+            | SettlingStep::TheBinding => {
                 let name: String = match step {
                     SettlingStep::TheOriginInventory => origin_inventory_name(to.slot),
                     SettlingStep::TheCloneInventory => clone_inventory_name(to.slot),
@@ -293,9 +401,12 @@ pub fn make_the_removals(to: &RemovalsToMake<'_>, steps: &[SettlingStep], claim:
                 gone.files.push(name);
             }
             SettlingStep::TheClaim => {
-                claim
-                    .release()
-                    .map_err(|error| return SettlingStop::TheClaimCannotBeReleased { slot: String::from(to.slot), said: format!("{error:?}") })?;
+                claim.release().map_err(|error| {
+                    return SettlingStop::TheClaimCannotBeReleased {
+                        slot: String::from(to.slot),
+                        said: format!("{error:?}"),
+                    };
+                })?;
             }
         }
         gone.steps.push(*step);

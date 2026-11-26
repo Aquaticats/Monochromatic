@@ -21,24 +21,71 @@
 //! ```
 
 use crate::index_lock_evidence::{
-    Verdict, WaitEnd, classify_index_lock, gather_with, host_pid_process, proven_holder_line, proven_holder_progress_line, unproven_wait_line, ceiling_line, blocker_words,
-    unproven_removal_advice, holder_way_out,
+    Verdict,
+    WaitEnd,
+    blocker_words,
+    ceiling_line,
+    classify_index_lock,
+    gather_with,
+    holder_way_out,
+    host_pid_process,
+    proven_holder_line,
+    proven_holder_progress_line,
+    unproven_removal_advice,
+    unproven_wait_line,
 };
-use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
-use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
-use crate::service_index_refused_lock::{forget, recall, remember};
-use crate::service_index_placement::{Placed, Platform, Reclaimed, log_placement_failure, place_lock, reclaim};
-use crate::service_index_reclaim::{foreign_words, stale_lock_words, unjudged_words};
+use crate::service_index_found::{
+    WaitNotes,
+    describe_lock,
+    open_by_text,
+};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+    LockFailure,
+    notice_every,
+};
+use crate::service_index_placement::{
+    Placed,
+    Platform,
+    Reclaimed,
+    log_placement_failure,
+    place_lock,
+    reclaim,
+};
+use crate::service_index_reclaim::{
+    foreign_words,
+    stale_lock_words,
+    unjudged_words,
+};
+use crate::service_index_refused_lock::{
+    forget,
+    recall,
+    remember,
+};
 use crate::service_index_staging::refresh_age;
-use crate::service_index_unheld_removal::{Unheld, remove_if_unheld, told_words};
-use crate::service_index_watch::{POLL_PAUSE, Watch};
+use crate::service_index_unheld_removal::{
+    Unheld,
+    remove_if_unheld,
+    told_words,
+};
+use crate::service_index_watch::{
+    POLL_PAUSE,
+    Watch,
+};
 use crate::service_protocol::FailureCode;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The words for the process holding the lock,
 /// from the evidence Git's lock leaves.
-fn holder_words(pid: i64, command: Option<&str>) -> String {
+fn holder_words(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
     return match command {
         Some(name) => format!("Process {pid} ({name})"),
         None => format!("Process {pid}"),
@@ -106,30 +153,82 @@ struct Looked {
 /// The scan is the platform's,
 /// the same one the removal is decided on,
 /// so one acquisition reads one host.
-fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
+fn look_at_holder(
+    platform: &Platform,
+    index: &Path,
+    waited: Duration,
+    first: bool,
+    ceiling: Duration,
+) -> Looked {
     let gathered = gather_with(index, host_pid_process, platform.scan);
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.
-        Ok(None) => return Looked { blocker: String::new(), proved: Proved::Gone, line: None, who: None, open: None, way_out: None },
+        Ok(None) => {
+            return Looked {
+                blocker: String::new(),
+                proved: Proved::Gone,
+                line: None,
+                who: None,
+                open: None,
+                way_out: None,
+            };
+        }
         Err(_) => {
             let lock: std::path::PathBuf = crate::service_index_lock::lock_path_of(index);
-            let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
-            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None, end)), who: None, open: None, way_out: None };
+            let end: WaitEnd<'_> = WaitEnd {
+                within: ceiling,
+                ending: COMMIT_WITHDRAWN,
+            };
+            return Looked {
+                blocker: String::from("an owner whose evidence could not be read"),
+                proved: Proved::Nothing,
+                line: Some(unproven_wait_line(lock.as_path(), None, end)),
+                who: None,
+                open: None,
+                way_out: None,
+            };
         }
     };
-    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: COMMIT_WITHDRAWN };
+    let end: WaitEnd<'_> = WaitEnd {
+        within: ceiling,
+        ending: COMMIT_WITHDRAWN,
+    };
     // The processes the scan saw with the lock open are the one source of `open_by`: the scan is made once, and bounded in time.
     let open: Option<String> = open_by_text(evidence.holders.as_ref());
     return match classify_index_lock(&evidence) {
-        Verdict::ProvenAlive { pid, by_descriptor, command } => {
+        Verdict::ProvenAlive {
+            pid,
+            by_descriptor,
+            command,
+        } => {
             let way_out: String = holder_way_out(pid, command.as_deref());
             let line: String = if first {
-                proven_holder_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), end)
+                proven_holder_line(
+                    pid,
+                    by_descriptor,
+                    command.as_deref(),
+                    evidence.lock_path.as_path(),
+                    end,
+                )
             } else {
-                proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), end)
+                proven_holder_progress_line(
+                    pid,
+                    by_descriptor,
+                    command.as_deref(),
+                    evidence.lock_path.as_path(),
+                    waited.as_secs(),
+                    end,
+                )
             };
-            Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(format!("{line}{way_out}")), who: Some(holder_words(pid, command.as_deref())), open, way_out: Some(way_out) }
+            Looked {
+                blocker: blocker_words(&evidence),
+                proved: Proved::Alive,
+                line: Some(format!("{line}{way_out}")),
+                who: Some(holder_words(pid, command.as_deref())),
+                open,
+                way_out: Some(way_out),
+            }
         }
         // A PID file naming a number this process table does not have is no proof of a dead owner: a live Git of another
         // PID namespace writes a number this table has never had, and holds the lock through its editor with no descriptor
@@ -138,7 +237,11 @@ fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bo
         Verdict::Dead(_) | Verdict::EvidenceFree => Looked {
             blocker: blocker_words(&evidence),
             proved: Proved::Nothing,
-            line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence), end)),
+            line: Some(unproven_wait_line(
+                evidence.lock_path.as_path(),
+                Some(&evidence),
+                end,
+            )),
             who: None,
             open,
             way_out: None,
@@ -169,28 +272,38 @@ std::thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn waits_chosen_by_this_thread() -> Vec<Duration> {
-    return WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { return chosen.borrow().clone(); });
+    return WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| {
+        return chosen.borrow().clone();
+    });
 }
 
 /// Forget the waits chosen on the calling thread so far;
 /// nothing in the release executable.
 #[cfg(test)]
 pub(crate) fn forget_waits_chosen() {
-    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().clear() });
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| chosen.borrow_mut().clear());
 }
 
 /// Note for the controls the wait `wake` is about to be taken;
 /// nothing in the release executable.
 #[cfg(test)]
 fn note_the_wait_chosen(wake: Duration) {
-    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().push(wake) });
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| chosen.borrow_mut().push(wake));
 }
 
 /// How long the wait blocks before it looks again:
 /// the time to the next repetition of the holder's line,
 /// and where no watch can be set no longer than the poll pause.
-pub(crate) fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
-    let wake: Duration = if watched { to_notice.min(to_ceiling) } else { to_notice.min(POLL_PAUSE).min(to_ceiling) };
+pub(crate) fn until_next_wake(
+    to_notice: Duration,
+    to_ceiling: Duration,
+    watched: bool,
+) -> Duration {
+    let wake: Duration = if watched {
+        to_notice.min(to_ceiling)
+    } else {
+        to_notice.min(POLL_PAUSE).min(to_ceiling)
+    };
     let chosen: Duration = wake.max(Duration::from_millis(1));
     #[cfg(test)]
     note_the_wait_chosen(chosen);
@@ -214,8 +327,22 @@ pub(crate) struct Placing<'a> {
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
-pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<Placed, LockFailure> {
-    let Placing { staged, held, marker, lock, lock_name, index, ceiling } = *placing;
+pub(crate) fn wait_and_place(
+    platform: &Platform,
+    placing: &Placing,
+    watch: &mut Option<Watch>,
+    announce: &dyn Announcer,
+    notes: &mut WaitNotes,
+) -> Result<Placed, LockFailure> {
+    let Placing {
+        staged,
+        held,
+        marker,
+        lock,
+        lock_name,
+        index,
+        ceiling,
+    } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
@@ -243,11 +370,34 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                 //  removed ends the wait: more waiting would not change that.
                 match reclaim(platform, lock) {
                     Reclaimed::Removed | Reclaimed::Changed => continue,
-                    Reclaimed::Stuck => return Err(LockFailure { code: FailureCode::Unavailable }),
+                    Reclaimed::Stuck => {
+                        return Err(LockFailure {
+                            code: FailureCode::Unavailable,
+                        });
+                    }
                     Reclaimed::Busy => busy = true,
-                    Reclaimed::Unguarded(marked) => left_stale = Some((stale_lock_words(lock, &marked), "A service that is gone")),
-                    Reclaimed::Foreign { file, marked } => left_stale = Some((foreign_words(file.as_path(), &marked), "A service on another machine")),
-                    Reclaimed::Unjudged { file, marked } => left_stale = Some((unjudged_words(file.as_path(), marked.as_ref()), "A reclaimer that cannot be judged")),
+                    Reclaimed::Unguarded(marked) => {
+                        left_stale =
+                            Some((stale_lock_words(lock, &marked), "A service that is gone"))
+                    }
+                    Reclaimed::Foreign {
+                        file,
+                        marked,
+                    } => {
+                        left_stale = Some((
+                            foreign_words(file.as_path(), &marked),
+                            "A service on another machine",
+                        ))
+                    }
+                    Reclaimed::Unjudged {
+                        file,
+                        marked,
+                    } => {
+                        left_stale = Some((
+                            unjudged_words(file.as_path(), marked.as_ref()),
+                            "A reclaimer that cannot be judged",
+                        ))
+                    }
                     Reclaimed::Kept => {
                         // A lock that nothing holds and no Git lock PID file stands behind is removed (owner, 2026-11-07, "Service removes it"):
                         //  the check is made at the first look and at each repeat of the notice, as the evidence is, not at every wake.
@@ -266,7 +416,9 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             }
             Err(error) => {
                 log_placement_failure(lock, &error);
-                return Err(LockFailure { code: crate::service_land_follow::storage_failure(&error) });
+                return Err(LockFailure {
+                    code: crate::service_land_follow::storage_failure(&error),
+                });
             }
         }
         // What the placement found held is written down now, after the fast path has been left: the first look with the
@@ -283,7 +435,18 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = already_waited.is_some() || waited >= ceiling;
-        let mut looked: Looked = if due || at_ceiling { look_at_holder(platform, index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, way_out: None } };
+        let mut looked: Looked = if due || at_ceiling {
+            look_at_holder(platform, index, waited, first, ceiling)
+        } else {
+            Looked {
+                blocker: String::new(),
+                proved: proof,
+                line: None,
+                who: None,
+                open: None,
+                way_out: None,
+            }
+        };
         if let Some((words, who)) = left_stale {
             // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
             looked.line = Some(words);
@@ -316,9 +479,16 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         if at_ceiling && proof != Proved::Gone {
             let held_against_commits: Duration = waited + already_waited.unwrap_or(Duration::ZERO);
             remember(lock, held_against_commits);
-            announce.announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), held_against_commits.as_secs(), COMMIT_NOT_MADE)));
+            announce.announce(Announce::Waiting(ceiling_line(
+                lock,
+                looked.blocker.as_str(),
+                held_against_commits.as_secs(),
+                COMMIT_NOT_MADE,
+            )));
             if let Some(earlier_wait) = already_waited {
-                announce.announce(Announce::Waiting(earlier_commit_line(earlier_wait.as_secs())));
+                announce.announce(Announce::Waiting(earlier_commit_line(
+                    earlier_wait.as_secs(),
+                )));
             }
             if let Some(way_out) = looked.way_out {
                 announce.announce(Announce::Waiting(way_out));
@@ -330,12 +500,18 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                 Some(who) => who,
                 None => String::from("Another program"),
             }));
-            return Err(LockFailure { code: FailureCode::IndexInUse });
+            return Err(LockFailure {
+                code: FailureCode::IndexInUse,
+            });
         }
         // A claim on the stale lock ends without an event on the lock's name, so the wait looks again at the poll pace while
         //  one is held, and says so for the landing's log and for the controls.
         let watched: bool = !busy;
-        let next_wake: Duration = until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), watched);
+        let next_wake: Duration = until_next_wake(
+            notice_every().saturating_sub(last_notice.elapsed()),
+            ceiling.saturating_sub(waited),
+            watched,
+        );
         if !watched {
             notes.polled = true;
         }
@@ -351,7 +527,11 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             // No watch could be set (the limit is reached, or the file system gives none): the lock is looked at again after a
             //  poll pause, and a watch is tried again each time.
             None => {
-                std::thread::sleep(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), false));
+                std::thread::sleep(until_next_wake(
+                    notice_every().saturating_sub(last_notice.elapsed()),
+                    ceiling.saturating_sub(waited),
+                    false,
+                ));
                 *watch = (platform.watch)(directory);
             }
         }

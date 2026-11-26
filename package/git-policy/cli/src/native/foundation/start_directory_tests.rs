@@ -4,7 +4,10 @@
 //!  and none.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A directory a caller names is the directory every reader gets,
 ///  and it names no reason there is none.
@@ -22,11 +25,18 @@ fn a_named_directory_is_the_answer() {
 #[test]
 fn the_process_directory_is_this_control_directory() {
     let read: StartDirectory = StartDirectory::read_from_the_process();
-    assert!(read.path().is_some(), "a running process has a current directory");
+    assert!(
+        read.path().is_some(),
+        "a running process has a current directory"
+    );
     assert_eq!(read.reason(), None);
     assert_eq!(
         read.path(),
-        Some(std::env::current_dir().expect("the directory this control runs in").as_path())
+        Some(
+            std::env::current_dir()
+                .expect("the directory this control runs in")
+                .as_path()
+        )
     );
 }
 
@@ -37,7 +47,9 @@ fn no_directory_names_its_reason() {
     let unknown: StartDirectory = StartDirectory::unknown();
     assert_eq!(unknown.path(), None);
     assert!(
-        unknown.reason().is_some_and(|reason| return reason.contains("named no directory")),
+        unknown
+            .reason()
+            .is_some_and(|reason| return reason.contains("named no directory")),
         "the reason names the caller's own answer: {:?}",
         unknown.reason()
     );

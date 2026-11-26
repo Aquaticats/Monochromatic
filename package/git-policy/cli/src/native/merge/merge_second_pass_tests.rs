@@ -12,16 +12,30 @@
 //! with the reason.
 
 use super::*;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_output,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
 use crate::word_merge::LineSpan;
 use std::ffi::OsString;
-use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use std::path::PathBuf;
 
 /// A stored corpus file of the word-level merge.
-pub(crate) fn corpus(name: &str, extension: &str) -> Vec<u8> {
-    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
-        .expect("a corpus file");
+pub(crate) fn corpus(
+    name: &str,
+    extension: &str,
+) -> Vec<u8> {
+    return std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/native/merge/word_merge_corpus")
+            .join(format!("{name}.{extension}")),
+    )
+    .expect("a corpus file");
 }
 
 /// A repository with a base commit and the branches `ours` and `theirs` on top of it,
@@ -48,7 +62,12 @@ pub(crate) enum Change<'a> {
 /// Build the world:
 /// `base` files first,
 /// then the side changes on the two branches.
-pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_>)], theirs: &[(&str, Change<'_>)]) -> World {
+pub(crate) fn world(
+    name: &str,
+    base: &[(&str, &[u8])],
+    ours: &[(&str, Change<'_>)],
+    theirs: &[(&str, Change<'_>)],
+) -> World {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     for (path, bytes) in base {
@@ -60,7 +79,10 @@ pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     for (branch, changes) in [("theirs", theirs), ("ours", ours)] {
-        git(repo.as_path(), &["switch", "--quiet", "--create", branch, "main"]);
+        git(
+            repo.as_path(),
+            &["switch", "--quiet", "--create", branch, "main"],
+        );
         for (path, change) in changes {
             let full: PathBuf = repo.join(path);
             if let Some(parent) = full.parent() {
@@ -72,7 +94,8 @@ pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_
                 Change::Executable(bytes) => {
                     use std::os::unix::fs::PermissionsExt;
                     std::fs::write(&full, bytes).expect("a side file");
-                    std::fs::set_permissions(&full, std::fs::Permissions::from_mode(0o755)).expect("mode");
+                    std::fs::set_permissions(&full, std::fs::Permissions::from_mode(0o755))
+                        .expect("mode");
                 }
                 Change::Link(target) => {
                     std::fs::remove_file(&full).ok();
@@ -81,20 +104,50 @@ pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_
             }
         }
         git(repo.as_path(), &["add", "--all"]);
-        git(repo.as_path(), &["commit", "--quiet", format!("--message={branch}").as_str()]);
+        git(
+            repo.as_path(),
+            &["commit", "--quiet", format!("--message={branch}").as_str()],
+        );
     }
-    return World { root, repo };
+    return World {
+        root,
+        repo,
+    };
 }
 
 /// The runner over the fixture repository.
-pub(crate) fn runner<'a>(context: &'a GitContext, repo: &'a Path) -> ContextRunner<'a> {
-    return ContextRunner { context, cwd: repo, without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
+pub(crate) fn runner<'a>(
+    context: &'a GitContext,
+    repo: &'a Path,
+) -> ContextRunner<'a> {
+    return ContextRunner {
+        context,
+        cwd: repo,
+        without_prefix: false,
+        repository: Vec::new(),
+        object_directory: None,
+        environment: Vec::new(),
+    };
 }
 
 /// The tree and the conflicts of `git merge-tree` over the two branches.
 pub(crate) fn merge_tree_of(world: &World) -> (String, Vec<Conflict>) {
-    let output = git_output(world.repo.as_path(), &["merge-tree", "--write-tree", "-z", "--no-messages", "ours", "theirs"]);
-    assert!(output.status.code() == Some(0) || output.status.code() == Some(1), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = git_output(
+        world.repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            "-z",
+            "--no-messages",
+            "ours",
+            "theirs",
+        ],
+    );
+    assert!(
+        output.status.code() == Some(0) || output.status.code() == Some(1),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     return conflicts_of_merge_tree(output.stdout.as_slice());
 }
 
@@ -110,7 +163,15 @@ pub(crate) fn await_it<Output>(work: impl std::future::Future<Output = Output>) 
 fn verdicts_of(world: &World) -> Vec<Verdict> {
     let (_, conflicts) = merge_tree_of(world);
     let context: GitContext = git_context();
-    return await_it(async { return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice(), AttributeSource::Invocation).await; }).expect("the pass runs");
+    return await_it(async {
+        return second_pass(
+            &runner(&context, world.repo.as_path()),
+            conflicts.as_slice(),
+            AttributeSource::Invocation,
+        )
+        .await;
+    })
+    .expect("the pass runs");
 }
 
 /// The merge-tree stages parse into one conflict per path with all three sides,
@@ -121,16 +182,41 @@ fn the_stages_of_a_merge_tree_answer_parse_per_path() {
     let world: World = world(
         "second-pass-parse",
         &[("b.md", adjacent.as_slice()), ("a.md", adjacent.as_slice())],
-        &[("b.md", Change::Write(corpus("md1b", "ours").as_slice())), ("a.md", Change::Write(corpus("md1b", "ours").as_slice()))],
-        &[("b.md", Change::Write(corpus("md1b", "theirs").as_slice())), ("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
+        &[
+            ("b.md", Change::Write(corpus("md1b", "ours").as_slice())),
+            ("a.md", Change::Write(corpus("md1b", "ours").as_slice())),
+        ],
+        &[
+            ("b.md", Change::Write(corpus("md1b", "theirs").as_slice())),
+            ("a.md", Change::Write(corpus("md1b", "theirs").as_slice())),
+        ],
     );
     let (tree, conflicts) = merge_tree_of(&world);
-    assert!(tree.len() >= 40 && tree.chars().all(|character| { return character.is_ascii_hexdigit(); }), "{tree}");
-    let paths: Vec<&[u8]> = conflicts.iter().map(|conflict| { return conflict.path.as_slice(); }).collect();
+    assert!(
+        tree.len() >= 40
+            && tree.chars().all(|character| {
+                return character.is_ascii_hexdigit();
+            }),
+        "{tree}"
+    );
+    let paths: Vec<&[u8]> = conflicts
+        .iter()
+        .map(|conflict| {
+            return conflict.path.as_slice();
+        })
+        .collect();
     assert_eq!(paths, vec![b"a.md".as_slice(), b"b.md".as_slice()]);
     for conflict in &conflicts {
-        assert!(conflict.base.is_some() && conflict.ours.is_some() && conflict.theirs.is_some(), "{conflict:?}");
-        assert_eq!(conflict.ours.as_ref().map(|stage| { return stage.mode; }), Some(0o100_644));
+        assert!(
+            conflict.base.is_some() && conflict.ours.is_some() && conflict.theirs.is_some(),
+            "{conflict:?}"
+        );
+        assert_eq!(
+            conflict.ours.as_ref().map(|stage| {
+                return stage.mode;
+            }),
+            Some(0o100_644)
+        );
     }
     remove(world.root.as_path());
 }
@@ -146,17 +232,31 @@ fn an_adjacent_edit_and_insertion_are_merged_with_their_part() {
         &[("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
     );
     let verdicts: Vec<Verdict> = verdicts_of(&world);
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {verdicts:?}") };
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {verdicts:?}")
+    };
     assert!(file.bytes == corpus("md1b", "word.out"));
-    assert_eq!((file.path.as_slice(), file.mode), (b"a.md".as_slice(), 0o100_644));
+    assert_eq!(
+        (file.path.as_slice(), file.mode),
+        (b"a.md".as_slice(), 0o100_644)
+    );
     // The part names the line of the file it came from, not the line of Git's conflict region:
     // the fixture edits line 4 and the other side inserts after it.
     assert_eq!(
         file.parts[0],
         MergedPart {
-            base: LineSpan { first: 4, count: 1 },
-            ours: LineSpan { first: 4, count: 1 },
-            theirs: LineSpan { first: 4, count: 2 },
+            base: LineSpan {
+                first: 4,
+                count: 1
+            },
+            ours: LineSpan {
+                first: 4,
+                count: 1
+            },
+            theirs: LineSpan {
+                first: 4,
+                count: 2
+            },
             merged: b"Flags are optional, see below.\nExit code is zero on success.\n".to_vec(),
         }
     );
@@ -177,11 +277,28 @@ fn two_resolvable_regions_of_one_file_merge_with_the_text_between_them() {
         &[("a.md", Change::Write(b"ALPHA one\nkeep\nbeta zwei\n"))],
     );
     let verdicts: Vec<Verdict> = verdicts_of(&world);
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {verdicts:?}") };
-    assert_eq!(String::from_utf8_lossy(file.bytes.as_slice()), "ALPHA uno\nkeep\nBETA zwei\n");
-    let spans: Vec<(LineSpan, LineSpan, LineSpan)> = file.parts.iter().map(|part| { return (part.base, part.ours, part.theirs); }).collect();
-    let one: LineSpan = LineSpan { first: 1, count: 1 };
-    let three: LineSpan = LineSpan { first: 3, count: 1 };
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {verdicts:?}")
+    };
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "ALPHA uno\nkeep\nBETA zwei\n"
+    );
+    let spans: Vec<(LineSpan, LineSpan, LineSpan)> = file
+        .parts
+        .iter()
+        .map(|part| {
+            return (part.base, part.ours, part.theirs);
+        })
+        .collect();
+    let one: LineSpan = LineSpan {
+        first: 1,
+        count: 1,
+    };
+    let three: LineSpan = LineSpan {
+        first: 3,
+        count: 1,
+    };
     assert_eq!(spans, vec![(one, one, one), (three, three, three)]);
     remove(world.root.as_path());
 }
@@ -192,7 +309,9 @@ fn two_resolvable_regions_of_one_file_merge_with_the_text_between_them() {
 fn paths_the_pass_must_not_touch_are_left_with_their_reason() {
     let text: &[u8] = b"one\ntwo\nthree\n";
     let large_line: String = "same line of a large file\n".repeat(LARGEST_BLOB_BYTES / 20);
-    let large_edit = |first: &str| -> Vec<u8> { return format!("{first}\n{large_line}").into_bytes(); };
+    let large_edit = |first: &str| -> Vec<u8> {
+        return format!("{first}\n{large_line}").into_bytes();
+    };
     let world: World = world(
         "second-pass-left",
         &[
@@ -214,17 +333,26 @@ fn paths_the_pass_must_not_touch_are_left_with_their_reason() {
             ("link.md", Change::Link("target")),
             ("mode.md", Change::Executable(b"one\nTWO\nthree\n")),
             ("large.md", Change::Write(large_edit("ours").as_slice())),
-            ("driven.md", Change::Write(corpus("md1b", "ours").as_slice())),
+            (
+                "driven.md",
+                Change::Write(corpus("md1b", "ours").as_slice()),
+            ),
         ],
         &[
-            ("append.md", Change::Write(corpus("md2", "theirs").as_slice())),
+            (
+                "append.md",
+                Change::Write(corpus("md2", "theirs").as_slice()),
+            ),
             ("binary.bin", Change::Write(b"a\0three\n")),
             ("both.md", Change::Write(b"x\ntheirs\n")),
             ("gone.md", Change::Write(b"one\nTWO\nthree\n")),
             ("link.md", Change::Write(b"one\nTWO\nthree\n")),
             ("mode.md", Change::Write(b"one\ntwo\nTHREE\n")),
             ("large.md", Change::Write(large_edit("theirs").as_slice())),
-            ("driven.md", Change::Write(corpus("md1b", "theirs").as_slice())),
+            (
+                "driven.md",
+                Change::Write(corpus("md1b", "theirs").as_slice()),
+            ),
         ],
     );
     let verdicts: Vec<Verdict> = verdicts_of(&world);
@@ -232,22 +360,55 @@ fn paths_the_pass_must_not_touch_are_left_with_their_reason() {
         .iter()
         .filter_map(|verdict| {
             return match verdict {
-                Verdict::Left { path, why } => Some((path_message_text(path.as_slice()), why.clone())),
+                Verdict::Left {
+                    path,
+                    why,
+                } => Some((path_message_text(path.as_slice()), why.clone())),
                 Verdict::Merged(_) => None,
             };
         })
         .collect();
-    assert!(matches!(reasons.get("append.md"), Some(Left::Overlap(count)) if *count > 0), "{reasons:?}");
-    assert_eq!(reasons.get("binary.bin"), Some(&Left::Binary), "{reasons:?}");
-    assert_eq!(reasons.get("gone.md"), Some(&Left::MissingStage), "{reasons:?}");
+    assert!(
+        matches!(reasons.get("append.md"), Some(Left::Overlap(count)) if *count > 0),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons.get("binary.bin"),
+        Some(&Left::Binary),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons.get("gone.md"),
+        Some(&Left::MissingStage),
+        "{reasons:?}"
+    );
     // A link against an edit is a file/link conflict: Git keeps the sides under separate names, so no path has all three stages.
-    assert_eq!(reasons.get("link.md"), Some(&Left::MissingStage), "{reasons:?}");
+    assert_eq!(
+        reasons.get("link.md"),
+        Some(&Left::MissingStage),
+        "{reasons:?}"
+    );
     // The same file with a different mode on the two sides has all three stages, and their modes differ.
-    assert_eq!(reasons.get("mode.md"), Some(&Left::NotAPlainFile), "{reasons:?}");
-    assert_eq!(reasons.get("large.md"), Some(&Left::TooLarge), "{reasons:?}");
-    assert_eq!(reasons.get("driven.md"), Some(&Left::Driver(String::from("binary"))), "{reasons:?}");
+    assert_eq!(
+        reasons.get("mode.md"),
+        Some(&Left::NotAPlainFile),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons.get("large.md"),
+        Some(&Left::TooLarge),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons.get("driven.md"),
+        Some(&Left::Driver(String::from("binary"))),
+        "{reasons:?}"
+    );
     // Both sides inserting different text at one point is an overlap, not a choice of order.
-    assert!(matches!(reasons.get("both.md"), Some(Left::Overlap(_))), "{reasons:?}");
+    assert!(
+        matches!(reasons.get("both.md"), Some(Left::Overlap(_))),
+        "{reasons:?}"
+    );
     remove(world.root.as_path());
 }
 
@@ -278,7 +439,11 @@ fn a_line_merge_larger_than_the_captured_tail_keeps_the_start_of_the_file() {
     base.resize(limit - last.len() - 1, b'x');
     base.push(b'\n');
     base.extend_from_slice(last);
-    assert_eq!(base.len(), limit, "the fixture is exactly the largest stage the pass takes");
+    assert_eq!(
+        base.len(),
+        limit,
+        "the fixture is exactly the largest stage the pass takes"
+    );
     let mut ours: Vec<u8> = base[..base.len() - last.len()].to_vec();
     ours.extend_from_slice(b"alpha uno\n");
     let mut theirs: Vec<u8> = base[..base.len() - last.len()].to_vec();
@@ -295,18 +460,28 @@ fn a_line_merge_larger_than_the_captured_tail_keeps_the_start_of_the_file() {
         .map(|verdict| {
             return match verdict {
                 Verdict::Merged(file) => format!("merged, {} bytes", file.bytes.len()),
-                Verdict::Left { why, .. } => format!("left: {why:?}"),
+                Verdict::Left {
+                    why,
+                    ..
+                } => format!("left: {why:?}"),
             };
         })
         .collect();
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {summary:?}")
+    };
     assert!(
         file.bytes.starts_with(start),
         "the start of the file is kept: {} bytes beginning {:?}",
         file.bytes.len(),
         String::from_utf8_lossy(&file.bytes[..file.bytes.len().min(start.len() + 16)])
     );
-    assert_eq!(file.bytes.len(), limit, "the merged file is as long as the stage, not the tail of Git's answer: {} bytes", file.bytes.len());
+    assert_eq!(
+        file.bytes.len(),
+        limit,
+        "the merged file is as long as the stage, not the tail of Git's answer: {} bytes",
+        file.bytes.len()
+    );
     remove(world.root.as_path());
 }
 
@@ -328,7 +503,11 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
     // Git's exit status is the number of conflicts, truncated to this value.
     const GIT_CONFLICT_STATUS_LIMIT: usize = 127;
     let example: &[u8] = b"<<<<<<< documented-example\nalpha uno\n||||||| documented-example\nalpha one\n=======\nALPHA one\n>>>>>>> documented-example\n";
-    let mut base_lines: Vec<String> = String::from_utf8(example.to_vec()).expect("text").lines().map(str::to_owned).collect();
+    let mut base_lines: Vec<String> = String::from_utf8(example.to_vec())
+        .expect("text")
+        .lines()
+        .map(str::to_owned)
+        .collect();
     for index in 0..GIT_CONFLICT_STATUS_LIMIT {
         base_lines.push(format!("shared {index} before"));
         base_lines.push(format!("alpha one {index}"));
@@ -348,14 +527,29 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
             None => line.to_owned(),
         };
     };
-    let ours: Vec<String> = base_lines.iter().map(|line| { return as_ours(line.as_str()); }).collect();
-    let theirs: Vec<String> = base_lines.iter().map(|line| { return as_theirs(line.as_str()); }).collect();
-    let as_bytes = |lines: &[String]| -> Vec<u8> { return format!("{}\n", lines.join("\n")).into_bytes(); };
+    let ours: Vec<String> = base_lines
+        .iter()
+        .map(|line| {
+            return as_ours(line.as_str());
+        })
+        .collect();
+    let theirs: Vec<String> = base_lines
+        .iter()
+        .map(|line| {
+            return as_theirs(line.as_str());
+        })
+        .collect();
+    let as_bytes = |lines: &[String]| -> Vec<u8> {
+        return format!("{}\n", lines.join("\n")).into_bytes();
+    };
     let world: World = world(
         "second-pass-marker-shaped-text",
         &[("a.md", as_bytes(base_lines.as_slice()).as_slice())],
         &[("a.md", Change::Write(as_bytes(ours.as_slice()).as_slice()))],
-        &[("a.md", Change::Write(as_bytes(theirs.as_slice()).as_slice()))],
+        &[(
+            "a.md",
+            Change::Write(as_bytes(theirs.as_slice()).as_slice()),
+        )],
     );
     // The fixture must reach the status at which Git stops counting, or it proves nothing about it.
     let (_, conflicts) = merge_tree_of(&world);
@@ -365,7 +559,9 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
             None => String::from("none"),
         };
     };
-    let [conflict] = conflicts.as_slice() else { panic!("expected one conflicted path: {conflicts:?}") };
+    let [conflict] = conflicts.as_slice() else {
+        panic!("expected one conflicted path: {conflicts:?}")
+    };
     let oracle = git_output(
         world.repo.as_path(),
         &[
@@ -386,7 +582,10 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
     );
     assert_eq!(
         oracle.status.code(),
-        Some(i32::try_from(GIT_CONFLICT_STATUS_LIMIT).expect("a conflict count fits the exit status")),
+        Some(
+            i32::try_from(GIT_CONFLICT_STATUS_LIMIT)
+                .expect("a conflict count fits the exit status")
+        ),
         "the fixture reaches the count Git's status saturates at"
     );
     let verdicts: Vec<Verdict> = verdicts_of(&world);
@@ -395,13 +594,18 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
         .map(|verdict| {
             return match verdict {
                 Verdict::Merged(file) => format!("merged, {} bytes", file.bytes.len()),
-                Verdict::Left { why, .. } => format!("left: {why:?}"),
+                Verdict::Left {
+                    why,
+                    ..
+                } => format!("left: {why:?}"),
             };
         })
         .collect();
     // Every one of the 127 conflicts is word-resolvable, so the file is merged and the person's block is not the only
     // thing that has to survive: a fix that refused at the status ceiling would leave the file for the person and fail here.
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {summary:?}")
+    };
     assert!(
         file.bytes.starts_with(example),
         "the literal block the file already held is kept: the merged file begins {:?}",
@@ -436,15 +640,28 @@ fn a_split_marker_shaped_line_of_a_side_is_merged_as_text() {
         .iter()
         .map(|verdict| {
             return match verdict {
-                Verdict::Merged(file) => format!("merged, {} bytes: {:?}", file.bytes.len(), String::from_utf8_lossy(file.bytes.as_slice())),
-                Verdict::Left { why, .. } => format!("left: {why:?}"),
+                Verdict::Merged(file) => format!(
+                    "merged, {} bytes: {:?}",
+                    file.bytes.len(),
+                    String::from_utf8_lossy(file.bytes.as_slice())
+                ),
+                Verdict::Left {
+                    why,
+                    ..
+                } => format!("left: {why:?}"),
             };
         })
         .collect();
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {summary:?}")
+    };
     // Both sides edited a different line, so the merge is the first side's line, its inserted text, and the second
     // side's line.
-    assert_eq!(file.bytes, b"alpha uno\n=======\nbeta uno\n".to_vec(), "the inserted line is the first side's text, and every other line comes from one side");
+    assert_eq!(
+        file.bytes,
+        b"alpha uno\n=======\nbeta uno\n".to_vec(),
+        "the inserted line is the first side's text, and every other line comes from one side"
+    );
     remove(world.root.as_path());
 }
 
@@ -468,22 +685,46 @@ fn a_file_whose_lines_end_with_both_bytes_is_merged() {
         .iter()
         .map(|verdict| {
             return match verdict {
-                Verdict::Merged(file) => format!("merged, {} bytes: {:?}", file.bytes.len(), String::from_utf8_lossy(file.bytes.as_slice())),
-                Verdict::Left { why, .. } => format!("left: {why:?}"),
+                Verdict::Merged(file) => format!(
+                    "merged, {} bytes: {:?}",
+                    file.bytes.len(),
+                    String::from_utf8_lossy(file.bytes.as_slice())
+                ),
+                Verdict::Left {
+                    why,
+                    ..
+                } => format!("left: {why:?}"),
             };
         })
         .collect();
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
-    assert_eq!(file.bytes, b"head\r\nALPHA uno\r\n".to_vec(), "the word merge of the two sides keeps the file's own line ending");
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("expected one merged file: {summary:?}")
+    };
+    assert_eq!(
+        file.bytes,
+        b"head\r\nALPHA uno\r\n".to_vec(),
+        "the word merge of the two sides keeps the file's own line ending"
+    );
     remove(world.root.as_path());
 }
 
 /// A path both sides added has no common ancestor stage and is left.
 #[test]
 fn a_path_both_sides_added_is_left_for_the_person() {
-    let world: World = world("second-pass-add-add", &[("keep.md", b"keep\n")], &[("new.md", Change::Write(b"ours\n"))], &[("new.md", Change::Write(b"theirs\n"))]);
+    let world: World = world(
+        "second-pass-add-add",
+        &[("keep.md", b"keep\n")],
+        &[("new.md", Change::Write(b"ours\n"))],
+        &[("new.md", Change::Write(b"theirs\n"))],
+    );
     let verdicts: Vec<Verdict> = verdicts_of(&world);
-    assert_eq!(verdicts, vec![Verdict::Left { path: b"new.md".to_vec(), why: Left::MissingStage }]);
+    assert_eq!(
+        verdicts,
+        vec![Verdict::Left {
+            path: b"new.md".to_vec(),
+            why: Left::MissingStage
+        }]
+    );
     remove(world.root.as_path());
 }
 
@@ -494,26 +735,97 @@ fn a_path_both_sides_added_is_left_for_the_person() {
 /// and keeps a control character out of the terminal.
 #[test]
 fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
-    let span = LineSpan { first: 3, count: 2 };
-    let part = |merged: &[u8]| { return MergedPart { base: LineSpan { first: 3, count: 0 }, ours: span, theirs: LineSpan { first: 4, count: 1 }, merged: merged.to_vec() }; };
-    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
-    let stages = Conflict { path: b"dir/a.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") };
-    let merged = Merged { path: b"dir/a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part(b"plain\n"), part(b"\x1b[31mred")], stages };
+    let span = LineSpan {
+        first: 3,
+        count: 2,
+    };
+    let part = |merged: &[u8]| {
+        return MergedPart {
+            base: LineSpan {
+                first: 3,
+                count: 0,
+            },
+            ours: span,
+            theirs: LineSpan {
+                first: 4,
+                count: 1,
+            },
+            merged: merged.to_vec(),
+        };
+    };
+    let stage = |oid: &str| {
+        return Some(Stage {
+            mode: 0o100_644,
+            oid: String::from(oid),
+        });
+    };
+    let stages = Conflict {
+        path: b"dir/a.md".to_vec(),
+        base: stage("aa12"),
+        ours: stage("bb34"),
+        theirs: stage("cc56"),
+    };
+    let merged = Merged {
+        path: b"dir/a.md".to_vec(),
+        mode: 0o100_644,
+        bytes: Vec::new(),
+        parts: vec![part(b"plain\n"), part(b"\x1b[31mred")],
+        stages,
+    };
     let lines: Vec<String> = report_lines("monochromatic-git-policy-cli: ", &merged);
     assert_eq!(lines.len(), 2);
     for (at, line) in lines.iter().enumerate() {
-        assert!(line.starts_with(format!("monochromatic-git-policy-cli: {REPORT_MARK}: dir/a.md: part {} of 2: ", at + 1).as_str()), "{line}");
-        assert!(line.contains("lines 3 to 4") && line.contains("line 4") && line.contains("no line (before line 3)"), "{line}");
-        assert!(line.ends_with("from base blob aa12, ours blob bb34, theirs blob cc56"), "the three inputs are named by object: {line}");
+        assert!(
+            line.starts_with(
+                format!(
+                    "monochromatic-git-policy-cli: {REPORT_MARK}: dir/a.md: part {} of 2: ",
+                    at + 1
+                )
+                .as_str()
+            ),
+            "{line}"
+        );
+        assert!(
+            line.contains("lines 3 to 4")
+                && line.contains("line 4")
+                && line.contains("no line (before line 3)"),
+            "{line}"
+        );
+        assert!(
+            line.ends_with("from base blob aa12, ours blob bb34, theirs blob cc56"),
+            "the three inputs are named by object: {line}"
+        );
         assert!(!line.contains('\x1b') && !line.contains('\n'), "{line:?}");
     }
     assert!(lines[0].contains("\"plain\\n\""), "{}", lines[0]);
-    let long = Merged { parts: vec![part("w".repeat(EXCERPT_CHARACTERS * 2).as_bytes())], ..merged.clone() };
-    assert!(report_lines("", &long)[0].contains("...\""), "a long part is cut");
+    let long = Merged {
+        parts: vec![part("w".repeat(EXCERPT_CHARACTERS * 2).as_bytes())],
+        ..merged.clone()
+    };
+    assert!(
+        report_lines("", &long)[0].contains("...\""),
+        "a long part is cut"
+    );
     // A merge the pass recorded with no stages of its own names no blob rather than a wrong one.
-    let unrecorded = Merged { stages: Conflict { path: b"dir/a.md".to_vec(), base: None, ours: None, theirs: None }, ..merged.clone() };
-    assert!(report_lines("", &unrecorded)[0].ends_with("from base no blob, ours no blob, theirs no blob"), "{}", report_lines("", &unrecorded)[0]);
-    let none = Merged { parts: Vec::new(), ..merged };
+    let unrecorded = Merged {
+        stages: Conflict {
+            path: b"dir/a.md".to_vec(),
+            base: None,
+            ours: None,
+            theirs: None,
+        },
+        ..merged.clone()
+    };
+    assert!(
+        report_lines("", &unrecorded)[0]
+            .ends_with("from base no blob, ours no blob, theirs no blob"),
+        "{}",
+        report_lines("", &unrecorded)[0]
+    );
+    let none = Merged {
+        parts: Vec::new(),
+        ..merged
+    };
     assert!(report_lines("", &none)[0].contains("resolved without a word pass"));
 }
 
@@ -523,7 +835,10 @@ fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
 /// the raw path bytes and a NUL.
 #[test]
 fn a_resolved_record_is_the_index_info_form() {
-    assert_eq!(resolved_record(0o100_755, "abc", b"d/\xff.sh"), b"100755 abc\td/\xff.sh\0".to_vec());
+    assert_eq!(
+        resolved_record(0o100_755, "abc", b"d/\xff.sh"),
+        b"100755 abc\td/\xff.sh\0".to_vec()
+    );
 }
 
 /// What:
@@ -592,14 +907,44 @@ fn only_the_configuration_options_of_the_prefix_are_kept() {
 /// and carries every part in its message.
 #[test]
 fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
-    let span = LineSpan { first: 1, count: 1 };
-    let part = MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() };
-    let stage = |oid: &str| { return Some(Stage { mode: 0o100_644, oid: String::from(oid) }); };
-    let stages = Conflict { path: b"a.md".to_vec(), base: stage("aa12"), ours: stage("bb34"), theirs: stage("cc56") };
-    let merged = Merged { path: b"a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part.clone(), part], stages };
+    let span = LineSpan {
+        first: 1,
+        count: 1,
+    };
+    let part = MergedPart {
+        base: span,
+        ours: span,
+        theirs: span,
+        merged: b"joined\n".to_vec(),
+    };
+    let stage = |oid: &str| {
+        return Some(Stage {
+            mode: 0o100_644,
+            oid: String::from(oid),
+        });
+    };
+    let stages = Conflict {
+        path: b"a.md".to_vec(),
+        base: stage("aa12"),
+        ours: stage("bb34"),
+        theirs: stage("cc56"),
+    };
+    let merged = Merged {
+        path: b"a.md".to_vec(),
+        mode: 0o100_644,
+        bytes: Vec::new(),
+        parts: vec![part.clone(), part],
+        stages,
+    };
     let (message, fields) = journal_entry("rebase", &merged);
-    assert!(message.contains("a.md") && message.contains("part 2 of 2"), "{message}");
-    assert!(message.contains("from base blob aa12, ours blob bb34, theirs blob cc56"), "{message}");
+    assert!(
+        message.contains("a.md") && message.contains("part 2 of 2"),
+        "{message}"
+    );
+    assert!(
+        message.contains("from base blob aa12, ours blob bb34, theirs blob cc56"),
+        "{message}"
+    );
     assert_eq!(
         fields,
         vec![
@@ -609,7 +954,9 @@ fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
             (BLOBS_FIELD, String::from("base=aa12,ours=bb34,theirs=cc56")),
         ]
     );
-    assert!(fields.iter().all(|(name, _)| { return crate::journald_native::valid_field_name(name); }));
+    assert!(fields.iter().all(|(name, _)| {
+        return crate::journald_native::valid_field_name(name);
+    }));
 }
 
 /// What:
@@ -641,24 +988,55 @@ fn a_merge_of_many_regions_numbers_every_part_in_its_file() {
     }
     let root = fixture("second-pass-many-regions");
     let repo = repository(root.as_path(), "repo");
-    for (name, text) in [("base", base.as_str()), ("ours", ours.as_str()), ("theirs", theirs.as_str())] {
+    for (name, text) in [
+        ("base", base.as_str()),
+        ("ours", ours.as_str()),
+        ("theirs", theirs.as_str()),
+    ] {
         std::fs::write(repo.join(name), text).expect("a stage");
     }
     let hashed = git(&repo, &["hash-object", "-w", "base", "ours", "theirs"]);
-    let oids: Vec<String> = String::from_utf8_lossy(&hashed.stdout).trim().split('\n').map(str::to_owned).collect();
-    let stage = |oid: &String| { return Some(Stage { mode: 0o100_644, oid: oid.clone() }); };
-    let conflict = Conflict { path: b"many.txt".to_vec(), base: stage(&oids[0]), ours: stage(&oids[1]), theirs: stage(&oids[2]) };
+    let oids: Vec<String> = String::from_utf8_lossy(&hashed.stdout)
+        .trim()
+        .split('\n')
+        .map(str::to_owned)
+        .collect();
+    let stage = |oid: &String| {
+        return Some(Stage {
+            mode: 0o100_644,
+            oid: oid.clone(),
+        });
+    };
+    let conflict = Conflict {
+        path: b"many.txt".to_vec(),
+        base: stage(&oids[0]),
+        ours: stage(&oids[1]),
+        theirs: stage(&oids[2]),
+    };
     let context = git_context();
     let runner = runner(&context, repo.as_path());
     let sides = [base.as_bytes(), ours.as_bytes(), theirs.as_bytes()];
-    let outcome = await_it(crate::merge::merge_second_pass_git_lines::merge_with_git_lines(&runner, &conflict, sides));
-    let WordMerge::Resolved { parts, .. } = outcome.expect("the pass runs") else { panic!("every region is the word merge of two edits") };
+    let outcome = await_it(
+        crate::merge::merge_second_pass_git_lines::merge_with_git_lines(&runner, &conflict, sides),
+    );
+    let WordMerge::Resolved {
+        parts,
+        ..
+    } = outcome.expect("the pass runs")
+    else {
+        panic!("every region is the word merge of two edits")
+    };
     assert_eq!(parts.len(), REGIONS, "one part for each region");
     // Each region is one line on each side, and a shared line sits between two of them, so the parts' lines are the odd
     // ones of every stage: the first from line 1.
     for (index, part) in parts.iter().enumerate() {
         let expected: usize = 2 * index + 1;
-        assert_eq!((part.base.first, part.ours.first, part.theirs.first), (expected, expected, expected), "the lines of part {}", index + 1);
+        assert_eq!(
+            (part.base.first, part.ours.first, part.theirs.first),
+            (expected, expected, expected),
+            "the lines of part {}",
+            index + 1
+        );
     }
     remove(root.as_path());
 }

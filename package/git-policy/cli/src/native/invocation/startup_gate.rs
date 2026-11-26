@@ -24,20 +24,33 @@
 //! await settleInterruptedMerges({ identity }); // throws the stop
 //! ```
 
-use crate::diagnostic_log::debug;
-use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
-use crate::merge_isolation_kept_copies::any_kept_copy;
-use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
-use crate::random_id::is_canonical_uuid;
-use crate::repository_link_gate::{LinkGate, link_gate};
 use crate::child_environment::environment_home;
+use crate::diagnostic_log::debug;
+use crate::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure_with_hint,
+};
+use crate::merge_isolation_kept_copies::any_kept_copy;
+use crate::merge_isolation_recovery::{
+    RecoveryPlace,
+    merge_intents_to_recover,
+    recover_interrupted_merges,
+};
+use crate::random_id::is_canonical_uuid;
 use crate::recovery_error::RecoveryError;
 use crate::recovery_files::recovery_path_exists;
+use crate::repository_link_gate::{
+    LinkGate,
+    link_gate,
+};
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory an earlier release kept its commit transactions in,
 /// inside the worktree's Git directory.
@@ -189,8 +202,20 @@ pub fn registry_note(registry: &Path) -> Option<String> {
 /// ```
 fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
     match identity {
-        WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => return None,
-        WorktreeIdentity::MainWorktree { git_dir, common_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, common_dir, .. } => {
+        WorktreeIdentity::OutsideWorktree
+        | WorktreeIdentity::BareRepository {
+            ..
+        } => return None,
+        WorktreeIdentity::MainWorktree {
+            git_dir,
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            git_dir,
+            common_dir,
+            ..
+        } => {
             return Some((git_dir.as_path(), common_dir.as_path()));
         }
     }
@@ -208,7 +233,12 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// ```ts
 /// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
+fn settle_merges(
+    context: &GitContext,
+    git_dir: &Path,
+    common_dir: &Path,
+    out: &mut dyn Write,
+) -> Result<(), RecoveryError> {
     // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
     //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
     if !merge_intents_to_recover(git_dir)? && !any_kept_copy(git_dir) {
@@ -224,7 +254,10 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
     //  learns that it finished a merge (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).
     let outcomes = recover_interrupted_merges(&place, git_dir, out)?;
     if !outcomes.is_empty() {
-        debug("startupGate", format!("isolated merge recovery outcomes: {outcomes:?}").as_str());
+        debug(
+            "startupGate",
+            format!("isolated merge recovery outcomes: {outcomes:?}").as_str(),
+        );
     }
     return Ok(());
 }
@@ -247,7 +280,11 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
 /// ```ts
 /// async function recoverForCommand({ gitPath, identity, environment }): Promise<Gate>;
 /// ```
-pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, environment: &[(OsString, OsString)]) -> Gate {
+pub fn recover_for_command(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    environment: &[(OsString, OsString)],
+) -> Gate {
     let home: Option<PathBuf> = environment_home(environment);
     return recover_for_command_with_home(context, identity, home.as_deref());
 }
@@ -262,7 +299,11 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, en
 /// ```ts
 /// recoverForCommand({ context, identity, home })
 /// ```
-pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>) -> Gate {
+pub fn recover_for_command_with_home(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    home: Option<&Path>,
+) -> Gate {
     let Some((git_dir, common_dir)) = worktree_directories(identity) else {
         return Gate::Clear;
     };
@@ -300,7 +341,12 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
 /// renderEngineFailure({ code: 'content-unavailable', message, hint: undefined })
 /// ```
 fn stopped(error: &RecoveryError) -> Gate {
-    return Gate::Stop(render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.0.as_str(), None));
+    return Gate::Stop(render_engine_failure_with_hint(
+        0,
+        EngineFailureCode::ContentUnavailable,
+        error.0.as_str(),
+        None,
+    ));
 }
 
 /// Startup step controls stay out of the release executable.

@@ -17,25 +17,44 @@
 //! const { sent, firstParent, typed } = theRequestOf({ amendment, embeddedInUse, tree, ready, invocation, nativeInputs, fixedMessage, id });
 //! ```
 
-/// The commit's request shape.
-use crate::service_protocol::CommitRequest;
-/// The commit the service builds from captured changes,
-/// and the one Git built.
-use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
-/// The amended commit of an amend whose branch moved.
-use crate::service_amend_replayed::{AmendedCommit, the_amendment_lands_as_new};
-/// The message embedded in the command line,
-/// and the arguments after the subcommand.
-use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand};
-/// The commit Git builds in the scratch repository.
-use crate::service_native::{BuildInput, GitBuilt, build_with_git};
-/// What a preparation handed back.
-use crate::service_prepare::{NativeInputs, Ready};
 /// The build phase's stretches,
 /// which the work that builds the commit marks as it goes.
 use crate::commit_build_part_durations::BuildPartClock;
 /// How a stopped transaction ends.
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+};
+/// The amended commit of an amend whose branch moved.
+use crate::service_amend_replayed::{
+    AmendedCommit,
+    the_amendment_lands_as_new,
+};
+/// The message embedded in the command line,
+/// and the arguments after the subcommand.
+use crate::service_commit_input_notes_and_embedded_commit::{
+    Embedded,
+    arguments_after_subcommand,
+};
+/// The commit the service builds from captured changes,
+/// and the one Git built.
+use crate::service_commit_requests_and_landing_report::{
+    request_for_embedded,
+    request_for_git_built,
+};
+/// The commit Git builds in the scratch repository.
+use crate::service_native::{
+    BuildInput,
+    GitBuilt,
+    build_with_git,
+};
+/// What a preparation handed back.
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
+/// The commit's request shape.
+use crate::service_protocol::CommitRequest;
 use std::ffi::OsString;
 
 /// What:
@@ -102,13 +121,33 @@ fn the_line_as_arguments(line: &Vec<OsString>) -> &[OsString] {
 /// ```ts
 /// function theRequestOf(fields: RequestOf): [CommitRequest, string, string?];
 /// ```
-pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, String, Option<String>), TransactionStop> {
-    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id, clock, service, handed } = fields;
+pub(crate) fn the_request_of(
+    fields: RequestOf<'_>
+) -> Result<(CommitRequest, String, Option<String>), TransactionStop> {
+    let RequestOf {
+        amendment,
+        embedded_in_use,
+        tree,
+        ready,
+        invocation,
+        native_inputs,
+        reissued,
+        id,
+        clock,
+        service,
+        handed,
+    } = fields;
     if let Some(found) = amendment {
         // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the single
         //  parent.
-        let (sent, parent, subject) =
-            the_amendment_lands_as_new(found, ready, invocation, native_inputs, id, arguments_after_subcommand(invocation.arguments, invocation.subcommand_index))?;
+        let (sent, parent, subject) = the_amendment_lands_as_new(
+            found,
+            ready,
+            invocation,
+            native_inputs,
+            id,
+            arguments_after_subcommand(invocation.arguments, invocation.subcommand_index),
+        )?;
         return Ok((sent, parent, Some(subject)));
     }
     let Some(made) = embedded_in_use else {
@@ -131,7 +170,14 @@ pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, St
             handed,
         })?;
         let parent: String = built.parents.first().cloned().unwrap_or_default();
-        let sent: CommitRequest = request_for_git_built(ready, native_inputs, id, built.commit, invocation.region.amend, built.drawn);
+        let sent: CommitRequest = request_for_git_built(
+            ready,
+            native_inputs,
+            id,
+            built.commit,
+            invocation.region.amend,
+            built.drawn,
+        );
         return Ok((sent, parent, Some(built.message)));
     };
     let sent: CommitRequest = request_for_embedded(ready, native_inputs, id, made, tree);

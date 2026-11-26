@@ -30,7 +30,10 @@
 //! ```
 
 use crate::process_tree::member_of;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The end of the name a command holds a record under while it shows it.
 pub const CLAIM_SUFFIX: &str = ".claim";
@@ -91,12 +94,18 @@ impl ClaimToken {
             // A command with no random source still claims under its number and start time alone.
             Err(_) => String::from("command"),
         };
-        return ClaimToken { command: format!("{number}{FIELD}{started}{FIELD}{part}"), made: std::sync::atomic::AtomicU64::new(0) };
+        return ClaimToken {
+            command: format!("{number}{FIELD}{started}{FIELD}{part}"),
+            made: std::sync::atomic::AtomicU64::new(0),
+        };
     }
 
     /// The name of the next claim of this command,
     /// for the record named `record`.
-    fn name_for(&self, record: &str) -> String {
+    fn name_for(
+        &self,
+        record: &str,
+    ) -> String {
         let nth: u64 = self.made.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         return format!("{record}.{}{FIELD}{nth}{CLAIM_SUFFIX}", self.command);
     }
@@ -119,11 +128,20 @@ impl ClaimToken {
 /// ```ts
 /// await renameNoReplace(from, to) // renameat2(RENAME_NOREPLACE), or link(from, to) then unlink(from)
 /// ```
-fn move_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+fn move_without_replacing(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     #[cfg(target_os = "linux")]
     {
-        return rustix::fs::renameat_with(rustix::fs::CWD, from, rustix::fs::CWD, to, rustix::fs::RenameFlags::NOREPLACE)
-            .map_err(std::io::Error::from);
+        return rustix::fs::renameat_with(
+            rustix::fs::CWD,
+            from,
+            rustix::fs::CWD,
+            to,
+            rustix::fs::RenameFlags::NOREPLACE,
+        )
+        .map_err(std::io::Error::from);
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -144,7 +162,10 @@ fn move_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
 /// ```ts
 /// try { await rename(path, path + '.' + token + '.claim'); return claimPath } catch { return undefined }
 /// ```
-pub fn claim(path: &Path, token: &ClaimToken) -> Option<PathBuf> {
+pub fn claim(
+    path: &Path,
+    token: &ClaimToken,
+) -> Option<PathBuf> {
     let name: String = path.file_name()?.to_string_lossy().into_owned();
     let claimed: PathBuf = path.with_file_name(token.name_for(name.as_str()));
     if move_without_replacing(path, claimed.as_path()).is_err() {
@@ -231,7 +252,10 @@ fn owner_of(name: &str) -> Option<(u32, u64)> {
 /// ```ts
 /// try { await rename(claim, claim.slice(0, claim.lastIndexOf('.')) + '.' + token + '.claim'); return taken } catch { return undefined }
 /// ```
-pub fn take_over(path: &Path, token: &ClaimToken) -> Option<PathBuf> {
+pub fn take_over(
+    path: &Path,
+    token: &ClaimToken,
+) -> Option<PathBuf> {
     let name: String = path.file_name()?.to_string_lossy().into_owned();
     let record: &str = record_of_claim(name.as_str())?;
     let claimed: PathBuf = path.with_file_name(token.name_for(record));
@@ -253,7 +277,10 @@ pub fn take_over(path: &Path, token: &ClaimToken) -> Option<PathBuf> {
 /// ```ts
 /// try { await rename(claim, record) } catch { /* the record's name is taken, so the claim stays */ }
 /// ```
-pub fn give_back(claim: &Path, record: &Path) {
+pub fn give_back(
+    claim: &Path,
+    record: &Path,
+) {
     if let Err(error) = move_without_replacing(claim, record)
         && error.kind() != std::io::ErrorKind::AlreadyExists
     {

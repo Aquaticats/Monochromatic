@@ -47,7 +47,12 @@ pub fn is_covered(word: &[u8]) -> bool {
 /// ```ts
 /// function forwardedLockNotice({ word, globalPrefix, environment, judge }): string;
 /// ```
-pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environment: &[(OsString, OsString)], judge: &Judge) -> String {
+pub fn forwarded_lock_notice(
+    word: &[u8],
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+    judge: &Judge,
+) -> String {
     if !is_covered(word) {
         return String::new();
     }
@@ -65,7 +70,10 @@ pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environmen
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         // The notice itself is printed on standard error, so the log keeps only a one-line record of it.
-        debug(TAG, "reference locks were judged before a forwarded fetch or push");
+        debug(
+            TAG,
+            "reference locks were judged before a forwarded fetch or push",
+        );
     }
     return notice;
 }

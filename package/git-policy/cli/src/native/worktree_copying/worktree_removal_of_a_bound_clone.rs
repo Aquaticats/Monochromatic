@@ -48,13 +48,22 @@
 //! ```
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
+use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal;
-use crate::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, RemovalPoolReads};
-use crate::worktree_clone_binding_record::registration_home::home_folder;
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::{
+    LiveRemovalReads,
+    RemovalPoolReads,
+};
 use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
-use crate::worktree_clone_slot_state::slot_state_live_read::{GatedCloneIntentReads, SlotReadingSources};
-use crate::worktree_copy_forward::{CopyFacts, ForwardedRun};
+use crate::worktree_clone_slot_state::slot_state_live_read::{
+    GatedCloneIntentReads,
+    SlotReadingSources,
+};
+use crate::worktree_copy_forward::{
+    CopyFacts,
+    ForwardedRun,
+};
 use crate::worktree_identity::common_directory;
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
@@ -100,7 +109,10 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
-    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
     return refuse_the_removal_with(facts, RemovalReads::Live, &sources);
 }
 
@@ -122,7 +134,11 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
 /// ```ts
 /// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedSources);
 /// ```
-pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sources: &SlotReadingSources<'_>) -> Option<ForwardedRun> {
+pub fn refuse_the_removal_with(
+    facts: &CopyFacts,
+    reads: RemovalReads<'_>,
+    sources: &SlotReadingSources<'_>,
+) -> Option<ForwardedRun> {
     // The refusal reads the worktree the command names whatever its options, which is the target the planner took from every
     // spelling Git accepts; the plan above serves only the plain form.
     let target: &Path = facts.removal_target.as_deref()?;
@@ -132,9 +148,19 @@ pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sourc
     if !home_folder(common_dir).is_dir() {
         return None;
     }
-    let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(target).ok()?;
-    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), target, sources.mounts, sources.intents);
-    if !matches!(at.state, SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }) {
+    let slot: String =
+        crate::worktree_clone_binding_record::registration_home::slot_of(target).ok()?;
+    let at = crate::worktree_clone_link_repair::the_slot_at_with(
+        common_dir,
+        slot.as_str(),
+        target,
+        sources.mounts,
+        sources.intents,
+    );
+    if !matches!(
+        at.state,
+        SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }
+    ) {
         return None;
     }
     let mut stderr: String = format!(
@@ -147,7 +173,10 @@ pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sourc
         stderr.push('\n');
     }
     stderr.push_str(the_removals_reading(common_dir, slot.as_str(), reads).as_str());
-    return Some(ForwardedRun::Failed { stderr, code: REFUSED_EXIT_CODE });
+    return Some(ForwardedRun::Failed {
+        stderr,
+        code: REFUSED_EXIT_CODE,
+    });
 }
 
 /// What:
@@ -164,10 +193,19 @@ pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sourc
 /// ```ts
 /// const lines = theRemovalsReading(commonDir, slot, reads);
 /// ```
-fn the_removals_reading(common_dir: &Path, slot: &str, reads: RemovalReads<'_>) -> String {
-    let entry: RemovalEntry<'_> = RemovalEntry { common_dir, slot };
+fn the_removals_reading(
+    common_dir: &Path,
+    slot: &str,
+    reads: RemovalReads<'_>,
+) -> String {
+    let entry: RemovalEntry<'_> = RemovalEntry {
+        common_dir,
+        slot,
+    };
     let reading = match reads {
-        RemovalReads::Scripted(pool) => read_the_removal(&entry, pool).map_err(|stop| return stop.message()),
+        RemovalReads::Scripted(pool) => {
+            read_the_removal(&entry, pool).map_err(|stop| return stop.message())
+        }
         RemovalReads::Unreadable(reason) => return unreadable_pool(reason),
         RemovalReads::Live => match LiveRemovalReads::open() {
             Ok(live) => read_the_removal(&entry, &live).map_err(|stop| return stop.message()),
@@ -180,7 +218,9 @@ fn the_removals_reading(common_dir: &Path, slot: &str, reads: RemovalReads<'_>) 
             lines.push(String::new());
             format!("{}\n", lines.join("\n"))
         }
-        Err(sentence) => format!("the removal's own checks stopped it before anything was written:\n{sentence}\n"),
+        Err(sentence) => format!(
+            "the removal's own checks stopped it before anything was written:\n{sentence}\n"
+        ),
     };
 }
 

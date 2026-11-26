@@ -29,9 +29,15 @@ use crate::worktree_clone_binding_record::RecordKind;
 use crate::worktree_clone_binding_record::record_name_of;
 use crate::worktree_clone_binding_record::registration_finder::candidate_names;
 use crate::worktree_clone_binding_record::registration_home::home_folder;
-use crate::worktree_clone_binding_record::registration_resume::{EntryDecision, decide};
+use crate::worktree_clone_binding_record::registration_resume::{
+    EntryDecision,
+    decide,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder Git keeps one directory per registration in.
 pub const WORKTREES_FOLDER: &str = "worktrees";
@@ -95,11 +101,17 @@ pub struct WhatTheWalkFound {
 /// ```
 pub fn the_slots_the_home_names(common_dir: &Path) -> Vec<String> {
     let home: PathBuf = home_folder(common_dir);
-    let Ok(entries) = std::fs::read_dir(home) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(home) else {
+        return Vec::new();
+    };
     let mut slots: Vec<String> = Vec::new();
     for entry in entries.flatten() {
-        let Some(name) = entry.file_name().to_str().map(String::from) else { continue };
-        let Some(record) = record_name_of(name.as_str()) else { continue };
+        let Some(name) = entry.file_name().to_str().map(String::from) else {
+            continue;
+        };
+        let Some(record) = record_name_of(name.as_str()) else {
+            continue;
+        };
         if record.kind == RecordKind::Binding && !slots.contains(&record.slot) {
             slots.push(record.slot);
         }
@@ -110,7 +122,10 @@ pub fn the_slots_the_home_names(common_dir: &Path) -> Vec<String> {
 /// Whether one decision attributed itself to this add,
 /// which is the finder's own count of the two-match refusal.
 fn attributes_itself(decision: &EntryDecision) -> bool {
-    return matches!(decision, EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
+    return matches!(
+        decision,
+        EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. }
+    );
 }
 
 /// What:
@@ -124,9 +139,17 @@ fn attributes_itself(decision: &EntryDecision) -> bool {
 /// ```ts
 /// for (const name of candidateNames(slot)) { const decisions = decide(readOneEntry(...), ...); }
 /// ```
-pub fn find_the_slot_registration(common_dir: &Path, slot: &str, slot_path: &Path, nonce: &RequestNonce) -> WhatTheWalkFound {
+pub fn find_the_slot_registration(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+    nonce: &RequestNonce,
+) -> WhatTheWalkFound {
     let worktrees: PathBuf = common_dir.join(WORKTREES_FOLDER);
-    let other_slots: Vec<String> = the_slots_the_home_names(common_dir).into_iter().filter(|other| return other != slot).collect();
+    let other_slots: Vec<String> = the_slots_the_home_names(common_dir)
+        .into_iter()
+        .filter(|other| return other != slot)
+        .collect();
     let names: Vec<String> = candidate_names(slot);
     let mut names_seen: Vec<String> = Vec::new();
     let mut attributing: Vec<(String, EntryDecision)> = Vec::new();
@@ -136,20 +159,39 @@ pub fn find_the_slot_registration(common_dir: &Path, slot: &str, slot_path: &Pat
         }
         names_seen.push(name.clone());
         let entry = read_one_entry(worktrees.as_path(), name.as_str(), slot_path);
-        let decision: EntryDecision = decide(&entry, slot, slot_path, nonce, other_slots.as_slice());
+        let decision: EntryDecision =
+            decide(&entry, slot, slot_path, nonce, other_slots.as_slice());
         if attributes_itself(&decision) {
             attributing.push((name, decision));
         }
     }
     if attributing.len() > 1 {
-        let found: Vec<String> = attributing.into_iter().map(|(name, _decision)| return name).collect();
-        return WhatTheWalkFound { registration: TheRegistration::Two { names: found }, names_seen };
+        let found: Vec<String> = attributing
+            .into_iter()
+            .map(|(name, _decision)| return name)
+            .collect();
+        return WhatTheWalkFound {
+            registration: TheRegistration::Two {
+                names: found,
+            },
+            names_seen,
+        };
     }
     let Some((name, decision)) = attributing.pop() else {
-        return WhatTheWalkFound { registration: TheRegistration::None, names_seen };
+        return WhatTheWalkFound {
+            registration: TheRegistration::None,
+            names_seen,
+        };
     };
     let path: PathBuf = worktrees.join(name.as_str());
-    return WhatTheWalkFound { registration: TheRegistration::One { name, path, decision }, names_seen };
+    return WhatTheWalkFound {
+        registration: TheRegistration::One {
+            name,
+            path,
+            decision,
+        },
+        names_seen,
+    };
 }
 
 /// Controls stay out of the release executable.

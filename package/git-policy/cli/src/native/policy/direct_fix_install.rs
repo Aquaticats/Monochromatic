@@ -50,27 +50,48 @@
 //! // await installDirectFix({ scope, changedPaths, finalCandidates, originals });
 //! ```
 
-/// The journal a correction is installed through,
-///  and the sweep that finishes what a kill interrupted.
-use crate::direct_fix_install_journal::{content_of, open_journal, remove};
-/// The judgement of what a name holds.
-use crate::direct_fix_install_judging::{displaced_is_unchanged, holds_exactly, state_of, SiteState};
-/// The sentences the install reports.
-use crate::direct_fix_install_messages::{
-    could_not_remove, install_failure, journal_refusal, kept_bytes_notice, kept_notice, unchanged_failure,
-};
-/// The two file-system primitives,
-///  and what the file being replaced had.
-use crate::direct_fix_install_writes::{Kept, exchange, write_new};
 /// The mode a candidate carries,
 ///  which the installed wrapper's fix records beside each correction.
 use crate::candidate_object::CandidateMode;
+/// The journal a correction is installed through,
+///  and the sweep that finishes what a kill interrupted.
+use crate::direct_fix_install_journal::{
+    content_of,
+    open_journal,
+    remove,
+};
+/// The judgement of what a name holds.
+use crate::direct_fix_install_judging::{
+    SiteState,
+    displaced_is_unchanged,
+    holds_exactly,
+    state_of,
+};
+/// The sentences the install reports.
+use crate::direct_fix_install_messages::{
+    could_not_remove,
+    install_failure,
+    journal_refusal,
+    kept_bytes_notice,
+    kept_notice,
+    unchanged_failure,
+};
+/// The two file-system primitives,
+///  and what the file being replaced had.
+use crate::direct_fix_install_writes::{
+    Kept,
+    exchange,
+    write_new,
+};
 /// The conversion of Git pathname bytes to a native path.
 use crate::git_metadata::path_from_git_bytes;
 /// The proof that this process can be named as the journal's writer.
 use crate::worktree_copy_owner::current_copy_owner;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -307,7 +328,10 @@ fn writer_token() -> Option<String> {
 /// ```ts
 /// if (await displacedIsUnchanged(site)) removeJournal(site.journal); else notices.push(keptNotice(site));
 /// ```
-fn finish_site(site: &Prepared, notices: &mut Vec<String>) {
+fn finish_site(
+    site: &Prepared,
+    notices: &mut Vec<String>,
+) {
     match displaced_is_unchanged(site) {
         Ok(true) => {
             if !remove(site.journal.as_path()) {
@@ -342,7 +366,10 @@ fn finish_site(site: &Prepared, notices: &mut Vec<String>) {
 /// ```ts
 /// exchange(contentOf(site.journal), site.destination); if (holdsExactly(contentOf(site.journal), site.replacement, site.kept)) removeOrName(site.journal); else notices.push(keptNotice(site));
 /// ```
-fn roll_back_site(site: &Prepared, notices: &mut Vec<String>) {
+fn roll_back_site(
+    site: &Prepared,
+    notices: &mut Vec<String>,
+) {
     let content: PathBuf = content_of(site.journal.as_path());
     // What: A control's step stands here, between the last reading of the destination and the swap, which is the
     //       window this rollback removes.
@@ -423,16 +450,24 @@ pub fn prepare_replacements(
 /// ```ts
 /// async function prepareOne(root, gitDir, change): Promise<Prepared>;
 /// ```
-fn prepare_one(root: &Path, git_dir: &Path, change: &InstallChange) -> Result<Prepared, String> {
+fn prepare_one(
+    root: &Path,
+    git_dir: &Path,
+    change: &InstallChange,
+) -> Result<Prepared, String> {
     let Some(relative) = path_from_git_bytes(change.path.as_slice()) else {
         return Err(install_failure(
             "Git named a corrected file this system cannot represent, so no file was changed.",
         ));
     };
     let destination: PathBuf = root.join(relative);
-    let found: SiteState = state_of(destination.as_path(), "reading a corrected file")
-        .map_err(unchanged_failure)?;
-    let SiteState::File { bytes, kept } = found else {
+    let found: SiteState =
+        state_of(destination.as_path(), "reading a corrected file").map_err(unchanged_failure)?;
+    let SiteState::File {
+        bytes,
+        kept,
+    } = found
+    else {
         if let SiteState::Absent = found {
             return Err(install_failure(
                 "a selected file is gone, and putting corrected bytes at its path would create a file the fix never read, so no file was changed.",
@@ -513,7 +548,9 @@ pub fn install_prepared(
             content_of(site.journal.as_path()).as_path(),
             site.destination.as_path(),
         ) {
-            failure = Some(format!("putting a corrected file in place failed ({error})"));
+            failure = Some(format!(
+                "putting a corrected file in place failed ({error})"
+            ));
             break;
         }
         swapped += 1;
@@ -613,7 +650,9 @@ pub fn install_corrections(
     };
     let prepared: Vec<Prepared> = prepare_replacements(root, git_dir, changes)?;
     install_prepared(prepared.as_slice(), real_index, &index_before, &mut notices)?;
-    return Ok(InstallOutcome { notices });
+    return Ok(InstallOutcome {
+        notices,
+    });
 }
 
 /// Installation,

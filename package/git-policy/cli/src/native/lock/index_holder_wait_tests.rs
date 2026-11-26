@@ -23,7 +23,11 @@
 
 use super::*;
 use crate::stale_ref_lock_killed_git::Helper;
-use crate::test_support::{SharedSink, fixture, remove};
+use crate::test_support::{
+    SharedSink,
+    fixture,
+    remove,
+};
 use std::time::Duration;
 
 /// A cadence with no grace,
@@ -43,7 +47,10 @@ fn quick() -> Cadence {
 /// the wait speaks only after it began,
 /// so the hold counted from its first notice is never
 ///  longer than what the wait measured.
-fn hold_from_the_first_notice_of_the_wait(watching: &SharedSink, holding: Duration) {
+fn hold_from_the_first_notice_of_the_wait(
+    watching: &SharedSink,
+    holding: Duration,
+) {
     while watching.text().is_empty() {
         std::thread::sleep(Duration::from_millis(5));
     }
@@ -56,7 +63,12 @@ fn hold_from_the_first_notice_of_the_wait(watching: &SharedSink, holding: Durati
 fn a_free_index_is_not_waited_for() {
     let root: std::path::PathBuf = fixture("holder-wait-free");
     let sink: SharedSink = SharedSink::default();
-    let outcome: IndexWait = wait_for_index_release(root.join("index").as_path(), "merge", quick(), &mut sink.clone());
+    let outcome: IndexWait = wait_for_index_release(
+        root.join("index").as_path(),
+        "merge",
+        quick(),
+        &mut sink.clone(),
+    );
     assert_eq!(outcome, IndexWait::NotHeld);
     assert_eq!(sink.text(), "");
     remove(root.as_path());
@@ -76,11 +88,16 @@ fn a_released_lock_ends_the_wait_after_a_notice() {
     let sink: SharedSink = SharedSink::default();
     // The lock goes when the first line has been written, so the control depends on the notice and not on a timer.
     let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
-    let mut writer = crate::test_support::ActionSink::new(&sink, 1, move || { remover.remove(); });
+    let mut writer = crate::test_support::ActionSink::new(&sink, 1, move || {
+        remover.remove();
+    });
     let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", quick(), &mut writer);
     assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
     let text: String = sink.text();
-    assert!(text.contains("git merge has changed nothing yet and waits for the index lock"), "{text}");
+    assert!(
+        text.contains("git merge has changed nothing yet and waits for the index lock"),
+        "{text}"
+    );
     assert!(text.contains("index.lock"), "the lock is named: {text}");
     assert!(!lock.exists());
     remove(root.as_path());
@@ -106,14 +123,30 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
         hold_from_the_first_notice_of_the_wait(&watching, holding);
         remover.remove();
     });
-    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
+    let outcome: IndexWait =
+        wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
     letting_go.join().expect("the lock goes");
-    assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
+    assert!(
+        matches!(outcome, IndexWait::Released(waited) if waited >= holding),
+        "{outcome:?}"
+    );
     let text: String = sink.text();
-    assert!(text.contains("cannot be proven alive") && text.contains("has the lock open"), "what is known is said: {text}");
-    assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
-    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
-    assert!(!text.contains("stops waiting"), "a notice while the wait goes on never says the command stopped; only the ceiling's line does: {text}");
+    assert!(
+        text.contains("cannot be proven alive") && text.contains("has the lock open"),
+        "what is known is said: {text}"
+    );
+    assert!(
+        text.contains(format!("removing the file {}", lock.display()).as_str()),
+        "the way out is named: {text}"
+    );
+    assert!(
+        text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()),
+        "the line says how long the wait lasts before it ends: {text}"
+    );
+    assert!(
+        !text.contains("stops waiting"),
+        "a notice while the wait goes on never says the command stopped; only the ceiling's line does: {text}"
+    );
     remove(root.as_path());
 }
 
@@ -148,16 +181,41 @@ fn a_number_this_table_does_not_have_ends_the_wait_at_once_with_the_number_named
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
     let gone: i64 = i64::from(gone_process_id());
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(index.as_path()),
+        format!("pid {gone}\n"),
+    )
+    .expect("the PID file");
     let sink: SharedSink = SharedSink::default();
-    let outcome: IndexWait = wait_for_index_release_within(index.as_path(), "merge", NO_CEILING, quick(), &mut sink.clone());
+    let outcome: IndexWait = wait_for_index_release_within(
+        index.as_path(),
+        "merge",
+        NO_CEILING,
+        quick(),
+        &mut sink.clone(),
+    );
     assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
     let text: String = sink.text();
-    assert!(text.contains(format!("PID number {gone}").as_str()), "the number the PID file holds is said: {text}");
-    assert!(text.contains("which no process in this process table has"), "the number is said for what it is: {text}");
-    assert!(text.contains("no record of the processes this repository's own commands started names"), "the diagnostic says no record of the wrapper's commands explains it: {text}");
-    assert!(text.contains("another PID namespace"), "why this table does not have it is said: {text}");
-    assert!(!text.contains("still held after"), "such an owner is not waited for: {text}");
+    assert!(
+        text.contains(format!("PID number {gone}").as_str()),
+        "the number the PID file holds is said: {text}"
+    );
+    assert!(
+        text.contains("which no process in this process table has"),
+        "the number is said for what it is: {text}"
+    );
+    assert!(
+        text.contains("no record of the processes this repository's own commands started names"),
+        "the diagnostic says no record of the wrapper's commands explains it: {text}"
+    );
+    assert!(
+        text.contains("another PID namespace"),
+        "why this table does not have it is said: {text}"
+    );
+    assert!(
+        !text.contains("still held after"),
+        "such an owner is not waited for: {text}"
+    );
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
 }
@@ -178,8 +236,17 @@ fn where_no_watch_can_be_set_the_merge_wait_polls_until_the_lock_goes() {
         remover.remove();
     });
     let sink: SharedSink = SharedSink::default();
-    let none = |_: &std::path::Path| -> Option<Watch> { return None; };
-    let outcome: IndexWait = wait_with_watches(index.as_path(), "merge", LONG_CEILING, quick(), &mut sink.clone(), &none);
+    let none = |_: &std::path::Path| -> Option<Watch> {
+        return None;
+    };
+    let outcome: IndexWait = wait_with_watches(
+        index.as_path(),
+        "merge",
+        LONG_CEILING,
+        quick(),
+        &mut sink.clone(),
+        &none,
+    );
     letting_go.join().expect("the lock goes");
     assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
     remove(root.as_path());
@@ -199,7 +266,8 @@ const SHORT_CEILING: Duration = Duration::from_millis(300);
 /// and returns what it ended with and said.
 fn wait_at_the_ceiling(index: &std::path::Path) -> (IndexWait, String) {
     let sink: SharedSink = SharedSink::default();
-    let outcome: IndexWait = wait_for_index_release_within(index, "merge", SHORT_CEILING, quick(), &mut sink.clone());
+    let outcome: IndexWait =
+        wait_for_index_release_within(index, "merge", SHORT_CEILING, quick(), &mut sink.clone());
     return (outcome, sink.text());
 }
 
@@ -213,10 +281,21 @@ fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(index.as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file");
     let (outcome, text) = wait_at_the_ceiling(index.as_path());
-    assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING), "{outcome:?}");
-    assert!(text.contains("still held after") && text.contains(format!("PID {}", std::process::id()).as_str()), "{text}");
+    assert!(
+        matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING),
+        "{outcome:?}"
+    );
+    assert!(
+        text.contains("still held after")
+            && text.contains(format!("PID {}", std::process::id()).as_str()),
+        "{text}"
+    );
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
 }
@@ -231,8 +310,14 @@ fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
     let (outcome, text) = wait_at_the_ceiling(index.as_path());
-    assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING), "{outcome:?}");
-    assert!(text.contains("still held after") && text.contains("an owner nothing proves alive"), "{text}");
+    assert!(
+        matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING),
+        "{outcome:?}"
+    );
+    assert!(
+        text.contains("still held after") && text.contains("an owner nothing proves alive"),
+        "{text}"
+    );
     assert!(lock.exists());
     remove(root.as_path());
 }
@@ -251,7 +336,11 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
     // The PID file names this process, which runs and started before the lock was made.
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(index.as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file");
     let holding: Duration = LONG_HOLD;
     let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
     let sink: SharedSink = SharedSink::default();
@@ -260,14 +349,27 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
         hold_from_the_first_notice_of_the_wait(&watching, holding);
         remover.remove();
     });
-    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
+    let outcome: IndexWait =
+        wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
     letting_go.join().expect("the holder lets go");
-    assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
+    assert!(
+        matches!(outcome, IndexWait::Released(waited) if waited >= holding),
+        "{outcome:?}"
+    );
     let text: String = sink.text();
     assert!(text.contains("proven by its Git lock PID file"), "{text}");
-    assert!(text.contains("still waiting for"), "the line repeats while the holder holds: {text}");
-    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
-    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {text}");
+    assert!(
+        text.contains("still waiting for"),
+        "the line repeats while the holder holds: {text}"
+    );
+    assert!(
+        text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()),
+        "the line says how long the wait lasts before it ends: {text}"
+    );
+    assert!(
+        !text.contains("giving up") && !text.contains("stops waiting"),
+        "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {text}"
+    );
     remove(root.as_path());
 }
 
@@ -306,15 +408,29 @@ fn a_merge_does_not_wait_for_a_lock_nothing_proves_the_owner_of() {
     let sink: SharedSink = SharedSink::default();
     let began: std::time::Instant = std::time::Instant::now();
     let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
-    assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a lock nothing proves: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() < Duration::from_secs(10),
+        "the look does not wait for a lock nothing proves: {:?}",
+        began.elapsed()
+    );
     match looked {
         IndexWait::HeldByAnotherCommand(named) => {
-            assert!(named.contains("an owner nothing proves alive"), "what is known is named: {named}");
-            assert!(named.contains("has the lock open"), "what was looked at is named: {named}");
+            assert!(
+                named.contains("an owner nothing proves alive"),
+                "what is known is named: {named}"
+            );
+            assert!(
+                named.contains("has the lock open"),
+                "what was looked at is named: {named}"
+            );
         }
         other => panic!("a lock nothing proves ends the look at once: {other:?}"),
     }
-    assert_eq!(sink.text(), "", "the look writes no notice for a wait it does not make");
+    assert_eq!(
+        sink.text(),
+        "",
+        "the look writes no notice for a wait it does not make"
+    );
     assert!(lock.exists(), "the look removes no lock");
     remove(root.as_path());
 }
@@ -382,17 +498,31 @@ fn a_merge_does_not_wait_for_a_holder_proven_alive() {
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
     let sink: SharedSink = SharedSink::default();
-    assert_eq!(look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone()), IndexWait::NotHeld, "a free index ends the look");
+    assert_eq!(
+        look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone()),
+        IndexWait::NotHeld,
+        "a free index ends the look"
+    );
     assert_eq!(sink.text(), "", "a free index prints nothing");
     std::fs::write(&lock, b"").expect("the other program's lock");
     let holder: Helper = hold_open_until_the_scan_sees_it(lock.as_path());
     let began: std::time::Instant = std::time::Instant::now();
     let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
-    assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a proven holder: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() < Duration::from_secs(10),
+        "the look does not wait for a proven holder: {:?}",
+        began.elapsed()
+    );
     match looked {
         IndexWait::HeldByAnotherCommand(named) => {
-            assert!(named.contains(format!("PID {}", holder.pid()).as_str()), "the holder is named: {named}");
-            assert!(named.contains("proven by an open descriptor"), "the proof is named: {named}");
+            assert!(
+                named.contains(format!("PID {}", holder.pid()).as_str()),
+                "the holder is named: {named}"
+            );
+            assert!(
+                named.contains("proven by an open descriptor"),
+                "the proof is named: {named}"
+            );
         }
         other => panic!("a holder proven alive ends the look at once: {other:?}"),
     }
@@ -416,24 +546,38 @@ const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: Duration = Duration::from_secs(20);
 /// so it waits on the fact the wrapper will find.
 fn hold_open_until_the_scan_sees_it(lock: &std::path::Path) -> Helper {
     let mut command: std::process::Command = std::process::Command::new("sh");
-    command.args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")]);
+    command.args([
+        "-c",
+        "exec 3<\"$0\"; exec sleep 30",
+        lock.to_str().expect("a UTF-8 lock path"),
+    ]);
     // Quiet and owned: nothing reads this holder's output, and the `sleep` behind its shell goes with the test.
-    let holder: Helper = Helper(crate::test_support::spawn_owned_quiet(&mut command).expect("a holder starts"));
+    let holder: Helper =
+        Helper(crate::test_support::spawn_owned_quiet(&mut command).expect("a holder starts"));
     let began: std::time::Instant = std::time::Instant::now();
     while !the_scan_sees(lock, holder.pid()) {
-        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.pid());
+        assert!(
+            began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR,
+            "the scan never saw the holder {}",
+            holder.pid()
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     return holder;
 }
 
 /// Whether the host's bounded scan for open holders sees `pid` holding `lock` open.
-fn the_scan_sees(lock: &std::path::Path, pid: i64) -> bool {
+fn the_scan_sees(
+    lock: &std::path::Path,
+    pid: i64,
+) -> bool {
     let Ok(Some(metadata)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
         return false;
     };
     let seen = scan_platform_holders_bounded(lock, metadata.device, metadata.inode);
-    return seen.holders.iter().any(|holder| { return holder.pid == pid; });
+    return seen.holders.iter().any(|holder| {
+        return holder.pid == pid;
+    });
 }
 
 /// A lock a gone process left is named by the same look,
@@ -445,12 +589,19 @@ fn a_merge_looks_once_at_the_index_and_names_a_dead_owner() {
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock a killed Git left");
     let gone: i64 = i64::from(gone_process_id());
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(index.as_path()),
+        format!("pid {gone}\n"),
+    )
+    .expect("the PID file");
     let sink: SharedSink = SharedSink::default();
     let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
     assert!(matches!(looked, IndexWait::OwnerGone(_)), "{looked:?}");
     let text: String = sink.text();
-    assert!(text.contains(format!("PID number {gone}").as_str()), "the dead owner is named: {text}");
+    assert!(
+        text.contains(format!("PID number {gone}").as_str()),
+        "the dead owner is named: {text}"
+    );
     assert!(lock.exists(), "the look removes no lock");
     remove(root.as_path());
 }

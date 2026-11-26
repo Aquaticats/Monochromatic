@@ -19,11 +19,20 @@
 //! ```
 
 /// Import the layer's failure type and its causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the validated object name a tree source is named by.
 use crate::candidate_object::ObjectId;
 /// Import the captured-query runner and the byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git_without, strip_git_line};
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+    read_stopped_text,
+    run_metadata_git_without,
+    strip_git_line,
+};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a collection of distinct values.
 /// Why:
@@ -33,7 +42,10 @@ use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text
 /// ```ts
 /// const byTree = new Map<string, Buffer[]>(); const unset = new Set<string>();
 /// ```
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 /// Names and paths of the Git child.
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path.
@@ -115,7 +127,10 @@ pub struct CandidateAttributes {
 /// ```ts
 /// const attributeFailure = (failure, detail) => new CandidateError(failure, `monochromatic-git-policy-cli could not read the text attribute of candidate files: ${detail}`);
 /// ```
-fn attribute_failure(failure: CandidateFailure, detail: &str) -> CandidateError {
+fn attribute_failure(
+    failure: CandidateFailure,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
         format!("monochromatic-git-policy-cli could not read the text attribute of candidate files: {detail}").as_str(),
@@ -231,7 +246,10 @@ impl CandidateAttributes {
     /// ```ts
     /// const stdout = await runGit([...prefix, ...command]);
     /// ```
-    fn run(&self, command: &[OsString]) -> Result<Vec<u8>, CandidateError> {
+    fn run(
+        &self,
+        command: &[OsString],
+    ) -> Result<Vec<u8>, CandidateError> {
         let mut arguments: Vec<OsString> = self.global_prefix.clone();
         arguments.extend_from_slice(command);
         let operation: String = match command.first() {
@@ -317,11 +335,12 @@ impl CandidateAttributes {
     /// ```ts
     /// const command = ['check-attr', '-z', ...sourceFlags, 'text', '--', ...names];
     /// ```
-    fn command(&self, tree: Option<&ObjectId>, names: &[Vec<u8>]) -> Result<Vec<OsString>, CandidateError> {
-        let mut command: Vec<OsString> = vec![
-            OsString::from("check-attr"),
-            OsString::from("-z"),
-        ];
+    fn command(
+        &self,
+        tree: Option<&ObjectId>,
+        names: &[Vec<u8>],
+    ) -> Result<Vec<OsString>, CandidateError> {
+        let mut command: Vec<OsString> = vec![OsString::from("check-attr"), OsString::from("-z")];
         match tree {
             Some(object) => command.push(OsString::from(format!("--source={}", object.as_str()))),
             None => command.push(OsString::from("--cached")),
@@ -396,7 +415,10 @@ impl CandidateAttributes {
     /// ```ts
     /// async textUnset(paths: Buffer[]): Promise<Set<string>>; // throws CandidateError
     /// ```
-    pub fn text_unset(&self, paths: &[&[u8]]) -> Result<HashSet<Vec<u8>>, CandidateError> {
+    pub fn text_unset(
+        &self,
+        paths: &[&[u8]],
+    ) -> Result<HashSet<Vec<u8>>, CandidateError> {
         let mut unset: HashSet<Vec<u8>> = HashSet::new();
         if paths.is_empty() {
             return Ok(unset);
@@ -411,7 +433,11 @@ impl CandidateAttributes {
                 }
                 let command: Vec<OsString> = self.command(tree.as_ref(), asked.as_slice())?;
                 let output: Vec<u8> = self.run(command.as_slice())?;
-                unset.extend(parse_text_unset(output.as_slice(), asked.as_slice(), chunk)?);
+                unset.extend(parse_text_unset(
+                    output.as_slice(),
+                    asked.as_slice(),
+                    chunk,
+                )?);
             }
         }
         return Ok(unset);

@@ -27,9 +27,16 @@
 /// ```ts
 /// import { parseConfigRegion } from './command_config.ts';
 /// ```
-use crate::command_config::{ConfigRegion, parse_config_region};
+use crate::command_config::{
+    ConfigRegion,
+    parse_config_region,
+};
 use crate::command_options::OptionError;
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `PathBuf` is an owned file path of raw bytes (sibling `String` must be UTF-8).
@@ -187,7 +194,10 @@ pub enum RequireRootVerdict {
 /// ```ts
 /// const exempt = region.global || region.system || region.lists;
 /// ```
-fn config_is_exempt(region: &[OsString], wrapper_flags: &[&[u8]]) -> bool {
+fn config_is_exempt(
+    region: &[OsString],
+    wrapper_flags: &[&[u8]],
+) -> bool {
     let parsed: Result<ConfigRegion, OptionError> = parse_config_region(region, wrapper_flags);
     // `if let Ok(found) = ...` runs only for a region Git accepts.
     if let Ok(found) = parsed {
@@ -208,7 +218,10 @@ fn config_is_exempt(region: &[OsString], wrapper_flags: &[&[u8]]) -> bool {
 /// ```ts
 /// function decideRequireRoot(args: string[], wrapperFlags: string[]): RequireRootDecision;
 /// ```
-pub fn decide_require_root(arguments: &[OsString], wrapper_flags: &[&[u8]]) -> RequireRootDecision {
+pub fn decide_require_root(
+    arguments: &[OsString],
+    wrapper_flags: &[&[u8]],
+) -> RequireRootDecision {
     let layout: GlobalLayout = global_layout(arguments);
     if layout.outcome != GlobalOutcome::Command {
         return RequireRootDecision::Exempt(RequireRootExemption::NoCommand);
@@ -258,7 +271,9 @@ pub fn resolve_require_root(facts: &RequireRootFacts) -> RequireRootVerdict {
         root = root.display(),
         directory = facts.effective_directory.display(),
     );
-    return RequireRootVerdict::NotAtRoot(RequireRootViolation { message });
+    return RequireRootVerdict::NotAtRoot(RequireRootViolation {
+        message,
+    });
 }
 
 /// Exemptions and verdicts,

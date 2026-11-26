@@ -4,8 +4,11 @@
 //! and that the sentence names the unit whose service is being set up and the seconds it waited.
 
 use super::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// What:
 ///  The sentence a wait for the manager is explained with,
@@ -16,11 +19,26 @@ use std::sync::Arc;
 ///  stuck.
 #[test]
 fn the_sentence_names_the_unit_the_seconds_and_that_the_commit_goes_on() {
-    let said: String = slow_manager_notice("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.socket", SLOW_MANAGER_NOTICE_AFTER);
-    assert!(said.contains("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.socket"), "{said}");
-    assert!(said.contains(&format!("{} seconds", SLOW_MANAGER_NOTICE_AFTER.as_secs())), "{said}");
-    assert!(said.contains("this commit goes on"), "the commit is not lost by the wait: {said}");
-    assert!(said.starts_with("monochromatic-git-policy-cli: "), "the line names the program it is about: {said}");
+    let said: String = slow_manager_notice(
+        "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.socket",
+        SLOW_MANAGER_NOTICE_AFTER,
+    );
+    assert!(
+        said.contains("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.socket"),
+        "{said}"
+    );
+    assert!(
+        said.contains(&format!("{} seconds", SLOW_MANAGER_NOTICE_AFTER.as_secs())),
+        "{said}"
+    );
+    assert!(
+        said.contains("this commit goes on"),
+        "the commit is not lost by the wait: {said}"
+    );
+    assert!(
+        said.starts_with("monochromatic-git-policy-cli: "),
+        "the line names the program it is about: {said}"
+    );
 }
 
 /// What:
@@ -38,15 +56,27 @@ fn the_line_is_said_once_and_only_when_the_calls_outlast_the_moment() {
     drop(SlowManagerNotice::arm_saying(move || {
         let _counted = quiet_seen.fetch_add(1, Ordering::SeqCst);
     }));
-    assert_eq!(quiet.load(Ordering::SeqCst), 0, "a manager that answered at once says nothing");
+    assert_eq!(
+        quiet.load(Ordering::SeqCst),
+        0,
+        "a manager that answered at once says nothing"
+    );
     let slow: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let slow_seen: Arc<AtomicUsize> = Arc::clone(&slow);
     let notice: SlowManagerNotice = SlowManagerNotice::arm_saying(move || {
         let _counted = slow_seen.fetch_add(1, Ordering::SeqCst);
     });
     std::thread::sleep(SLOW_MANAGER_NOTICE_AFTER + std::time::Duration::from_millis(250));
-    assert_eq!(slow.load(Ordering::SeqCst), 1, "a manager that keeps the calls waiting is said once");
+    assert_eq!(
+        slow.load(Ordering::SeqCst),
+        1,
+        "a manager that keeps the calls waiting is said once"
+    );
     drop(notice);
     std::thread::sleep(std::time::Duration::from_millis(50));
-    assert_eq!(slow.load(Ordering::SeqCst), 1, "and the thread it was said from is ended, so nothing says it again");
+    assert_eq!(
+        slow.load(Ordering::SeqCst),
+        1,
+        "and the thread it was said from is ended, so nothing says it again"
+    );
 }

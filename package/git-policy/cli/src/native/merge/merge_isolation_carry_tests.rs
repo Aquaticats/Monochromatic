@@ -5,7 +5,14 @@
 //! and the shapes a capture refuses.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// A repository with `a.txt` committed,
@@ -35,21 +42,47 @@ fn both_layers_of_one_path_are_captured_separately() {
     let (root, repo) = edited("carry-both-layers");
     let context = git_context();
     let paths: Vec<Vec<u8>> = vec![b"a.txt".to_vec(), b"b.txt".to_vec()];
-    let capture: Capture = capture_work(&context, repo.as_path(), paths.as_slice()).expect("the capture");
+    let capture: Capture =
+        capture_work(&context, repo.as_path(), paths.as_slice()).expect("the capture");
     assert_eq!(capture.paths.len(), 2);
     let a: &CapturedPath = &capture.paths[0];
     assert_eq!(a.path, b"a.txt");
-    assert_eq!(a.worktree.as_ref().map(|file| { return file.mode.as_str(); }), Some("100644"));
-    assert_ne!(a.worktree.as_ref().map(|file| { return file.raw.clone(); }), None);
+    assert_eq!(
+        a.worktree.as_ref().map(|file| {
+            return file.mode.as_str();
+        }),
+        Some("100644")
+    );
+    assert_ne!(
+        a.worktree.as_ref().map(|file| {
+            return file.raw.clone();
+        }),
+        None
+    );
     // The entry is captured as the index holds it, which for a path nobody staged is the branch's own.
     assert_eq!(
-        a.index.as_ref().map(|staged| { return staged.oid.clone(); }),
-        Some(git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim().to_owned()),
+        a.index.as_ref().map(|staged| {
+            return staged.oid.clone();
+        }),
+        Some(
+            git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"])
+                .trim()
+                .to_owned()
+        ),
         "the index layer of a path with only a worktree edit is the branch's entry"
     );
     let b: &CapturedPath = &capture.paths[1];
     assert!(b.index.is_some(), "the staged edit is a layer of its own");
-    assert_eq!(b.index.as_ref().map(|staged| { return staged.oid.clone(); }), Some(git_text(repo.as_path(), &["rev-parse", ":b.txt"]).trim().to_owned()));
+    assert_eq!(
+        b.index.as_ref().map(|staged| {
+            return staged.oid.clone();
+        }),
+        Some(
+            git_text(repo.as_path(), &["rev-parse", ":b.txt"])
+                .trim()
+                .to_owned()
+        )
+    );
     // The raw bytes read back exactly, which is what a restore writes.
     let raw: String = a.worktree.as_ref().expect("the worktree layer").raw.clone();
     let bytes: String = git_text(repo.as_path(), &["cat-file", "blob", raw.as_str()]);
@@ -68,13 +101,41 @@ fn the_capture_is_kept_on_a_ref_and_the_ref_goes() {
     let (root, repo) = edited("carry-kept-on-a-ref");
     let context = git_context();
     let paths: Vec<Vec<u8>> = vec![b"a.txt".to_vec()];
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), paths.as_slice()).expect("the capture")).expect("kept");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), paths.as_slice()).expect("the capture"),
+    )
+    .expect("kept");
     let reference: String = capture.reference.clone().expect("a ref");
     assert!(reference.starts_with(CARRIED_REF_PREFIX), "{reference}");
-    assert_eq!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]).trim(), reference);
-    assert_eq!(git_text(repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(), "commit");
-    drop_capture_ref(&context, repo.join(".git").as_path(), repo.as_path(), &capture, None);
-    assert_eq!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]).trim(), "");
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]
+        )
+        .trim(),
+        reference
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(),
+        "commit"
+    );
+    drop_capture_ref(
+        &context,
+        repo.join(".git").as_path(),
+        repo.as_path(),
+        &capture,
+        None,
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]
+        )
+        .trim(),
+        ""
+    );
     remove(root.as_path());
 }
 

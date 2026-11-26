@@ -12,16 +12,29 @@
 //! expect(outcome.step).toBe('mount-id'); expect(calls.ran('bind')).toBe(false);
 //! ```
 
+use crate::slot_walk_calls::{
+    DatasetGuids,
+    SlotWalk,
+};
 use crate::staged_folder_identity::StagedFolderIdentity;
-use crate::unmount_checks::ExpectedMount;
-use crate::unmount_turn::{unmount_the_clone, UnmountOutcome, UnmountRequest};
-use crate::slot_walk_calls::{DatasetGuids, SlotWalk};
-use crate::staging_calls::{StagingCall, StagingCallRefusal};
+use crate::staging_calls::{
+    StagingCall,
+    StagingCallRefusal,
+};
 use crate::staging_calls_control::RecordingCalls;
 use crate::staging_folder_name::staging_folder_name;
+use crate::unmount_checks::ExpectedMount;
+use crate::unmount_turn::{
+    UnmountOutcome,
+    UnmountRequest,
+    unmount_the_clone,
+};
 use crate::user_cache_pin::UserCachePin;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The GUID every arm uses.
 fn guid() -> DatasetGuid {
@@ -36,15 +49,33 @@ struct FakeWalk {
 }
 
 impl SlotWalk for FakeWalk {
-    fn open_the_slot(&self, _checkout: &Path, _slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
-        return std::fs::File::open(self.slot.as_path()).map_err(|error| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: error.raw_os_error().unwrap_or(0), detail: error.to_string() });
+    fn open_the_slot(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
+        return std::fs::File::open(self.slot.as_path()).map_err(|error| {
+            return StagingCallRefusal {
+                call: StagingCall::OpenSlot,
+                errno: error.raw_os_error().unwrap_or(0),
+                detail: error.to_string(),
+            };
+        });
     }
 
-    fn open_the_slot_uncrossed(&self, _checkout: &Path, _slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_the_slot_uncrossed(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         return self.open_the_slot(_checkout, _slot);
     }
 
-    fn look_again(&self, _checkout: &Path, _slot: &str) -> Result<u64, StagingCallRefusal> {
+    fn look_again(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<u64, StagingCallRefusal> {
         return Ok(self.again);
     }
 }
@@ -55,7 +86,10 @@ struct FakeGuids {
 }
 
 impl DatasetGuids for FakeGuids {
-    fn live_guid(&self, _dataset: &str) -> Result<DatasetGuid, String> {
+    fn live_guid(
+        &self,
+        _dataset: &str,
+    ) -> Result<DatasetGuid, String> {
         return Ok(self.guid);
     }
 }
@@ -84,12 +118,27 @@ fn fixture(name: &str) -> Fixture {
     let component: String = staging_folder_name(guid());
     let staging: PathBuf = cache_path.join(component.as_str());
     std::fs::create_dir_all(staging.as_path()).expect("the fixture staging folder is made");
-    std::fs::set_permissions(staging.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the fixture staging folder holds 0700");
-    let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
-    let facts: std::fs::Metadata = std::fs::metadata(slot.as_path()).expect("the slot's metadata is read");
+    std::fs::set_permissions(
+        staging.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("the fixture staging folder holds 0700");
+    let cache: std::fs::File =
+        std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
+    let facts: std::fs::Metadata =
+        std::fs::metadata(slot.as_path()).expect("the slot's metadata is read");
     use std::os::unix::fs::MetadataExt;
-    let slot_identity: StagedFolderIdentity = StagedFolderIdentity::of(&std::fs::File::open(slot.as_path()).expect("the slot opens")).expect("the slot's identity is read");
-    let pin: UserCachePin = UserCachePin { source: String::from("pool/cache"), root_inode: cache.metadata().expect("the cache's metadata is read").ino(), device: 1 };
+    let slot_identity: StagedFolderIdentity =
+        StagedFolderIdentity::of(&std::fs::File::open(slot.as_path()).expect("the slot opens"))
+            .expect("the slot's identity is read");
+    let pin: UserCachePin = UserCachePin {
+        source: String::from("pool/cache"),
+        root_inode: cache
+            .metadata()
+            .expect("the cache's metadata is read")
+            .ino(),
+        device: 1,
+    };
     return Fixture {
         checkout,
         cache_path,
@@ -106,7 +155,11 @@ fn fixture(name: &str) -> Fixture {
         },
         slot_identity,
         pin,
-        calls: RecordingCalls { observed: slot.clone(), mount_id: 41, ..RecordingCalls::default() },
+        calls: RecordingCalls {
+            observed: slot.clone(),
+            mount_id: 41,
+            ..RecordingCalls::default()
+        },
     };
 }
 
@@ -126,14 +179,27 @@ fn row(expected: &ExpectedMount) -> crate::fs_mount_options::MountFacts {
 }
 
 /// Run one arm with the fixture's facts and a mutation of the expectation.
-fn run(fixture: &Fixture, change: impl FnOnce(&mut ExpectedMount, &mut RecordingCalls)) -> UnmountOutcome {
+fn run(
+    fixture: &Fixture,
+    change: impl FnOnce(&mut ExpectedMount, &mut RecordingCalls),
+) -> UnmountOutcome {
     let mut expected: ExpectedMount = fixture.expected.clone();
-    let mut calls = RecordingCalls { observed: fixture.calls.observed.clone(), mount_id: fixture.mount, table: std::cell::RefCell::new(Vec::new()), ..RecordingCalls::default() };
+    let mut calls = RecordingCalls {
+        observed: fixture.calls.observed.clone(),
+        mount_id: fixture.mount,
+        table: std::cell::RefCell::new(Vec::new()),
+        ..RecordingCalls::default()
+    };
     change(&mut expected, &mut calls);
     *calls.facts.borrow_mut() = Some(row(&fixture.expected));
     *calls.table.borrow_mut() = vec![row(&fixture.expected)];
-    let walk = FakeWalk { slot: fixture.expected.canonical_slot.clone(), again: fixture.expected.mount_id };
-    let guids = FakeGuids { guid: guid() };
+    let walk = FakeWalk {
+        slot: fixture.expected.canonical_slot.clone(),
+        again: fixture.expected.mount_id,
+    };
+    let guids = FakeGuids {
+        guid: guid(),
+    };
     let request = UnmountRequest {
         checkout: fixture.checkout.as_path(),
         slot: "one",
@@ -149,8 +215,14 @@ fn run(fixture: &Fixture, change: impl FnOnce(&mut ExpectedMount, &mut Recording
         guids: &guids,
     };
     let outcome: UnmountOutcome = unmount_the_clone(&request);
-    assert!(!calls.ran(StagingCall::Bind), "an arm that refuses before the bind makes no bind call");
-    assert!(!calls.ran(StagingCall::Move), "an arm that refuses before the bind makes no move call");
+    assert!(
+        !calls.ran(StagingCall::Bind),
+        "an arm that refuses before the bind makes no bind call"
+    );
+    assert!(
+        !calls.ran(StagingCall::Move),
+        "an arm that refuses before the bind makes no move call"
+    );
     return outcome;
 }
 
@@ -161,7 +233,10 @@ fn the_fixtures_expectation_passes_the_checks() {
     let outcome: UnmountOutcome = run(&fixture, |_expected, _calls| {});
     assert_eq!(outcome.word(), "refused");
     match outcome {
-        UnmountOutcome::Refused { step, .. } => assert_eq!(step, "user-cache-pin"),
+        UnmountOutcome::Refused {
+            step,
+            ..
+        } => assert_eq!(step, "user-cache-pin"),
         other => panic!("the passing arm reached the pin, and it answered {other:?}"),
     }
 }
@@ -171,7 +246,10 @@ fn the_fixtures_expectation_passes_the_checks() {
 fn a_mismatched_mount_id_refuses() {
     let fixture = fixture("unmount-turn-mount-id");
     let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.mount_id = 42);
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "mount-id"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "mount-id"),
+        "{outcome:?}"
+    );
 }
 
 /// A mismatched device refuses before any move.
@@ -179,7 +257,10 @@ fn a_mismatched_mount_id_refuses() {
 fn a_mismatched_device_refuses() {
     let fixture = fixture("unmount-turn-device");
     let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.device += 1);
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "device"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "device"),
+        "{outcome:?}"
+    );
 }
 
 /// A mismatched inode refuses before any move.
@@ -187,23 +268,36 @@ fn a_mismatched_device_refuses() {
 fn a_mismatched_inode_refuses() {
     let fixture = fixture("unmount-turn-inode");
     let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.inode += 1);
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "inode"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "inode"),
+        "{outcome:?}"
+    );
 }
 
 /// A slot whose descriptor names another path refuses.
 #[test]
 fn a_mismatched_canonical_path_refuses() {
     let fixture = fixture("unmount-turn-path");
-    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.canonical_slot = PathBuf::from("/somewhere/else"));
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "canonical-path"), "{outcome:?}");
+    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| {
+        expected.canonical_slot = PathBuf::from("/somewhere/else")
+    });
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "canonical-path"),
+        "{outcome:?}"
+    );
 }
 
 /// A row of another source refuses.
 #[test]
 fn a_mismatched_source_refuses() {
     let fixture = fixture("unmount-turn-source");
-    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.source = String::from("pool/clones/two"));
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "source"), "{outcome:?}");
+    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| {
+        expected.source = String::from("pool/clones/two")
+    });
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "source"),
+        "{outcome:?}"
+    );
 }
 
 /// A row on another parent mount refuses.
@@ -211,15 +305,23 @@ fn a_mismatched_source_refuses() {
 fn a_mismatched_parent_mount_refuses() {
     let fixture = fixture("unmount-turn-parent");
     let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.parent_mount_id = 39);
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "parent-mount"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "parent-mount"),
+        "{outcome:?}"
+    );
 }
 
 /// A live GUID other than the removal's refuses.
 #[test]
 fn a_mismatched_guid_refuses() {
     let fixture = fixture("unmount-turn-guid");
-    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| expected.guid = DatasetGuid::parse("78").expect("the other GUID parses"));
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "guid"), "{outcome:?}");
+    let outcome: UnmountOutcome = run(&fixture, |expected, _calls| {
+        expected.guid = DatasetGuid::parse("78").expect("the other GUID parses")
+    });
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "guid"),
+        "{outcome:?}"
+    );
 }
 
 /// A second canonical lookup that reaches another mount refuses.
@@ -227,15 +329,40 @@ fn a_mismatched_guid_refuses() {
 fn a_changed_canonical_lookup_refuses() {
     let fixture = fixture("unmount-turn-look-again");
     let mut expected: ExpectedMount = fixture.expected.clone();
-    let calls = RecordingCalls { observed: fixture.calls.observed.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
+    let calls = RecordingCalls {
+        observed: fixture.calls.observed.clone(),
+        mount_id: fixture.mount,
+        ..RecordingCalls::default()
+    };
     *calls.facts.borrow_mut() = Some(row(&fixture.expected));
     *calls.table.borrow_mut() = vec![row(&fixture.expected)];
-    let walk = FakeWalk { slot: expected.canonical_slot.clone(), again: 99 };
-    let guids = FakeGuids { guid: expected.guid };
+    let walk = FakeWalk {
+        slot: expected.canonical_slot.clone(),
+        again: 99,
+    };
+    let guids = FakeGuids {
+        guid: expected.guid,
+    };
     expected.mount_id = 41;
-    let request = UnmountRequest { checkout: fixture.checkout.as_path(), slot: "one", nonce: "0123456789abcdef0123456789abcdef", expected: &expected, slot_identity: &fixture.slot_identity, pin: &fixture.pin, cache: &fixture.cache, cache_path: fixture.cache_path.as_path(), boot: "this-boot", calls: &calls, walk: &walk, guids: &guids };
+    let request = UnmountRequest {
+        checkout: fixture.checkout.as_path(),
+        slot: "one",
+        nonce: "0123456789abcdef0123456789abcdef",
+        expected: &expected,
+        slot_identity: &fixture.slot_identity,
+        pin: &fixture.pin,
+        cache: &fixture.cache,
+        cache_path: fixture.cache_path.as_path(),
+        boot: "this-boot",
+        calls: &calls,
+        walk: &walk,
+        guids: &guids,
+    };
     let outcome = unmount_the_clone(&request);
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "canonical-lookup"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "canonical-lookup"),
+        "{outcome:?}"
+    );
     assert!(!calls.ran(StagingCall::Bind));
 }
 
@@ -243,20 +370,34 @@ fn a_changed_canonical_lookup_refuses() {
 #[test]
 fn a_staging_folder_of_another_mode_refuses() {
     let fixture = fixture("unmount-turn-folder-mode");
-    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
-    std::fs::set_permissions(staging.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o777)).expect("the fixture folder takes 0777");
+    let staging: std::path::PathBuf = fixture
+        .cache_path
+        .join(crate::staging_folder_name::staging_folder_name(guid()));
+    std::fs::set_permissions(
+        staging.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o777),
+    )
+    .expect("the fixture folder takes 0777");
     let outcome: UnmountOutcome = run(&fixture, |_expected, _calls| {});
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"),
+        "{outcome:?}"
+    );
 }
 
 /// A staging folder that holds an entry refuses before the record and the bind.
 #[test]
 fn a_staging_folder_that_holds_an_entry_refuses() {
     let fixture = fixture("unmount-turn-folder-entries");
-    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
+    let staging: std::path::PathBuf = fixture
+        .cache_path
+        .join(crate::staging_folder_name::staging_folder_name(guid()));
     std::fs::write(staging.join("sentinel"), b"keep").expect("the fixture sentinel is written");
     let outcome: UnmountOutcome = run(&fixture, |_expected, _calls| {});
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"), "{outcome:?}");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"),
+        "{outcome:?}"
+    );
 }
 
 //region The turn's order and its checks after the move
@@ -264,28 +405,56 @@ fn a_staging_folder_that_holds_an_entry_refuses() {
 /// The pin this host's own fixture cache mount answers,
 /// which the live check compares.
 fn live_pin(fixture: &Fixture) -> UserCachePin {
-    let facts = crate::user_cache_pin::cache_mount_facts(&fixture.cache).expect("the fixture cache's mount reads");
-    return UserCachePin { source: facts.source, root_inode: std::os::unix::fs::MetadataExt::ino(&fixture.cache.metadata().expect("the fixture cache's metadata reads")), device: 1 };
+    let facts = crate::user_cache_pin::cache_mount_facts(&fixture.cache)
+        .expect("the fixture cache's mount reads");
+    return UserCachePin {
+        source: facts.source,
+        root_inode: std::os::unix::fs::MetadataExt::ino(
+            &fixture
+                .cache
+                .metadata()
+                .expect("the fixture cache's metadata reads"),
+        ),
+        device: 1,
+    };
 }
 
 /// One fixture carried through the whole turn with scripted calls,
 /// so an arm can assert what the turn did and in which order.
-fn through_the_turn(fixture: &Fixture, set_up: impl FnOnce(&mut RecordingCalls, &mut crate::fs_mount_options::MountFacts)) -> (UnmountOutcome, RecordingCalls) {
-    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
-    let folder: std::fs::File = std::fs::File::open(staging.as_path()).expect("the fixture staging folder opens");
-    let slot: std::fs::File = std::fs::File::open(fixture.expected.canonical_slot.as_path()).expect("the fixture slot opens");
-    let mut calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: 41, ..RecordingCalls::default() };
+fn through_the_turn(
+    fixture: &Fixture,
+    set_up: impl FnOnce(&mut RecordingCalls, &mut crate::fs_mount_options::MountFacts),
+) -> (UnmountOutcome, RecordingCalls) {
+    let staging: std::path::PathBuf = fixture
+        .cache_path
+        .join(crate::staging_folder_name::staging_folder_name(guid()));
+    let folder: std::fs::File =
+        std::fs::File::open(staging.as_path()).expect("the fixture staging folder opens");
+    let slot: std::fs::File = std::fs::File::open(fixture.expected.canonical_slot.as_path())
+        .expect("the fixture slot opens");
+    let mut calls = RecordingCalls {
+        observed: fixture.expected.canonical_slot.clone(),
+        mount_id: 41,
+        ..RecordingCalls::default()
+    };
     *calls.facts.borrow_mut() = Some(row(&fixture.expected));
     let mut shared: crate::fs_mount_options::MountFacts = row(&fixture.expected);
     set_up(&mut calls, &mut shared);
     // Each arm scripts the ids after the slot's read and the bind's own read.
     let _ = &mut calls;
-    *calls.bind.borrow_mut() = Some(Ok(std::fs::File::open(staging.as_path()).expect("the bind's fixture opens")));
+    *calls.bind.borrow_mut() = Some(Ok(
+        std::fs::File::open(staging.as_path()).expect("the bind's fixture opens")
+    ));
     calls.open_by_name.borrow_mut().push_back(Ok(folder));
     shared.mount_id = 41;
     calls.facts_by_id.borrow_mut().push((41, shared.clone()));
-    let walk = FakeWalk { slot: fixture.expected.canonical_slot.clone(), again: 41 };
-    let guids = FakeGuids { guid: guid() };
+    let walk = FakeWalk {
+        slot: fixture.expected.canonical_slot.clone(),
+        again: 41,
+    };
+    let guids = FakeGuids {
+        guid: guid(),
+    };
     let outcome: UnmountOutcome = unmount_the_clone(&UnmountRequest {
         checkout: fixture.checkout.as_path(),
         slot: "one",
@@ -309,14 +478,32 @@ fn through_the_turn(fixture: &Fixture, set_up: impl FnOnce(&mut RecordingCalls, 
 #[test]
 fn the_record_is_written_before_the_first_bind() {
     let fixture = fixture("turn-record-first");
-    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
+    let staging: std::path::PathBuf = fixture
+        .cache_path
+        .join(crate::staging_folder_name::staging_folder_name(guid()));
     let (outcome, calls) = through_the_turn(&fixture, |calls, _row| {
         // A handle the kernel refuses stops the record, so the bind never runs.
-        *calls.name_handle.borrow_mut() = Some(Err(StagingCallRefusal { call: StagingCall::NameHandle, errno: libc::EIO, detail: String::from("the control refuses a handle") }));
+        *calls.name_handle.borrow_mut() = Some(Err(StagingCallRefusal {
+            call: StagingCall::NameHandle,
+            errno: libc::EIO,
+            detail: String::from("the control refuses a handle"),
+        }));
     });
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "name-handle"), "{outcome:?}");
-    assert!(!calls.ran(StagingCall::Bind), "a record that cannot be written binds nothing");
-    assert!(!std::fs::read_dir(staging.as_path()).expect("the folder lists").any(|entry| return entry.is_ok_and(|found| return found.file_name().to_string_lossy().ends_with(".json"))), "no record was written");
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "name-handle"),
+        "{outcome:?}"
+    );
+    assert!(
+        !calls.ran(StagingCall::Bind),
+        "a record that cannot be written binds nothing"
+    );
+    assert!(
+        !std::fs::read_dir(staging.as_path())
+            .expect("the folder lists")
+            .any(|entry| return entry
+                .is_ok_and(|found| return found.file_name().to_string_lossy().ends_with(".json"))),
+        "no record was written"
+    );
 }
 
 /// A topmost mount that is not the clone after the move is retained,
@@ -329,8 +516,14 @@ fn a_placement_of_another_mount_is_retained() {
         // The slot's read, the bind's own read, then a topmost mount that is not the clone.
         calls.mount_ids.borrow_mut().extend([41, 40, 99]);
     });
-    assert!(matches!(outcome, UnmountOutcome::Retained { ref step, .. } if step == "post-move-check"), "{outcome:?}");
-    assert!(!calls.ran(StagingCall::Unmount), "nothing is unmounted on a placement the turn did not make");
+    assert!(
+        matches!(outcome, UnmountOutcome::Retained { ref step, .. } if step == "post-move-check"),
+        "{outcome:?}"
+    );
+    assert!(
+        !calls.ran(StagingCall::Unmount),
+        "nothing is unmounted on a placement the turn did not make"
+    );
 }
 
 /// A busy answer moves the same mount back,
@@ -340,12 +533,43 @@ fn a_busy_answer_takes_the_checked_reattach() {
     let fixture = fixture("turn-busy-dispatch");
     let (outcome, calls) = through_the_turn(&fixture, |calls, row| {
         row.parent_id = 40;
-        calls.mount_ids.borrow_mut().extend([41, 40, 41, 41, 40, 41]);
-        calls.unmount_results.borrow_mut().push_back(Some(StagingCallRefusal { call: StagingCall::Unmount, errno: libc::EBUSY, detail: String::from("busy") }));
-        calls.open_by_name.borrow_mut().push_back(Ok(std::fs::File::open(fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid())).as_path()).expect("the folder opens")));
+        calls
+            .mount_ids
+            .borrow_mut()
+            .extend([41, 40, 41, 41, 40, 41]);
+        calls
+            .unmount_results
+            .borrow_mut()
+            .push_back(Some(StagingCallRefusal {
+                call: StagingCall::Unmount,
+                errno: libc::EBUSY,
+                detail: String::from("busy"),
+            }));
+        calls
+            .open_by_name
+            .borrow_mut()
+            .push_back(Ok(std::fs::File::open(
+                fixture
+                    .cache_path
+                    .join(crate::staging_folder_name::staging_folder_name(guid()))
+                    .as_path(),
+            )
+            .expect("the folder opens")));
     });
-    assert!(matches!(outcome, UnmountOutcome::Reattached { cause: crate::unmount_turn::ReattachCause::Busy, .. }), "{outcome:?}");
-    assert!(calls.ran(StagingCall::Move), "the reattach moves the mount back");
+    assert!(
+        matches!(
+            outcome,
+            UnmountOutcome::Reattached {
+                cause: crate::unmount_turn::ReattachCause::Busy,
+                ..
+            }
+        ),
+        "{outcome:?}"
+    );
+    assert!(
+        calls.ran(StagingCall::Move),
+        "the reattach moves the mount back"
+    );
 }
 
 /// After the clone leaves,
@@ -356,26 +580,71 @@ fn a_transition_that_leaves_another_mount_is_retained() {
     let (outcome, calls) = through_the_turn(&fixture, |calls, row| {
         row.parent_id = 40;
         calls.mount_ids.borrow_mut().extend([41, 40, 41, 78]);
-        calls.open_by_name.borrow_mut().push_back(Ok(std::fs::File::open(fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid())).as_path()).expect("the folder opens")));
+        calls
+            .open_by_name
+            .borrow_mut()
+            .push_back(Ok(std::fs::File::open(
+                fixture
+                    .cache_path
+                    .join(crate::staging_folder_name::staging_folder_name(guid()))
+                    .as_path(),
+            )
+            .expect("the folder opens")));
     });
-    assert!(matches!(outcome, UnmountOutcome::Retained { ref step, .. } if step == "post-unmount"), "{outcome:?}");
-    assert_eq!(calls.words().iter().filter(|word| return **word == "unmount").count(), 1, "only the clone's unmount ran");
+    assert!(
+        matches!(outcome, UnmountOutcome::Retained { ref step, .. } if step == "post-unmount"),
+        "{outcome:?}"
+    );
+    assert_eq!(
+        calls
+            .words()
+            .iter()
+            .filter(|word| return **word == "unmount")
+            .count(),
+        1,
+        "only the clone's unmount ran"
+    );
 }
 
 /// A row of another filesystem type refuses before the bind.
 #[test]
 fn a_row_of_another_filesystem_refuses() {
     let fixture = fixture("turn-filesystem");
-    let calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
+    let calls = RecordingCalls {
+        observed: fixture.expected.canonical_slot.clone(),
+        mount_id: fixture.mount,
+        ..RecordingCalls::default()
+    };
     let mut other: crate::fs_mount_options::MountFacts = row(&fixture.expected);
     other.filesystem_type = String::from("ext4");
     *calls.facts.borrow_mut() = Some(other.clone());
     calls.facts_by_id.borrow_mut().push((fixture.mount, other));
     *calls.table.borrow_mut() = vec![row(&fixture.expected)];
-    let walk = FakeWalk { slot: fixture.expected.canonical_slot.clone(), again: fixture.expected.mount_id };
-    let guids = FakeGuids { guid: guid() };
-    let outcome = unmount_the_clone(&UnmountRequest { checkout: fixture.checkout.as_path(), slot: "one", nonce: "0123456789abcdef0123456789abcdef", expected: &fixture.expected, slot_identity: &fixture.slot_identity, pin: &live_pin(&fixture), cache: &fixture.cache, cache_path: fixture.cache_path.as_path(), boot: "this-boot", calls: &calls, walk: &walk, guids: &guids });
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "filesystem"), "{outcome:?}");
+    let walk = FakeWalk {
+        slot: fixture.expected.canonical_slot.clone(),
+        again: fixture.expected.mount_id,
+    };
+    let guids = FakeGuids {
+        guid: guid(),
+    };
+    let outcome = unmount_the_clone(&UnmountRequest {
+        checkout: fixture.checkout.as_path(),
+        slot: "one",
+        nonce: "0123456789abcdef0123456789abcdef",
+        expected: &fixture.expected,
+        slot_identity: &fixture.slot_identity,
+        pin: &live_pin(&fixture),
+        cache: &fixture.cache,
+        cache_path: fixture.cache_path.as_path(),
+        boot: "this-boot",
+        calls: &calls,
+        walk: &walk,
+        guids: &guids,
+    });
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "filesystem"),
+        "{outcome:?}"
+    );
     assert!(!calls.ran(StagingCall::Bind));
 }
 
@@ -383,16 +652,41 @@ fn a_row_of_another_filesystem_refuses() {
 #[test]
 fn a_row_of_another_root_refuses() {
     let fixture = fixture("turn-root");
-    let calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
+    let calls = RecordingCalls {
+        observed: fixture.expected.canonical_slot.clone(),
+        mount_id: fixture.mount,
+        ..RecordingCalls::default()
+    };
     let mut other: crate::fs_mount_options::MountFacts = row(&fixture.expected);
     other.root = std::path::PathBuf::from("/a/subdirectory");
     *calls.facts.borrow_mut() = Some(other.clone());
     calls.facts_by_id.borrow_mut().push((fixture.mount, other));
     *calls.table.borrow_mut() = vec![row(&fixture.expected)];
-    let walk = FakeWalk { slot: fixture.expected.canonical_slot.clone(), again: fixture.expected.mount_id };
-    let guids = FakeGuids { guid: guid() };
-    let outcome = unmount_the_clone(&UnmountRequest { checkout: fixture.checkout.as_path(), slot: "one", nonce: "0123456789abcdef0123456789abcdef", expected: &fixture.expected, slot_identity: &fixture.slot_identity, pin: &live_pin(&fixture), cache: &fixture.cache, cache_path: fixture.cache_path.as_path(), boot: "this-boot", calls: &calls, walk: &walk, guids: &guids });
-    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "root"), "{outcome:?}");
+    let walk = FakeWalk {
+        slot: fixture.expected.canonical_slot.clone(),
+        again: fixture.expected.mount_id,
+    };
+    let guids = FakeGuids {
+        guid: guid(),
+    };
+    let outcome = unmount_the_clone(&UnmountRequest {
+        checkout: fixture.checkout.as_path(),
+        slot: "one",
+        nonce: "0123456789abcdef0123456789abcdef",
+        expected: &fixture.expected,
+        slot_identity: &fixture.slot_identity,
+        pin: &live_pin(&fixture),
+        cache: &fixture.cache,
+        cache_path: fixture.cache_path.as_path(),
+        boot: "this-boot",
+        calls: &calls,
+        walk: &walk,
+        guids: &guids,
+    });
+    assert!(
+        matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "root"),
+        "{outcome:?}"
+    );
     assert!(!calls.ran(StagingCall::Bind));
 }
 

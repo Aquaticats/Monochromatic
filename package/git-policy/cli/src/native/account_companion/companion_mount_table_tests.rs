@@ -9,7 +9,12 @@
 //! expect(namesMount(TABLE, 1201, '/run/x/other')).toBe(false);
 //! ```
 
-use super::{names_mount, names_mount_id, parse_number, write_number};
+use super::{
+    names_mount,
+    names_mount_id,
+    parse_number,
+    write_number,
+};
 
 /// One mount-table line the read-back sees,
 /// in the kernel's own field order.
@@ -21,8 +26,14 @@ const TABLE: &[u8] = b"1200 31 0:26 / / rw,nosuid - tmpfs tmpfs rw,size=64k\n120
 #[test]
 fn a_mount_is_found_by_its_id_at_its_own_mount_point_only() {
     assert!(names_mount(TABLE, 1201, b"/run/x/slot"));
-    assert!(!names_mount(TABLE, 1201, b"/run/x/other"), "another mount point of the same table is another mount");
-    assert!(!names_mount(TABLE, 1202, b"/run/x/slot"), "another ID at that mount point is another mount");
+    assert!(
+        !names_mount(TABLE, 1201, b"/run/x/other"),
+        "another mount point of the same table is another mount"
+    );
+    assert!(
+        !names_mount(TABLE, 1202, b"/run/x/slot"),
+        "another ID at that mount point is another mount"
+    );
     assert!(names_mount_id(TABLE, 1201));
     assert!(!names_mount_id(TABLE, 1202));
 }
@@ -45,8 +56,17 @@ fn a_number_written_into_a_stack_array_reads_back_as_itself() {
     let mut bytes: [u8; 24] = [0; 24];
     for number in [0_u64, 1, 9, 10, 99, 4096, 1_234_567, u64::from(u32::MAX)] {
         let written: usize = write_number(number, bytes.as_mut_slice());
-        assert_eq!(parse_number(&bytes[..written]), Some(number), "{number} written as {}", String::from_utf8_lossy(&bytes[..written]));
+        assert_eq!(
+            parse_number(&bytes[..written]),
+            Some(number),
+            "{number} written as {}",
+            String::from_utf8_lossy(&bytes[..written])
+        );
     }
-    assert_eq!(parse_number(b"12x"), None, "a byte that is no digit names no number");
+    assert_eq!(
+        parse_number(b"12x"),
+        None,
+        "a byte that is no digit names no number"
+    );
     assert_eq!(parse_number(b""), None, "no digits name no number");
 }

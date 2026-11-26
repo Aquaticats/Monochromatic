@@ -21,12 +21,23 @@
 use super::support::hermetic;
 use crate::support_fixture_service::Fixture;
 use crate::support_observation::TIMED_OUT_SIGNAL;
-use crate::support_program_names_and_time_bound::{NATIVE_GIT_BOUND_SECONDS, REAL_GIT};
+use crate::support_program_names_and_time_bound::{
+    NATIVE_GIT_BOUND_SECONDS,
+    REAL_GIT,
+};
 use std::ffi::OsStr;
-use std::io::{Read, Seek};
+use std::io::{
+    Read,
+    Seek,
+};
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::Path;
-use std::process::{Command, ExitStatus, Output, Stdio};
+use std::process::{
+    Command,
+    ExitStatus,
+    Output,
+    Stdio,
+};
 
 /// What:
 ///  The same invocation sent straight to real Git,
@@ -64,7 +75,10 @@ pub fn direct_held(fixture: &Fixture) -> Command {
 
 /// A `timeout` that ends the real Git it starts at `seconds`,
 /// under the fixture's hermetic environment.
-pub fn native_git_bound(fixture: &Fixture, seconds: &str) -> Command {
+pub fn native_git_bound(
+    fixture: &Fixture,
+    seconds: &str,
+) -> Command {
     let mut command: Command = Command::new("/usr/bin/timeout");
     command.arg("--signal=KILL").arg(seconds).arg(REAL_GIT);
     hermetic(&mut command, fixture, OsStr::new("/usr/bin:/bin"));
@@ -86,20 +100,31 @@ pub fn native_git_bound(fixture: &Fixture, seconds: &str) -> Command {
 ///  the failure names the arguments,
 ///  the directory and the bound,
 ///  so a control that met a Git waiting on something it cannot see says which one it was.
-pub fn native_git_output(fixture: &Fixture, command: &mut Command, directory: &Path, bound: &str) -> Output {
+pub fn native_git_output(
+    fixture: &Fixture,
+    command: &mut Command,
+    directory: &Path,
+    bound: &str,
+) -> Output {
     let line: String = spelled(command);
     let bounded: String = format!("/usr/bin/timeout --signal=KILL {bound} {REAL_GIT}");
     assert!(
         line == bounded || line.starts_with(format!("{bounded} ").as_str()),
         "this control asks for the failure of a command bounded at {bound} s and starts {line} instead: every read of native Git here keeps its stream in a file, so it must carry the bound in its own command line"
     );
-    let mut stdout: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
-    let mut stderr: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
+    let mut stdout: std::fs::File =
+        tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
+    let mut stderr: std::fs::File =
+        tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
     let status: ExitStatus = command
         .current_dir(directory)
         .stdin(Stdio::null())
-        .stdout(Stdio::from(stdout.try_clone().expect("standard output file")))
-        .stderr(Stdio::from(stderr.try_clone().expect("standard error file")))
+        .stdout(Stdio::from(
+            stdout.try_clone().expect("standard output file"),
+        ))
+        .stderr(Stdio::from(
+            stderr.try_clone().expect("standard error file"),
+        ))
         .status()
         .expect("native Git starts");
     assert_ne!(
@@ -108,19 +133,32 @@ pub fn native_git_output(fixture: &Fixture, command: &mut Command, directory: &P
         "native Git {line} in {} was ended at its {bound} s bound: the control was waiting for Git to answer, so no field of what it would have answered can be compared, and the run fails here naming it instead of holding the run",
         directory.display()
     );
-    return Output { status, stdout: read_from_start(&mut stdout), stderr: read_from_start(&mut stderr) };
+    return Output {
+        status,
+        stdout: read_from_start(&mut stdout),
+        stderr: read_from_start(&mut stderr),
+    };
 }
 
 /// Real Git run in `directory` under the bound of one fixture command,
 /// with its two streams kept in files.
-pub fn native_git<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S]) -> Output {
+pub fn native_git<S: AsRef<OsStr>>(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[S],
+) -> Output {
     return native_git_within(fixture, directory, arguments, NATIVE_GIT_BOUND_SECONDS);
 }
 
 /// Real Git run in `directory` under `bound` seconds,
 /// with its two streams kept in files.
 /// A control that means to meet a bound it reaches in a moment states its own.
-pub fn native_git_within<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S], bound: &str) -> Output {
+pub fn native_git_within<S: AsRef<OsStr>>(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[S],
+    bound: &str,
+) -> Output {
     let mut command: Command = native_git_bound(fixture, bound);
     command.args(arguments);
     return native_git_output(fixture, &mut command, directory, bound);
@@ -141,6 +179,8 @@ pub fn read_from_start(file: &mut std::fs::File) -> Vec<u8> {
 ///  separated by spaces.
 pub fn spelled(command: &Command) -> String {
     let mut words: Vec<String> = vec![command.get_program().to_string_lossy().into_owned()];
-    words.extend(command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }));
+    words.extend(command.get_args().map(|argument| {
+        return argument.to_string_lossy().into_owned();
+    }));
     return words.join(" ");
 }

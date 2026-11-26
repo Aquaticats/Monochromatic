@@ -33,26 +33,68 @@
 
 use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, is_attributes_path, second_pass, write_blob};
-use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
+use crate::merge_second_pass::{
+    AttributeSource,
+    Conflict,
+    ContextRunner,
+    GitRunner,
+    Left,
+    Merged,
+    REPORT_MARK,
+    Stage,
+    Verdict,
+    config_options,
+    is_attributes_path,
+    second_pass,
+    write_blob,
+};
+use crate::merge_second_pass_finish::{
+    finish,
+    plan_finish,
+    split_cmdline,
+};
 use crate::merge_second_pass_tree::announce;
-use crate::path_bytes::path_message_text;
-use crate::private_storage::read_regular_file;
-use crate::repo_read_index::{IndexEntry, parse_index};
-use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
 use crate::merge_second_pass_worktree_install::install;
 /// The records that put a conflict back,
 /// which only the controls of this file still ask for.
 #[cfg(test)]
 use crate::merge_second_pass_worktree_install::restore_records;
-use crate::merge_second_pass_worktree_unchanged::{Before, Held, Kept, held_paths, still_the_same};
-use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words, unreadable_words};
+use crate::merge_second_pass_worktree_unchanged::{
+    Before,
+    Held,
+    Kept,
+    held_paths,
+    still_the_same,
+};
+use crate::merge_second_pass_worktree_words::{
+    closing_words,
+    ending_command,
+    moved_words,
+    unfinished_words,
+    unreadable_words,
+};
+use crate::path_bytes::path_message_text;
+use crate::private_storage::read_regular_file;
+use crate::repo_read_index::{
+    IndexEntry,
+    parse_index,
+};
+use crate::repo_read_layout::{
+    RepoLayout,
+    read_layout_after_success_for,
+};
 use crate::repo_read_object::to_hex;
 use crate::transaction_git::GitContext;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
@@ -80,13 +122,17 @@ fn layout_of(forward: &CoordinatedForward) -> Option<RepoLayout> {
     if environment_value(forward.environment.as_slice(), "GIT_INDEX_FILE").is_some() {
         return None;
     }
-    return read_layout_after_success_for(&forward.command.arguments[..forward.command.subcommand_index], forward.overlay.as_slice());
+    return read_layout_after_success_for(
+        &forward.command.arguments[..forward.command.subcommand_index],
+        forward.overlay.as_slice(),
+    );
 }
 
 /// The index entries of the layout's worktree,
 /// or nothing when the in-process reader declines the file.
 fn index_entries(layout: &RepoLayout) -> Option<Vec<IndexEntry>> {
-    let bytes: Vec<u8> = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES).ok()?;
+    let bytes: Vec<u8> =
+        read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES).ok()?;
     return parse_index(bytes.as_slice(), layout.object_format);
 }
 
@@ -101,7 +147,10 @@ fn index_entries(layout: &RepoLayout) -> Option<Vec<IndexEntry>> {
 /// ```ts
 /// function conflictsOfIndex(entries: IndexEntry[], only: Set<string>): Conflict[];
 /// ```
-pub fn conflicts_of_index(entries: &[IndexEntry], only: &BTreeSet<Vec<u8>>) -> Vec<Conflict> {
+pub fn conflicts_of_index(
+    entries: &[IndexEntry],
+    only: &BTreeSet<Vec<u8>>,
+) -> Vec<Conflict> {
     let mut conflicts: Vec<Conflict> = Vec::new();
     for entry in entries {
         if !(entry.stage != 0 && only.contains(&entry.path)) {
@@ -112,10 +161,20 @@ pub fn conflicts_of_index(entries: &[IndexEntry], only: &BTreeSet<Vec<u8>>) -> V
             None => true,
         };
         if starts_new {
-            conflicts.push(Conflict { path: entry.path.clone(), base: None, ours: None, theirs: None });
+            conflicts.push(Conflict {
+                path: entry.path.clone(),
+                base: None,
+                ours: None,
+                theirs: None,
+            });
         }
-        let Some(conflict) = conflicts.last_mut() else { continue };
-        let side: Option<Stage> = Some(Stage { mode: entry.mode, oid: to_hex(entry.id.as_slice()) });
+        let Some(conflict) = conflicts.last_mut() else {
+            continue;
+        };
+        let side: Option<Stage> = Some(Stage {
+            mode: entry.mode,
+            oid: to_hex(entry.id.as_slice()),
+        });
         match entry.stage {
             1 => conflict.base = side,
             2 => conflict.ours = side,
@@ -145,7 +204,9 @@ pub fn watch_before(forward: &CoordinatedForward) -> Option<Watch> {
     }
     let layout: RepoLayout = layout_of(forward)?;
     let entries: Vec<IndexEntry> = index_entries(&layout)?;
-    return Some(Watch { unmerged_before: conflicted_paths(entries.as_slice()) });
+    return Some(Watch {
+        unmerged_before: conflicted_paths(entries.as_slice()),
+    });
 }
 
 /// What:
@@ -161,20 +222,34 @@ pub fn watch_before(forward: &CoordinatedForward) -> Option<Watch> {
 /// ```ts
 /// async function resolveAfter(watch: Watch | undefined, forward: CoordinatedForward, code: number, stderr: Writable): Promise<void>;
 /// ```
-pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code: i32, stderr: &mut dyn Write) -> Option<i32> {
+pub fn resolve_after(
+    watched: Option<&Watch>,
+    forward: &CoordinatedForward,
+    code: i32,
+    stderr: &mut dyn Write,
+) -> Option<i32> {
     let watch = watched?;
     if code == 0 {
         return None;
     }
     let Some(layout) = layout_of(forward) else {
-        debug(TAG, "the layout cannot be read in process after the command; no second pass");
+        debug(
+            TAG,
+            "the layout cannot be read in process after the command; no second pass",
+        );
         return None;
     };
     let Some(entries) = index_entries(&layout) else {
-        debug(TAG, "the index cannot be read in process after the command; no second pass");
+        debug(
+            TAG,
+            "the index cannot be read in process after the command; no second pass",
+        );
         return None;
     };
-    let created: BTreeSet<Vec<u8>> = conflicted_paths(entries.as_slice()).difference(&watch.unmerged_before).cloned().collect();
+    let created: BTreeSet<Vec<u8>> = conflicted_paths(entries.as_slice())
+        .difference(&watch.unmerged_before)
+        .cloned()
+        .collect();
     if created.is_empty() {
         return None;
     }
@@ -184,11 +259,20 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
-        global_prefix: config_options(&forward.command.arguments[..forward.command.subcommand_index]),
+        global_prefix: config_options(
+            &forward.command.arguments[..forward.command.subcommand_index],
+        ),
         common_dir: Some(layout.common_dir.clone()),
     };
     // From the top of the worktree, so the paths of the stages mean what they say.
-    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
+    let runner: ContextRunner<'_> = ContextRunner {
+        context: &context,
+        cwd: layout.worktree_root.as_path(),
+        without_prefix: false,
+        repository: Vec::new(),
+        object_directory: None,
+        environment: Vec::new(),
+    };
     // A rule file the merge left conflicted is Git's marker file in the worktree, so no rule of it can be read: the pass re-merges nothing rather than trust a line between the markers.
     let mut attributes_conflict: bool = false;
     for path in conflicted_paths(entries.as_slice()) {
@@ -196,9 +280,20 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
             attributes_conflict = true;
         }
     }
-    let source: AttributeSource<'_> = if attributes_conflict { AttributeSource::Unknown } else { AttributeSource::Invocation };
+    let source: AttributeSource<'_> = if attributes_conflict {
+        AttributeSource::Unknown
+    } else {
+        AttributeSource::Invocation
+    };
     // The pass and the write of its files await every Git start they make, so the person's command reaches them through one entry of the runtime.
-    let parts: SecondPassParts = match crate::lazy_runtime::run_on_runtime(second_pass_parts(&runner, conflicts.as_slice(), source, &layout, &held, stderr)) {
+    let parts: SecondPassParts = match crate::lazy_runtime::run_on_runtime(second_pass_parts(
+        &runner,
+        conflicts.as_slice(),
+        source,
+        &layout,
+        &held,
+        stderr,
+    )) {
         Ok(Some(found)) => found,
         Ok(None) => return None,
         Err(refusal) => {
@@ -211,15 +306,30 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let unreadable_names: Vec<String> = parts.unreadable;
     let operation: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     let mut text: String = String::new();
-    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), installed.as_slice()) {
+    for line in announce(
+        LINE_PREFIX,
+        (CLIENT_IDENTIFIER, operation.as_str()),
+        installed.as_slice(),
+    ) {
         text.push_str(line.as_str());
         text.push('\n');
     }
-    let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(installed.len());
+    let remaining: usize = conflicted_paths(entries.as_slice())
+        .len()
+        .saturating_sub(installed.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
     let planned = if remaining == 0 {
-        match crate::lazy_runtime::run_on_runtime(branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command)) {
-            Ok(Some(configured)) => plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()),
+        match crate::lazy_runtime::run_on_runtime(branch_merge_options(
+            &runner,
+            layout.git_dir.as_path(),
+            &forward.command,
+        )) {
+            Ok(Some(configured)) => plan_finish(
+                &forward.command,
+                forward.environment.as_slice(),
+                layout.git_dir.as_path(),
+                configured.as_slice(),
+            ),
             // A setting that cannot be read is no set of options, and the finish is then not made.
             Ok(None) | Err(_) => None,
         }
@@ -232,7 +342,12 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     }
     let listed: String = names.join(", ");
     // What the pass staged is said whether or not a finish follows: a finish that fails must not be the only account of it.
-    text.push_str(format!("{LINE_PREFIX}{REPORT_MARK}: staged as resolved by the second merge pass: {listed}. ").as_str());
+    text.push_str(
+        format!(
+            "{LINE_PREFIX}{REPORT_MARK}: staged as resolved by the second merge pass: {listed}. "
+        )
+        .as_str(),
+    );
     if !moved_names.is_empty() {
         // A path the pass left is said in the same breath, so the person knows why it still conflicts.
         text.push_str(moved_words(moved_names.as_slice()).as_str());
@@ -244,13 +359,26 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     if planned.is_none() {
         text.push_str(format!("{}\n", closing_words(operation.as_str(), remaining)).as_str());
     } else {
-        text.push_str(format!("The wrapper finishes the {operation} below, the way Git finishes a clean run.\n").as_str());
+        text.push_str(
+            format!(
+                "The wrapper finishes the {operation} below, the way Git finishes a clean run.\n"
+            )
+            .as_str(),
+        );
     }
     if let Err(error) = stderr.write_all(text.as_bytes()) {
-        debug(TAG, format!("standard error did not take the list of merged files: {error}").as_str());
+        debug(
+            TAG,
+            format!("standard error did not take the list of merged files: {error}").as_str(),
+        );
     }
     let plan = planned?;
-    let ended: i32 = finish(&plan, &forward.command, forward.environment.as_slice(), stderr);
+    let ended: i32 = finish(
+        &plan,
+        &forward.command,
+        forward.environment.as_slice(),
+        stderr,
+    );
     if ended != 0 {
         // The ending step's words are its own; the merge changed before it ran, and the person must be told what the index holds now.
         // An index that cannot be read again is not a clean one, so the line says the state could not be read.
@@ -263,9 +391,23 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
             conflicted_now = Some(left_now);
         }
         let ending: &'static str = ending_command(layout.git_dir.as_path(), operation.as_str());
-        let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str(), conflicted_now.as_deref(), ending));
+        let after: String = format!(
+            "{}\n",
+            unfinished_words(
+                operation.as_str(),
+                listed.as_str(),
+                conflicted_now.as_deref(),
+                ending
+            )
+        );
         if let Err(error) = stderr.write_all(after.as_bytes()) {
-            debug(TAG, format!("standard error did not take the line about the unfinished operation: {error}").as_str());
+            debug(
+                TAG,
+                format!(
+                    "standard error did not take the line about the unfinished operation: {error}"
+                )
+                .as_str(),
+            );
         }
     }
     return Some(ended);
@@ -324,7 +466,18 @@ async fn second_pass_parts(
     for verdict in verdicts {
         match verdict {
             Verdict::Merged(file) => merged.push(*file),
-            Verdict::Left { path, why } => debug(TAG, format!("{} stays conflicted: {}", path_message_text(path.as_slice()), left_words(&why)).as_str()),
+            Verdict::Left {
+                path,
+                why,
+            } => debug(
+                TAG,
+                format!(
+                    "{} stays conflicted: {}",
+                    path_message_text(path.as_slice()),
+                    left_words(&why)
+                )
+                .as_str(),
+            ),
         }
     }
     if merged.is_empty() {
@@ -342,10 +495,17 @@ async fn second_pass_parts(
     }
     // The index is read again after the merge was computed: a path another command resolved and staged holds no stages of the merge's.
     let Some(entries_now) = index_entries(layout) else {
-        warn(TAG, "the index cannot be read again before the merged files are installed, so the conflicts stay as they are");
+        warn(
+            TAG,
+            "the index cannot be read again before the merged files are installed, so the conflicts stay as they are",
+        );
         return None;
     };
-    let before: Before<'_> = Before { worktree_root: layout.worktree_root.as_path(), entries: entries_now.as_slice(), held };
+    let before: Before<'_> = Before {
+        worktree_root: layout.worktree_root.as_path(),
+        entries: entries_now.as_slice(),
+        held,
+    };
     let kept: Kept = still_the_same(&before, merged, oids);
     let mut moved_names: Vec<String> = Vec::new();
     for path in &kept.moved {
@@ -377,7 +537,11 @@ async fn second_pass_parts(
         warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
         return None;
     }
-    return Some(SecondPassParts { files, moved: moved_names, unreadable: unreadable_names });
+    return Some(SecondPassParts {
+        files,
+        moved: moved_names,
+        unreadable: unreadable_names,
+    });
 }
 
 /// What:
@@ -396,19 +560,37 @@ async fn second_pass_parts(
 /// ```ts
 /// async function branchMergeOptions(runner, gitDir, command): Promise<string[] | undefined>;
 /// ```
-async fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &crate::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
+async fn branch_merge_options(
+    runner: &ContextRunner<'_>,
+    git_dir: &std::path::Path,
+    command: &crate::forwarded_command::ResolvedCommand,
+) -> Option<Vec<std::ffi::OsString>> {
     if !matches!(command.word(), b"merge" | b"pull") {
         return Some(Vec::new());
     }
-    let head: String = crate::plain_file::read_plain_text_at(git_dir.join("HEAD").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
-    let Some(branch) = head.trim().strip_prefix("ref: refs/heads/") else { return Some(Vec::new()) };
+    let head: String = crate::plain_file::read_plain_text_at(
+        git_dir.join("HEAD").as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    )
+    .ok()?;
+    let Some(branch) = head.trim().strip_prefix("ref: refs/heads/") else {
+        return Some(Vec::new());
+    };
     let key: String = format!("branch.{branch}.mergeoptions");
-    return match runner.run(&["config", "--get", key.as_str()], None, None).await {
+    return match runner
+        .run(&["config", "--get", key.as_str()], None, None)
+        .await
+    {
         Ok(reply) if reply.code == Some(1) => Some(Vec::new()),
-        Ok(reply) if reply.code == Some(0) => split_cmdline(String::from_utf8_lossy(&reply.stdout).trim_end_matches('\n')),
+        Ok(reply) if reply.code == Some(0) => {
+            split_cmdline(String::from_utf8_lossy(&reply.stdout).trim_end_matches('\n'))
+        }
         Ok(_) => None,
         Err(reason) => {
-            debug(TAG, format!("{key} could not be read ({reason}), so the finish is not made").as_str());
+            debug(
+                TAG,
+                format!("{key} could not be read ({reason}), so the finish is not made").as_str(),
+            );
             None
         }
     };

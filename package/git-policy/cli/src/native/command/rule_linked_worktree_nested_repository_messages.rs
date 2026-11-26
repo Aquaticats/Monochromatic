@@ -14,7 +14,10 @@
 //! // savedNestedRepositoryNotice([{ path: 'nested', savedTo: '/r/.git/.../discarded/2026-11-11T03-00-00/nested' }])
 //! ```
 
-use crate::conflict_sides::{SavedCopy, SaveFailure};
+use crate::conflict_sides::{
+    SaveFailure,
+    SavedCopy,
+};
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 use std::path::Path;
@@ -108,13 +111,27 @@ pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
     }
     let mut listed: String = named.join(", ");
     if not_saved.repositories.len() > SHARED_PATHS_NAMED {
-        listed.push_str(format!(", and {} more", not_saved.repositories.len() - SHARED_PATHS_NAMED).as_str());
+        listed.push_str(
+            format!(
+                ", and {} more",
+                not_saved.repositories.len() - SHARED_PATHS_NAMED
+            )
+            .as_str(),
+        );
     }
     let one: bool = not_saved.repositories.len() == 1;
     let (what, them, where_they_are): (&str, &str, &str) = if one {
-        ("the Git repository", "it", "The repository is still where it was.")
+        (
+            "the Git repository",
+            "it",
+            "The repository is still where it was.",
+        )
     } else {
-        ("the Git repositories", "them", "The repositories are still where they were.")
+        (
+            "the Git repositories",
+            "them",
+            "The repositories are still where they were.",
+        )
     };
     // A put-back that could not return a repository leaves it below the saved copies, and the person is told exactly
     //  where, because nothing else names that place.
@@ -146,7 +163,6 @@ pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
     );
 }
 
-
 /// What:
 ///  The sentence for an interactive clean that runs with one force so its menu offers no nested repository.
 /// Why:
@@ -177,7 +193,11 @@ pub fn kept_out_of_an_interactive_menu_notice(repositories: &[Vec<u8>]) -> Strin
     }
     let one: bool = repositories.len() == 1;
     // One repository reads in the singular and several in the plural, in every clause a pronoun reaches.
-    let what: &str = if one { "the Git repository" } else { "the Git repositories" };
+    let what: &str = if one {
+        "the Git repository"
+    } else {
+        "the Git repositories"
+    };
     let subject: &str = if one { "it" } else { "they" };
     let object: &str = if one { "it" } else { "them" };
     let stays: &str = if one { "stays" } else { "stay" };

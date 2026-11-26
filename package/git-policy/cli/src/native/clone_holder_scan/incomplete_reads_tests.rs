@@ -22,7 +22,11 @@ use std::path::PathBuf;
 /// how many tasks were tried and says the mounts are unknown.
 #[test]
 fn a_namespace_with_no_live_member_is_unknown_and_never_clear() {
-    let read: IncompleteRead = IncompleteRead::NoLiveMember { namespace: String::from("mnt:[9]"), tasks_tried: 2, reason: String::from("No such file or directory (os error 2)") };
+    let read: IncompleteRead = IncompleteRead::NoLiveMember {
+        namespace: String::from("mnt:[9]"),
+        tasks_tried: 2,
+        reason: String::from("No such file or directory (os error 2)"),
+    };
     assert_eq!(read.kind(), super::NO_LIVE_MEMBER_WORD);
     assert_eq!(read.namespace(), Some("mnt:[9]"));
     assert_eq!(read.task(), None);
@@ -54,10 +58,18 @@ fn a_task_that_ended_names_the_task_and_the_retry() {
 /// and neither sentence lets a reader call the result clear.
 #[test]
 fn the_bounds_say_the_scan_stopped() {
-    let namespaces: IncompleteRead = IncompleteRead::NamespacesPastTheBound { bound: 2 };
+    let namespaces: IncompleteRead = IncompleteRead::NamespacesPastTheBound {
+        bound: 2,
+    };
     assert_eq!(namespaces.kind(), super::NAMESPACES_PAST_THE_BOUND_WORD);
-    assert!(namespaces.message().contains("no scan of it can call itself clear"));
-    let details: IncompleteRead = IncompleteRead::DetailsPastTheBound { bound: 3 };
+    assert!(
+        namespaces
+            .message()
+            .contains("no scan of it can call itself clear")
+    );
+    let details: IncompleteRead = IncompleteRead::DetailsPastTheBound {
+        bound: 3,
+    };
     assert_eq!(details.kind(), super::DETAILS_PAST_THE_BOUND_WORD);
     assert!(details.message().contains("stopped listing and reading"));
     assert_eq!(details.namespace(), None);
@@ -67,7 +79,10 @@ fn the_bounds_say_the_scan_stopped() {
 /// A listing that failed names the `/proc` root and says no task was read.
 #[test]
 fn a_listing_that_failed_names_the_proc_root() {
-    let read: IncompleteRead = IncompleteRead::Listing { proc_root: PathBuf::from("/no/such/proc"), reason: String::from("No such file or directory (os error 2)") };
+    let read: IncompleteRead = IncompleteRead::Listing {
+        proc_root: PathBuf::from("/no/such/proc"),
+        reason: String::from("No such file or directory (os error 2)"),
+    };
     assert_eq!(read.kind(), super::LISTING_WORD);
     assert!(read.message().contains("/no/such/proc"));
     assert!(read.message().contains("without showing there is none"));

@@ -3,7 +3,14 @@
 
 use super::*;
 use crate::commit_selection_staging::ITEMS_BYTES_LIMIT;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
 
@@ -25,14 +32,23 @@ fn committed_repository(name: &str) -> (PathBuf, PathBuf, String) {
 
 /// The selected paths with a staged deletion and a worktree entry,
 /// for the given pathspecs.
-fn present(repo: &Path, base: &str, pathspecs: &[&str]) -> Vec<String> {
+fn present(
+    repo: &Path,
+    base: &str,
+    pathspecs: &[&str],
+) -> Vec<String> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     return present_with(&git_context(), repo, base, specs.as_slice());
 }
 
 /// The same answer for one pathspec context,
 /// so a control can set the modes the caller wrote.
-fn present_with(context: &GitContext, repo: &Path, base: &str, specs: &[OsString]) -> Vec<String> {
+fn present_with(
+    context: &GitContext,
+    repo: &Path,
+    base: &str,
+    specs: &[OsString],
+) -> Vec<String> {
     return staged_deletions_present_on_disk(
         context,
         repo,
@@ -43,14 +59,18 @@ fn present_with(context: &GitContext, repo: &Path, base: &str, specs: &[OsString
     )
     .expect("the read succeeds")
     .iter()
-    .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
+    .map(|path| {
+        return String::from_utf8_lossy(path).into_owned();
+    })
     .collect();
 }
 
 /// The context of a command that wrote `--literal-pathspecs` as a global option.
 fn literal_context() -> GitContext {
     let mut context: GitContext = git_context();
-    context.global_prefix.push(OsString::from("--literal-pathspecs"));
+    context
+        .global_prefix
+        .push(OsString::from("--literal-pathspecs"));
     return context;
 }
 
@@ -58,8 +78,14 @@ fn literal_context() -> GitContext {
 #[test]
 fn a_staged_deletion_whose_path_stays_on_disk_is_named() {
     let (root, repo, base) = committed_repository("staged-deletion-present");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["a.txt"]), vec!["a.txt".to_owned()]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["a.txt"]),
+        vec!["a.txt".to_owned()]
+    );
     remove(root.as_path());
 }
 
@@ -69,7 +95,10 @@ fn a_staged_deletion_whose_path_stays_on_disk_is_named() {
 fn a_staged_deletion_whose_path_is_gone_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-gone");
     git(repo.as_path(), &["rm", "--quiet", "--", "a.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["a.txt"]), Vec::<String>::new());
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["a.txt"]),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -78,9 +107,18 @@ fn a_staged_deletion_whose_path_is_gone_is_not_named() {
 #[test]
 fn a_staged_deletion_outside_the_pathspecs_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-unselected");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["b.txt"]), Vec::<String>::new());
-    assert_eq!(present(repo.as_path(), base.as_str(), &["dir"]), Vec::<String>::new());
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["b.txt"]),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["dir"]),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -90,9 +128,18 @@ fn a_staged_deletion_outside_the_pathspecs_is_not_named() {
 fn a_directory_pathspec_names_the_deletions_below_it_even_when_ignored() {
     let (root, repo, base) = committed_repository("staged-deletion-ignored-parent");
     std::fs::write(repo.join(".gitignore"), "/dir/\n").expect("ignore");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "dir/c.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["dir/c.txt"]), vec!["dir/c.txt".to_owned()]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["dir"]), vec!["dir/c.txt".to_owned()]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "dir/c.txt"],
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["dir/c.txt"]),
+        vec!["dir/c.txt".to_owned()]
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["dir"]),
+        vec!["dir/c.txt".to_owned()]
+    );
     remove(root.as_path());
 }
 
@@ -101,8 +148,14 @@ fn a_directory_pathspec_names_the_deletions_below_it_even_when_ignored() {
 #[test]
 fn no_pathspecs_name_nothing() {
     let (root, repo, base) = committed_repository("staged-deletion-no-pathspec");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &[]), Vec::<String>::new());
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &[]),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -114,7 +167,10 @@ fn a_staged_modification_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-modification");
     std::fs::write(repo.join("a.txt"), "changed\n").expect("edit");
     git(repo.as_path(), &["add", "--", "a.txt"]);
-    assert_eq!(present(repo.as_path(), base.as_str(), &["a.txt"]), Vec::<String>::new());
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["a.txt"]),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -127,13 +183,30 @@ fn a_literal_pathspec_does_not_name_the_deletion_of_a_glob_match() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("literal*.txt"), "star\n").expect("star");
     std::fs::write(repo.join("literal-other.txt"), "other\n").expect("other");
-    git(repo.as_path(), &["add", "literal*.txt", "literal-other.txt"]);
+    git(
+        repo.as_path(),
+        &["add", "literal*.txt", "literal-other.txt"],
+    );
     git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "literal-other.txt"]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "literal-other.txt"],
+    );
     // The glob reading names the other file, which is the answer this guard gave before the mode reached it.
-    assert_eq!(present(repo.as_path(), base.as_str(), &["literal*.txt"]), vec!["literal-other.txt".to_owned()]);
-    assert_eq!(present_with(&literal_context(), repo.as_path(), base.as_str(), &[OsString::from("literal*.txt")]), Vec::<String>::new());
+    assert_eq!(
+        present(repo.as_path(), base.as_str(), &["literal*.txt"]),
+        vec!["literal-other.txt".to_owned()]
+    );
+    assert_eq!(
+        present_with(
+            &literal_context(),
+            repo.as_path(),
+            base.as_str(),
+            &[OsString::from("literal*.txt")]
+        ),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -142,14 +215,26 @@ fn a_literal_pathspec_does_not_name_the_deletion_of_a_glob_match() {
 #[test]
 fn a_selection_past_one_command_line_names_the_deletion_of_its_last_element() {
     let (root, repo, base) = committed_repository("staged-deletion-chunks");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
     let mut specs: Vec<OsString> = Vec::new();
-    let copies: usize = usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
+    let copies: usize =
+        usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
     for _ in 0..copies {
         specs.push(OsString::from("b.txt"));
     }
     specs.push(OsString::from("a.txt"));
-    assert_eq!(present_with(&git_context(), repo.as_path(), base.as_str(), specs.as_slice()), vec!["a.txt".to_owned()]);
+    assert_eq!(
+        present_with(
+            &git_context(),
+            repo.as_path(),
+            base.as_str(),
+            specs.as_slice()
+        ),
+        vec!["a.txt".to_owned()]
+    );
     remove(root.as_path());
 }
 
@@ -158,15 +243,27 @@ fn a_selection_past_one_command_line_names_the_deletion_of_its_last_element() {
 #[test]
 fn an_exclusion_narrows_every_start_of_a_selection_past_one_command_line() {
     let (root, repo, base) = committed_repository("staged-deletion-chunks-excluded");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
     let mut specs: Vec<OsString> = Vec::new();
-    let copies: usize = usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
+    let copies: usize =
+        usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
     for _ in 0..copies {
         specs.push(OsString::from("b.txt"));
     }
     specs.push(OsString::from("a.txt"));
     specs.push(OsString::from(":(exclude)a.txt"));
-    assert_eq!(present_with(&git_context(), repo.as_path(), base.as_str(), specs.as_slice()), Vec::<String>::new());
+    assert_eq!(
+        present_with(
+            &git_context(),
+            repo.as_path(),
+            base.as_str(),
+            specs.as_slice()
+        ),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 

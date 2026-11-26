@@ -13,7 +13,10 @@
 /// ```ts
 /// const ask = noteThatAJobWaits(); const asked = waitUntilAJobWaits(5_000); // the holder: hold until asked
 /// ```
-use std::sync::{Condvar, Mutex};
+use std::sync::{
+    Condvar,
+    Mutex,
+};
 use std::time::Duration;
 
 /// The jobs waiting for a place.
@@ -59,7 +62,11 @@ impl Drop for AJobWaits {
 /// ```
 pub(crate) fn wait_until_a_job_waits(patience: Duration) -> bool {
     let counted = WAITING.lock().expect("lock");
-    let (still_counted, outcome) = CHANGED.wait_timeout_while(counted, patience, |seen: &mut usize| { return *seen == 0; }).expect("wait");
+    let (still_counted, outcome) = CHANGED
+        .wait_timeout_while(counted, patience, |seen: &mut usize| {
+            return *seen == 0;
+        })
+        .expect("wait");
     let asked: bool = !outcome.timed_out();
     drop(still_counted);
     return asked;

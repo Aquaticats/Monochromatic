@@ -20,9 +20,12 @@
 
 use super::origin_refusal::OriginRefusal;
 use super::origin_refusal_causes::cause;
-use crate::worktree_clone_binding_record::NO_REMOVAL_WORDS;
-use super::origin_refusals::{JudgedObject, RefusalForm};
+use super::origin_refusals::{
+    JudgedObject,
+    RefusalForm,
+};
 use super::removal_history::RemovalHistory;
+use crate::worktree_clone_binding_record::NO_REMOVAL_WORDS;
 
 /// The clone the message is about,
 /// or the slot for a plan that names no clone.
@@ -37,33 +40,105 @@ fn addressed(refusal: &OriginRefusal) -> String {
 /// which is the cause's own subject.
 fn compared_nothing(refusal: &OriginRefusal) -> String {
     return match refusal {
-        OriginRefusal::PlanIncomplete { .. } => String::from("Nothing this removal planned was read, because the plan does not say which object to read."),
-        OriginRefusal::CloneGone { .. } => String::from("Nothing this removal recorded about that clone can be compared any more."),
-        OriginRefusal::CloneIsNotAFilesystem { .. } => String::from("What answers at that name is not the kind of object this removal recorded, so no field of it can be compared."),
-        OriginRefusal::CloneIsNotThePlannedOne { .. } => String::from("The dataset at that name is not the one this removal recorded, so nothing else about it is compared."),
-        OriginRefusal::CloneHasNoOrigin { .. } => String::from("The dataset at that name reports no origin, so the origin this removal recorded cannot be compared."),
-        OriginRefusal::CloneOriginDiffers { .. } => String::from("The clone's origin is not the snapshot this removal recorded, so that snapshot was not read and its mark was not judged."),
-        OriginRefusal::OriginDatasetGone { .. } => String::from("Nothing this removal recorded about that dataset can be compared any more."),
-        OriginRefusal::OriginDatasetIsNotAFilesystem { .. } => String::from("What answers at that name is not the kind of object this removal recorded, so its identity cannot be compared."),
-        OriginRefusal::OriginDatasetIsNotThePlannedOne { .. } => String::from("The dataset at that name is not the one this removal recorded, so the snapshot under it was not read and the mark was not judged."),
-        OriginRefusal::OriginSnapshotGone { .. } => String::from("Nothing this removal recorded about that snapshot can be compared any more, so its mark was not judged."),
-        OriginRefusal::OriginIsNotASnapshot { .. } => String::from("What answers at that name is not a snapshot, so its identity and its mark were not judged."),
-        OriginRefusal::OriginSnapshotIsNotThePlannedOne { .. } => String::from("The snapshot at that name is not the one this removal recorded, so its mark was not judged."),
-        OriginRefusal::OriginSnapshotCreatetxgDiffers { .. } => String::from("The snapshot at that name was made in another transaction group than the one this removal recorded, so its mark was not judged."),
-        OriginRefusal::ReadFailed { object, .. } => match object {
-            JudgedObject::Clone => String::from("Nothing this removal recorded about the clone could be compared, and no origin was read."),
-            JudgedObject::OriginDataset => String::from("Nothing this removal recorded about the origin dataset could be compared, and the snapshot under it was not read."),
-            JudgedObject::OriginSnapshot => String::from("Nothing this removal recorded about the origin snapshot could be compared, and its mark was not judged."),
-        },
-        OriginRefusal::OriginMarkedBeforeTheUnmount { .. } | OriginRefusal::OriginMarkedForDeferredDestroy { .. } | OriginRefusal::MarkUnreadable { .. } => {
-            String::from("Only the object whose reply carried the mark was compared, and no other object of this removal was.")
+        OriginRefusal::PlanIncomplete {
+            ..
+        } => String::from(
+            "Nothing this removal planned was read, because the plan does not say which object to read.",
+        ),
+        OriginRefusal::CloneGone {
+            ..
+        } => {
+            String::from("Nothing this removal recorded about that clone can be compared any more.")
         }
+        OriginRefusal::CloneIsNotAFilesystem {
+            ..
+        } => String::from(
+            "What answers at that name is not the kind of object this removal recorded, so no field of it can be compared.",
+        ),
+        OriginRefusal::CloneIsNotThePlannedOne {
+            ..
+        } => String::from(
+            "The dataset at that name is not the one this removal recorded, so nothing else about it is compared.",
+        ),
+        OriginRefusal::CloneHasNoOrigin {
+            ..
+        } => String::from(
+            "The dataset at that name reports no origin, so the origin this removal recorded cannot be compared.",
+        ),
+        OriginRefusal::CloneOriginDiffers {
+            ..
+        } => String::from(
+            "The clone's origin is not the snapshot this removal recorded, so that snapshot was not read and its mark was not judged.",
+        ),
+        OriginRefusal::OriginDatasetGone {
+            ..
+        } => String::from(
+            "Nothing this removal recorded about that dataset can be compared any more.",
+        ),
+        OriginRefusal::OriginDatasetIsNotAFilesystem {
+            ..
+        } => String::from(
+            "What answers at that name is not the kind of object this removal recorded, so its identity cannot be compared.",
+        ),
+        OriginRefusal::OriginDatasetIsNotThePlannedOne {
+            ..
+        } => String::from(
+            "The dataset at that name is not the one this removal recorded, so the snapshot under it was not read and the mark was not judged.",
+        ),
+        OriginRefusal::OriginSnapshotGone {
+            ..
+        } => String::from(
+            "Nothing this removal recorded about that snapshot can be compared any more, so its mark was not judged.",
+        ),
+        OriginRefusal::OriginIsNotASnapshot {
+            ..
+        } => String::from(
+            "What answers at that name is not a snapshot, so its identity and its mark were not judged.",
+        ),
+        OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+            ..
+        } => String::from(
+            "The snapshot at that name is not the one this removal recorded, so its mark was not judged.",
+        ),
+        OriginRefusal::OriginSnapshotCreatetxgDiffers {
+            ..
+        } => String::from(
+            "The snapshot at that name was made in another transaction group than the one this removal recorded, so its mark was not judged.",
+        ),
+        OriginRefusal::ReadFailed {
+            object,
+            ..
+        } => match object {
+            JudgedObject::Clone => String::from(
+                "Nothing this removal recorded about the clone could be compared, and no origin was read.",
+            ),
+            JudgedObject::OriginDataset => String::from(
+                "Nothing this removal recorded about the origin dataset could be compared, and the snapshot under it was not read.",
+            ),
+            JudgedObject::OriginSnapshot => String::from(
+                "Nothing this removal recorded about the origin snapshot could be compared, and its mark was not judged.",
+            ),
+        },
+        OriginRefusal::OriginMarkedBeforeTheUnmount {
+            ..
+        }
+        | OriginRefusal::OriginMarkedForDeferredDestroy {
+            ..
+        }
+        | OriginRefusal::MarkUnreadable {
+            ..
+        } => String::from(
+            "Only the object whose reply carried the mark was compared, and no other object of this removal was.",
+        ),
     };
 }
 
 /// What the point that refused may claim,
 /// in the form its state takes.
-fn state(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
+fn state(
+    refusal: &OriginRefusal,
+    history: &RemovalHistory,
+) -> String {
     let slot: &str = refusal.slot();
     return match refusal.form() {
         RefusalForm::NothingTakenDown => format!(
@@ -72,7 +147,11 @@ fn state(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
             refusal.what_it_leaves().sentence(slot)
         ),
         RefusalForm::PendingAfterTheUnmount => {
-            format!("{} This check changed nothing. {}.", history.sentence(), refusal.what_it_leaves().sentence(slot))
+            format!(
+                "{} This check changed nothing. {}.",
+                history.sentence(),
+                refusal.what_it_leaves().sentence(slot)
+            )
         }
         RefusalForm::NothingCompared => format!(
             "{} This check changed nothing, and it sent no request. {} The removal stays pending; putting the worktree back needs a person to reconcile that first, and `cancel-worktree-removal {slot}` reports the same mismatch rather than attaching anything.",
@@ -99,7 +178,10 @@ fn unreadable_mark_ways_forward(origin_snapshot: &str) -> String {
 }
 
 /// What a person reads and reconciles when a live object is not the planned one.
-fn live_objects_ways_forward(name: &str, other: &str) -> String {
+fn live_objects_ways_forward(
+    name: &str,
+    other: &str,
+) -> String {
     return format!(
         "`zfs list -H -o name,guid,createtxg {name}` and `zfs get -H -o origin {other}` show what the live objects are now, and the only object this removal may destroy is the one its plan recorded, so a person reconciles those names before the removal is run again."
     );
@@ -109,25 +191,78 @@ fn live_objects_ways_forward(name: &str, other: &str) -> String {
 /// with no destructive command among them.
 fn ways_forward(refusal: &OriginRefusal) -> String {
     return match refusal {
-        OriginRefusal::OriginMarkedBeforeTheUnmount { origin_snapshot, .. } | OriginRefusal::OriginMarkedForDeferredDestroy { planned: super::planned_origin::PlannedOrigin { origin_snapshot_name: origin_snapshot, .. }, .. } => {
-            marked_ways_forward(origin_snapshot)
+        OriginRefusal::OriginMarkedBeforeTheUnmount {
+            origin_snapshot,
+            ..
         }
-        OriginRefusal::MarkUnreadable { origin_snapshot, .. } => unreadable_mark_ways_forward(origin_snapshot),
-        OriginRefusal::PlanIncomplete { plan_home, .. } => format!(
+        | OriginRefusal::OriginMarkedForDeferredDestroy {
+            planned:
+                super::planned_origin::PlannedOrigin {
+                    origin_snapshot_name: origin_snapshot,
+                    ..
+                },
+            ..
+        } => marked_ways_forward(origin_snapshot),
+        OriginRefusal::MarkUnreadable {
+            origin_snapshot,
+            ..
+        } => unreadable_mark_ways_forward(origin_snapshot),
+        OriginRefusal::PlanIncomplete {
+            plan_home,
+            ..
+        } => format!(
             "{} shows the fields the plan holds, and the removal reads no expectation from the live pool, so a person reconciles that record before the removal is run again.",
             plan_home.display()
         ),
-        OriginRefusal::CloneGone { .. } => format!(
-            "a later run settles only after it has proved that clone is gone, and {NO_REMOVAL_WORDS}."),
-        OriginRefusal::CloneIsNotAFilesystem { planned, .. } | OriginRefusal::CloneIsNotThePlannedOne { planned, .. } | OriginRefusal::CloneHasNoOrigin { planned } | OriginRefusal::CloneOriginDiffers { planned, .. } | OriginRefusal::ReadFailed { planned, .. } => {
-            live_objects_ways_forward(&planned.clone_name, &planned.origin_snapshot_name)
+        OriginRefusal::CloneGone {
+            ..
+        } => format!(
+            "a later run settles only after it has proved that clone is gone, and {NO_REMOVAL_WORDS}."
+        ),
+        OriginRefusal::CloneIsNotAFilesystem {
+            planned,
+            ..
         }
-        OriginRefusal::OriginDatasetGone { planned } | OriginRefusal::OriginDatasetIsNotAFilesystem { planned, .. } | OriginRefusal::OriginDatasetIsNotThePlannedOne { planned, .. } => {
-            live_objects_ways_forward(&planned.origin_dataset_name, &planned.origin_snapshot_name)
+        | OriginRefusal::CloneIsNotThePlannedOne {
+            planned,
+            ..
         }
-        OriginRefusal::OriginSnapshotGone { planned } | OriginRefusal::OriginIsNotASnapshot { planned } | OriginRefusal::OriginSnapshotIsNotThePlannedOne { planned, .. } | OriginRefusal::OriginSnapshotCreatetxgDiffers { planned, .. } => {
-            live_objects_ways_forward(&planned.origin_snapshot_name, &planned.clone_name)
+        | OriginRefusal::CloneHasNoOrigin {
+            planned,
         }
+        | OriginRefusal::CloneOriginDiffers {
+            planned,
+            ..
+        }
+        | OriginRefusal::ReadFailed {
+            planned,
+            ..
+        } => live_objects_ways_forward(&planned.clone_name, &planned.origin_snapshot_name),
+        OriginRefusal::OriginDatasetGone {
+            planned,
+        }
+        | OriginRefusal::OriginDatasetIsNotAFilesystem {
+            planned,
+            ..
+        }
+        | OriginRefusal::OriginDatasetIsNotThePlannedOne {
+            planned,
+            ..
+        } => live_objects_ways_forward(&planned.origin_dataset_name, &planned.origin_snapshot_name),
+        OriginRefusal::OriginSnapshotGone {
+            planned,
+        }
+        | OriginRefusal::OriginIsNotASnapshot {
+            planned,
+        }
+        | OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+            planned,
+            ..
+        }
+        | OriginRefusal::OriginSnapshotCreatetxgDiffers {
+            planned,
+            ..
+        } => live_objects_ways_forward(&planned.origin_snapshot_name, &planned.clone_name),
     };
 }
 
@@ -142,9 +277,20 @@ fn ways_forward(refusal: &OriginRefusal) -> String {
 /// ```ts
 /// message(refusal, history);
 /// ```
-pub(super) fn message(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
-    let opening: String = format!("refusing to remove the ZFS worktree clone {}: {}.", addressed(refusal), cause(refusal));
-    return format!("{opening} {} Ways forward: {}", state(refusal, history), ways_forward(refusal));
+pub(super) fn message(
+    refusal: &OriginRefusal,
+    history: &RemovalHistory,
+) -> String {
+    let opening: String = format!(
+        "refusing to remove the ZFS worktree clone {}: {}.",
+        addressed(refusal),
+        cause(refusal)
+    );
+    return format!(
+        "{opening} {} Ways forward: {}",
+        state(refusal, history),
+        ways_forward(refusal)
+    );
 }
 
 /// Controls stay out of the release executable.

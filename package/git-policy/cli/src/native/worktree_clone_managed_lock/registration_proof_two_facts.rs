@@ -36,16 +36,29 @@
 
 use super::dataset_guid_reads::DatasetGuidReads;
 use super::lexical_path_resolution::the_lexical_path;
-use super::reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
+use super::reading_a_bounded_file::{
+    ARefusedReading,
+    Reading,
+    read_a_bounded_file,
+};
 use super::recorded_lock_facts::RecordedLockFacts;
 use crate::hooks_path_values::without_trailing_newlines;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_mount::clone_slot_git_pointer::POINTER_BOUND;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, clone_mount_of, read_mount_rows, slot_mount_of};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    MountRows,
+    clone_mount_of,
+    read_mount_rows,
+    slot_mount_of,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name of a registration's back-link to its worktree.
 pub const GITDIR_FILE_NAME: &str = "gitdir";
@@ -148,47 +161,105 @@ pub enum TwoFactRefusal {
 
 impl TwoFactRefusal {
     /// The words a person reads for one failed fact.
-    pub fn words(&self, registration: &Path) -> String {
+    pub fn words(
+        &self,
+        registration: &Path,
+    ) -> String {
         return match self {
-            TwoFactRefusal::NoGitdir => format!("the registration `{}` holds no `gitdir` file", registration.display()),
-            TwoFactRefusal::GitdirNamesAnotherPath { found, wanted } => {
-                format!("the registration `{}` names `{}` in its `gitdir` and this slot's `.git` lives at `{}`", registration.display(), found.display(), wanted.display())
+            TwoFactRefusal::NoGitdir => format!(
+                "the registration `{}` holds no `gitdir` file",
+                registration.display()
+            ),
+            TwoFactRefusal::GitdirNamesAnotherPath {
+                found,
+                wanted,
+            } => {
+                format!(
+                    "the registration `{}` names `{}` in its `gitdir` and this slot's `.git` lives at `{}`",
+                    registration.display(),
+                    found.display(),
+                    wanted.display()
+                )
             }
-            TwoFactRefusal::CommondirNamesAnotherRepository { found, repository } => {
-                format!("the registration `{}` names `{}` as its common directory and this repository is `{}`", registration.display(), found.display(), repository.display())
+            TwoFactRefusal::CommondirNamesAnotherRepository {
+                found,
+                repository,
+            } => {
+                format!(
+                    "the registration `{}` names `{}` as its common directory and this repository is `{}`",
+                    registration.display(),
+                    found.display(),
+                    repository.display()
+                )
             }
-            TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found } => {
-                format!("the folder at the recorded slot path answers the identity `{}` and the record holds `{}`", found.encode(), recorded.encode())
+            TwoFactRefusal::TheSlotIsNotTheRecordedFolder {
+                recorded,
+                found,
+            } => {
+                format!(
+                    "the folder at the recorded slot path answers the identity `{}` and the record holds `{}`",
+                    found.encode(),
+                    recorded.encode()
+                )
             }
-            TwoFactRefusal::AMountThatIsNotTheRecords { found, recorded } => {
-                format!("a mount stands at the recorded slot path and it is not the clone `{recorded}` this slot's record names ({found})")
+            TwoFactRefusal::AMountThatIsNotTheRecords {
+                found,
+                recorded,
+            } => {
+                format!(
+                    "a mount stands at the recorded slot path and it is not the clone `{recorded}` this slot's record names ({found})"
+                )
             }
-            TwoFactRefusal::TheMountTableWasNotRead { reason } => {
-                format!("the mount table could not be read ({reason}), so nothing says whether a mount covers the slot and the record's own folder is not compared through one")
+            TwoFactRefusal::TheMountTableWasNotRead {
+                reason,
+            } => {
+                format!(
+                    "the mount table could not be read ({reason}), so nothing says whether a mount covers the slot and the record's own folder is not compared through one"
+                )
             }
-            TwoFactRefusal::NoRecordedCloneGuid { dataset } => format!(
+            TwoFactRefusal::NoRecordedCloneGuid {
+                dataset,
+            } => format!(
                 "a mount stands at the recorded slot path and names the clone `{dataset}` this slot's record names, and the record holds no `cloneGuid=`, so nothing was removed or rewritten; Ways forward: read the record's fields, then run the add again"
             ),
-            TwoFactRefusal::TheClonesGuidWasNotRead { dataset, reason } => format!(
+            TwoFactRefusal::TheClonesGuidWasNotRead {
+                dataset,
+                reason,
+            } => format!(
                 "a mount stands at the recorded slot path and names the clone `{dataset}`, and the pool did not answer that dataset's GUID ({reason}), so nothing was removed or rewritten; Ways forward: run `zfs get -H -o value guid {dataset}` on the machine that holds the pool, then run the add again"
             ),
-            TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid { dataset, recorded, found } => format!(
+            TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid {
+                dataset,
+                recorded,
+                found,
+            } => format!(
                 "a mount stands at the recorded slot path and names the clone `{dataset}`, and the pool answers GUID `{}` for that name while this slot's record holds `{}`, so a dataset made again under the same name stands where the recorded clone stood and nothing was removed or rewritten; Ways forward: check `zfs get -H -o value guid {dataset}` against the record's `cloneGuid=`, then run the add again",
                 found.file_name(),
                 recorded.file_name()
             ),
-            TwoFactRefusal::NoRecordedSlotIdentity => String::from("the record holds no slot identity, which every phase after the claim writes"),
-            TwoFactRefusal::Unreadable { what, cause } => format!("{what} could not be read ({})", cause.words()),
+            TwoFactRefusal::NoRecordedSlotIdentity => String::from(
+                "the record holds no slot identity, which every phase after the claim writes",
+            ),
+            TwoFactRefusal::Unreadable {
+                what,
+                cause,
+            } => format!("{what} could not be read ({})", cause.words()),
         };
     }
 }
 
 /// Read one record of a registration,
 /// with a refused read returned as the refusal it is.
-fn record_bytes(registration: &Path, name: &str) -> Result<Reading, TwoFactRefusal> {
+fn record_bytes(
+    registration: &Path,
+    name: &str,
+) -> Result<Reading, TwoFactRefusal> {
     let path: PathBuf = registration.join(name);
     return match read_a_bounded_file(path.as_path(), REGISTRATION_RECORD_MAXIMUM_BYTES) {
-        Reading::Refused(cause) => Err(TwoFactRefusal::Unreadable { what: format!("`{}`", path.display()), cause }),
+        Reading::Refused(cause) => Err(TwoFactRefusal::Unreadable {
+            what: format!("`{}`", path.display()),
+            cause,
+        }),
         reading => Ok(reading),
     };
 }
@@ -200,10 +271,21 @@ fn record_bytes(registration: &Path, name: &str) -> Result<Reading, TwoFactRefus
 ///  Git writes the worktree's whole path in `gitdir` and `../..` in `commondir`,
 ///  and a registration another command wrote may hold either spelling,
 ///  so both are read as the files they name.
-fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<PathBuf> {
-    let Reading::Bytes(bytes) = reading else { return None };
-    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(bytes.as_slice())));
-    let spelled: PathBuf = if named.is_absolute() { named } else { registration.join(named) };
+fn named_in_the_registration(
+    reading: &Reading,
+    registration: &Path,
+) -> Option<PathBuf> {
+    let Reading::Bytes(bytes) = reading else {
+        return None;
+    };
+    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(
+        bytes.as_slice(),
+    )));
+    let spelled: PathBuf = if named.is_absolute() {
+        named
+    } else {
+        registration.join(named)
+    };
     return Some(the_lexical_path(spelled.as_path()));
 }
 
@@ -233,10 +315,19 @@ fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<P
 /// ```ts
 /// proveTheRegistration(facts, repository, registration, mounts, guids);
 /// ```
-pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> Result<(), TwoFactRefusal> {
+pub fn prove_the_registration(
+    facts: &RecordedLockFacts,
+    repository: &Path,
+    registration: &Path,
+    mounts: &dyn MountedDatasets,
+    guids: &dyn DatasetGuidReads,
+) -> Result<(), TwoFactRefusal> {
     let gitdir: Reading = record_bytes(registration, GITDIR_FILE_NAME)?;
     if let Reading::Refused(cause) = gitdir {
-        return Err(TwoFactRefusal::Unreadable { what: format!("`{}`", registration.join(GITDIR_FILE_NAME).display()), cause });
+        return Err(TwoFactRefusal::Unreadable {
+            what: format!("`{}`", registration.join(GITDIR_FILE_NAME).display()),
+            cause,
+        });
     }
     let spelled: PathBuf = facts.slot.join(".git");
     let wanted: PathBuf = the_lexical_path(spelled.as_path());
@@ -244,18 +335,29 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
         return Err(TwoFactRefusal::NoGitdir);
     };
     if back_link != wanted {
-        return Err(TwoFactRefusal::GitdirNamesAnotherPath { found: back_link, wanted });
+        return Err(TwoFactRefusal::GitdirNamesAnotherPath {
+            found: back_link,
+            wanted,
+        });
     }
     let commondir: Reading = record_bytes(registration, COMMONDIR_FILE_NAME)?;
     if let Reading::Refused(cause) = commondir {
-        return Err(TwoFactRefusal::Unreadable { what: format!("`{}`", registration.join(COMMONDIR_FILE_NAME).display()), cause });
+        return Err(TwoFactRefusal::Unreadable {
+            what: format!("`{}`", registration.join(COMMONDIR_FILE_NAME).display()),
+            cause,
+        });
     }
     if let Some(common) = named_in_the_registration(&commondir, registration)
         && !crate::real_git_candidate::same_file(common.as_path(), repository)
     {
-        return Err(TwoFactRefusal::CommondirNamesAnotherRepository { found: common, repository: repository.to_path_buf() });
+        return Err(TwoFactRefusal::CommondirNamesAnotherRepository {
+            found: common,
+            repository: repository.to_path_buf(),
+        });
     }
-    let recorded: FolderIdentity = facts.slot_identity.ok_or(TwoFactRefusal::NoRecordedSlotIdentity)?;
+    let recorded: FolderIdentity = facts
+        .slot_identity
+        .ok_or(TwoFactRefusal::NoRecordedSlotIdentity)?;
     return match the_cover_at(facts, mounts) {
         // A mount of the record's clone stands at the slot, so the folder there is the clone's root
         // and not the underlay the add identified: the clone's own GUID is what names this slot,
@@ -263,17 +365,38 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
         CloneMount::AtItsSlot => proven_through_the_clone(facts, guids),
         // Anything else standing at the slot is not this record's clone, and a table nothing read
         // proves neither the mounted fact nor the unmounted one.
-        CloneMount::SomethingElseAtTheSlot { described } => Err(TwoFactRefusal::AMountThatIsNotTheRecords { found: described, recorded: facts.clone.dataset.clone() }),
-        CloneMount::Unreadable { reason } => Err(TwoFactRefusal::TheMountTableWasNotRead { reason }),
+        CloneMount::SomethingElseAtTheSlot {
+            described,
+        } => Err(TwoFactRefusal::AMountThatIsNotTheRecords {
+            found: described,
+            recorded: facts.clone.dataset.clone(),
+        }),
+        CloneMount::Unreadable {
+            reason,
+        } => Err(TwoFactRefusal::TheMountTableWasNotRead {
+            reason,
+        }),
         // Nothing covers the slot, or the clone is mounted somewhere else, so the recorded
         // underlay identity is what the folder at this path must answer.
-        CloneMount::Nowhere | CloneMount::Elsewhere { .. } => {
-            let found: FolderIdentity = FolderIdentity::of_folder(facts.slot.as_path()).map_err(|error| {
-                return TwoFactRefusal::Unreadable { what: format!("the slot `{}`", facts.slot.display()), cause: ARefusedReading::Unreadable { reason: error.to_string() } };
-            })?;
+        CloneMount::Nowhere
+        | CloneMount::Elsewhere {
+            ..
+        } => {
+            let found: FolderIdentity =
+                FolderIdentity::of_folder(facts.slot.as_path()).map_err(|error| {
+                    return TwoFactRefusal::Unreadable {
+                        what: format!("the slot `{}`", facts.slot.display()),
+                        cause: ARefusedReading::Unreadable {
+                            reason: error.to_string(),
+                        },
+                    };
+                })?;
             match found == recorded {
                 true => Ok(()),
-                false => Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found }),
+                false => Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder {
+                    recorded,
+                    found,
+                }),
             }
         }
     };
@@ -290,13 +413,29 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
 ///  a pool that does not answer,
 ///  and an answer that differs
 ///  are three refusals rather than a pass.
-fn proven_through_the_clone(facts: &RecordedLockFacts, guids: &dyn DatasetGuidReads) -> Result<(), TwoFactRefusal> {
+fn proven_through_the_clone(
+    facts: &RecordedLockFacts,
+    guids: &dyn DatasetGuidReads,
+) -> Result<(), TwoFactRefusal> {
     let dataset: String = facts.clone.dataset.clone();
-    let recorded: DatasetGuid = facts.clone.guid.ok_or_else(|| return TwoFactRefusal::NoRecordedCloneGuid { dataset: dataset.clone() })?;
-    let found: DatasetGuid = guids.guid_of(dataset.as_str()).map_err(|reason| return TwoFactRefusal::TheClonesGuidWasNotRead { dataset: dataset.clone(), reason })?;
+    let recorded: DatasetGuid = facts.clone.guid.ok_or_else(|| {
+        return TwoFactRefusal::NoRecordedCloneGuid {
+            dataset: dataset.clone(),
+        };
+    })?;
+    let found: DatasetGuid = guids.guid_of(dataset.as_str()).map_err(|reason| {
+        return TwoFactRefusal::TheClonesGuidWasNotRead {
+            dataset: dataset.clone(),
+            reason,
+        };
+    })?;
     return match found == recorded {
         true => Ok(()),
-        false => Err(TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid { dataset, recorded, found }),
+        false => Err(TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid {
+            dataset,
+            recorded,
+            found,
+        }),
     };
 }
 
@@ -311,10 +450,18 @@ fn proven_through_the_clone(facts: &RecordedLockFacts, guids: &dyn DatasetGuidRe
 ///  are four different answers,
 ///  and only the clone's own root at the slot makes the recorded underlay identity
 ///  unreadable there.
-fn the_cover_at(facts: &RecordedLockFacts, mounts: &dyn MountedDatasets) -> CloneMount {
+fn the_cover_at(
+    facts: &RecordedLockFacts,
+    mounts: &dyn MountedDatasets,
+) -> CloneMount {
     let rows: MountRows = read_mount_rows(mounts);
     let slot_mount = slot_mount_of(mounts, facts.slot.as_path());
-    return clone_mount_of(&rows, &slot_mount, facts.clone.dataset.as_str(), facts.slot.as_path());
+    return clone_mount_of(
+        &rows,
+        &slot_mount,
+        facts.clone.dataset.as_str(),
+        facts.slot.as_path(),
+    );
 }
 
 /// Controls stay out of the release executable.

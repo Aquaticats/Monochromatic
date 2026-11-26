@@ -18,49 +18,88 @@
 //! ```
 
 use super::{
-    abort_command_text, discard_refusal_text, discarded_list, hatch_command_text, ignored_file_refusal_text, quit_command_text, unreadable_refusal_text,
+    abort_command_text,
+    discard_refusal_text,
+    discarded_list,
+    hatch_command_text,
+    ignored_file_refusal_text,
+    quit_command_text,
+    unreadable_refusal_text,
     untracked_file_text,
 };
 use crate::repository_facts_abort_discard::DiscardBaseline;
-use crate::rule_abort_operation::{AbortOperation, OperationEnd};
+use crate::rule_abort_operation::{
+    AbortOperation,
+    OperationEnd,
+};
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 
 /// Every operation names its command in the spelling a person typed,
 ///  and a skip names its own command.
 #[test]
 fn every_operation_names_its_command() {
-    assert_eq!(abort_command_text(AbortOperation::Merge, OperationEnd::Abort), "git merge --abort");
-    assert_eq!(abort_command_text(AbortOperation::Rebase, OperationEnd::Abort), "git rebase --abort");
+    assert_eq!(
+        abort_command_text(AbortOperation::Merge, OperationEnd::Abort),
+        "git merge --abort"
+    );
+    assert_eq!(
+        abort_command_text(AbortOperation::Rebase, OperationEnd::Abort),
+        "git rebase --abort"
+    );
     assert_eq!(
         abort_command_text(AbortOperation::Pick, OperationEnd::Abort),
         "git cherry-pick --abort or git revert --abort"
     );
-    assert_eq!(abort_command_text(AbortOperation::Am, OperationEnd::Abort), "git am --abort");
-    assert_eq!(abort_command_text(AbortOperation::Rebase, OperationEnd::Skip), "git rebase --skip");
+    assert_eq!(
+        abort_command_text(AbortOperation::Am, OperationEnd::Abort),
+        "git am --abort"
+    );
+    assert_eq!(
+        abort_command_text(AbortOperation::Rebase, OperationEnd::Skip),
+        "git rebase --skip"
+    );
     assert_eq!(
         abort_command_text(AbortOperation::Pick, OperationEnd::Skip),
         "git cherry-pick --skip or git revert --skip"
     );
-    assert_eq!(abort_command_text(AbortOperation::Am, OperationEnd::Skip), "git am --skip");
+    assert_eq!(
+        abort_command_text(AbortOperation::Am, OperationEnd::Skip),
+        "git am --skip"
+    );
 }
 
 /// The opt-out is spelled directly after the subcommand,
 ///  which is the only position the wrapper strips it from.
 #[test]
 fn every_operation_names_its_opt_out_after_the_subcommand() {
-    assert_eq!(hatch_command_text(AbortOperation::Merge, OperationEnd::Abort), "git merge --no-enforce-worktree --abort");
-    assert_eq!(hatch_command_text(AbortOperation::Rebase, OperationEnd::Abort), "git rebase --no-enforce-worktree --abort");
+    assert_eq!(
+        hatch_command_text(AbortOperation::Merge, OperationEnd::Abort),
+        "git merge --no-enforce-worktree --abort"
+    );
+    assert_eq!(
+        hatch_command_text(AbortOperation::Rebase, OperationEnd::Abort),
+        "git rebase --no-enforce-worktree --abort"
+    );
     assert_eq!(
         hatch_command_text(AbortOperation::Pick, OperationEnd::Abort),
         "git cherry-pick --no-enforce-worktree --abort"
     );
-    assert_eq!(hatch_command_text(AbortOperation::Am, OperationEnd::Abort), "git am --no-enforce-worktree --abort");
-    assert_eq!(hatch_command_text(AbortOperation::Rebase, OperationEnd::Skip), "git rebase --no-enforce-worktree --skip");
+    assert_eq!(
+        hatch_command_text(AbortOperation::Am, OperationEnd::Abort),
+        "git am --no-enforce-worktree --abort"
+    );
+    assert_eq!(
+        hatch_command_text(AbortOperation::Rebase, OperationEnd::Skip),
+        "git rebase --no-enforce-worktree --skip"
+    );
     assert_eq!(
         hatch_command_text(AbortOperation::Pick, OperationEnd::Skip),
         "git cherry-pick --no-enforce-worktree --skip"
     );
-    assert_eq!(hatch_command_text(AbortOperation::Am, OperationEnd::Skip), "git am --no-enforce-worktree --skip");
+    assert_eq!(
+        hatch_command_text(AbortOperation::Am, OperationEnd::Skip),
+        "git am --no-enforce-worktree --skip"
+    );
 }
 
 /// Every operation that can be aborted has a quit form that keeps the work,
@@ -68,8 +107,14 @@ fn every_operation_names_its_opt_out_after_the_subcommand() {
 #[test]
 fn every_operation_names_its_quit_form() {
     assert_eq!(quit_command_text(AbortOperation::Merge), "git merge --quit");
-    assert_eq!(quit_command_text(AbortOperation::Rebase), "git rebase --quit");
-    assert_eq!(quit_command_text(AbortOperation::Pick), "git cherry-pick --quit or git revert --quit");
+    assert_eq!(
+        quit_command_text(AbortOperation::Rebase),
+        "git rebase --quit"
+    );
+    assert_eq!(
+        quit_command_text(AbortOperation::Pick),
+        "git cherry-pick --quit or git revert --quit"
+    );
     assert_eq!(quit_command_text(AbortOperation::Am), "git am --quit");
 }
 
@@ -83,29 +128,59 @@ fn every_operation_names_its_quit_form() {
 #[test]
 fn each_path_carries_the_kind_of_work_standing_there() {
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[b"a.txt".to_vec()], &[b"a.txt".to_vec()], &[]),
+        discarded_list(
+            DiscardBaseline::RecordedResult,
+            &[b"a.txt".to_vec()],
+            &[b"a.txt".to_vec()],
+            &[]
+        ),
         "a.txt (a resolution or edit you made since Git stopped at the conflict; a staged resolution)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::RecordedResult, &[], &[b"new.txt".to_vec()], &[]),
+        discarded_list(
+            DiscardBaseline::RecordedResult,
+            &[],
+            &[b"new.txt".to_vec()],
+            &[]
+        ),
         "new.txt (content only the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"a.txt".to_vec()], &[], &[]),
+        discarded_list(
+            DiscardBaseline::OperationStart,
+            &[b"a.txt".to_vec()],
+            &[],
+            &[]
+        ),
         "a.txt (an edit you made since the operation began)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[], &[b"b.txt".to_vec()], &[]),
+        discarded_list(
+            DiscardBaseline::OperationStart,
+            &[],
+            &[b"b.txt".to_vec()],
+            &[]
+        ),
         "b.txt (content the index holds)"
     );
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"c.txt".to_vec()], &[b"c.txt".to_vec()], &[]),
+        discarded_list(
+            DiscardBaseline::OperationStart,
+            &[b"c.txt".to_vec()],
+            &[b"c.txt".to_vec()],
+            &[]
+        ),
         "c.txt (an edit you made since the operation began; a staged edit)"
     );
     // A path the operation is still stopped at in a state Git recorded no result for: neither kind is true of it,
     //  because what stands there may be the conflict text Git wrote.
     assert_eq!(
-        discarded_list(DiscardBaseline::OperationStart, &[b"conflict.txt".to_vec()], &[], &[b"conflict.txt".to_vec()]),
+        discarded_list(
+            DiscardBaseline::OperationStart,
+            &[b"conflict.txt".to_vec()],
+            &[],
+            &[b"conflict.txt".to_vec()]
+        ),
         "conflict.txt (a conflicted path)"
     );
 }
@@ -128,8 +203,14 @@ fn a_conflicted_path_says_why_the_wrapper_could_not_judge_it() {
         with.contains("Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours."),
         "{with}"
     );
-    assert!(with.contains("git merge --quit"), "the way out that keeps the work: {with}");
-    assert!(with.contains("git merge --no-enforce-worktree --abort"), "the opt-out: {with}");
+    assert!(
+        with.contains("git merge --quit"),
+        "the way out that keeps the work: {with}"
+    );
+    assert!(
+        with.contains("git merge --no-enforce-worktree --abort"),
+        "the opt-out: {with}"
+    );
     let without: String = discard_refusal_text(
         AbortOperation::Merge,
         OperationEnd::Abort,
@@ -149,11 +230,24 @@ fn the_list_is_bounded_and_counts_the_rest() {
     for number in 0..SHARED_PATHS_NAMED + 3 {
         paths.push(format!("p{number}.txt").into_bytes());
     }
-    let listed: String = discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[], &[]);
+    let listed: String =
+        discarded_list(DiscardBaseline::OperationStart, paths.as_slice(), &[], &[]);
     assert!(listed.contains("p0.txt"), "{listed}");
-    assert!(listed.contains(&format!("and {} more paths", 3)), "{listed}");
-    assert!(!listed.contains(&format!("p{}.txt", SHARED_PATHS_NAMED + 2)), "{listed}");
-    assert_eq!(listed.matches("an edit you made since the operation began").count(), SHARED_PATHS_NAMED, "{listed}");
+    assert!(
+        listed.contains(&format!("and {} more paths", 3)),
+        "{listed}"
+    );
+    assert!(
+        !listed.contains(&format!("p{}.txt", SHARED_PATHS_NAMED + 2)),
+        "{listed}"
+    );
+    assert_eq!(
+        listed
+            .matches("an edit you made since the operation began")
+            .count(),
+        SHARED_PATHS_NAMED,
+        "{listed}"
+    );
 }
 
 /// A refusal names the command,
@@ -171,11 +265,23 @@ fn the_refusal_names_both_ways_out_and_promises_no_copy() {
         &[],
         &[],
     );
-    assert!(text.starts_with("monochromatic-git-policy-cli: git rebase --abort is refused"), "{text}");
-    assert!(text.contains("a.txt (an edit you made since the operation began)"), "{text}");
-    assert!(text.contains("Nothing was changed, and nothing was copied."), "{text}");
+    assert!(
+        text.starts_with("monochromatic-git-policy-cli: git rebase --abort is refused"),
+        "{text}"
+    );
+    assert!(
+        text.contains("a.txt (an edit you made since the operation began)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Nothing was changed, and nothing was copied."),
+        "{text}"
+    );
     assert!(text.contains("git rebase --quit"), "{text}");
-    assert!(text.contains("git rebase --no-enforce-worktree --abort"), "{text}");
+    assert!(
+        text.contains("git rebase --no-enforce-worktree --abort"),
+        "{text}"
+    );
     assert!(!text.contains("saved"), "no sentence claims a copy: {text}");
     assert!(!text.contains('\n'), "the finding is one line: {text}");
 }
@@ -193,9 +299,15 @@ fn a_skip_says_it_goes_on() {
         &[],
         &[],
     );
-    assert!(text.contains("git am --skip goes on without the commit or patch it stopped at"), "{text}");
+    assert!(
+        text.contains("git am --skip goes on without the commit or patch it stopped at"),
+        "{text}"
+    );
     assert!(!text.contains("restores the state before it"), "{text}");
-    assert!(text.contains("git am --quit"), "the skip is stopped with the operation's own quit: {text}");
+    assert!(
+        text.contains("git am --quit"),
+        "the skip is stopped with the operation's own quit: {text}"
+    );
 }
 
 /// An untracked file at a path the restored tree tracks is Git's own refusal,
@@ -211,10 +323,22 @@ fn an_untracked_file_is_named_as_gits_own_refusal() {
     );
     assert!(text.contains("Git itself refuses it here"), "{text}");
     assert!(text.contains("victim.txt"), "{text}");
-    assert!(text.contains("Git will not write that tree while it is there"), "{text}");
-    assert!(text.contains("mv <path> <somewhere else>"), "the way out: {text}");
-    assert!(text.contains("git merge --abort"), "the command as typed: {text}");
-    assert!(!text.contains("no-enforce-worktree"), "Git's own refusal is the answer here: {text}");
+    assert!(
+        text.contains("Git will not write that tree while it is there"),
+        "{text}"
+    );
+    assert!(
+        text.contains("mv <path> <somewhere else>"),
+        "the way out: {text}"
+    );
+    assert!(
+        text.contains("git merge --abort"),
+        "the command as typed: {text}"
+    );
+    assert!(
+        !text.contains("no-enforce-worktree"),
+        "Git's own refusal is the answer here: {text}"
+    );
 }
 
 /// A skip's reset refuses that same file,
@@ -228,18 +352,33 @@ fn a_skips_untracked_file_is_named_as_gits_refusal_too() {
         "HEAD",
         &[String::from("victim.txt")],
     );
-    assert!(text.contains("git rebase --skip is refused because Git itself refuses it here"), "{text}");
+    assert!(
+        text.contains("git rebase --skip is refused because Git itself refuses it here"),
+        "{text}"
+    );
     assert!(text.contains("writes the tree of HEAD"), "{text}");
     assert!(text.contains("victim.txt"), "{text}");
-    assert!(text.contains("The rebase in progress still waits"), "{text}");
+    assert!(
+        text.contains("The rebase in progress still waits"),
+        "{text}"
+    );
 }
 
 /// The ignored-file refusal keeps the shared sentence and says the operation still waits.
 #[test]
 fn the_ignored_file_refusal_names_the_waiting_operation() {
-    let text: String = ignored_file_refusal_text(String::from("monochromatic-git-policy-cli: the .env is ignored"), AbortOperation::Rebase);
-    assert!(text.starts_with("monochromatic-git-policy-cli: the .env is ignored"), "{text}");
-    assert!(text.contains("The rebase in progress still waits, and nothing was changed."), "{text}");
+    let text: String = ignored_file_refusal_text(
+        String::from("monochromatic-git-policy-cli: the .env is ignored"),
+        AbortOperation::Rebase,
+    );
+    assert!(
+        text.starts_with("monochromatic-git-policy-cli: the .env is ignored"),
+        "{text}"
+    );
+    assert!(
+        text.contains("The rebase in progress still waits, and nothing was changed."),
+        "{text}"
+    );
 }
 
 /// A reading that failed says which command is refused,
@@ -254,8 +393,19 @@ fn an_unreadable_reading_names_the_reason_and_the_way_out_that_holds() {
         AbortOperation::Rebase,
         "Git records it in /r/.git/rebase-merge/orig-head, which is not a regular file",
     );
-    assert!(text.contains("git rebase --abort is refused because the wrapper could not read what it would discard"), "{text}");
+    assert!(
+        text.contains(
+            "git rebase --abort is refused because the wrapper could not read what it would discard"
+        ),
+        "{text}"
+    );
     assert!(text.contains("not a regular file"), "{text}");
-    assert!(text.contains("use git rebase --quit"), "the advice that needs nothing of that path: {text}");
-    assert!(text.contains("Git then reads that path itself"), "the opt-out is named with what it does: {text}");
+    assert!(
+        text.contains("use git rebase --quit"),
+        "the advice that needs nothing of that path: {text}"
+    );
+    assert!(
+        text.contains("Git then reads that path itself"),
+        "the opt-out is named with what it does: {text}"
+    );
 }

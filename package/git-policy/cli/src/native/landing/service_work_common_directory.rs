@@ -20,13 +20,22 @@
 //! commonDirectoryOf(gitDir) ?? undefined; isBareCommonDirectory(commonDir)
 //! ```
 
-use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 /// The one reader of a Git directory's `commondir` file.
 use crate::common_directory_of_a_git_directory::common_directory_named_by;
 /// The reader that cannot wait on a named pipe, and the bound it reads a configuration file to.
-use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
-use std::path::{Path, PathBuf};
-
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
+use crate::repo_read_config_text::{
+    last_entry,
+    parse_bool,
+    parse_config_text,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether a common Git directory belongs to a repository with no main worktree,

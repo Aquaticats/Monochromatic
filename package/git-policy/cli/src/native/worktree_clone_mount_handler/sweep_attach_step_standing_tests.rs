@@ -33,17 +33,39 @@
 //! expect(step.attach(one)).toEqual({ kind: 'refused', step: 'walk' });   // anything else at the slot
 //! ```
 
-use super::{AttachRequest, AttachStepOutcome, CloneAttachStep, CloneMountCall, RealAttachStep, RollbackCalls};
-use crate::testing::root_namespace_test_support::in_a_root_namespace;
-use crate::testing::standing_slot_mounts::{MountedSlot, the_slots_mount_reads};
-use crate::fs_beneath_mount_facts::mount_id_of;
-use crate::worktree_clone_mount::{
-    AttachCall, AttachRefusal, AttachedMount, CloneFolderIdentity, Placement, publish_parent_identity_under_root_control, publish_slot_identity_under_root_control,
+use super::{
+    AttachRequest,
+    AttachStepOutcome,
+    CloneAttachStep,
+    CloneMountCall,
+    RealAttachStep,
+    RollbackCalls,
 };
-use crate::worktree_clone_mount_handler::sweep_standing_mounts::{LiveStandingMounts, StandingMounts};
+use crate::fs_beneath_mount_facts::mount_id_of;
+use crate::testing::root_namespace_test_support::in_a_root_namespace;
+use crate::testing::standing_slot_mounts::{
+    MountedSlot,
+    the_slots_mount_reads,
+};
+use crate::worktree_clone_mount::{
+    AttachCall,
+    AttachRefusal,
+    AttachedMount,
+    CloneFolderIdentity,
+    Placement,
+    publish_parent_identity_under_root_control,
+    publish_slot_identity_under_root_control,
+};
+use crate::worktree_clone_mount_handler::sweep_standing_mounts::{
+    LiveStandingMounts,
+    StandingMounts,
+};
 use std::cell::Cell;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The variable the namespace helper sets in the half that really runs,
 /// named for this module's controls.
@@ -74,34 +96,50 @@ struct Fixture {
 impl Fixture {
     /// Build the fixture under this run's own temporary root.
     fn build(name: &str) -> Self {
-        let root: PathBuf = crate::test_support::fixture(format!("sweep-attach-standing-{name}").as_str()).join("checkout");
+        let root: PathBuf =
+            crate::test_support::fixture(format!("sweep-attach-standing-{name}").as_str())
+                .join("checkout");
         let parent: PathBuf = root.join(".claude").join("worktrees");
         let slot: PathBuf = parent.join("one");
         std::fs::create_dir_all(slot.as_path()).expect("the fixture chain is made");
         let store: PathBuf = root.parent().expect("the fixture has a root").join("store");
         std::fs::create_dir(store.as_path()).expect("the store folder is made");
-        std::fs::set_permissions(store.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the store is root's and readable");
+        std::fs::set_permissions(store.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("the store is root's and readable");
         let identity: CloneFolderIdentity = identity_of(parent.as_path());
-        publish_parent_identity_under_root_control(store.as_path(), &identity, &identity).expect("the parent record stands");
+        publish_parent_identity_under_root_control(store.as_path(), &identity, &identity)
+            .expect("the parent record stands");
         let slot_identity: CloneFolderIdentity = identity_of(slot.as_path());
-        publish_slot_identity_under_root_control(store.as_path(), "one", &slot_identity, &identity).expect("the slot's record stands");
-        return Self { checkout: root, slot, store };
+        publish_slot_identity_under_root_control(store.as_path(), "one", &slot_identity, &identity)
+            .expect("the slot's record stands");
+        return Self {
+            checkout: root,
+            slot,
+            store,
+        };
     }
 
     /// The request the sweep hands the step.
     fn request(&self) -> AttachRequest<'_> {
-        return AttachRequest { checkout: self.checkout.as_path(), slot: "one", clone: CLONE, store: self.store.as_path() };
+        return AttachRequest {
+            checkout: self.checkout.as_path(),
+            slot: "one",
+            clone: CLONE,
+            store: self.store.as_path(),
+        };
     }
 }
 
 /// One folder's identity now.
 fn identity_of(path: &Path) -> CloneFolderIdentity {
-    return CloneFolderIdentity::capture(&std::fs::File::open(path).expect("the folder opens")).expect("the identity reads");
+    return CloneFolderIdentity::capture(&std::fs::File::open(path).expect("the folder opens"))
+        .expect("the identity reads");
 }
 
 /// The mount the kernel says the fixture's slot is on.
 fn the_slots_mount(path: &Path) -> u64 {
-    return mount_id_of(&std::fs::File::open(path).expect("the slot opens")).expect("the slot's mount reads");
+    return mount_id_of(&std::fs::File::open(path).expect("the slot opens"))
+        .expect("the slot's mount reads");
 }
 
 /// What:
@@ -128,7 +166,11 @@ struct ACountedRefusingMountCall<'a> {
 }
 
 impl CloneMountCall for ACountedRefusingMountCall<'_> {
-    fn attach_the_mount(&self, source: &str, _target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
+    fn attach_the_mount(
+        &self,
+        source: &str,
+        _target: &std::fs::File,
+    ) -> Result<AttachedMount, AttachRefusal> {
         self.asked.set(self.asked.get() + 1);
         return Err(AttachRefusal {
             call: AttachCall::Place,
@@ -156,11 +198,17 @@ impl CloneMountCall for ACountedRefusingMountCall<'_> {
 struct NothingToRollBack;
 
 impl RollbackCalls for NothingToRollBack {
-    fn unmount(&self, _target: &std::fs::File) -> Result<(), AttachRefusal> {
+    fn unmount(
+        &self,
+        _target: &std::fs::File,
+    ) -> Result<(), AttachRefusal> {
         panic!("no control of this module reaches a rollback's unmount");
     }
 
-    fn slot_mount(&self, _request: &AttachRequest<'_>) -> Result<u64, String> {
+    fn slot_mount(
+        &self,
+        _request: &AttachRequest<'_>,
+    ) -> Result<u64, String> {
         panic!("no control of this module reads the slot back for a rollback");
     }
 }
@@ -177,8 +225,17 @@ impl RollbackCalls for NothingToRollBack {
 /// ```ts
 /// const step = theStep(standing, asked);
 /// ```
-fn the_step<'a>(standing: &'a dyn StandingMounts, asked: &'a Cell<usize>) -> RealAttachStep<'a, NothingToRollBack, ACountedRefusingMountCall<'a>> {
-    return RealAttachStep { calls: NothingToRollBack, mount_call: ACountedRefusingMountCall { asked }, standing };
+fn the_step<'a>(
+    standing: &'a dyn StandingMounts,
+    asked: &'a Cell<usize>,
+) -> RealAttachStep<'a, NothingToRollBack, ACountedRefusingMountCall<'a>> {
+    return RealAttachStep {
+        calls: NothingToRollBack,
+        mount_call: ACountedRefusingMountCall {
+            asked,
+        },
+        standing,
+    };
 }
 
 /// What:
@@ -192,7 +249,10 @@ fn the_step<'a>(standing: &'a dyn StandingMounts, asked: &'a Cell<usize>) -> Rea
 ///  and no second attach is attempted at a mount the kernel would refuse.
 #[test]
 fn a_slot_holding_the_recorded_clones_mount_is_answered_from_it() {
-    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_the_recorded_clones_mount_is_answered_from_it") {
+    if !in_a_root_namespace(
+        INSIDE,
+        "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_the_recorded_clones_mount_is_answered_from_it",
+    ) {
         return;
     }
     let fixture: Fixture = Fixture::build("own-mount");
@@ -201,13 +261,31 @@ fn a_slot_holding_the_recorded_clones_mount_is_answered_from_it() {
     let asked: Cell<usize> = Cell::new(0);
     let step = the_step(&standing, &asked);
     let outcome: AttachStepOutcome = step.attach(&fixture.request());
-    let AttachStepOutcome::AlreadyStanding { mount } = outcome else {
+    let AttachStepOutcome::AlreadyStanding {
+        mount,
+    } = outcome
+    else {
         panic!("the clone's own mount at its slot is answered from that mount: {outcome:?}");
     };
-    assert_eq!(mount.mount_id, the_slots_mount(slot_mount.path()), "the answer names the mount the kernel shows at the slot");
-    assert_eq!(mount.source, CLONE, "the answer names this clone as the mount's source");
-    assert_eq!(mount.observed_path, std::fs::canonicalize(fixture.slot.as_path()).expect("the slot's canonical path"), "the answer names the slot the mount stands at");
-    assert_eq!(asked.get(), 0, "no second attach is attempted at the mount the slot holds");
+    assert_eq!(
+        mount.mount_id,
+        the_slots_mount(slot_mount.path()),
+        "the answer names the mount the kernel shows at the slot"
+    );
+    assert_eq!(
+        mount.source, CLONE,
+        "the answer names this clone as the mount's source"
+    );
+    assert_eq!(
+        mount.observed_path,
+        std::fs::canonicalize(fixture.slot.as_path()).expect("the slot's canonical path"),
+        "the answer names the slot the mount stands at"
+    );
+    assert_eq!(
+        asked.get(),
+        0,
+        "no second attach is attempted at the mount the slot holds"
+    );
 }
 
 /// What:
@@ -219,7 +297,10 @@ fn a_slot_holding_the_recorded_clones_mount_is_answered_from_it() {
 ///  clone's own.
 #[test]
 fn a_slot_holding_another_datasets_mount_keeps_the_walks_refusal() {
-    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_another_datasets_mount_keeps_the_walks_refusal") {
+    if !in_a_root_namespace(
+        INSIDE,
+        "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_another_datasets_mount_keeps_the_walks_refusal",
+    ) {
         return;
     }
     let fixture: Fixture = Fixture::build("another-dataset");
@@ -228,13 +309,25 @@ fn a_slot_holding_another_datasets_mount_keeps_the_walks_refusal() {
     let asked: Cell<usize> = Cell::new(0);
     let step = the_step(&standing, &asked);
     let outcome: AttachStepOutcome = step.attach(&fixture.request());
-    let AttachStepOutcome::Refused { step: refused_at, errno, said } = outcome else {
+    let AttachStepOutcome::Refused {
+        step: refused_at,
+        errno,
+        said,
+    } = outcome
+    else {
         panic!("another dataset's mount is refused as the walk refuses it: {outcome:?}");
     };
     assert_eq!(refused_at, "walk", "the refusal is the walk's own step");
     assert_eq!(errno, None, "a boundary refusal names no errno");
-    assert!(said.contains("never crosses such a boundary"), "the sentence is the walk's boundary refusal: {said}");
-    assert_eq!(asked.get(), 0, "nothing is mounted over another dataset's mount");
+    assert!(
+        said.contains("never crosses such a boundary"),
+        "the sentence is the walk's boundary refusal: {said}"
+    );
+    assert_eq!(
+        asked.get(),
+        0,
+        "nothing is mounted over another dataset's mount"
+    );
 }
 
 /// What:
@@ -248,7 +341,10 @@ fn a_slot_holding_another_datasets_mount_keeps_the_walks_refusal() {
 ///  the walk refuses.
 #[test]
 fn a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal() {
-    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal") {
+    if !in_a_root_namespace(
+        INSIDE,
+        "worktree_clone_mount_handler::sweep_attach_step::standing_tests::a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal",
+    ) {
         return;
     }
     let fixture: Fixture = Fixture::build("same-name-bind");
@@ -257,12 +353,24 @@ fn a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal() {
     let asked: Cell<usize> = Cell::new(0);
     let step = the_step(&standing, &asked);
     let outcome: AttachStepOutcome = step.attach(&fixture.request());
-    let AttachStepOutcome::Refused { step: refused_at, said, .. } = outcome else {
+    let AttachStepOutcome::Refused {
+        step: refused_at,
+        said,
+        ..
+    } = outcome
+    else {
         panic!("a bind of this clone is refused as the walk refuses it: {outcome:?}");
     };
     assert_eq!(refused_at, "walk", "the refusal is the walk's own step");
-    assert!(said.contains("never crosses such a boundary"), "the sentence is the walk's boundary refusal: {said}");
-    assert_eq!(asked.get(), 0, "nothing is mounted over a mount that is not this clone's own");
+    assert!(
+        said.contains("never crosses such a boundary"),
+        "the sentence is the walk's boundary refusal: {said}"
+    );
+    assert_eq!(
+        asked.get(),
+        0,
+        "nothing is mounted over a mount that is not this clone's own"
+    );
 }
 
 /// What:
@@ -279,7 +387,10 @@ fn a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal() {
 ///  so the refusal is the call's own step rather than the walk's.
 #[test]
 fn an_empty_slot_is_walked_and_reaches_the_steps_own_mount_call() {
-    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_attach_step::standing_tests::an_empty_slot_is_walked_and_reaches_the_steps_own_mount_call") {
+    if !in_a_root_namespace(
+        INSIDE,
+        "worktree_clone_mount_handler::sweep_attach_step::standing_tests::an_empty_slot_is_walked_and_reaches_the_steps_own_mount_call",
+    ) {
         return;
     }
     let fixture: Fixture = Fixture::build("empty-slot");
@@ -287,10 +398,28 @@ fn an_empty_slot_is_walked_and_reaches_the_steps_own_mount_call() {
     let asked: Cell<usize> = Cell::new(0);
     let step = the_step(&standing, &asked);
     let outcome: AttachStepOutcome = step.attach(&fixture.request());
-    assert_eq!(asked.get(), 1, "an empty slot reaches the step's own mount call");
-    let AttachStepOutcome::Refused { step: ref refused_at, ref errno, .. } = outcome else {
-        panic!("an empty slot is walked and attached rather than answered from a mount: {outcome:?}");
+    assert_eq!(
+        asked.get(),
+        1,
+        "an empty slot reaches the step's own mount call"
+    );
+    let AttachStepOutcome::Refused {
+        step: ref refused_at,
+        ref errno,
+        ..
+    } = outcome
+    else {
+        panic!(
+            "an empty slot is walked and attached rather than answered from a mount: {outcome:?}"
+        );
     };
-    assert_eq!(refused_at, "move-mount", "the answer is the mount call's own step, so the walk reached the attach");
-    assert_eq!(errno.as_deref(), Some("EBUSY"), "the call's own errno is kept: {outcome:?}");
+    assert_eq!(
+        refused_at, "move-mount",
+        "the answer is the mount call's own step, so the walk reached the attach"
+    );
+    assert_eq!(
+        errno.as_deref(),
+        Some("EBUSY"),
+        "the call's own errno is kept: {outcome:?}"
+    );
 }

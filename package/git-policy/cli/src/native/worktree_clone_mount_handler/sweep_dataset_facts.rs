@@ -24,7 +24,10 @@
 //! const facts = factsOf(name, identity); // { guid, type, origin, mountpoint, setuid, devices, keystatus, ... }
 //! ```
 
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    NvList,
+};
 
 /// What:
 ///  The one object-set type a clone this route attaches has.
@@ -127,7 +130,11 @@ impl PropertyValue {
     pub fn text(&self) -> Option<&str> {
         return match self {
             PropertyValue::Text(text) => Some(text.as_str()),
-            PropertyValue::Absent | PropertyValue::Number(_) | PropertyValue::Unreadable { .. } => None,
+            PropertyValue::Absent
+            | PropertyValue::Number(_)
+            | PropertyValue::Unreadable {
+                ..
+            } => None,
         };
     }
 
@@ -136,19 +143,30 @@ impl PropertyValue {
     pub fn number(&self) -> Option<u64> {
         return match self {
             PropertyValue::Number(number) => Some(*number),
-            PropertyValue::Absent | PropertyValue::Text(_) | PropertyValue::Unreadable { .. } => None,
+            PropertyValue::Absent
+            | PropertyValue::Text(_)
+            | PropertyValue::Unreadable {
+                ..
+            } => None,
         };
     }
 
     /// How a refusal names this state,
     /// so a person learns whether the property is missing or was written by
     /// another OpenZFS release.
-    pub fn describe(&self, property: &str) -> String {
+    pub fn describe(
+        &self,
+        property: &str,
+    ) -> String {
         return match self {
-            PropertyValue::Absent => format!("`{property}` is not in the reply the kernel gave for this dataset"),
+            PropertyValue::Absent => {
+                format!("`{property}` is not in the reply the kernel gave for this dataset")
+            }
             PropertyValue::Text(text) => format!("`{property}` is `{text}`"),
             PropertyValue::Number(number) => format!("`{property}` is {number}"),
-            PropertyValue::Unreadable { why } => format!("`{property}` could not be read ({why})"),
+            PropertyValue::Unreadable {
+                why,
+            } => format!("`{property}` could not be read ({why})"),
         };
     }
 }
@@ -207,12 +225,19 @@ pub struct CloneObjectFacts {
 /// ```ts
 /// const value = valueOf(reply.properties, 'mountpoint');
 /// ```
-pub fn value_of(properties: &NvList, property: &str) -> PropertyValue {
+pub fn value_of(
+    properties: &NvList,
+    property: &str,
+) -> PropertyValue {
     let Some(entry) = properties.get(property) else {
         return PropertyValue::Absent;
     };
     let Some(pair) = properties.get_list(property) else {
-        return PropertyValue::Unreadable { why: format!("the value is not the pair of `value` and `source` OpenZFS returns for a property ({entry:?})") };
+        return PropertyValue::Unreadable {
+            why: format!(
+                "the value is not the pair of `value` and `source` OpenZFS returns for a property ({entry:?})"
+            ),
+        };
     };
     if let Some(text) = pair.get_str("value") {
         return PropertyValue::Text(String::from(text));
@@ -220,7 +245,9 @@ pub fn value_of(properties: &NvList, property: &str) -> PropertyValue {
     if let Some(number) = pair.get_u64("value") {
         return PropertyValue::Number(number);
     }
-    return PropertyValue::Unreadable { why: String::from("the pair has no `value` this route reads") };
+    return PropertyValue::Unreadable {
+        why: String::from("the pair has no `value` this route reads"),
+    };
 }
 
 /// What:
@@ -233,7 +260,10 @@ pub fn value_of(properties: &NvList, property: &str) -> PropertyValue {
 /// ```ts
 /// const facts = factsOf(child.name, child.identity);
 /// ```
-pub fn facts_of(name: &str, identity: &DatasetIdentity) -> CloneObjectFacts {
+pub fn facts_of(
+    name: &str,
+    identity: &DatasetIdentity,
+) -> CloneObjectFacts {
     let properties: &NvList = &identity.properties;
     return CloneObjectFacts {
         name: String::from(name),

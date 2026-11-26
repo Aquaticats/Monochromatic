@@ -23,7 +23,11 @@ fn the_cause_a_retry_names_is_a_reason_and_not_the_remote() {
         Some("fatal: 'DISABLED' does not appear to be a git repository"),
         "a first line that is a reason is the cause"
     );
-    assert_eq!(cause_line("To ../other\n"), Some("To ../other"), "words that name only the remote keep it");
+    assert_eq!(
+        cause_line("To ../other\n"),
+        Some("To ../other"),
+        "words that name only the remote keep it"
+    );
     assert_eq!(cause_line(""), None);
     assert_eq!(cause_line("\n \n"), None, "blank lines name nothing");
 }

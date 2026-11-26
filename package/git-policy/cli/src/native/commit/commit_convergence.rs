@@ -20,15 +20,30 @@
 use crate::diagnostics::EngineFailureCode;
 use crate::direct_fix::convergence_pass;
 use crate::direct_fix_install::InstallChange;
+use crate::path_bytes::path_message_text;
 use crate::policy_checks::ShippedChecks;
 use crate::policy_content::Correction;
-use crate::policy_convergence::{Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass, converge};
-use crate::policy_engine::{StageEnd, StageRequest};
+use crate::policy_convergence::{
+    Convergence,
+    FIX_PASS_LIMIT_MESSAGE,
+    FixPasses,
+    PassResult as ConvergencePass,
+    converge,
+};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+};
 use crate::policy_events::PolicyEvent;
-use crate::policy_pass::{PassResult, run_policy_pass};
-use crate::path_bytes::path_message_text;
+use crate::policy_pass::{
+    PassResult,
+    run_policy_pass,
+};
 use crate::policy_trigger::Trigger;
-use crate::private_index_stage::{PrivateStage, stage_correction};
+use crate::private_index_stage::{
+    PrivateStage,
+    stage_correction,
+};
 use crate::repository_facts::RepositoryFacts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -140,7 +155,10 @@ impl<'a, F: RepositoryFacts> CommitPasses<'a, F> {
 }
 
 impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
-    fn run_pass(&mut self, _candidate_version: usize) -> ConvergencePass {
+    fn run_pass(
+        &mut self,
+        _candidate_version: usize,
+    ) -> ConvergencePass {
         // What: `let _ = ...` drops proposals no `apply` took.
         // Why:  Only a pass that ends proposing is followed by `apply`.
         //
@@ -155,7 +173,10 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
         return result;
     }
 
-    fn apply(&mut self, _snapshot: usize) -> bool {
+    fn apply(
+        &mut self,
+        _snapshot: usize,
+    ) -> bool {
         let proposals: Vec<Correction> = self.checks.content.take_proposals();
         let arguments: Vec<OsString> = match &self.last {
             Some(pass) => pass.arguments.clone(),
@@ -163,7 +184,11 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
         };
         for correction in &proposals {
             if let Err(message) = stage_correction(&self.stage, correction) {
-                self.blocked = Some(patch_conflict_pass(arguments.as_slice(), correction.path.as_slice(), message));
+                self.blocked = Some(patch_conflict_pass(
+                    arguments.as_slice(),
+                    correction.path.as_slice(),
+                    message,
+                ));
                 return false;
             }
             record_path(&mut self.changed_paths, correction);
@@ -173,7 +198,11 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
         return true;
     }
 
-    fn snapshots_equal(&mut self, left: usize, right: usize) -> bool {
+    fn snapshots_equal(
+        &mut self,
+        left: usize,
+        right: usize,
+    ) -> bool {
         return self.states[left] == self.states[right];
     }
 }
@@ -189,7 +218,10 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
 /// ```ts
 /// changedPaths.add(path);
 /// ```
-fn record_path(changed: &mut Vec<Vec<u8>>, correction: &Correction) {
+fn record_path(
+    changed: &mut Vec<Vec<u8>>,
+    correction: &Correction,
+) {
     if !changed.contains(&correction.path) {
         changed.push(correction.path.clone());
     }
@@ -205,14 +237,20 @@ fn record_path(changed: &mut Vec<Vec<u8>>, correction: &Correction) {
 /// ```ts
 /// patchApplicationFailure({ path, message });
 /// ```
-fn patch_conflict_pass(arguments: &[OsString], path: &[u8], message: String) -> PassResult {
+fn patch_conflict_pass(
+    arguments: &[OsString],
+    path: &[u8],
+    message: String,
+) -> PassResult {
     let shown: String = path_message_text(path);
     return PassResult {
         arguments: arguments.to_vec(),
         events: vec![PolicyEvent::EngineFailure {
             code: EngineFailureCode::PatchConflict,
             hint: crate::policy_events::EngineFailureHint::OfCode,
-            message: format!("Policy patch for {shown} does not apply to the private index: {message}"),
+            message: format!(
+                "Policy patch for {shown} does not apply to the private index: {message}"
+            ),
             trigger: Some(Trigger::PreForward),
             policy: None,
             path: Some(crate::event_path::EventPath::from_git_bytes(path)),
@@ -231,7 +269,11 @@ fn patch_conflict_pass(arguments: &[OsString], path: &[u8], message: String) -> 
 /// ```ts
 /// fixCycleFailure({ previous, trigger: 'pre-forward', message });
 /// ```
-fn engine_failure_pass(arguments: &[OsString], code: EngineFailureCode, message: &str) -> PassResult {
+fn engine_failure_pass(
+    arguments: &[OsString],
+    code: EngineFailureCode,
+    message: &str,
+) -> PassResult {
     return PassResult {
         arguments: arguments.to_vec(),
         events: vec![PolicyEvent::EngineFailure {
@@ -256,7 +298,9 @@ fn engine_failure_pass(arguments: &[OsString], code: EngineFailureCode, message:
 /// ```ts
 /// return await convergeCommitPolicies({ ... });
 /// ```
-pub fn converge_commit_policies<F: RepositoryFacts>(input: CommitConvergenceInput<'_, F>) -> CommitConvergence {
+pub fn converge_commit_policies<F: RepositoryFacts>(
+    input: CommitConvergenceInput<'_, F>
+) -> CommitConvergence {
     input.checks.can_apply_patches = true;
     // This pass runs for `git commit` itself, so a policy that may add a path to what it lands knows it here.
     input.checks.forwards_commit = true;
@@ -283,18 +327,32 @@ pub fn converge_commit_policies<F: RepositoryFacts>(input: CommitConvergenceInpu
 /// ```ts
 /// switch (convergence.kind) { case 'blocked': return blocked ?? last; }
 /// ```
-fn finish(convergence: Convergence, last: PassResult, blocked: Option<PassResult>) -> PassResult {
+fn finish(
+    convergence: Convergence,
+    last: PassResult,
+    blocked: Option<PassResult>,
+) -> PassResult {
     match convergence {
-        Convergence::Settled { .. } => return last,
+        Convergence::Settled {
+            ..
+        } => return last,
         Convergence::Blocked => match blocked {
             Some(found) => return found,
             None => return last,
         },
         Convergence::FixCycle => {
-            return engine_failure_pass(last.arguments.as_slice(), EngineFailureCode::FixCycle, COMMIT_CYCLE_MESSAGE);
+            return engine_failure_pass(
+                last.arguments.as_slice(),
+                EngineFailureCode::FixCycle,
+                COMMIT_CYCLE_MESSAGE,
+            );
         }
         Convergence::FixPassLimit => {
-            return engine_failure_pass(last.arguments.as_slice(), EngineFailureCode::FixPassLimit, FIX_PASS_LIMIT_MESSAGE);
+            return engine_failure_pass(
+                last.arguments.as_slice(),
+                EngineFailureCode::FixPassLimit,
+                FIX_PASS_LIMIT_MESSAGE,
+            );
         }
     }
 }

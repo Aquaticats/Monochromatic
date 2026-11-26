@@ -34,11 +34,30 @@
 //! const ok: boolean | undefined = everyTypedValueIsAccepted({ entries, scope }); // undefined: ask Git
 //! ```
 
-use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, last_variable, read_following};
-use crate::repo_read_config_text::{ConfigEntry, parse_config_text};
+use crate::repo_read_config_scan::{
+    ScopeEnvironment,
+    include_target,
+    is_include_key,
+    last_variable,
+    read_following,
+};
+use crate::repo_read_config_text::{
+    ConfigEntry,
+    parse_config_text,
+};
+use crate::repo_read_config_value_kinds::{
+    ATTRIBUTE_WORDS,
+    BRIGHT_COLOR_WORDS,
+    FALSE_WORDS,
+    Kind,
+    MAXIMUM_ABBREVIATION,
+    MINIMUM_ABBREVIATION,
+    PLAIN_COLOR_WORDS,
+    TRUE_WORDS,
+    kind_of,
+};
 use std::ffi::OsString;
 use std::path::Path;
-use crate::repo_read_config_value_kinds::{ATTRIBUTE_WORDS, BRIGHT_COLOR_WORDS, FALSE_WORDS, Kind, MAXIMUM_ABBREVIATION, MINIMUM_ABBREVIATION, PLAIN_COLOR_WORDS, TRUE_WORDS, kind_of};
 
 /// How many nested includes are followed before the proof gives up;
 /// Git's own limit.
@@ -74,10 +93,18 @@ fn number_of(text: &str) -> Option<i64> {
         },
         None => (rest, 1),
     };
-    if digits.is_empty() || digits.len() > DIGIT_LIMIT || !digits.iter().all(u8::is_ascii_digit) || (digits.len() > 1 && digits[0] == b'0') {
+    if digits.is_empty()
+        || digits.len() > DIGIT_LIMIT
+        || !digits.iter().all(u8::is_ascii_digit)
+        || (digits.len() > 1 && digits[0] == b'0')
+    {
         return None;
     }
-    let magnitude: i64 = std::str::from_utf8(digits).ok()?.parse::<i64>().ok()?.checked_mul(factor)?;
+    let magnitude: i64 = std::str::from_utf8(digits)
+        .ok()?
+        .parse::<i64>()
+        .ok()?
+        .checked_mul(factor)?;
     return Some(if negative { -magnitude } else { magnitude });
 }
 
@@ -118,7 +145,11 @@ fn fits_in_i32(text: &str) -> bool {
 
 /// Whether `text` reads as a whole number from `low` to `high`,
 /// both included.
-fn number_within(text: &str, low: i64, high: i64) -> bool {
+fn number_within(
+    text: &str,
+    low: i64,
+    high: i64,
+) -> bool {
     return match number_of(text) {
         Some(number) => (low..=high).contains(&number),
         None => false,
@@ -135,7 +166,11 @@ fn number_within(text: &str, low: i64, high: i64) -> bool {
 /// The number reader here negates what it parsed,
 /// and minus zero is zero,
 /// so without this the proof would take a spelling Git refuses.
-fn number_within_a_kind(text: &str, low: i64, high: i64) -> bool {
+fn number_within_a_kind(
+    text: &str,
+    low: i64,
+    high: i64,
+) -> bool {
     if low >= 0 && text.contains('-') {
         return false;
     }
@@ -184,7 +219,10 @@ fn is_attribute_word(lowered: &str) -> bool {
 fn is_color_word(word: &str) -> bool {
     let lowered_text: String = word.to_ascii_lowercase();
     let lowered: &str = lowered_text.as_str();
-    if PLAIN_COLOR_WORDS.contains(&lowered) || BRIGHT_COLOR_WORDS.contains(&lowered) || is_attribute_word(lowered) {
+    if PLAIN_COLOR_WORDS.contains(&lowered)
+        || BRIGHT_COLOR_WORDS.contains(&lowered)
+        || is_attribute_word(lowered)
+    {
         return true;
     }
     if let Some(base) = lowered.strip_prefix("bright")
@@ -236,7 +274,11 @@ fn is_plain_ref_pattern(name: &str) -> Option<bool> {
             return None;
         }
     }
-    return if wildcards > 1 { None } else { Some(wildcards == 1) };
+    return if wildcards > 1 {
+        None
+    } else {
+        Some(wildcards == 1)
+    };
 }
 
 /// Whether `text` is `[+]refs/...:refs/...` with plain names and a wildcard on both sides or on neither.
@@ -244,19 +286,31 @@ fn is_plain_refspec(text: &str) -> bool {
     let Some((source, destination)) = text.strip_prefix('+').unwrap_or(text).split_once(':') else {
         return false;
     };
-    return match (is_plain_ref_pattern(source), is_plain_ref_pattern(destination)) {
+    return match (
+        is_plain_ref_pattern(source),
+        is_plain_ref_pattern(destination),
+    ) {
         (Some(left), Some(right)) => left == right,
         _ => false,
     };
 }
 
 /// Whether `text` is a comma-separated list of the listed words.
-fn is_word_list(text: &str, words: &[&str], empty: bool, negatable: bool) -> bool {
+fn is_word_list(
+    text: &str,
+    words: &[&str],
+    empty: bool,
+    negatable: bool,
+) -> bool {
     if text.is_empty() {
         return empty;
     }
     for item in text.split(',') {
-        let word: &str = if negatable { item.strip_prefix('-').unwrap_or(item) } else { item };
+        let word: &str = if negatable {
+            item.strip_prefix('-').unwrap_or(item)
+        } else {
+            item
+        };
         if !words.contains(&word) {
             return false;
         }
@@ -265,10 +319,16 @@ fn is_word_list(text: &str, words: &[&str], empty: bool, negatable: bool) -> boo
 }
 
 /// Whether `value` is a spelling of `kind` that Git accepts silently.
-fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
+fn is_accepted(
+    kind: Kind,
+    value: Option<&[u8]>,
+) -> bool {
     let Some(bytes) = value else {
         // A bare name is a true boolean and nothing else.
-        return matches!(kind, Kind::Boolean | Kind::BooleanOr(_) | Kind::IntegerOrBoolean);
+        return matches!(
+            kind,
+            Kind::Boolean | Kind::BooleanOr(_) | Kind::IntegerOrBoolean
+        );
     };
     let Ok(text) = std::str::from_utf8(bytes) else {
         return false;
@@ -277,16 +337,32 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Boolean => is_boolean_text(text),
         Kind::BooleanOr(words) => is_boolean_text(text) || words.contains(&text),
         Kind::IntegerOrBoolean => is_boolean_text(text) || fits_in_i32(text),
-        Kind::Integer { low, high } => number_within_a_kind(text, low, high),
+        Kind::Integer {
+            low,
+            high,
+        } => number_within_a_kind(text, low, high),
         Kind::Text => true,
         Kind::Pathname => !text.starts_with('~') || text.starts_with("~/"),
-        Kind::OneOf { words, empty } => (text.is_empty() && empty) || words.contains(&text),
-        Kind::Words { words, empty, negatable } => is_word_list(text, words, empty, negatable),
+        Kind::OneOf {
+            words,
+            empty,
+        } => (text.is_empty() && empty) || words.contains(&text),
+        Kind::Words {
+            words,
+            empty,
+            negatable,
+        } => is_word_list(text, words, empty, negatable),
         Kind::Color => is_color_text(text),
-        Kind::Abbreviation => text == "auto" || is_false_word_or_empty(text) || number_within(text, MINIMUM_ABBREVIATION, MAXIMUM_ABBREVIATION),
+        Kind::Abbreviation => {
+            text == "auto"
+                || is_false_word_or_empty(text)
+                || number_within(text, MINIMUM_ABBREVIATION, MAXIMUM_ABBREVIATION)
+        }
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
         Kind::TraceTarget => text.is_empty() || text == "0" || text.eq_ignore_ascii_case("false"),
-        Kind::OffOrBuiltinDaemon => is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str()),
+        Kind::OffOrBuiltinDaemon => {
+            is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str())
+        }
         Kind::Refspec => is_plain_refspec(text),
         Kind::Refused => false,
     };
@@ -302,7 +378,10 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
 /// ```ts
 /// const accepted = kindOf(entry.key) === undefined || isAccepted(kindOf(entry.key), entry.value);
 /// ```
-pub fn entry_is_accepted(key: &str, value: Option<&[u8]>) -> bool {
+pub fn entry_is_accepted(
+    key: &str,
+    value: Option<&[u8]>,
+) -> bool {
     return match kind_of(key) {
         Some(kind) => is_accepted(kind, value),
         None => true,
@@ -313,7 +392,12 @@ pub fn entry_is_accepted(key: &str, value: Option<&[u8]>) -> bool {
 /// and every file they include,
 /// hold only accepted values;
 ///  `None` when a file cannot be read or parsed.
-pub fn entries_are_accepted(entries: &[ConfigEntry], path: &Path, home: Option<&Path>, depth: usize) -> Option<bool> {
+pub fn entries_are_accepted(
+    entries: &[ConfigEntry],
+    path: &Path,
+    home: Option<&Path>,
+    depth: usize,
+) -> Option<bool> {
     if depth > INCLUDE_DEPTH_LIMIT {
         return None;
     }
@@ -333,7 +417,11 @@ pub fn entries_are_accepted(entries: &[ConfigEntry], path: &Path, home: Option<&
 
 /// The same proof for the file at `path`;
 /// a missing file is an empty file to Git.
-fn file_is_accepted(path: &Path, home: Option<&Path>, depth: usize) -> Option<bool> {
+fn file_is_accepted(
+    path: &Path,
+    home: Option<&Path>,
+    depth: usize,
+) -> Option<bool> {
     let Some(text) = read_following(path)? else {
         return Some(true);
     };
@@ -370,8 +458,16 @@ pub fn outer_scopes_are_accepted(scope: &ScopeEnvironment) -> Option<bool> {
 fn canonical(key: &str) -> Option<String> {
     let (section, rest) = key.split_once('.')?;
     return Some(match rest.rsplit_once('.') {
-        Some((subsection, name)) => format!("{}.{subsection}.{}", section.to_ascii_lowercase(), name.to_ascii_lowercase()),
-        None => format!("{}.{}", section.to_ascii_lowercase(), rest.to_ascii_lowercase()),
+        Some((subsection, name)) => format!(
+            "{}.{subsection}.{}",
+            section.to_ascii_lowercase(),
+            name.to_ascii_lowercase()
+        ),
+        None => format!(
+            "{}.{}",
+            section.to_ascii_lowercase(),
+            rest.to_ascii_lowercase()
+        ),
     });
 }
 
@@ -396,7 +492,10 @@ pub fn environment_is_accepted(variables: &[(OsString, OsString)]) -> bool {
         return false;
     }
     for index in 0..count {
-        let (Some(key), Some(value)) = (last_variable(variables, format!("GIT_CONFIG_KEY_{index}").as_str()), last_variable(variables, format!("GIT_CONFIG_VALUE_{index}").as_str())) else {
+        let (Some(key), Some(value)) = (
+            last_variable(variables, format!("GIT_CONFIG_KEY_{index}").as_str()),
+            last_variable(variables, format!("GIT_CONFIG_VALUE_{index}").as_str()),
+        ) else {
             return false;
         };
         let Some(key_text) = key.to_str() else {

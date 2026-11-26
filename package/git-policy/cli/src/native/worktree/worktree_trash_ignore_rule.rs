@@ -16,7 +16,11 @@
 //! const ignored = await trashLocationIsIgnoredAwaiting(context, root);
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::worktree_trash::TRASH_PARENT;
 use std::path::Path;
@@ -34,7 +38,13 @@ use std::path::Path;
 fn trash_ignore_request(root: &Path) -> GitRequest {
     return GitRequest {
         cwd: root.to_path_buf(),
-        arguments: ["check-ignore", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
+        arguments: ["check-ignore", "--no-index", "--"]
+            .iter()
+            .map(std::ffi::OsString::from)
+            .chain(std::iter::once(std::ffi::OsString::from(format!(
+                "{TRASH_PARENT}/probe/x"
+            ))))
+            .collect(),
         without_prefix: true,
         ..GitRequest::default()
     };
@@ -53,7 +63,10 @@ fn trash_ignore_request(root: &Path) -> GitRequest {
 /// ```ts
 /// await runGit(['check-ignore', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
 /// ```
-pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
+pub fn trash_location_is_ignored(
+    context: &GitContext,
+    root: &Path,
+) -> bool {
     return match run_git(context, &trash_ignore_request(root)) {
         Ok(output) => output.code == Some(0),
         Err(_not_started) => false,
@@ -73,7 +86,10 @@ pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
 /// ```ts
 /// async function trashLocationIsIgnoredAwaiting(context: GitContext, root: string): Promise<boolean>;
 /// ```
-pub async fn trash_location_is_ignored_awaiting(context: &GitContext, root: &Path) -> bool {
+pub async fn trash_location_is_ignored_awaiting(
+    context: &GitContext,
+    root: &Path,
+) -> bool {
     return match run_git_awaiting(context, &trash_ignore_request(root)).await {
         Ok(output) => output.code == Some(0),
         Err(_not_started) => false,

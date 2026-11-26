@@ -24,13 +24,31 @@
 //! const state = installIndex({ source, stage, admin, ownIndex, environment }); // 'agrees' | 'changed-under-copy'
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
-use crate::fs_beneath::{open_directory_at, open_file_at, open_root};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
+use crate::fs_beneath::{
+    open_directory_at,
+    open_file_at,
+    open_root,
+};
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
-use crate::subvolume_index::{StatFields, StatLookup};
-use crate::subvolume_index_files::{install_index_in, with_zeroed_stat};
-use crate::worktree_clean::{ContentTarget, StatEntry, stored_stats, tree_fields_by_content};
+use crate::subvolume_index::{
+    StatFields,
+    StatLookup,
+};
+use crate::subvolume_index_files::{
+    install_index_in,
+    with_zeroed_stat,
+};
+use crate::worktree_clean::{
+    ContentTarget,
+    StatEntry,
+    stored_stats,
+    tree_fields_by_content,
+};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -142,18 +160,42 @@ pub struct Proof {
 /// ```ts
 /// await proveTheCopy({ source, root, environment }); // the entries and the fields, or the reason they are not the same state
 /// ```
-pub(crate) fn prove_the_copy(source: &SnapshotSource, root: &Path, environment: &ConversionEnvironment) -> Result<Proof, String> {
-    let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+pub(crate) fn prove_the_copy(
+    source: &SnapshotSource,
+    root: &Path,
+    environment: &ConversionEnvironment,
+) -> Result<Proof, String> {
+    let format: ObjectFormat = if source.clean.hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let seed: &[u8] = source.clean.index_bytes.as_slice();
     let Some(entries) = stored_stats(seed, source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
     let Some(indexed) = parse_index(seed, format) else {
-        return Err(String::from("the source's index has a layout the reader does not know"));
+        return Err(String::from(
+            "the source's index has a layout the reader does not know",
+        ));
     };
-    let target: ContentTarget<'_> = ContentTarget { root, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
-    return match tree_fields_by_content(&target, entries.as_slice(), indexed.as_slice(), source.clean.index_seconds) {
-        Ok(fields) => Ok(Proof { entries, fields }),
+    let target: ContentTarget<'_> = ContentTarget {
+        root,
+        git_dir: source.git_dir.as_path(),
+        common_dir: source.common_dir.as_path(),
+        environment,
+        format,
+    };
+    return match tree_fields_by_content(
+        &target,
+        entries.as_slice(),
+        indexed.as_slice(),
+        source.clean.index_seconds,
+    ) {
+        Ok(fields) => Ok(Proof {
+            entries,
+            fields,
+        }),
         Err(refusal) => Err(refusal.reason),
     };
 }
@@ -193,8 +235,20 @@ pub(crate) fn prove_the_copy(source: &SnapshotSource, root: &Path, environment: 
 /// ```ts
 /// await installIndex({ source, stage, admin, ownIndex, environment, proven, written }); // the state of the copy
 /// ```
-pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment, proven: Option<Proof>, written: &HashSet<Vec<u8>>) -> Result<CopyState, String> {
-    let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+pub(crate) fn install_index(
+    source: &SnapshotSource,
+    stage: &Path,
+    admin: &File,
+    own_index: Option<&[u8]>,
+    environment: &ConversionEnvironment,
+    proven: Option<Proof>,
+    written: &HashSet<Vec<u8>>,
+) -> Result<CopyState, String> {
+    let format: ObjectFormat = if source.clean.hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
     //  proof: the snapshot's own index, one instant with its files, is installed as it is and the restore settles the rest.
     let mut seed: &[u8] = match own_index {
@@ -216,13 +270,26 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
                     return Err(String::from("the source's index changed shape"));
                 };
                 let Some(indexed) = parse_index(seed, format) else {
-                    return Err(String::from("the source's index has a layout the reader does not know"));
+                    return Err(String::from(
+                        "the source's index has a layout the reader does not know",
+                    ));
                 };
-                let target: ContentTarget<'_> = ContentTarget { root: stage, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
+                let target: ContentTarget<'_> = ContentTarget {
+                    root: stage,
+                    git_dir: source.git_dir.as_path(),
+                    common_dir: source.common_dir.as_path(),
+                    environment,
+                    format,
+                };
                 // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
                 //  file is looked at once, and the fields are the ones the verdict was given on.
                 let walk_snapshot_entered: bool = begin_step("walkSnapshot");
-                let walk_snapshot_outcome = tree_fields_by_content(&target, stats.as_slice(), indexed.as_slice(), source.clean.index_seconds);
+                let walk_snapshot_outcome = tree_fields_by_content(
+                    &target,
+                    stats.as_slice(),
+                    indexed.as_slice(),
+                    source.clean.index_seconds,
+                );
                 end_step(walk_snapshot_entered);
                 match walk_snapshot_outcome {
                     Ok(fields) => {
@@ -231,13 +298,19 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
                     }
                     Err(refusal) => {
                         if !own_index_in_reach(source) || !refusal.kind.restorable() {
-                            return Err(format!("the source changed while it was copied ({})", refusal.reason));
+                            return Err(format!(
+                                "the source changed while it was copied ({})",
+                                refusal.reason
+                            ));
                         }
                         let read_own_index_entered: bool = begin_step("readOwnIndex");
                         let read_own_index_outcome = read_own_index(stage);
                         end_step(read_own_index_entered);
                         let Ok(own) = read_own_index_outcome else {
-                            return Err(format!("the source changed while it was copied ({})", refusal.reason));
+                            return Err(format!(
+                                "the source changed while it was copied ({})",
+                                refusal.reason
+                            ));
                         };
                         restored = Some(own);
                         state = CopyState::ChangedUnderCopy;
@@ -262,14 +335,26 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
     if !written.is_empty() {
         seed_bytes = match with_zeroed_stat(seed, written, source.clean.hash_length) {
             Some(zeroed) => zeroed,
-            None => return Err(String::from("the source's index has a layout the reader does not know, so the paths Git must write cannot be installed without stat data")),
+            None => {
+                return Err(String::from(
+                    "the source's index has a layout the reader does not know, so the paths Git must write cannot be installed without stat data",
+                ));
+            }
         };
     }
     // An entry the walk did not cover (a source with changes has no walk) keeps the stat fields the index it came from recorded:
     //  refreshed from the file, they would vouch for bytes no walk proved, and Git would trust them over the content the entry
     //  names. The restore settles those entries by content.
     let install_index_file_entered: bool = begin_step("installIndexFile");
-    let install_index_file_outcome = install_index_in(admin, seed_bytes.as_slice(), &mut WalkedStats { known: &known, written }, source.clean.hash_length);
+    let install_index_file_outcome = install_index_in(
+        admin,
+        seed_bytes.as_slice(),
+        &mut WalkedStats {
+            known: &known,
+            written,
+        },
+        source.clean.hash_length,
+    );
     end_step(install_index_file_entered);
     let report: String = install_index_file_outcome?;
     crate::diagnostic_log::debug("takeSnapshot", report.as_str());
@@ -303,7 +388,10 @@ struct WalkedStats<'a> {
 }
 
 impl StatLookup for WalkedStats<'_> {
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+    fn stat_now(
+        &mut self,
+        path: &[u8],
+    ) -> Option<StatFields> {
         if self.written.contains(path) {
             return None;
         }
@@ -326,10 +414,22 @@ impl StatLookup for WalkedStats<'_> {
 /// ```
 pub(crate) fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
     let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
-    let git_dir: File = subject_failure(open_directory_at(&root, OsStr::new(".git")), &"the snapshot", "has no .git directory")?;
-    let mut index: File = subject_failure(open_file_at(&git_dir, OsStr::new("index")), &"the snapshot", "has no index")?;
+    let git_dir: File = subject_failure(
+        open_directory_at(&root, OsStr::new(".git")),
+        &"the snapshot",
+        "has no .git directory",
+    )?;
+    let mut index: File = subject_failure(
+        open_file_at(&git_dir, OsStr::new("index")),
+        &"the snapshot",
+        "has no index",
+    )?;
     let mut bytes: Vec<u8> = Vec::new();
-    subject_failure(std::io::Read::read_to_end(&mut index, &mut bytes), &"the snapshot's index", "is unreadable")?;
+    subject_failure(
+        std::io::Read::read_to_end(&mut index, &mut bytes),
+        &"the snapshot's index",
+        "is unreadable",
+    )?;
     return Ok(bytes);
 }
 

@@ -48,8 +48,14 @@ use crate::push_deadline_and_patience_settings::positive_seconds;
 use crate::push_retry_store::LoadedPlans;
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Environment variable that sets,
 /// in whole seconds,
@@ -82,8 +88,12 @@ pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
 /// positiveSeconds(value) ?? FIRST_PAUSE_MS
 /// ```
 pub fn first_pause_from(value: Option<&std::ffi::OsStr>) -> Duration {
-    let Some(text) = value else { return FIRST_PAUSE };
-    return positive_seconds(RETRY_VARIABLE, text).unwrap_or(FIRST_PAUSE).min(LONGEST_PAUSE);
+    let Some(text) = value else {
+        return FIRST_PAUSE;
+    };
+    return positive_seconds(RETRY_VARIABLE, text)
+        .unwrap_or(FIRST_PAUSE)
+        .min(LONGEST_PAUSE);
 }
 
 /// What:
@@ -100,7 +110,10 @@ pub fn first_pause_from(value: Option<&std::ffi::OsStr>) -> Duration {
 /// ```ts
 /// Math.min(first * 2 ** (attempt - 1), LONGEST)
 /// ```
-pub fn pause_before(attempt: u32, first: Duration) -> Duration {
+pub fn pause_before(
+    attempt: u32,
+    first: Duration,
+) -> Duration {
     let doublings: u32 = attempt.saturating_sub(1).min(30);
     return first.saturating_mul(1_u32 << doublings).min(LONGEST_PAUSE);
 }
@@ -121,7 +134,11 @@ struct Waiting {
 
 /// The waiting plans without the one for `branch_ref` of `git_dir`,
 /// in their order.
-fn without_branch(waiting: Vec<Waiting>, git_dir: &Path, branch_ref: &str) -> Vec<Waiting> {
+fn without_branch(
+    waiting: Vec<Waiting>,
+    git_dir: &Path,
+    branch_ref: &str,
+) -> Vec<Waiting> {
     let mut kept: Vec<Waiting> = Vec::new();
     for entry in waiting {
         if !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref) {
@@ -178,7 +195,11 @@ impl Retrying {
     /// a push that could pass is reported as failed,
     /// as it is for handlers that do not retry.
     pub fn none() -> Self {
-        return Self { first: None, due: Vec::new(), plans: None };
+        return Self {
+            first: None,
+            due: Vec::new(),
+            plans: None,
+        };
     }
 }
 
@@ -243,7 +264,9 @@ thread_local! {
 /// Stops `apply` after `changes` changes on this thread until the guard drops.
 #[cfg(test)]
 pub(crate) fn stop_after_in_a_control(changes: usize) -> StopAfterGuard {
-    STOP_AFTER.with(|slot| { slot.set(Some(changes)); });
+    STOP_AFTER.with(|slot| {
+        slot.set(Some(changes));
+    });
     return StopAfterGuard;
 }
 
@@ -254,14 +277,20 @@ pub(crate) struct StopAfterGuard;
 #[cfg(test)]
 impl Drop for StopAfterGuard {
     fn drop(&mut self) {
-        STOP_AFTER.with(|slot| { slot.set(None); });
+        STOP_AFTER.with(|slot| {
+            slot.set(None);
+        });
     }
 }
 
 /// Whether a control's bound is reached after `applied` changes.
 #[cfg(test)]
 fn stopped_after(applied: usize) -> bool {
-    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| { return applied >= bound; }); });
+    return STOP_AFTER.with(|slot| {
+        return slot.get().is_some_and(|bound| {
+            return applied >= bound;
+        });
+    });
 }
 
 /// What:
@@ -314,12 +343,20 @@ pub struct PushRetries {
 impl PushRetries {
     /// A list whose first pause is the variable's value or the default.
     pub fn from_environment() -> Self {
-        return Self::with_first_pause(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()));
+        return Self::with_first_pause(first_pause_from(
+            std::env::var_os(RETRY_VARIABLE).as_deref(),
+        ));
     }
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new(), store: None, unread: false, read_failures: 0 };
+        return Self {
+            first,
+            waiting: Vec::new(),
+            store: None,
+            unread: false,
+            read_failures: 0,
+        };
     }
 
     /// What:
@@ -344,12 +381,26 @@ impl PushRetries {
     /// ```ts
     /// const retries = new PushRetries(first, dir); const read = await loadReporting(dir); for (const saved of read.plans) retries.plan(saved, now + pauseBefore(saved.attempt, first)); retries.unread = read.unread;
     /// ```
-    pub fn restored(first: Duration, directory: &Path) -> Self {
-        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unread: false, read_failures: 0 };
+    pub fn restored(
+        first: Duration,
+        directory: &Path,
+    ) -> Self {
+        let mut list: Self = Self {
+            first,
+            waiting: Vec::new(),
+            store: Some(directory.to_path_buf()),
+            unread: false,
+            read_failures: 0,
+        };
         let read: LoadedPlans = crate::push_retry_store::load_reporting(directory);
         let now: Instant = Instant::now();
         for saved in read.plans {
-            list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
+            list.waiting.push(Waiting {
+                git_dir: saved.git_dir,
+                item: saved.item,
+                attempt: saved.attempt,
+                due: now + pause_before(saved.attempt, first),
+            });
         }
         list.unread = read.unread;
         return list;
@@ -358,7 +409,10 @@ impl PushRetries {
     /// A list for a service that starts now,
     /// with the first pause the variable gives or the default.
     pub fn restored_from_environment(directory: &Path) -> Self {
-        return Self::restored(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
+        return Self::restored(
+            first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()),
+            directory,
+        );
     }
 
     /// What:
@@ -378,13 +432,25 @@ impl PushRetries {
     /// ```ts
     /// new PushRetries(first, dir, { unread: true, failures: 1 })
     /// ```
-    pub fn unread(first: Duration, directory: &Path) -> Self {
-        return Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unread: true, read_failures: 1 };
+    pub fn unread(
+        first: Duration,
+        directory: &Path,
+    ) -> Self {
+        return Self {
+            first,
+            waiting: Vec::new(),
+            store: Some(directory.to_path_buf()),
+            unread: true,
+            read_failures: 1,
+        };
     }
 
     /// `unread` with the first pause the variable gives or the default.
     pub fn unread_from_environment(directory: &Path) -> Self {
-        return Self::unread(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
+        return Self::unread(
+            first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()),
+            directory,
+        );
     }
 
     /// The pause before the first new try.
@@ -467,15 +533,28 @@ impl PushRetries {
             if !found.contains(&saved.git_dir) {
                 found.push(saved.git_dir.clone());
             }
-            self.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, self.first) });
+            self.waiting.push(Waiting {
+                git_dir: saved.git_dir,
+                item: saved.item,
+                attempt: saved.attempt,
+                due: now + pause_before(saved.attempt, self.first),
+            });
         }
         self.unread = read.unread;
-        self.read_failures = if self.unread { self.read_failures.saturating_add(1) } else { 0 };
+        self.read_failures = if self.unread {
+            self.read_failures.saturating_add(1)
+        } else {
+            0
+        };
         return found;
     }
 
     /// Whether the list already plans a try of this branch of this Git directory.
-    fn holds(&self, git_dir: &Path, branch_ref: &str) -> bool {
+    fn holds(
+        &self,
+        git_dir: &Path,
+        branch_ref: &str,
+    ) -> bool {
         for entry in &self.waiting {
             if entry.git_dir == git_dir && entry.item.branch_ref == branch_ref {
                 return true;
@@ -489,7 +568,13 @@ impl PushRetries {
     /// gives the pause.
     /// Writes nothing:
     /// the worker that decided the try keeps the file (`Replanning::keep_the_plan`).
-    pub fn schedule(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
+    pub fn schedule(
+        &mut self,
+        git_dir: &Path,
+        item: &WorkItem,
+        attempt: u32,
+        now: Instant,
+    ) -> Duration {
         let pause: Duration = pause_before(attempt, self.first);
         self.plan(git_dir, item, attempt, now + pause);
         return pause;
@@ -515,18 +600,37 @@ impl PushRetries {
     /// const kept = waiting.filter((entry) => entry.item.branchRef !== item.branchRef); kept.push({ item, attempt, due });
     /// replaced.forEach((entry) => forgetPrograms(entry.item.gitDir, entry.item.id()));
     /// ```
-    fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
+    fn plan(
+        &mut self,
+        git_dir: &Path,
+        item: &WorkItem,
+        attempt: u32,
+        due: Instant,
+    ) {
         let id: String = item.id();
         let replaced: Vec<String> = self
             .waiting
             .iter()
             .filter(|entry| {
-                return entry.git_dir == git_dir && entry.item.branch_ref == item.branch_ref && entry.item.id() != id;
+                return entry.git_dir == git_dir
+                    && entry.item.branch_ref == item.branch_ref
+                    && entry.item.id() != id;
             })
-            .map(|entry| { return entry.item.id(); })
+            .map(|entry| {
+                return entry.item.id();
+            })
             .collect();
-        self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
-        self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
+        self.waiting = without_branch(
+            std::mem::take(&mut self.waiting),
+            git_dir,
+            item.branch_ref.as_str(),
+        );
+        self.waiting.push(Waiting {
+            git_dir: git_dir.to_path_buf(),
+            item: item.clone(),
+            attempt,
+            due,
+        });
         for gone in replaced {
             crate::service_push_programs_held_in_memory::forget(git_dir, gone.as_str());
         }
@@ -549,12 +653,20 @@ impl PushRetries {
     /// ```ts
     /// for (const entry of waiting) { if (sameBranch(entry)) forgetPrograms(entry.item.gitDir, entry.item.id()); }
     /// ```
-    pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+    pub fn forget(
+        &mut self,
+        git_dir: &Path,
+        branch_ref: &str,
+    ) {
         let ended: Vec<String> = self
             .waiting
             .iter()
-            .filter(|entry| { return entry.git_dir == git_dir && entry.item.branch_ref == branch_ref; })
-            .map(|entry| { return entry.item.id(); })
+            .filter(|entry| {
+                return entry.git_dir == git_dir && entry.item.branch_ref == branch_ref;
+            })
+            .map(|entry| {
+                return entry.item.id();
+            })
             .collect();
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         for item in ended {
@@ -596,7 +708,10 @@ impl PushRetries {
     ///   change.forget ? forget(change) : plan(change);
     /// }
     /// ```
-    pub fn apply(&mut self, changes: Vec<RetryChange>) {
+    pub fn apply(
+        &mut self,
+        changes: Vec<RetryChange>,
+    ) {
         // How many of the changes this call has applied, for the control that kills a service inside it; nothing outside one.
         #[cfg(test)]
         let mut applied: usize = 0;
@@ -610,8 +725,18 @@ impl PushRetries {
                 applied += 1;
             }
             match change {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable, taken } => {
+                RetryChange::Plan {
+                    git_dir,
+                    item,
+                    attempt,
+                    due,
+                } => self.plan(git_dir.as_path(), &item, attempt, due),
+                RetryChange::Forget {
+                    git_dir,
+                    branch_ref,
+                    only_while_unreachable,
+                    taken,
+                } => {
                     // The plan a proof of a missing repository ends was read before this change was applied, and a repository
                     //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
                     if only_while_unreachable && git_dir.is_dir() {
@@ -632,12 +757,20 @@ impl PushRetries {
     }
 
     /// Remove and return the plans of this Git directory that are due at `now`.
-    pub fn take_due(&mut self, git_dir: &Path, now: Instant) -> Vec<Due> {
+    pub fn take_due(
+        &mut self,
+        git_dir: &Path,
+        now: Instant,
+    ) -> Vec<Due> {
         let mut kept: Vec<Waiting> = Vec::new();
         let mut due: Vec<Due> = Vec::new();
         for entry in std::mem::take(&mut self.waiting) {
             if entry.git_dir == git_dir && entry.due <= now {
-                due.push(Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt });
+                due.push(Due {
+                    git_dir: entry.git_dir,
+                    item: entry.item,
+                    attempt: entry.attempt,
+                });
             } else {
                 kept.push(entry);
             }
@@ -648,7 +781,11 @@ impl PushRetries {
 
     /// How long until the first plan of this Git directory is due (zero for one already due),
     /// or nothing when none waits.
-    pub fn next_wait(&self, git_dir: &Path, now: Instant) -> Option<Duration> {
+    pub fn next_wait(
+        &self,
+        git_dir: &Path,
+        now: Instant,
+    ) -> Option<Duration> {
         let mut soonest: Option<Duration> = None;
         for entry in &self.waiting {
             if entry.git_dir != git_dir {

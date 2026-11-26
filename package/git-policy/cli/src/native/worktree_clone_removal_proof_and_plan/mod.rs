@@ -132,72 +132,203 @@
 //! return enterTheRemoval(folder, plan);
 //! ```
 
-pub mod plan_words;
-pub mod canonical_decimal;
-pub mod plan_bounds;
-pub mod plan_refusal;
-pub mod plan_name;
-pub mod started_moment;
-pub mod plan_record;
-pub mod plan_lines;
-pub mod plan_attempt_parse;
-pub mod plan_parse;
-pub mod plan_reading;
-pub mod plan_publication;
-pub mod removal_inventory;
-pub mod removal_reads;
-pub mod removal_stop;
-pub mod removal_slot_claim;
-pub mod removal_identities;
-pub mod lineage_proof;
 pub mod bookmark_rule;
-pub mod loss_names;
-pub mod unmount_request;
-pub mod removal_entry;
-pub mod removal_destruction;
-pub mod removal_reading;
+pub mod canonical_decimal;
 pub mod fresh_holder_scan;
+pub mod lineage_proof;
+pub mod loss_names;
+pub mod plan_attempt_parse;
+pub mod plan_bounds;
+pub mod plan_lines;
+pub mod plan_name;
+pub mod plan_parse;
+pub mod plan_publication;
+pub mod plan_reading;
+pub mod plan_record;
+pub mod plan_refusal;
+pub mod plan_words;
+pub mod removal_completion;
+pub mod removal_destruction;
+pub mod removal_entry;
 pub mod removal_head_destroy;
+pub mod removal_identities;
+pub mod removal_inventory;
+pub mod removal_origin_step;
+pub mod removal_reading;
+pub mod removal_reads;
+pub mod removal_records_end;
+pub mod removal_report;
 pub mod removal_resume;
 pub mod removal_settle;
-pub mod removal_records_end;
-pub mod removal_completion;
-pub mod removal_origin_step;
 pub mod removal_settle_step;
-pub mod removal_report;
+pub mod removal_slot_claim;
+pub mod removal_stop;
+pub mod started_moment;
+pub mod unmount_request;
 
-pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
-pub use plan_bounds::{
-    ATTEMPT_COUNT_MAXIMUM_DIGITS, ATTEMPT_LINE_MAXIMUM_BYTES, ERRNO_MAXIMUM_DIGITS, NUMBER_MAXIMUM_DIGITS, PLAN_HEADER_MAXIMUM_BYTES, SLOT_PATH_MAXIMUM_BYTES, ZFS_NAME_MAXIMUM_BYTES, header_field_maximum_bytes, line_bytes,
-    plan_maximum_bytes, widest_attempt_line_bytes, widest_header_bytes,
+pub use bookmark_rule::{
+    Explanations,
+    explanations_of,
+    refuse_the_unexplained_bookmarks,
 };
-pub use plan_name::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
-pub use plan_parse::{PlanHeader, parse_plan, parse_plan_header};
-pub use plan_publication::PlanFolder;
-pub use plan_reading::{HEADER_LINE_COUNT, check_the_folder, check_the_record_owner, is_a_plan_entry, read_an_existing_plan, read_the_plan, read_the_plan_at, split_the_header};
-pub use plan_record::{DestructionPlan, PlanAttempt, PlanFacts, PlanSnapshot, owner_text, target_hexadecimal};
-pub use plan_refusal::{PlanRefusal, PlanRefusalCause};
-pub use plan_words::{ATTEMPT_KEY, ATTEMPT_NAME_KEY, HeadWord, NO_ERRNO, NO_MOUNT_ID, PLAN_HEADER, PLAN_KEYS_IN_ORDER, SNAPSHOT_KIND, SnapshotOutcome};
-pub use started_moment::{is_seconds_with_offset, now_with_offset};
-pub use removal_inventory::{LiveInventory, LiveObject};
-pub use removal_reads::{LiveRemovalReads, RemovalPoolReads, whole_inventory};
-pub use removal_stop::{BookmarkRefusalReason, RefusedBookmark, RemovalStop};
-pub use removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
-pub use removal_identities::{RecordedBinding, prove_the_adds_registration, read_the_origin_inventory, read_the_recorded_binding};
-pub use lineage_proof::{ObjectIdentity, ProvenIdentities, ProvenRemoval, prove_the_lineage};
-pub use bookmark_rule::{Explanations, explanations_of, refuse_the_unexplained_bookmarks};
+pub use canonical_decimal::{
+    decimal_digits,
+    is_canonical_decimal,
+    parse_canonical_u64,
+};
+pub use fresh_holder_scan::{
+    FreshHolderScan,
+    TheLiveHolderScan,
+    the_holder_lines,
+};
+pub use lineage_proof::{
+    ObjectIdentity,
+    ProvenIdentities,
+    ProvenRemoval,
+    prove_the_lineage,
+};
 pub use loss_names::NamesToBeLost;
-pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, RemovalUnmount, UnmountAnswer, UnmountProof, verify_the_answer};
-pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
-pub use removal_destruction::{DestructionUnderway, RemovalDestruction, destroy_the_removal};
-pub use removal_reading::{RemovalReading, read_the_removal};
-pub use fresh_holder_scan::{FreshHolderScan, TheLiveHolderScan, the_holder_lines};
-pub use removal_head_destroy::{CloneAbsence, DatasetDestroyDevice, HeadDestroyed, the_clone_absence};
-pub use removal_resume::{TheStart, start_the_removal};
-pub use removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest, TheLiveSettle};
-pub use removal_records_end::{RecordsGone, remove_the_removal_records};
-pub use removal_completion::{RemovalCompletion, complete_the_removal};
-pub use removal_report::{OriginCleanupDone, TheRemovalDone};
+pub use plan_bounds::{
+    ATTEMPT_COUNT_MAXIMUM_DIGITS,
+    ATTEMPT_LINE_MAXIMUM_BYTES,
+    ERRNO_MAXIMUM_DIGITS,
+    NUMBER_MAXIMUM_DIGITS,
+    PLAN_HEADER_MAXIMUM_BYTES,
+    SLOT_PATH_MAXIMUM_BYTES,
+    ZFS_NAME_MAXIMUM_BYTES,
+    header_field_maximum_bytes,
+    line_bytes,
+    plan_maximum_bytes,
+    widest_attempt_line_bytes,
+    widest_header_bytes,
+};
+pub use plan_name::{
+    is_a_snapshot_of,
+    is_dataset_name,
+    is_snapshot_name,
+};
+pub use plan_parse::{
+    PlanHeader,
+    parse_plan,
+    parse_plan_header,
+};
+pub use plan_publication::PlanFolder;
+pub use plan_reading::{
+    HEADER_LINE_COUNT,
+    check_the_folder,
+    check_the_record_owner,
+    is_a_plan_entry,
+    read_an_existing_plan,
+    read_the_plan,
+    read_the_plan_at,
+    split_the_header,
+};
+pub use plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+    PlanFacts,
+    PlanSnapshot,
+    owner_text,
+    target_hexadecimal,
+};
+pub use plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
+pub use plan_words::{
+    ATTEMPT_KEY,
+    ATTEMPT_NAME_KEY,
+    HeadWord,
+    NO_ERRNO,
+    NO_MOUNT_ID,
+    PLAN_HEADER,
+    PLAN_KEYS_IN_ORDER,
+    SNAPSHOT_KIND,
+    SnapshotOutcome,
+};
+pub use removal_completion::{
+    RemovalCompletion,
+    complete_the_removal,
+};
+pub use removal_destruction::{
+    DestructionUnderway,
+    RemovalDestruction,
+    destroy_the_removal,
+};
+pub use removal_entry::{
+    EnteredRemoval,
+    RemovalClock,
+    RemovalEntry,
+    TheLiveClock,
+    enter_the_removal,
+};
+pub use removal_head_destroy::{
+    CloneAbsence,
+    DatasetDestroyDevice,
+    HeadDestroyed,
+    the_clone_absence,
+};
+pub use removal_identities::{
+    RecordedBinding,
+    prove_the_adds_registration,
+    read_the_origin_inventory,
+    read_the_recorded_binding,
+};
+pub use removal_inventory::{
+    LiveInventory,
+    LiveObject,
+};
+pub use removal_reading::{
+    RemovalReading,
+    read_the_removal,
+};
+pub use removal_reads::{
+    LiveRemovalReads,
+    RemovalPoolReads,
+    whole_inventory,
+};
+pub use removal_records_end::{
+    RecordsGone,
+    remove_the_removal_records,
+};
+pub use removal_report::{
+    OriginCleanupDone,
+    TheRemovalDone,
+};
+pub use removal_resume::{
+    TheStart,
+    start_the_removal,
+};
+pub use removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+    TheLiveSettle,
+};
+pub use removal_slot_claim::{
+    ClaimEnd,
+    RemovalClaim,
+    release_at_the_last_step,
+    take_the_removals_claim,
+};
+pub use removal_stop::{
+    BookmarkRefusalReason,
+    RefusedBookmark,
+    RemovalStop,
+};
+pub use started_moment::{
+    is_seconds_with_offset,
+    now_with_offset,
+};
+pub use unmount_request::{
+    ExpectedUnmount,
+    LiveRemovalUnmount,
+    RemovalIntent,
+    RemovalUnmount,
+    UnmountAnswer,
+    UnmountProof,
+    verify_the_answer,
+};
 
 /// The plan every control of this folder starts from.
 /// Never part of the release executable.

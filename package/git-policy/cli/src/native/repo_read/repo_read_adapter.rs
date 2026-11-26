@@ -15,9 +15,16 @@
 //! ```
 
 use crate::landing_location::LandingLocation;
-use crate::repo_read_layout::{RepoLayout, git_path};
+use crate::repo_read_layout::{
+    RepoLayout,
+    git_path,
+};
 use crate::repository_location::RepositoryLocation;
-use crate::rule_commit_sequencer::{SequencerFacts, SequencerState, sequencer_state};
+use crate::rule_commit_sequencer::{
+    SequencerFacts,
+    SequencerState,
+    sequencer_state,
+};
 use crate::worktree_identity::WorktreeIdentity;
 /// `PathBuf` is an owned filesystem path.
 use std::path::PathBuf;
@@ -46,7 +53,10 @@ pub fn location_of(layout: &RepoLayout) -> RepositoryLocation {
             worktree_root: layout.worktree_root.clone(),
         }
     };
-    return RepositoryLocation { identity, prefix: layout.prefix.clone() };
+    return RepositoryLocation {
+        identity,
+        prefix: layout.prefix.clone(),
+    };
 }
 
 /// What:
@@ -90,7 +100,10 @@ pub fn sequencer_of(layout: &RepoLayout) -> Option<SequencerState> {
 
 /// Whether the per-worktree Git file `name` exists (a link counts),
 /// or nothing when its path cannot be worked out.
-fn git_file_exists(layout: &RepoLayout, name: &str) -> Option<bool> {
+fn git_file_exists(
+    layout: &RepoLayout,
+    name: &str,
+) -> Option<bool> {
     let path = git_path(layout, name)?;
     return Some(std::fs::symlink_metadata(path).is_ok());
 }

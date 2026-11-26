@@ -240,7 +240,9 @@ pub fn ending_of(kind: HolderKind) -> Result<KindEvidence, MissingKind> {
             return Ok(row);
         }
     }
-    return Err(MissingKind { kind });
+    return Err(MissingKind {
+        kind,
+    });
 }
 
 /// What:
@@ -261,7 +263,10 @@ pub struct MissingKind {
 
 impl std::fmt::Display for MissingKind {
     /// One sentence naming the kind and the rule it breaks.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(
             formatter,
             "the forced removal has no measured ending for a holder of kind {}: no round shows one, so this build would have to refuse it, and the table's own rule is that every kind has a row",

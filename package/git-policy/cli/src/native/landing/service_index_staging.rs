@@ -18,9 +18,18 @@
 
 use crate::process_identity::process_birth_identity;
 use crate::random_id::random_uuid;
-use crate::service_index_marker::{HolderState, ReaderView, current_pid_scope, holder_state_in, marker_of};
+use crate::service_index_marker::{
+    HolderState,
+    ReaderView,
+    current_pid_scope,
+    holder_state_in,
+    marker_of,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What follows the lock's file name in the name of a staging file:
 /// the marker is written there before it becomes the lock.
@@ -44,11 +53,21 @@ pub const STAGED_INFIX: &str = ".cli-git-marker";
 /// ```ts
 /// `${lock}.cli-git-marker-${process.pid}.${pidNamespace}-${seq}-${token}`
 /// ```
-pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
+pub fn staged_path_for(
+    lock: &Path,
+    seq: u64,
+    token: &str,
+) -> PathBuf {
     let mut name = lock.as_os_str().to_os_string();
     match current_pid_scope() {
-        Some(scope) => name.push(format!("{STAGED_INFIX}-{}.{scope}-{seq}-{token}", std::process::id())),
-        None => name.push(format!("{STAGED_INFIX}-{}-{seq}-{token}", std::process::id())),
+        Some(scope) => name.push(format!(
+            "{STAGED_INFIX}-{}.{scope}-{seq}-{token}",
+            std::process::id()
+        )),
+        None => name.push(format!(
+            "{STAGED_INFIX}-{}-{seq}-{token}",
+            std::process::id()
+        )),
     }
     return PathBuf::from(name);
 }
@@ -63,7 +82,11 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 /// const digitsOfScope = (tail: Uint8Array) => /^\d*/.exec(decode(tail))[0];
 /// ```
 fn digits_of_scope(tail: &[u8]) -> String {
-    let number: Vec<u8> = tail.iter().copied().take_while(u8::is_ascii_digit).collect();
+    let number: Vec<u8> = tail
+        .iter()
+        .copied()
+        .take_while(u8::is_ascii_digit)
+        .collect();
     return String::from_utf8_lossy(number.as_slice()).into_owned();
 }
 
@@ -86,13 +109,21 @@ fn digits_of_scope(tail: &[u8]) -> String {
 /// The file is returned open:
 /// the holder keeps it for as long as the hold lasts,
 /// because it is the lock's own inode.
-pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
+pub fn stage_marker(
+    lock: &Path,
+    seq: u64,
+    marker: &str,
+) -> std::io::Result<(PathBuf, std::fs::File)> {
     let token: String = match random_uuid() {
         Ok(found) => found,
         Err(error) => return Err(std::io::Error::other(error.0)),
     };
     let staged: PathBuf = staged_path_for(lock, seq, token.as_str());
-    let mut file = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&staged)?;
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&staged)?;
     if let Err(error) = file.write_all(marker.as_bytes()) {
         drop(file);
         let _removed = std::fs::remove_file(&staged);
@@ -106,8 +137,15 @@ pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<(Pat
 /// and the fixed name of the earliest releases carries neither.
 fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
     let rest: &[u8] = suffix.strip_prefix(b"-")?;
-    let digits: Vec<u8> = rest.iter().copied().take_while(u8::is_ascii_digit).collect();
-    let pid: i64 = std::str::from_utf8(digits.as_slice()).ok()?.parse::<i64>().ok()?;
+    let digits: Vec<u8> = rest
+        .iter()
+        .copied()
+        .take_while(u8::is_ascii_digit)
+        .collect();
+    let pid: i64 = std::str::from_utf8(digits.as_slice())
+        .ok()?
+        .parse::<i64>()
+        .ok()?;
     let after: &[u8] = &rest[digits.len()..];
     let scope: Option<String> = after.strip_prefix(b".").map(digits_of_scope);
     // A scope with no digits is no scope.
@@ -143,8 +181,16 @@ fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
 /// ```ts
 /// markerOf(path)?.holder ? holderState(holder) === 'gone' : writerInNameIsGone(name)
 /// ```
-fn staging_is_dead(path: &Path, suffix: &[u8]) -> bool {
-    return staging_is_dead_in(path, suffix, &ReaderView::current(), &process_birth_identity);
+fn staging_is_dead(
+    path: &Path,
+    suffix: &[u8],
+) -> bool {
+    return staging_is_dead_in(
+        path,
+        suffix,
+        &ReaderView::current(),
+        &process_birth_identity,
+    );
 }
 
 /// `staging_is_dead` for a reader with the view `view`,
@@ -163,7 +209,9 @@ pub fn staging_is_dead_in(
     if let Some(marked) = marker_of(path) {
         return holder_state_in(marked.holder.as_ref(), view, ask) == HolderState::Gone;
     }
-    let Some((pid, Some(scope))) = writer_in_name(suffix) else { return false };
+    let Some((pid, Some(scope))) = writer_in_name(suffix) else {
+        return false;
+    };
     if !view.procfs_agrees || view.scope != Some(scope.as_str()) {
         return false;
     }
@@ -186,13 +234,19 @@ pub fn staging_is_dead_in(
 /// ```
 pub fn remove_dead_staging(lock: &Path) {
     use std::os::unix::ffi::OsStrExt;
-    let (Some(directory), Some(file)) = (lock.parent(), lock.file_name()) else { return };
+    let (Some(directory), Some(file)) = (lock.parent(), lock.file_name()) else {
+        return;
+    };
     let mut prefix: Vec<u8> = file.as_bytes().to_vec();
     prefix.extend_from_slice(STAGED_INFIX.as_bytes());
-    let Ok(entries) = std::fs::read_dir(directory) else { return };
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
     for entry in entries.flatten() {
         let name = entry.file_name();
-        let Some(suffix) = name.as_bytes().strip_prefix(prefix.as_slice()) else { continue };
+        let Some(suffix) = name.as_bytes().strip_prefix(prefix.as_slice()) else {
+            continue;
+        };
         if staging_is_dead(entry.path().as_path(), suffix) {
             let _removed = std::fs::remove_file(entry.path());
         }
@@ -216,7 +270,12 @@ pub fn remove_dead_staging(lock: &Path) {
 /// As `stage_marker`,
 /// and the flush failure;
 /// the staging file is removed again then.
-pub fn stage_marker_synced(sync: &dyn Fn(&std::fs::File) -> std::io::Result<()>, lock: &Path, seq: u64, marker: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
+pub fn stage_marker_synced(
+    sync: &dyn Fn(&std::fs::File) -> std::io::Result<()>,
+    lock: &Path,
+    seq: u64,
+    marker: &str,
+) -> std::io::Result<(PathBuf, std::fs::File)> {
     let (staged, file) = stage_marker(lock, seq, marker)?;
     if let Err(error) = sync(&file) {
         drop(file);

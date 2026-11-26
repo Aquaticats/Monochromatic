@@ -14,13 +14,32 @@
 //! const before = threadsOf(service); const held = await connectMany(32); expect(threadsOf(service) - before).toBeLessThan(16);
 //! ```
 
-use super::support::{Fixture, fixture};
-use git_policy_cli::service_protocol::{PROTOCOL_VERSION, ServiceMessage, decode_service};
-use std::io::{BufRead, BufReader};
+use super::support::{
+    Fixture,
+    fixture,
+};
+use git_policy_cli::service_protocol::{
+    PROTOCOL_VERSION,
+    ServiceMessage,
+    decode_service,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixStream};
-use std::process::{Child, Stdio};
-use std::time::{Duration, Instant};
+use std::os::unix::net::{
+    SocketAddr,
+    UnixStream,
+};
+use std::process::{
+    Child,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for anything:
 /// far beyond what a healthy run needs,
@@ -42,7 +61,10 @@ impl Drop for Held {
 }
 
 /// Starts a service on the abstract address `name` and waits until it listens.
-fn start(fixture: &Fixture, name: &str) -> Held {
+fn start(
+    fixture: &Fixture,
+    name: &str,
+) -> Held {
     let child: Child = super::support::service_command()
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
@@ -69,15 +91,25 @@ fn connect(name: &str) -> std::io::Result<UnixStream> {
 /// The number of threads the process `pid` has,
 /// read from its status.
 fn threads_of(pid: u32) -> usize {
-    let status: String = std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
-    let line: &str = status.lines().find(|line| return line.starts_with("Threads:")).expect("a Threads line");
-    return line.trim_start_matches("Threads:").trim().parse().expect("a thread count");
+    let status: String =
+        std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
+    let line: &str = status
+        .lines()
+        .find(|line| return line.starts_with("Threads:"))
+        .expect("a Threads line");
+    return line
+        .trim_start_matches("Threads:")
+        .trim()
+        .parse()
+        .expect("a thread count");
 }
 
 /// Reads the greeting a connection is given first.
 fn greeting(stream: &UnixStream) -> ServiceMessage {
     let mut line: String = String::new();
-    BufReader::new(stream).read_line(&mut line).expect("the service greets");
+    BufReader::new(stream)
+        .read_line(&mut line)
+        .expect("the service greets");
     return decode_service(line.trim_end_matches('\n')).expect("a service message");
 }
 
@@ -98,16 +130,24 @@ fn connections_held_open_cost_the_service_no_thread_each() {
     let service: Held = start(&fixture, name.as_str());
     // One connection first, so the threads the service starts for any first connection (a runtime's workers) are counted already.
     let first: UnixStream = connect(name.as_str()).expect("the first connection");
-    assert!(matches!(greeting(&first), ServiceMessage::Welcome { version, .. } if version == PROTOCOL_VERSION));
+    assert!(
+        matches!(greeting(&first), ServiceMessage::Welcome { version, .. } if version == PROTOCOL_VERSION)
+    );
     let before: usize = threads_of(service.0.id());
     let mut held: Vec<UnixStream> = Vec::new();
     for _ in 0..CONNECTIONS {
         let stream: UnixStream = connect(name.as_str()).expect("a connection");
-        assert!(matches!(greeting(&stream), ServiceMessage::Welcome { .. }), "every connection is greeted while the others wait");
+        assert!(
+            matches!(greeting(&stream), ServiceMessage::Welcome { .. }),
+            "every connection is greeted while the others wait"
+        );
         held.push(stream);
     }
     let after: usize = threads_of(service.0.id());
-    assert!(after < before + CONNECTIONS / 2, "{CONNECTIONS} waiting connections took the service from {before} to {after} threads: a connection must not hold a thread");
+    assert!(
+        after < before + CONNECTIONS / 2,
+        "{CONNECTIONS} waiting connections took the service from {before} to {after} threads: a connection must not hold a thread"
+    );
     drop(held);
     drop(first);
     super::commit::remove_settled(&fixture);
@@ -127,7 +167,10 @@ fn an_idle_service_has_at_most_the_threads_of_its_cap() {
     assert!(matches!(greeting(&first), ServiceMessage::Welcome { .. }));
     let threads: usize = threads_of(service.0.id());
     let most: usize = git_policy_cli::service_main::SERVICE_WORKER_CAP * 2 + SERVICE_OWN_THREADS;
-    assert!(threads <= most, "an idle service has {threads} threads, above its cap's {most}");
+    assert!(
+        threads <= most,
+        "an idle service has {threads} threads, above its cap's {most}"
+    );
     drop(first);
     super::commit::remove_settled(&fixture);
 }

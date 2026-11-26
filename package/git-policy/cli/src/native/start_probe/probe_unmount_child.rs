@@ -22,9 +22,17 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_FIRST_KEPT_DESCRIPTOR, parent_death_signal, parent_id};
+use super::probe_child_prelude::{
+    CHILD_CONTROL_DESCRIPTOR,
+    CHILD_FIRST_KEPT_DESCRIPTOR,
+    parent_death_signal,
+    parent_id,
+};
 use super::probe_descriptor_calls::move_mount_between_paths;
-use super::probe_mount_calls::{read_own_mount_table, unmount};
+use super::probe_mount_calls::{
+    read_own_mount_table,
+    unmount,
+};
 use super::probe_pipe_lines::write_all;
 use super::probe_status_line::StepLine;
 use std::path::Path;
@@ -40,7 +48,13 @@ use std::path::Path;
 /// # Errors
 /// Never returns:
 ///  the child ends itself on every path.
-pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected_mount_id: u64, hold: Option<ProbeStep>) -> ! {
+pub fn run(
+    status: std::os::fd::RawFd,
+    slot: &Path,
+    move_target: &Path,
+    expected_mount_id: u64,
+    hold: Option<ProbeStep>,
+) -> ! {
     if parent_death_signal().is_err() || parent_id() == 1 {
         crate::start_probe::probe_child_prelude::exit_now(1);
     }
@@ -49,17 +63,29 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         Ok(()) => {
             say(status, StepLine::passed(ProbeStep::Move));
             if hold == Some(ProbeStep::Move) {
-                let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
-                let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
+                let mut watched: [libc::pollfd; 1] = [libc::pollfd {
+                    fd: CHILD_CONTROL_DESCRIPTOR,
+                    events: libc::POLLIN,
+                    revents: 0,
+                }];
+                let _ = super::probe_processes::poll_descriptors(
+                    watched.as_mut_slice(),
+                    Some(super::probe_deadline::PROBE_DEADLINE * 2),
+                );
             }
         }
         Err(error) => {
-            say(status, StepLine::failed_number(ProbeStep::Move, Some(error.errno)));
+            say(
+                status,
+                StepLine::failed_number(ProbeStep::Move, Some(error.errno)),
+            );
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }
     let placed: bool = match read_own_mount_table() {
-        Ok(table) => table.iter().any(|facts| return facts.mount_id == expected_mount_id && facts.mount_point == move_target),
+        Ok(table) => table.iter().any(|facts| {
+            return facts.mount_id == expected_mount_id && facts.mount_point == move_target;
+        }),
         Err(_) => false,
     };
     if !placed {
@@ -67,13 +93,23 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         crate::start_probe::probe_child_prelude::exit_now(1);
     }
     if hold == Some(ProbeStep::Unmount) {
-        let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
-        let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
+        let mut watched: [libc::pollfd; 1] = [libc::pollfd {
+            fd: CHILD_CONTROL_DESCRIPTOR,
+            events: libc::POLLIN,
+            revents: 0,
+        }];
+        let _ = super::probe_processes::poll_descriptors(
+            watched.as_mut_slice(),
+            Some(super::probe_deadline::PROBE_DEADLINE * 2),
+        );
     }
     match unmount(move_target) {
         Ok(()) => say(status, StepLine::passed(ProbeStep::Unmount)),
         Err(error) => {
-            say(status, StepLine::failed_number(ProbeStep::Unmount, Some(error.errno)));
+            say(
+                status,
+                StepLine::failed_number(ProbeStep::Unmount, Some(error.errno)),
+            );
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }
@@ -82,6 +118,9 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
 
 /// Write one step's line,
 /// exactly one per step.
-fn say(status: std::os::fd::RawFd, line: StepLine) {
+fn say(
+    status: std::os::fd::RawFd,
+    line: StepLine,
+) {
     let _written = write_all(status, line.encode().as_bytes());
 }

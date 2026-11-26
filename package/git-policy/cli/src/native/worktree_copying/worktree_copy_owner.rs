@@ -27,9 +27,20 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
+use crate::pid_namespace::{
+    ForeignStanding,
+    current_pid_namespace,
+    foreign_owner_standing,
+};
+use crate::process_identity::{
+    current_birth_identity,
+    process_birth_identity,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure_of,
+};
 use std::path::Path;
 
 /// What:
@@ -126,7 +137,12 @@ fn unescape_field(text: &str) -> Option<String> {
 pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
     let birth: String = match current_birth_identity() {
         Ok(found) => found,
-        Err(error) => return Err(failure_with_cause("monochromatic-git-policy-cli: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error))),
+        Err(error) => {
+            return Err(failure_with_cause(
+                "monochromatic-git-policy-cli: the identity of this process is unavailable, so a copy cannot name its owner.",
+                Some(&error),
+            ));
+        }
     };
     return Ok(CopyOwner {
         pid: i64::from(std::process::id()),
@@ -157,7 +173,11 @@ pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
 pub fn copy_owner_of_process(pid: u32) -> Option<CopyOwner> {
     let id: i64 = i64::from(pid);
     let birth: String = process_birth_identity(id).ok().flatten()?;
-    return Some(CopyOwner { pid: id, birth_identity: birth, pid_namespace: current_pid_namespace() });
+    return Some(CopyOwner {
+        pid: id,
+        birth_identity: birth,
+        pid_namespace: current_pid_namespace(),
+    });
 }
 
 impl CopyOwner {
@@ -168,7 +188,11 @@ impl CopyOwner {
     /// characters for a Linux process.
     pub fn token(&self) -> String {
         let namespace: String = escape_field(self.pid_namespace.as_deref().unwrap_or(""));
-        return format!("{}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{namespace}", self.pid, escape_field(self.birth_identity.as_str()));
+        return format!(
+            "{}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{namespace}",
+            self.pid,
+            escape_field(self.birth_identity.as_str())
+        );
     }
 
     /// The owner a token names,
@@ -191,7 +215,11 @@ impl CopyOwner {
         return Some(CopyOwner {
             pid,
             birth_identity: birth,
-            pid_namespace: if namespace.is_empty() { None } else { Some(namespace) },
+            pid_namespace: if namespace.is_empty() {
+                None
+            } else {
+                Some(namespace)
+            },
         });
     }
 
@@ -213,15 +241,23 @@ impl CopyOwner {
     ///  When the platform refuses to report the process,
     ///  or when the owner is in another namespace and its item is older than the
     ///  patience.
-    pub fn is_alive(&self, item: &Path) -> Result<bool, WorktreeCopyError> {
+    pub fn is_alive(
+        &self,
+        item: &Path,
+    ) -> Result<bool, WorktreeCopyError> {
         return self.alive_by(foreign_owner_standing(self.pid_namespace.as_deref(), item));
     }
 
     /// `is_alive` from a standing that was read already,
     /// so one decision never reads the age twice.
-    fn alive_by(&self, standing: Option<ForeignStanding>) -> Result<bool, WorktreeCopyError> {
+    fn alive_by(
+        &self,
+        standing: Option<ForeignStanding>,
+    ) -> Result<bool, WorktreeCopyError> {
         match standing {
-            Some(ForeignStanding::Refused(refused)) => return Err(WorktreeCopyError(refused.describe(self.pid))),
+            Some(ForeignStanding::Refused(refused)) => {
+                return Err(WorktreeCopyError(refused.describe(self.pid)));
+            }
             Some(ForeignStanding::Standing) => return Ok(true),
             // The item of another namespace that its owner removed is a finished add's: nothing of it runs
             //  (cross-vendor review of 2026-11-09, finding 3).
@@ -260,7 +296,10 @@ impl CopyOwner {
 /// ```ts
 /// function ownerIsDead(token: string | undefined, itemPath: string): boolean; // throws when the owner is of another namespace and the item is older than the patience
 /// ```
-pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, WorktreeCopyError> {
+pub fn token_owner_is_dead(
+    token: Option<&str>,
+    item: &Path,
+) -> Result<bool, WorktreeCopyError> {
     let Some(owner) = token.and_then(CopyOwner::from_token) else {
         return Ok(true);
     };

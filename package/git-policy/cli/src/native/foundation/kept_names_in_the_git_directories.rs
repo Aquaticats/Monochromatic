@@ -22,59 +22,129 @@
 //! settleKeptNames(gitDir, commonDir); // renames cli-git/ to monochromatic-git-policy-cli/ when only the earlier one exists
 //! ```
 
-/// The move of one name,
-///  and the finder of the one that exists.
-use crate::earlier_name_moved_to_current_in_place::{existing_kept_name, kept_name_for_use};
-/// The rename that never replaces.
-use crate::rename_that_never_replaces::rename_noreplace;
-/// The fold of a name that exists under both spellings,
-/// and the surroundings its look reads.
-use crate::earlier_names_folded_into_current::{FoldSurroundings, KeptKind, KeptName, fold_kept_names_and_tell};
 /// The steps a fold reports through,
 /// and the ones a command that stops for nothing uses.
-use crate::earlier_log_lines_added_to_current_log::{FoldSteps, NeverStopped};
+use crate::earlier_log_lines_added_to_current_log::{
+    FoldSteps,
+    NeverStopped,
+};
+/// The move of one name,
+///  and the finder of the one that exists.
+use crate::earlier_name_moved_to_current_in_place::{
+    existing_kept_name,
+    kept_name_for_use,
+};
+/// The fold of a name that exists under both spellings,
+/// and the surroundings its look reads.
+use crate::earlier_names_folded_into_current::{
+    FoldSurroundings,
+    KeptKind,
+    KeptName,
+    fold_kept_names_and_tell,
+};
+/// The rename that never replaces.
+use crate::rename_that_never_replaces::rename_noreplace;
 /// The pairs of names.
 use crate::wrapper_names_old_and_new::{
-    COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, PUSH_TRIGGER_LOG, RenamedName, WORKTREE_ADD_TIMING_LOG,
+    COMMIT_TIMING_LOG,
+    DATA_FOLDER,
+    DISCARD_AUDIT_LOG,
+    MERGE_INTENT_FOLDER,
+    PUSH_TRIGGER_LOG,
+    RenamedName,
+    WORKTREE_ADD_TIMING_LOG,
     WORKTREE_COPY_RECORD_FOLDER,
 };
 /// Paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The names kept in the common Git directory that rotate into numbered older copies.
-const ROTATING_LOGS_IN_COMMON_DIRECTORY: [RenamedName; 3] = [DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG];
+const ROTATING_LOGS_IN_COMMON_DIRECTORY: [RenamedName; 3] = [
+    DISCARD_AUDIT_LOG,
+    COMMIT_TIMING_LOG,
+    WORKTREE_ADD_TIMING_LOG,
+];
 
 /// The names kept in the common Git directory that do not rotate.
-const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] = [DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER];
+const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] =
+    [DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER];
 
 /// The names kept in a worktree's own Git directory.
 const NAMES_IN_WORKTREE_DIRECTORY: [RenamedName; 2] = [DATA_FOLDER, MERGE_INTENT_FOLDER];
 
 /// The names to fold in a worktree's own Git directory when both spellings exist.
 const WORKTREE_DIRECTORY_FOLDS: [KeptName; 2] = [
-    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: MERGE_INTENT_FOLDER, kind: KeptKind::Folder },
+    KeptName {
+        name: DATA_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: MERGE_INTENT_FOLDER,
+        kind: KeptKind::Folder,
+    },
 ];
 
 /// The names to fold in the common Git directory when both spellings exist.
 const COMMON_DIRECTORY_FOLDS: [KeptName; 6] = [
-    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log },
-    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log },
-    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log },
-    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log },
+    KeptName {
+        name: DATA_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: WORKTREE_COPY_RECORD_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: PUSH_TRIGGER_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: DISCARD_AUDIT_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: COMMIT_TIMING_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: WORKTREE_ADD_TIMING_LOG,
+        kind: KeptKind::Log,
+    },
 ];
 
 /// The names to fold in a Git directory that is both the worktree's own and the common one (the main worktree).
 const MAIN_DIRECTORY_FOLDS: [KeptName; 7] = [
-    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: MERGE_INTENT_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log },
-    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log },
-    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log },
-    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log },
+    KeptName {
+        name: DATA_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: MERGE_INTENT_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: WORKTREE_COPY_RECORD_FOLDER,
+        kind: KeptKind::Folder,
+    },
+    KeptName {
+        name: PUSH_TRIGGER_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: DISCARD_AUDIT_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: COMMIT_TIMING_LOG,
+        kind: KeptKind::Log,
+    },
+    KeptName {
+        name: WORKTREE_ADD_TIMING_LOG,
+        kind: KeptKind::Log,
+    },
 ];
 
 /// Whether one byte of a name is an ASCII digit;
@@ -98,7 +168,10 @@ fn is_digit_byte(byte: u8) -> bool {
 /// ```ts
 /// for (const entry of await readdir(parent)) if (/^cli-git-audit\.jsonl\.\d+$/.test(entry)) await renameNoReplace(...);
 /// ```
-fn move_numbered_copies(parent: &Path, name: RenamedName) {
+fn move_numbered_copies(
+    parent: &Path,
+    name: RenamedName,
+) {
     let Ok(listing) = std::fs::read_dir(parent) else {
         return;
     };
@@ -127,8 +200,16 @@ fn move_numbered_copies(parent: &Path, name: RenamedName) {
 /// ```ts
 /// function settleKeptNames(gitDir: string, commonDir: string): void;
 /// ```
-pub fn settle_kept_names(git_dir: &Path, common_dir: &Path) {
-    settle_kept_names_within(git_dir, common_dir, &FoldSurroundings::of_this_process(), &mut NeverStopped);
+pub fn settle_kept_names(
+    git_dir: &Path,
+    common_dir: &Path,
+) {
+    settle_kept_names_within(
+        git_dir,
+        common_dir,
+        &FoldSurroundings::of_this_process(),
+        &mut NeverStopped,
+    );
 }
 
 /// What:
@@ -141,7 +222,12 @@ pub fn settle_kept_names(git_dir: &Path, common_dir: &Path) {
 /// ```ts
 /// settleKeptNamesWithin(gitDir, commonDir, { procRoot: fixtureProc, stateDir: null }, steps);
 /// ```
-pub fn settle_kept_names_within(git_dir: &Path, common_dir: &Path, surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) {
+pub fn settle_kept_names_within(
+    git_dir: &Path,
+    common_dir: &Path,
+    surroundings: &FoldSurroundings,
+    steps: &mut dyn FoldSteps,
+) {
     rename_worktree_directory_names(git_dir);
     rename_common_directory_names(common_dir);
     // The main worktree's directory is both, and its looks at the earlier program are made once.
@@ -185,7 +271,10 @@ fn rename_common_directory_names(common_dir: &Path) {
 /// ```ts
 /// function pathForReading(directory: string, relative: string): string;
 /// ```
-pub fn path_for_reading(directory: &Path, relative: &str) -> PathBuf {
+pub fn path_for_reading(
+    directory: &Path,
+    relative: &str,
+) -> PathBuf {
     let prefix: String = format!("{}/", DATA_FOLDER.current);
     if let Some(rest) = relative.strip_prefix(prefix.as_str()) {
         return data_folder_for_reading(directory).join(rest);
@@ -250,7 +339,10 @@ pub fn data_folder_for_reading(directory: &Path) -> PathBuf {
 /// ```ts
 /// function relativePathsForReading(directory: string, relative: string): string[];
 /// ```
-pub fn relative_paths_for_reading(directory: &Path, relative: &str) -> Vec<String> {
+pub fn relative_paths_for_reading(
+    directory: &Path,
+    relative: &str,
+) -> Vec<String> {
     let prefix: String = format!("{}/", DATA_FOLDER.current);
     let Some(rest) = relative.strip_prefix(prefix.as_str()) else {
         return vec![relative.to_string()];

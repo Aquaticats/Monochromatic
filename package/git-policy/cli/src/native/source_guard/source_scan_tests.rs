@@ -10,7 +10,10 @@
 //! The identity of a source is its
 //! `/`-separated path relative to `src/native`.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The declarations of one file:
 /// the `mod name;` lines with their `path` and `cfg(test)` attributes.
@@ -31,7 +34,13 @@ pub(crate) mod walk;
 mod checks;
 
 pub(crate) use declaration::module_name;
-pub(crate) use tree::{CrateRoot, SourceFile, classified_sources, manifest_roots, module_tree};
+pub(crate) use tree::{
+    CrateRoot,
+    SourceFile,
+    classified_sources,
+    manifest_roots,
+    module_tree,
+};
 
 /// The source root every identity is relative to,
 /// as the manifest spells it.
@@ -49,7 +58,9 @@ pub(crate) const SOURCE_PREFIX: &str = "src/native/";
 /// export function sourceRoot(): string { return join(manifestDir, 'src', 'native') }
 /// ```
 pub(crate) fn source_root() -> PathBuf {
-    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
+    return Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("native");
 }
 
 /// What:
@@ -63,9 +74,11 @@ pub(crate) fn source_root() -> PathBuf {
 /// export function realRoots(): CrateRoot[]
 /// ```
 pub(crate) fn real_roots() -> Vec<CrateRoot> {
-    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-        .expect("the crate manifest");
-    return manifest_roots(manifest.as_str(), SOURCE_PREFIX).expect("the manifest's targets under src/native");
+    let manifest: String =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .expect("the crate manifest");
+    return manifest_roots(manifest.as_str(), SOURCE_PREFIX)
+        .expect("the manifest's targets under src/native");
 }
 
 /// What:
@@ -80,10 +93,14 @@ pub(crate) fn real_roots() -> Vec<CrateRoot> {
 /// ```ts
 /// export function writeTree(root: string, files: [string, string][]): void
 /// ```
-pub(crate) fn write_tree(root: &Path, files: &[(&str, &str)]) {
+pub(crate) fn write_tree(
+    root: &Path,
+    files: &[(&str, &str)],
+) {
     for (name, text) in files {
         let path: PathBuf = root.join(name);
-        std::fs::create_dir_all(path.parent().expect("a file has a parent")).expect("fixture directory");
+        std::fs::create_dir_all(path.parent().expect("a file has a parent"))
+            .expect("fixture directory");
         std::fs::write(&path, text).expect("fixture file");
     }
 }
@@ -98,5 +115,8 @@ pub(crate) fn write_tree(root: &Path, files: &[(&str, &str)]) {
 /// export const releaseRoot = (path: string): CrateRoot => ({ path, testOnly: false })
 /// ```
 pub(crate) fn release_root(path: &str) -> CrateRoot {
-    return CrateRoot { path: path.to_owned(), test_only: false };
+    return CrateRoot {
+        path: path.to_owned(),
+        test_only: false,
+    };
 }

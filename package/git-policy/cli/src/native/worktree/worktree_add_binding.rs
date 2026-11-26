@@ -26,12 +26,20 @@
 //! await verifyAssociation(bound); // throws when the objects are no longer where and what they were
 //! ```
 
-use crate::fs_beneath::{ObjectId, identity_of, open_file_at, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_of,
+    open_file_at,
+    open_root,
+};
 use crate::worktree_path_failure_message::subject_failure;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What an add bound itself to:
 /// the two directories Git made and the pointer it wrote.
@@ -74,7 +82,10 @@ pub struct Bound {
 /// ```ts
 /// text.split('\n').map((line) => line.startsWith(`${key}=`) ? line.slice(key.length + 1) : undefined).find((value) => value !== undefined)
 /// ```
-fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+fn field_of<'a>(
+    text: &'a str,
+    key: &str,
+) -> Option<&'a str> {
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix(key)
             && let Some(value) = rest.strip_prefix('=')
@@ -146,7 +157,11 @@ impl Binding {
 /// ```ts
 /// const text = registeredRecordWith(binding, owed, child);
 /// ```
-pub fn registered_record_with(binding: &Binding, owed: Option<&OwedCopy>, child: Option<&crate::worktree_copy_owner::CopyOwner>) -> String {
+pub fn registered_record_with(
+    binding: &Binding,
+    owed: Option<&OwedCopy>,
+    child: Option<&crate::worktree_copy_owner::CopyOwner>,
+) -> String {
     let mut text: String = binding.encode();
     if let Some(copy) = owed {
         text.push_str(format!("source={}\n", encode_path(copy.source.as_path())).as_str());
@@ -278,7 +293,11 @@ pub fn planned_record(destination: &Path) -> String {
 /// ```ts
 /// plannedRecordWith({ destination, owed, child })
 /// ```
-pub fn planned_record_with(destination: &Path, owed: Option<&OwedCopy>, child: Option<&crate::worktree_copy_owner::CopyOwner>) -> String {
+pub fn planned_record_with(
+    destination: &Path,
+    owed: Option<&OwedCopy>,
+    child: Option<&crate::worktree_copy_owner::CopyOwner>,
+) -> String {
     let mut text: String = format!("destination={}\nphase=planned\n", encode_path(destination));
     if let Some(named) = child {
         text.push_str(format!("running={}\n", named.token()).as_str());
@@ -356,41 +375,82 @@ pub fn path_identity(path: &Path) -> Option<ObjectId> {
 /// ```ts
 /// const bound = await bindRegistration(commonDir, destination); // throws a reason
 /// ```
-pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound, String> {
+pub fn bind_registration(
+    common_dir: &Path,
+    destination: &Path,
+) -> Result<Bound, String> {
     let shown: String = destination.display().to_string();
     let pointer_shown: String = format!("{shown}/.git");
     let registration_shown: String = format!("the registration of {shown}");
     let held: File = subject_failure(open_root(destination), &shown, "is not a real directory")?;
-    let pointer: Vec<u8> = subject_failure(read_through(&held, OsStr::new(".git")), &pointer_shown, "is unreadable")?;
+    let pointer: Vec<u8> = subject_failure(
+        read_through(&held, OsStr::new(".git")),
+        &pointer_shown,
+        "is unreadable",
+    )?;
     let pointer_path: PathBuf = destination.join(".git");
     let admin_path: PathBuf = pointer_target(destination, pointer.as_slice())?;
     // The target is opened as a canonical root first: a pointer through a link is refused here, with its own message.
     let admin: File = match open_root(admin_path.as_path()) {
         Ok(opened) => opened,
-        Err(error) => return Err(not_canonical(shown.as_str(), admin_path.as_path(), error.to_string().as_str())),
+        Err(error) => {
+            return Err(not_canonical(
+                shown.as_str(),
+                admin_path.as_path(),
+                error.to_string().as_str(),
+            ));
+        }
     };
-    let worktrees: PathBuf = subject_failure(std::fs::canonicalize(common_dir.join("worktrees")), &"the worktrees of the repository", "are unreadable")?;
+    let worktrees: PathBuf = subject_failure(
+        std::fs::canonicalize(common_dir.join("worktrees")),
+        &"the worktrees of the repository",
+        "are unreadable",
+    )?;
     if admin_path.parent() != Some(worktrees.as_path()) {
         return Err(format!("{shown} is not registered in this repository"));
     }
-    let recorded: Vec<u8> = subject_failure(read_through(&admin, OsStr::new("gitdir")), &registration_shown, "is unreadable")?;
+    let recorded: Vec<u8> = subject_failure(
+        read_through(&admin, OsStr::new("gitdir")),
+        &registration_shown,
+        "is unreadable",
+    )?;
     let recorded_line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
-    if recorded_destination(admin_path.as_path(), recorded_line)?.as_path() != pointer_path.as_path() {
-        return Err(format!("the registration {} does not name {shown}", admin_path.display()));
+    if recorded_destination(admin_path.as_path(), recorded_line)?.as_path()
+        != pointer_path.as_path()
+    {
+        return Err(format!(
+            "the registration {} does not name {shown}",
+            admin_path.display()
+        ));
     }
     let binding: Binding = Binding {
         destination: destination.to_path_buf(),
         destination_id: subject_failure(identity_of(&held), &shown, "cannot be examined")?,
         admin: admin_path,
-        admin_id: subject_failure(identity_of(&admin), &"the registration", "cannot be examined")?,
+        admin_id: subject_failure(
+            identity_of(&admin),
+            &"the registration",
+            "cannot be examined",
+        )?,
         pointer,
     };
-    return Ok(Bound { binding, destination: held, admin });
+    return Ok(Bound {
+        binding,
+        destination: held,
+        admin,
+    });
 }
 
 /// The message for a pointer whose target reaches the registration through a link or by a non-canonical path.
-fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
-    return format!("the pointer in {shown}/.git names {}, which cannot be resolved without a symbolic link to the registration ({why}); the add is left as Git made it: make the worktree with a canonical path, or replace the link in the pointer with the real directory", target.display());
+fn not_canonical(
+    shown: &str,
+    target: &Path,
+    why: &str,
+) -> String {
+    return format!(
+        "the pointer in {shown}/.git names {}, which cannot be resolved without a symbolic link to the registration ({why}); the add is left as Git made it: make the worktree with a canonical path, or replace the link in the pointer with the real directory",
+        target.display()
+    );
 }
 
 /// What:
@@ -406,10 +466,16 @@ fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
 /// ```ts
 /// resolve(adminDirectory, recordedGitdirLine) === join(destination, '.git');
 /// ```
-fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String> {
+fn recorded_destination(
+    admin: &Path,
+    recorded: &[u8],
+) -> Result<PathBuf, String> {
     return match resolve_lexically(admin, recorded) {
         Ok(resolved) => Ok(resolved),
-        Err(()) => Err(format!("the registration {} names a place outside the file system root", admin.display())),
+        Err(()) => Err(format!(
+            "the registration {} names a place outside the file system root",
+            admin.display()
+        )),
     };
 }
 
@@ -427,7 +493,10 @@ fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String
 /// ```ts
 /// path.resolve(base, named);
 /// ```
-pub(crate) fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
+pub(crate) fn resolve_lexically(
+    base: &Path,
+    named: &[u8],
+) -> Result<PathBuf, ()> {
     let mut resolved: PathBuf = PathBuf::new();
     for part in base.join(OsStr::from_bytes(named)).components() {
         match part {
@@ -457,7 +526,10 @@ pub(crate) fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()
 /// ```ts
 /// const target = pointerTarget(destination, pointerBytes); // throws a reason
 /// ```
-pub(crate) fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String> {
+pub(crate) fn pointer_target(
+    destination: &Path,
+    pointer: &[u8],
+) -> Result<PathBuf, String> {
     let shown: String = destination.display().to_string();
     // Git reads the rest of the file after the prefix and drops only the newlines at its end (`read_gitfile_gently`,
     //  `setup.c`), so a path holding a newline is whole and a pointer written with CRLF names the same place.
@@ -467,7 +539,9 @@ pub(crate) fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathB
     };
     return match resolve_lexically(destination, named) {
         Ok(resolved) => Ok(resolved),
-        Err(()) => Err(format!("the pointer in {shown}/.git climbs out of the file system root")),
+        Err(()) => Err(format!(
+            "the pointer in {shown}/.git climbs out of the file system root"
+        )),
     };
 }
 
@@ -493,7 +567,10 @@ fn without_trailing_newlines(bytes: &[u8]) -> &[u8] {
 
 /// The bytes of the file `name` of the held directory,
 /// read through the handle and not through a path.
-fn read_through(directory: &File, name: &OsStr) -> std::io::Result<Vec<u8>> {
+fn read_through(
+    directory: &File,
+    name: &OsStr,
+) -> std::io::Result<Vec<u8>> {
     let mut file: File = open_file_at(directory, name)?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut file, &mut bytes)?;
@@ -524,12 +601,21 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     let binding: &Binding = &bound.binding;
     let shown: String = binding.destination.display().to_string();
     if path_identity(binding.destination.as_path()) != Some(binding.destination_id) {
-        return Err(format!("{shown} is no longer the directory Git made for this add"));
+        return Err(format!(
+            "{shown} is no longer the directory Git made for this add"
+        ));
     }
     if path_identity(binding.admin.as_path()) != Some(binding.admin_id) {
-        return Err(format!("the registration {} is no longer the one Git made for this add", binding.admin.display()));
+        return Err(format!(
+            "the registration {} is no longer the one Git made for this add",
+            binding.admin.display()
+        ));
     }
-    let pointer: Vec<u8> = subject_failure(read_through(&bound.destination, OsStr::new(".git")), &format!("{shown}/.git"), "is unreadable")?;
+    let pointer: Vec<u8> = subject_failure(
+        read_through(&bound.destination, OsStr::new(".git")),
+        &format!("{shown}/.git"),
+        "is unreadable",
+    )?;
     if pointer != binding.pointer {
         return Err(format!("{shown}/.git is no longer the pointer Git wrote"));
     }
@@ -537,15 +623,34 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     let target: PathBuf = pointer_target(binding.destination.as_path(), pointer.as_slice())?;
     let resolved: File = match open_root(target.as_path()) {
         Ok(opened) => opened,
-        Err(error) => return Err(not_canonical(shown.as_str(), target.as_path(), error.to_string().as_str())),
+        Err(error) => {
+            return Err(not_canonical(
+                shown.as_str(),
+                target.as_path(),
+                error.to_string().as_str(),
+            ));
+        }
     };
-    if identity_of(&resolved).ok() != Some(binding.admin_id) || identity_of(&bound.admin).ok() != Some(binding.admin_id) {
-        return Err(format!("the pointer in {shown}/.git now resolves to another registration than the one Git made for this add"));
+    if identity_of(&resolved).ok() != Some(binding.admin_id)
+        || identity_of(&bound.admin).ok() != Some(binding.admin_id)
+    {
+        return Err(format!(
+            "the pointer in {shown}/.git now resolves to another registration than the one Git made for this add"
+        ));
     }
-    let recorded: Vec<u8> = subject_failure(read_through(&bound.admin, OsStr::new("gitdir")), &format!("the registration of {shown}"), "is unreadable")?;
+    let recorded: Vec<u8> = subject_failure(
+        read_through(&bound.admin, OsStr::new("gitdir")),
+        &format!("the registration of {shown}"),
+        "is unreadable",
+    )?;
     let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
-    if recorded_destination(binding.admin.as_path(), line)?.as_path() != binding.destination.join(".git").as_path() {
-        return Err(format!("the registration {} no longer names {shown}", binding.admin.display()));
+    if recorded_destination(binding.admin.as_path(), line)?.as_path()
+        != binding.destination.join(".git").as_path()
+    {
+        return Err(format!(
+            "the registration {} no longer names {shown}",
+            binding.admin.display()
+        ));
     }
     return Ok(());
 }
@@ -567,7 +672,10 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
 /// ```ts
 /// await bindingStillHolds(commonDir, binding); // throws a reason naming both registrations
 /// ```
-pub fn binding_still_holds(common_dir: &Path, binding: &Binding) -> Result<(), String> {
+pub fn binding_still_holds(
+    common_dir: &Path,
+    binding: &Binding,
+) -> Result<(), String> {
     let found: Bound = bind_registration(common_dir, binding.destination.as_path())?;
     if found.binding == *binding {
         return Ok(());
@@ -628,7 +736,10 @@ pub enum RegistrationOwner {
 /// ```ts
 /// const owner = await claimRegistration(heldAdmin, token); // { mine: true } | { mine: false, owner }
 /// ```
-pub fn claim_registration(admin: &File, token: &str) -> std::io::Result<RegistrationOwner> {
+pub fn claim_registration(
+    admin: &File,
+    token: &str,
+) -> std::io::Result<RegistrationOwner> {
     let name: &OsStr = OsStr::new(REGISTRATION_OWNER_NAME);
     // `match` on the exclusive create: the one command that made the file is the registration's owner.
     match crate::fs_beneath::create_file_at(admin, name, 0o600) {
@@ -642,7 +753,9 @@ pub fn claim_registration(admin: &File, token: &str) -> std::io::Result<Registra
     let mut read: File = crate::fs_beneath::open_file_at(admin, name)?;
     let mut recorded: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut read, &mut recorded)?;
-    let owner: String = String::from_utf8_lossy(recorded.as_slice()).trim().to_string();
+    let owner: String = String::from_utf8_lossy(recorded.as_slice())
+        .trim()
+        .to_string();
     if owner == token {
         return Ok(RegistrationOwner::Mine);
     }

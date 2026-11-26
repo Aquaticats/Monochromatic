@@ -36,14 +36,28 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, run_metadata_git_within};
-use crate::hooks_path_values::{path_answer, without_trailing_newlines};
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+    run_metadata_git,
+    run_metadata_git_within,
+};
+use crate::hooks_path_values::{
+    path_answer,
+    without_trailing_newlines,
+};
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// The sentence the record carries about what it counted.
@@ -201,7 +215,8 @@ pub fn worktree_head(target: &Path) -> Option<String> {
     // The Git directory the worktree's own `.git` names; a main worktree names none a removal could take.
     let directory: PathBuf = worktree_git_directory(target)?;
     // `HEAD` names a ref or a commit, which is text; a pointer file names a pathname, which is bytes.
-    let head: String = String::from_utf8(read_pointer_file(directory.join("HEAD").as_path())?).ok()?;
+    let head: String =
+        String::from_utf8(read_pointer_file(directory.join("HEAD").as_path())?).ok()?;
     let trimmed: &str = head.trim();
     let named: &str = trimmed.strip_prefix("ref: ").unwrap_or(trimmed);
     if named.is_empty() {
@@ -233,7 +248,10 @@ pub fn worktree_head(target: &Path) -> Option<String> {
 /// ```ts
 /// const output = await runGitWithin(['-C', target, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no'], CHANGED_PATHS_CEILING);
 /// ```
-pub fn changed_paths(context: &GitContext, target: &Path) -> Option<usize> {
+pub fn changed_paths(
+    context: &GitContext,
+    target: &Path,
+) -> Option<usize> {
     let arguments: Vec<OsString> = vec![
         OsString::from("-C"),
         target.as_os_str().to_os_string(),
@@ -300,7 +318,12 @@ fn is_entry(line: &&[u8]) -> bool {
 /// ```ts
 /// function removalFacts({ context, target, typed, force }): AuditFact[];
 /// ```
-pub fn removal_facts(context: &GitContext, target: &Path, typed: &OsStr, force: bool) -> Vec<AuditFact> {
+pub fn removal_facts(
+    context: &GitContext,
+    target: &Path,
+    typed: &OsStr,
+    force: bool,
+) -> Vec<AuditFact> {
     let mut facts: Vec<AuditFact> = vec![
         AuditFact::Text("worktree", typed.to_string_lossy().into_owned()),
         AuditFact::Flag("force", force),
@@ -333,8 +356,12 @@ fn worktree_paths(context: &GitContext) -> Option<Vec<PathBuf>> {
     for token in ["worktree", "list", "--porcelain", "-z"] {
         arguments.push(OsString::from(token));
     }
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    let output: MetadataOutput = run_metadata_git(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+    )
+    .ok()?;
     if !output.success {
         return None;
     }
@@ -377,7 +404,10 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// function endsWithComponents(long: string[], short: string[]): boolean;
 /// ```
-fn ends_with_components(long: &Path, short: &Path) -> bool {
+fn ends_with_components(
+    long: &Path,
+    short: &Path,
+) -> bool {
     let tail: Vec<OsString> = short.iter().map(part_text).collect();
     if tail.is_empty() {
         return false;
@@ -402,7 +432,10 @@ fn ends_with_components(long: &Path, short: &Path) -> bool {
 /// ```ts
 /// function sameDirectory(worktree: string, resolved?: string): boolean;
 /// ```
-fn same_directory(worktree: &Path, resolved: Option<&Path>) -> bool {
+fn same_directory(
+    worktree: &Path,
+    resolved: Option<&Path>,
+) -> bool {
     let Some(target) = resolved else {
         return false;
     };
@@ -449,7 +482,11 @@ fn part_text(part: &std::ffi::OsStr) -> OsString {
 /// ```ts
 /// function removalTarget({ context, typed, directory }): string;
 /// ```
-pub fn removal_target(context: &GitContext, typed: &OsStr, directory: &Path) -> PathBuf {
+pub fn removal_target(
+    context: &GitContext,
+    typed: &OsStr,
+    directory: &Path,
+) -> PathBuf {
     let joined: PathBuf = directory.join(typed);
     let Some(registered) = worktree_paths(context) else {
         return joined;
@@ -474,9 +511,7 @@ pub fn removal_target(context: &GitContext, typed: &OsStr, directory: &Path) -> 
         }
     }
     // Git refuses a name that matches several worktrees, so only one resolution is a worktree it will remove.
-    if !several
-        && let Some(path) = found
-    {
+    if !several && let Some(path) = found {
         return path.clone();
     }
     return joined;

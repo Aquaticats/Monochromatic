@@ -26,17 +26,24 @@
 //! keepTheCopy(gitDir, location, aside); const copies = keptCopies(gitDir); forgetTheCopy(gitDir, aside);
 //! ```
 
+/// The line a command writes when a record cannot be written or removed.
+use crate::diagnostic_log::warn;
 /// A short,
 /// stable key for one text.
 use crate::merge_isolation_take_aside_names::name_key;
-/// The line a command writes when a record cannot be written or removed.
-use crate::diagnostic_log::warn;
 /// Exclusive,
 /// synced,
 /// private files and directories.
-use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced};
+use crate::private_storage::{
+    create_private_directory,
+    sync_directory,
+    write_exclusive_synced,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory,
 /// inside the worktree's Git directory,
@@ -167,7 +174,11 @@ fn path_of_hex(text: &str) -> Option<PathBuf> {
 /// `${hex(location)}\n${hex(aside)}\n`
 /// ```
 fn encode_copy(copy: &KeptCopy) -> String {
-    return format!("{}\n{}\n", hex_of(copy.location.as_path()), hex_of(copy.aside.as_path()));
+    return format!(
+        "{}\n{}\n",
+        hex_of(copy.location.as_path()),
+        hex_of(copy.aside.as_path())
+    );
 }
 
 /// What:
@@ -186,7 +197,10 @@ fn decode_copy(bytes: &[u8]) -> Option<KeptCopy> {
     let mut lines = text.lines();
     let location: PathBuf = path_of_hex(lines.next()?)?;
     let aside: PathBuf = path_of_hex(lines.next()?)?;
-    return Some(KeptCopy { location, aside });
+    return Some(KeptCopy {
+        location,
+        aside,
+    });
 }
 
 /// The record's file name for one copy,
@@ -196,8 +210,14 @@ fn decode_copy(bytes: &[u8]) -> Option<KeptCopy> {
 /// ```ts
 /// const recordName = (aside: string) => `${nameKey(hex(aside))}.copy`;
 /// ```
-fn record_path(git_dir: &Path, aside: &Path) -> PathBuf {
-    return copy_directory(git_dir).join(format!("{}{RECORD_SUFFIX}", name_key(hex_of(aside).as_str())));
+fn record_path(
+    git_dir: &Path,
+    aside: &Path,
+) -> PathBuf {
+    return copy_directory(git_dir).join(format!(
+        "{}{RECORD_SUFFIX}",
+        name_key(hex_of(aside).as_str())
+    ));
 }
 
 /// What:
@@ -215,28 +235,47 @@ fn record_path(git_dir: &Path, aside: &Path) -> PathBuf {
 /// ```ts
 /// keepTheCopy(gitDir, location, aside); // mkdir, writeExclusiveSynced, syncDirectory; log a failure
 /// ```
-pub(crate) fn keep_the_copy(git_dir: &Path, location: &Path, aside: &Path) {
+pub(crate) fn keep_the_copy(
+    git_dir: &Path,
+    location: &Path,
+    aside: &Path,
+) {
     let directory: PathBuf = copy_directory(git_dir);
     match create_private_directory(directory.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => {
-            warn(TAG, format!("the record of {} was not written: {error}", aside.display()).as_str());
+            warn(
+                TAG,
+                format!("the record of {} was not written: {error}", aside.display()).as_str(),
+            );
             return;
         }
     }
-    let copy: KeptCopy = KeptCopy { location: location.to_path_buf(), aside: aside.to_path_buf() };
+    let copy: KeptCopy = KeptCopy {
+        location: location.to_path_buf(),
+        aside: aside.to_path_buf(),
+    };
     // A record that is already there names the same copy, which a later command keeps again, and that is no failure.
-    match write_exclusive_synced(record_path(git_dir, aside).as_path(), encode_copy(&copy).as_bytes()) {
+    match write_exclusive_synced(
+        record_path(git_dir, aside).as_path(),
+        encode_copy(&copy).as_bytes(),
+    ) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => {
-            warn(TAG, format!("the record of {} was not written: {error}", aside.display()).as_str());
+            warn(
+                TAG,
+                format!("the record of {} was not written: {error}", aside.display()).as_str(),
+            );
             return;
         }
     }
     if let Err(error) = sync_directory(directory.as_path()) {
-        warn(TAG, format!("the record of {} was not flushed: {error}", aside.display()).as_str());
+        warn(
+            TAG,
+            format!("the record of {} was not flushed: {error}", aside.display()).as_str(),
+        );
     }
 }
 
@@ -250,11 +289,17 @@ pub(crate) fn keep_the_copy(git_dir: &Path, location: &Path, aside: &Path) {
 /// ```ts
 /// forgetTheCopy(gitDir, aside); // rm the record, ignoring a missing one
 /// ```
-pub(crate) fn forget_the_copy(git_dir: &Path, aside: &Path) {
+pub(crate) fn forget_the_copy(
+    git_dir: &Path,
+    aside: &Path,
+) {
     match std::fs::remove_file(record_path(git_dir, aside)) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => warn(TAG, format!("the record of a kept copy was not removed: {error}").as_str()),
+        Err(error) => warn(
+            TAG,
+            format!("the record of a kept copy was not removed: {error}").as_str(),
+        ),
     }
 }
 
@@ -274,7 +319,9 @@ pub(crate) fn kept_copies(git_dir: &Path) -> Vec<KeptCopy> {
     paths.sort();
     let mut copies: Vec<KeptCopy> = Vec::with_capacity(paths.len());
     for path in paths {
-        let Ok(bytes) = std::fs::read(path.as_path()) else { continue };
+        let Ok(bytes) = std::fs::read(path.as_path()) else {
+            continue;
+        };
         if let Some(copy) = decode_copy(bytes.as_slice()) {
             copies.push(copy);
         }
@@ -325,11 +372,13 @@ pub(crate) fn any_kept_copy(git_dir: &Path) -> bool {
     return !record_files(git_dir).is_empty();
 }
 
-
 /// The record of one copy,
 /// for a control that makes the state a killed command leaves.
 #[cfg(test)]
-pub(crate) fn record_of_a_control(git_dir: &Path, aside: &Path) -> PathBuf {
+pub(crate) fn record_of_a_control(
+    git_dir: &Path,
+    aside: &Path,
+) -> PathBuf {
     return record_path(git_dir, aside);
 }
 

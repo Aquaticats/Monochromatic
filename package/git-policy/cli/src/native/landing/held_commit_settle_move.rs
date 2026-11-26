@@ -17,7 +17,12 @@
 use crate::held_commit_record::Held;
 use crate::held_commit_settle::kept_reference;
 use crate::service_journal::Intent;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::ffi::OsStr;
 
 /// What a Git that could not be started is said to be,
@@ -43,22 +48,36 @@ pub(crate) fn git_did_not_start(error: std::io::Error) -> String {
 /// ```ts
 /// updateRef(['-m', reflog, '--stdin'], `start\nupdate ${ref} ${new} ${old}\ndelete ${scratch}\nprepare\ncommit\n`)
 /// ```
-pub(crate) fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &str, expected: &str) -> Result<bool, String> {
+pub(crate) fn move_branch(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    new: &str,
+    expected: &str,
+) -> Result<bool, String> {
     let scratch: String = kept_reference(held.seq);
     // The name is bytes and the rest of the line is the wrapper's own text, so a name that is not text reaches Git whole.
     let mut text: Vec<u8> = b"start\nupdate ".to_vec();
     text.extend_from_slice(intent.reference.bytes());
-    text.extend_from_slice(format!(" {new} {expected}\ndelete {scratch}\nprepare\ncommit\n").as_bytes());
+    text.extend_from_slice(
+        format!(" {new} {expected}\ndelete {scratch}\nprepare\ncommit\n").as_bytes(),
+    );
     let mut request: GitRequest = GitRequest::new(held.repository.as_path(), &["update-ref"]);
     request.arguments.push(OsStr::new("-m").to_os_string());
-    request.arguments.push(crate::path_bytes::os_from_path_bytes(held.reflog.as_slice()));
+    request
+        .arguments
+        .push(crate::path_bytes::os_from_path_bytes(
+            held.reflog.as_slice(),
+        ));
     request.arguments.push(OsStr::new("--stdin").to_os_string());
     request.input = Some(text);
     let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
     if output.succeeded() {
         return Ok(true);
     }
-    return Err(String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string());
+    return Err(String::from_utf8_lossy(output.stderr.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -76,7 +95,13 @@ pub(crate) fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &
 /// ```ts
 /// whatABatchOwes(written); const moved = moveBranch(...); if (!moved.ok) forgetWhatABatchOwes(written); moved
 /// ```
-pub(crate) fn move_the_branch(git: &GitContext, held: &Held, written: &Intent, commit: &str, current: &str) -> Result<bool, String> {
+pub(crate) fn move_the_branch(
+    git: &GitContext,
+    held: &Held,
+    written: &Intent,
+    commit: &str,
+    current: &str,
+) -> Result<bool, String> {
     // A restart has no request in memory, so it holds the pushes of the batch and no programs: each record keeps the flag it was
     //  written with, and a push whose command chose a transport stops rather than speaking another (`push_without_its_transport`).
     crate::service_server_land_group::what_a_batch_owes(written, &[]);

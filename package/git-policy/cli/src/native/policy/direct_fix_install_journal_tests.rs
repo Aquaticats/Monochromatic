@@ -83,9 +83,7 @@ fn a_malformed_record_is_refused() {
     );
     // An odd number of hexadecimal digits names no pathname.
     assert_eq!(
-        JournalRecord::decode(
-            "destination 6\nmode 644\nuid 1\ngid 1\nowner x\nreplacement 0f\n"
-        ),
+        JournalRecord::decode("destination 6\nmode 644\nuid 1\ngid 1\nowner x\nreplacement 0f\n"),
         None
     );
 }

@@ -36,11 +36,23 @@
 //! await removeOwnedAt(dir, 'file', recordedIdentity); // keeps a replacement
 //! ```
 
-use std::ffi::{CString, OsStr, OsString};
+use std::ffi::{
+    CString,
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// `RESOLVE_NO_XDEV`:
 /// no mount point,
@@ -108,8 +120,20 @@ impl ObjectId {
         let inode: u64 = parts.next()?.parse().ok()?;
         let seconds: &str = parts.next()?;
         let nanos: &str = parts.next()?;
-        let birth: Option<(i64, u32)> = if seconds == "-" { None } else { Some((seconds.parse().ok()?, nanos.parse().ok()?)) };
-        return if parts.next().is_none() { Some(ObjectId { device, inode, birth }) } else { None };
+        let birth: Option<(i64, u32)> = if seconds == "-" {
+            None
+        } else {
+            Some((seconds.parse().ok()?, nanos.parse().ok()?))
+        };
+        return if parts.next().is_none() {
+            Some(ObjectId {
+                device,
+                inode,
+                birth,
+            })
+        } else {
+            None
+        };
     }
 }
 
@@ -125,7 +149,12 @@ pub fn plain_components(relative: &Path) -> std::io::Result<Vec<OsString>> {
     for part in relative.components() {
         match part {
             Component::Normal(name) => names.push(name.to_os_string()),
-            _ => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is not a plain relative path", relative.display()))),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("{} is not a plain relative path", relative.display()),
+                ));
+            }
         }
     }
     return Ok(names);
@@ -133,10 +162,16 @@ pub fn plain_components(relative: &Path) -> std::io::Result<Vec<OsString>> {
 
 /// A NUL-terminated copy of `bytes`,
 /// or an invalid-input error saying `what` holds a NUL byte.
-fn c_string_of(bytes: &[u8], what: &str) -> std::io::Result<CString> {
+fn c_string_of(
+    bytes: &[u8],
+    what: &str,
+) -> std::io::Result<CString> {
     return match CString::new(bytes) {
         Ok(text) => Ok(text),
-        Err(_error) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{what} holds a NUL byte"))),
+        Err(_error) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{what} holds a NUL byte"),
+        )),
     };
 }
 
@@ -148,25 +183,49 @@ fn c_string_of(bytes: &[u8], what: &str) -> std::io::Result<CString> {
 fn name_of(name: &OsStr) -> std::io::Result<CString> {
     let bytes: &[u8] = name.as_bytes();
     if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "a name must be one plain component"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "a name must be one plain component",
+        ));
     }
     return c_string_of(bytes, "a name");
 }
 
 /// Turn a C result that is `-1` on failure into the thread's error.
 fn checked(result: libc::c_int) -> std::io::Result<libc::c_int> {
-    return if result < 0 { Err(std::io::Error::last_os_error()) } else { Ok(result) };
+    return if result < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(result)
+    };
 }
 
 /// `openat2` of one plain name below `dir`,
 /// resolving nothing but the name itself and refusing a mount point at it.
-fn open_beneath(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32) -> std::io::Result<File> {
-    return open_beneath_by(dir, name, flags, mode, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS);
+fn open_beneath(
+    dir: &File,
+    name: &OsStr,
+    flags: libc::c_int,
+    mode: u32,
+) -> std::io::Result<File> {
+    return open_beneath_by(
+        dir,
+        name,
+        flags,
+        mode,
+        RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS,
+    );
 }
 
 /// `openat2` of one plain name below `dir`,
 /// with the `resolve` bits passed as they are.
-pub(super) fn open_beneath_by(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32, resolve: u64) -> std::io::Result<File> {
+pub(super) fn open_beneath_by(
+    dir: &File,
+    name: &OsStr,
+    flags: libc::c_int,
+    mode: u32,
+    resolve: u64,
+) -> std::io::Result<File> {
     let c_name = name_of(name)?;
     let how: OpenHow = OpenHow {
         flags: (flags | libc::O_CLOEXEC) as u64,
@@ -175,12 +234,22 @@ pub(super) fn open_beneath_by(dir: &File, name: &OsStr, flags: libc::c_int, mode
     };
     // SAFETY: `c_name` is a NUL-terminated string and `how` a live `open_how` of the size passed, both outliving the call;
     // `dir` is an open descriptor.
-    let result: libc::c_long = unsafe { libc::syscall(libc::SYS_openat2, dir.as_raw_fd(), c_name.as_ptr(), &how as *const OpenHow, std::mem::size_of::<OpenHow>()) };
+    let result: libc::c_long = unsafe {
+        libc::syscall(
+            libc::SYS_openat2,
+            dir.as_raw_fd(),
+            c_name.as_ptr(),
+            &how as *const OpenHow,
+            std::mem::size_of::<OpenHow>(),
+        )
+    };
     if result < 0 {
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: `openat2` returned a new descriptor that nothing else owns.
-    return Ok(File::from(unsafe { OwnedFd::from_raw_fd(result as libc::c_int) }));
+    return Ok(File::from(unsafe {
+        OwnedFd::from_raw_fd(result as libc::c_int)
+    }));
 }
 
 /// Open the directory at the canonical absolute path `path` as the root of a walk.
@@ -194,16 +263,31 @@ pub(super) fn open_beneath_by(dir: &File, name: &OsStr, flags: libc::c_int, mode
 /// a path with a link among its ancestors is refused.
 pub fn open_root(path: &Path) -> std::io::Result<File> {
     if !path.is_absolute() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is not absolute", path.display())));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} is not absolute", path.display()),
+        ));
     }
     let name = c_string_of(path.as_os_str().as_bytes(), "a path")?;
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
-    let descriptor: libc::c_int = checked(unsafe { libc::open(name.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) })?;
+    let descriptor: libc::c_int = checked(unsafe {
+        libc::open(
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    })?;
     // SAFETY: `open` returned a new descriptor that nothing else owns.
     let held: File = File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
     let real: PathBuf = std::fs::read_link(handle_path(&held))?;
     if real.as_os_str() != path.as_os_str() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is reached through a link: it is {}", path.display(), real.display())));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "{} is reached through a link: it is {}",
+                path.display(),
+                real.display()
+            ),
+        ));
     }
     return Ok(held);
 }
@@ -211,7 +295,10 @@ pub fn open_root(path: &Path) -> std::io::Result<File> {
 /// Open the subdirectory `name` of `parent`,
 /// refusing a link,
 /// a mount point and `.` or `..`.
-pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
+pub fn open_directory_at(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0);
 }
 
@@ -229,7 +316,10 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
 /// ```ts
 /// const handle = handleDirectoryAt(parent, name); // throws EXDEV at a mount point
 /// ```
-pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
+pub fn handle_directory_at(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0);
 }
 
@@ -250,8 +340,17 @@ pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File>
 /// ```ts
 /// const cache = openDirectoryCrossingOneMount(home, '.cache'); // crosses the user-cache mount only
 /// ```
-pub fn open_directory_crossing_one_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
-    return open_beneath_by(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+pub fn open_directory_crossing_one_mount(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
+    return open_beneath_by(
+        parent,
+        name,
+        libc::O_RDONLY | libc::O_DIRECTORY,
+        0,
+        RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS,
+    );
 }
 
 /// What:
@@ -271,8 +370,17 @@ pub fn open_directory_crossing_one_mount(parent: &File, name: &OsStr) -> std::io
 /// ```ts
 /// const slot = openHandleAtAMount(worktrees, 'one'); // crosses the clone's mount only
 /// ```
-pub fn open_handle_at_a_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
-    return open_beneath_by(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+pub fn open_handle_at_a_mount(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
+    return open_beneath_by(
+        parent,
+        name,
+        libc::O_PATH | libc::O_DIRECTORY,
+        0,
+        RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS,
+    );
 }
 
 /// The device number of an open file.
@@ -284,25 +392,42 @@ pub fn device_of(file: &File) -> std::io::Result<u64> {
 /// Open the regular file `name` of `dir` for reading,
 /// refusing a link;
 /// a fifo or a device is refused later by its type.
-pub fn open_file_at(dir: &File, name: &OsStr) -> std::io::Result<File> {
+pub fn open_file_at(
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
     return open_beneath(dir, name, libc::O_RDONLY | libc::O_NONBLOCK, 0);
 }
 
 /// Create the file `name` in `dir` with `mode`,
 /// failing when anything is there,
 /// a link included.
-pub fn create_file_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result<File> {
-    return open_beneath(dir, name, libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL, mode);
+pub fn create_file_at(
+    dir: &File,
+    name: &OsStr,
+    mode: u32,
+) -> std::io::Result<File> {
+    return open_beneath(
+        dir,
+        name,
+        libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL,
+        mode,
+    );
 }
 
 /// Create the directory `name` in `dir` with `mode`;
 /// `Ok(true)` when it was made,
 /// `Ok(false)` when a directory was
 ///  already there (a link or a file in the way is an error).
-pub fn make_directory_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result<bool> {
+pub fn make_directory_at(
+    dir: &File,
+    name: &OsStr,
+    mode: u32,
+) -> std::io::Result<bool> {
     let c_name = name_of(name)?;
     // SAFETY: `c_name` outlives the call and `dir` is an open descriptor.
-    let result: libc::c_int = unsafe { libc::mkdirat(dir.as_raw_fd(), c_name.as_ptr(), mode as libc::mode_t) };
+    let result: libc::c_int =
+        unsafe { libc::mkdirat(dir.as_raw_fd(), c_name.as_ptr(), mode as libc::mode_t) };
     if result == 0 {
         return Ok(true);
     }
@@ -315,7 +440,11 @@ pub fn make_directory_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result
 }
 
 /// Create the link `name` in `dir` pointing at `target`.
-pub fn symlink_at(target: &Path, dir: &File, name: &OsStr) -> std::io::Result<()> {
+pub fn symlink_at(
+    target: &Path,
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     let c_target = c_string_of(target.as_os_str().as_bytes(), "a link target")?;
     // SAFETY: both strings outlive the call and `dir` is an open descriptor.
@@ -324,12 +453,22 @@ pub fn symlink_at(target: &Path, dir: &File, name: &OsStr) -> std::io::Result<()
 }
 
 /// The target of the link `name` in `dir`.
-pub fn read_link_at(dir: &File, name: &OsStr) -> std::io::Result<PathBuf> {
+pub fn read_link_at(
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<PathBuf> {
     use std::os::unix::ffi::OsStringExt;
     let c_name = name_of(name)?;
     let mut buffer: Vec<u8> = vec![0; 4096];
     // SAFETY: `c_name` outlives the call, `buffer` has the length passed, and `dir` is an open descriptor.
-    let length: libc::ssize_t = unsafe { libc::readlinkat(dir.as_raw_fd(), c_name.as_ptr(), buffer.as_mut_ptr().cast::<libc::c_char>(), buffer.len()) };
+    let length: libc::ssize_t = unsafe {
+        libc::readlinkat(
+            dir.as_raw_fd(),
+            c_name.as_ptr(),
+            buffer.as_mut_ptr().cast::<libc::c_char>(),
+            buffer.len(),
+        )
+    };
     if length < 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -345,7 +484,10 @@ pub fn handle_path(directory: &File) -> PathBuf {
 
 /// The metadata of the entry `name` in `dir`,
 /// without following a link.
-pub fn entry_metadata_at(dir: &File, name: &OsStr) -> std::io::Result<std::fs::Metadata> {
+pub fn entry_metadata_at(
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<std::fs::Metadata> {
     // The name is one plain component, so the lookup below the descriptor's magic link resolves nothing else.
     name_of(name)?;
     return std::fs::symlink_metadata(handle_path(dir).join(name));
@@ -353,10 +495,21 @@ pub fn entry_metadata_at(dir: &File, name: &OsStr) -> std::io::Result<std::fs::M
 
 /// Set the access and modification times of the entry `name` in `dir`,
 /// without following a link.
-pub fn set_times_at(dir: &File, name: &OsStr, times: [libc::timespec; 2]) -> std::io::Result<()> {
+pub fn set_times_at(
+    dir: &File,
+    name: &OsStr,
+    times: [libc::timespec; 2],
+) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     // SAFETY: `c_name` outlives the call, `times` holds the two timestamps the call reads, and `dir` is an open descriptor.
-    checked(unsafe { libc::utimensat(dir.as_raw_fd(), c_name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) })?;
+    checked(unsafe {
+        libc::utimensat(
+            dir.as_raw_fd(),
+            c_name.as_ptr(),
+            times.as_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    })?;
     return Ok(());
 }
 
@@ -367,7 +520,11 @@ pub fn set_times_at(dir: &File, name: &OsStr, times: [libc::timespec; 2]) -> std
 /// Why:
 /// this removes whatever the name holds now;
 /// use `remove_owned_at` for an object that was made earlier.
-pub fn remove_at(dir: &File, name: &OsStr, directory: bool) -> std::io::Result<()> {
+pub fn remove_at(
+    dir: &File,
+    name: &OsStr,
+    directory: bool,
+) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     let flags: libc::c_int = if directory { libc::AT_REMOVEDIR } else { 0 };
     // SAFETY: `c_name` outlives the call and `dir` is an open descriptor.
@@ -377,33 +534,70 @@ pub fn remove_at(dir: &File, name: &OsStr, directory: bool) -> std::io::Result<(
 
 /// Rename `from` of `from_dir` to `to` of `to_dir`;
 /// with `replace` false an existing `to` is an error (`RENAME_NOREPLACE`).
-pub fn rename_at(from_dir: &File, from: &OsStr, to_dir: &File, to: &OsStr, replace: bool) -> std::io::Result<()> {
+pub fn rename_at(
+    from_dir: &File,
+    from: &OsStr,
+    to_dir: &File,
+    to: &OsStr,
+    replace: bool,
+) -> std::io::Result<()> {
     let c_from = name_of(from)?;
     let c_to = name_of(to)?;
     let flags: libc::c_uint = if replace { 0 } else { libc::RENAME_NOREPLACE };
     // SAFETY: both names outlive the call and both directories are open descriptors.
-    checked(unsafe { libc::renameat2(from_dir.as_raw_fd(), c_from.as_ptr(), to_dir.as_raw_fd(), c_to.as_ptr(), flags) })?;
+    checked(unsafe {
+        libc::renameat2(
+            from_dir.as_raw_fd(),
+            c_from.as_ptr(),
+            to_dir.as_raw_fd(),
+            c_to.as_ptr(),
+            flags,
+        )
+    })?;
     return Ok(());
 }
 
 /// Exchange the entries `first` and `second` of `dir` atomically (`RENAME_EXCHANGE`).
-pub fn exchange_at(dir: &File, first: &OsStr, second: &OsStr) -> std::io::Result<()> {
+pub fn exchange_at(
+    dir: &File,
+    first: &OsStr,
+    second: &OsStr,
+) -> std::io::Result<()> {
     let c_first = name_of(first)?;
     let c_second = name_of(second)?;
     // SAFETY: both names outlive the call and `dir` is an open descriptor.
-    checked(unsafe { libc::renameat2(dir.as_raw_fd(), c_first.as_ptr(), dir.as_raw_fd(), c_second.as_ptr(), libc::RENAME_EXCHANGE) })?;
+    checked(unsafe {
+        libc::renameat2(
+            dir.as_raw_fd(),
+            c_first.as_ptr(),
+            dir.as_raw_fd(),
+            c_second.as_ptr(),
+            libc::RENAME_EXCHANGE,
+        )
+    })?;
     return Ok(());
 }
 
 /// Build an identity from the fields of `statx`.
 fn id_of_statx(found: &libc::statx) -> ObjectId {
-    let birth: Option<(i64, u32)> = if found.stx_mask & libc::STATX_BTIME != 0 { Some((found.stx_btime.tv_sec, found.stx_btime.tv_nsec)) } else { None };
-    return ObjectId { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino, birth };
+    let birth: Option<(i64, u32)> = if found.stx_mask & libc::STATX_BTIME != 0 {
+        Some((found.stx_btime.tv_sec, found.stx_btime.tv_nsec))
+    } else {
+        None
+    };
+    return ObjectId {
+        device: libc::makedev(found.stx_dev_major, found.stx_dev_minor),
+        inode: found.stx_ino,
+        birth,
+    };
 }
 
 /// The identity of the entry `name` in `dir`,
 /// without following a link (`name` empty means `dir` itself).
-fn identity_statx(dir: &File, name: Option<&OsStr>) -> std::io::Result<ObjectId> {
+fn identity_statx(
+    dir: &File,
+    name: Option<&OsStr>,
+) -> std::io::Result<ObjectId> {
     let (c_name, flags): (CString, libc::c_int) = match name {
         Some(plain) => (name_of(plain)?, libc::AT_SYMLINK_NOFOLLOW),
         None => (CString::default(), libc::AT_EMPTY_PATH),
@@ -411,7 +605,15 @@ fn identity_statx(dir: &File, name: Option<&OsStr>) -> std::io::Result<ObjectId>
     // SAFETY: an all-zero `statx` is a valid value for the call to fill.
     let mut found: libc::statx = unsafe { std::mem::zeroed() };
     // SAFETY: `c_name` outlives the call, `found` is a live `statx`, and `dir` is an open descriptor.
-    checked(unsafe { libc::statx(dir.as_raw_fd(), c_name.as_ptr(), flags, libc::STATX_BASIC_STATS | libc::STATX_BTIME, &mut found) })?;
+    checked(unsafe {
+        libc::statx(
+            dir.as_raw_fd(),
+            c_name.as_ptr(),
+            flags,
+            libc::STATX_BASIC_STATS | libc::STATX_BTIME,
+            &mut found,
+        )
+    })?;
     return Ok(id_of_statx(&found));
 }
 
@@ -422,7 +624,10 @@ pub fn identity_of(file: &File) -> std::io::Result<ObjectId> {
 
 /// The identity of the entry `name` in `dir`,
 /// a link not followed.
-pub fn identity_at(dir: &File, name: &OsStr) -> std::io::Result<ObjectId> {
+pub fn identity_at(
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<ObjectId> {
     return identity_statx(dir, Some(name));
 }
 
@@ -460,17 +665,29 @@ pub enum Owned {
 /// ```ts
 /// await removeIfIdentical(dir, 'index.lock', expected);
 /// ```
-pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std::io::Result<Owned> {
+pub fn remove_if_identical(
+    dir: &File,
+    name: &OsStr,
+    expected: ObjectId,
+) -> std::io::Result<Owned> {
     let found: ObjectId = match identity_at(dir, name) {
         Ok(known) => known,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Absent),
         Err(error) => return Err(error),
     };
     if found != expected {
-        return Ok(Owned::Kept(format!("{} is not the object that was made ({} against {})", name.to_string_lossy(), found.encode(), expected.encode())));
+        return Ok(Owned::Kept(format!(
+            "{} is not the object that was made ({} against {})",
+            name.to_string_lossy(),
+            found.encode(),
+            expected.encode()
+        )));
     }
     if entry_metadata_at(dir, name)?.is_dir() {
-        return Ok(Owned::Kept(format!("{} is a directory and is not removed", name.to_string_lossy())));
+        return Ok(Owned::Kept(format!(
+            "{} is a directory and is not removed",
+            name.to_string_lossy()
+        )));
     }
     return match remove_at(dir, name, false) {
         Ok(()) => Ok(Owned::Removed),
@@ -492,12 +709,24 @@ pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std:
 /// ```ts
 /// await linkOpenFileAt(file, dir, 'index');
 /// ```
-pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Result<()> {
+pub fn link_open_file_at(
+    source: &File,
+    dir: &File,
+    name: &OsStr,
+) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     let through = c_string_of(handle_path(source).as_os_str().as_bytes(), "a path")?;
     // SAFETY: both strings outlive the call, `dir` is an open descriptor, and `AT_SYMLINK_FOLLOW` makes the link to the file
     // the descriptor's magic link names.
-    checked(unsafe { libc::linkat(libc::AT_FDCWD, through.as_ptr(), dir.as_raw_fd(), c_name.as_ptr(), libc::AT_SYMLINK_FOLLOW) })?;
+    checked(unsafe {
+        libc::linkat(
+            libc::AT_FDCWD,
+            through.as_ptr(),
+            dir.as_raw_fd(),
+            c_name.as_ptr(),
+            libc::AT_SYMLINK_FOLLOW,
+        )
+    })?;
     return Ok(());
 }
 
@@ -513,7 +742,10 @@ pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Re
 /// A directory the user does not own keeps its mode and the later
 /// removal reports the operating system's refusal.
 pub fn widen_directory(directory: &File) -> std::io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     let mode: u32 = directory.metadata()?.mode();
     if mode & 0o700 == 0o700 {
         return Ok(());
@@ -541,12 +773,18 @@ pub fn widen_directory(directory: &File) -> std::io::Result<()> {
 /// widenThroughAHandle(handle); // chmod /proc/self/fd/<n> 0700 for the owner
 /// ```
 pub fn widen_through_a_handle(handle: &File) -> std::io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     let mode: u32 = handle.metadata()?.mode();
     if mode & 0o700 == 0o700 {
         return Ok(());
     }
-    return std::fs::set_permissions(handle_path(handle), std::fs::Permissions::from_mode(mode | 0o700));
+    return std::fs::set_permissions(
+        handle_path(handle),
+        std::fs::Permissions::from_mode(mode | 0o700),
+    );
 }
 
 /// Open the subdirectory `name` of `parent` as `open_directory_at` does,
@@ -557,7 +795,10 @@ pub fn widen_through_a_handle(handle: &File) -> std::io::Result<()> {
 /// the retry names the very directory the first open found (a handle that only names it),
 /// so a swapped name cannot
 /// redirect the change of mode.
-pub fn open_directory_widening(parent: &File, name: &OsStr) -> std::io::Result<File> {
+pub fn open_directory_widening(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
     use std::os::unix::fs::MetadataExt;
     match open_directory_at(parent, name) {
         Err(error) if error.raw_os_error() == Some(libc::EACCES) => {
@@ -573,7 +814,10 @@ pub fn open_directory_widening(parent: &File, name: &OsStr) -> std::io::Result<F
             if now.dev() != judged.dev() || now.ino() != judged.ino() {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("{} is not the directory that was opened here any more", handle_path(&handle).display()),
+                    format!(
+                        "{} is not the directory that was opened here any more",
+                        handle_path(&handle).display()
+                    ),
                 ));
             }
             return Ok(reached);

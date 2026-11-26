@@ -53,6 +53,13 @@ pub fn identity_of(path: &Path) -> Option<Identity> {
         },
         Err(_) => None,
     };
-    let modified_ns: i128 = i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec());
-    return Some(Identity { device: metadata.dev(), inode: metadata.ino(), size: metadata.len(), born_ns, modified_ns });
+    let modified_ns: i128 =
+        i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec());
+    return Some(Identity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        size: metadata.len(),
+        born_ns,
+        modified_ns,
+    });
 }

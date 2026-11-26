@@ -12,10 +12,22 @@
 //! const answer = await checkRepositoryLink({ read, probe, deadlineSeconds });
 //! ```
 
-use crate::repository_link_answer::{AnswerKind, LinkAnswer};
-use crate::repository_link_identity::{LinkIdentity, LinkPhase};
-use crate::repository_link_probe::{EntryKind, LinkProbe};
-use std::path::{Path, PathBuf};
+use crate::repository_link_answer::{
+    AnswerKind,
+    LinkAnswer,
+};
+use crate::repository_link_identity::{
+    LinkIdentity,
+    LinkPhase,
+};
+use crate::repository_link_probe::{
+    EntryKind,
+    LinkProbe,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -47,13 +59,18 @@ const NOTHING_WRITTEN: &str = "nothing was written";
 pub fn answer_when_identity_is_missing() -> LinkAnswer {
     return LinkAnswer::refusal(
         AnswerKind::IdentityMissing,
-        String::from("the repository link identity file is missing; the cut-over step writes it with repository-link-record"),
+        String::from(
+            "the repository link identity file is missing; the cut-over step writes it with repository-link-record",
+        ),
     );
 }
 
 /// Phase `before`:
 /// a real folder on the NVMe with a `.git` folder.
-fn check_before(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
+fn check_before(
+    identity: &LinkIdentity,
+    probe: &dyn LinkProbe,
+) -> LinkAnswer {
     let link: &Path = Path::new(identity.link_path.as_str());
     let entry: EntryKind = probe.lstat(link);
     if entry != EntryKind::Directory {
@@ -79,21 +96,39 @@ fn check_before(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
         );
     }
     if probe.lstat(link.join(".git").as_path()) != EntryKind::Directory {
-        return LinkAnswer::refusal(AnswerKind::NotARepository, format!("{}/.git is not a folder; {NOTHING_WRITTEN}", identity.link_path));
+        return LinkAnswer::refusal(
+            AnswerKind::NotARepository,
+            format!(
+                "{}/.git is not a folder; {NOTHING_WRITTEN}",
+                identity.link_path
+            ),
+        );
     }
-    return LinkAnswer::ready(AnswerKind::ReadyBefore, format!("the repository at {} is ready (before the move)", identity.link_path));
+    return LinkAnswer::ready(
+        AnswerKind::ReadyBefore,
+        format!(
+            "the repository at {} is ready (before the move)",
+            identity.link_path
+        ),
+    );
 }
 
 /// The text,
 /// or a word in its place when it is empty.
-fn or_word<'text>(text: &'text str, word: &'text str) -> &'text str {
+fn or_word<'text>(
+    text: &'text str,
+    word: &'text str,
+) -> &'text str {
     return if text.is_empty() { word } else { text };
 }
 
 /// The link's target is not there:
 /// the drive is not mounted,
 /// or the folder is missing on a mounted drive.
-fn explain_missing_target(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
+fn explain_missing_target(
+    identity: &LinkIdentity,
+    probe: &dyn LinkProbe,
+) -> LinkAnswer {
     if !probe.is_mount_point(Path::new(identity.mount_point.as_str())) {
         return LinkAnswer::refusal(
             AnswerKind::DriveNotMounted,
@@ -105,14 +140,21 @@ fn explain_missing_target(identity: &LinkIdentity, probe: &dyn LinkProbe) -> Lin
     }
     return LinkAnswer::refusal(
         AnswerKind::MountedFolderMissing,
-        format!("the 860 drive is mounted but {} does not exist; {NOTHING_WRITTEN}", identity.canonical_root),
+        format!(
+            "the 860 drive is mounted but {} does not exist; {NOTHING_WRITTEN}",
+            identity.canonical_root
+        ),
     );
 }
 
 /// The resolved root is on the recorded filesystem,
 /// is a repository,
 /// and carries the recorded marker.
-fn check_resolved_root(identity: &LinkIdentity, probe: &dyn LinkProbe, root: &Path) -> LinkAnswer {
+fn check_resolved_root(
+    identity: &LinkIdentity,
+    probe: &dyn LinkProbe,
+    root: &Path,
+) -> LinkAnswer {
     let uuid: String = probe.uuid_of(root);
     if uuid != identity.drive_uuid || identity.drive_uuid.is_empty() {
         return LinkAnswer::refusal(
@@ -127,20 +169,33 @@ fn check_resolved_root(identity: &LinkIdentity, probe: &dyn LinkProbe, root: &Pa
         );
     }
     let git: PathBuf = root.join(".git");
-    if probe.lstat(root) != EntryKind::Directory || probe.lstat(git.as_path()) != EntryKind::Directory {
+    if probe.lstat(root) != EntryKind::Directory
+        || probe.lstat(git.as_path()) != EntryKind::Directory
+    {
         return LinkAnswer::refusal(
             AnswerKind::NotARepository,
-            format!("{} is not a repository folder with a .git folder; {NOTHING_WRITTEN}", root.display()),
+            format!(
+                "{} is not a repository folder with a .git folder; {NOTHING_WRITTEN}",
+                root.display()
+            ),
         );
     }
     let git_uuid: String = probe.uuid_of(git.as_path());
     if git_uuid != uuid {
         return LinkAnswer::refusal(
             AnswerKind::WrongFilesystem,
-            format!("{}/.git is on filesystem {} but {} is on {uuid}; {NOTHING_WRITTEN}", root.display(), or_word(git_uuid.as_str(), "unknown"), root.display()),
+            format!(
+                "{}/.git is on filesystem {} but {} is on {uuid}; {NOTHING_WRITTEN}",
+                root.display(),
+                or_word(git_uuid.as_str(), "unknown"),
+                root.display()
+            ),
         );
     }
-    let marker: String = probe.read_text(git.join(ROOT_COMMIT_MARKER).as_path()).trim().to_string();
+    let marker: String = probe
+        .read_text(git.join(ROOT_COMMIT_MARKER).as_path())
+        .trim()
+        .to_string();
     if marker != identity.root_commit || identity.root_commit.is_empty() {
         return LinkAnswer::refusal(
             AnswerKind::WrongRepository,
@@ -152,32 +207,58 @@ fn check_resolved_root(identity: &LinkIdentity, probe: &dyn LinkProbe, root: &Pa
             ),
         );
     }
-    return LinkAnswer::ready(AnswerKind::ReadyAfter, format!("the repository at {} is ready (on the 860)", identity.link_path));
+    return LinkAnswer::ready(
+        AnswerKind::ReadyAfter,
+        format!(
+            "the repository at {} is ready (on the 860)",
+            identity.link_path
+        ),
+    );
 }
 
 /// Phase `after`:
 /// a link to the recorded root on the recorded filesystem.
-fn check_after(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
+fn check_after(
+    identity: &LinkIdentity,
+    probe: &dyn LinkProbe,
+) -> LinkAnswer {
     let link: &Path = Path::new(identity.link_path.as_str());
     let entry: EntryKind = probe.lstat(link);
     if entry == EntryKind::Directory {
         return LinkAnswer::refusal(
             AnswerKind::RealFolderReplacedLink,
-            format!("{} is a real folder, not the link to the 860; {NOTHING_WRITTEN}", identity.link_path),
+            format!(
+                "{} is a real folder, not the link to the 860; {NOTHING_WRITTEN}",
+                identity.link_path
+            ),
         );
     }
     if entry == EntryKind::Missing {
         return LinkAnswer::refusal(
             AnswerKind::LinkMissing,
-            format!("{} does not exist; the link to the 860 is gone; {NOTHING_WRITTEN}", identity.link_path),
+            format!(
+                "{} does not exist; the link to the 860 is gone; {NOTHING_WRITTEN}",
+                identity.link_path
+            ),
         );
     }
-    let text: String = if entry == EntryKind::Link { probe.readlink(link) } else { String::new() };
+    let text: String = if entry == EntryKind::Link {
+        probe.readlink(link)
+    } else {
+        String::new()
+    };
     if entry != EntryKind::Link || text != identity.link_text {
-        let what: String = if entry == EntryKind::Link { format!("a link to {text}") } else { format!("a {}", entry.name()) };
+        let what: String = if entry == EntryKind::Link {
+            format!("a link to {text}")
+        } else {
+            format!("a {}", entry.name())
+        };
         return LinkAnswer::refusal(
             AnswerKind::WrongRepository,
-            format!("{} is {what}, the recorded link text is {}; {NOTHING_WRITTEN}", identity.link_path, identity.link_text),
+            format!(
+                "{} is {what}, the recorded link text is {}; {NOTHING_WRITTEN}",
+                identity.link_path, identity.link_text
+            ),
         );
     }
     let Some(root) = probe.realpath(link) else {
@@ -186,7 +267,12 @@ fn check_after(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
     if root != Path::new(identity.canonical_root.as_str()) {
         return LinkAnswer::refusal(
             AnswerKind::WrongRepository,
-            format!("{} resolves to {}, the approved root is {}; {NOTHING_WRITTEN}", identity.link_path, root.display(), identity.canonical_root),
+            format!(
+                "{} resolves to {}, the approved root is {}; {NOTHING_WRITTEN}",
+                identity.link_path,
+                root.display(),
+                identity.canonical_root
+            ),
         );
     }
     return check_resolved_root(identity, probe, root.as_path());
@@ -201,7 +287,10 @@ fn check_after(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
 /// ```ts
 /// await answerWithoutDeadline({ read, probe })
 /// ```
-pub fn check_repository_link(identity: &LinkIdentity, probe: &dyn LinkProbe) -> LinkAnswer {
+pub fn check_repository_link(
+    identity: &LinkIdentity,
+    probe: &dyn LinkProbe,
+) -> LinkAnswer {
     return match identity.phase {
         LinkPhase::Before => check_before(identity, probe),
         LinkPhase::After => check_after(identity, probe),
@@ -219,14 +308,20 @@ pub fn check_repository_link(identity: &LinkIdentity, probe: &dyn LinkProbe) -> 
 /// ```ts
 /// await checkRepositoryLink({ read, probe, deadlineSeconds })
 /// ```
-pub fn check_repository_link_within(identity: &LinkIdentity, probe: Arc<dyn LinkProbe + Send + Sync>, deadline: Duration) -> LinkAnswer {
+pub fn check_repository_link_within(
+    identity: &LinkIdentity,
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    deadline: Duration,
+) -> LinkAnswer {
     let (sender, receiver) = std::sync::mpsc::channel::<LinkAnswer>();
     let owned: LinkIdentity = identity.clone();
     let worker_probe: Arc<dyn LinkProbe + Send + Sync> = Arc::clone(&probe);
-    let spawned = std::thread::Builder::new().name(String::from("repository-link-check")).spawn(move || {
-        let answer: LinkAnswer = check_repository_link(&owned, worker_probe.as_ref());
-        let _sent = sender.send(answer);
-    });
+    let spawned = std::thread::Builder::new()
+        .name(String::from("repository-link-check"))
+        .spawn(move || {
+            let answer: LinkAnswer = check_repository_link(&owned, worker_probe.as_ref());
+            let _sent = sender.send(answer);
+        });
     if spawned.is_err() {
         // No worker could be started: the check runs here, without a deadline.
         return check_repository_link(identity, probe.as_ref());

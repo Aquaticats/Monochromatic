@@ -28,13 +28,25 @@
 
 /// The processes below the push,
 /// and the identity of each.
-use crate::process_tree::{TreeMember, descendants_of, member_of};
+use crate::process_tree::{
+    TreeMember,
+    descendants_of,
+    member_of,
+};
 /// What one look at one process found,
 /// and the identities a look at a tree's sockets works with.
-pub use crate::push_progress_signs::{Signs, holds_no_socket, inodes_of, start_time_of};
+pub use crate::push_progress_signs::{
+    Signs,
+    holds_no_socket,
+    inodes_of,
+    start_time_of,
+};
 /// The connected sockets of the machine with their byte counts,
 /// and the sockets a process holds.
-use crate::tcp_sockets::{ESTABLISHED, established_sockets};
+use crate::tcp_sockets::{
+    ESTABLISHED,
+    established_sockets,
+};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
 /// Time spans.
@@ -294,7 +306,10 @@ impl Meter {
     /// and the window would then never be reached.
     /// Each holder is remembered by its number and start time,
     /// so a number the kernel reuses is not taken for the process that held a connection before.
-    pub(crate) fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
+    pub(crate) fn observe_sockets(
+        &mut self,
+        members: &[TreeMember],
+    ) -> bool {
         let held: Vec<(i32, Vec<u64>)> = members.iter().map(inodes_of).collect();
         self.connected = false;
         if held.iter().all(holds_no_socket) {
@@ -351,18 +366,32 @@ impl Meter {
     /// ```ts
     /// { moved: bytes > before, busy: ticks > ticksBefore || working }
     /// ```
-    pub(crate) fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> Signs {
-        let (bytes_before, ticks_before): (u64, u64) = self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
+    pub(crate) fn observe(
+        &mut self,
+        key: (i32, u64),
+        bytes: u64,
+        ticks: u64,
+        working: bool,
+    ) -> Signs {
+        let (bytes_before, ticks_before): (u64, u64) =
+            self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
         let moved_now: u64 = bytes.saturating_sub(bytes_before);
         self.moved = self.moved.saturating_add(moved_now);
-        return Signs { moved: moved_now > 0, moved_bytes: moved_now, busy: ticks > ticks_before || working };
+        return Signs {
+            moved: moved_now > 0,
+            moved_bytes: moved_now,
+            busy: ticks > ticks_before || working,
+        };
     }
 
     /// Read the counters and the states of the root and everything below it;
     /// true when any of them shows work since the last
     ///  sample.
     /// A root that cannot be read (it ended) shows nothing.
-    pub fn sample(&mut self, root: i32) -> bool {
+    pub fn sample(
+        &mut self,
+        root: i32,
+    ) -> bool {
         return self.look(root, true);
     }
 
@@ -375,7 +404,10 @@ impl Meter {
     /// 7 ms for 841
     ///  processes) would find nothing and be paid by every Git the wrapper starts,
     /// however briefly it lives.
-    pub fn sample_root(&mut self, root: i32) -> bool {
+    pub fn sample_root(
+        &mut self,
+        root: i32,
+    ) -> bool {
         return self.look(root, false);
     }
 
@@ -396,7 +428,11 @@ impl Meter {
     /// ```ts
     /// progressed = observeSockets(members); for (const member of members) { const s = observe(member); if (s.moved || (s.busy && !holders.includes(member.pid))) progressed = true; }
     /// ```
-    fn look(&mut self, root: i32, whole_tree: bool) -> bool {
+    fn look(
+        &mut self,
+        root: i32,
+        whole_tree: bool,
+    ) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
         if whole_tree {
             self.scans += 1;
@@ -415,7 +451,12 @@ impl Meter {
                 continue;
             }
             let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
-            let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
+            let signs: Signs = self.observe(
+                (member.pid, member.started),
+                bytes.unwrap_or(0),
+                ticks,
+                working,
+            );
             // A process that holds the connection reports its own wait while it waits, and what it writes about itself is no
             //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
             // A process that holds no connection is the transport itself when the remote is a path (the push writes the pack

@@ -15,7 +15,11 @@
 //! ```
 
 /// The predicates under test.
-use super::{is_non_test_source_path, is_workspace_manifest_path, package_directory};
+use super::{
+    is_non_test_source_path,
+    is_workspace_manifest_path,
+    package_directory,
+};
 
 /// Exactly `package/<category>/<name>/package.json` is a workspace manifest.
 #[test]

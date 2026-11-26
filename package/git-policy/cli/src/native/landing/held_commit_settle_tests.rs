@@ -14,13 +14,38 @@
 //!  real objects and the real index,
 //!  so no stand-in can show them.
 
-use super::{Clearing, Settled, all, kept_reference, one};
-use crate::held_commit_record::{Held, Holding, hold, path_of};
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent, write_start};
+use super::{
+    Clearing,
+    Settled,
+    all,
+    kept_reference,
+    one,
+};
+use crate::held_commit_record::{
+    Held,
+    Holding,
+    hold,
+    path_of,
+};
+use crate::service_journal::{
+    Intent,
+    OPEN_EXTENSION,
+    batch_path,
+    write_intent,
+    write_start,
+};
 use crate::service_land_start::witness_of;
-use crate::test_support::{fixture, git, git_text, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+};
 use crate::transaction_git::GitContext;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file the held commit changes.
 const EDITED: &str = "edited.txt";
@@ -41,12 +66,20 @@ fn repository(name: &str) -> (PathBuf, PathBuf, GitContext) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("the repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::write(repo.join("base.txt"), b"base\n").expect("the base file");
     git(repo.as_path(), &["add", "--", "base.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let git_dir: PathBuf = repo.join(".git");
-    let context: GitContext = GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.clone()) };
+    let context: GitContext = GitContext {
+        real_git: PathBuf::from("/usr/bin/git"),
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(git_dir.clone()),
+    };
     return (root, repo, context);
 }
 
@@ -57,7 +90,10 @@ fn head_of(repo: &Path) -> String {
 
 /// The subjects of the newest commits,
 /// newest first.
-fn subjects(repo: &Path, count: usize) -> String {
+fn subjects(
+    repo: &Path,
+    count: usize,
+) -> String {
     let format: String = format!("--format=%s");
     let max: String = format!("--max-count={count}");
     return git_text(repo, &["log", format.as_str(), max.as_str(), "HEAD"]);
@@ -74,14 +110,26 @@ fn subjects(repo: &Path, count: usize) -> String {
 ///  the branch is at the base,
 ///  the side reference holds the commit,
 ///  and the intent and the record name the two branch values.
-fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
+fn held_batch(
+    root: &Path,
+    repo: &Path,
+    context: &GitContext,
+) -> Held {
     let base: String = head_of(repo);
     std::fs::write(repo.join(EDITED), b"the edit\n").expect("the edit");
     git(repo, &["add", "--", EDITED]);
     git(repo, &["commit", "--quiet", "--message", HELD_SUBJECT]);
     let held_commit: String = head_of(repo);
     // The branch goes back to the base, so the commit is only on the side reference, as a branch write a lock held off leaves it.
-    git(repo, &["update-ref", "--no-deref", kept_reference(1).as_str(), held_commit.as_str()]);
+    git(
+        repo,
+        &[
+            "update-ref",
+            "--no-deref",
+            kept_reference(1).as_str(),
+            held_commit.as_str(),
+        ],
+    );
     git(repo, &["reset", "--hard", "--quiet", base.as_str()]);
     // The person's worktree still holds the bytes the commit captured: the commit took them and the branch has not moved.
     std::fs::write(repo.join(EDITED), b"the edit\n").expect("the edit stays in the worktree");
@@ -108,7 +156,12 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
     write_intent(journal.as_path(), &intent).expect("the intent");
     // The landing records the index file it saw under its lock before it writes the branch;
     // a settlement replays the index update only over that file.
-    write_start(journal.as_path(), 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
+    write_start(
+        journal.as_path(),
+        1,
+        &witness_of(intent.index.as_path()).expect("the index file"),
+    )
+    .expect("the witness");
     let holding: Holding<'_> = Holding {
         journal: journal.as_path(),
         repository: repo,
@@ -143,9 +196,17 @@ fn a_standing_lock_keeps_the_branch_without_losing_the_commit() {
     let settled: Settled = one(&context, &held, Clearing::Never);
     assert_eq!(settled, Settled::WaitsForLocks(vec![lock.clone()]));
     assert_eq!(head_of(repo.as_path()), base, "the branch has not moved");
-    assert!(lock.exists(), "a lock nothing proves gone is left where it is");
-    assert!(path_of(held.git_dir.as_path(), 1).exists(), "the record stays while the lock does");
-    let kept: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()]).trim().to_string();
+    assert!(
+        lock.exists(),
+        "a lock nothing proves gone is left where it is"
+    );
+    assert!(
+        path_of(held.git_dir.as_path(), 1).exists(),
+        "the record stays while the lock does"
+    );
+    let kept: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()])
+        .trim()
+        .to_string();
     assert_eq!(kept, held.new, "the commit is kept on the side reference");
     remove(root.as_path());
 }
@@ -166,15 +227,37 @@ fn a_held_commit_lands_once_the_lock_is_gone() {
     let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
     let settled: Vec<(Held, Settled)> = all(&context, held.git_dir.as_path(), Clearing::Never).0;
     assert_eq!(settled.len(), 1);
-    assert_eq!(settled[0].1, Settled::Landed { commit: held.new.clone() });
-    assert_eq!(head_of(repo.as_path()), held.new, "the branch names the commit the batch made");
+    assert_eq!(
+        settled[0].1,
+        Settled::Landed {
+            commit: held.new.clone()
+        }
+    );
+    assert_eq!(
+        head_of(repo.as_path()),
+        held.new,
+        "the branch names the commit the batch made"
+    );
     let shown: String = git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]);
     assert_eq!(shown, "the edit", "the bytes it captured are what landed");
-    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "", "the index caught up");
-    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes with the settlement");
-    let side: String = git_text(repo.as_path(), &["for-each-ref", kept_reference(1).as_str()]);
+    assert_eq!(
+        git_text(repo.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "the index caught up"
+    );
+    assert!(
+        !path_of(held.git_dir.as_path(), 1).exists(),
+        "the record goes with the settlement"
+    );
+    let side: String = git_text(
+        repo.as_path(),
+        &["for-each-ref", kept_reference(1).as_str()],
+    );
     assert_eq!(side, "", "the side reference goes with the branch move");
-    assert!(!batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is marked done");
+    assert!(
+        !batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent is marked done"
+    );
     remove(root.as_path());
 }
 
@@ -192,15 +275,37 @@ fn a_held_commit_lands_on_the_branch_another_session_moved() {
     let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
     std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
     git(repo.as_path(), &["add", "--", OTHER]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", OTHER_SUBJECT],
+    );
     let settled: Vec<(Held, Settled)> = all(&context, held.git_dir.as_path(), Clearing::Never).0;
-    assert!(matches!(settled[0].1, Settled::Landed { .. }), "the held commit landed: {:?}", settled[0].1);
-    assert_eq!(subjects(repo.as_path(), 3), format!("{HELD_SUBJECT}\n{OTHER_SUBJECT}\nbase"), "it landed on top of the other session's commit");
-    assert_eq!(git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]), "the edit");
-    assert_eq!(git_text(repo.as_path(), &["show", format!("HEAD:{OTHER}").as_str()]), "the other edit", "the other session's work is kept");
+    assert!(
+        matches!(settled[0].1, Settled::Landed { .. }),
+        "the held commit landed: {:?}",
+        settled[0].1
+    );
+    assert_eq!(
+        subjects(repo.as_path(), 3),
+        format!("{HELD_SUBJECT}\n{OTHER_SUBJECT}\nbase"),
+        "it landed on top of the other session's commit"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]),
+        "the edit"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["show", format!("HEAD:{OTHER}").as_str()]),
+        "the other edit",
+        "the other session's work is kept"
+    );
     // The other session's commit rewrote the index after the landing saw it, so its entries are left as that program made them and
     //  the next commit in the worktree sets them (`service_land_finish.rs`, `Gate::Leave`): nothing is staged over another's work.
-    assert!(matches!(settled[0].1, Settled::Landed { .. }), "the branch landed and what it owed is recorded: {:?}", settled[0].1);
+    assert!(
+        matches!(settled[0].1, Settled::Landed { .. }),
+        "the branch landed and what it owed is recorded: {:?}",
+        settled[0].1
+    );
     remove(root.as_path());
 }
 
@@ -216,14 +321,27 @@ fn a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths() {
     // The other session rewrites the line the held commit wrote, from the same base.
     std::fs::write(repo.join(EDITED), b"a different edit\n").expect("the other session's edit");
     git(repo.as_path(), &["add", "--", EDITED]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", OTHER_SUBJECT],
+    );
     let settled: Settled = one(&context, &held, Clearing::Never);
     match settled {
-        Settled::Conflicts { paths, .. } => assert_eq!(paths, vec![EDITED.as_bytes().to_vec()]),
+        Settled::Conflicts {
+            paths,
+            ..
+        } => assert_eq!(paths, vec![EDITED.as_bytes().to_vec()]),
         other => panic!("a change that does not combine is a conflict, and this was {other:?}"),
     }
-    assert!(path_of(held.git_dir.as_path(), 1).exists(), "the record stays, so the commit is found again");
-    assert_eq!(subjects(repo.as_path(), 2), format!("{OTHER_SUBJECT}\nbase"), "the branch is left as the other session made it");
+    assert!(
+        path_of(held.git_dir.as_path(), 1).exists(),
+        "the record stays, so the commit is found again"
+    );
+    assert_eq!(
+        subjects(repo.as_path(), 2),
+        format!("{OTHER_SUBJECT}\nbase"),
+        "the branch is left as the other session made it"
+    );
     remove(root.as_path());
 }
 
@@ -250,29 +368,53 @@ fn a_carry_that_cannot_be_recorded_names_the_commit_a_reference_keeps() {
     // Another session moves the branch, so the settlement carries the change onto it.
     std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
     git(repo.as_path(), &["add", "--", OTHER]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", OTHER_SUBJECT],
+    );
     // The record of the carried commit cannot be written, and the carried commit is on no reference until it is.
     let journal: &Path = held.journal.as_path();
-    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o500)).expect("a journal that cannot be written");
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o500))
+        .expect("a journal that cannot be written");
     let settled: Settled = one(&context, &held, Clearing::Never);
-    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o700)).expect("the journal writes again");
-    let Settled::Cannot { commit, because } = settled else {
-        panic!("a record that cannot be written is a state this command cannot move, and this was {settled:?}");
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o700))
+        .expect("the journal writes again");
+    let Settled::Cannot {
+        commit,
+        because,
+    } = settled
+    else {
+        panic!(
+            "a record that cannot be written is a state this command cannot move, and this was {settled:?}"
+        );
     };
-    assert_eq!(commit, held.new, "the commit the line calls kept is the batch's own, which the side reference holds: {because}");
-    let side: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()]).trim().to_string();
+    assert_eq!(
+        commit, held.new,
+        "the commit the line calls kept is the batch's own, which the side reference holds: {because}"
+    );
+    let side: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()])
+        .trim()
+        .to_string();
     assert_eq!(side, commit, "a reference keeps the commit the line names");
     remove(root.as_path());
 }
 
 /// The commit the branch names,
 /// in a repository whose Git directory is not `<work_tree>/.git`.
-fn head_beside(git_dir: &Path, work_tree: &Path) -> String {
+fn head_beside(
+    git_dir: &Path,
+    work_tree: &Path,
+) -> String {
     let git_dir_argument: String = format!("--git-dir={}", git_dir.display());
     let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
     return git_text(
         work_tree,
-        &[git_dir_argument.as_str(), work_tree_argument.as_str(), "rev-parse", "HEAD"],
+        &[
+            git_dir_argument.as_str(),
+            work_tree_argument.as_str(),
+            "rev-parse",
+            "HEAD",
+        ],
     )
     .trim()
     .to_string();
@@ -295,13 +437,40 @@ fn repository_beside_its_work_tree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let work_tree: PathBuf = root.join("work");
     std::fs::create_dir_all(work_tree.as_path()).expect("the work tree");
     let git_dir_text: String = git_dir.display().to_string();
-    git(root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", git_dir_text.as_str()]);
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            git_dir_text.as_str(),
+        ],
+    );
     git(git_dir.as_path(), &["config", "core.bare", "false"]);
     let git_dir_argument: String = format!("--git-dir={git_dir_text}");
     let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
     std::fs::write(work_tree.join("base.txt"), b"base\n").expect("the base file");
-    git(root.as_path(), &[git_dir_argument.as_str(), work_tree_argument.as_str(), "add", "--", "base.txt"]);
-    git(root.as_path(), &[git_dir_argument.as_str(), work_tree_argument.as_str(), "commit", "--quiet", "--message=base"]);
+    git(
+        root.as_path(),
+        &[
+            git_dir_argument.as_str(),
+            work_tree_argument.as_str(),
+            "add",
+            "--",
+            "base.txt",
+        ],
+    );
+    git(
+        root.as_path(),
+        &[
+            git_dir_argument.as_str(),
+            work_tree_argument.as_str(),
+            "commit",
+            "--quiet",
+            "--message=base",
+        ],
+    );
     return (root, git_dir, work_tree);
 }
 
@@ -320,7 +489,9 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
     let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
     let beside = |arguments: &[&str]| {
         let mut words: Vec<String> = vec![git_dir_argument.clone(), work_tree_argument.clone()];
-        words.extend(arguments.iter().map(|word| { return (*word).to_string(); }));
+        words.extend(arguments.iter().map(|word| {
+            return (*word).to_string();
+        }));
         let borrowed: Vec<&str> = words.iter().map(String::as_str).collect();
         return git_text(root.as_path(), borrowed.as_slice());
     };
@@ -329,7 +500,12 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
     beside(&["add", "--", EDITED]);
     beside(&["commit", "--quiet", "--message", HELD_SUBJECT]);
     let held_commit: String = head_beside(git_dir.as_path(), work_tree.as_path());
-    beside(&["update-ref", "--no-deref", kept_reference(1).as_str(), held_commit.as_str()]);
+    beside(&[
+        "update-ref",
+        "--no-deref",
+        kept_reference(1).as_str(),
+        held_commit.as_str(),
+    ]);
     beside(&["reset", "--hard", "--quiet", base.as_str()]);
     std::fs::write(work_tree.join(EDITED), b"the edit\n").expect("the edit stays in the work tree");
     let journal: PathBuf = root.join("journal");
@@ -352,7 +528,12 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
         transports: Vec::new(),
     };
     write_intent(journal.as_path(), &intent).expect("the intent");
-    write_start(journal.as_path(), 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
+    write_start(
+        journal.as_path(),
+        1,
+        &witness_of(intent.index.as_path()).expect("the index file"),
+    )
+    .expect("the witness");
     let holding: Holding<'_> = Holding {
         journal: journal.as_path(),
         repository: work_tree.as_path(),
@@ -367,15 +548,35 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
     };
     let held: Held = hold(holding).expect("the held record");
     // No global option names the repository here, exactly as a plain command in that work tree carries none.
-    let context: GitContext = GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.clone()) };
+    let context: GitContext = GitContext {
+        real_git: PathBuf::from("/usr/bin/git"),
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(git_dir.clone()),
+    };
     let settled: Settled = one(&context, &held, Clearing::Never);
-    assert_eq!(settled, Settled::Landed { commit: held_commit.clone() });
-    assert_eq!(head_beside(git_dir.as_path(), work_tree.as_path()), held_commit, "the branch names the commit the batch made");
+    assert_eq!(
+        settled,
+        Settled::Landed {
+            commit: held_commit.clone()
+        }
+    );
+    assert_eq!(
+        head_beside(git_dir.as_path(), work_tree.as_path()),
+        held_commit,
+        "the branch names the commit the batch made"
+    );
     let shown: String = beside(&["show", format!("HEAD:{EDITED}").as_str()]);
     assert_eq!(shown, "the edit", "the bytes it captured are what landed");
     let status: String = beside(&["status", "--porcelain=v1"]);
-    assert_eq!(status, "", "the index caught up in the repository the record names");
-    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes with the settlement");
+    assert_eq!(
+        status, "",
+        "the index caught up in the repository the record names"
+    );
+    assert!(
+        !path_of(held.git_dir.as_path(), 1).exists(),
+        "the record goes with the settlement"
+    );
     remove(root.as_path());
 }
 
@@ -400,7 +601,10 @@ fn a_second_settlement_of_one_record_lands_the_change_once() {
     let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
     std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
     git(repo.as_path(), &["add", "--", OTHER]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", OTHER_SUBJECT],
+    );
     let inside: GitContext = context.clone();
     let record: Held = held.clone();
     let ran: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
@@ -418,10 +622,25 @@ fn a_second_settlement_of_one_record_lands_the_change_once() {
     );
     let settled: Settled = one(&context, &held, Clearing::Never);
     crate::service_fault::hooks::clear();
-    assert_eq!(subjects(repo.as_path(), 3), format!("{HELD_SUBJECT}\n{OTHER_SUBJECT}\nbase"), "the change is on the branch once: {settled:?}");
-    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "3", "the branch carries the base, the other session's commit and the held change, and nothing else");
-    assert_eq!(git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]), "the edit", "the change landed with its bytes");
-    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "no settlement leaves the record behind");
+    assert_eq!(
+        subjects(repo.as_path(), 3),
+        format!("{HELD_SUBJECT}\n{OTHER_SUBJECT}\nbase"),
+        "the change is on the branch once: {settled:?}"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(),
+        "3",
+        "the branch carries the base, the other session's commit and the held change, and nothing else"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]),
+        "the edit",
+        "the change landed with its bytes"
+    );
+    assert!(
+        !path_of(held.git_dir.as_path(), 1).exists(),
+        "no settlement leaves the record behind"
+    );
     remove(root.as_path());
 }
 
@@ -446,26 +665,72 @@ fn a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed(
     let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
     std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
     git(repo.as_path(), &["add", "--", OTHER]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", OTHER_SUBJECT],
+    );
     let base_of_the_replay: String = head_of(repo.as_path());
-    let replayed = crate::held_commit_replay::onto(&context, &held, base_of_the_replay.as_str(), repo.join(".git").as_path());
-    let crate::held_commit_replay::Replay::Replayed { commits } = replayed else { panic!("the change combines with the branch: {replayed:?}") };
+    let replayed = crate::held_commit_replay::onto(
+        &context,
+        &held,
+        base_of_the_replay.as_str(),
+        repo.join(".git").as_path(),
+    );
+    let crate::held_commit_replay::Replay::Replayed {
+        commits,
+    } = replayed
+    else {
+        panic!("the change combines with the branch: {replayed:?}")
+    };
     let landed: String = commits.last().cloned().expect("the replayed commit");
     let journal: &Path = held.journal.as_path();
     let open: std::path::PathBuf = batch_path(journal, 1, OPEN_EXTENSION);
-    let mut written: Intent = crate::service_journal::parse_intent(std::fs::read_to_string(open.as_path()).expect("the record the landing wrote").as_str()).expect("the record reads");
+    let mut written: Intent = crate::service_journal::parse_intent(
+        std::fs::read_to_string(open.as_path())
+            .expect("the record the landing wrote")
+            .as_str(),
+    )
+    .expect("the record reads");
     written.new = landed.clone();
     written.commits = commits;
     write_intent(journal, &written).expect("the record names the commit made from the change");
     // The branch move, and the finished record written after it: the kill is after both, and before the record of the hold goes.
-    git(repo.as_path(), &["update-ref", "--no-deref", "refs/heads/main", landed.as_str(), base_of_the_replay.as_str()]);
-    git(repo.as_path(), &["update-ref", "-d", "--no-deref", kept_reference(1).as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            "refs/heads/main",
+            landed.as_str(),
+            base_of_the_replay.as_str(),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["update-ref", "-d", "--no-deref", kept_reference(1).as_str()],
+    );
     crate::service_journal::mark_done(journal, 1).expect("the finished record");
-    assert!(path_of(held.git_dir.as_path(), 1).exists(), "the kill left the record of the hold");
+    assert!(
+        path_of(held.git_dir.as_path(), 1).exists(),
+        "the kill left the record of the hold"
+    );
     let settled: Settled = one(&context, &held, Clearing::Never);
-    assert_eq!(settled, Settled::AlreadyThere { commit: landed.clone() }, "the branch is shown to hold the commit the batch became");
-    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes, so no command says it waits any more");
-    assert_eq!(head_of(repo.as_path()), landed, "the branch was not moved again");
+    assert_eq!(
+        settled,
+        Settled::AlreadyThere {
+            commit: landed.clone()
+        },
+        "the branch is shown to hold the commit the batch became"
+    );
+    assert!(
+        !path_of(held.git_dir.as_path(), 1).exists(),
+        "the record goes, so no command says it waits any more"
+    );
+    assert_eq!(
+        head_of(repo.as_path()),
+        landed,
+        "the branch was not moved again"
+    );
     remove(root.as_path());
 }
 
@@ -489,19 +754,41 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
     let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
     let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
     std::fs::write(lock.as_path(), "").expect("the lock a killed Git leaves");
-    let intent_text: String = std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the batch's intent");
-    let intent: Intent = crate::service_journal::parse_intent(intent_text.as_str()).expect("the intent this control wrote");
+    let intent_text: String =
+        std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path())
+            .expect("the batch's intent");
+    let intent: Intent = crate::service_journal::parse_intent(intent_text.as_str())
+        .expect("the intent this control wrote");
     let mut report: Option<crate::service_land_finish::RecoveryReport> = None;
     let entries = crate::service_timing::capture::entries_of(|| {
         report = super::settle_a_recorded_hold(&context, held.journal.as_path(), &intent);
     });
-    assert!(report.is_some(), "the batch still waits for the lock, so the restart reports it as held");
-    assert_eq!(entries.len(), 1, "the settlement writes one line: {entries:?}");
+    assert!(
+        report.is_some(),
+        "the batch still waits for the lock, so the restart reports it as held"
+    );
+    assert_eq!(
+        entries.len(),
+        1,
+        "the settlement writes one line: {entries:?}"
+    );
     let said: &str = entries[0].message.as_str();
-    assert!(said.contains(format!("in the repository at {}", repo.display()).as_str()), "the line names the repository: {said}");
-    assert!(said.contains("is still held"), "the commit waits for the lock: {said}");
-    assert!(said.contains("is kept"), "the line says the commit is kept: {said}");
-    assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
+    assert!(
+        said.contains(format!("in the repository at {}", repo.display()).as_str()),
+        "the line names the repository: {said}"
+    );
+    assert!(
+        said.contains("is still held"),
+        "the commit waits for the lock: {said}"
+    );
+    assert!(
+        said.contains("is kept"),
+        "the line says the commit is kept: {said}"
+    );
+    assert!(
+        !said.contains("refus"),
+        "a commit that is kept is not one that was refused: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -527,9 +814,21 @@ fn a_lock_on_another_reference_does_not_keep_a_held_commit_from_landing() {
     let unrelated: PathBuf = repo.join(".git/refs/heads/unrelated.lock");
     std::fs::write(unrelated.as_path(), "").expect("a lock another program left on another branch");
     let settled: Settled = one(&context, &held, Clearing::Never);
-    assert!(unrelated.exists(), "a lock nothing proves gone is left where it is");
-    assert_eq!(settled, Settled::Landed { commit: held.new.clone() });
-    assert_eq!(head_of(repo.as_path()), held.new, "the branch names the commit the batch made");
+    assert!(
+        unrelated.exists(),
+        "a lock nothing proves gone is left where it is"
+    );
+    assert_eq!(
+        settled,
+        Settled::Landed {
+            commit: held.new.clone()
+        }
+    );
+    assert_eq!(
+        head_of(repo.as_path()),
+        held.new,
+        "the branch names the commit the batch made"
+    );
     remove(root.as_path());
 }
 
@@ -555,10 +854,22 @@ fn the_line_about_a_held_commit_names_only_the_locks_that_stand_now() {
     let unrelated: PathBuf = repo.join(".git/refs/heads/unrelated.lock");
     std::fs::write(unrelated.as_path(), "").expect("a lock another program left on another branch");
     let settled: Settled = one(&context, &held, Clearing::Never);
-    let Settled::WaitsForLocks(named) = &settled else { panic!("the branch's own lock holds this settlement: {settled:?}") };
+    let Settled::WaitsForLocks(named) = &settled else {
+        panic!("the branch's own lock holds this settlement: {settled:?}")
+    };
     let logged: String = crate::held_commit_settle_outcomes::settled_words(1, &held, &settled);
     remove(root.as_path());
-    assert_eq!(named, &vec![standing.clone()], "only the lock that can refuse this branch write is named");
-    assert!(logged.contains("refs/heads/main.lock"), "the line names the lock that stands: {logged}");
-    assert!(!logged.contains("unrelated"), "the line names no lock of another reference: {logged}");
+    assert_eq!(
+        named,
+        &vec![standing.clone()],
+        "only the lock that can refuse this branch write is named"
+    );
+    assert!(
+        logged.contains("refs/heads/main.lock"),
+        "the line names the lock that stands: {logged}"
+    );
+    assert!(
+        !logged.contains("unrelated"),
+        "the line names no lock of another reference: {logged}"
+    );
 }

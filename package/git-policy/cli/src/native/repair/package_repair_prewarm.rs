@@ -28,22 +28,38 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::hooks_path_values::{path_answer, without_the_terminator};
+use crate::hooks_path_values::{
+    path_answer,
+    without_the_terminator,
+};
 use crate::iso_time::now_iso_never_the_same_twice;
 use crate::service_client::wake;
-use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::{
+    ClientFailure,
+    render,
+};
 use crate::service_provision::provision;
 use crate::service_route::route_from_environment;
-use crate::transaction_git::{GitContext, GitRequest};
-use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::service_work::work_directory;
-use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+    enqueue,
+};
 use crate::worktree_trash_hand_over::Reach;
 
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairPrewarm";
@@ -123,8 +139,14 @@ pub struct PrewarmEntry {
 /// ```ts
 /// const textField = (value, name) => typeof value?.[name] === 'string' ? value[name] : undefined;
 /// ```
-fn text_field(entry: &serde_json::Value, name: &str) -> Option<PathBuf> {
-    return entry.get(name).and_then(serde_json::Value::as_str).map(PathBuf::from);
+fn text_field(
+    entry: &serde_json::Value,
+    name: &str,
+) -> Option<PathBuf> {
+    return entry
+        .get(name)
+        .and_then(serde_json::Value::as_str)
+        .map(PathBuf::from);
 }
 
 /// What:
@@ -142,13 +164,19 @@ pub fn encode(entries: &[PrewarmEntry]) -> Result<String, String> {
     let mut written: Vec<serde_json::Value> = Vec::with_capacity(entries.len());
     for entry in entries {
         let (Some(root), Some(to)) = (entry.root.to_str(), entry.to.to_str()) else {
-            return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
+            return Err(String::from(
+                "a path of the prewarm is not valid UTF-8, so no record can name it",
+            ));
         };
         let from: Option<&str> = match entry.from.as_ref() {
             None => None,
             Some(path) => match path.to_str() {
                 Some(text) => Some(text),
-                None => return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it")),
+                None => {
+                    return Err(String::from(
+                        "a path of the prewarm is not valid UTF-8, so no record can name it",
+                    ));
+                }
             },
         };
         let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
@@ -158,10 +186,15 @@ pub fn encode(entries: &[PrewarmEntry]) -> Result<String, String> {
         if let Some(text) = from {
             fields.insert(String::from("from"), serde_json::Value::from(text));
         }
-        fields.insert(String::from("members"), serde_json::Value::from(entry.members.clone()));
+        fields.insert(
+            String::from("members"),
+            serde_json::Value::from(entry.members.clone()),
+        );
         if let Some(staging) = entry.staged_in.as_ref() {
             let Some(text) = staging.to_str() else {
-                return Err(String::from("a path of the prewarm is not valid UTF-8, so no record can name it"));
+                return Err(String::from(
+                    "a path of the prewarm is not valid UTF-8, so no record can name it",
+                ));
             };
             fields.insert(String::from("stagedIn"), serde_json::Value::from(text));
         }
@@ -188,30 +221,52 @@ pub fn decode(payload: &str) -> Result<Vec<PrewarmEntry>, String> {
         Err(error) => return Err(format!("the prewarm payload is not JSON ({error})")),
     };
     let Some(list) = parsed.as_array() else {
-        return Err(String::from("the prewarm payload is not a list of workspaces"));
+        return Err(String::from(
+            "the prewarm payload is not a list of workspaces",
+        ));
     };
     let mut entries: Vec<PrewarmEntry> = Vec::with_capacity(list.len());
     for value in list {
         let (Some(root), Some(to)) = (text_field(value, "root"), text_field(value, "to")) else {
-            return Err(String::from("a prewarm entry names no workspace or no destination"));
+            return Err(String::from(
+                "a prewarm entry names no workspace or no destination",
+            ));
         };
         let staged_in: Option<PathBuf> = text_field(value, "stagedIn");
         let from: Option<PathBuf> = text_field(value, "from");
         // An entry says where the builds come from, or where the add staged the worktree's own state, and never both:
         // the two are clean-ups of different directories, and a payload that claims both cannot be acted on.
         match (staged_in.is_some(), from.is_some()) {
-            (false, false) => return Err(String::from("a prewarm entry names no source directory to clone")),
-            (true, true) => return Err(String::from("a prewarm entry both stages the worktree's own state and names a source directory")),
+            (false, false) => {
+                return Err(String::from(
+                    "a prewarm entry names no source directory to clone",
+                ));
+            }
+            (true, true) => {
+                return Err(String::from(
+                    "a prewarm entry both stages the worktree's own state and names a source directory",
+                ));
+            }
             _ => {}
         }
         let Some(members) = value.get("members").and_then(serde_json::Value::as_array) else {
             return Err(String::from("a prewarm entry names no members"));
         };
-        let names: Vec<String> = members.iter().filter_map(serde_json::Value::as_str).map(String::from).collect();
+        let names: Vec<String> = members
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .map(String::from)
+            .collect();
         if names.len() != members.len() || names.is_empty() {
             return Err(String::from("a prewarm entry names no members"));
         }
-        entries.push(PrewarmEntry { root, from, to, members: names, staged_in });
+        entries.push(PrewarmEntry {
+            root,
+            from,
+            to,
+            members: names,
+            staged_in,
+        });
     }
     if entries.is_empty() {
         return Err(String::from("the prewarm payload names no workspaces"));
@@ -241,7 +296,10 @@ pub fn decode(payload: &str) -> Result<Vec<PrewarmEntry>, String> {
 /// ```ts
 /// const objectNameOf = (destination, queuedAt) => sha256(utf8(`${destination}\n${queuedAt}`)).toString('hex').slice(0, 40);
 /// ```
-pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
+pub fn object_name_of(
+    destination: &Path,
+    queued_at: &str,
+) -> String {
     let mut text: Vec<u8> = Vec::new();
     text.extend_from_slice(destination.as_os_str().as_bytes());
     text.push(b'\n');
@@ -265,7 +323,11 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 /// ```ts
 /// const itemOf = ({ context, commonDir, destination, entries }) => { const created = nowISONeverTheSameTwice(); return { kind: 'prewarm', repository: destination, gitDir: commonDir, ref: PREWARM_REFERENCE, oid: objectNameOf(destination, created), parent: encode(entries), created, tries: 0 }; };
 /// ```
-pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) -> Result<WorkItem, String> {
+pub fn item_of(
+    common_dir: &Path,
+    destination: &Path,
+    entries: &[PrewarmEntry],
+) -> Result<WorkItem, String> {
     let created: String = now_iso_never_the_same_twice();
     return Ok(WorkItem {
         kind: WorkKind::Prewarm,
@@ -291,8 +353,23 @@ pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) 
 /// ```ts
 /// handOverToTheService({ context, commonDir, destination, entries });
 /// ```
-pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) -> Result<(), String> {
-    return hand_over_with(context, common_dir, destination, entries, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
+pub fn hand_over_to_the_service(
+    context: &GitContext,
+    common_dir: &Path,
+    destination: &Path,
+    entries: &[PrewarmEntry],
+) -> Result<(), String> {
+    return hand_over_with(
+        context,
+        common_dir,
+        destination,
+        entries,
+        &Reach {
+            router: &route_from_environment,
+            provisioner: &provision,
+            start_wait: HAND_OVER_GREETING_WAIT,
+        },
+    );
 }
 
 /// What:
@@ -306,19 +383,33 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// ```ts
 /// handOverWith({ context, commonDir, destination, entries, reach });
 /// ```
-pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entries: &[PrewarmEntry], reach: &Reach<'_>) -> Result<(), String> {
+pub fn hand_over_with(
+    context: &GitContext,
+    common_dir: &Path,
+    destination: &Path,
+    entries: &[PrewarmEntry],
+    reach: &Reach<'_>,
+) -> Result<(), String> {
     if entries.is_empty() {
         return Ok(());
     }
     let item: WorkItem = item_of(common_dir, destination, entries)?;
     if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &item) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
+        debug(
+            TAG,
+            format!("the work item could not be written: {reason}").as_str(),
+        );
         return Err(format!("the work item could not be written: {reason}"));
     }
     let Some(route) = (reach.router)(context.real_git.as_path(), common_dir) else {
-        return Err(String::from("no commit service can be started from this session"));
+        return Err(String::from(
+            "no commit service can be started from this session",
+        ));
     };
-    let crate::service_route::Route { address, provision: host } = route;
+    let crate::service_route::Route {
+        address,
+        provision: host,
+    } = route;
     if let Some(setup) = host.as_ref()
         && let Err(failure) = (reach.provisioner)(setup)
     {
@@ -329,7 +420,11 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     // Why:  The worktree must work for the person's next command either way: an answer that does not come within the bound
     //       means this command does the filling itself instead of waiting on a service
     //       (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
-    let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
+    let config: ClientConfig = ClientConfig {
+        start_wait: reach.start_wait,
+        start_ceiling: reach.start_wait,
+        ..managed_client_config(address, host.as_ref())
+    };
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &[], &mut silent).map_err(render_failure);
@@ -367,20 +462,35 @@ type ClientConfig = crate::service_client::ClientConfig;
 /// ```ts
 /// async function commonDirectoryAwaiting(git, destination): Promise<string>;
 /// ```
-pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> Result<PathBuf, String> {
-    let request: GitRequest = GitRequest::new(destination, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+pub async fn common_directory_awaiting(
+    git: &GitContext,
+    destination: &Path,
+) -> Result<PathBuf, String> {
+    let request: GitRequest = GitRequest::new(
+        destination,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    );
     let output = match run_git_awaiting(git, &request).await {
         Ok(done) => done,
-        Err(error) => return Err(format!("git could not name the repository's common directory ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "git could not name the repository's common directory ({error})"
+            ));
+        }
     };
     if !output.succeeded() {
-        return Err(format!("git could not name the repository's common directory: {}", output.error_text()));
+        return Err(format!(
+            "git could not name the repository's common directory: {}",
+            output.error_text()
+        ));
     }
     // Git ends the path with one line feed; every other byte is the path's own, so only that terminator goes.
     //  A directory whose name ends in a space is that directory, and the record is queued there.
     let named: &[u8] = without_the_terminator(output.stdout.as_slice());
     return if named.is_empty() {
-        Err(String::from("git named no common directory for the worktree"))
+        Err(String::from(
+            "git named no common directory for the worktree",
+        ))
     } else {
         // The answer is a pathname, and a pathname is bytes: decoding it replaced a byte that is not UTF-8.
         Ok(path_answer(named))
@@ -400,7 +510,12 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
 /// ```
 pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), String> {
     let (context, common_dir, destination, entries): TheHandOver = state;
-    return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), entries.as_slice());
+    return hand_over_to_the_service(
+        &context,
+        common_dir.as_path(),
+        destination.as_path(),
+        entries.as_slice(),
+    );
 }
 
 /// What a hand-over job reads:

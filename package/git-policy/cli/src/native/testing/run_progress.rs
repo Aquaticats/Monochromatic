@@ -62,7 +62,11 @@
 /// The reading of a `stat` line,
 /// the states that count as work,
 /// and how often a run is looked at.
-use crate::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
+use crate::push_progress::{
+    SAMPLE_INTERVAL,
+    is_working,
+    parse_activity,
+};
 /// The kernel's number for the calling thread,
 /// which the look leaves out so its own reading never counts as the run's work.
 use crate::thread_quiet::current_thread_id;
@@ -73,7 +77,10 @@ use std::collections::HashSet;
 /// whose failure is ignored so the ending always runs.
 use std::io::Write as _;
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The threads that read this run,
@@ -171,15 +178,24 @@ impl Reading {
     /// ```
     pub(crate) fn begin() -> Option<Reading> {
         let thread: i32 = current_thread_id()?;
-        let Ok(mut reading) = READING_THREADS.lock() else { return None };
+        let Ok(mut reading) = READING_THREADS.lock() else {
+            return None;
+        };
         for each in reading.iter_mut() {
             if each.thread == thread {
                 each.waits = each.waits.saturating_add(1);
-                return Some(Reading { thread });
+                return Some(Reading {
+                    thread,
+                });
             }
         }
-        reading.push(Reader { thread, waits: 1 });
-        return Some(Reading { thread });
+        reading.push(Reader {
+            thread,
+            waits: 1,
+        });
+        return Some(Reading {
+            thread,
+        });
     }
 }
 
@@ -188,8 +204,14 @@ impl Reading {
 /// is no longer left out.
 impl Drop for Reading {
     fn drop(&mut self) {
-        let Ok(mut reading) = READING_THREADS.lock() else { return };
-        let Some(at) = reading.iter().position(|each: &Reader| { return each.thread == self.thread; }) else { return };
+        let Ok(mut reading) = READING_THREADS.lock() else {
+            return;
+        };
+        let Some(at) = reading.iter().position(|each: &Reader| {
+            return each.thread == self.thread;
+        }) else {
+            return;
+        };
         let ending: &mut Reader = &mut reading[at];
         ending.waits = ending.waits.saturating_sub(1);
         if ending.waits == 0 {
@@ -202,14 +224,23 @@ impl Drop for Reading {
 /// which is every reader of this process,
 /// each once.
 pub(crate) fn reading_threads() -> Vec<i32> {
-    let Ok(reading) = READING_THREADS.lock() else { return Vec::new() };
-    return reading.iter().map(|each: &Reader| { return each.thread; }).collect();
+    let Ok(reading) = READING_THREADS.lock() else {
+        return Vec::new();
+    };
+    return reading
+        .iter()
+        .map(|each: &Reader| {
+            return each.thread;
+        })
+        .collect();
 }
 
 /// The readers of this process,
 /// one entry per thread.
 fn the_readers() -> Vec<Reader> {
-    let Ok(reading) = READING_THREADS.lock() else { return Vec::new() };
+    let Ok(reading) = READING_THREADS.lock() else {
+        return Vec::new();
+    };
     return reading.clone();
 }
 
@@ -218,11 +249,14 @@ fn the_readers() -> Vec<Reader> {
 #[path = "run_progress_look_figures.rs"]
 mod look_figures;
 
-/// The look the judge compares,
-/// and the figures of one task it holds.
-pub(crate) use look_figures::{Look, TaskFigures};
 /// The figure one task is named by.
 use look_figures::task_number;
+/// The look the judge compares,
+/// and the figures of one task it holds.
+pub(crate) use look_figures::{
+    Look,
+    TaskFigures,
+};
 
 /// What:
 ///  The text of a `/proc` file,
@@ -246,7 +280,10 @@ fn read_a_tasks_file(path: &std::path::Path) -> (String, u64) {
         let _read = std::io::Read::read_to_end(&mut file, &mut bytes);
     }
     let delivered: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    return (String::from_utf8_lossy(bytes.as_slice()).into_owned(), delivered);
+    return (
+        String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+        delivered,
+    );
 }
 
 /// What:
@@ -282,7 +319,10 @@ pub(crate) enum Ending {
 /// The reason in words,
 /// with the figure that decided it and the signs that were read.
 impl std::fmt::Display for Ending {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Ending::Quiet(quiet) => write!(
                 formatter,
@@ -347,7 +387,10 @@ impl Tally {
     /// ```ts
     /// tally.noteTask({ task, bytes, ticks }); // totals += figures; members += 1; tasks.push(figures)
     /// ```
-    fn note_task(&mut self, figures: TaskFigures) {
+    fn note_task(
+        &mut self,
+        figures: TaskFigures,
+    ) {
         self.members = self.members.saturating_add(1);
         self.bytes = self.bytes.saturating_add(figures.bytes);
         self.ticks = self.ticks.saturating_add(figures.ticks);
@@ -375,17 +418,29 @@ impl Tally {
     /// Only the disk wait counts for its state,
     ///  never state `R`:
     /// the reader is running because it is taking this very look.
-    fn add_the_readers_own_counters(&mut self, number: i32, reader: i32, task: &std::path::Path, own_readings: u64) {
+    fn add_the_readers_own_counters(
+        &mut self,
+        number: i32,
+        reader: i32,
+        task: &std::path::Path,
+        own_readings: u64,
+    ) {
         let (io, io_bytes) = read_a_tasks_file(&task.join("io"));
         self.read_bytes = self.read_bytes.saturating_add(io_bytes);
         // Its processor time is this look's too, so the run is judged on what it moved that was not a reading.
         let moved: u64 = bytes_in(io.as_str()).saturating_sub(own_readings);
         let (stat, stat_bytes) = read_a_tasks_file(&task.join("stat"));
         self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
-        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
+        let Some((state, _ticks)) = parse_activity(stat.as_str()) else {
+            return;
+        };
         self.readable = true;
         self.working = self.working || state == 'D';
-        self.note_task(TaskFigures { task: task_number(number, reader), bytes: moved, ticks: 0 });
+        self.note_task(TaskFigures {
+            task: task_number(number, reader),
+            bytes: moved,
+            ticks: 0,
+        });
     }
 
     /// What:
@@ -402,10 +457,15 @@ impl Tally {
     /// ```ts
     /// tally.addAReadersDiskWait(`/proc/${pid}/task/${tid}`);
     /// ```
-    fn add_a_readers_disk_wait(&mut self, task: &std::path::Path) {
+    fn add_a_readers_disk_wait(
+        &mut self,
+        task: &std::path::Path,
+    ) {
         let (stat, stat_bytes) = read_a_tasks_file(&task.join("stat"));
         self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
-        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
+        let Some((state, _ticks)) = parse_activity(stat.as_str()) else {
+            return;
+        };
         self.readable = true;
         self.working = self.working || state == 'D';
     }
@@ -413,27 +473,48 @@ impl Tally {
     /// Add the counters of task `task` of process `number`,
     /// whose directory under `/proc` is `folder`,
     /// and leave the tally alone where they cannot be read.
-    fn add_task(&mut self, number: i32, task: i32, folder: &std::path::Path) {
+    fn add_task(
+        &mut self,
+        number: i32,
+        task: i32,
+        folder: &std::path::Path,
+    ) {
         let (stat, stat_bytes) = read_a_tasks_file(&folder.join("stat"));
         self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
-        let Some((state, ticks)) = parse_activity(stat.as_str()) else { return };
+        let Some((state, ticks)) = parse_activity(stat.as_str()) else {
+            return;
+        };
         self.readable = true;
         self.working = self.working || is_working(state);
         // A kernel without task I/O accounting has no `io` file; its tasks are still seen to run and to wait.
         let (io, io_bytes) = read_a_tasks_file(&folder.join("io"));
         self.read_bytes = self.read_bytes.saturating_add(io_bytes);
         let bytes: u64 = bytes_in(io.as_str());
-        self.note_task(TaskFigures { task: task_number(number, task), bytes, ticks });
+        self.note_task(TaskFigures {
+            task: task_number(number, task),
+            bytes,
+            ticks,
+        });
     }
 
     /// Add every task of the process `number`,
     /// leaving out the threads `leaving_out` names,
     /// which are the watchers whose own readings are not the run's work.
-    fn add_process(&mut self, number: i32, leaving_out: &[i32]) {
-        let Ok(tasks) = std::fs::read_dir(format!("/proc/{number}/task")) else { return };
+    fn add_process(
+        &mut self,
+        number: i32,
+        leaving_out: &[i32],
+    ) {
+        let Ok(tasks) = std::fs::read_dir(format!("/proc/{number}/task")) else {
+            return;
+        };
         for task in tasks.flatten() {
             let name: std::ffi::OsString = task.file_name();
-            let Some(tid) = name.to_str().and_then(|text| { return text.parse::<i32>().ok(); }) else { continue };
+            let Some(tid) = name.to_str().and_then(|text| {
+                return text.parse::<i32>().ok();
+            }) else {
+                continue;
+            };
             if leaving_out.contains(&tid) {
                 continue;
             }
@@ -485,7 +566,9 @@ fn bytes_in(text: &str) -> u64 {
 /// while (queue.length) for (const child of childrenOf(queue.pop())) { found.push(child); queue.push(child) }
 /// ```
 fn processes_below(read: &mut u64) -> Vec<i32> {
-    let Ok(own) = i32::try_from(std::process::id()) else { return Vec::new() };
+    let Ok(own) = i32::try_from(std::process::id()) else {
+        return Vec::new();
+    };
     let mut found: Vec<i32> = Vec::new();
     let mut seen: HashSet<i32> = HashSet::from([own]);
     let mut frontier: Vec<i32> = vec![own];
@@ -515,9 +598,14 @@ fn processes_below(read: &mut u64) -> Vec<i32> {
 /// ```ts
 /// readdirSync(`/proc/${parent}/task`).flatMap((tid) => readFileSync(`/proc/${parent}/task/${tid}/children`, 'utf8').trim().split(/\s+/));
 /// ```
-fn children_of(parent: i32, read: &mut u64) -> Vec<i32> {
+fn children_of(
+    parent: i32,
+    read: &mut u64,
+) -> Vec<i32> {
     let mut children: Vec<i32> = Vec::new();
-    let Ok(tasks) = std::fs::read_dir(format!("/proc/{parent}/task")) else { return children };
+    let Ok(tasks) = std::fs::read_dir(format!("/proc/{parent}/task")) else {
+        return children;
+    };
     for task in tasks.flatten() {
         let (text, bytes_read) = read_a_tasks_file(&task.path().join("children"));
         *read = read.saturating_add(bytes_read);
@@ -562,21 +650,33 @@ fn look(reader: i32) -> Option<Look> {
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
     let own_task: String = format!("/proc/{own}/task/{reader}");
     let readers: Vec<Reader> = the_readers();
-    let mut leaving_out: Vec<i32> = readers.iter().map(|each: &Reader| { return each.thread; }).collect();
+    let mut leaving_out: Vec<i32> = readers
+        .iter()
+        .map(|each: &Reader| {
+            return each.thread;
+        })
+        .collect();
     if !leaving_out.contains(&reader) {
         leaving_out.push(reader);
     }
     // What the looking thread moved that no reading of its own accounts for is the run's work, and the reading that
     //  learns this is itself taken off the next look (`Tally::add_the_readers_own_counters`).
     let own_readings: u64 = OWN_READINGS.with(std::cell::Cell::get);
-    tally.add_the_readers_own_counters(own, reader, std::path::Path::new(own_task.as_str()), own_readings);
+    tally.add_the_readers_own_counters(
+        own,
+        reader,
+        std::path::Path::new(own_task.as_str()),
+        own_readings,
+    );
     // Another reader's disk wait is work whatever reader took the look, and nothing else of it is counted: its bytes
     //  would be its own readings, which only its own looks can take off.
     for each in &readers {
         if each.thread == reader {
             continue;
         }
-        tally.add_a_readers_disk_wait(std::path::Path::new(format!("/proc/{own}/task/{}", each.thread).as_str()));
+        tally.add_a_readers_disk_wait(std::path::Path::new(
+            format!("/proc/{own}/task/{}", each.thread).as_str(),
+        ));
     }
     tally.add_process(own, leaving_out.as_slice());
     let mut read_by_the_walk: u64 = 0;
@@ -587,11 +687,19 @@ fn look(reader: i32) -> Option<Look> {
     // Every byte this look read was read by this thread, so its next look takes exactly these off. The booking comes
     //  before the look is judged readable, so a look that found no task's counters to read still leaves nothing of its
     //  own readings behind.
-    OWN_READINGS.with(|readings: &std::cell::Cell<u64>| { readings.set(own_readings.saturating_add(tally.read_bytes)); });
+    OWN_READINGS.with(|readings: &std::cell::Cell<u64>| {
+        readings.set(own_readings.saturating_add(tally.read_bytes));
+    });
     if !tally.readable {
         return None;
     }
-    return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members, tasks: tally.tasks });
+    return Some(Look {
+        bytes: tally.bytes,
+        ticks: tally.ticks,
+        working: tally.working,
+        members: tally.members,
+        tasks: tally.tasks,
+    });
 }
 
 /// What:
@@ -626,7 +734,12 @@ impl Judge {
     /// A judge for a window,
     /// which has seen nothing yet.
     pub(crate) fn new(window: Duration) -> Judge {
-        return Judge { window, last_change: Duration::ZERO, last_read: None, previous: None };
+        return Judge {
+            window,
+            last_change: Duration::ZERO,
+            last_read: None,
+            previous: None,
+        };
     }
 
     /// Judge one look taken `elapsed` after the run started;
@@ -636,7 +749,11 @@ impl Judge {
     ///  running through it,
     /// so a run whose counters never come back ends,
     /// and a later look that reads the run counts again.
-    pub(crate) fn observe(&mut self, elapsed: Duration, look: Option<Look>) -> Option<Ending> {
+    pub(crate) fn observe(
+        &mut self,
+        elapsed: Duration,
+        look: Option<Look>,
+    ) -> Option<Ending> {
         let Some(current): Option<Look> = look else {
             return self.ending_without_a_look(elapsed);
         };
@@ -645,7 +762,9 @@ impl Judge {
         //  where a task that ended only leaves the totals smaller and that is not the run doing anything.
         let moved: bool = self.previous.as_ref().is_none_or(|before: &Look| {
             return current.tasks.iter().any(|now: &TaskFigures| {
-                return match before.tasks.iter().find(|then: &&TaskFigures| { return then.task == now.task; }) {
+                return match before.tasks.iter().find(|then: &&TaskFigures| {
+                    return then.task == now.task;
+                }) {
                     Some(then) => now.bytes > then.bytes || now.ticks > then.ticks,
                     // A task this look sees and the look before it did not is a task that started.
                     None => true,
@@ -676,10 +795,17 @@ impl Judge {
     ///     ? (elapsedMs >= windowMs ? unmeasurable(elapsedMs) : undefined)
     ///     : (elapsedMs - lastRead >= windowMs ? unreadable(elapsedMs - lastRead) : quiet(elapsedMs));
     /// ```
-    fn ending_without_a_look(&self, elapsed: Duration) -> Option<Ending> {
+    fn ending_without_a_look(
+        &self,
+        elapsed: Duration,
+    ) -> Option<Ending> {
         let Some(last_read): Option<Duration> = self.last_read else {
             // No look has read this system's counters yet, so until one does the wall clock is the bound.
-            return if elapsed >= self.window { Some(Ending::Unmeasurable(elapsed)) } else { None };
+            return if elapsed >= self.window {
+                Some(Ending::Unmeasurable(elapsed))
+            } else {
+                None
+            };
         };
         let unread: Duration = elapsed.saturating_sub(last_read);
         if unread >= self.window {
@@ -701,9 +827,16 @@ impl Judge {
     /// ```ts
     /// const quiet = elapsedMs - lastChangeMs; return quiet >= windowMs ? { kind: 'quiet', quietMs: quiet } : undefined;
     /// ```
-    fn ending_after_the_quiet_stretch(&self, elapsed: Duration) -> Option<Ending> {
+    fn ending_after_the_quiet_stretch(
+        &self,
+        elapsed: Duration,
+    ) -> Option<Ending> {
         let quiet: Duration = elapsed.saturating_sub(self.last_change);
-        return if quiet >= self.window { Some(Ending::Quiet(quiet)) } else { None };
+        return if quiet >= self.window {
+            Some(Ending::Quiet(quiet))
+        } else {
+            None
+        };
     }
 }
 
@@ -725,7 +858,10 @@ impl Judge {
 /// function watch(windowMs) { try { spawnThread(() => run(windowMs)); } catch {} }
 /// ```
 pub(crate) fn watch(window: Duration) -> Option<std::thread::JoinHandle<()>> {
-    return std::thread::Builder::new().name(String::from("unit-test-watchdog")).spawn(move || { run(window) }).ok();
+    return std::thread::Builder::new()
+        .name(String::from("unit-test-watchdog"))
+        .spawn(move || run(window))
+        .ok();
 }
 
 /// What:
@@ -746,7 +882,9 @@ pub(crate) fn watch(window: Duration) -> Option<std::thread::JoinHandle<()>> {
 /// function lookNow(): Look | undefined { looksTaken.set(looksTaken.get() + 1); return look(currentThreadId()) }
 /// ```
 pub(crate) fn look_now() -> Option<Look> {
-    LOOKS_TAKEN.with(|taken: &std::cell::Cell<u64>| { taken.set(taken.get().saturating_add(1)); });
+    LOOKS_TAKEN.with(|taken: &std::cell::Cell<u64>| {
+        taken.set(taken.get().saturating_add(1));
+    });
     // This thread's own readings of the run are not the run's work (`OWN_READINGS`), so a look it takes with no
     //  registration of its own is taken off its next look, and a run that only reads it is still judged quiet.
     // The registration leaves this thread out of the run's own tasks while its look is taken, as it does for a wait.

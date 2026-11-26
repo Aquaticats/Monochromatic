@@ -47,9 +47,18 @@
 //! const bus = await connect(address, 5000); await bus.startUnit('cli-git.socket', 'replace'); // throws with the error name
 //! ```
 
-pub use crate::systemd_dbus_wire_format::{CallError, Reply, Target, decode_reply, encode_call};
+pub use crate::systemd_dbus_wire_format::{
+    CallError,
+    Reply,
+    Target,
+    decode_reply,
+    encode_call,
+};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The manager's object path.
 pub const MANAGER_PATH: &str = "/org/freedesktop/systemd1";
@@ -76,24 +85,53 @@ pub const MANAGER_NAME: &str = "org.freedesktop.systemd1";
 
 /// `Hello` on the bus daemon,
 /// the first call of every connection.
-pub const HELLO: Target<'static> = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
+pub const HELLO: Target<'static> = Target {
+    destination: BUS_NAME,
+    path: BUS_PATH,
+    interface: BUS_NAME,
+    member: "Hello",
+};
 
 /// `StartUnit` on the user manager.
-pub const START_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
+pub const START_UNIT: Target<'static> = Target {
+    destination: MANAGER_NAME,
+    path: MANAGER_PATH,
+    interface: MANAGER_INTERFACE,
+    member: "StartUnit",
+};
 
 /// `RestartUnit` on the user manager.
-pub const RESTART_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "RestartUnit" };
+pub const RESTART_UNIT: Target<'static> = Target {
+    destination: MANAGER_NAME,
+    path: MANAGER_PATH,
+    interface: MANAGER_INTERFACE,
+    member: "RestartUnit",
+};
 
 /// `StopUnit` on the user manager.
-pub const STOP_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
+pub const STOP_UNIT: Target<'static> = Target {
+    destination: MANAGER_NAME,
+    path: MANAGER_PATH,
+    interface: MANAGER_INTERFACE,
+    member: "StopUnit",
+};
 
 /// `ResetFailedUnit` on the user manager.
-pub const RESET_FAILED_UNIT: Target<'static> =
-    Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "ResetFailedUnit" };
+pub const RESET_FAILED_UNIT: Target<'static> = Target {
+    destination: MANAGER_NAME,
+    path: MANAGER_PATH,
+    interface: MANAGER_INTERFACE,
+    member: "ResetFailedUnit",
+};
 
 /// `GetUnit` on the user manager:
 /// the object path of a loaded unit.
-pub const GET_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "GetUnit" };
+pub const GET_UNIT: Target<'static> = Target {
+    destination: MANAGER_NAME,
+    path: MANAGER_PATH,
+    interface: MANAGER_INTERFACE,
+    member: "GetUnit",
+};
 
 /// The job mode that applies a stop to the named unit only,
 /// leaving the units that require it running.
@@ -121,7 +159,10 @@ pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
 /// not the bus's own words.
 /// `ServiceUnknown` is what a bus says when no unit and no program owns the name;
 /// `NameHasNoOwner` is what it says when the name was owned and has gone.
-pub const NO_MANAGER_ON_THE_BUS: [&str; 2] = ["org.freedesktop.DBus.Error.ServiceUnknown", "org.freedesktop.DBus.Error.NameHasNoOwner"];
+pub const NO_MANAGER_ON_THE_BUS: [&str; 2] = [
+    "org.freedesktop.DBus.Error.ServiceUnknown",
+    "org.freedesktop.DBus.Error.NameHasNoOwner",
+];
 
 /// Whether an error name says the bus that answered carries no user service manager.
 ///
@@ -140,7 +181,11 @@ const UNKNOWN_OBJECT: &str = "org.freedesktop.DBus.Error.UnknownObject";
 /// or an error when it ran out.
 fn remaining(deadline: Instant) -> Result<Duration, CallError> {
     let left: Duration = deadline.saturating_duration_since(Instant::now());
-    return if left.is_zero() { Err(CallError::TimedOut) } else { Ok(left) };
+    return if left.is_zero() {
+        Err(CallError::TimedOut)
+    } else {
+        Ok(left)
+    };
 }
 
 /// A socket failure as the call's error:
@@ -170,7 +215,10 @@ fn bus_in_directory(directory: &Path) -> std::path::PathBuf {
 /// The path of the session bus socket:
 /// the `unix:path=` entry of the address variable,
 /// else `$XDG_RUNTIME_DIR/bus`.
-pub fn session_bus_path(address: Option<&str>, runtime_dir: Option<&Path>) -> Option<std::path::PathBuf> {
+pub fn session_bus_path(
+    address: Option<&str>,
+    runtime_dir: Option<&Path>,
+) -> Option<std::path::PathBuf> {
     // The first `unix:` entry that names a usable `path=` option wins; an entry that does not is skipped.
     let mut from_address: Option<std::path::PathBuf> = None;
     if let Some(list) = address {
@@ -235,11 +283,16 @@ fn malformed(error: impl std::fmt::Display) -> CallError {
 /// ```
 fn zbus_failure(error: zbus::Error) -> CallError {
     return match error {
-        zbus::Error::MethodError(name, text, _message) => CallError::Manager { name: name.to_string(), text: text.unwrap_or_default() },
+        zbus::Error::MethodError(name, text, _message) => CallError::Manager {
+            name: name.to_string(),
+            text: text.unwrap_or_default(),
+        },
         zbus::Error::InputOutput(io) => socket_failure(&io),
         zbus::Error::Handshake(text) => CallError::Authentication(text),
         zbus::Error::Address(text) => CallError::Connection(text),
-        other if other.to_string().starts_with("failed to connect") => CallError::Connection(other.to_string()),
+        other if other.to_string().starts_with("failed to connect") => {
+            CallError::Connection(other.to_string())
+        }
         other => CallError::Malformed(other.to_string()),
     };
 }
@@ -257,7 +310,10 @@ fn zbus_failure(error: zbus::Error) -> CallError {
 /// ```ts
 /// await Promise.race([work, delay(deadline - now)]).catch(() => { throw timedOut });
 /// ```
-fn bounded<T, F>(deadline: Instant, work: F) -> Result<T, CallError>
+fn bounded<T, F>(
+    deadline: Instant,
+    work: F,
+) -> Result<T, CallError>
 where
     F: std::future::Future<Output = Result<T, CallError>>,
 {
@@ -288,13 +344,22 @@ impl Bus {
     /// ```ts
     /// const bus = await Bus.connect(path, 20000)
     /// ```
-    pub fn connect(socket: &Path, wait: Duration) -> Result<Bus, CallError> {
+    pub fn connect(
+        socket: &Path,
+        wait: Duration,
+    ) -> Result<Bus, CallError> {
         let deadline: Instant = Instant::now() + wait;
         let address: String = format!("unix:path={}", socket.display());
         let connection: zbus::Connection = bounded(deadline, async move {
-            return zbus::connection::Builder::address(address.as_str()).build().await.map_err(zbus_failure);
+            return zbus::connection::Builder::address(address.as_str())
+                .build()
+                .await
+                .map_err(zbus_failure);
         })?;
-        return Ok(Bus { connection, deadline });
+        return Ok(Bus {
+            connection,
+            deadline,
+        });
     }
 
     /// What:
@@ -312,7 +377,10 @@ impl Bus {
     /// ```ts
     /// bus.within(10000) // the next calls may take ten seconds in all
     /// ```
-    pub fn within(&mut self, wait: Duration) {
+    pub fn within(
+        &mut self,
+        wait: Duration,
+    ) {
         self.deadline = Instant::now() + wait;
     }
 
@@ -328,26 +396,49 @@ impl Bus {
     /// ```ts
     /// await manager.call('StartUnit', [name, 'replace'])
     /// ```
-    fn call_manager<B>(&self, member: &'static str, body: B) -> Result<zbus::Message, CallError>
+    fn call_manager<B>(
+        &self,
+        member: &'static str,
+        body: B,
+    ) -> Result<zbus::Message, CallError>
     where
         B: zbus::export::serde::Serialize + zbus::wire::Type + Send + 'static,
     {
         let connection: zbus::Connection = self.connection.clone();
         return bounded(self.deadline, async move {
-            return connection.call_method(Some(MANAGER_NAME), MANAGER_PATH, Some(MANAGER_INTERFACE), member, &body).await.map_err(zbus_failure);
+            return connection
+                .call_method(
+                    Some(MANAGER_NAME),
+                    MANAGER_PATH,
+                    Some(MANAGER_INTERFACE),
+                    member,
+                    &body,
+                )
+                .await
+                .map_err(zbus_failure);
         });
     }
 
     /// Clears a unit's failed state and its start-rate counter,
     /// so a start is not refused as "repeated too quickly".
-    pub fn reset_failed(&mut self, name: &str) -> Result<(), CallError> {
-        return self.call_manager("ResetFailedUnit", (name.to_string(),)).map(drop);
+    pub fn reset_failed(
+        &mut self,
+        name: &str,
+    ) -> Result<(), CallError> {
+        return self
+            .call_manager("ResetFailedUnit", (name.to_string(),))
+            .map(drop);
     }
 
     /// Stops a unit,
     /// replacing a queued job for it.
-    pub fn stop_unit(&mut self, name: &str) -> Result<(), CallError> {
-        return self.call_manager("StopUnit", (name.to_string(), String::from("replace"))).map(drop);
+    pub fn stop_unit(
+        &mut self,
+        name: &str,
+    ) -> Result<(), CallError> {
+        return self
+            .call_manager("StopUnit", (name.to_string(), String::from("replace")))
+            .map(drop);
     }
 
     /// What:
@@ -364,14 +455,27 @@ impl Bus {
     /// ```ts
     /// await bus.stopUnitAlone('cli-git@3f9a.socket') // the service of that socket keeps running
     /// ```
-    pub fn stop_unit_alone(&mut self, name: &str) -> Result<(), CallError> {
-        return self.call_manager("StopUnit", (name.to_string(), String::from(STOP_ALONE_MODE))).map(drop);
+    pub fn stop_unit_alone(
+        &mut self,
+        name: &str,
+    ) -> Result<(), CallError> {
+        return self
+            .call_manager(
+                "StopUnit",
+                (name.to_string(), String::from(STOP_ALONE_MODE)),
+            )
+            .map(drop);
     }
 
     /// Starts a unit,
     /// replacing a queued job for it.
-    pub fn start_unit(&mut self, name: &str) -> Result<(), CallError> {
-        return self.call_manager("StartUnit", (name.to_string(), String::from("replace"))).map(drop);
+    pub fn start_unit(
+        &mut self,
+        name: &str,
+    ) -> Result<(), CallError> {
+        return self
+            .call_manager("StartUnit", (name.to_string(), String::from("replace")))
+            .map(drop);
     }
 
     /// What:
@@ -393,8 +497,13 @@ impl Bus {
     /// ```ts
     /// await manager.call('RestartUnit', [name, 'replace'])
     /// ```
-    pub fn restart_unit(&mut self, name: &str) -> Result<(), CallError> {
-        return self.call_manager("RestartUnit", (name.to_string(), String::from("replace"))).map(drop);
+    pub fn restart_unit(
+        &mut self,
+        name: &str,
+    ) -> Result<(), CallError> {
+        return self
+            .call_manager("RestartUnit", (name.to_string(), String::from("replace")))
+            .map(drop);
     }
 
     /// What:
@@ -419,20 +528,32 @@ impl Bus {
     /// ```ts
     /// await bus.activeState('cli-git.service') // 'deactivating' | 'inactive' | undefined
     /// ```
-    pub fn active_state(&mut self, name: &str) -> Result<Option<String>, CallError> {
+    pub fn active_state(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<String>, CallError> {
         let path: String = match self.call_manager("GetUnit", (name.to_string(),)) {
             Ok(reply) => reply
                 .body()
                 .deserialize::<zbus::OwnedObjectPath>()
                 .map_err(malformed)?
                 .to_string(),
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
+            Err(CallError::Manager {
+                name: error,
+                ..
+            }) if error == NO_SUCH_UNIT => return Ok(None),
             Err(error) => return Err(error),
         };
         let connection: zbus::Connection = self.connection.clone();
         let reply = bounded(self.deadline, async move {
             return connection
-                .call_method(Some(MANAGER_NAME), path.as_str(), Some(PROPERTIES_INTERFACE), "Get", &(UNIT_INTERFACE, "ActiveState"))
+                .call_method(
+                    Some(MANAGER_NAME),
+                    path.as_str(),
+                    Some(PROPERTIES_INTERFACE),
+                    "Get",
+                    &(UNIT_INTERFACE, "ActiveState"),
+                )
                 .await
                 .map_err(zbus_failure);
         });
@@ -444,7 +565,10 @@ impl Bus {
                     Err(error) => Err(CallError::Malformed(error.to_string())),
                 }
             }
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => Ok(None),
+            Err(CallError::Manager {
+                name: error,
+                ..
+            }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => Ok(None),
             Err(error) => Err(error),
         };
     }
@@ -466,34 +590,50 @@ impl Bus {
     /// ```ts
     /// await bus.listenAddresses('cli-git@3f9a.socket') // ['/run/user/1000/cli-git/3f9a.sock']
     /// ```
-    pub fn listen_addresses(&mut self, name: &str) -> Result<Option<Vec<String>>, CallError> {
+    pub fn listen_addresses(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         let path: String = match self.call_manager("GetUnit", (name.to_string(),)) {
             Ok(reply) => reply
                 .body()
                 .deserialize::<zbus::OwnedObjectPath>()
                 .map_err(malformed)?
                 .to_string(),
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
+            Err(CallError::Manager {
+                name: error,
+                ..
+            }) if error == NO_SUCH_UNIT => return Ok(None),
             Err(error) => return Err(error),
         };
         let connection: zbus::Connection = self.connection.clone();
         let reply = bounded(self.deadline, async move {
             return connection
-                .call_method(Some(MANAGER_NAME), path.as_str(), Some(PROPERTIES_INTERFACE), "Get", &(SOCKET_INTERFACE, "Listen"))
+                .call_method(
+                    Some(MANAGER_NAME),
+                    path.as_str(),
+                    Some(PROPERTIES_INTERFACE),
+                    "Get",
+                    &(SOCKET_INTERFACE, "Listen"),
+                )
                 .await
                 .map_err(zbus_failure);
         });
         let message = match reply {
             Ok(answered) => answered,
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => return Ok(None),
+            Err(CallError::Manager {
+                name: error,
+                ..
+            }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => return Ok(None),
             Err(error) => return Err(error),
         };
         let value: zbus::OwnedVariant = message.body().deserialize().map_err(malformed)?;
         // `Listen` is one entry per address, each a kind (`Stream`, `Datagram`, ...) and the address text.
-        let pairs: Vec<(String, String)> = match Vec::<(String, String)>::try_from(zbus::Variant::from(value)) {
-            Ok(read) => read,
-            Err(error) => return Err(CallError::Malformed(error.to_string())),
-        };
+        let pairs: Vec<(String, String)> =
+            match Vec::<(String, String)>::try_from(zbus::Variant::from(value)) {
+                Ok(read) => read,
+                Err(error) => return Err(CallError::Malformed(error.to_string())),
+            };
         let mut addresses: Vec<String> = Vec::new();
         for (_kind, address) in pairs {
             addresses.push(address);

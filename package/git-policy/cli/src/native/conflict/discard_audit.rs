@@ -32,18 +32,28 @@
 //! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-audit.jsonl'), JSON.stringify(entry) + '\n');
 //! ```
 
+use crate::diagnostic_log::debug;
 use crate::discard_audit_facts::AuditFact;
 use crate::discard_audit_pins::names_a_copy_on_disk;
-use crate::discard_audit_record::{AuditRecord, DecidedForm, audit_line};
-use crate::diagnostic_log::debug;
-/// `OsString` is owned operating-system text of raw bytes.
-use std::ffi::OsString;
-use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, LogRetention};
+use crate::discard_audit_record::{
+    AuditRecord,
+    DecidedForm,
+    audit_line,
+};
+use crate::log_generations_kept_to_a_bound::{
+    LOG_HISTORY_BYTES,
+    LogRetention,
+};
 use crate::log_lines_appended_without_a_lock::append_line;
 use crate::rule_linked_worktree::GuardedCommand;
-use crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG;
 use crate::worktree_identity::WorktreeIdentity;
-use std::path::{Path, PathBuf};
+use crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG;
+/// `OsString` is owned operating-system text of raw bytes.
+use std::ffi::OsString;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file inside the common Git directory that collects the lines of every worktree of the repository.
 pub const AUDIT_FILE: &str = DISCARD_AUDIT_LOG.current;
@@ -62,7 +72,10 @@ pub const AUDIT_FILE: &str = DISCARD_AUDIT_LOG.current;
 /// so no other log pins a generation.
 /// The measurement
 ///  behind the bound is beside `LOG_HISTORY_BYTES`.
-pub const AUDIT_RETENTION: LogRetention = LogRetention { budget: LOG_HISTORY_BYTES, pins: names_a_copy_on_disk };
+pub const AUDIT_RETENTION: LogRetention = LogRetention {
+    budget: LOG_HISTORY_BYTES,
+    pins: names_a_copy_on_disk,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "discardAudit";
@@ -137,13 +150,22 @@ impl AuditOutcome {
 pub fn audit_place(identity: &WorktreeIdentity) -> Option<(PathBuf, &'static str)> {
     match identity {
         WorktreeIdentity::OutsideWorktree => return None,
-        WorktreeIdentity::BareRepository { common_dir, .. } => {
+        WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => {
             return Some((common_dir.clone(), "bare"));
         }
-        WorktreeIdentity::MainWorktree { common_dir, .. } => {
+        WorktreeIdentity::MainWorktree {
+            common_dir,
+            ..
+        } => {
             return Some((common_dir.clone(), "main"));
         }
-        WorktreeIdentity::LinkedWorktree { common_dir, .. } => {
+        WorktreeIdentity::LinkedWorktree {
+            common_dir,
+            ..
+        } => {
             return Some((common_dir.clone(), "linked"));
         }
     }
@@ -154,7 +176,18 @@ pub fn audit_place(identity: &WorktreeIdentity) -> Option<(PathBuf, &'static str
 pub fn audit_git_dir(identity: &WorktreeIdentity) -> Option<&Path> {
     return match identity {
         WorktreeIdentity::OutsideWorktree => None,
-        WorktreeIdentity::BareRepository { git_dir, .. } | WorktreeIdentity::MainWorktree { git_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, .. } => Some(git_dir.as_path()),
+        WorktreeIdentity::BareRepository {
+            git_dir,
+            ..
+        }
+        | WorktreeIdentity::MainWorktree {
+            git_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            git_dir,
+            ..
+        } => Some(git_dir.as_path()),
     };
 }
 
@@ -266,7 +299,8 @@ pub fn record_audit_with_copies_and_facts(
     };
     let target: PathBuf = place.0.join(AUDIT_FILE);
     let git_dir: &Path = audit_git_dir(identity).unwrap_or(place.0.as_path());
-    let time_millis: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+    let time_millis: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+    {
         Ok(elapsed) => elapsed.as_millis(),
         Err(_) => 0,
     };
@@ -286,7 +320,13 @@ pub fn record_audit_with_copies_and_facts(
         facts,
     });
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &AUDIT_RETENTION) {
-        debug(TAG, &format!("the audit record could not be written to {}: {error}", target.display()));
+        debug(
+            TAG,
+            &format!(
+                "the audit record could not be written to {}: {error}",
+                target.display()
+            ),
+        );
     }
 }
 

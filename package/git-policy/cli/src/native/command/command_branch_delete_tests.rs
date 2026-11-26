@@ -11,8 +11,17 @@
 //! // branchDeletions(['-D', 'gone', 'other']) === ['gone', 'other']
 //! ```
 
-use super::{branch_deletion, branch_deletions};
-use crate::command_test_support::{git, git_status, os_arguments, remove, repository};
+use super::{
+    branch_deletion,
+    branch_deletions,
+};
+use crate::command_test_support::{
+    git,
+    git_status,
+    os_arguments,
+    remove,
+    repository,
+};
 use crate::test_support::fixture;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -85,7 +94,10 @@ fn a_form_that_deletes_no_branch_is_not_read() {
 fn real_git_deletes_what_the_reader_names() {
     let root: PathBuf = fixture("branch-delete-spellings");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=base"],
+    );
     for values in [
         vec!["-d", "short"],
         vec!["-D", "forced"],
@@ -100,22 +112,38 @@ fn real_git_deletes_what_the_reader_names() {
         let mut spelled: Vec<&str> = vec!["branch"];
         spelled.extend(values.iter().copied());
         let output: std::process::Output = git_status(repo.as_path(), spelled.as_slice());
-        assert!(output.status.success(), "{values:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-        assert!(branch_list(repo.as_path(), name).is_empty(), "{values:?} kept {name}");
+        assert!(
+            output.status.success(),
+            "{values:?}: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+        assert!(
+            branch_list(repo.as_path(), name).is_empty(),
+            "{values:?} kept {name}"
+        );
     }
     // The reader calls this one no deletion, and Git agrees: it creates the branch.
     assert_eq!(deletions(&["topic"]), None);
     let created: std::process::Output = git_status(repo.as_path(), &["branch", "topic"]);
-    assert!(created.status.success(), "{}", String::from_utf8_lossy(created.stderr.as_slice()));
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(created.stderr.as_slice())
+    );
     assert!(branch_list(repo.as_path(), "topic").contains("topic"));
     remove(root.as_path());
 }
 
 /// The `git branch --list` line of one name,
 /// or empty text when there is no such branch.
-fn branch_list(repo: &std::path::Path, name: &str) -> String {
+fn branch_list(
+    repo: &std::path::Path,
+    name: &str,
+) -> String {
     let output: std::process::Output = git(repo, &["branch", "--list", name]);
-    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    return String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
 }
 
 /// A deletion names the reference namespace it deletes from,
@@ -130,9 +158,14 @@ fn a_deletion_names_the_namespace_it_deletes_from() {
         vec!["-Dr", "origin/gone"],
         vec!["-d", "--remotes", "origin/gone"],
     ] {
-        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        let deletion =
+            branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
         assert!(deletion.remotes, "{spelled:?}");
-        assert_eq!(deletion.names, vec![OsString::from("origin/gone")], "{spelled:?}");
+        assert_eq!(
+            deletion.names,
+            vec![OsString::from("origin/gone")],
+            "{spelled:?}"
+        );
     }
     for spelled in [
         vec!["-D", "gone"],
@@ -141,7 +174,8 @@ fn a_deletion_names_the_namespace_it_deletes_from() {
         vec!["-ur", "-D", "gone"],
         vec!["-u", "r", "-D", "gone"],
     ] {
-        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        let deletion =
+            branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
         assert!(!deletion.remotes, "{spelled:?}");
     }
     assert_eq!(branch_deletion(os_arguments(&["--list"]).as_slice()), None);
@@ -161,13 +195,19 @@ fn the_namespace_is_read_the_way_gits_parser_reads_it() {
         vec!["-rD", "origin/gone"],
         vec!["--all", "-D", "origin/gone"],
     ] {
-        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        let deletion =
+            branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
         // `--all` lists every branch, and a deletion under it still deletes the local one.
         let expected: bool = spelled[0] != "--all";
         assert_eq!(deletion.remotes, expected, "{spelled:?}");
-        assert_eq!(deletion.names, vec![OsString::from("origin/gone")], "{spelled:?}");
+        assert_eq!(
+            deletion.names,
+            vec![OsString::from("origin/gone")],
+            "{spelled:?}"
+        );
     }
     // A name that follows a value-taking option is that option's value, never a branch to record.
-    let upstream = branch_deletion(os_arguments(&["-u", "origin/main", "-D", "gone"]).as_slice()).expect("a deletion");
+    let upstream = branch_deletion(os_arguments(&["-u", "origin/main", "-D", "gone"]).as_slice())
+        .expect("a deletion");
     assert_eq!(upstream.names, vec![OsString::from("gone")]);
 }

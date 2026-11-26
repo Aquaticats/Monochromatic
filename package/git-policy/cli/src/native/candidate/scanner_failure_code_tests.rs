@@ -14,12 +14,24 @@
 
 /// Import the mappings under test.
 use super::{
-    candidate_failure_code, finding_failure_code, scan_run_failure_code, scanner_failure_code,
+    candidate_failure_code,
+    finding_failure_code,
+    scan_run_failure_code,
+    scanner_failure_code,
 };
 /// Import the failures being mapped and the codes they map to.
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::diagnostics::{EngineFailureCode, engine_failure_code_name};
-use crate::scanner_adapter::{ScannerError, ScannerFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::diagnostics::{
+    EngineFailureCode,
+    engine_failure_code_name,
+};
+use crate::scanner_adapter::{
+    ScannerError,
+    ScannerFailure,
+};
 use crate::scanner_run::ScanRunError;
 use forbidden_strings::ScanFinding;
 

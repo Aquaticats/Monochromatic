@@ -7,7 +7,8 @@ use super::*;
 
 /// The lines a carry onto the moved head writes,
 /// handed to the builder the way the carry hands them.
-const CARRIED_LINES: &str = "monochromatic-git-policy-cli: git merge feature: your changes to a.txt were merged.\n";
+const CARRIED_LINES: &str =
+    "monochromatic-git-policy-cli: git merge feature: your changes to a.txt were merged.\n";
 
 /// What:
 ///  A carry onto the moved head names the branch,
@@ -19,11 +20,22 @@ const CARRIED_LINES: &str = "monochromatic-git-policy-cli: git merge feature: yo
 ///  after the sentence that explains them.
 #[test]
 fn the_carry_onto_the_branch_names_the_commit_it_moved_to() {
-    let line: String = the_carry_onto_the_branch_as_it_is("feature", "refs/heads/main", "abc123", CARRIED_LINES.as_bytes());
+    let line: String = the_carry_onto_the_branch_as_it_is(
+        "feature",
+        "refs/heads/main",
+        "abc123",
+        CARRIED_LINES.as_bytes(),
+    );
     assert!(line.contains("git merge feature"), "{line}");
     assert!(line.contains("refs/heads/main moved to abc123"), "{line}");
-    assert!(line.contains("merged with the branch as it is now"), "{line}");
-    assert!(line.ends_with(CARRIED_LINES), "the carry's own lines follow the sentence: {line}");
+    assert!(
+        line.contains("merged with the branch as it is now"),
+        "{line}"
+    );
+    assert!(
+        line.ends_with(CARRIED_LINES),
+        "the carry's own lines follow the sentence: {line}"
+    );
 }
 
 /// What:

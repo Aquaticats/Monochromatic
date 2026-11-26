@@ -24,7 +24,10 @@
 //! const grants = grantsOf(fsaclReply); // [{ carriedBy, permission, who, inheritance }]
 //! ```
 
-use monochromatic_zfs_request_to_openzfs_kernel_device::{NvData, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    NvData,
+    NvList,
+};
 
 //region The grant model
 
@@ -180,8 +183,12 @@ fn who_of(key: &str) -> (Who, Inheritance) {
         return (Who::Unknown(String::from(key)), inheritance);
     }
     let who: Who = match (who_type, rest.as_str()) {
-        (Some('u' | 'U'), id) => id.parse::<u32>().map_or_else(|_error| return Who::Unknown(String::from(key)), Who::User),
-        (Some('g' | 'G'), id) => id.parse::<u32>().map_or_else(|_error| return Who::Unknown(String::from(key)), Who::Group),
+        (Some('u' | 'U'), id) => id
+            .parse::<u32>()
+            .map_or_else(|_error| return Who::Unknown(String::from(key)), Who::User),
+        (Some('g' | 'G'), id) => id
+            .parse::<u32>()
+            .map_or_else(|_error| return Who::Unknown(String::from(key)), Who::Group),
         (Some('e' | 'E'), "") => Who::Everyone,
         (Some('c' | 'C'), "") => Who::Create,
         (Some('s' | 'S'), name) => Who::NamedSet(String::from(name)),
@@ -203,7 +210,9 @@ fn who_of(key: &str) -> (Who, Inheritance) {
 fn permission_is_granted(data: &NvData) -> bool {
     return match data {
         NvData::BooleanFlag => true,
-        NvData::Boolean { value } => *value,
+        NvData::Boolean {
+            value,
+        } => *value,
         _ => false,
     };
 }
@@ -229,19 +238,36 @@ fn permission_is_granted(data: &NvData) -> bool {
 pub fn grants_of(fsacl: &NvList) -> Result<Vec<Grant>, String> {
     let mut grants: Vec<Grant> = Vec::new();
     for dataset in &fsacl.pairs {
-        let NvData::List { value: holders } = &dataset.data else {
-            return Err(format!("`{}` is not a list of holders, which is what the kernel writes for a dataset's delegation", dataset.name));
+        let NvData::List {
+            value: holders,
+        } = &dataset.data
+        else {
+            return Err(format!(
+                "`{}` is not a list of holders, which is what the kernel writes for a dataset's delegation",
+                dataset.name
+            ));
         };
         for holder in &holders.pairs {
-            let NvData::List { value: permissions } = &holder.data else {
-                return Err(format!("`{}` below `{}` is not a list of permissions", holder.name, dataset.name));
+            let NvData::List {
+                value: permissions,
+            } = &holder.data
+            else {
+                return Err(format!(
+                    "`{}` below `{}` is not a list of permissions",
+                    holder.name, dataset.name
+                ));
             };
             let (who, inheritance) = who_of(&holder.name);
             for permission in &permissions.pairs {
                 if !permission_is_granted(&permission.data) {
                     continue;
                 }
-                grants.push(Grant { carried_by: dataset.name.clone(), permission: permission.name.clone(), who: who.clone(), inheritance });
+                grants.push(Grant {
+                    carried_by: dataset.name.clone(),
+                    permission: permission.name.clone(),
+                    who: who.clone(),
+                    inheritance,
+                });
             }
         }
     }
@@ -249,7 +275,10 @@ pub fn grants_of(fsacl: &NvList) -> Result<Vec<Grant>, String> {
 }
 
 /// Whether a grant names the account itself.
-pub(super) fn grants_the_account(grant: &Grant, facts: &DelegationFacts) -> bool {
+pub(super) fn grants_the_account(
+    grant: &Grant,
+    facts: &DelegationFacts,
+) -> bool {
     return match &grant.who {
         Who::User(id) => *id == facts.account,
         Who::Group(id) => facts.groups.contains(id),
@@ -300,7 +329,10 @@ pub(super) fn names_a_set(name: &str) -> bool {
 /// ```ts
 /// const reachesTheAccount = (grant) => grantsTheAccount(grant, facts) || grant.who.kind === 'everyone' || grant.who.kind === 'create';
 /// ```
-fn reaches_the_account(grant: &Grant, facts: &DelegationFacts) -> bool {
+fn reaches_the_account(
+    grant: &Grant,
+    facts: &DelegationFacts,
+) -> bool {
     return grants_the_account(grant, facts) || matches!(grant.who, Who::Everyone | Who::Create);
 }
 
@@ -366,7 +398,10 @@ pub(super) fn held_sets<'a>(facts: &'a DelegationFacts) -> Vec<HeldSet<'a>> {
     let mut pending: Vec<HeldSet<'a>> = Vec::new();
     for entry in &facts.grants {
         if names_a_set(&entry.permission) && reaches_the_account(entry, facts) {
-            pending.push(HeldSet { name: entry.permission.as_str(), source: entry });
+            pending.push(HeldSet {
+                name: entry.permission.as_str(),
+                source: entry,
+            });
         }
     }
     while let Some(set) = pending.pop() {
@@ -378,7 +413,10 @@ pub(super) fn held_sets<'a>(facts: &'a DelegationFacts) -> Vec<HeldSet<'a>> {
                 continue;
             };
             if name.as_str() == set.name && names_a_set(&entry.permission) {
-                pending.push(HeldSet { name: entry.permission.as_str(), source: set.source });
+                pending.push(HeldSet {
+                    name: entry.permission.as_str(),
+                    source: set.source,
+                });
             }
         }
         held.push(set);
@@ -424,7 +462,10 @@ pub(super) fn set_memberships<'a>(facts: &'a DelegationFacts) -> Vec<SetMembersh
                 continue;
             };
             if name.as_str() == held.name {
-                memberships.push(SetMembership { held, member: entry });
+                memberships.push(SetMembership {
+                    held,
+                    member: entry,
+                });
             }
         }
     }

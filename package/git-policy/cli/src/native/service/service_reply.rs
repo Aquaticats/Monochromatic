@@ -23,11 +23,24 @@
 //! const [reply, messages] = makeReply(); queue.push({ request, reply }); await writeUntilAnswered(socket, messages, HEARTBEAT_EVERY);
 //! ```
 
-use crate::service_protocol::{ServiceMessage, encode_service};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::service_protocol::{
+    ServiceMessage,
+    encode_service,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use std::time::Duration;
-use tokio::io::{AsyncWrite, AsyncWriteExt};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::io::{
+    AsyncWrite,
+    AsyncWriteExt,
+};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// What:
 ///  The landing thread's end of one client's messages.
@@ -60,7 +73,12 @@ impl Reply {
     pub fn new() -> (Self, UnboundedReceiver<ServiceMessage>) {
         let (sender, receiver) = unbounded_channel();
         let _taken = WAITING.fetch_add(1, Ordering::SeqCst);
-        return (Self { sender }, receiver);
+        return (
+            Self {
+                sender,
+            },
+            receiver,
+        );
     }
 
     /// How many requests this process has taken and not yet answered,
@@ -73,7 +91,10 @@ impl Reply {
     /// a client that went away has nothing to be told.
     /// Never waits,
     /// so the landing thread that sends and a task that writes never hold each other.
-    pub fn send(&self, message: &ServiceMessage) {
+    pub fn send(
+        &self,
+        message: &ServiceMessage,
+    ) {
         let _queued = self.sender.send(message.clone());
     }
 
@@ -120,7 +141,10 @@ impl Drop for Reply {
 
 /// Writes `message` and a newline to `stream` as one write;
 /// false when the client is gone.
-async fn write_line<Stream: AsyncWrite + Unpin>(stream: &mut Stream, message: &ServiceMessage) -> bool {
+async fn write_line<Stream: AsyncWrite + Unpin>(
+    stream: &mut Stream,
+    message: &ServiceMessage,
+) -> bool {
     let mut line: String = encode_service(message);
     line.push('\n');
     return stream.write_all(line.as_bytes()).await.is_ok();
@@ -145,7 +169,11 @@ async fn write_line<Stream: AsyncWrite + Unpin>(stream: &mut Stream, message: &S
 /// ```ts
 /// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
-pub async fn write_until_answered<Stream: AsyncWrite + Unpin>(stream: &mut Stream, messages: &mut UnboundedReceiver<ServiceMessage>, every: Duration) {
+pub async fn write_until_answered<Stream: AsyncWrite + Unpin>(
+    stream: &mut Stream,
+    messages: &mut UnboundedReceiver<ServiceMessage>,
+    every: Duration,
+) {
     write_until_answered_noting(stream, messages, every, &mut NothingToSay).await;
 }
 

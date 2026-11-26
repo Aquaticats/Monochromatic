@@ -15,9 +15,15 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
+use crate::merge_isolation_journal::{
+    MergeIntent,
+    remove_merge_intent,
+};
 use crate::merge_isolation_recovery_reads::resolve_commit_awaiting;
-use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace};
+use crate::merge_isolation_recovery_steps::{
+    MergeRefusal,
+    RecoveryPlace,
+};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
@@ -56,7 +62,10 @@ const SIDE_REF_ATTEMPTS: u128 = 8;
 /// const partlyInstalled = (error: RecoveryError): MergeRefusal => ({ error, began: true });
 /// ```
 pub fn partly_installed(error: RecoveryError) -> MergeRefusal {
-    return MergeRefusal { error, began: true };
+    return MergeRefusal {
+        error,
+        began: true,
+    };
 }
 
 /// What:
@@ -71,7 +80,10 @@ pub fn partly_installed(error: RecoveryError) -> MergeRefusal {
 /// const untouched = (error: RecoveryError): MergeRefusal => ({ error, began: false });
 /// ```
 pub fn untouched(error: RecoveryError) -> MergeRefusal {
-    return MergeRefusal { error, began: false };
+    return MergeRefusal {
+        error,
+        began: false,
+    };
 }
 
 /// What:
@@ -129,13 +141,23 @@ pub async fn drop_record_and_side_ref_awaiting(
 /// ```ts
 /// async function dropSideRef({ place, root, intent }): Promise<boolean>;
 /// ```
-pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> bool {
+pub async fn drop_side_ref_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+) -> bool {
     let Some(name) = intent.side_ref.as_deref() else {
         return true;
     };
     // The ref is deleted only while it still holds this merge's commit: another command may have put its own commit on the
     //  name, and that commit may have no other.
-    let arguments: [&str; 5] = ["update-ref", "--no-deref", "-d", name, intent.new_oid.as_str()];
+    let arguments: [&str; 5] = [
+        "update-ref",
+        "--no-deref",
+        "-d",
+        name,
+        intent.new_oid.as_str(),
+    ];
     return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
         Ok(_dropped) => true,
         Err(error) => {
@@ -168,10 +190,16 @@ pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: 
 /// ```ts
 /// async function theNameIsGone({ place, root, name }): Promise<boolean>; // for-each-ref --count=1 --format=%(objectname) <name>
 /// ```
-async fn the_name_is_gone(place: &RecoveryPlace, root: &Path, name: &str) -> bool {
+async fn the_name_is_gone(
+    place: &RecoveryPlace,
+    root: &Path,
+    name: &str,
+) -> bool {
     let arguments: [&str; 4] = ["for-each-ref", "--count=1", "--format=%(objectname)", name];
     return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
-        Ok(output) => output.stdout.iter().all(|byte| { return byte.is_ascii_whitespace(); }),
+        Ok(output) => output.stdout.iter().all(|byte| {
+            return byte.is_ascii_whitespace();
+        }),
         Err(_) => false,
     };
 }
@@ -187,7 +215,11 @@ async fn the_name_is_gone(place: &RecoveryPlace, root: &Path, name: &str) -> boo
 /// ```ts
 /// editsOnTheMergesOwnPaths(root, paths, record): RecoveryError;
 /// ```
-pub fn edits_on_the_merges_own_paths(root: &Path, paths: &[String], record: &Path) -> RecoveryError {
+pub fn edits_on_the_merges_own_paths(
+    root: &Path,
+    paths: &[String],
+    record: &Path,
+) -> RecoveryError {
     return RecoveryError(format!(
         "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor their merged          content: {}. Nothing was changed and the record {} was kept. Save your edits to them elsewhere, restore them with \
          `git restore --no-enforce-worktree -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
@@ -209,7 +241,12 @@ pub fn edits_on_the_merges_own_paths(root: &Path, paths: &[String], record: &Pat
 /// ```ts
 /// stagedWorkOnTheMergesPaths(target, root, paths, record): RecoveryError;
 /// ```
-pub fn staged_work_on_the_merges_paths(target: &str, root: &Path, paths: &[String], record: &Path) -> RecoveryError {
+pub fn staged_work_on_the_merges_paths(
+    target: &str,
+    root: &Path,
+    paths: &[String],
+    record: &Path,
+) -> RecoveryError {
     return RecoveryError(format!(
         "A merge of {target} in {} is unfinished, and the index holds staged content for these paths that the merge would \
          replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the index. Commit or \
@@ -233,7 +270,12 @@ pub fn staged_work_on_the_merges_paths(target: &str, root: &Path, paths: &[Strin
 /// ```ts
 /// noCommitNamesTheMergesParent(target, root, intent, record): RecoveryError;
 /// ```
-pub fn no_commit_names_the_merges_parent(target: &str, root: &Path, intent: &MergeIntent, record: &Path) -> RecoveryError {
+pub fn no_commit_names_the_merges_parent(
+    target: &str,
+    root: &Path,
+    intent: &MergeIntent,
+    record: &Path,
+) -> RecoveryError {
     return RecoveryError(format!(
         "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the record {} was \
          kept. Check `git status` and `git log {target}`; remove the record when {target} is as you want it.",
@@ -256,7 +298,12 @@ pub fn no_commit_names_the_merges_parent(target: &str, root: &Path, intent: &Mer
 /// ```ts
 /// aWorktreeThatSwitched(target, root, checkedOut, record): RecoveryError;
 /// ```
-pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&str>, record: &Path) -> RecoveryError {
+pub fn a_worktree_that_switched(
+    target: &str,
+    root: &Path,
+    checked_out: Option<&str>,
+    record: &Path,
+) -> RecoveryError {
     let landed: &str = checked_out.unwrap_or("a detached HEAD");
     return RecoveryError(format!(
         "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {landed} \
@@ -283,7 +330,13 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
 /// ```ts
 /// aBranchThatCouldNotBePutBack(target, root, checkedOut, record, cause): RecoveryError;
 /// ```
-pub fn a_branch_that_could_not_be_put_back(target: &str, root: &Path, checked_out: Option<&str>, record: &Path, cause: &str) -> RecoveryError {
+pub fn a_branch_that_could_not_be_put_back(
+    target: &str,
+    root: &Path,
+    checked_out: Option<&str>,
+    record: &Path,
+    cause: &str,
+) -> RecoveryError {
     let landed: &str = checked_out.unwrap_or("a detached HEAD");
     return RecoveryError(format!(
         "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {landed} \
@@ -310,7 +363,12 @@ pub fn a_branch_that_could_not_be_put_back(target: &str, root: &Path, checked_ou
 /// ```ts
 /// aLandedMergeInAnotherBranchsWorktree(target, root, checkedOut, record): RecoveryError;
 /// ```
-pub fn a_landed_merge_in_another_branchs_worktree(target: &str, root: &Path, checked_out: Option<&str>, record: &Path) -> RecoveryError {
+pub fn a_landed_merge_in_another_branchs_worktree(
+    target: &str,
+    root: &Path,
+    checked_out: Option<&str>,
+    record: &Path,
+) -> RecoveryError {
     let landed: &str = checked_out.unwrap_or("a detached HEAD");
     return RecoveryError(format!(
         "A merge of {target} in {} is already in {target}, and this worktree has {landed} checked out: the merge's index \
@@ -337,7 +395,12 @@ pub fn a_landed_merge_in_another_branchs_worktree(target: &str, root: &Path, che
 /// ```ts
 /// anInstalledMergeBehindAHeldIndex(target, root, lock, record): RecoveryError;
 /// ```
-pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &Path, record: &Path) -> RecoveryError {
+pub fn an_installed_merge_behind_a_held_index(
+    target: &str,
+    root: &Path,
+    lock: &Path,
+    record: &Path,
+) -> RecoveryError {
     return RecoveryError(format!(
         "A merge of {target} in {} is unfinished, and this merge's index entries are already installed here, but {} stayed \
          held by another program, so nothing more was written and the record {} was kept. A command is stopped rather than \
@@ -385,7 +448,9 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
     //  name of this command's own then, and the line names that name.
     let keeping: String = match resolve_commit_awaiting(place, root, saved_ref).await {
         Ok(Some(found)) if found == intent.new_oid => String::from(saved_ref),
-        Ok(_) => match keep_the_merge_on_a_side_ref_awaiting(place, root, intent.new_oid.as_str()).await {
+        Ok(_) => match keep_the_merge_on_a_side_ref_awaiting(place, root, intent.new_oid.as_str())
+            .await
+        {
             Some(name) => name,
             // No name could be written, so the record stays and the next command tries again: the commit's only other name
             //  is the one this command could not keep.
@@ -404,15 +469,24 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
             }
         },
         // The ref could not be read, so nothing proves a ref keeps the commit and the record stays for the next command.
-        Err(error) => return Err(MergeRefusal { error, began: false }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error,
+                began: false,
+            });
+        }
     };
     let moved: String = match keeping.as_str() == saved_ref {
         true => String::new(),
-        false => format!(" The ref this merge was saved on ({saved_ref}) no longer names it, so the commit was kept on {keeping}."),
+        false => format!(
+            " The ref this merge was saved on ({saved_ref}) no longer names it, so the commit was kept on {keeping}."
+        ),
     };
     // The capture's bytes are the person's files' own, so the ref that kept them goes before the record that names it: a
     //  deletion that fails keeps the record, and the next command's recovery tries again.
-    if !crate::merge_isolation_recovery_carry::drop_capture_awaiting(place, root, record, intent).await {
+    if !crate::merge_isolation_recovery_carry::drop_capture_awaiting(place, root, record, intent)
+        .await
+    {
         let _noted = out.write_all(
             format!(
                 "monochromatic-git-policy-cli: the merge saved on {saved_ref} was not made, and the keep of the work it carries could not be \
@@ -426,7 +500,13 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
         return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
     }
     if let Err(error) = remove_merge_intent(record) {
-        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
+                "{} could not be removed: {error}",
+                record.display()
+            )),
+            began: true,
+        });
     }
     let _noted = out.write_all(
         format!(
@@ -460,12 +540,25 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
 /// ```ts
 /// async function keepTheMergeOnASideRef({ place, root, oid }): Promise<string | undefined>; // update-ref --no-deref refs/cli-git/kept/<ms+n> <oid> 0000...
 /// ```
-async fn keep_the_merge_on_a_side_ref_awaiting(place: &RecoveryPlace, root: &Path, merge_oid: &str) -> Option<String> {
+async fn keep_the_merge_on_a_side_ref_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    merge_oid: &str,
+) -> Option<String> {
     let zeros: String = "0".repeat(merge_oid.len());
-    let first: u128 = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).ok()?.as_millis();
+    let first: u128 = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
     for step in 0..SIDE_REF_ATTEMPTS {
         let name: String = format!("{SIDE_REF_PREFIX}{}", first + step);
-        let arguments: [&str; 5] = ["update-ref", "--no-deref", name.as_str(), merge_oid, zeros.as_str()];
+        let arguments: [&str; 5] = [
+            "update-ref",
+            "--no-deref",
+            name.as_str(),
+            merge_oid,
+            zeros.as_str(),
+        ];
         let made = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await;
         if made.is_ok() {
             return Some(name);

@@ -42,7 +42,12 @@
 //! const outcome = check_handler_configuration({ path: PathFacts, parse: Ok }); // pass | finding('owner'|'mode'|'parse') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::parse;
 use crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME;
 use crate::worktree_clone_mount_protocol::ReadyState;
@@ -60,7 +65,8 @@ use std::path::PathBuf;
 ///  choice 3).
 ///  A second copy of the path here would let a check and an install drift apart,
 ///  so the constant is the handler's and this is only the name the checks read.
-pub const ROOT_MODE_EXECUTABLE_PATH: &str = crate::worktree_clone_mount_handler::handler_install_paths::ROOT_MODE_INSTALL_PATH;
+pub const ROOT_MODE_EXECUTABLE_PATH: &str =
+    crate::worktree_clone_mount_handler::handler_install_paths::ROOT_MODE_INSTALL_PATH;
 
 /// What:
 ///  The ZED history event ZED starts the one file by.
@@ -69,7 +75,8 @@ pub const ROOT_MODE_EXECUTABLE_PATH: &str = crate::worktree_clone_mount_handler:
 ///  and the event is a link to the file above,
 ///  so both spellings come from the handler's constants rather than a third
 ///  copy.
-pub const ZEDLET_EVENT_PATH: &str = crate::worktree_clone_mount_handler::handler_install_paths::ZEDLET_INSTALL_PATH;
+pub const ZEDLET_EVENT_PATH: &str =
+    crate::worktree_clone_mount_handler::handler_install_paths::ZEDLET_INSTALL_PATH;
 
 /// What:
 ///  The mode words the one executable must answer for this route's root work,
@@ -87,7 +94,13 @@ pub const ZEDLET_EVENT_PATH: &str = crate::worktree_clone_mount_handler::handler
 ///  and the words that reach every mode are checked by the dispatch's own
 ///  controls,
 ///  so this list is the four the owner's answer of 2026-11-23 names.
-pub const REQUIRED_ROOT_MODES: [&str; 5] = ["", "adopt-worktree-parent", "boot-reconcile", "shutdown-unmount", "start-probe"];
+pub const REQUIRED_ROOT_MODES: [&str; 5] = [
+    "",
+    "adopt-worktree-parent",
+    "boot-reconcile",
+    "shutdown-unmount",
+    "start-probe",
+];
 
 /// The owner every installed file and folder of the route must have.
 pub const ROOT_OWNER: u32 = 0;
@@ -202,19 +215,49 @@ pub struct HandlerInstallationFacts {
 fn installed_file_outcome(facts: &PathFacts) -> Result<String, CheckOutcome> {
     let path: String = facts.path.display().to_string();
     return match &facts.state {
-        PathState::File { owner, mode } => {
+        PathState::File {
+            owner,
+            mode,
+        } => {
             if *owner != ROOT_OWNER {
-                return Err(finding("owner", format!("{path} is owned by user {owner}, and every file the route installs is root's; a file another account can rewrite is no handler")));
+                return Err(finding(
+                    "owner",
+                    format!(
+                        "{path} is owned by user {owner}, and every file the route installs is root's; a file another account can rewrite is no handler"
+                    ),
+                ));
             }
             if mode & EXECUTABLE_BIT == 0 {
-                return Err(finding("mode", format!("{path} is mode {mode:04o} without an executable bit, and this file is started as a program")));
+                return Err(finding(
+                    "mode",
+                    format!(
+                        "{path} is mode {mode:04o} without an executable bit, and this file is started as a program"
+                    ),
+                ));
             }
             Ok(format!("{path} is root's and executable"))
         }
-        PathState::Absent => Err(finding("installation", format!("{path} is not installed, and the route attaches nothing without it"))),
-        PathState::WrongKind { found } => Err(finding("installation", format!("{path} is not a regular file ({found})"))),
-        PathState::Directory { .. } => Err(finding("installation", format!("{path} is a directory rather than a file"))),
-        PathState::Unreadable { why } => Err(unknown(format!("{path} could not be looked at ({why}), so its ownership and mode are unproved"))),
+        PathState::Absent => Err(finding(
+            "installation",
+            format!("{path} is not installed, and the route attaches nothing without it"),
+        )),
+        PathState::WrongKind {
+            found,
+        } => Err(finding(
+            "installation",
+            format!("{path} is not a regular file ({found})"),
+        )),
+        PathState::Directory {
+            ..
+        } => Err(finding(
+            "installation",
+            format!("{path} is a directory rather than a file"),
+        )),
+        PathState::Unreadable {
+            why,
+        } => Err(unknown(format!(
+            "{path} could not be looked at ({why}), so its ownership and mode are unproved"
+        ))),
     };
 }
 
@@ -280,9 +323,18 @@ pub fn check_modes(words: &[&str]) -> CheckOutcome {
         }
     }
     if !missing.is_empty() {
-        return finding("mode", format!("the one executable answers no mode for {}; the route's root work cannot run", missing.join(", ")));
+        return finding(
+            "mode",
+            format!(
+                "the one executable answers no mode for {}; the route's root work cannot run",
+                missing.join(", ")
+            ),
+        );
     }
-    return pass(format!("the one executable answers all {} root modes this route needs", words.len()));
+    return pass(format!(
+        "the one executable answers all {} root modes this route needs",
+        words.len()
+    ));
 }
 
 /// The arguments one required mode word is read as.
@@ -291,9 +343,21 @@ pub fn check_modes(words: &[&str]) -> CheckOutcome {
 /// what the grammar is asked for.
 fn mode_arguments(word: &str) -> Vec<OsString> {
     if word != "adopt-worktree-parent" {
-        return if word.is_empty() { Vec::new() } else { vec![OsString::from(word)] };
+        return if word.is_empty() {
+            Vec::new()
+        } else {
+            vec![OsString::from(word)]
+        };
     }
-    return vec![OsString::from(word), OsString::from("--checkout"), OsString::from("/home/user/Monochromatic"), OsString::from("--device"), OsString::from("1"), OsString::from("--inode"), OsString::from("2")];
+    return vec![
+        OsString::from(word),
+        OsString::from("--checkout"),
+        OsString::from("/home/user/Monochromatic"),
+        OsString::from("--device"),
+        OsString::from("1"),
+        OsString::from("--inode"),
+        OsString::from("2"),
+    ];
 }
 
 //endregion
@@ -335,22 +399,54 @@ pub struct HandlerConfigurationFacts {
 pub fn check_handler_configuration(facts: &HandlerConfigurationFacts) -> CheckOutcome {
     let path: String = facts.file.path.display().to_string();
     return match &facts.file.state {
-        PathState::File { owner, mode } => {
+        PathState::File {
+            owner,
+            mode,
+        } => {
             if *owner != ROOT_OWNER {
-                return finding("owner", format!("{path} is owned by user {owner}, and a configuration only root writes steers a root program"));
+                return finding(
+                    "owner",
+                    format!(
+                        "{path} is owned by user {owner}, and a configuration only root writes steers a root program"
+                    ),
+                );
             }
             if mode & 0o022 != 0 {
-                return finding("mode", format!("{path} is mode {mode:04o}, which the file's owner or group could write; only root may write it"));
+                return finding(
+                    "mode",
+                    format!(
+                        "{path} is mode {mode:04o}, which the file's owner or group could write; only root may write it"
+                    ),
+                );
             }
             return match &facts.parse_error {
-                Some(why) => finding("parse", format!("{path} does not parse ({why}), so its dataset names are not read")),
+                Some(why) => finding(
+                    "parse",
+                    format!("{path} does not parse ({why}), so its dataset names are not read"),
+                ),
                 None => pass(format!("{path} is root's, mode {mode:04o}, and parses")),
             };
         }
-        PathState::Absent => pass(format!("{path} is not installed, and the design's fallback finds the checkout's datasets from the mount table")),
-        PathState::WrongKind { found } => finding("configuration", format!("{path} is not a regular file ({found})")),
-        PathState::Directory { .. } => finding("configuration", format!("{path} is a directory rather than a file")),
-        PathState::Unreadable { why } => unknown(format!("{path} could not be looked at ({why}), so its ownership and text are unproved")),
+        PathState::Absent => pass(format!(
+            "{path} is not installed, and the design's fallback finds the checkout's datasets from the mount table"
+        )),
+        PathState::WrongKind {
+            found,
+        } => finding(
+            "configuration",
+            format!("{path} is not a regular file ({found})"),
+        ),
+        PathState::Directory {
+            ..
+        } => finding(
+            "configuration",
+            format!("{path} is a directory rather than a file"),
+        ),
+        PathState::Unreadable {
+            why,
+        } => unknown(format!(
+            "{path} could not be looked at ({why}), so its ownership and text are unproved"
+        )),
     };
 }
 
@@ -381,22 +477,55 @@ pub struct FolderFacts {
 }
 
 /// One root-owned folder that must be traversable by the account.
-fn folder_outcome(facts: &PathFacts, expected_mode: u32) -> Result<String, CheckOutcome> {
+fn folder_outcome(
+    facts: &PathFacts,
+    expected_mode: u32,
+) -> Result<String, CheckOutcome> {
     let path: String = facts.path.display().to_string();
     return match &facts.state {
-        PathState::Directory { owner, mode } => {
+        PathState::Directory {
+            owner,
+            mode,
+        } => {
             if *owner != ROOT_OWNER {
-                return Err(finding("owner", format!("{path} is owned by user {owner}, and only root writes the state a waiting caller reads")));
+                return Err(finding(
+                    "owner",
+                    format!(
+                        "{path} is owned by user {owner}, and only root writes the state a waiting caller reads"
+                    ),
+                ));
             }
             if *mode != expected_mode {
-                return Err(finding("mode", format!("{path} is mode {mode:04o}, and the design fixes {expected_mode:04o} so the account may traverse it and only root may write it")));
+                return Err(finding(
+                    "mode",
+                    format!(
+                        "{path} is mode {mode:04o}, and the design fixes {expected_mode:04o} so the account may traverse it and only root may write it"
+                    ),
+                ));
             }
             Ok(format!("{path} is root's, mode {mode:04o}"))
         }
-        PathState::Absent => Err(finding("folder", format!("{path} is not there, so no record or receipt can be read through it"))),
-        PathState::WrongKind { found } => Err(finding("folder", format!("{path} is not a directory ({found})"))),
-        PathState::File { .. } => Err(finding("folder", format!("{path} is a file rather than a directory"))),
-        PathState::Unreadable { why } => Err(unknown(format!("{path} could not be looked at ({why}), so its ownership and mode are unproved"))),
+        PathState::Absent => Err(finding(
+            "folder",
+            format!("{path} is not there, so no record or receipt can be read through it"),
+        )),
+        PathState::WrongKind {
+            found,
+        } => Err(finding(
+            "folder",
+            format!("{path} is not a directory ({found})"),
+        )),
+        PathState::File {
+            ..
+        } => Err(finding(
+            "folder",
+            format!("{path} is a file rather than a directory"),
+        )),
+        PathState::Unreadable {
+            why,
+        } => Err(unknown(format!(
+            "{path} could not be looked at ({why}), so its ownership and mode are unproved"
+        ))),
     };
 }
 
@@ -472,14 +601,37 @@ pub struct HandlerWiringFacts {
 pub fn check_zed_wiring(facts: &HandlerWiringFacts) -> CheckOutcome {
     let path: String = facts.zed_unit.path.display().to_string();
     return match &facts.zed_unit.state {
-        PathState::Unreadable { why } => unknown(format!("{path} could not be looked at ({why}), so ZED's installation is unproved")),
-        PathState::Absent => finding("unit", format!("{path} is not installed, so no ZFS event reaches the handler's zedlet")),
-        PathState::WrongKind { found } => finding("unit", format!("{path} is not a unit file ({found})")),
-        PathState::File { .. } | PathState::Directory { .. } => {
+        PathState::Unreadable {
+            why,
+        } => unknown(format!(
+            "{path} could not be looked at ({why}), so ZED's installation is unproved"
+        )),
+        PathState::Absent => finding(
+            "unit",
+            format!("{path} is not installed, so no ZFS event reaches the handler's zedlet"),
+        ),
+        PathState::WrongKind {
+            found,
+        } => finding("unit", format!("{path} is not a unit file ({found})")),
+        PathState::File {
+            ..
+        }
+        | PathState::Directory {
+            ..
+        } => {
             if !facts.zed_enabled {
-                return finding("enablement", format!("{path} is installed and no wants link enables it, so the route's zedlet never runs; enabling it would also run the other zedlets this report lists: {}", others(&facts.other_zedlets)));
+                return finding(
+                    "enablement",
+                    format!(
+                        "{path} is installed and no wants link enables it, so the route's zedlet never runs; enabling it would also run the other zedlets this report lists: {}",
+                        others(&facts.other_zedlets)
+                    ),
+                );
             }
-            pass(format!("{path} is installed and enabled; whether it is active is not asked of the service manager, and the other zedlets an enablement runs are: {}", others(&facts.other_zedlets)))
+            pass(format!(
+                "{path} is installed and enabled; whether it is active is not asked of the service manager, and the other zedlets an enablement runs are: {}",
+                others(&facts.other_zedlets)
+            ))
         }
     };
 }
@@ -550,25 +702,67 @@ pub enum ReadinessFacts {
 /// ```ts
 /// const outcome = check_readiness({ kind: 'read', boot, pool, checkout, sweep }, liveBoot); // pass | finding('boot'|'pool'|'checkout') | unknown
 /// ```
-pub fn check_readiness(facts: &ReadinessFacts, live_boot: &str) -> CheckOutcome {
+pub fn check_readiness(
+    facts: &ReadinessFacts,
+    live_boot: &str,
+) -> CheckOutcome {
     return match facts {
-        ReadinessFacts::Absent { why } => finding("readiness", format!("no readiness record answers this boot ({why}), so a caller waits for nothing; the handler writes it on its first qualifying run")),
-        ReadinessFacts::Unreadable { why } => unknown(format!("the readiness record could not be read ({why})")),
-        ReadinessFacts::Read { boot, pool, checkout, sweep } => {
+        ReadinessFacts::Absent {
+            why,
+        } => finding(
+            "readiness",
+            format!(
+                "no readiness record answers this boot ({why}), so a caller waits for nothing; the handler writes it on its first qualifying run"
+            ),
+        ),
+        ReadinessFacts::Unreadable {
+            why,
+        } => unknown(format!("the readiness record could not be read ({why})")),
+        ReadinessFacts::Read {
+            boot,
+            pool,
+            checkout,
+            sweep,
+        } => {
             if boot != live_boot {
-                return finding("boot", format!("the readiness record belongs to boot {boot} and this boot is {live_boot}, so it admits no attach here"));
+                return finding(
+                    "boot",
+                    format!(
+                        "the readiness record belongs to boot {boot} and this boot is {live_boot}, so it admits no attach here"
+                    ),
+                );
             }
             if *pool == ReadyState::Unknown || *checkout == ReadyState::Unknown {
-                let unknown_state: &str = if *pool == ReadyState::Unknown { "pool" } else { "checkout" };
-                return unknown(format!("the handler could not read the {unknown_state}, and it records that as unknown rather than guessing; no attach is admitted on it"));
+                let unknown_state: &str = if *pool == ReadyState::Unknown {
+                    "pool"
+                } else {
+                    "checkout"
+                };
+                return unknown(format!(
+                    "the handler could not read the {unknown_state}, and it records that as unknown rather than guessing; no attach is admitted on it"
+                ));
             }
             if *pool != ReadyState::Ready {
-                return finding("pool", format!("the record says the pool is {}, and only a ready pool admits an attach", pool.word()));
+                return finding(
+                    "pool",
+                    format!(
+                        "the record says the pool is {}, and only a ready pool admits an attach",
+                        pool.word()
+                    ),
+                );
             }
             if *checkout != ReadyState::Ready {
-                return finding("checkout", format!("the record says the checkout is {}, and only a ready checkout admits an attach", checkout.word()));
+                return finding(
+                    "checkout",
+                    format!(
+                        "the record says the checkout is {}, and only a ready checkout admits an attach",
+                        checkout.word()
+                    ),
+                );
             }
-            pass(format!("this boot's record says the pool and checkout are ready (sweep: {sweep})"))
+            pass(format!(
+                "this boot's record says the pool and checkout are ready (sweep: {sweep})"
+            ))
         }
     };
 }
@@ -616,7 +810,10 @@ pub struct RequestFacts {
 /// ```ts
 /// const outcome = check_unresolved_requests(requests, liveBoot); // pass | finding('request')
 /// ```
-pub fn check_unresolved_requests(requests: &[RequestFacts], live_boot: &str) -> CheckOutcome {
+pub fn check_unresolved_requests(
+    requests: &[RequestFacts],
+    live_boot: &str,
+) -> CheckOutcome {
     let mut unresolved: Vec<String> = Vec::new();
     let mut asked: usize = 0;
     for request in requests {
@@ -624,15 +821,25 @@ pub fn check_unresolved_requests(requests: &[RequestFacts], live_boot: &str) -> 
             continue;
         };
         asked += 1;
-        let answered: bool = request.receipt_nonce.as_ref() == Some(nonce) && request.receipt_boot.as_deref() == Some(live_boot);
+        let answered: bool = request.receipt_nonce.as_ref() == Some(nonce)
+            && request.receipt_boot.as_deref() == Some(live_boot);
         if !answered {
             unresolved.push(format!("`{}` asks under nonce {nonce}", request.clone));
         }
     }
     if !unresolved.is_empty() {
-        return finding("request", format!("{} clone request(s) have no receipt from this boot: {}", unresolved.len(), unresolved.join(", ")));
+        return finding(
+            "request",
+            format!(
+                "{} clone request(s) have no receipt from this boot: {}",
+                unresolved.len(),
+                unresolved.join(", ")
+            ),
+        );
     }
-    return pass(format!("{asked} clone request(s) are each answered by a receipt of this boot"));
+    return pass(format!(
+        "{asked} clone request(s) are each answered by a receipt of this boot"
+    ));
 }
 
 //endregion

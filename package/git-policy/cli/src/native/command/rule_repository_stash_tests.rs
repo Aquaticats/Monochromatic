@@ -12,14 +12,29 @@
 
 /// The query builder,
 ///  its reader and the real-Git fixture helpers.
-use super::{STASH_REFERENCE, stash_from_output, stash_query_arguments};
-use crate::command_test_support::{fixture, git, git_output, os_arguments, remove, repository};
+use super::{
+    STASH_REFERENCE,
+    stash_from_output,
+    stash_query_arguments,
+};
+use crate::command_test_support::{
+    fixture,
+    git,
+    git_output,
+    os_arguments,
+    remove,
+    repository,
+};
 use crate::git_metadata::MetadataOutput;
 use std::path::PathBuf;
 use std::process::Output;
 
 /// Build the output of one query run.
-fn output(success: bool, code: i32, stderr: &[u8]) -> MetadataOutput {
+fn output(
+    success: bool,
+    code: i32,
+    stderr: &[u8],
+) -> MetadataOutput {
     return MetadataOutput {
         success,
         code: Some(code),
@@ -35,7 +50,14 @@ fn the_query_names_the_stash_reference_after_the_global_options() {
     assert_eq!(STASH_REFERENCE, "refs/stash");
     assert_eq!(
         stash_query_arguments(os_arguments(&["-C", "dir"]).as_slice()),
-        os_arguments(&["-C", "dir", "rev-parse", "--verify", "--quiet", "refs/stash"])
+        os_arguments(&[
+            "-C",
+            "dir",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "refs/stash"
+        ])
     );
     assert_eq!(
         stash_query_arguments(&[]),
@@ -77,7 +99,11 @@ fn real_git_answers_where_the_repository_holds_a_stash() {
     std::fs::write(repo.join("tracked.txt"), b"two\n").expect("edit");
     git(repo.as_path(), &["stash", "push", "--quiet"]);
     let held: Output = git_output(repo.as_path(), stash_query_arguments(&[]).as_slice());
-    assert!(held.status.success(), "a stash entry answers 0: {}", String::from_utf8_lossy(held.stderr.as_slice()));
+    assert!(
+        held.status.success(),
+        "a stash entry answers 0: {}",
+        String::from_utf8_lossy(held.stderr.as_slice())
+    );
     assert!(!held.stdout.is_empty(), "the entry's commit is printed");
     remove(root.as_path());
 }

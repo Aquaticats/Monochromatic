@@ -1,8 +1,15 @@
 //! Controls for running a forwarded index writer again when the commit service took the index before its Git did.
 
 use super::*;
-use crate::service_index_lock::{LOCK_MARKER, lock_path_of};
-use crate::test_support::{fixture, remove, scratch_environment};
+use crate::service_index_lock::{
+    LOCK_MARKER,
+    lock_path_of,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+    scratch_environment,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -22,7 +29,10 @@ fn only_known_commands_with_known_options_may_run_again() {
         ("rm", vec!["--cached", "-r", "dir"]),
         ("mv", vec!["-k", "a", "b"]),
     ] {
-        assert!(may_run_again(word.as_bytes(), &words(&after)), "{word} {after:?}");
+        assert!(
+            may_run_again(word.as_bytes(), &words(&after)),
+            "{word} {after:?}"
+        );
     }
     for (word, after) in [
         ("add", vec!["-p"]),
@@ -40,7 +50,10 @@ fn only_known_commands_with_known_options_may_run_again() {
         ("stash", vec![]),
         ("commit", vec![]),
     ] {
-        assert!(!may_run_again(word.as_bytes(), &words(&after)), "{word} {after:?}");
+        assert!(
+            !may_run_again(word.as_bytes(), &words(&after)),
+            "{word} {after:?}"
+        );
     }
 }
 
@@ -49,7 +62,11 @@ fn only_known_commands_with_known_options_may_run_again() {
 /// and from start number `succeeds_from` on it succeeds,
 /// before that
 ///  it dies with `refusal` on standard error and status 128.
-fn fake_git(root: &Path, succeeds_from: usize, refusal: &str) -> (PathBuf, PathBuf) {
+fn fake_git(
+    root: &Path,
+    succeeds_from: usize,
+    refusal: &str,
+) -> (PathBuf, PathBuf) {
     let count: PathBuf = root.join("starts");
     let program: PathBuf = root.join("fake-git");
     std::fs::write(
@@ -62,12 +79,18 @@ fn fake_git(root: &Path, succeeds_from: usize, refusal: &str) -> (PathBuf, PathB
         ),
     )
     .expect("fake git");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return (program, count);
 }
 
 fn starts(count: &Path) -> usize {
-    return std::fs::read_to_string(count).map_or(0, |text| { return text.trim().parse().expect("a number"); });
+    return std::fs::read_to_string(count).map_or(0, |text| {
+        return text.trim().parse().expect("a number");
+    });
 }
 
 /// The refusal names the lock the way Git does.
@@ -91,12 +114,23 @@ fn a_command_that_lost_the_index_to_the_service_runs_again_and_hides_the_lost_at
         std::fs::remove_file(released).expect("release");
     });
     let mut shown: Vec<u8> = Vec::new();
-    let ran: ForwardedRun = run_again_while_service_holds(program.as_path(), &words(&["add", "a.txt"]), &[], scratch_environment().as_slice(), index.as_path(), "add", &mut shown);
+    let ran: ForwardedRun = run_again_while_service_holds(
+        program.as_path(),
+        &words(&["add", "a.txt"]),
+        &[],
+        scratch_environment().as_slice(),
+        index.as_path(),
+        "add",
+        &mut shown,
+    );
     releaser.join().expect("releaser");
     assert_eq!(ran, ForwardedRun::Ran(0));
     assert_eq!(starts(count.as_path()), 2);
     let text: String = String::from_utf8_lossy(&shown).into_owned();
-    assert!(text.contains("done") && !text.contains("index.lock"), "{text}");
+    assert!(
+        text.contains("done") && !text.contains("index.lock"),
+        "{text}"
+    );
     remove(root.as_path());
 }
 
@@ -111,15 +145,34 @@ fn a_hold_that_never_ends_stops_the_reruns_at_the_ceiling() {
     let index: PathBuf = root.join("index");
     let lock: PathBuf = lock_path_of(index.as_path());
     let identity: String = crate::service_index_marker::own_identity().expect("identity");
-    std::fs::write(&lock, format!("{LOCK_MARKER}1 {} {identity}\n", std::process::id())).expect("a hold of a service that runs");
+    std::fs::write(
+        &lock,
+        format!("{LOCK_MARKER}1 {} {identity}\n", std::process::id()),
+    )
+    .expect("a hold of a service that runs");
     let (program, count) = fake_git(root.as_path(), usize::MAX, REFUSAL);
     let environment = scratch_environment();
     let mut shown: Vec<u8> = Vec::new();
-    let ran: ForwardedRun = run_again_within(program.as_path(), &words(&["add"]), &[], environment.as_slice(), index.as_path(), "add", Duration::from_millis(400), &mut shown);
+    let ran: ForwardedRun = run_again_within(
+        program.as_path(),
+        &words(&["add"]),
+        &[],
+        environment.as_slice(),
+        index.as_path(),
+        "add",
+        Duration::from_millis(400),
+        &mut shown,
+    );
     let text: String = String::from_utf8_lossy(&shown).into_owned();
     assert_eq!(ran, ForwardedRun::Ran(128));
-    assert!(text.contains("index.lock"), "Git's own words are shown at the end: {text}");
-    assert!(starts(count.as_path()) < ATTEMPTS, "the ceiling, not the count, ended it");
+    assert!(
+        text.contains("index.lock"),
+        "Git's own words are shown at the end: {text}"
+    );
+    assert!(
+        starts(count.as_path()) < ATTEMPTS,
+        "the ceiling, not the count, ended it"
+    );
     remove(root.as_path());
 }
 
@@ -133,10 +186,22 @@ fn a_foreign_hold_is_not_waited_for_and_the_refusal_is_shown() {
     std::fs::write(lock_path_of(index.as_path()), b"someone else\n").expect("a foreign hold");
     let (program, count) = fake_git(root.as_path(), usize::MAX, REFUSAL);
     let mut shown: Vec<u8> = Vec::new();
-    let ran: ForwardedRun = run_again_while_service_holds(program.as_path(), &words(&["add"]), &[], scratch_environment().as_slice(), index.as_path(), "add", &mut shown);
+    let ran: ForwardedRun = run_again_while_service_holds(
+        program.as_path(),
+        &words(&["add"]),
+        &[],
+        scratch_environment().as_slice(),
+        index.as_path(),
+        "add",
+        &mut shown,
+    );
     assert_eq!(ran, ForwardedRun::Ran(128));
     assert_eq!(starts(count.as_path()), 1);
-    assert!(String::from_utf8_lossy(&shown).contains("index.lock"), "{}", String::from_utf8_lossy(&shown));
+    assert!(
+        String::from_utf8_lossy(&shown).contains("index.lock"),
+        "{}",
+        String::from_utf8_lossy(&shown)
+    );
     remove(root.as_path());
 }
 
@@ -147,12 +212,28 @@ fn a_foreign_hold_is_not_waited_for_and_the_refusal_is_shown() {
 fn another_failure_with_the_same_status_is_not_run_again() {
     let root: PathBuf = fixture("hold-retry-other");
     let index: PathBuf = root.join("index");
-    let (program, count) = fake_git(root.as_path(), usize::MAX, "fatal: pathspec 'x' did not match any files");
+    let (program, count) = fake_git(
+        root.as_path(),
+        usize::MAX,
+        "fatal: pathspec 'x' did not match any files",
+    );
     let mut shown: Vec<u8> = Vec::new();
-    let ran: ForwardedRun = run_again_while_service_holds(program.as_path(), &words(&["add", "x"]), &[], scratch_environment().as_slice(), index.as_path(), "add", &mut shown);
+    let ran: ForwardedRun = run_again_while_service_holds(
+        program.as_path(),
+        &words(&["add", "x"]),
+        &[],
+        scratch_environment().as_slice(),
+        index.as_path(),
+        "add",
+        &mut shown,
+    );
     assert_eq!(ran, ForwardedRun::Ran(128));
     assert_eq!(starts(count.as_path()), 1);
-    assert!(String::from_utf8_lossy(&shown).contains("did not match"), "{}", String::from_utf8_lossy(&shown));
+    assert!(
+        String::from_utf8_lossy(&shown).contains("did not match"),
+        "{}",
+        String::from_utf8_lossy(&shown)
+    );
     remove(root.as_path());
 }
 
@@ -164,9 +245,24 @@ fn the_retries_end_at_the_bound_and_show_the_last_refusal_once() {
     let index: PathBuf = root.join("index");
     let (program, count) = fake_git(root.as_path(), usize::MAX, REFUSAL);
     let mut shown: Vec<u8> = Vec::new();
-    let ran: ForwardedRun = run_again_while_service_holds(program.as_path(), &words(&["add"]), &[], scratch_environment().as_slice(), index.as_path(), "add", &mut shown);
+    let ran: ForwardedRun = run_again_while_service_holds(
+        program.as_path(),
+        &words(&["add"]),
+        &[],
+        scratch_environment().as_slice(),
+        index.as_path(),
+        "add",
+        &mut shown,
+    );
     assert_eq!(ran, ForwardedRun::Ran(128));
     assert_eq!(starts(count.as_path()), ATTEMPTS);
-    assert_eq!(String::from_utf8_lossy(&shown).matches("index.lock").count(), 1, "{}", String::from_utf8_lossy(&shown));
+    assert_eq!(
+        String::from_utf8_lossy(&shown)
+            .matches("index.lock")
+            .count(),
+        1,
+        "{}",
+        String::from_utf8_lossy(&shown)
+    );
     remove(root.as_path());
 }

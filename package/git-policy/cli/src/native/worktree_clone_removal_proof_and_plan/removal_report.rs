@@ -24,7 +24,10 @@
 //! ```
 
 use crate::worktree_clone_origin_cleanup::origin_cleanup_words::BlockReason;
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::RecordsGone;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
@@ -161,10 +164,18 @@ impl TheRemovalDone {
             ));
         }
         lines.push(match self.head {
-            HeadWord::Gone => String::from("  the clone's head destroy answered and its absence is proved."),
-            HeadWord::Refused => String::from("  the clone's head destroy was refused, so the clone still stands."),
-            HeadWord::Unknown => String::from("  the clone's head destroy's outcome cannot be attributed."),
-            HeadWord::Requested | HeadWord::Present => String::from("  no head destroy was proved for this clone."),
+            HeadWord::Gone => {
+                String::from("  the clone's head destroy answered and its absence is proved.")
+            }
+            HeadWord::Refused => {
+                String::from("  the clone's head destroy was refused, so the clone still stands.")
+            }
+            HeadWord::Unknown => {
+                String::from("  the clone's head destroy's outcome cannot be attributed.")
+            }
+            HeadWord::Requested | HeadWord::Present => {
+                String::from("  no head destroy was proved for this clone.")
+            }
         });
         if self.holder_reads_unfinished > 0 {
             lines.push(format!(
@@ -194,7 +205,10 @@ impl TheRemovalDone {
         if self.records.plan_removed {
             lines.push(String::from("  the removal's plan, its binding and both inventories are removed, which frees the slot for the next add."));
         } else {
-            lines.push(format!("  the removal's plan still stands at {}; nothing was destroyed twice.", self.plan_path.display()));
+            lines.push(format!(
+                "  the removal's plan still stands at {}; nothing was destroyed twice.",
+                self.plan_path.display()
+            ));
         }
         lines.push(match &self.claim {
             ClaimEnd::Released => format!("  the slot's per-slot claim is released, so nothing of this removal keeps another command off `{}`.", self.slot),
@@ -223,7 +237,9 @@ impl TheRemovalDone {
 
     /// Whether every name the plan recorded is proved destroyed.
     pub fn is_finished(&self) -> bool {
-        return self.head == HeadWord::Gone && self.remaining.is_empty() && self.destroyed.iter().all(|name| return !name.is_empty());
+        return self.head == HeadWord::Gone
+            && self.remaining.is_empty()
+            && self.destroyed.iter().all(|name| return !name.is_empty());
     }
 }
 

@@ -5,15 +5,31 @@
 //! and what a dangling link prints.
 
 use super::*;
-use crate::repository_link_fixture_probe::{FixtureProbe, World};
-use crate::repository_link_identity::{IDENTITY_RELATIVE_PATH, LinkPhase};
-use crate::repository_link_probe::{EntryKind, RealLinkProbe};
-use crate::test_support::{fixture, remove};
+use crate::repository_link_fixture_probe::{
+    FixtureProbe,
+    World,
+};
+use crate::repository_link_identity::{
+    IDENTITY_RELATIVE_PATH,
+    LinkPhase,
+};
+use crate::repository_link_probe::{
+    EntryKind,
+    RealLinkProbe,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 const LINK: &str = "/home/u/Monochromatic";
 
 /// Writes an identity file below a home folder.
-fn write_identity(home: &Path, phase: &str, mount_point: &str) {
+fn write_identity(
+    home: &Path,
+    phase: &str,
+    mount_point: &str,
+) {
     let path: PathBuf = home.join(IDENTITY_RELATIVE_PATH);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("config folder");
     std::fs::write(
@@ -29,7 +45,9 @@ fn write_identity(home: &Path, phase: &str, mount_point: &str) {
 /// A world in which the link path is a real folder.
 fn folder_world() -> World {
     let mut world: World = World::default();
-    world.entries.insert(String::from(LINK), EntryKind::Directory);
+    world
+        .entries
+        .insert(String::from(LINK), EntryKind::Directory);
     return world;
 }
 
@@ -44,8 +62,14 @@ fn probe_over(world: World) -> Arc<FixtureProbe> {
 fn without_an_identity_file_the_command_goes_on_and_nothing_is_asked() {
     let home: PathBuf = fixture("link-gate-absent");
     let probe: Arc<FixtureProbe> = probe_over(folder_world());
-    assert_eq!(link_gate_with_probe(probe.clone(), None, &[PathBuf::from(LINK)]), LinkGate::Clear);
-    assert_eq!(link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK)]), LinkGate::Clear);
+    assert_eq!(
+        link_gate_with_probe(probe.clone(), None, &[PathBuf::from(LINK)]),
+        LinkGate::Clear
+    );
+    assert_eq!(
+        link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK)]),
+        LinkGate::Clear
+    );
     assert!(probe.questions().is_empty(), "{:?}", probe.questions());
     remove(home.as_path());
 }
@@ -58,8 +82,20 @@ fn a_command_elsewhere_asks_nothing() {
     for phase in ["before", "after"] {
         write_identity(home.as_path(), phase, "/mnt/860");
         let probe: Arc<FixtureProbe> = probe_over(folder_world());
-        assert_eq!(link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from("/usr/bin")]), LinkGate::Clear, "{phase}");
-        assert!(probe.questions().is_empty(), "{phase}: {:?}", probe.questions());
+        assert_eq!(
+            link_gate_with_probe(
+                probe.clone(),
+                Some(home.as_path()),
+                &[PathBuf::from("/usr/bin")]
+            ),
+            LinkGate::Clear,
+            "{phase}"
+        );
+        assert!(
+            probe.questions().is_empty(),
+            "{phase}: {:?}",
+            probe.questions()
+        );
     }
     remove(home.as_path());
 }
@@ -70,7 +106,14 @@ fn phase_before_costs_one_lstat() {
     let home: PathBuf = fixture("link-gate-before");
     write_identity(home.as_path(), "before", "/mnt/860");
     let probe: Arc<FixtureProbe> = probe_over(folder_world());
-    assert_eq!(link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK).join("sub")]), LinkGate::Clear);
+    assert_eq!(
+        link_gate_with_probe(
+            probe.clone(),
+            Some(home.as_path()),
+            &[PathBuf::from(LINK).join("sub")]
+        ),
+        LinkGate::Clear
+    );
     assert_eq!(probe.questions(), vec!["lstat"]);
     remove(home.as_path());
 }
@@ -83,8 +126,14 @@ fn phase_before_refuses_a_path_that_is_not_a_folder() {
     write_identity(home.as_path(), "before", "/mnt/860");
     let mut world: World = World::default();
     world.entries.insert(String::from(LINK), EntryKind::Link);
-    let gate: LinkGate = link_gate_with_probe(probe_over(world), Some(home.as_path()), &[PathBuf::from(LINK)]);
-    let LinkGate::Stop(text) = gate else { panic!("the gate should stop") };
+    let gate: LinkGate = link_gate_with_probe(
+        probe_over(world),
+        Some(home.as_path()),
+        &[PathBuf::from(LINK)],
+    );
+    let LinkGate::Stop(text) = gate else {
+        panic!("the gate should stop")
+    };
     assert!(text.contains(LINK) && text.ends_with('\n'), "{text}");
     remove(home.as_path());
 }
@@ -95,8 +144,17 @@ fn phase_before_refuses_a_path_that_is_not_a_folder() {
 fn phase_after_stops_for_a_real_folder_with_the_plain_message() {
     let home: PathBuf = fixture("link-gate-after-folder");
     write_identity(home.as_path(), "after", "/mnt/860");
-    let gate: LinkGate = link_gate_with_probe(probe_over(folder_world()), Some(home.as_path()), &[PathBuf::from(LINK)]);
-    assert_eq!(gate, LinkGate::Stop(format!("fatal: {LINK} is a real folder, not the link to the 860; nothing was written\n")));
+    let gate: LinkGate = link_gate_with_probe(
+        probe_over(folder_world()),
+        Some(home.as_path()),
+        &[PathBuf::from(LINK)],
+    );
+    assert_eq!(
+        gate,
+        LinkGate::Stop(format!(
+            "fatal: {LINK} is a real folder, not the link to the 860; nothing was written\n"
+        ))
+    );
     remove(home.as_path());
 }
 
@@ -108,7 +166,8 @@ fn a_dangling_link_prints_the_not_mounted_message_and_creates_nothing() {
     let mount_point: PathBuf = root.join("not-a-mount");
     let link: PathBuf = root.join("repolink");
     std::fs::create_dir_all(mount_point.as_path()).expect("mount point stand-in");
-    std::os::unix::fs::symlink(mount_point.join("repository/Monochromatic"), link.as_path()).expect("dangling link");
+    std::os::unix::fs::symlink(mount_point.join("repository/Monochromatic"), link.as_path())
+        .expect("dangling link");
     let path: PathBuf = home.join(IDENTITY_RELATIVE_PATH);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("config folder");
     std::fs::write(
@@ -123,10 +182,22 @@ fn a_dangling_link_prints_the_not_mounted_message_and_creates_nothing() {
     )
     .expect("identity file");
     let before: Vec<String> = listing(root.as_path());
-    let gate: LinkGate = link_gate_with_probe(Arc::new(RealLinkProbe::default()), Some(home.as_path()), &[link.join("sub")]);
-    let LinkGate::Stop(text) = gate else { panic!("the gate should stop") };
-    assert!(text.starts_with("fatal: the 860 drive is not mounted yet ("), "{text}");
-    assert!(text.contains(link.to_string_lossy().as_ref()) && text.ends_with("run this again\n"), "{text}");
+    let gate: LinkGate = link_gate_with_probe(
+        Arc::new(RealLinkProbe::default()),
+        Some(home.as_path()),
+        &[link.join("sub")],
+    );
+    let LinkGate::Stop(text) = gate else {
+        panic!("the gate should stop")
+    };
+    assert!(
+        text.starts_with("fatal: the 860 drive is not mounted yet ("),
+        "{text}"
+    );
+    assert!(
+        text.contains(link.to_string_lossy().as_ref()) && text.ends_with("run this again\n"),
+        "{text}"
+    );
     assert_eq!(listing(root.as_path()), before, "nothing was created");
     remove(root.as_path());
 }
@@ -138,9 +209,16 @@ fn listing(folder: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![folder.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(directory).expect("read directory").flatten() {
+        for entry in std::fs::read_dir(directory)
+            .expect("read directory")
+            .flatten()
+        {
             found.push(entry.path().to_string_lossy().into_owned());
-            if entry.file_type().map(|kind| return kind.is_dir()).unwrap_or(false) {
+            if entry
+                .file_type()
+                .map(|kind| return kind.is_dir())
+                .unwrap_or(false)
+            {
                 pending.push(entry.path());
             }
         }
@@ -158,7 +236,10 @@ fn an_unreadable_identity_file_lets_the_command_go_on() {
     std::fs::create_dir_all(path.parent().expect("parent")).expect("config folder");
     std::fs::write(path, b"not json").expect("file");
     let probe: Arc<FixtureProbe> = probe_over(folder_world());
-    assert_eq!(link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK)]), LinkGate::Clear);
+    assert_eq!(
+        link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK)]),
+        LinkGate::Clear
+    );
     assert!(probe.questions().is_empty());
     let _phase: LinkPhase = LinkPhase::Before;
     remove(home.as_path());
@@ -169,14 +250,27 @@ fn ready_world() -> World {
     let root: &str = "/mnt/860/repository/Monochromatic";
     let mut world: World = World::default();
     world.entries.insert(String::from(LINK), EntryKind::Link);
-    world.entries.insert(String::from(root), EntryKind::Directory);
-    world.entries.insert(format!("{root}/.git"), EntryKind::Directory);
+    world
+        .entries
+        .insert(String::from(root), EntryKind::Directory);
+    world
+        .entries
+        .insert(format!("{root}/.git"), EntryKind::Directory);
     world.links.insert(String::from(LINK), String::from(root));
     world.real.insert(String::from(LINK), String::from(root));
-    world.real.insert(String::from("/mnt/860"), String::from("/mnt/860"));
-    world.texts.insert(format!("{root}/.git/monochromatic-root-commit"), String::from("abc\n"));
-    world.uuids.insert(String::from(root), String::from("DRIVE"));
-    world.uuids.insert(format!("{root}/.git"), String::from("DRIVE"));
+    world
+        .real
+        .insert(String::from("/mnt/860"), String::from("/mnt/860"));
+    world.texts.insert(
+        format!("{root}/.git/monochromatic-root-commit"),
+        String::from("abc\n"),
+    );
+    world
+        .uuids
+        .insert(String::from(root), String::from("DRIVE"));
+    world
+        .uuids
+        .insert(format!("{root}/.git"), String::from("DRIVE"));
     world.mounted.insert(String::from("/mnt/860"));
     return world;
 }
@@ -201,17 +295,40 @@ fn a_usable_repository_is_walked_once_per_process_and_a_refusal_never_is_remembe
     let paths: Vec<PathBuf> = vec![PathBuf::from(LINK).join("sub")];
     let memory: ReadyMemory = ReadyMemory::new();
     let probe: Arc<FixtureProbe> = probe_over(ready_world());
-    assert_eq!(gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory), LinkGate::Clear);
+    assert_eq!(
+        gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory),
+        LinkGate::Clear
+    );
     let walked: usize = probe.questions().len();
-    assert!(walked > 1, "the first meeting walks the link: {:?}", probe.questions());
-    assert_eq!(gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory), LinkGate::Clear);
-    assert_eq!(probe.questions().len(), walked, "the second meeting asked nothing");
-    let other: LinkIdentity = LinkIdentity { drive_uuid: String::from("OTHER"), ..identity.clone() };
+    assert!(
+        walked > 1,
+        "the first meeting walks the link: {:?}",
+        probe.questions()
+    );
+    assert_eq!(
+        gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory),
+        LinkGate::Clear
+    );
+    assert_eq!(
+        probe.questions().len(),
+        walked,
+        "the second meeting asked nothing"
+    );
+    let other: LinkIdentity = LinkIdentity {
+        drive_uuid: String::from("OTHER"),
+        ..identity.clone()
+    };
     let refused: LinkGate = gate_remembering(probe.clone(), &other, paths.as_slice(), &memory);
-    assert!(matches!(refused, LinkGate::Stop(_)), "another identity is walked on its own: {refused:?}");
+    assert!(
+        matches!(refused, LinkGate::Stop(_)),
+        "another identity is walked on its own: {refused:?}"
+    );
     let before: usize = probe.questions().len();
     let again: LinkGate = gate_remembering(probe.clone(), &other, paths.as_slice(), &memory);
     assert!(matches!(again, LinkGate::Stop(_)), "{again:?}");
-    assert!(probe.questions().len() > before, "a refusal is walked again");
+    assert!(
+        probe.questions().len() > before,
+        "a refusal is walked again"
+    );
     remove(home.as_path());
 }

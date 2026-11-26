@@ -28,7 +28,11 @@
 //! ```
 
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{MOUNT_WORD, NONCE_HEX_DIGITS, UNMOUNT_WORD};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    MOUNT_WORD,
+    NONCE_HEX_DIGITS,
+    UNMOUNT_WORD,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
@@ -72,7 +76,11 @@ pub const MAXIMUM_DECIMAL_DIGITS: usize = 20;
 pub const MAXIMUM_BOOT_BYTES: usize = 36;
 
 /// The bound one operation word may use.
-pub const MAXIMUM_OPERATION_BYTES: usize = if MOUNT_WORD.len() > UNMOUNT_WORD.len() { MOUNT_WORD.len() } else { UNMOUNT_WORD.len() };
+pub const MAXIMUM_OPERATION_BYTES: usize = if MOUNT_WORD.len() > UNMOUNT_WORD.len() {
+    MOUNT_WORD.len()
+} else {
+    UNMOUNT_WORD.len()
+};
 
 /// The bound one outcome word may use.
 pub const MAXIMUM_OUTCOME_BYTES: usize = 9;
@@ -101,7 +109,10 @@ pub const MAXIMUM_WORD_BYTES: usize = 64;
 /// ```ts
 /// const lineBytes = (key, bound) => key.length + 1 + bound;
 /// ```
-const fn line_bytes(key: &str, bound: usize) -> usize {
+const fn line_bytes(
+    key: &str,
+    bound: usize,
+) -> usize {
     return key.len() + 1 + bound;
 }
 
@@ -257,11 +268,32 @@ impl CloneMountReceipt {
     /// The file's whole text,
     /// its final newline included.
     pub fn text(&self) -> String {
-        let mount_id: String = self.mount.as_ref().map_or(String::from(ABSENT_WORD), |mount| return mount.mount_id.to_string());
-        let device: String = self.mount.as_ref().map_or(String::from(ABSENT_WORD), |mount| return mount.device.to_string());
-        let inode: String = self.mount.as_ref().map_or(String::from(ABSENT_WORD), |mount| return mount.inode.to_string());
-        let source: &str = self.mount.as_ref().map_or(ABSENT_WORD, |mount| return mount.source.as_str());
-        let canonical_path: &str = self.mount.as_ref().map_or(ABSENT_WORD, |mount| return mount.canonical_path.as_str());
+        let mount_id: String = self
+            .mount
+            .as_ref()
+            .map_or(String::from(ABSENT_WORD), |mount| {
+                return mount.mount_id.to_string();
+            });
+        let device: String = self
+            .mount
+            .as_ref()
+            .map_or(String::from(ABSENT_WORD), |mount| {
+                return mount.device.to_string();
+            });
+        let inode: String = self
+            .mount
+            .as_ref()
+            .map_or(String::from(ABSENT_WORD), |mount| {
+                return mount.inode.to_string();
+            });
+        let source: &str = self
+            .mount
+            .as_ref()
+            .map_or(ABSENT_WORD, |mount| return mount.source.as_str());
+        let canonical_path: &str = self
+            .mount
+            .as_ref()
+            .map_or(ABSENT_WORD, |mount| return mount.canonical_path.as_str());
         let lines: [String; 15] = [
             String::from(RECEIPT_VERSION),
             format!("kind {RECEIPT_KIND}"),
@@ -274,7 +306,10 @@ impl CloneMountReceipt {
             format!("inode {inode}"),
             format!("source {source}"),
             format!("canonical-path {canonical_path}"),
-            format!("failed-step {}", self.failed_step.as_deref().unwrap_or(ABSENT_WORD)),
+            format!(
+                "failed-step {}",
+                self.failed_step.as_deref().unwrap_or(ABSENT_WORD)
+            ),
             format!("errno {}", self.errno.as_deref().unwrap_or(ABSENT_WORD)),
             format!("boot {}", self.boot),
             format!("time {}", self.time),

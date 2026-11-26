@@ -18,8 +18,16 @@
 use crate::git_system_config::system_attributes_for;
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_config_text::parse_bool;
-use crate::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name};
-use std::collections::{HashMap, HashSet, VecDeque};
+use crate::worktree_attributes::{
+    AttributeLine,
+    CONVERTING_ATTRIBUTES,
+    attribute_name,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -76,8 +84,17 @@ impl ConversionEnvironment {
     ///  system files are to be learned from it;
     /// without it the system files are unknown and the content decision refuses.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ConversionEnvironment {
-        let selected: Option<String> = if sets_variable(variables, "GIT_ATTR_SOURCE") { Some(String::from("GIT_ATTR_SOURCE is set")) } else { None };
-        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables), system_attributes: system_attributes_from(variables), alternate_attribute_source: selected, variables: variables.to_vec() };
+        let selected: Option<String> = if sets_variable(variables, "GIT_ATTR_SOURCE") {
+            Some(String::from("GIT_ATTR_SOURCE is set"))
+        } else {
+            None
+        };
+        return ConversionEnvironment {
+            scope: ScopeEnvironment::from_variables(variables),
+            system_attributes: system_attributes_from(variables),
+            alternate_attribute_source: selected,
+            variables: variables.to_vec(),
+        };
     }
 }
 
@@ -100,7 +117,10 @@ impl ConversionEnvironment {
 /// ```
 pub fn for_context(context: &crate::transaction_git::GitContext) -> ConversionEnvironment {
     let mut variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    variables.extend(crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path()));
+    variables.extend(crate::git_system_config::with_real_git(
+        context.overlay.as_slice(),
+        context.real_git.as_path(),
+    ));
     return ConversionEnvironment::from_variables(variables.as_slice());
 }
 
@@ -115,7 +135,10 @@ pub fn for_context(context: &crate::transaction_git::GitContext) -> ConversionEn
 /// ```ts
 /// variables.some(([name]) => name === wanted)
 /// ```
-fn sets_variable(variables: &[(OsString, OsString)], wanted: &str) -> bool {
+fn sets_variable(
+    variables: &[(OsString, OsString)],
+    wanted: &str,
+) -> bool {
     for (name, _value) in variables {
         if name == wanted {
             return true;
@@ -153,7 +176,8 @@ pub fn system_attributes_from(variables: &[(OsString, OsString)]) -> SystemAttri
     };
     return match disabled {
         Some(true) => SystemAttributes::Disabled,
-        Some(false) => system_attributes_for(variables).map_or(SystemAttributes::Unknown, SystemAttributes::File),
+        Some(false) => system_attributes_for(variables)
+            .map_or(SystemAttributes::Unknown, SystemAttributes::File),
         None => SystemAttributes::Unknown,
     };
 }
@@ -212,7 +236,10 @@ pub fn has_quoted_line(lines: &[AttributeLine]) -> bool {
 /// ```ts
 /// tokens.find((token) => converts(token, macros))
 /// ```
-pub fn first_converting_token<'a>(tokens: &'a [Vec<u8>], macros: &HashSet<Vec<u8>>) -> Option<&'a Vec<u8>> {
+pub fn first_converting_token<'a>(
+    tokens: &'a [Vec<u8>],
+    macros: &HashSet<Vec<u8>>,
+) -> Option<&'a Vec<u8>> {
     for token in tokens {
         if converts(token.as_slice(), macros) {
             return Some(token);
@@ -222,7 +249,10 @@ pub fn first_converting_token<'a>(tokens: &'a [Vec<u8>], macros: &HashSet<Vec<u8
 }
 
 /// Whether a token or a macro name can change a file's bytes on the way into the index.
-pub fn converts(token: &[u8], macros: &HashSet<Vec<u8>>) -> bool {
+pub fn converts(
+    token: &[u8],
+    macros: &HashSet<Vec<u8>>,
+) -> bool {
     let name: &[u8] = attribute_name(token);
     return CONVERTING_ATTRIBUTES.contains(&name) || macros.contains(name);
 }
@@ -248,12 +278,19 @@ pub fn converting_macros(files: &[AttributeFile]) -> HashSet<Vec<u8>> {
                 continue;
             }
             for token in &line.tokens {
-                mentioned_by.entry(attribute_name(token.as_slice()).to_vec()).or_default().push(line.subject.clone());
+                mentioned_by
+                    .entry(attribute_name(token.as_slice()).to_vec())
+                    .or_default()
+                    .push(line.subject.clone());
             }
         }
     }
     let mut known: HashSet<Vec<u8>> = HashSet::new();
-    let mut queue: VecDeque<Vec<u8>> = CONVERTING_ATTRIBUTES.iter().copied().map(<[u8]>::to_vec).collect();
+    let mut queue: VecDeque<Vec<u8>> = CONVERTING_ATTRIBUTES
+        .iter()
+        .copied()
+        .map(<[u8]>::to_vec)
+        .collect();
     while let Some(name) = queue.pop_front() {
         for macro_name in mentioned_by.get(&name).into_iter().flatten() {
             if known.insert(macro_name.clone()) {

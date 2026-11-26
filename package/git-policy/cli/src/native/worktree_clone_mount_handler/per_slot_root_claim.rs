@@ -47,12 +47,28 @@
 //! const claims = SlotClaimDirectory.live(); const claim = claims.claim('one');
 //! ```
 
-use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
+use crate::single_owner_claim::{
+    ClaimOutcome,
+    OwnerClaim,
+    take_claim,
+};
 use crate::worktree_clone_mount::slot_name_refusal;
-use std::ffi::{CString, OsStr};
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    CString,
+    OsStr,
+};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory the per-slot claims live in.
 pub const SLOT_CLAIM_DIRECTORY: &str = "/run/git-worktree-clone-mount-slot-claims";
@@ -134,18 +150,41 @@ impl ClaimRefusal {
     /// naming the slot and the way forward.
     pub fn message(&self) -> String {
         let reason: String = match self {
-            ClaimRefusal::Directory { path, reason } => format!("the per-slot claim directory {} could not be made or opened ({reason})", path.display()),
-            ClaimRefusal::DirectoryOwner { path, found, wanted } => format!(
+            ClaimRefusal::Directory {
+                path,
+                reason,
+            } => format!(
+                "the per-slot claim directory {} could not be made or opened ({reason})",
+                path.display()
+            ),
+            ClaimRefusal::DirectoryOwner {
+                path,
+                found,
+                wanted,
+            } => format!(
                 "the per-slot claim directory {} is owned by user {found}, and this route requires user {wanted}",
                 path.display()
             ),
-            ClaimRefusal::DirectoryMode { path, found } => format!(
+            ClaimRefusal::DirectoryMode {
+                path,
+                found,
+            } => format!(
                 "the per-slot claim directory {} has mode {found:04o}, and this route requires {SLOT_CLAIM_DIRECTORY_MODE:04o}",
                 path.display()
             ),
-            ClaimRefusal::SlotName { slot, reason } => format!("`{slot}` is no slot name: {reason}"),
-            ClaimRefusal::Held { slot } => format!("another handler holds the claim for slot `{slot}` right now"),
-            ClaimRefusal::Records { slot, reason } => format!("the claim records for slot `{slot}` could not be read or written ({reason})"),
+            ClaimRefusal::SlotName {
+                slot,
+                reason,
+            } => format!("`{slot}` is no slot name: {reason}"),
+            ClaimRefusal::Held {
+                slot,
+            } => format!("another handler holds the claim for slot `{slot}` right now"),
+            ClaimRefusal::Records {
+                slot,
+                reason,
+            } => format!(
+                "the claim records for slot `{slot}` could not be read or written ({reason})"
+            ),
         };
         return format!(
             "{reason}. Nothing was opened on the clone's behalf, no mount was attached or taken down and no durable intent was changed. Ways forward: a held slot is retried by the slot's next trigger (a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge); a wrong owner, a wrong mode or an unreadable claim record needs an administrator, and the `doctor` command reports a claim once plan step 10 adds it."
@@ -175,13 +214,22 @@ pub struct SlotClaimDirectory {
 impl SlotClaimDirectory {
     /// The place the release handler claims in.
     pub fn live() -> Self {
-        return SlotClaimDirectory { directory: PathBuf::from(SLOT_CLAIM_DIRECTORY), owner: 0 };
+        return SlotClaimDirectory {
+            directory: PathBuf::from(SLOT_CLAIM_DIRECTORY),
+            owner: 0,
+        };
     }
 
     /// A place at a fixture directory,
     /// owned by the account the control expects.
-    pub fn at(directory: PathBuf, owner: u32) -> Self {
-        return SlotClaimDirectory { directory, owner };
+    pub fn at(
+        directory: PathBuf,
+        owner: u32,
+    ) -> Self {
+        return SlotClaimDirectory {
+            directory,
+            owner,
+        };
     }
 
     /// The directory.
@@ -191,7 +239,11 @@ impl SlotClaimDirectory {
 
     /// One slot's claim file at one generation,
     /// which is the name the shared claim publishes.
-    pub fn claim_generation_file(&self, slot: &str, generation: u64) -> PathBuf {
+    pub fn claim_generation_file(
+        &self,
+        slot: &str,
+        generation: u64,
+    ) -> PathBuf {
         return self.directory.join(format!("{slot}.{generation}"));
     }
 
@@ -221,9 +273,15 @@ impl SlotClaimDirectory {
     /// ```ts
     /// const claim = claims.claim('one'); // { held } or { busy, owner }
     /// ```
-    pub fn claim(&self, slot: &str) -> Result<HeldSlotClaim, ClaimRefusal> {
+    pub fn claim(
+        &self,
+        slot: &str,
+    ) -> Result<HeldSlotClaim, ClaimRefusal> {
         if let Some(reason) = slot_name_refusal(slot) {
-            return Err(ClaimRefusal::SlotName { slot: String::from(slot), reason });
+            return Err(ClaimRefusal::SlotName {
+                slot: String::from(slot),
+                reason,
+            });
         }
         // A fresh boot has no claims directory, and the claims live under `/run`, so the claim makes its own directory at
         // its designed mode exactly as `prepare` does rather than refusing every claim until an earlier mode made it.
@@ -234,17 +292,34 @@ impl SlotClaimDirectory {
         // the shared claim (SPEC.md, "The per-slot claim", and the plan's step 8 open items). Closing it needs a
         // descriptor-relative take_claim (the shared module's openat, linkat and unlinkat).
         let directory: std::fs::File = self.make_and_prove()?;
-        let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot)).map_err(|error| {
-            return ClaimRefusal::Records { slot: String::from(slot), reason: error.to_string() };
-        })?;
+        let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot))
+            .map_err(|error| {
+                return ClaimRefusal::Records {
+                    slot: String::from(slot),
+                    reason: error.to_string(),
+                };
+            })?;
         // The descriptor the directory was proved through stays open until the claim's own calls answered, so the folder
         // this route proved is the folder the claim was taken in.
         drop(directory);
         return match outcome {
-            ClaimOutcome::Held(claim) => Ok(HeldSlotClaim { claim, slot: String::from(slot) }),
+            ClaimOutcome::Held(claim) => Ok(HeldSlotClaim {
+                claim,
+                slot: String::from(slot),
+            }),
             ClaimOutcome::Busy(owner) => {
-                crate::diagnostic_log::debug(TAG, format!("refused slot `{slot}`: process {} holds it in {}", owner.pid, owner.path.display()).as_str());
-                Err(ClaimRefusal::Held { slot: String::from(slot) })
+                crate::diagnostic_log::debug(
+                    TAG,
+                    format!(
+                        "refused slot `{slot}`: process {} holds it in {}",
+                        owner.pid,
+                        owner.path.display()
+                    )
+                    .as_str(),
+                );
+                Err(ClaimRefusal::Held {
+                    slot: String::from(slot),
+                })
             }
         };
     }
@@ -261,20 +336,34 @@ impl SlotClaimDirectory {
     fn make_and_prove(&self) -> Result<std::fs::File, ClaimRefusal> {
         let path: &Path = self.directory.as_path();
         if let Err(error) = std::fs::create_dir_all(path) {
-            return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
+            return Err(ClaimRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            });
         }
         // The descriptor is opened with no link followed and its owner is checked before its mode is changed,
         // so a link or another account's folder is refused without being written.
         let directory: std::fs::File = self.open_owned_directory()?;
-        directory.set_permissions(std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE)).map_err(|error| {
-            return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() };
+        directory
+            .set_permissions(std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE))
+            .map_err(|error| {
+                return ClaimRefusal::Directory {
+                    path: path.to_path_buf(),
+                    reason: error.to_string(),
+                };
+            })?;
+        let facts: std::fs::Metadata = directory.metadata().map_err(|error| {
+            return ClaimRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            };
         })?;
-        let facts: std::fs::Metadata = directory
-            .metadata()
-            .map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
         let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
-            return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
+            return Err(ClaimRefusal::DirectoryMode {
+                path: path.to_path_buf(),
+                found: permission_bits,
+            });
         }
         return Ok(directory);
     }
@@ -283,19 +372,40 @@ impl SlotClaimDirectory {
     /// before any mode is read or changed.
     fn open_owned_directory(&self) -> Result<std::fs::File, ClaimRefusal> {
         let path: &Path = self.directory.as_path();
-        let text: CString =
-            CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: String::from("the path holds a NUL byte") })?;
+        let text: CString = CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| {
+            return ClaimRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: String::from("the path holds a NUL byte"),
+            };
+        })?;
         // SAFETY: `text` is a NUL-terminated string that outlives the call.
-        let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+        let descriptor: libc::c_int = unsafe {
+            libc::open(
+                text.as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
         if descriptor < 0 {
-            return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: std::io::Error::last_os_error().to_string() });
+            return Err(ClaimRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: std::io::Error::last_os_error().to_string(),
+            });
         }
         // SAFETY: `open` returned a new descriptor that nothing else owns.
-        let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-        let facts: std::fs::Metadata =
-            directory.metadata().map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
+        let directory: std::fs::File =
+            std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+        let facts: std::fs::Metadata = directory.metadata().map_err(|error| {
+            return ClaimRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            };
+        })?;
         if facts.uid() != self.owner {
-            return Err(ClaimRefusal::DirectoryOwner { path: path.to_path_buf(), found: facts.uid(), wanted: self.owner });
+            return Err(ClaimRefusal::DirectoryOwner {
+                path: path.to_path_buf(),
+                found: facts.uid(),
+                wanted: self.owner,
+            });
         }
         return Ok(directory);
     }
@@ -331,7 +441,14 @@ impl HeldSlotClaim {
     /// Give the claim up now rather than when the value is dropped.
     pub fn release(mut self) {
         if let Err(error) = self.claim.release() {
-            crate::diagnostic_log::warn(TAG, format!("slot `{}` keeps a claim that names this process: {error}", self.slot).as_str());
+            crate::diagnostic_log::warn(
+                TAG,
+                format!(
+                    "slot `{}` keeps a claim that names this process: {error}",
+                    self.slot
+                )
+                .as_str(),
+            );
         }
     }
 }

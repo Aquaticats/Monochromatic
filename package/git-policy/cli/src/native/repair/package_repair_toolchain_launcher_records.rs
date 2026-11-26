@@ -16,14 +16,24 @@
 //! const launchersOf = (destination: string) => ({ stale: [...], unrewritable: [...] });
 //! ```
 
-/// Import the launcher directory and the record extension.
-use super::names_and_bounds::{LAUNCHERS, RECORD_EXTENSION};
-/// Import the lock's name and the byte bound the lock is read at.
-use super::names_and_bounds::{LOCK_FILE, LONGEST_LOCK};
 /// Import the log tag.
 use super::names_and_bounds::TAG;
+/// Import the launcher directory and the record extension.
+use super::names_and_bounds::{
+    LAUNCHERS,
+    RECORD_EXTENSION,
+};
+/// Import the lock's name and the byte bound the lock is read at.
+use super::names_and_bounds::{
+    LOCK_FILE,
+    LONGEST_LOCK,
+};
 /// Import the object comparisons a record is judged by.
-use super::object_identity::{Identity, ThisWorktreesLock, identity_of};
+use super::object_identity::{
+    Identity,
+    ThisWorktreesLock,
+    identity_of,
+};
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the bounded read of the worktree's own lock through any link of the person's.
@@ -31,7 +41,10 @@ use crate::plain_file::read_plain_file_through_links;
 /// Import the set of launcher names a lock declares.
 use std::collections::HashSet;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  A launcher record and the launcher beside it,
 ///  as one pass classified them:
@@ -79,12 +92,19 @@ pub(super) struct CopyOfAnEarlierLayout {
 /// const declared = (destination) => { const lock = JSON.parse(readPlainFileThroughLinks(join(destination, 'toolchain.lock.json'), SMALL_FILE_LIMIT)); return new Set(Object.values(lock.tools).flatMap((tool) => tool.bins ?? [])); };
 /// ```
 pub(super) fn declared_launcher_names(destination: &Path) -> Option<HashSet<String>> {
-    let bytes: Vec<u8> = read_plain_file_through_links(destination.join(LOCK_FILE).as_path(), LONGEST_LOCK).ok()?;
-    let lock: serde_json::Value = serde_json::from_slice::<serde_json::Value>(bytes.as_slice()).ok()?;
+    let bytes: Vec<u8> =
+        read_plain_file_through_links(destination.join(LOCK_FILE).as_path(), LONGEST_LOCK).ok()?;
+    let lock: serde_json::Value =
+        serde_json::from_slice::<serde_json::Value>(bytes.as_slice()).ok()?;
     let tools: &serde_json::Map<String, serde_json::Value> = lock.get("tools")?.as_object()?;
     let mut names: HashSet<String> = HashSet::new();
     for tool in tools.values() {
-        for bin in tool.get("bins").and_then(serde_json::Value::as_array).into_iter().flatten() {
+        for bin in tool
+            .get("bins")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
             if let Some(name) = bin.as_str() {
                 names.insert(name.to_owned());
             }
@@ -145,22 +165,37 @@ pub(super) struct Launchers {
 pub(super) fn launchers_of(destination: &Path) -> Launchers {
     let named_another: Vec<PathBuf> = stale_launch_records(destination);
     let Some(declared) = declared_launcher_names(destination) else {
-        return Launchers { stale: named_another, unrewritable: Vec::new() };
+        return Launchers {
+            stale: named_another,
+            unrewritable: Vec::new(),
+        };
     };
     let mut stale: Vec<PathBuf> = Vec::new();
     let mut unrewritable: Vec<CopyOfAnEarlierLayout> = Vec::new();
     for record in named_another {
         let name: Option<String> = launcher_name(record.as_path());
-        if name.as_ref().is_some_and(|launcher| return declared.contains(launcher)) {
+        if name
+            .as_ref()
+            .is_some_and(|launcher| return declared.contains(launcher))
+        {
             stale.push(record);
             continue;
         }
         let launcher: PathBuf = record.with_extension("");
         let record_identity: Option<Identity> = identity_of(record.as_path());
         let launcher_identity: Option<Identity> = identity_of(launcher.as_path());
-        unrewritable.push(CopyOfAnEarlierLayout { record, record_identity, launcher, name, launcher_identity });
+        unrewritable.push(CopyOfAnEarlierLayout {
+            record,
+            record_identity,
+            launcher,
+            name,
+            launcher_identity,
+        });
     }
-    return Launchers { stale, unrewritable };
+    return Launchers {
+        stale,
+        unrewritable,
+    };
 }
 
 /// What:
@@ -174,7 +209,9 @@ pub(super) fn launchers_of(destination: &Path) -> Launchers {
 /// function staleLaunchRecords(destination: string): string[];
 /// ```
 pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else {
+        return Vec::new();
+    };
     let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
     let mut stale: Vec<PathBuf> = Vec::new();
     for item in listing.flatten() {
@@ -189,7 +226,10 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
         match own.names_another_lock(path.as_path()) {
             Some(true) => stale.push(path),
             Some(false) => {}
-            None => debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str()),
+            None => debug(
+                TAG,
+                format!("{} names no lock file and is left alone", path.display()).as_str(),
+            ),
         }
     }
     stale.sort();

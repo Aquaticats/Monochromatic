@@ -49,7 +49,10 @@ impl Accounting {
     /// ```ts
     /// accounting.within(TOLERANCE)
     /// ```
-    pub fn within(&self, tolerance: Duration) -> bool {
+    pub fn within(
+        &self,
+        tolerance: Duration,
+    ) -> bool {
         return self.unnamed <= tolerance;
     }
 }

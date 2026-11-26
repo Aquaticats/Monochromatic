@@ -26,7 +26,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "earlierPushProgramsRecord";
@@ -66,7 +69,12 @@ pub fn remove_what_an_earlier_branch_wrote(git_dir: &Path) {
     if removed.is_empty() {
         return;
     }
-    let shown: Vec<String> = removed.iter().map(|path| { return path.display().to_string(); }).collect();
+    let shown: Vec<String> = removed
+        .iter()
+        .map(|path| {
+            return path.display().to_string();
+        })
+        .collect();
     // The paths name no value of the record: what was in it is gone, and its own words could hold a password.
     debug(
         TAG,
@@ -96,7 +104,9 @@ pub fn remove_what_an_earlier_branch_wrote(git_dir: &Path) {
 fn staging_files_of(folder: &Path) -> Vec<PathBuf> {
     let prefix: String = format!(".{FILE}.");
     let mut found: Vec<PathBuf> = Vec::new();
-    let Ok(entries) = std::fs::read_dir(folder) else { return found };
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return found;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !name.starts_with(prefix.as_str()) || !name.ends_with(".partial") {
@@ -124,7 +134,9 @@ fn staging_files_of(folder: &Path) -> Vec<PathBuf> {
 /// const isAFile = lstatSync(path, { throwIfNoEntry: false })?.isFile() || isSymbolicLink(); return isAFile && unlinkSync(path) === undefined;
 /// ```
 fn unlink_a_file(path: &Path) -> bool {
-    let Some(metadata) = std::fs::symlink_metadata(path).ok() else { return false };
+    let Some(metadata) = std::fs::symlink_metadata(path).ok() else {
+        return false;
+    };
     if !metadata.is_file() && !metadata.is_symlink() {
         return false;
     }

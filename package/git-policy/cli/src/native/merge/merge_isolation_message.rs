@@ -21,7 +21,11 @@
 //! ```
 
 /// Running real Git on a request.
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git_checked,
+};
 
 /// What:
 ///  The line `git merge` hands to `git fmt-merge-msg` for one merged commit,
@@ -44,7 +48,11 @@ use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 /// ```ts
 /// function describeMergeSource({ reference, fullName, oid }): string | undefined;
 /// ```
-pub fn describe_merge_source(reference: &str, full_name: &str, oid: &str) -> Option<String> {
+pub fn describe_merge_source(
+    reference: &str,
+    full_name: &str,
+    oid: &str,
+) -> Option<String> {
     if let Some(name) = full_name.strip_prefix("refs/heads/") {
         return Some(format!("{oid}\t\tbranch '{name}' of .\n"));
     }
@@ -83,8 +91,11 @@ pub fn fetch_head_merge_heads(text: &str) -> Vec<String> {
     // `lines()` splits at line feeds like `text.split('\n')`.
     for line in text.lines() {
         // A name is as long as the hash: 40 hexadecimal digits for SHA-1, 64 for SHA-256.
-        let Some((name, rest)) = line.split_once('\t') else { continue };
-        let is_name: bool = (name.len() == 40 || name.len() == 64) && name.as_bytes().iter().all(u8::is_ascii_hexdigit);
+        let Some((name, rest)) = line.split_once('\t') else {
+            continue;
+        };
+        let is_name: bool = (name.len() == 40 || name.len() == 64)
+            && name.as_bytes().iter().all(u8::is_ascii_hexdigit);
         // Two tabs mean the head is for merging; a word after the first tab (`not-for-merge`) means it is not.
         if is_name && rest.starts_with('\t') {
             heads.push(String::from(name));
@@ -141,7 +152,10 @@ pub fn default_merge_message(
 /// ```ts
 /// async function cleanMessage({ context, message }): Promise<Uint8Array>;
 /// ```
-pub fn clean_message(context: &GitContext, message: &[u8]) -> Result<Vec<u8>, String> {
+pub fn clean_message(
+    context: &GitContext,
+    message: &[u8],
+) -> Result<Vec<u8>, String> {
     let mut request: GitRequest = GitRequest::new(std::path::Path::new("."), &["stripspace"]);
     request.input = Some(message.to_vec());
     let output = match run_git_checked(context, &request) {

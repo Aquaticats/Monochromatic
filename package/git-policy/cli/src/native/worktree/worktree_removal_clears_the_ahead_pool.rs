@@ -81,12 +81,19 @@
 
 use crate::fs_kind::is_subvolume_root;
 use crate::private_storage::remove_tree;
-use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use crate::worktree_removal_clears_the_pool::{REMOVING_PREFIX, RemoveAPool, take_the_pool_out_of_its_name};
+use crate::worktree_removal_clears_the_pool::{
+    REMOVING_PREFIX,
+    RemoveAPool,
+    take_the_pool_out_of_its_name,
+};
 use crate::worktree_remove_hand_over::leave_a_subvolume_for_the_service;
 use crate::worktree_snapshot_ahead::POOL_FOLDER;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The one call that takes one member of the pool out of it,
@@ -142,7 +149,10 @@ pub(crate) type TakeAMember<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a;
 /// The words for a pool or a member that cannot be taken,
 /// which is the reason the removal refuses while nothing of the
 ///  worktree has changed.
-pub(crate) fn clear_the_pools_ahead_of_a_worktree(common_dir: &Path, admin: &Path) -> Result<(), String> {
+pub(crate) fn clear_the_pools_ahead_of_a_worktree(
+    common_dir: &Path,
+    admin: &Path,
+) -> Result<(), String> {
     for folder in data_folders(admin) {
         clear_the_pools_ahead_in(common_dir, folder.as_path())?;
     }
@@ -186,7 +196,10 @@ pub(crate) fn common_data_folder(common_dir: &Path) -> PathBuf {
 /// const folders = dataFolders(admin); // [<admin>/monochromatic-git-policy-cli, <admin>/cli-git]
 /// ```
 pub(crate) fn data_folders(admin: &Path) -> [PathBuf; 2] {
-    return [admin.join(DATA_FOLDER.current), admin.join(DATA_FOLDER.earlier)];
+    return [
+        admin.join(DATA_FOLDER.current),
+        admin.join(DATA_FOLDER.earlier),
+    ];
 }
 
 /// What:
@@ -199,11 +212,16 @@ pub(crate) fn data_folders(admin: &Path) -> [PathBuf; 2] {
 /// ```ts
 /// clearThePoolsAheadIn(folder); // throws the reason
 /// ```
-fn clear_the_pools_ahead_in(common_dir: &Path, folder: &Path) -> Result<(), String> {
+fn clear_the_pools_ahead_in(
+    common_dir: &Path,
+    folder: &Path,
+) -> Result<(), String> {
     // The pool a fill reads is taken out of its name first, so a fill that comes afterwards makes a pool of its own
     // instead of writing into the tree this clear was given.
     let mut taken: Vec<PathBuf> = Vec::new();
-    if let Some(moved) = take_the_pool_out_of_its_name(folder.join(POOL_FOLDER).as_path(), REMOVING_PREFIX)? {
+    if let Some(moved) =
+        take_the_pool_out_of_its_name(folder.join(POOL_FOLDER).as_path(), REMOVING_PREFIX)?
+    {
         taken.push(moved);
     }
     taken.extend(left_over_pools(folder)?);
@@ -211,7 +229,9 @@ fn clear_the_pools_ahead_in(common_dir: &Path, folder: &Path) -> Result<(), Stri
     for pool in taken {
         clear_one_pool_ahead(
             pool.as_path(),
-            &|member: &Path| { return leave_a_member_to_the_service(common_dir, destination.as_path(), member); },
+            &|member: &Path| {
+                return leave_a_member_to_the_service(common_dir, destination.as_path(), member);
+            },
             &remove_tree,
         )?;
     }
@@ -247,17 +267,29 @@ fn left_over_pools(folder: &Path) -> Result<Vec<PathBuf>, String> {
     let listing = match std::fs::read_dir(folder) {
         Ok(listing) => listing,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
+        Err(error) => {
+            return Err(format!(
+                "the folder {folder} this program keeps for the worktree cannot be read ({error})",
+                folder = folder.display()
+            ));
+        }
     };
     let mut pools: Vec<PathBuf> = Vec::new();
     for found in listing {
         let entry: std::fs::DirEntry = match found {
             Ok(entry) => entry,
-            Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
+            Err(error) => {
+                return Err(format!(
+                    "the folder {folder} this program keeps for the worktree cannot be read ({error})",
+                    folder = folder.display()
+                ));
+            }
         };
         let name: std::ffi::OsString = entry.file_name();
         let Some(text) = name.to_str() else { continue };
-        let Some(identity) = text.strip_prefix(REMOVING_PREFIX) else { continue };
+        let Some(identity) = text.strip_prefix(REMOVING_PREFIX) else {
+            continue;
+        };
         if !is_an_identity(identity) {
             continue;
         }
@@ -266,7 +298,12 @@ fn left_over_pools(folder: &Path) -> Result<Vec<PathBuf>, String> {
         match entry.file_type() {
             Ok(kind) if kind.is_dir() => pools.push(entry.path()),
             Ok(_not_a_directory) => {}
-            Err(error) => return Err(format!("the folder {folder} this program keeps for the worktree cannot be read ({error})", folder = folder.display())),
+            Err(error) => {
+                return Err(format!(
+                    "the folder {folder} this program keeps for the worktree cannot be read ({error})",
+                    folder = folder.display()
+                ));
+            }
         }
     }
     return Ok(pools);
@@ -296,7 +333,9 @@ fn is_an_identity(text: &str) -> bool {
     let shape: [usize; 5] = [8, 4, 4, 4, 12];
     let mut parts = text.split('-');
     for digits in shape {
-        let Some(part) = parts.next() else { return false };
+        let Some(part) = parts.next() else {
+            return false;
+        };
         if part.len() != digits || !part.bytes().all(is_a_hexadecimal_digit) {
             return false;
         }
@@ -328,13 +367,19 @@ fn is_an_identity(text: &str) -> bool {
 /// ```ts
 /// leaveAMemberToTheService({ commonDir, destination, member }); // throws the reason
 /// ```
-fn leave_a_member_to_the_service(common_dir: &Path, destination: &Path, member: &Path) -> std::io::Result<()> {
+fn leave_a_member_to_the_service(
+    common_dir: &Path,
+    destination: &Path,
+    member: &Path,
+) -> std::io::Result<()> {
     // A pool holds a subvolume per member; a name that is no directory is a file this program wrote once, and it goes
     // without a delete that would have to walk it.
     return match std::fs::symlink_metadata(member) {
         Ok(found) if !found.is_dir() => std::fs::remove_file(member),
         Ok(_directory) if is_subvolume_root(member).unwrap_or(false) => {
-            return leave_a_subvolume_for_the_service(common_dir, member, destination).map_err(std::io::Error::other).map(|_left| {});
+            return leave_a_subvolume_for_the_service(common_dir, member, destination)
+                .map_err(std::io::Error::other)
+                .map(|_left| {});
         }
         Ok(_directory) => remove_tree(member),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
@@ -356,16 +401,30 @@ fn leave_a_member_to_the_service(common_dir: &Path, destination: &Path, member: 
 /// ```ts
 /// clearOnePoolAhead(taken, destroy, remove); // throws the reason
 /// ```
-pub(crate) fn clear_one_pool_ahead(taken: &Path, take_member: &TakeAMember<'_>, remove: &RemoveAPool<'_>) -> Result<(), String> {
+pub(crate) fn clear_one_pool_ahead(
+    taken: &Path,
+    take_member: &TakeAMember<'_>,
+    remove: &RemoveAPool<'_>,
+) -> Result<(), String> {
     let listing = match std::fs::read_dir(taken) {
         Ok(listing) => listing,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be read ({error})", taken = taken.display())),
+        Err(error) => {
+            return Err(format!(
+                "the folder {taken} of the snapshots the wrapper made ahead of an add cannot be read ({error})",
+                taken = taken.display()
+            ));
+        }
     };
     for found in listing {
         let member: PathBuf = match found {
             Ok(entry) => entry.path(),
-            Err(error) => return Err(format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be read ({error})", taken = taken.display())),
+            Err(error) => {
+                return Err(format!(
+                    "the folder {taken} of the snapshots the wrapper made ahead of an add cannot be read ({error})",
+                    taken = taken.display()
+                ));
+            }
         };
         match take_member(member.as_path()) {
             Ok(()) => {}
@@ -383,7 +442,10 @@ pub(crate) fn clear_one_pool_ahead(taken: &Path, take_member: &TakeAMember<'_>, 
         Ok(()) => Ok(()),
         // Another command's clear took it between the listing and this call.
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be removed ({error})", taken = taken.display())),
+        Err(error) => Err(format!(
+            "the folder {taken} of the snapshots the wrapper made ahead of an add cannot be removed ({error})",
+            taken = taken.display()
+        )),
     };
 }
 

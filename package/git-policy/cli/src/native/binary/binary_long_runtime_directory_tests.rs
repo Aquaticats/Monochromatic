@@ -14,15 +14,42 @@
 //!  with a service the fixture starts in a runtime directory the control chose,
 //!  so what is checked is the program a person runs and the address it really reaches.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository, short_runtime_directory, start_fixture_service, start_fixture_service_in};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    fixture,
+    git,
+    repository,
+    short_runtime_directory,
+    start_fixture_service,
+    start_fixture_service_in,
+};
 use git_policy_cli::service_address_of_a_worktree::socket_address_of;
-use git_policy_cli::service_instance::{instance_of, longest_runtime_directory, socket_path};
+use git_policy_cli::service_instance::{
+    instance_of,
+    longest_runtime_directory,
+    socket_path,
+};
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::sync::{Arc, Mutex};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// The subject of the newest commit,
 /// which is what says the commit was made.
@@ -46,11 +73,21 @@ const DIGEST_NAME_BYTES: usize = 8;
 /// So the folder is asked for by the room the name needs,
 /// from the fixture that owns it,
 /// and a control here never depends on how long this account's home directory is.
-fn runtime_directory_of_length(fixture: &Fixture, length: usize, tag: &str) -> PathBuf {
+fn runtime_directory_of_length(
+    fixture: &Fixture,
+    length: usize,
+    tag: &str,
+) -> PathBuf {
     let name_length: usize = tag.len().min(DIGEST_NAME_BYTES);
     let longest_parent: usize = length.saturating_sub(1 + name_length);
-    let parent: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("lr", longest_parent);
-    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
+    let parent: PathBuf = fixture
+        .socket_folders
+        .lock()
+        .expect("the fixture's socket folders")
+        .folder("lr", longest_parent);
+    let room: usize = length
+        .checked_sub(parent.as_os_str().len() + 1)
+        .expect("a runtime directory longer than the folder it stands in");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A tag that does not
     //  fit is replaced by a digest of itself: two controls still get two directories, whichever number this process runs
     //  as, and the room the digest needs was what the folder above was chosen for.
@@ -63,7 +100,11 @@ fn runtime_directory_of_length(fixture: &Fixture, length: usize, tag: &str) -> P
     };
     let runtime: PathBuf = parent.join(name);
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
+    assert_eq!(
+        runtime.as_os_str().len(),
+        length,
+        "the directory is exactly as long as the control asks"
+    );
     return runtime;
 }
 
@@ -86,11 +127,19 @@ fn edited(name: &str) -> (Fixture, PathBuf) {
 /// which is the address the commit computes for itself.
 /// The service is left in the fixture, so it runs until the control ends and the assertion that its address really
 ///  answers is made while it does.
-fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
+fn commit_through(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: PathBuf,
+) -> Output {
     let service = start_fixture_service_in(runtime.clone());
     service.serve(fixture, repo.join(".git").as_path());
     *fixture.service.lock().expect("the fixture's service lock") = Some(service);
-    let mut command = wrapped_commit(fixture, repo, &["commit", "--message", SUBJECT, "--", "a.txt"]);
+    let mut command = wrapped_commit(
+        fixture,
+        repo,
+        &["commit", "--message", SUBJECT, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime.as_path());
     return command.output().expect("the wrapped commit runs");
 }
@@ -109,18 +158,33 @@ fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
 fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allows() {
     let (fixture, repo) = edited("long-runtime-at-the-longest");
     let instance: String = instance_of(repo.join(".git").as_path());
-    let runtime: PathBuf = runtime_directory_of_length(&fixture, longest_runtime_directory(instance.as_str()), "at-the-longest");
+    let runtime: PathBuf = runtime_directory_of_length(
+        &fixture,
+        longest_runtime_directory(instance.as_str()),
+        "at-the-longest",
+    );
     let socket: PathBuf = socket_path(runtime.as_path(), instance.as_str());
     assert!(
-        matches!(socket_address_of(runtime.as_path(), instance.as_str()), Bind::Path(_)),
+        matches!(
+            socket_address_of(runtime.as_path(), instance.as_str()),
+            Bind::Path(_)
+        ),
         "a runtime directory at the longest keeps the path form, whose socket path is {} bytes",
         socket.as_os_str().len()
     );
     let output: Output = commit_through(&fixture, &repo, runtime.clone());
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
-    assert!(socket.exists(), "the service listens at the socket file the path form names: {}", socket.display());
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        SUBJECT,
+        "the commit was made"
+    );
+    assert!(
+        socket.exists(),
+        "the service listens at the socket file the path form names: {}",
+        socket.display()
+    );
     remove_settled(&fixture);
 }
 
@@ -137,16 +201,26 @@ fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allo
 fn a_commit_is_made_where_the_runtime_directory_is_past_what_a_socket_path_carries() {
     let (fixture, repo) = edited("long-runtime-past-the-longest");
     let instance: String = instance_of(repo.join(".git").as_path());
-    let runtime: PathBuf = runtime_directory_of_length(&fixture, longest_runtime_directory(instance.as_str()) + 1, "past-the-longest");
+    let runtime: PathBuf = runtime_directory_of_length(
+        &fixture,
+        longest_runtime_directory(instance.as_str()) + 1,
+        "past-the-longest",
+    );
     let output: Output = commit_through(&fixture, &repo, runtime.clone());
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        SUBJECT,
+        "the commit was made"
+    );
     let Bind::Abstract(name) = socket_address_of(runtime.as_path(), instance.as_str()) else {
         panic!("a runtime directory this long is served at an abstract name")
     };
     assert!(
-        git_policy_cli::service_address_of_a_worktree::the_address_is_there(&Bind::Abstract(name.clone())),
+        git_policy_cli::service_address_of_a_worktree::the_address_is_there(&Bind::Abstract(
+            name.clone()
+        )),
         "the service answers at the abstract name {name}"
     );
     assert!(
@@ -166,14 +240,26 @@ fn a_commit_with_a_short_runtime_directory_is_made_as_it_is_today() {
     let (fixture, repo) = edited("long-runtime-short");
     let service = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    let mut command = wrapped_commit(&fixture, &repo, &["commit", "--message", SUBJECT, "--", "a.txt"]);
+    let mut command = wrapped_commit(
+        &fixture,
+        &repo,
+        &["commit", "--message", SUBJECT, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", service.runtime.as_path());
     let output: Output = command.output().expect("the wrapped commit runs");
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        SUBJECT,
+        "the commit was made"
+    );
     assert!(
-        socket_path(service.runtime.as_path(), instance_of(repo.join(".git").as_path()).as_str()).exists(),
+        socket_path(
+            service.runtime.as_path(),
+            instance_of(repo.join(".git").as_path()).as_str()
+        )
+        .exists(),
         "the short runtime directory keeps the socket file"
     );
     remove_settled(&fixture);
@@ -191,11 +277,16 @@ fn a_commit_with_a_short_runtime_directory_is_made_as_it_is_today() {
 /// address the wrapper's own function gives the runtime directory when the unit is started.
 #[test]
 #[cfg(target_os = "linux")]
-fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_and_is_not_there_yet() {
+fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_and_is_not_there_yet()
+ {
     let (fixture, repo) = edited("long-runtime-relative-part");
     let instance: String = instance_of(repo.join(".git").as_path());
-    let (holder, runtime): (PathBuf, PathBuf) = runtime_directory_spelled_through_a_missing_directory(&instance, "relative-part");
-    assert!(!runtime.exists(), "the spelling's directory is not there when the first commit starts");
+    let (holder, runtime): (PathBuf, PathBuf) =
+        runtime_directory_spelled_through_a_missing_directory(&instance, "relative-part");
+    assert!(
+        !runtime.exists(),
+        "the spelling's directory is not there when the first commit starts"
+    );
     // The stand-in manager's bus stands in a directory of its own, because a bus inside the spelling would make the
     // directory the commit has not made yet.
     let bus_directory: PathBuf = short_runtime_directory(&fixture);
@@ -215,7 +306,9 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 return;
             }
             let mut command: Command = super::support::service_command();
-            command.args(["--journal"]).arg(journal.to_str().expect("a UTF-8 fixture path"));
+            command
+                .args(["--journal"])
+                .arg(journal.to_str().expect("a UTF-8 fixture path"));
             match &address {
                 Bind::Path(path) => {
                     command.arg("--path").arg(path);
@@ -223,7 +316,9 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 Bind::Abstract(name) => {
                     command.arg("--abstract").arg(name);
                 }
-                Bind::Inherited => panic!("the stand-in manager names the address it starts a service at"),
+                Bind::Inherited => {
+                    panic!("the stand-in manager names the address it starts a service at")
+                }
             }
             command
                 .args(["--instance", started_for.as_str()])
@@ -235,23 +330,43 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::inherit());
-            let child: Child = command.spawn().expect("the service the stand-in manager starts");
+            let child: Child = command
+                .spawn()
+                .expect("the service the stand-in manager starts");
             started.lock().expect("the started services").push(child);
         })
     };
     let bus = super::service_provision::fake_bus(bus_directory.as_path(), false, start);
-    let mut command = wrapped_commit(&fixture, &repo, &["commit", "--message", SUBJECT, "--", "a.txt"]);
+    let mut command = wrapped_commit(
+        &fixture,
+        &repo,
+        &["commit", "--message", SUBJECT, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime.as_path());
-    command.env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", bus_directory.join("bus").display()));
+    command.env(
+        "DBUS_SESSION_BUS_ADDRESS",
+        format!("unix:path={}", bus_directory.join("bus").display()),
+    );
     let output: Output = command.output().expect("the wrapped commit runs");
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     let asked: Vec<String> = bus.join().expect("the stand-in bus answers");
-    assert_eq!(output.status.code(), Some(0), "the commit was made: {stderr}\nthe manager was asked {asked:?}");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the commit was made: {stderr}\nthe manager was asked {asked:?}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        SUBJECT,
+        "the commit was made"
+    );
     // A listener holds the address this spelling names: the place it resolves to, which is also the name the client made
     // from the spelling before the directory existed.
     assert!(
-        git_policy_cli::service_address_of_a_worktree::the_address_is_there(&socket_address_of(runtime.as_path(), instance.as_str())),
+        git_policy_cli::service_address_of_a_worktree::the_address_is_there(&socket_address_of(
+            runtime.as_path(),
+            instance.as_str()
+        )),
         "the service answers at the address this spelling names: {}",
         runtime.display()
     );
@@ -271,8 +386,12 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
 ///   A runtime directory of forty bytes leaves no room for the socket's name,
 /// so the address is an abstract name;
 /// the plain spelling is what the other controls use, and this one is the spelling the file system has to fold.
-fn runtime_directory_spelled_through_a_missing_directory(instance: &str, tag: &str) -> (PathBuf, PathBuf) {
-    let base: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+fn runtime_directory_spelled_through_a_missing_directory(
+    instance: &str,
+    tag: &str,
+) -> (PathBuf, PathBuf) {
+    let base: PathBuf =
+        PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     std::fs::create_dir_all(&base).expect("the scratch directory");
     // `<holder>` exists; `<holder>/<name>/missing` does not, and `..` steps back over it.
     let holder: PathBuf = base.join(format!("{tag}-{}", std::process::id()));

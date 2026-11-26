@@ -30,22 +30,61 @@
 //! console.log(done.lines.join('\n'));
 //! ```
 
-use crate::lock::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
+use crate::lock::single_owner_claim::{
+    ClaimOutcome,
+    OwnerClaim,
+    take_claim,
+};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
-use crate::worktree_clone_record_settling::settling_absence::{TheClonesPresence, the_clones_presence};
-use crate::worktree_clone_record_settling::settling_lines::{TheEvidence, evidence_lines, last_line, removal_lines};
-use crate::worktree_clone_record_settling::settling_record::{TheRecord, confirm_the_record, read_the_record};
+use crate::worktree_clone_record_settling::settling_absence::{
+    TheClonesPresence,
+    the_clones_presence,
+};
+use crate::worktree_clone_record_settling::settling_lines::{
+    TheEvidence,
+    evidence_lines,
+    last_line,
+    removal_lines,
+};
+use crate::worktree_clone_record_settling::settling_record::{
+    TheRecord,
+    confirm_the_record,
+    read_the_record,
+};
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
-use crate::worktree_clone_record_settling::settling_removals::{RemovalsGone, RemovalsToMake, make_the_removals, the_claim_prefix};
+use crate::worktree_clone_record_settling::settling_removals::{
+    RemovalsGone,
+    RemovalsToMake,
+    make_the_removals,
+    the_claim_prefix,
+};
 use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
-use crate::worktree_clone_record_settling::settling_slot::{ThePointer, TheRegistration, TheSlot, read_the_slot};
-use crate::worktree_clone_record_settling::settling_standing_records::{a_standing_origin_cleanup, a_standing_plan};
-use crate::worktree_clone_record_settling::settling_steps::{SettlingStep, TheOrderFacts, the_steps};
+use crate::worktree_clone_record_settling::settling_slot::{
+    ThePointer,
+    TheRegistration,
+    TheSlot,
+    read_the_slot,
+};
+use crate::worktree_clone_record_settling::settling_standing_records::{
+    a_standing_origin_cleanup,
+    a_standing_plan,
+};
+use crate::worktree_clone_record_settling::settling_steps::{
+    SettlingStep,
+    TheOrderFacts,
+    the_steps,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The two live sources one run reads besides the files:
@@ -114,15 +153,26 @@ pub struct SettlingDone {
 /// ```ts
 /// const claim = takeTheSlotsClaim(commonDir, 'topic');
 /// ```
-fn take_the_slots_claim(common_dir: &Path, slot: &str) -> Result<OwnerClaim, SettlingStop> {
+fn take_the_slots_claim(
+    common_dir: &Path,
+    slot: &str,
+) -> Result<OwnerClaim, SettlingStop> {
     let home: PathBuf = home_folder(common_dir);
     if !home.is_dir() {
-        return Err(SettlingStop::NoRecord { path: home.join(binding_name(slot)) });
+        return Err(SettlingStop::NoRecord {
+            path: home.join(binding_name(slot)),
+        });
     }
     return match take_claim(home.as_path(), the_claim_prefix(slot).as_os_str()) {
         Ok(ClaimOutcome::Held(claim)) => Ok(claim),
-        Ok(ClaimOutcome::Busy(owner)) => Err(SettlingStop::TheClaimIsHeld { slot: String::from(slot), pid: owner.pid }),
-        Err(error) => Err(SettlingStop::TheClaimCannotBeTaken { slot: String::from(slot), said: format!("{error:?}") }),
+        Ok(ClaimOutcome::Busy(owner)) => Err(SettlingStop::TheClaimIsHeld {
+            slot: String::from(slot),
+            pid: owner.pid,
+        }),
+        Err(error) => Err(SettlingStop::TheClaimCannotBeTaken {
+            slot: String::from(slot),
+            said: format!("{error:?}"),
+        }),
     };
 }
 
@@ -148,13 +198,29 @@ fn take_the_slots_claim(common_dir: &Path, slot: &str) -> Result<OwnerClaim, Set
 /// ```ts
 /// refuseASlotOfAnotherRegistration(slot, record);
 /// ```
-fn refuse_a_slot_of_another_registration(slot: &TheSlot, record: &TheRecord) -> Result<(), SettlingStop> {
-    if let ThePointer::NamesAnother { found } = &slot.pointer {
-        return Err(SettlingStop::ThePointerNamesAnother { found: found.clone() });
+fn refuse_a_slot_of_another_registration(
+    slot: &TheSlot,
+    record: &TheRecord,
+) -> Result<(), SettlingStop> {
+    if let ThePointer::NamesAnother {
+        found,
+    } = &slot.pointer
+    {
+        return Err(SettlingStop::ThePointerNamesAnother {
+            found: found.clone(),
+        });
     }
     return match &slot.registration {
-        TheRegistration::Differs { live } => Err(SettlingStop::TheRegistrationIsAnother { recorded: record.recorded.registration_identity.encode(), live: live.encode() }),
-        TheRegistration::Gone | TheRegistration::Stands { .. } => Ok(()),
+        TheRegistration::Differs {
+            live,
+        } => Err(SettlingStop::TheRegistrationIsAnother {
+            recorded: record.recorded.registration_identity.encode(),
+            live: live.encode(),
+        }),
+        TheRegistration::Gone
+        | TheRegistration::Stands {
+            ..
+        } => Ok(()),
     };
 }
 
@@ -172,7 +238,16 @@ fn refuse_a_slot_of_another_registration(slot: &TheSlot, record: &TheRecord) -> 
 /// ```ts
 /// const lines = doneLines(evidence, gone, steps, checkoutBegun, lockWritten);
 /// ```
-fn done_lines(TheDoneFacts { evidence, gone, checkout_begun, lock_written }: TheDoneFacts<'_>, steps: &[SettlingStep], slot: &str) -> Vec<String> {
+fn done_lines(
+    TheDoneFacts {
+        evidence,
+        gone,
+        checkout_begun,
+        lock_written,
+    }: TheDoneFacts<'_>,
+    steps: &[SettlingStep],
+    slot: &str,
+) -> Vec<String> {
     let mut lines: Vec<String> = evidence_lines(evidence);
     if lock_written {
         lines.push(String::from(
@@ -186,7 +261,11 @@ fn done_lines(TheDoneFacts { evidence, gone, checkout_begun, lock_written }: The
 }
 
 /// The line naming what the removals left standing.
-fn what_went(gone: &RemovalsGone, checkout_begun: bool, slot: &str) -> String {
+fn what_went(
+    gone: &RemovalsGone,
+    checkout_begun: bool,
+    slot: &str,
+) -> String {
     if checkout_begun {
         return format!(
             "the records are gone and the registration and the slot stay, because a checkout had begun there: run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index."
@@ -196,7 +275,9 @@ fn what_went(gone: &RemovalsGone, checkout_begun: bool, slot: &str) -> String {
         true => "the registration and its lock are gone",
         false => "the registration was already gone",
     };
-    return format!("{registration}, the records are gone, and the slot folder stays for a person: it is the underlay the worktree's files were written into, and nothing of it is this command's to remove.");
+    return format!(
+        "{registration}, the records are gone, and the slot folder stays for a person: it is the underlay the worktree's files were written into, and nothing of it is this command's to remove."
+    );
 }
 
 /// What:
@@ -237,20 +318,37 @@ struct TheDoneFacts<'a> {
 /// ```ts
 /// const done = settleTheRecordsOfASlot(commonDir, request, reads);
 /// ```
-pub fn settle_the_records_of_a_slot(common_dir: &Path, request: &SettlingRequest, reads: &SettlingReads<'_>) -> Result<SettlingDone, SettlingStop> {
+pub fn settle_the_records_of_a_slot(
+    common_dir: &Path,
+    request: &SettlingRequest,
+    reads: &SettlingReads<'_>,
+) -> Result<SettlingDone, SettlingStop> {
     let mut claim: OwnerClaim = take_the_slots_claim(common_dir, request.slot.as_str())?;
     let record: TheRecord = read_the_record(common_dir, request.slot.as_str())?;
     confirm_the_record(&record.recorded, request)?;
-    let presence: TheClonesPresence = the_clones_presence(reads.probe, record.recorded.clone_dataset.as_str(), record.recorded.clone_guid);
+    let presence: TheClonesPresence = the_clones_presence(
+        reads.probe,
+        record.recorded.clone_dataset.as_str(),
+        record.recorded.clone_guid,
+    );
     if let Some(stop) = presence.stop_sentence() {
         return Err(stop);
     }
     let registration: PathBuf = registration_path(common_dir, &record);
-    let slot: TheSlot = read_the_slot(record.recorded.slot_path.as_path(), registration.as_path(), record.recorded.registration_identity, reads.mounts)?;
+    let slot: TheSlot = read_the_slot(
+        record.recorded.slot_path.as_path(),
+        registration.as_path(),
+        record.recorded.registration_identity,
+        reads.mounts,
+    )?;
     refuse_a_slot_of_another_registration(&slot, &record)?;
-    let cleanup: Option<OriginCleanupRecord> = a_standing_origin_cleanup(common_dir, &record.recorded)?;
+    let cleanup: Option<OriginCleanupRecord> =
+        a_standing_origin_cleanup(common_dir, &record.recorded)?;
     let plan: Option<DestructionPlan> = a_standing_plan(common_dir, &record.recorded)?;
-    let facts: TheOrderFacts = TheOrderFacts { checkout_begun: slot.a_checkout_has_begun(), plan_stands: plan.is_some() };
+    let facts: TheOrderFacts = TheOrderFacts {
+        checkout_begun: slot.a_checkout_has_begun(),
+        plan_stands: plan.is_some(),
+    };
     let steps: Vec<SettlingStep> = the_steps(facts);
     let to: RemovalsToMake<'_> = RemovalsToMake {
         common_dir,
@@ -261,9 +359,30 @@ pub fn settle_the_records_of_a_slot(common_dir: &Path, request: &SettlingRequest
         clone_guid: record.recorded.clone_guid,
     };
     let gone: RemovalsGone = make_the_removals(&to, steps.as_slice(), &mut claim)?;
-    let evidence: TheEvidence<'_> = TheEvidence { record: &record, presence: &presence, slot: &slot, cleanup: cleanup.as_ref(), plan: plan.as_ref() };
-    let lines: Vec<String> = done_lines(TheDoneFacts { evidence: &evidence, gone: &gone, checkout_begun: facts.checkout_begun, lock_written: gone.lock_written }, steps.as_slice(), request.slot.as_str());
-    return Ok(SettlingDone { lines, steps: gone.steps, files: gone.files, checkout_begun: facts.checkout_begun, lock_written: gone.lock_written });
+    let evidence: TheEvidence<'_> = TheEvidence {
+        record: &record,
+        presence: &presence,
+        slot: &slot,
+        cleanup: cleanup.as_ref(),
+        plan: plan.as_ref(),
+    };
+    let lines: Vec<String> = done_lines(
+        TheDoneFacts {
+            evidence: &evidence,
+            gone: &gone,
+            checkout_begun: facts.checkout_begun,
+            lock_written: gone.lock_written,
+        },
+        steps.as_slice(),
+        request.slot.as_str(),
+    );
+    return Ok(SettlingDone {
+        lines,
+        steps: gone.steps,
+        files: gone.files,
+        checkout_begun: facts.checkout_begun,
+        lock_written: gone.lock_written,
+    });
 }
 
 /// What:
@@ -278,8 +397,13 @@ pub fn settle_the_records_of_a_slot(common_dir: &Path, request: &SettlingRequest
 /// ```ts
 /// const path = join(commonDir, 'worktrees', registrationName);
 /// ```
-fn registration_path(common_dir: &Path, record: &TheRecord) -> PathBuf {
-    let name: std::ffi::OsString = std::ffi::OsString::from(String::from_utf8_lossy(record.recorded.registration_id.as_slice()).into_owned());
+fn registration_path(
+    common_dir: &Path,
+    record: &TheRecord,
+) -> PathBuf {
+    let name: std::ffi::OsString = std::ffi::OsString::from(
+        String::from_utf8_lossy(record.recorded.registration_id.as_slice()).into_owned(),
+    );
     return common_dir.join("worktrees").join(name);
 }
 

@@ -15,7 +15,10 @@
 /// `OsString` is owned operating-system text and `PathBuf` an owned path.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Give the file at `path` a new inode with the same bytes and the same modification time.

@@ -25,11 +25,26 @@ use crate::wrapper_names_old_and_new::PROGRAM;
 const KERNEL_COMMAND_NAME_BYTES: usize = 15;
 use super::*;
 use crate::stale_ref_lock_killed_git as killed;
-use crate::stale_ref_lock_killed_git::{Held, Helper, Stage, GONE_REF};
+use crate::stale_ref_lock_killed_git::{
+    GONE_REF,
+    Held,
+    Helper,
+    Stage,
+};
 use crate::test_support::remove;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// A judge that sees the processes of this kernel completely,
 /// takes any lock as old enough,
@@ -42,14 +57,22 @@ use std::time::{Duration, SystemTime};
 /// the veto has its own controls,
 /// which name the holder they plant.
 fn judge() -> Judge {
-    return Judge { margin: Duration::ZERO, boot: None, scan_scope: Some(Vec::new()), ..Judge::here() };
+    return Judge {
+        margin: Duration::ZERO,
+        boot: None,
+        scan_scope: Some(Vec::new()),
+        ..Judge::here()
+    };
 }
 
 /// The same judge,
 /// for a control that plants a live process holding a file open:
 /// that process is the only one its scan may see.
 fn judge_seeing(pid: i64) -> Judge {
-    return Judge { scan_scope: Some(vec![pid]), ..judge() };
+    return Judge {
+        scan_scope: Some(vec![pid]),
+        ..judge()
+    };
 }
 
 /// A process number that no running process has:
@@ -74,11 +97,18 @@ fn sleeper() -> Helper {
 /// Write an empty lock and,
 /// when `pid` is given,
 /// the pid file Git would have written beside it after the lock.
-fn plant_lock(stage: &Stage, reference: &str, pid: Option<i64>) {
+fn plant_lock(
+    stage: &Stage,
+    reference: &str,
+    pid: Option<i64>,
+) {
     killed::write_file(stage.lock_of(reference).as_path(), "");
     if let Some(number) = pid {
         std::thread::sleep(Duration::from_millis(20));
-        killed::write_file(stage.pid_file_of(reference).as_path(), &format!("pid {number}\n"));
+        killed::write_file(
+            stage.pid_file_of(reference).as_path(),
+            &format!("pid {number}\n"),
+        );
     }
 }
 
@@ -91,11 +121,15 @@ fn leftovers(stage: &Stage) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![stage.git_dir.clone()];
     while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(directory.as_path()).expect("read the directory").flatten() {
+        for entry in std::fs::read_dir(directory.as_path())
+            .expect("read the directory")
+            .flatten()
+        {
             let path: PathBuf = entry.path();
             if entry.file_type().expect("file type").is_dir() {
                 pending.push(path);
-            } else if path.to_string_lossy().ends_with(".lock") || path.ends_with("packed-refs.new") {
+            } else if path.to_string_lossy().ends_with(".lock") || path.ends_with("packed-refs.new")
+            {
                 found.push(path);
             }
         }
@@ -106,8 +140,20 @@ fn leftovers(stage: &Stage) -> Vec<PathBuf> {
 
 /// The verdict a pass gave one lock,
 /// wherever it landed.
-fn verdict_of(outcome: &Outcome, lock: &Path) -> Option<Verdict> {
-    return outcome.cleared.iter().chain(outcome.left.iter()).find(|found| { return found.lock == lock; }).map(|found| { return found.verdict.clone(); });
+fn verdict_of(
+    outcome: &Outcome,
+    lock: &Path,
+) -> Option<Verdict> {
+    return outcome
+        .cleared
+        .iter()
+        .chain(outcome.left.iter())
+        .find(|found| {
+            return found.lock == lock;
+        })
+        .map(|found| {
+            return found.verdict.clone();
+        });
 }
 
 /// Locks that a fetch killed with `SIGKILL` left,
@@ -119,15 +165,39 @@ fn verdict_of(outcome: &Outcome, lock: &Path) -> Option<Verdict> {
 fn locks_left_by_a_killed_fetch_stay_and_are_named() {
     let stage: Stage = killed::stage("stale-refs-killed-fetch", true);
     let mut held: Held = killed::hold_fetch(&stage);
-    assert!(stage.lock_of(GONE_REF).exists() && stage.packed_lock().exists() && stage.packed_staging().exists(), "the fetch holds its locks");
-    assert_eq!(std::fs::metadata(stage.lock_of(GONE_REF)).expect("lock").len(), 0, "a deleted reference's lock is empty");
+    assert!(
+        stage.lock_of(GONE_REF).exists()
+            && stage.packed_lock().exists()
+            && stage.packed_staging().exists(),
+        "the fetch holds its locks"
+    );
+    assert_eq!(
+        std::fs::metadata(stage.lock_of(GONE_REF))
+            .expect("lock")
+            .len(),
+        0,
+        "a deleted reference's lock is empty"
+    );
     held.kill();
     let before: Vec<PathBuf> = leftovers(&stage);
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert!(!outcome.cleared_any(), "a lock nothing proves stale was removed: {outcome:?}");
+    assert!(
+        !outcome.cleared_any(),
+        "a lock nothing proves stale was removed: {outcome:?}"
+    );
     assert_eq!(leftovers(&stage), before);
-    assert!(matches!(verdict_of(&outcome, stage.packed_lock().as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
-    assert!(outcome.notice().contains("rm -- "), "the person is given the command that clears it: {}", outcome.notice());
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.packed_lock().as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
+    assert!(
+        outcome.notice().contains("rm -- "),
+        "the person is given the command that clears it: {}",
+        outcome.notice()
+    );
     stage.finish();
 }
 
@@ -143,7 +213,13 @@ fn locks_of_a_killed_fetch_with_no_pid_file_stay() {
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert_eq!(leftovers(&stage), before);
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(GONE_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(GONE_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
@@ -153,13 +229,28 @@ fn locks_of_a_killed_fetch_with_no_pid_file_stay() {
 #[test]
 fn locks_of_a_running_git_stay_though_no_descriptor_holds_them() {
     let stage: Stage = killed::stage("stale-refs-running", true);
-    let held: Held = killed::hold_transaction(&stage, &["delete refs/remotes/origin/gone", "delete refs/remotes/origin/main"]);
+    let held: Held = killed::hold_transaction(
+        &stage,
+        &[
+            "delete refs/remotes/origin/gone",
+            "delete refs/remotes/origin/main",
+        ],
+    );
     let before: Vec<PathBuf> = leftovers(&stage);
-    assert!(before.contains(&stage.packed_lock()) && before.contains(&stage.lock_of(GONE_REF)), "{before:?}");
+    assert!(
+        before.contains(&stage.packed_lock()) && before.contains(&stage.lock_of(GONE_REF)),
+        "{before:?}"
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert_eq!(leftovers(&stage), before);
-    assert!(matches!(verdict_of(&outcome, stage.packed_lock().as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.packed_lock().as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     drop(held);
     stage.finish();
 }
@@ -185,20 +276,38 @@ fn a_lock_that_a_process_holds_open_stays_though_its_pid_file_names_a_gone_proce
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let lock: PathBuf = stage.lock_of(PLANTED_REF);
     let mut command: Command = Command::new("sh");
-    command.args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"]).arg(lock.as_os_str());
+    command
+        .args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"])
+        .arg(lock.as_os_str());
     // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
-    let holder: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
+    let holder: Helper =
+        Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
     let holder_pid: i64 = holder.pid();
     let descriptors: PathBuf = PathBuf::from(format!("/proc/{holder_pid}/fd"));
     let started: std::time::Instant = std::time::Instant::now();
-    while !std::fs::read_dir(descriptors.as_path()).expect("fds").flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock; }); }) {
-        assert!(started.elapsed() < killed::HOLD_PATIENCE, "the holder opened the lock");
+    while !std::fs::read_dir(descriptors.as_path())
+        .expect("fds")
+        .flatten()
+        .any(|entry| {
+            return std::fs::read_link(entry.path()).is_ok_and(|target| {
+                return target == lock;
+            });
+        })
+    {
+        assert!(
+            started.elapsed() < killed::HOLD_PATIENCE,
+            "the holder opened the lock"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder_pid));
+    let outcome: Outcome =
+        clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder_pid));
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(lock.exists() && stage.pid_file_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, lock.as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    assert!(
+        matches!(verdict_of(&outcome, lock.as_path()), Some(Verdict::Held(_))),
+        "{outcome:?}"
+    );
     drop(holder);
     stage.finish();
 }
@@ -212,13 +321,25 @@ fn a_lock_inside_the_margin_stays_and_is_judged_once_it_is_older() {
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
     let before: Vec<PathBuf> = leftovers(&stage);
-    let strict: Judge = Judge { margin: Duration::from_secs(3600), ..judge() };
+    let strict: Judge = Judge {
+        margin: Duration::from_secs(3600),
+        ..judge()
+    };
     let young: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &strict);
-    assert!(!young.cleared_any() && young.left.is_empty(), "a lock inside the margin is left without a word: {young:?}");
+    assert!(
+        !young.cleared_any() && young.left.is_empty(),
+        "a lock inside the margin is left without a word: {young:?}"
+    );
     assert_eq!(leftovers(&stage), before);
     let aged: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert!(!aged.cleared_any(), "a lock nothing proves stale was removed: {aged:?}");
-    assert!(!aged.left.is_empty(), "a lock past the margin is judged and named: {aged:?}");
+    assert!(
+        !aged.cleared_any(),
+        "a lock nothing proves stale was removed: {aged:?}"
+    );
+    assert!(
+        !aged.left.is_empty(),
+        "a lock past the margin is judged and named: {aged:?}"
+    );
     stage.finish();
 }
 
@@ -227,13 +348,22 @@ fn a_lock_inside_the_margin_stays_and_is_judged_once_it_is_older() {
 #[test]
 fn a_pid_file_born_before_the_lock_is_not_evidence() {
     let stage: Stage = killed::stage("stale-refs-older-pid-file", true);
-    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", ended_pid()));
+    killed::write_file(
+        stage.pid_file_of(PLANTED_REF).as_path(),
+        &format!("pid {}\n", ended_pid()),
+    );
     std::thread::sleep(Duration::from_millis(50));
     killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
@@ -251,12 +381,22 @@ fn a_number_that_another_program_now_holds_is_not_proof() {
     std::thread::sleep(Duration::from_millis(400));
     let other: Helper = sleeper();
     std::thread::sleep(Duration::from_millis(50));
-    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
+    killed::write_file(
+        stage.pid_file_of(PLANTED_REF).as_path(),
+        &format!("pid {}\n", other.pid()),
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")), "{outcome:?}");
-    assert!(outcome.notice().contains("rm -- "), "the person is given the command that clears it: {}", outcome.notice());
+    assert!(
+        matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")),
+        "{outcome:?}"
+    );
+    assert!(
+        outcome.notice().contains("rm -- "),
+        "the person is given the command that clears it: {}",
+        outcome.notice()
+    );
     drop(other);
     stage.finish();
 }
@@ -281,22 +421,39 @@ fn a_process_named_like_the_one_executable_is_not_git() {
 fn a_process_named_like_this_program_is_not_git(program: &str) {
     let stage: Stage = killed::stage(format!("stale-refs-named-{program}").as_str(), true);
     let named: PathBuf = stage.git_dir.join(program);
-    std::fs::copy(Path::new("/usr/bin/sleep"), &named).expect("a copy of sleep under the executable's name");
+    std::fs::copy(Path::new("/usr/bin/sleep"), &named)
+        .expect("a copy of sleep under the executable's name");
     killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
     std::thread::sleep(Duration::from_millis(400));
     let mut command: Command = Command::new(&named);
     command.arg("120").stdin(Stdio::null());
     // Owned, so this copy under the executable's name is ended with the test that started it.
-    let other: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the copy"));
-    let comm: String = std::fs::read_to_string(format!("/proc/{}/comm", other.pid())).expect("comm").trim().to_string();
+    let other: Helper =
+        Helper(crate::test_support::spawn_owned(&mut command).expect("start the copy"));
+    let comm: String = std::fs::read_to_string(format!("/proc/{}/comm", other.pid()))
+        .expect("comm")
+        .trim()
+        .to_string();
     // The kernel reports at most fifteen bytes of a command name.
-    assert_eq!(comm, program.chars().take(KERNEL_COMMAND_NAME_BYTES).collect::<String>());
+    assert_eq!(
+        comm,
+        program
+            .chars()
+            .take(KERNEL_COMMAND_NAME_BYTES)
+            .collect::<String>()
+    );
     std::thread::sleep(Duration::from_millis(50));
-    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
+    killed::write_file(
+        stage.pid_file_of(PLANTED_REF).as_path(),
+        &format!("pid {}\n", other.pid()),
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("running")), "{outcome:?}");
+    assert!(
+        matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("running")),
+        "{outcome:?}"
+    );
     drop(other);
     stage.finish();
 }
@@ -313,7 +470,13 @@ fn a_running_program_that_is_not_named_git_keeps_the_lock_whatever_its_start() {
     plant_lock(&stage, PLANTED_REF, Some(other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     assert!(stage.lock_of(PLANTED_REF).exists());
     drop(other);
     stage.finish();
@@ -330,7 +493,10 @@ fn a_running_git_named_by_the_pid_file_is_not_proven_the_holder() {
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")), "{outcome:?}");
+    assert!(
+        matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")),
+        "{outcome:?}"
+    );
     drop(idle);
     stage.finish();
 }
@@ -344,16 +510,32 @@ fn a_running_git_named_by_the_pid_file_is_not_proven_the_holder() {
 fn a_lock_older_than_the_boot_is_left_and_said_to_be_unproven() {
     let stage: Stage = killed::stage("stale-refs-boot", false);
     plant_lock(&stage, PLANTED_REF, None);
-    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
-    let before: Judge = Judge { boot: Some(SystemTime::now() - A_DAY), ..judge() };
+    let after: Judge = Judge {
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
+    let before: Judge = Judge {
+        boot: Some(SystemTime::now() - A_DAY),
+        ..judge()
+    };
     let younger: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
     assert!(!younger.cleared_any(), "{younger:?}");
-    assert!(!matches!(verdict_of(&younger, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot")), "a lock younger than the boot is not said to look older: {younger:?}");
+    assert!(
+        !matches!(verdict_of(&younger, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot")),
+        "a lock younger than the boot is not said to look older: {younger:?}"
+    );
     let older: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!older.cleared_any(), "{older:?}");
-    assert!(matches!(verdict_of(&older, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot") && text.contains("correction of the clock")), "{older:?}");
+    assert!(
+        matches!(verdict_of(&older, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot") && text.contains("correction of the clock")),
+        "{older:?}"
+    );
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(older.notice().contains("rm -- "), "the person is given the command that clears it: {}", older.notice());
+    assert!(
+        older.notice().contains("rm -- "),
+        "the person is given the command that clears it: {}",
+        older.notice()
+    );
     stage.finish();
 }
 
@@ -364,7 +546,10 @@ fn the_boot_time_does_not_override_a_pid_file_that_names_a_running_git() {
     let stage: Stage = killed::stage("stale-refs-boot-vs-pid", true);
     let idle: Held = killed::idle_git(&stage);
     plant_lock(&stage, PLANTED_REF, Some(i64::from(idle.pid())));
-    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let after: Judge = Judge {
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     drop(idle);
@@ -376,7 +561,9 @@ fn the_boot_time_does_not_override_a_pid_file_that_names_a_running_git() {
 fn a_view_of_processes_that_may_be_partial_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-partial-view", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let partial: Judge = Judge { ..judge() };
+    let partial: Judge = Judge {
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &partial);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
@@ -388,7 +575,11 @@ fn a_view_of_processes_that_may_be_partial_proves_nothing() {
 fn a_file_system_off_the_local_list_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-remote-fs", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let nowhere: Judge = Judge { local_file_systems: Vec::new(), boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let nowhere: Judge = Judge {
+        local_file_systems: Vec::new(),
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &nowhere);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
@@ -401,7 +592,10 @@ fn a_file_system_off_the_local_list_proves_nothing() {
 fn an_unreadable_process_table_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-no-proc", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let blind: Judge = Judge { proc_root: stage.root.join("no-such-proc"), ..judge() };
+    let blind: Judge = Judge {
+        proc_root: stage.root.join("no-such-proc"),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &blind);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
@@ -420,14 +614,24 @@ fn locks_of_other_protocols_are_never_candidates() {
         stage.git_dir.join("config.lock"),
         stage.git_dir.join("shallow.lock"),
         stage.git_dir.join("objects").join("pack").join("tmp.lock"),
-        stage.git_dir.join("refs").join("heads").join("alone~pid.lock"),
+        stage
+            .git_dir
+            .join("refs")
+            .join("heads")
+            .join("alone~pid.lock"),
     ];
     for path in &others {
         killed::write_file(path.as_path(), "");
     }
-    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let after: Judge = Judge {
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
-    assert!(!outcome.cleared_any() && outcome.left.is_empty(), "{outcome:?}");
+    assert!(
+        !outcome.cleared_any() && outcome.left.is_empty(),
+        "{outcome:?}"
+    );
     for path in &others {
         assert!(path.exists(), "{path:?}");
     }
@@ -440,13 +644,24 @@ fn locks_of_other_protocols_are_never_candidates() {
 fn a_reference_with_shell_and_path_characters_is_named_literally() {
     let stage: Stage = killed::stage("stale-refs-adversarial", true);
     let name: &str = "refs/heads/it's$(touch${IFS}pwned);`id`&x|(y)";
-    let mut held: Held = killed::hold_transaction(&stage, &[format!("create {name} HEAD").as_str()]);
-    assert!(stage.lock_of(name).exists(), "Git holds the lock of the odd name");
+    let mut held: Held =
+        killed::hold_transaction(&stage, &[format!("create {name} HEAD").as_str()]);
+    assert!(
+        stage.lock_of(name).exists(),
+        "Git holds the lock of the odd name"
+    );
     held.kill();
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
-    assert!(outcome.notice().contains("rm -- '"), "the name is quoted for a shell: {}", outcome.notice());
-    assert!(!stage.repo.join("pwned").exists() && !Path::new("pwned").exists(), "nothing was run");
+    assert!(
+        outcome.notice().contains("rm -- '"),
+        "the name is quoted for a shell: {}",
+        outcome.notice()
+    );
+    assert!(
+        !stage.repo.join("pwned").exists() && !Path::new("pwned").exists(),
+        "nothing was run"
+    );
     stage.finish();
 }
 
@@ -459,9 +674,14 @@ fn symbolic_links_are_neither_followed_nor_removed() {
     killed::write_file(outside.join("x.lock").as_path(), "");
     killed::write_file(outside.join("target.lock").as_path(), "");
     let heads: PathBuf = stage.git_dir.join("refs").join("heads");
-    std::os::unix::fs::symlink(outside.as_path(), heads.join("linked-directory")).expect("link a directory");
-    std::os::unix::fs::symlink(outside.join("target.lock"), heads.join("linked.lock")).expect("link a lock");
-    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    std::os::unix::fs::symlink(outside.as_path(), heads.join("linked-directory"))
+        .expect("link a directory");
+    std::os::unix::fs::symlink(outside.join("target.lock"), heads.join("linked.lock"))
+        .expect("link a lock");
+    let after: Judge = Judge {
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(outside.join("x.lock").exists() && outside.join("target.lock").exists());
@@ -477,12 +697,20 @@ fn a_lock_in_a_directory_that_cannot_be_written_is_left() {
     let stage: Stage = killed::stage("stale-refs-unwritable", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let directory: PathBuf = stage.git_dir.join("refs").join("heads");
-    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o555)).expect("make read-only");
+    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("make read-only");
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o755)).expect("make writable");
+    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("make writable");
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
@@ -497,9 +725,17 @@ fn a_lock_taken_again_after_the_judgement_is_put_back() {
     std::fs::remove_file(lock.as_path()).expect("the stale lock is removed by another wrapper");
     killed::write_file(lock.as_path(), "live holder's content\n");
     let mut outcome: Outcome = Outcome::default();
-    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(
+        stage.git_dir.as_path(),
+        lock.as_path(),
+        &judged,
+        &mut outcome,
+    );
     assert_eq!(removed, Ok(false));
-    assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
+    assert_eq!(
+        std::fs::read_to_string(lock.as_path()).expect("the live lock"),
+        "live holder's content\n"
+    );
     assert!(outcome.displaced.is_empty(), "{outcome:?}");
     stage.finish();
 }
@@ -517,17 +753,32 @@ fn a_lock_that_differs_from_the_judged_one_when_taken_is_put_back_whole() {
     std::fs::remove_file(lock.as_path()).expect("the stale lock is removed by another wrapper");
     killed::write_file(lock.as_path(), "live holder's content\n");
     let mut outcome: Outcome = Outcome::default();
-    let removed = crate::stale_ref_lock_retire::take_and_check(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::take_and_check(
+        stage.git_dir.as_path(),
+        lock.as_path(),
+        &judged,
+        &mut outcome,
+    );
     assert_eq!(removed, Ok(false));
-    assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
+    assert_eq!(
+        std::fs::read_to_string(lock.as_path()).expect("the live lock"),
+        "live holder's content\n"
+    );
     assert!(outcome.displaced.is_empty(), "{outcome:?}");
     let aside: Vec<String> = std::fs::read_dir(stage.git_dir.as_path())
         .expect("read the Git directory")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.starts_with("cli-git-stale-lock"); })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name.starts_with("cli-git-stale-lock");
+        })
         .collect();
-    assert!(aside.is_empty(), "nothing is left under the private name: {aside:?}");
+    assert!(
+        aside.is_empty(),
+        "nothing is left under the private name: {aside:?}"
+    );
     stage.finish();
 }
 
@@ -540,17 +791,34 @@ fn a_lock_that_kept_the_judged_device_and_inode_is_not_taken() {
     let stage: Stage = killed::stage("stale-refs-reused-inode", true);
     plant_lock(&stage, PLANTED_REF, None);
     let lock: PathBuf = stage.lock_of(PLANTED_REF);
-    let judged: crate::stale_ref_lock_judge::Identity = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
+    let judged: crate::stale_ref_lock_judge::Identity =
+        crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
     // An in-place rewrite keeps the device and the inode,
     //  which is what the allocator does when it hands a freed inode to the next file at the same path.
     killed::write_file(lock.as_path(), "live holder's content\n");
-    let now: crate::stale_ref_lock_judge::Identity = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("the live lock");
-    assert_eq!((judged.device, judged.inode), (now.device, now.inode), "the control keeps the judged device and inode");
-    assert_ne!(judged, now, "the control's file differs from the judged one");
+    let now: crate::stale_ref_lock_judge::Identity =
+        crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("the live lock");
+    assert_eq!(
+        (judged.device, judged.inode),
+        (now.device, now.inode),
+        "the control keeps the judged device and inode"
+    );
+    assert_ne!(
+        judged, now,
+        "the control's file differs from the judged one"
+    );
     let mut outcome: Outcome = Outcome::default();
-    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(
+        stage.git_dir.as_path(),
+        lock.as_path(),
+        &judged,
+        &mut outcome,
+    );
     assert_eq!(removed, Ok(false));
-    assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
+    assert_eq!(
+        std::fs::read_to_string(lock.as_path()).expect("the live lock"),
+        "live holder's content\n"
+    );
     assert!(outcome.displaced.is_empty(), "{outcome:?}");
     stage.finish();
 }
@@ -565,7 +833,12 @@ fn the_judged_lock_is_removed_when_taken() {
     let lock: PathBuf = stage.lock_of(PLANTED_REF);
     let judged = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
     let mut outcome: Outcome = Outcome::default();
-    let removed = crate::stale_ref_lock_retire::take_and_check(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::take_and_check(
+        stage.git_dir.as_path(),
+        lock.as_path(),
+        &judged,
+        &mut outcome,
+    );
     assert_eq!(removed, Ok(true));
     assert!(!lock.exists());
     stage.finish();
@@ -578,10 +851,16 @@ fn a_pid_file_that_a_live_writer_made_after_the_judgement_is_not_removed_with_th
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let pid_file: PathBuf = stage.pid_file_of(PLANTED_REF);
     let judged = crate::stale_ref_lock_judge::identity_of(pid_file.as_path()).expect("identity");
-    std::fs::remove_file(pid_file.as_path()).expect("the dead holder's pid file is removed by another wrapper");
+    std::fs::remove_file(pid_file.as_path())
+        .expect("the dead holder's pid file is removed by another wrapper");
     killed::write_file(pid_file.as_path(), &format!("pid {}\n", std::process::id()));
     let mut outcome: Outcome = Outcome::default();
-    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), pid_file.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(
+        stage.git_dir.as_path(),
+        pid_file.as_path(),
+        &judged,
+        &mut outcome,
+    );
     assert_eq!(removed, Ok(false));
     assert!(pid_file.exists());
     stage.finish();
@@ -594,7 +873,10 @@ fn the_roots_of_a_command_are_found_without_git() {
     let stage: Stage = killed::stage("stale-refs-roots", false);
     let mut command: Command = Command::new("git");
     command.current_dir(stage.repo.as_path());
-    assert_eq!(crate::git_directory_roots::roots_of_command(&command), stage.roots());
+    assert_eq!(
+        crate::git_directory_roots::roots_of_command(&command),
+        stage.roots()
+    );
     stage.finish();
 }
 
@@ -604,21 +886,36 @@ const FAKE_PROCESS: i64 = 4242;
 /// A process table with one process of this account whose descriptor record cannot be read,
 /// as `systemd --user` is on a host;
 /// the judge of it scans that process and no other.
-fn table_with_unreadable(stage: &Stage, command: &str) -> Judge {
+fn table_with_unreadable(
+    stage: &Stage,
+    command: &str,
+) -> Judge {
     use std::os::unix::fs::PermissionsExt as _;
     let table: PathBuf = stage.root.join("proc");
     let process: PathBuf = table.join(FAKE_PROCESS.to_string());
     let descriptors: PathBuf = process.join("fdinfo");
     std::fs::create_dir_all(descriptors.as_path()).expect("fake process");
     std::fs::write(process.join("comm"), format!("{command}\n")).expect("comm");
-    std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o000)).expect("hide the descriptors");
-    return Judge { proc_root: table, scan_scope: Some(vec![FAKE_PROCESS]), ..judge() };
+    std::fs::set_permissions(
+        descriptors.as_path(),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .expect("hide the descriptors");
+    return Judge {
+        proc_root: table,
+        scan_scope: Some(vec![FAKE_PROCESS]),
+        ..judge()
+    };
 }
 
 /// Make the fake table removable again.
 fn reveal(table: &Path) {
     use std::os::unix::fs::PermissionsExt as _;
-    std::fs::set_permissions(table.join(FAKE_PROCESS.to_string()).join("fdinfo"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
+    std::fs::set_permissions(
+        table.join(FAKE_PROCESS.to_string()).join("fdinfo"),
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .expect("reveal");
 }
 
 /// A process of this account that is not Git and cannot be looked into (the user's service manager) cannot hold a Git lock,
@@ -634,7 +931,10 @@ fn an_unreadable_process_that_is_not_git_is_not_the_veto() {
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
     reveal(revealed.as_path());
     let verdict: Option<Verdict> = verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path());
-    assert!(matches!(verdict, Some(Verdict::Unproven(text)) if text.contains(&format!("names process {gone}"))), "{outcome:?}");
+    assert!(
+        matches!(verdict, Some(Verdict::Unproven(text)) if text.contains(&format!("names process {gone}"))),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
@@ -649,7 +949,13 @@ fn an_unreadable_git_process_stops_a_proof() {
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
     reveal(revealed.as_path());
     assert!(!outcome.cleared_any(), "{outcome:?}");
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     assert!(stage.lock_of(PLANTED_REF).exists());
     stage.finish();
 }
@@ -685,10 +991,15 @@ impl NuisanceGit {
             }
         }
         assert!(forked > 0, "fork the process of another program");
-        let nuisance: Self = Self { pid: i64::from(forked) };
+        let nuisance: Self = Self {
+            pid: i64::from(forked),
+        };
         let started: std::time::Instant = std::time::Instant::now();
         while !nuisance.named_and_hidden() {
-            assert!(started.elapsed() < killed::HOLD_PATIENCE, "the process of another program took its name and hid its descriptors");
+            assert!(
+                started.elapsed() < killed::HOLD_PATIENCE,
+                "the process of another program took its name and hid its descriptors"
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
         return nuisance.named_and_hidden().then_some(nuisance);
@@ -697,8 +1008,12 @@ impl NuisanceGit {
     /// Whether the scan of this account meets it as a Git process it cannot look into.
     fn named_and_hidden(&self) -> bool {
         let process: PathBuf = PathBuf::from("/proc").join(self.pid.to_string());
-        let named: bool = std::fs::read_to_string(process.join("comm")).is_ok_and(|text| { return text.trim().starts_with("git"); });
-        let hidden: bool = std::fs::read_dir(process.join("fd")).is_err_and(|error| { return error.kind() == std::io::ErrorKind::PermissionDenied; });
+        let named: bool = std::fs::read_to_string(process.join("comm")).is_ok_and(|text| {
+            return text.trim().starts_with("git");
+        });
+        let hidden: bool = std::fs::read_dir(process.join("fd")).is_err_and(|error| {
+            return error.kind() == std::io::ErrorKind::PermissionDenied;
+        });
         return named && hidden;
     }
 }
@@ -709,8 +1024,15 @@ impl Drop for NuisanceGit {
     fn drop(&mut self) {
         // SAFETY: the number is the own child this control forked, and reaping it here takes its only record.
         unsafe {
-            let _killed = libc::kill(libc::pid_t::try_from(self.pid).unwrap_or_default(), libc::SIGKILL);
-            let _reaped = libc::waitpid(libc::pid_t::try_from(self.pid).unwrap_or_default(), std::ptr::null_mut(), 0);
+            let _killed = libc::kill(
+                libc::pid_t::try_from(self.pid).unwrap_or_default(),
+                libc::SIGKILL,
+            );
+            let _reaped = libc::waitpid(
+                libc::pid_t::try_from(self.pid).unwrap_or_default(),
+                std::ptr::null_mut(),
+                0,
+            );
         }
     }
 }
@@ -749,10 +1071,18 @@ fn a_staging_file_with_no_lock_beside_it_is_cleared() {
     assert!(stage.packed_staging().exists());
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!stage.packed_staging().exists(), "{outcome:?}");
-    assert_eq!(verdict_of(&outcome, stage.packed_staging().as_path()), Some(Verdict::Stale(Proof::OrphanStaging)), "{outcome:?}");
+    assert_eq!(
+        verdict_of(&outcome, stage.packed_staging().as_path()),
+        Some(Verdict::Stale(Proof::OrphanStaging)),
+        "{outcome:?}"
+    );
     // The reference lock the killed fetch left is named, not removed: only the staging file has a proof.
     assert!(stage.lock_of(GONE_REF).exists());
-    assert!(outcome.notice().contains("left the reference lock"), "{}", outcome.notice());
+    assert!(
+        outcome.notice().contains("left the reference lock"),
+        "{}",
+        outcome.notice()
+    );
     stage.finish();
 }
 
@@ -762,7 +1092,10 @@ fn a_staging_file_with_no_lock_beside_it_is_cleared() {
 fn a_staging_file_with_its_lock_beside_it_is_left_to_the_lock() {
     let stage: Stage = killed::stage("stale-refs-live-staging", true);
     let held: Held = killed::hold_transaction(&stage, &["delete refs/remotes/origin/gone"]);
-    assert!(stage.packed_staging().exists(), "the update holds its staging file");
+    assert!(
+        stage.packed_staging().exists(),
+        "the update holds its staging file"
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.packed_staging().exists());
@@ -776,9 +1109,15 @@ fn a_staging_file_with_its_lock_beside_it_is_left_to_the_lock() {
 fn a_staging_file_inside_the_margin_stays() {
     let stage: Stage = killed::stage("stale-refs-young-staging", true);
     killed::write_file(stage.packed_staging().as_path(), "# pack-refs with:\n");
-    let strict: Judge = Judge { margin: Duration::from_secs(3600), ..judge() };
+    let strict: Judge = Judge {
+        margin: Duration::from_secs(3600),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &strict);
-    assert!(!outcome.cleared_any() && outcome.left.is_empty(), "{outcome:?}");
+    assert!(
+        !outcome.cleared_any() && outcome.left.is_empty(),
+        "{outcome:?}"
+    );
     assert!(stage.packed_staging().exists());
     stage.finish();
 }
@@ -793,10 +1132,19 @@ fn a_git_that_started_after_the_lock_is_not_proven_the_holder() {
     std::thread::sleep(Duration::from_millis(400));
     let later: Held = killed::idle_git(&stage);
     std::thread::sleep(Duration::from_millis(50));
-    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", later.pid()));
+    killed::write_file(
+        stage.pid_file_of(PLANTED_REF).as_path(),
+        &format!("pid {}\n", later.pid()),
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     drop(later);
     stage.finish();
 }
@@ -808,20 +1156,41 @@ fn a_staging_file_that_a_process_holds_open_stays() {
     let stage: Stage = killed::stage("stale-refs-open-staging", true);
     killed::write_file(stage.packed_staging().as_path(), "# pack-refs with:\n");
     let mut command: Command = Command::new("sh");
-    command.args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"]).arg(stage.packed_staging().as_os_str());
+    command
+        .args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"])
+        .arg(stage.packed_staging().as_os_str());
     // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
-    let holder: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
+    let holder: Helper =
+        Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
     let descriptors: PathBuf = PathBuf::from(format!("/proc/{}/fd", holder.pid()));
     let staging: PathBuf = stage.packed_staging();
     let started: std::time::Instant = std::time::Instant::now();
-    while !std::fs::read_dir(descriptors.as_path()).expect("fds").flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == staging; }); }) {
-        assert!(started.elapsed() < killed::HOLD_PATIENCE, "the holder opened the staging file");
+    while !std::fs::read_dir(descriptors.as_path())
+        .expect("fds")
+        .flatten()
+        .any(|entry| {
+            return std::fs::read_link(entry.path()).is_ok_and(|target| {
+                return target == staging;
+            });
+        })
+    {
+        assert!(
+            started.elapsed() < killed::HOLD_PATIENCE,
+            "the holder opened the staging file"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder.pid()));
+    let outcome: Outcome =
+        clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder.pid()));
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.packed_staging().exists());
-    assert!(matches!(verdict_of(&outcome, stage.packed_staging().as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.packed_staging().as_path()),
+            Some(Verdict::Held(_))
+        ),
+        "{outcome:?}"
+    );
     drop(holder);
     stage.finish();
 }
@@ -840,13 +1209,26 @@ fn a_staging_file_that_a_process_holds_open_stays() {
 fn a_reftable_tables_list_lock_left_by_a_killed_git_stays_and_is_named() {
     let stage: Stage = killed::reftable_stage("stale-refs-reftable-killed", true);
     let mut held: Held = killed::hold_transaction(&stage, &["create refs/heads/planted HEAD"]);
-    assert!(stage.tables_lock().exists() && stage.tables_pid_file().exists(), "the transaction holds the lock of the reftable table list");
+    assert!(
+        stage.tables_lock().exists() && stage.tables_pid_file().exists(),
+        "the transaction holds the lock of the reftable table list"
+    );
     held.kill();
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.tables_lock().exists() && stage.tables_pid_file().exists());
-    assert!(matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
-    assert!(outcome.notice().contains("tables.list.lock") && outcome.notice().contains("rm -- "), "the person is told which file stands in the way: {}", outcome.notice());
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.tables_lock().as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
+    assert!(
+        outcome.notice().contains("tables.list.lock") && outcome.notice().contains("rm -- "),
+        "the person is told which file stands in the way: {}",
+        outcome.notice()
+    );
     stage.finish();
 }
 
@@ -856,11 +1238,17 @@ fn a_reftable_tables_list_lock_left_by_a_killed_git_stays_and_is_named() {
 fn a_live_reftable_gits_tables_list_lock_stays() {
     let stage: Stage = killed::reftable_stage("stale-refs-reftable-live", true);
     let held: Held = killed::hold_transaction(&stage, &["create refs/heads/planted HEAD"]);
-    assert!(stage.tables_lock().exists(), "the transaction holds the lock");
+    assert!(
+        stage.tables_lock().exists(),
+        "the transaction holds the lock"
+    );
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.tables_lock().exists() && stage.tables_pid_file().exists());
-    assert!(matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")), "{outcome:?}");
+    assert!(
+        matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Unproven(text)) if text.contains("is running")),
+        "{outcome:?}"
+    );
     drop(held);
     stage.finish();
 }
@@ -875,8 +1263,18 @@ fn a_reftable_lock_that_nothing_proves_gone_is_left_and_named() {
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.tables_lock().exists());
-    assert!(matches!(verdict_of(&outcome, stage.tables_lock().as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
-    assert!(outcome.notice().contains("tables.list.lock") && outcome.notice().contains("rm -- "), "the person is told which file stands in the way: {}", outcome.notice());
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.tables_lock().as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
+    assert!(
+        outcome.notice().contains("tables.list.lock") && outcome.notice().contains("rm -- "),
+        "the person is told which file stands in the way: {}",
+        outcome.notice()
+    );
     stage.finish();
 }
 
@@ -897,23 +1295,40 @@ const A_DAY: Duration = Duration::from_secs(86_400);
 fn a_lock_that_a_clock_step_puts_before_the_boot_is_not_judged_stale() {
     let stage: Stage = killed::stage("stale-refs-clock-step", false);
     plant_lock(&stage, PLANTED_REF, None);
-    let stepped: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let stepped: Judge = Judge {
+        boot: Some(SystemTime::now() + A_DAY),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &stepped);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
 /// A process table with one process of a nested PID namespace:
 /// the table numbers it `outer`,
 /// and it numbers itself `inner`.
-fn table_with_nested_process(stage: &Stage, outer: i64, inner: i64) -> PathBuf {
+fn table_with_nested_process(
+    stage: &Stage,
+    outer: i64,
+    inner: i64,
+) -> PathBuf {
     let table: PathBuf = stage.root.join("proc-nested");
     let process: PathBuf = table.join(outer.to_string());
     std::fs::create_dir_all(process.join("fd")).expect("fake process");
     std::fs::write(process.join("comm"), "sh\n").expect("comm");
-    std::fs::write(process.join("status"), format!("Name:\tsh\nNSpid:\t{outer}\t{inner}\n")).expect("status");
+    std::fs::write(
+        process.join("status"),
+        format!("Name:\tsh\nNSpid:\t{outer}\t{inner}\n"),
+    )
+    .expect("status");
     return table;
 }
 
@@ -928,11 +1343,20 @@ fn a_pid_number_that_a_nested_namespace_gave_its_writer_is_not_judged_gone() {
     let inner: i64 = ended_pid();
     plant_lock(&stage, PLANTED_REF, Some(inner));
     let table: PathBuf = table_with_nested_process(&stage, inner + 1, inner);
-    let nested: Judge = Judge { proc_root: table, ..judge() };
+    let nested: Judge = Judge {
+        proc_root: table,
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &nested);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 
@@ -948,12 +1372,22 @@ fn a_writer_in_a_real_nested_namespace_is_not_judged_gone() {
         stage.finish();
         return;
     };
-    assert!(!Path::new("/proc").join(inside.local.to_string()).exists(), "the number {} is free on this host", inside.local);
+    assert!(
+        !Path::new("/proc").join(inside.local.to_string()).exists(),
+        "the number {} is free on this host",
+        inside.local
+    );
     plant_lock(&stage, PLANTED_REF, Some(inside.local));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     drop(inside);
     stage.finish();
 }
@@ -979,10 +1413,21 @@ impl NestedProcess {
     /// nothing when the host refuses the namespace.
     fn start(first: i64) -> Option<Self> {
         use std::io::BufRead as _;
-        let script: String = format!("echo {first} > /proc/sys/kernel/ns_last_pid; sleep 120 & echo $!; read _; kill $!");
+        let script: String = format!(
+            "echo {first} > /proc/sys/kernel/ns_last_pid; sleep 120 & echo $!; read _; kill $!"
+        );
         let mut command: Command = Command::new("unshare");
         command
-            .args(["--user", "--map-root-user", "--pid", "--fork", "--mount-proc", "sh", "-c", script.as_str()])
+            .args([
+                "--user",
+                "--map-root-user",
+                "--pid",
+                "--fork",
+                "--mount-proc",
+                "sh",
+                "-c",
+                script.as_str(),
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -992,7 +1437,10 @@ impl NestedProcess {
         let mut line: String = String::new();
         std::io::BufReader::new(output).read_line(&mut line).ok()?;
         let local: i64 = line.trim().parse::<i64>().ok()?;
-        return Some(Self { child, local });
+        return Some(Self {
+            child,
+            local,
+        });
     }
 }
 
@@ -1015,11 +1463,16 @@ impl Drop for NestedProcess {
 /// so the start this host derives for `pid` is the whole uptime later than it really is:
 /// the reading a forward correction of the wall clock produces,
 /// which moves the start derived from `/proc/<pid>/stat` and `/proc/uptime` while the lock's birth stays where it is.
-fn table_after_a_forward_clock_step(stage: &Stage, pid: i64) -> PathBuf {
+fn table_after_a_forward_clock_step(
+    stage: &Stage,
+    pid: i64,
+) -> PathBuf {
     let table: PathBuf = stage.root.join("proc-stepped");
     let process: PathBuf = table.join(pid.to_string());
     std::fs::create_dir_all(process.as_path()).expect("the process of the table");
-    let stat: String = std::fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat")).expect("the running process's stat");
+    let stat: String =
+        std::fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat"))
+            .expect("the running process's stat");
     std::fs::write(process.join("stat"), stat).expect("stat");
     std::fs::write(process.join("comm"), "sleep\n").expect("comm");
     std::fs::write(table.join("uptime"), "0.00 0.00\n").expect("uptime");
@@ -1037,12 +1490,21 @@ fn a_forward_clock_step_does_not_prove_a_live_holder_reused_the_number() {
     let other: Helper = sleeper();
     std::thread::sleep(Duration::from_millis(400));
     plant_lock(&stage, PLANTED_REF, Some(other.pid()));
-    let stepped: Judge = Judge { proc_root: table_after_a_forward_clock_step(&stage, other.pid()), ..judge() };
+    let stepped: Judge = Judge {
+        proc_root: table_after_a_forward_clock_step(&stage, other.pid()),
+        ..judge()
+    };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &stepped);
-    assert!(!outcome.cleared_any(), "the lock of a running process was removed: {outcome:?}");
+    assert!(
+        !outcome.cleared_any(),
+        "the lock of a running process was removed: {outcome:?}"
+    );
     assert!(stage.lock_of(PLANTED_REF).exists());
     let verdict: Option<Verdict> = verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path());
-    assert!(matches!(verdict, Some(Verdict::Unproven(text)) if text.contains("correction of the clock")), "{outcome:?}");
+    assert!(
+        matches!(verdict, Some(Verdict::Unproven(text)) if text.contains("correction of the clock")),
+        "{outcome:?}"
+    );
     drop(other);
     stage.finish();
 }
@@ -1066,12 +1528,24 @@ fn a_pid_file_whose_births_say_after_the_lock_proves_nothing() {
     let aged: PathBuf = stage.root.join("aged");
     killed::write_file(aged.as_path(), "");
     std::thread::sleep(Duration::from_millis(50));
-    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", ended_pid()));
+    killed::write_file(
+        stage.pid_file_of(PLANTED_REF).as_path(),
+        &format!("pid {}\n", ended_pid()),
+    );
     std::fs::rename(aged.as_path(), lock.as_path()).expect("the live writer's lock takes the path");
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert!(!outcome.cleared_any(), "a live lock was removed on a pid file an earlier holder left: {outcome:?}");
+    assert!(
+        !outcome.cleared_any(),
+        "a live lock was removed on a pid file an earlier holder left: {outcome:?}"
+    );
     assert!(lock.exists());
-    assert!(matches!(verdict_of(&outcome, lock.as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(
+        matches!(
+            verdict_of(&outcome, lock.as_path()),
+            Some(Verdict::Unproven(_))
+        ),
+        "{outcome:?}"
+    );
     stage.finish();
 }
 

@@ -16,7 +16,12 @@
 //! ```
 
 /// Import the module under test.
-use super::{install_payload_free_panic_hook, panic_notice, panics_are_expected_here, while_panics_are_expected};
+use super::{
+    install_payload_free_panic_hook,
+    panic_notice,
+    panics_are_expected_here,
+    while_panics_are_expected,
+};
 use std::process::Output;
 
 /// The variable that makes the re-run test act as the child,
@@ -47,8 +52,14 @@ fn the_notice_names_only_the_location() {
         ),
         "{with_location}"
     );
-    assert!(with_location.contains(" Hint: if you were running a Git command, run it again;"), "{with_location}");
-    assert!(with_location.ends_with("report this location.\n"), "{with_location}");
+    assert!(
+        with_location.contains(" Hint: if you were running a Git command, run it again;"),
+        "{with_location}"
+    );
+    assert!(
+        with_location.ends_with("report this location.\n"),
+        "{with_location}"
+    );
     let without_location: String = panic_notice(None);
     assert!(
         without_location.starts_with(
@@ -56,8 +67,14 @@ fn the_notice_names_only_the_location() {
         ),
         "{without_location}"
     );
-    assert!(without_location.contains(" Hint: if you were running a Git command, run it again;"), "{without_location}");
-    assert!(without_location.ends_with("report the command you ran.\n"), "{without_location}");
+    assert!(
+        without_location.contains(" Hint: if you were running a Git command, run it again;"),
+        "{without_location}"
+    );
+    assert!(
+        without_location.ends_with("report the command you ran.\n"),
+        "{without_location}"
+    );
 }
 
 /// What:
@@ -87,12 +104,15 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
     let mut stderr_by_mode: Vec<String> = Vec::new();
     for mode in ["payload-free", "default"] {
         // The child's pass is this control's assertion; what this reads is the standard error of each hook.
-        let environment: [(&str, &std::ffi::OsStr); 1] = [(CHILD_VARIABLE, std::ffi::OsStr::new(mode))];
-        let output: Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
-            exact_test: "invocation::panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
-            environment: environment.as_slice(),
-            ..crate::child_test_process::ChildTest::default()
-        });
+        let environment: [(&str, &std::ffi::OsStr); 1] =
+            [(CHILD_VARIABLE, std::ffi::OsStr::new(mode))];
+        let output: Output = crate::child_test_process::passed(
+            crate::child_test_process::ChildTest {
+                exact_test: "invocation::panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
+                environment: environment.as_slice(),
+                ..crate::child_test_process::ChildTest::default()
+            },
+        );
         stderr_by_mode.push(String::from_utf8_lossy(&output.stderr).into_owned());
     }
     // With the hook: the notice and its location, never the payload.
@@ -140,12 +160,20 @@ fn panic_with_secret() {
 fn a_panic_inside_an_expected_call_is_caught_and_the_mark_ends_with_the_call() {
     assert!(!panics_are_expected_here());
     let outer = while_panics_are_expected((), |()| {
-        let inner = while_panics_are_expected((), |()| { return panics_are_expected_here(); });
-        return (inner.expect("the inner call returns"), panics_are_expected_here());
+        let inner = while_panics_are_expected((), |()| {
+            return panics_are_expected_here();
+        });
+        return (
+            inner.expect("the inner call returns"),
+            panics_are_expected_here(),
+        );
     });
     assert_eq!(outer.expect("the outer call returns"), (true, true));
     assert!(!panics_are_expected_here());
     let caught = while_panics_are_expected((), |()| -> u8 { panic!("expected by the caller") });
     assert!(caught.is_err());
-    assert!(!panics_are_expected_here(), "the mark must end when the call panics");
+    assert!(
+        !panics_are_expected_here(),
+        "the mark must end when the call panics"
+    );
 }

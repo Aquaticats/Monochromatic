@@ -27,10 +27,16 @@ fn the_query_window_is_the_push_stall_window() {
             OsString::from(value),
         )];
     };
-    assert_eq!(query_window(&[]), crate::bounded_push::DEFAULT_PUSH_DEADLINE);
+    assert_eq!(
+        query_window(&[]),
+        crate::bounded_push::DEFAULT_PUSH_DEADLINE
+    );
     // A window above what used to be the query ceiling is followed exactly.
     let high: u64 = crate::bounded_push::DEFAULT_PUSH_DEADLINE.as_secs() * 10;
-    assert_eq!(query_window(&set(high.to_string().as_str())), Duration::from_secs(high));
+    assert_eq!(
+        query_window(&set(high.to_string().as_str())),
+        Duration::from_secs(high)
+    );
 }
 
 /// A finished query keeps its exit code and its two streams apart.
@@ -83,9 +89,16 @@ fn a_stalled_query_is_stopped_and_reported() {
         scratch_environment().as_slice(),
     )
     .expect_err("stalls");
-    assert!(started.elapsed() >= Duration::from_millis(300), "{:?}", started.elapsed());
+    assert!(
+        started.elapsed() >= Duration::from_millis(300),
+        "{:?}",
+        started.elapsed()
+    );
     match &failure {
-        SingleFlightError::TimedOut { arguments, seconds } => {
+        SingleFlightError::TimedOut {
+            arguments,
+            seconds,
+        } => {
             assert_eq!(arguments, "rev-parse HEAD");
             assert_eq!(*seconds, 0);
         }
@@ -116,10 +129,17 @@ fn a_flooding_query_is_stopped() {
         )
         .expect_err("floods");
         match &failure {
-            SingleFlightError::Git { arguments, code, stderr } => {
+            SingleFlightError::Git {
+                arguments,
+                code,
+                stderr,
+            } => {
                 assert_eq!(arguments, "log");
                 assert_eq!(*code, None);
-                assert!(stderr.contains("bytes, so its output is not taken"), "{stderr}");
+                assert!(
+                    stderr.contains("bytes, so its output is not taken"),
+                    "{stderr}"
+                );
             }
             other => panic!("expected a Git failure, got {other}"),
         }
@@ -146,10 +166,17 @@ fn a_query_that_floods_and_ends_is_not_a_success() {
     )
     .expect_err("more than the cap was printed, so the answer is not whole");
     match &failure {
-        SingleFlightError::Git { arguments, code, stderr } => {
+        SingleFlightError::Git {
+            arguments,
+            code,
+            stderr,
+        } => {
             assert_eq!(arguments, "cat-file --batch", "{failure}");
             assert_eq!(*code, None);
-            assert!(stderr.contains("bytes, so its output is not taken as Git's answer"), "{stderr}");
+            assert!(
+                stderr.contains("bytes, so its output is not taken as Git's answer"),
+                "{stderr}"
+            );
         }
         other => panic!("expected a Git failure, got {other}"),
     }
@@ -177,7 +204,8 @@ fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
     std::fs::write(shim.as_path(), "#!/bin/sh\ntrap '' TERM\nexec sleep 30\n").expect("stand-in");
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
     }
     // The stop signals the command as soon as it is started, and a shell that has not reached its own `trap` yet dies of
     //  the signal (measured on a loaded container: a stop within a millisecond of the start kills it, one after five
@@ -206,9 +234,18 @@ fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
     )
     .expect_err("the command never got its request");
     let waited: Duration = began.elapsed();
-    assert!(failure.to_string().contains("no thread could be started"), "{failure}");
-    assert!(waited >= grace, "the command was asked to end and given its grace before the kill: {waited:?}");
-    assert!(waited < Duration::from_secs(10), "the stop is bounded, not a wait for the child: {waited:?}");
+    assert!(
+        failure.to_string().contains("no thread could be started"),
+        "{failure}"
+    );
+    assert!(
+        waited >= grace,
+        "the command was asked to end and given its grace before the kill: {waited:?}"
+    );
+    assert!(
+        waited < Duration::from_secs(10),
+        "the stop is bounded, not a wait for the child: {waited:?}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -245,7 +282,11 @@ fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {
     )
     .expect("a query that keeps working is never stopped");
     assert_eq!(output.code, Some(0));
-    assert!(started.elapsed() > window * 2, "the fixture ran only {:?}", started.elapsed());
+    assert!(
+        started.elapsed() > window * 2,
+        "the fixture ran only {:?}",
+        started.elapsed()
+    );
 }
 
 /// A query on a host whose `/proc/<pid>/io` cannot be read still ends:
@@ -257,10 +298,16 @@ fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {
 fn a_query_where_nothing_is_measured_ends_at_its_window() {
     let window: Duration = Duration::ZERO;
     let mut query: Clock = query_clock(0, window).unmeasured();
-    assert!(matches!(query.check(), Some(StopCause::Deadline)), "the query's clock ends the run at its window");
+    assert!(
+        matches!(query.check(), Some(StopCause::Deadline)),
+        "the query's clock ends the run at its window"
+    );
     // The control: the same zero window ends nothing without the fallback, so the window above is live.
     let mut unjudged: Clock = query_clock(0, window).unmeasured().without_wall_fallback();
-    assert!(unjudged.check().is_none(), "the same window ends nothing when the run may not be ended by wall time");
+    assert!(
+        unjudged.check().is_none(),
+        "the same window ends nothing when the run may not be ended by wall time"
+    );
 }
 
 /// What:
@@ -275,11 +322,17 @@ fn a_query_where_nothing_is_measured_ends_at_its_window() {
 #[test]
 fn an_input_writer_gives_up_when_the_command_takes_nothing() {
     let mut command: Command = Command::new("sh");
-    command.arg("-c").arg("exec sleep 10").stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .arg("-c")
+        .arg("exec sleep 10")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     let mut child: Child = command.spawn().expect("a child that never reads");
     let pipe: Option<ChildStdin> = child.stdin.take();
     let window: Duration = Duration::from_millis(200);
-    let writer: InputWriter = feed_standard_input(pipe, vec![b'x'; 1 << 20], window, None).expect("a thread to write the input");
+    let writer: InputWriter = feed_standard_input(pipe, vec![b'x'; 1 << 20], window, None)
+        .expect("a thread to write the input");
     // The join is bounded here too: a writer that waited for the child would outlast this wait.
     let (done, waited) = std::sync::mpsc::channel::<()>();
     let observer = std::thread::spawn(move || {
@@ -290,7 +343,10 @@ fn an_input_writer_gives_up_when_the_command_takes_nothing() {
     let _killed = child.kill();
     let _reaped = child.wait();
     observer.join().expect("the observer ends");
-    assert!(gave_up, "the writer gave up on a command that took none of its input");
+    assert!(
+        gave_up,
+        "the writer gave up on a command that took none of its input"
+    );
 }
 
 /// What:
@@ -313,7 +369,8 @@ fn a_request_that_could_not_be_written_whole_is_a_failure() {
     std::fs::write(shim.as_path(), "#!/bin/sh\ni=0\nwhile [ $i -lt 10 ]; do echo tick >&2; sleep 0.3; i=$((i+1)); done\ncat > /dev/null\nexit 0\n").expect("stand-in");
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
     }
     let failure: SingleFlightError = run_bounded_git(
         Command::new(shim.as_path()),
@@ -327,7 +384,11 @@ fn a_request_that_could_not_be_written_whole_is_a_failure() {
     )
     .expect_err("the request was cut, so the answer is not the command's answer to it");
     match &failure {
-        SingleFlightError::Git { arguments, code, stderr } => {
+        SingleFlightError::Git {
+            arguments,
+            code,
+            stderr,
+        } => {
             assert_eq!(arguments, "hash-object --stdin");
             assert_eq!(*code, None);
             assert!(stderr.contains("could not be written whole"), "{stderr}");
@@ -354,10 +415,15 @@ fn a_command_that_closes_its_input_early_is_not_an_answer() {
     let root: std::path::PathBuf = crate::test_support::fixture("query-input-closed-early");
     let shim: std::path::PathBuf = root.join("command-that-closes-its-input");
     // It reads a prefix, closes standard input, prints an answer and exits zero.
-    std::fs::write(shim.as_path(), "#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\nexit 0\n").expect("stand-in");
+    std::fs::write(
+        shim.as_path(),
+        "#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\nexit 0\n",
+    )
+    .expect("stand-in");
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
     }
     let failure: SingleFlightError = run_bounded_git(
         Command::new(shim.as_path()),
@@ -372,7 +438,11 @@ fn a_command_that_closes_its_input_early_is_not_an_answer() {
     )
     .expect_err("the request was cut, so the answer is not the command's answer to it");
     match &failure {
-        SingleFlightError::Git { arguments, code, stderr } => {
+        SingleFlightError::Git {
+            arguments,
+            code,
+            stderr,
+        } => {
             assert_eq!(arguments, "hash-object --stdin");
             assert_eq!(*code, None);
             assert!(stderr.contains("could not be written whole"), "{stderr}");
@@ -404,12 +474,16 @@ fn a_request_written_whole_is_not_cut_when_the_writer_publishes_late() {
     // It reads all ten bytes, closes its input, prints its answer, leaves the marker and exits zero.
     std::fs::write(
         shim.as_path(),
-        format!("#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n", marker.display()),
+        format!(
+            "#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n",
+            marker.display()
+        ),
     )
     .expect("stand-in");
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
     }
     // The writer is held between its write and the count it publishes until this control lets it go.
     let (release, held) = std::sync::mpsc::channel::<()>();
@@ -437,14 +511,22 @@ fn a_request_written_whole_is_not_cut_when_the_writer_publishes_late() {
     }
     assert!(marker.exists(), "the stand-in ran");
     // The answer must still be waiting for the writer's own result, and not read the count that is still to come.
-    let early: Result<Result<QueryOutput, SingleFlightError>, std::sync::mpsc::RecvTimeoutError> = answer.recv_timeout(Duration::from_millis(150));
-    assert!(early.is_err(), "the answer waited for the writer to finish: {early:?}");
+    let early: Result<Result<QueryOutput, SingleFlightError>, std::sync::mpsc::RecvTimeoutError> =
+        answer.recv_timeout(Duration::from_millis(150));
+    assert!(
+        early.is_err(),
+        "the answer waited for the writer to finish: {early:?}"
+    );
     let _released = release.send(());
     let output: QueryOutput = answer
         .recv_timeout(Duration::from_secs(10))
         .expect("the answer comes once the writer is let go")
         .expect("the request was written whole, so its answer is the command's");
-    assert_eq!(output.code, Some(0), "the command's own status is the answer");
+    assert_eq!(
+        output.code,
+        Some(0),
+        "the command's own status is the answer"
+    );
     assert_eq!(output.stdout, b"answer\n".to_vec());
     running.join().expect("the query thread ends");
     crate::test_support::remove(root.as_path());
@@ -464,18 +546,23 @@ fn a_request_written_whole_is_not_cut_when_the_writer_publishes_late() {
 #[cfg(unix)]
 #[test]
 fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
-    let root: std::path::PathBuf = crate::test_support::fixture("query-writer-held-past-the-ceiling");
+    let root: std::path::PathBuf =
+        crate::test_support::fixture("query-writer-held-past-the-ceiling");
     let shim: std::path::PathBuf = root.join("command-that-reads-it-all");
     let marker: std::path::PathBuf = root.join("the-command-exited");
     // It reads all ten bytes, closes its input, prints its answer, leaves the marker and exits zero.
     std::fs::write(
         shim.as_path(),
-        format!("#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n", marker.display()),
+        format!(
+            "#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\n: > '{}'\nexit 0\n",
+            marker.display()
+        ),
     )
     .expect("stand-in");
     {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
     }
     // The writer stays between its write and its count until this control lets it go, which is after the answer.
     let (release, held) = std::sync::mpsc::channel::<()>();
@@ -507,7 +594,11 @@ fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
         .expect("the answer ends at the ceiling, and does not wait for the writer to be let go")
         .expect_err("the count the answer can see is a prefix, so the request is reported cut");
     match &failure {
-        SingleFlightError::Git { arguments, code, stderr } => {
+        SingleFlightError::Git {
+            arguments,
+            code,
+            stderr,
+        } => {
             assert_eq!(arguments, "hash-object --stdin");
             assert_eq!(*code, None);
             assert!(stderr.contains("could not be written whole"), "{stderr}");
@@ -538,19 +629,37 @@ fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
 #[cfg(unix)]
 #[test]
 fn where_no_thread_can_start_the_input_writer_names_the_limit() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_input_writer_names_the_limit") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_the_input_writer_names_the_limit",
+    ) {
         return;
     }
     // The reader is a process of its own, which the refusal refuses as well, so it starts while the limit still allows it.
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises");
     let mut reader: Command = shell("sleep 20");
-    let mut reading: Child = reader.stdin(Stdio::piped()).spawn().expect("the reader starts");
+    let mut reading: Child = reader
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("the reader starts");
     let pipe: ChildStdin = reading.stdin.take().expect("the input");
     crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let refused: Result<InputWriter, String> = feed_standard_input(Some(pipe), b"request".to_vec(), Duration::from_secs(1), None);
+    let refused: Result<InputWriter, String> = feed_standard_input(
+        Some(pipe),
+        b"request".to_vec(),
+        Duration::from_secs(1),
+        None,
+    );
     let _killed = reading.kill();
     let _waited = reading.wait();
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
-    let said: String = refused.err().expect("no thread could be started to give the command its request");
-    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises again");
+    let said: String = refused
+        .err()
+        .expect("no thread could be started to give the command its request");
+    assert!(
+        said.contains("ulimit -u") && said.contains("pids.max"),
+        "the refusal names the limits that refused the thread: {said}"
+    );
 }

@@ -25,25 +25,54 @@
 //! const drained = await drainPlannedAwaiting(dir, handlers, now, retrying)
 //! ```
 
+use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
+use crate::push_failure_notice::PushOutcome;
+use crate::push_retry::{
+    Due,
+    FIRST_PAUSE,
+    Retrying,
+};
+use crate::push_retry_cause_line::cause_or_silence;
+use crate::push_retry_failure::{
+    PROTECTED_BRANCH_TRIES,
+    out_of_tries,
+    out_of_tries_words,
+};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_work_common_directory::{common_directory_of, is_bare_common_directory};
+use crate::service_work_common_directory::{
+    common_directory_of,
+    is_bare_common_directory,
+};
+use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::service_work_handlers_replanning_and_acceptance::{
-    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, end_the_plans_of_a_gone_repository_awaiting, is_acceptable,
-    keep_plans_while_unreachable, planned_retry, work_directory,
+    Drained,
+    PlannedRetry,
+    Replanning,
+    Verdict,
+    WorkHandlers,
+    end_the_plans_of_a_gone_repository_awaiting,
+    is_acceptable,
+    keep_plans_while_unreachable,
+    planned_retry,
+    work_directory,
 };
 use crate::service_work_storage_awaited::{
-    clear_push_failures_before_awaiting, instance_of_awaiting, record_push_failure_awaiting, record_push_report_awaiting, record_push_skip_awaiting,
+    clear_push_failures_before_awaiting,
+    instance_of_awaiting,
+    record_push_failure_awaiting,
+    record_push_report_awaiting,
+    record_push_skip_awaiting,
 };
-use crate::claim_time::ClaimTime;
-use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
-use crate::push_retry_cause_line::cause_or_silence;
-use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
-use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::work_item::WorkKind;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  Drain one directory of the kinds `kinds` names for a service round,
@@ -75,7 +104,16 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     retrying: &Retrying,
     kinds: &'static [WorkKind],
 ) -> Drained {
-    return drain_planned_with_awaiting(git_dir, handlers, now, lease, Renewal::Timed, retrying, kinds).await;
+    return drain_planned_with_awaiting(
+        git_dir,
+        handlers,
+        now,
+        lease,
+        Renewal::Timed,
+        retrying,
+        kinds,
+    )
+    .await;
 }
 
 /// What:
@@ -106,18 +144,44 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
         // The worktree the plans of this directory name, which is how a Git directory that moved is told from a repository
         //  that was deleted.
         let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
-        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::the_mounts()) {
-            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable).await,
-            crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
+        return match crate::unreachable_git_dir_proven_gone::prove(
+            git_dir,
+            worktree.as_deref(),
+            &crate::unreachable_git_dir_proven_gone::the_mounts(),
+        ) {
+            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => {
+                keep_plans_while_unreachable(git_dir, retrying, &unreachable).await
+            }
+            crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => {
+                end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone)
+                    .await
+            }
         };
     }
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning).await;
+    let mut replanning: Replanning = Replanning {
+        first: retrying.first,
+        changes: Vec::new(),
+        plans: retrying.plans.clone(),
+    };
+    run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning)
+        .await;
     // What this look answers is when to look at this directory again: the housekeeping it left for a later look and the end of
     //  the earliest claim it keeps, whichever comes first (`drain_pending_awaiting`).
-    let wait: Option<Duration> =
-        drain_pending_awaiting(git_dir, handlers, now, lease, renewal, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
-    return Drained { wait, changes: replanning.changes };
+    let wait: Option<Duration> = drain_pending_awaiting(
+        git_dir,
+        handlers,
+        now,
+        lease,
+        renewal,
+        &mut replanning,
+        kinds,
+        HOUSEKEEPING_OF_ONE_ROUND,
+    )
+    .await;
+    return Drained {
+        wait,
+        changes: replanning.changes,
+    };
 }
 
 /// What:
@@ -136,7 +200,10 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
 /// const forgetTheProgramsOf = (due) => forget(due.gitDir, due.item.id());
 /// ```
 fn forget_the_programs_of(due: &Due) {
-    crate::service_push_programs_held_in_memory::forget(due.git_dir.as_path(), due.item.id().as_str());
+    crate::service_push_programs_held_in_memory::forget(
+        due.git_dir.as_path(),
+        due.item.id().as_str(),
+    );
 }
 
 /// What:
@@ -151,7 +218,10 @@ fn forget_the_programs_of(due: &Due) {
 /// ```ts
 /// const worktree = retrying.due.find((due) => due.gitDir === dir)?.item.repository;
 /// ```
-fn worktree_named_by(retrying: &Retrying, git_dir: &Path) -> Option<PathBuf> {
+fn worktree_named_by(
+    retrying: &Retrying,
+    git_dir: &Path,
+) -> Option<PathBuf> {
     for due in &retrying.due {
         if due.git_dir == git_dir {
             return Some(due.item.repository.clone());
@@ -187,13 +257,32 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
     };
-    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
+    if common == git_dir
+        || !is_bare_common_directory(common.as_path())
+        || !work_directory(common.as_path()).is_dir()
+    {
         return Drained::default();
     }
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    let wait: Option<Duration> =
-        drain_pending_awaiting(common.as_path(), handlers, now, lease, Renewal::Timed, &mut replanning, kinds, HOUSEKEEPING_OF_ONE_ROUND).await;
-    return Drained { wait, changes: replanning.changes };
+    let mut replanning: Replanning = Replanning {
+        first: retrying.first,
+        changes: Vec::new(),
+        plans: retrying.plans.clone(),
+    };
+    let wait: Option<Duration> = drain_pending_awaiting(
+        common.as_path(),
+        handlers,
+        now,
+        lease,
+        Renewal::Timed,
+        &mut replanning,
+        kinds,
+        HOUSEKEEPING_OF_ONE_ROUND,
+    )
+    .await;
+    return Drained {
+        wait,
+        changes: replanning.changes,
+    };
 }
 
 /// What:
@@ -214,7 +303,12 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
 /// ```ts
 /// await runDuePushRetriesAwaiting(gitDir, handlers, candidates, replanning)
 /// ```
-pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, candidates: &[Due], replanning: &mut Replanning) {
+pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Sized>(
+    git_dir: &Path,
+    handlers: &H,
+    candidates: &[Due],
+    replanning: &mut Replanning,
+) {
     for due in candidates {
         if due.git_dir != git_dir {
             continue;
@@ -232,7 +326,9 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
         let began: Instant = Instant::now();
-        let verdict: Verdict = handlers.push_awaiting(std::slice::from_ref(&due.item)).await;
+        let verdict: Verdict = handlers
+            .push_awaiting(std::slice::from_ref(&due.item))
+            .await;
         match verdict {
             Verdict::Done => {
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
@@ -247,13 +343,19 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     began.elapsed().as_millis()
                 );
             }
-            Verdict::Delivered { commit: sent, said } => {
+            Verdict::Delivered {
+                commit: sent,
+                said,
+            } => {
                 // This push landed on the branch's retry plan, so its account is a record the next command shows exactly as the
                 //  round's own push leaves one: without it a server's line about a push the service made after a failure would
                 //  reach nobody, and nothing makes an accepted push say it again. The step itself says in the journal what it could
                 //  not record, with the words.
                 if !said.is_empty() {
-                    let _recorded: bool = record_push_report_awaiting(git_dir, branch, sent.as_str(), said.as_str()).await.is_ok();
+                    let _recorded: bool =
+                        record_push_report_awaiting(git_dir, branch, sent.as_str(), said.as_str())
+                            .await
+                            .is_ok();
                 }
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
                 replanning.forget(git_dir, branch).await;
@@ -280,7 +382,11 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 //  The words are the same whether or not this round keeps a plan,
                 // so a drain that reports a retryable failure as failed still names what the server said.
                 if out_of_tries(text.as_str(), due.attempt + 1) {
-                    let said: String = format!("{}\n{}", out_of_tries_words(replanning.first.unwrap_or(FIRST_PAUSE)), text);
+                    let said: String = format!(
+                        "{}\n{}",
+                        out_of_tries_words(replanning.first.unwrap_or(FIRST_PAUSE)),
+                        text
+                    );
                     crate::service_warn!(
                         "the push of {branch:?} failed on try {} of {PROTECTED_BRANCH_TRIES} and needs you: {}",
                         due.attempt + 1,
@@ -290,8 +396,14 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     //  is written: a kill between the two would otherwise leave neither the plan nor the notice, nothing would try the
                     //  branch again, and the server's refusal would be said to nobody. A refusal the storage refused stays in the plan
                     //  for a later look, which asks the server again and says the same thing.
-                    let recorded: Result<(), String> =
-                        record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await;
+                    let recorded: Result<(), String> = record_push_failure_awaiting(
+                        git_dir,
+                        branch,
+                        commit,
+                        PushOutcome::Refused,
+                        said.as_str(),
+                    )
+                    .await;
                     match recorded {
                         Ok(()) => {
                             replanning.forget(git_dir, branch).await;
@@ -300,12 +412,21 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                             forget_the_programs_of(due);
                         }
                         Err(reason) => {
-                            crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                            crate::service_error!(
+                                "the failed push of {commit} could not be recorded for the person: {reason}"
+                            );
                             // The refusal could not be written, so the plan stays: its next look asks the server again and says the same
                             //  thing. It is planned again so that the look comes after a pause and not at once.
                             if let Some(first) = replanning.first {
-                                let _planned: PlannedRetry =
-                                    planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, said.as_str()).await;
+                                let _planned: PlannedRetry = planned_retry(
+                                    git_dir,
+                                    replanning,
+                                    first,
+                                    &due.item,
+                                    due.attempt + 1,
+                                    said.as_str(),
+                                )
+                                .await;
                             }
                         }
                     }
@@ -314,18 +435,36 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
                 let first_pause: Option<Duration> = replanning.first;
                 let planned: Option<PlannedRetry> = match first_pause {
-                    Some(pause) => Some(planned_retry(git_dir, replanning, pause, &due.item, due.attempt + 1, text.as_str()).await),
+                    Some(pause) => Some(
+                        planned_retry(
+                            git_dir,
+                            replanning,
+                            pause,
+                            &due.item,
+                            due.attempt + 1,
+                            text.as_str(),
+                        )
+                        .await,
+                    ),
                     None => None,
                 };
                 let (said, outcome): (String, PushOutcome) = match planned {
                     // The framing promises a retry only when the plan the words speak of exists.
-                    Some(kept_plan) => {
-                        (kept_plan.words, if kept_plan.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry })
-                    }
+                    Some(kept_plan) => (
+                        kept_plan.words,
+                        if kept_plan.kept {
+                            PushOutcome::Unfinished
+                        } else {
+                            PushOutcome::UnfinishedWithNoRetry
+                        },
+                    ),
                     None => (text, PushOutcome::UnfinishedWithNoRetry),
                 };
                 let keeps_a_plan: bool = first_pause.is_some();
-                if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, outcome, said.as_str()).await {
+                if let Err(reason) =
+                    record_push_failure_awaiting(git_dir, branch, commit, outcome, said.as_str())
+                        .await
+                {
                     crate::service_error!(
                         "the failed push of {commit} {} could not be recorded for the person: {reason}",
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
@@ -351,7 +490,15 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 // The record of a refusal the person must act on is the last word about this push, so it is written
                 //  before the plan's file goes: a kill between the two then leaves the plan, and a later service tries
                 //  the push again instead of the person waiting for a try nothing schedules.
-                if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
+                if let Err(reason) = record_push_failure_awaiting(
+                    git_dir,
+                    branch,
+                    commit,
+                    PushOutcome::Refused,
+                    text.as_str(),
+                )
+                .await
+                {
                     crate::service_error!(
                         "the failed push of {commit} {} could not be recorded for the person: {reason}",
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
@@ -364,7 +511,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
             }
             Verdict::Skipped(text) => {
                 if !text.is_empty()
-                    && let Err(reason) = record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
+                    && let Err(reason) =
+                        record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
                 {
                     crate::service_error!(
                         "the skipped push of {commit} {} could not be recorded for the person: {reason}",

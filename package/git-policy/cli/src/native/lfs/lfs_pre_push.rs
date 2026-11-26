@@ -23,7 +23,10 @@
 /// Whether the configuration snapshot holds LFS keys.
 use crate::config_snapshot::ConfigSnapshot;
 /// Owned operating-system text for the arguments.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Where `PATH` entries are looked at.
 use std::path::Path;
 
@@ -92,7 +95,8 @@ pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
 /// const count = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10) || 0;
 /// ```
 pub fn environment_config_count(environment: &[(OsString, OsString)]) -> usize {
-    let Some(value) = crate::child_environment::environment_value(environment, "GIT_CONFIG_COUNT") else {
+    let Some(value) = crate::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
+    else {
         return 0;
     };
     let Some(text) = value.to_str() else {
@@ -103,8 +107,15 @@ pub fn environment_config_count(environment: &[(OsString, OsString)]) -> usize {
 
 /// One numbered variable of the environment's configuration pairs:
 /// `GIT_CONFIG_KEY_3` for kind `KEY` and index 3.
-fn numbered_config_variable(environment: &[(OsString, OsString)], kind: &str, index: usize) -> Option<OsString> {
-    return crate::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
+fn numbered_config_variable(
+    environment: &[(OsString, OsString)],
+    kind: &str,
+    index: usize,
+) -> Option<OsString> {
+    return crate::child_environment::environment_value(
+        environment,
+        &format!("GIT_CONFIG_{kind}_{index}"),
+    );
 }
 
 /// Whether a configuration name is the switch:
@@ -169,7 +180,10 @@ fn reads_as_false(value: &str) -> bool {
 /// ```ts
 /// lastEnabledSetting([...envPairs, ...commandLinePairs(prefix, env)], `hook.${name}.enabled`) is false
 /// ```
-pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
+pub fn hook_switched_off(
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> bool {
     let mut off: bool = false;
     let count: usize = environment_config_count(environment);
     for index in 0..count {
@@ -184,7 +198,9 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
             };
         }
     }
-    let Some(pairs) = crate::lfs_command_line_configuration::command_line_pairs(global_prefix, environment) else {
+    let Some(pairs) =
+        crate::lfs_command_line_configuration::command_line_pairs(global_prefix, environment)
+    else {
         // Git refuses this command line, so the push never runs; a switch the numbered pairs set still stands.
         return off;
     };
@@ -223,10 +239,17 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
 /// ```ts
 /// path.split(':').map((dir) => join(dir || '.', 'git-lfs')).find(isExecutableFile)
 /// ```
-pub fn find_program(path: &OsStr, directory: &Path) -> Option<std::path::PathBuf> {
+pub fn find_program(
+    path: &OsStr,
+    directory: &Path,
+) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     for entry in std::env::split_paths(path) {
-        let base: &Path = if entry.as_os_str().is_empty() { Path::new(".") } else { entry.as_path() };
+        let base: &Path = if entry.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            entry.as_path()
+        };
         let candidate: std::path::PathBuf = directory.join(base).join(LFS_PROGRAM);
         let is_executable_file: bool = match std::fs::metadata(&candidate) {
             Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
@@ -247,7 +270,10 @@ pub fn find_program(path: &OsStr, directory: &Path) -> Option<std::path::PathBuf
 /// ```ts
 /// findProgram(path, directory) !== undefined
 /// ```
-pub fn program_on_path(path: &OsStr, directory: &Path) -> bool {
+pub fn program_on_path(
+    path: &OsStr,
+    directory: &Path,
+) -> bool {
     return find_program(path, directory).is_some();
 }
 
@@ -288,7 +314,10 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 /// ```ts
 /// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... but \`{LFS_PROGRAM}\` was found at ${program} and could not be started (${why}). ...`
 /// ```
-pub fn start_failed_message(program: &str, why: &str) -> String {
+pub fn start_failed_message(
+    program: &str,
+    why: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large files the pushed commits point \
@@ -508,7 +537,8 @@ pub fn reads_as_a_strict_host_key_refusal(text: &str) -> bool {
     // const folded = text.toLowerCase();
     // ```
     let folded: String = own_lines_of(text).to_ascii_lowercase();
-    return folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE) && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE);
+    return folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE)
+        && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE);
 }
 
 /// What:
@@ -616,7 +646,8 @@ pub fn reads_as_unknown_host_key(text: &str) -> bool {
             continue;
         }
         let an_unknown_keys_own: bool = folded.contains(last_line.as_str())
-            || (folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE) && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE))
+            || (folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE)
+                && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE))
             || folded.contains(HOST_KEY_NOT_KNOWN_SENTENCE_OPENING);
         if an_unknown_keys_own {
             continue;
@@ -705,7 +736,8 @@ const STRICT_CHECKING_REQUESTED_PHRASE: &str = "and you have requested strict ch
 /// of the sentence this module prints for an unknown host key,
 /// which a pre-push hook may echo into the words of the push it refused,
 /// and which the service's record reads so that one refusal is told once.
-pub(crate) const HOST_KEY_NOT_KNOWN_SENTENCE_OPENING: &str = "this machine does not know the ssh host key";
+pub(crate) const HOST_KEY_NOT_KNOWN_SENTENCE_OPENING: &str =
+    "this machine does not know the ssh host key";
 
 /// What:
 ///  The one sentence a refusal prints when the cause is a host key this machine does not know:
@@ -782,7 +814,10 @@ pub fn host_key_not_known_sentence(host: Option<&str>) -> String {
 /// ```ts
 /// `...needed a login, and this wrapper never lets a command ask for one... ${keyNotUnlocked ? '...`ssh-add`...' : ''}`
 /// ```
-pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
+pub fn login_needed_message(
+    server: &str,
+    key_not_unlocked: bool,
+) -> String {
     let key_words: String = if key_not_unlocked {
         format!(
             " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \

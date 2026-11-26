@@ -21,7 +21,14 @@
 //! const owed = new Set([PENDING, CLAIMED, RECOVERING, HELD].flatMap((state) => entries(state).map(idOf)));
 //! ```
 
-use crate::work_item::{CLAIMED, HELD, PENDING, RECOVERING, entries_oldest_first, id_of_entry};
+use crate::work_item::{
+    CLAIMED,
+    HELD,
+    PENDING,
+    RECOVERING,
+    entries_oldest_first,
+    id_of_entry,
+};
 use std::collections::HashSet;
 use std::path::Path;
 

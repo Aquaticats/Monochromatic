@@ -12,11 +12,15 @@
 //!  a sync call belongs to the program its process last started,
 //! and a thread to the process that made it.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The syscalls the trace is asked for,
 /// as the value of `strace --trace=`.
-pub(super) const TRACED_CALLS: &str = "execve,clone,clone3,fork,vfork,fsync,fdatasync,syncfs,sync_file_range";
+pub(super) const TRACED_CALLS: &str =
+    "execve,clone,clone3,fork,vfork,fsync,fdatasync,syncfs,sync_file_range";
 
 /// How many parent links a process may be followed through before the trace is taken to be corrupt.
 const MAX_PARENT_HOPS: usize = 64;
@@ -42,7 +46,11 @@ pub(super) enum Program {
 #[derive(Debug)]
 enum Event {
     /// A process replaced its program.
-    Exec { tid: u32, program: Program, command: String },
+    Exec {
+        tid: u32,
+        program: Program,
+        command: String,
+    },
     /// A process or thread made a new one.
     Spawn { parent: u32, child: u32 },
     /// A sync-class call.
@@ -110,7 +118,15 @@ fn arguments(text: &str) -> Vec<String> {
 
 /// Whether `token` is a Git global option that takes the next token as its value.
 fn takes_value(token: &str) -> bool {
-    return matches!(token, "-c" | "-C" | "--git-dir" | "--work-tree" | "--namespace" | "--config-env" | "--super-prefix");
+    return matches!(
+        token,
+        "-c" | "-C"
+            | "--git-dir"
+            | "--work-tree"
+            | "--namespace"
+            | "--config-env"
+            | "--super-prefix"
+    );
 }
 
 /// The subcommands whose first operand names what they do,
@@ -152,7 +168,12 @@ fn git_key(arguments_of_start: &[String]) -> String {
 
 /// What the program started at `path` is,
 /// given where the fixture keeps the wrapper and which file is real Git.
-fn program_of(path: &str, arguments_of_start: &[String], fixture_root: &str, real_git: &str) -> Program {
+fn program_of(
+    path: &str,
+    arguments_of_start: &[String],
+    fixture_root: &str,
+    real_git: &str,
+) -> Program {
     if path.starts_with(fixture_root) {
         return Program::Wrapper;
     }
@@ -170,45 +191,82 @@ fn program_of(path: &str, arguments_of_start: &[String], fixture_root: &str, rea
 /// the text after its last `) = `,
 /// when the call returned.
 fn result_of(rest: &str) -> Option<&str> {
-    return rest.rsplit_once(") = ").map(|(_call, result)| { return result; });
+    return rest.rsplit_once(") = ").map(|(_call, result)| {
+        return result;
+    });
 }
 
 /// The event a trace line shows,
 /// if it is one that matters.
-fn parse_line(line: &str, fixture_root: &str, real_git: &str) -> Option<Event> {
+fn parse_line(
+    line: &str,
+    fixture_root: &str,
+    real_git: &str,
+) -> Option<Event> {
     let (id, remainder) = line.split_once(char::is_whitespace)?;
     let tid: u32 = id.parse().ok()?;
     let call: &str = remainder.trim_start();
     if let Some(execve) = call.strip_prefix("execve(") {
         // A failed start (a search of PATH that missed) is not a start.
-        if result_of(call).is_some_and(|result| { return result.starts_with('-'); }) {
+        if result_of(call).is_some_and(|result| {
+            return result.starts_with('-');
+        }) {
             return None;
         }
         let (path, after) = quoted(execve)?;
         let argv: Vec<String> = arguments(after.strip_prefix(", [")?);
         let program: Program = program_of(path.as_str(), argv.as_slice(), fixture_root, real_git);
-        return Some(Event::Exec { tid, program, command: argv.join(" ") });
+        return Some(Event::Exec {
+            tid,
+            program,
+            command: argv.join(" "),
+        });
     }
-    let spawning: bool = ["clone(", "clone3(", "fork(", "vfork(", "<... clone resumed>", "<... clone3 resumed>",
-        "<... fork resumed>", "<... vfork resumed>"]
-        .iter()
-        .any(|prefix| { return call.starts_with(prefix); });
+    let spawning: bool = [
+        "clone(",
+        "clone3(",
+        "fork(",
+        "vfork(",
+        "<... clone resumed>",
+        "<... clone3 resumed>",
+        "<... fork resumed>",
+        "<... vfork resumed>",
+    ]
+    .iter()
+    .any(|prefix| {
+        return call.starts_with(prefix);
+    });
     if spawning {
         let result: &str = result_of(call)?;
         let digits: String = result.chars().take_while(char::is_ascii_digit).collect();
         let child: u32 = digits.parse().ok()?;
-        return Some(Event::Spawn { parent: tid, child });
+        return Some(Event::Spawn {
+            parent: tid,
+            child,
+        });
     }
-    let syncing: bool = ["fsync(", "fdatasync(", "syncfs(", "sync_file_range(", "<... fsync resumed>",
-        "<... fdatasync resumed>", "<... syncfs resumed>", "<... sync_file_range resumed>"]
-        .iter()
-        .any(|prefix| { return call.starts_with(prefix); });
+    let syncing: bool = [
+        "fsync(",
+        "fdatasync(",
+        "syncfs(",
+        "sync_file_range(",
+        "<... fsync resumed>",
+        "<... fdatasync resumed>",
+        "<... syncfs resumed>",
+        "<... sync_file_range resumed>",
+    ]
+    .iter()
+    .any(|prefix| {
+        return call.starts_with(prefix);
+    });
     if syncing {
         // The call may be printed in two halves; only the half that begins it counts.
         if call.starts_with("<...") {
             return None;
         }
-        return Some(Event::Sync { tid });
+        return Some(Event::Sync {
+            tid,
+        });
     }
     return None;
 }
@@ -225,12 +283,16 @@ fn program_at<'a>(
     let mut current: u32 = tid;
     for _hop in 0..MAX_PARENT_HOPS {
         if let Some(known) = starts.get(&current).and_then(|list| {
-            return list.iter().rev().find(|(position, _program)| { return *position < before; });
+            return list.iter().rev().find(|(position, _program)| {
+                return *position < before;
+            });
         }) {
             return &known.1;
         }
         let Some(parent) = parents.get(&current) else {
-            panic!("a sync call by thread {current} cannot be attributed: no program start and no parent in the trace");
+            panic!(
+                "a sync call by thread {current} cannot be attributed: no program start and no parent in the trace"
+            );
         };
         current = *parent;
     }
@@ -240,29 +302,51 @@ fn program_at<'a>(
 /// Count the starts and the sync calls in `trace`,
 /// the text of a `strace --follow-forks` output file.
 ///  `fixture_root` marks the wrapper's files and `real_git` the Git executable.
-pub(super) fn count(trace: &str, fixture_root: &str, real_git: &str) -> Counts {
+pub(super) fn count(
+    trace: &str,
+    fixture_root: &str,
+    real_git: &str,
+) -> Counts {
     let events: Vec<Event> = trace
         .lines()
-        .filter_map(|line| { return parse_line(line, fixture_root, real_git); })
+        .filter_map(|line| {
+            return parse_line(line, fixture_root, real_git);
+        })
         .collect();
     // A process's first events can be printed before its parent's `clone` returns, so parents are gathered first.
     let mut parents: HashMap<u32, u32> = HashMap::new();
     let mut starts: HashMap<u32, Vec<(usize, Program)>> = HashMap::new();
     for (position, event) in events.iter().enumerate() {
         match event {
-            Event::Spawn { parent, child } => {
+            Event::Spawn {
+                parent,
+                child,
+            } => {
                 parents.entry(*child).or_insert(*parent);
             }
-            Event::Exec { tid, program, .. } => {
-                starts.entry(*tid).or_default().push((position, program.clone()));
+            Event::Exec {
+                tid,
+                program,
+                ..
+            } => {
+                starts
+                    .entry(*tid)
+                    .or_default()
+                    .push((position, program.clone()));
             }
-            Event::Sync { .. } => {}
+            Event::Sync {
+                ..
+            } => {}
         }
     }
     let mut counts: Counts = Counts::default();
     for (position, event) in events.iter().enumerate() {
         match event {
-            Event::Exec { program, command, .. } => match program {
+            Event::Exec {
+                program,
+                command,
+                ..
+            } => match program {
                 Program::Git(key) => {
                     *counts.git_starts.entry(key.clone()).or_default() += 1;
                     counts.commands.push(command.clone());
@@ -270,13 +354,20 @@ pub(super) fn count(trace: &str, fixture_root: &str, real_git: &str) -> Counts {
                 Program::Other(name) => *counts.other_starts.entry(name.clone()).or_default() += 1,
                 Program::Harness | Program::Wrapper => {}
             },
-            Event::Sync { tid } => match program_at(&starts, &parents, *tid, position) {
+            Event::Sync {
+                tid,
+            } => match program_at(&starts, &parents, *tid, position) {
                 Program::Wrapper => counts.wrapper_syncs += 1,
                 Program::Git(key) => *counts.git_syncs.entry(key.clone()).or_default() += 1,
                 Program::Other(name) => *counts.other_syncs.entry(name.clone()).or_default() += 1,
-                Program::Harness => panic!("the harness made a sync call, so the trace is not of the command alone"),
+                Program::Harness => {
+                    panic!("the harness made a sync call, so the trace is not of the command alone")
+                }
             },
-            Event::Spawn { parent, .. } => {
+            Event::Spawn {
+                parent,
+                ..
+            } => {
                 if *program_at(&starts, &parents, *parent, position) == Program::Wrapper {
                     counts.wrapper_spawns += 1;
                 }

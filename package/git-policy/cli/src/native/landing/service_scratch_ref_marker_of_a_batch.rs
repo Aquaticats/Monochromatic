@@ -34,19 +34,35 @@
 //! await record(worktree, seq); /* the import moves the scratch ref */ await forget(seq); // and, at a restart: for (const record of records) await clearAfterDroppedBatch(record.repository, record.seq)
 //! ```
 
-use crate::service_instance::instance_of;
-use crate::service_journal::{OPEN_EXTENSION, SCRATCH_EXTENSION, batch_path};
-use crate::service_land_context::LandContext;
-use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_dropped_batch};
 use crate::path_bytes_in_records as path_bytes;
+use crate::service_instance::instance_of;
+use crate::service_journal::{
+    OPEN_EXTENSION,
+    SCRATCH_EXTENSION,
+    batch_path,
+};
+use crate::service_land_context::LandContext;
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    ScratchRefRemoval,
+    clear_after_a_failed_landing,
+    clear_after_dropped_batch,
+};
 use crate::transaction_git::GitContext;
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The record format version.
 const VERSION: u64 = 1;
-
 
 /// What:
 ///  The path of the record of batch `seq`'s scratch reference.
@@ -58,7 +74,10 @@ const VERSION: u64 = 1;
 /// ```ts
 /// join(journal, `${seq}.scratch`)
 /// ```
-pub(crate) fn record_path(journal: &Path, seq: u64) -> PathBuf {
+pub(crate) fn record_path(
+    journal: &Path,
+    seq: u64,
+) -> PathBuf {
     return batch_path(journal, seq, SCRATCH_EXTENSION);
 }
 
@@ -77,7 +96,10 @@ pub(crate) fn record_path(journal: &Path, seq: u64) -> PathBuf {
 /// ```ts
 /// JSON.stringify({ v: 1, repository, gitDir })
 /// ```
-fn encode(repository: &Path, git_dir: &Path) -> String {
+fn encode(
+    repository: &Path,
+    git_dir: &Path,
+) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(VERSION));
     // Each path goes in as plain text and as its bytes, so the sweep finds the worktree the reference is in.
@@ -104,7 +126,10 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
     if value.get("v").and_then(Value::as_u64) != Some(VERSION) {
         return None;
     }
-    return Some((path_bytes::read_field(&value, "repository").ok()?, path_bytes::read_field(&value, "gitDir").ok()?));
+    return Some((
+        path_bytes::read_field(&value, "repository").ok()?,
+        path_bytes::read_field(&value, "gitDir").ok()?,
+    ));
 }
 
 /// What:
@@ -125,9 +150,17 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
 /// ```ts
 /// await writePrivateFileUnsynced(recordPath(journal, seq), encode(repository, gitDir)).catch(warn)
 /// ```
-pub(crate) fn record_scratch_ref(journal: &Path, seq: u64, repository: &Path, git_dir: &Path) {
+pub(crate) fn record_scratch_ref(
+    journal: &Path,
+    seq: u64,
+    repository: &Path,
+    git_dir: &Path,
+) {
     let path: PathBuf = record_path(journal, seq);
-    match crate::private_storage::write_private_file_unsynced(path.as_path(), encode(repository, git_dir).as_bytes()) {
+    match crate::private_storage::write_private_file_unsynced(
+        path.as_path(),
+        encode(repository, git_dir).as_bytes(),
+    ) {
         Ok(()) => {}
         // A batch the branch moved under is built again under the same number, and the record of its first attempt already names
         //  the same worktree: nothing is written a second time.
@@ -155,7 +188,10 @@ that reference with nothing to find it by",
 /// ```ts
 /// await rm(recordPath(journal, seq), { force: true })
 /// ```
-pub(crate) fn forget_scratch_ref(journal: &Path, seq: u64) {
+pub(crate) fn forget_scratch_ref(
+    journal: &Path,
+    seq: u64,
+) {
     let _removed = std::fs::remove_file(record_path(journal, seq));
 }
 
@@ -176,8 +212,15 @@ pub(crate) fn forget_scratch_ref(journal: &Path, seq: u64) {
 /// ```ts
 /// if (!failure || await clearAfterAFailedLanding(requests, seq) === 'removed') await forget(seq)
 /// ```
-pub(crate) fn end_scratch_ref_record(context: &LandContext, requests: &[CommitRequest], seq: u64, failure: Option<&FailureCode>) {
-    if failure.is_some() && clear_after_a_failed_landing(context, requests, seq) == ScratchRefRemoval::Left {
+pub(crate) fn end_scratch_ref_record(
+    context: &LandContext,
+    requests: &[CommitRequest],
+    seq: u64,
+    failure: Option<&FailureCode>,
+) {
+    if failure.is_some()
+        && clear_after_a_failed_landing(context, requests, seq) == ScratchRefRemoval::Left
+    {
         return;
     }
     forget_scratch_ref(context.journal.as_path(), seq);
@@ -205,7 +248,11 @@ fn records(journal: &Path) -> Vec<(u64, PathBuf)> {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(SCRATCH_EXTENSION) {
             continue;
         }
-        let Some(seq) = path.file_stem().and_then(std::ffi::OsStr::to_str).and_then(batch_number_of_name) else {
+        let Some(seq) = path
+            .file_stem()
+            .and_then(std::ffi::OsStr::to_str)
+            .and_then(batch_number_of_name)
+        else {
             continue;
         };
         found.push((seq, path));
@@ -249,7 +296,10 @@ fn batch_number_of_record(record: &(u64, PathBuf)) -> u64 {
 /// ```ts
 /// for (const [seq, path] of records(journal)) { if (openIntent(seq) || !mine(gitDir)) continue; const named = decode(await readText(path)); if (!named) continue; if (await clearAfterDroppedBatch(named.repository, seq) === 'removed') await rm(path) }
 /// ```
-pub(crate) fn clear_recorded_scratch_refs(context: &LandContext, instance: Option<&str>) {
+pub(crate) fn clear_recorded_scratch_refs(
+    context: &LandContext,
+    instance: Option<&str>,
+) {
     for (seq, path) in records(context.journal.as_path()) {
         // An intent names the batch's own worktree and its recovery settles the reference; a record beside it is that
         //  recovery's to remove.
@@ -258,7 +308,10 @@ pub(crate) fn clear_recorded_scratch_refs(context: &LandContext, instance: Optio
         }
         let read: Option<String> = std::fs::read_to_string(path.as_path()).ok();
         let Some((repository, git_dir)) = read.as_deref().and_then(decode) else {
-            crate::service_warn!("batch {seq}: the record {} of its scratch reference cannot be read, so nothing is removed", path.display());
+            crate::service_warn!(
+                "batch {seq}: the record {} of its scratch reference cannot be read, so nothing is removed",
+                path.display()
+            );
             continue;
         };
         // A journal several worktrees' services share is swept only for the instance named.
@@ -268,7 +321,8 @@ pub(crate) fn clear_recorded_scratch_refs(context: &LandContext, instance: Optio
             continue;
         }
         let git: GitContext = context.git.clone();
-        if clear_after_dropped_batch(&git, repository.as_path(), seq) == ScratchRefRemoval::Removed {
+        if clear_after_dropped_batch(&git, repository.as_path(), seq) == ScratchRefRemoval::Removed
+        {
             let _removed = std::fs::remove_file(path.as_path());
         }
     }

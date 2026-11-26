@@ -4,9 +4,16 @@
 //! the gates that the executable adds are exercised in the binary tests.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Environment of every Git child in these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -30,7 +37,10 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
 fn push_git(root: &Path) -> PushGit {
     // The probe's per-user scratch directory is made under a home beside the repository.
     let mut environment = fixture_environment();
-    environment.push((OsString::from("HOME"), root.parent().unwrap_or(root).join("home").into_os_string()));
+    environment.push((
+        OsString::from("HOME"),
+        root.parent().unwrap_or(root).join("home").into_os_string(),
+    ));
     return PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
@@ -58,14 +68,22 @@ struct Race {
 }
 
 /// Write `text` to `name` in `repo` and commit it.
-fn commit_file(repo: &Path, name: &str, text: &str) {
+fn commit_file(
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("fixture file");
     git(repo, &["add", name]);
     git(repo, &["commit", "--quiet", "-m", name, name]);
 }
 
 /// Clone the remote into `path` with an identity.
-fn clone_of(root: &Path, remote: &Path, path: &Path) {
+fn clone_of(
+    root: &Path,
+    remote: &Path,
+    path: &Path,
+) {
     git(
         root,
         &[
@@ -76,14 +94,24 @@ fn clone_of(root: &Path, remote: &Path, path: &Path) {
         ],
     );
     git(path, &["config", "user.email", "cli-git@example.invalid"]);
-    git(path, &["config", "user.name", "monochromatic-git-policy-cli push-stacking test"]);
+    git(
+        path,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli push-stacking test",
+        ],
+    );
 }
 
 /// Build the fixture with one commit on the remote and no local change yet.
 fn race(name: &str) -> Race {
     let root = fixture(name);
     let remote = root.join("remote.git");
-    git(&root, &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(
+        &root,
+        &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")],
+    );
     let seed = root.join("seed");
     clone_of(&root, &remote, &seed);
     commit_file(&seed, "base.txt", "base\n");
@@ -105,7 +133,10 @@ fn race(name: &str) -> Race {
 }
 
 /// The commit a ref names in a repository.
-fn oid(repo: &Path, name: &str) -> String {
+fn oid(
+    repo: &Path,
+    name: &str,
+) -> String {
     return String::from_utf8_lossy(&git(repo, &["rev-parse", name]).stdout)
         .trim()
         .to_owned();
@@ -140,7 +171,10 @@ fn plain_git_merge_push(
 
 /// Integrate a failed push of `HEAD` from the local clone;
 /// plain Git publishes the merge.
-fn stack(race: &Race, region: &[OsString]) -> (Option<i32>, String) {
+fn stack(
+    race: &Race,
+    region: &[OsString],
+) -> (Option<i32>, String) {
     let git_for_local = push_git(&race.local);
     let request = StackRequest {
         git: &git_for_local,
@@ -154,7 +188,11 @@ fn stack(race: &Race, region: &[OsString]) -> (Option<i32>, String) {
 }
 
 /// Whether `ancestor` is reachable from `descendant` in the remote.
-fn reachable(race: &Race, ancestor: &str, descendant: &str) -> bool {
+fn reachable(
+    race: &Race,
+    ancestor: &str,
+    descendant: &str,
+) -> bool {
     return std::process::Command::new("/usr/bin/git")
         .current_dir(&race.remote)
         .args(["merge-base", "--is-ancestor", ancestor, descendant])
@@ -175,13 +213,23 @@ fn a_push_that_lost_a_race_publishes_the_merge_and_the_branch_follows() {
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, Some(0), "{err}");
     let published = oid(&race.remote, &race.default);
-    assert!(reachable(&race, &landed, &published), "the local commit is published");
+    assert!(
+        reachable(&race, &landed, &published),
+        "the local commit is published"
+    );
     assert!(
         reachable(&race, &oid(&race.rival, "HEAD"), &published),
         "the rival commit is kept"
     );
-    assert!(err.contains("monochromatic-git-policy-cli: push: origin/"), "{err}");
-    assert_eq!(oid(&race.local, "HEAD"), published, "the branch follows the merge");
+    assert!(
+        err.contains("monochromatic-git-policy-cli: push: origin/"),
+        "{err}"
+    );
+    assert_eq!(
+        oid(&race.local, "HEAD"),
+        published,
+        "the branch follows the merge"
+    );
     remove(&race.root);
 }
 
@@ -220,15 +268,34 @@ fn an_integration_that_stops_on_a_failed_command_names_it_for_the_person() {
     commit_file(&race.local, "local.txt", "local\n");
     let before = oid(&race.remote, &race.default);
     let signer: PathBuf = race.root.join("failing-signer");
-    crate::test_support::executable(signer.as_path(), format!("#!/bin/sh\necho '{SIGNER_WORDS}' >&2\nexit 1\n").as_bytes());
+    crate::test_support::executable(
+        signer.as_path(),
+        format!("#!/bin/sh\necho '{SIGNER_WORDS}' >&2\nexit 1\n").as_bytes(),
+    );
     git(&race.local, &["config", "commit.gpgsign", "true"]);
-    git(&race.local, &["config", "gpg.program", signer.to_str().expect("utf-8")]);
+    git(
+        &race.local,
+        &["config", "gpg.program", signer.to_str().expect("utf-8")],
+    );
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, None, "the rejection's own status stands: {err}");
-    assert!(err.contains("monochromatic-git-policy-cli: push: "), "the stop is not worded as the loop words its lines: {err}");
-    assert!(err.contains("did not finish"), "the stop says nothing about what became of the push: {err}");
-    assert!(err.contains(SIGNER_WORDS), "the signer's own words are missing: {err}");
-    assert_eq!(oid(&race.remote, &race.default), before, "nothing was published");
+    assert!(
+        err.contains("monochromatic-git-policy-cli: push: "),
+        "the stop is not worded as the loop words its lines: {err}"
+    );
+    assert!(
+        err.contains("did not finish"),
+        "the stop says nothing about what became of the push: {err}"
+    );
+    assert!(
+        err.contains(SIGNER_WORDS),
+        "the signer's own words are missing: {err}"
+    );
+    assert_eq!(
+        oid(&race.remote, &race.default),
+        before,
+        "nothing was published"
+    );
     remove(&race.root);
 }
 
@@ -262,11 +329,21 @@ fn a_push_the_remote_already_holds_ends_with_success() {
     let landed = oid(&race.local, "HEAD");
     // What the commit's auto-push does before the person's push reaches the remote.
     git(&race.local, &["push", "--quiet", "origin", "HEAD"]);
-    git(&race.local, &["update-ref", "refs/remotes/origin/main", before.as_str()]);
+    git(
+        &race.local,
+        &["update-ref", "refs/remotes/origin/main", before.as_str()],
+    );
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, Some(0), "{err}");
-    assert!(err.contains("already holds everything this push sends"), "{err}");
-    assert_eq!(oid(&race.remote, &race.default), landed, "the remote holds the pushed commit");
+    assert!(
+        err.contains("already holds everything this push sends"),
+        "{err}"
+    );
+    assert_eq!(
+        oid(&race.remote, &race.default),
+        landed,
+        "the remote holds the pushed commit"
+    );
     remove(&race.root);
 }
 
@@ -285,8 +362,15 @@ fn a_push_the_remote_moved_past_keeps_its_failure() {
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, None, "{err}");
     assert_eq!(err, "");
-    assert!(reachable(&race, &pushed, &oid(&race.remote, &race.default)), "the remote holds the pushed commit");
-    assert_ne!(oid(&race.remote, &race.default), pushed, "but not as the value this push sends");
+    assert!(
+        reachable(&race, &pushed, &oid(&race.remote, &race.default)),
+        "the remote holds the pushed commit"
+    );
+    assert_ne!(
+        oid(&race.remote, &race.default),
+        pushed,
+        "but not as the value this push sends"
+    );
     remove(&race.root);
 }
 
@@ -308,7 +392,12 @@ fn an_unreachable_remote_prints_and_changes_nothing() {
     commit_file(&race.local, "local.txt", "local\n");
     git(
         &race.local,
-        &["remote", "set-url", "origin", race.root.join("missing.git").to_str().expect("utf-8")],
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            race.root.join("missing.git").to_str().expect("utf-8"),
+        ],
     );
     let (code, err) = stack(&race, &region(&race));
     assert_eq!(code, None);
@@ -379,7 +468,11 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
         crate::test_support::executable(stand_in.as_path(), b"#!/bin/sh\nkill -TERM $$\n");
         let forward = PushForward {
             real_git: stand_in,
-            arguments: vec![OsString::from("push"), OsString::from("origin"), OsString::from("main")],
+            arguments: vec![
+                OsString::from("push"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
             overlay: Vec::new(),
             copy: None,
             subcommand_index: 0,
@@ -395,7 +488,8 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
         std::process::exit(code);
     }
     // The child ends by the signal on purpose, so this asks for its ending rather than for a passing test.
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(PUSH_SIGNAL_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(PUSH_SIGNAL_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
     let output: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
         exact_test: "push::push_stacking::tests::a_push_whose_git_a_signal_ended_keeps_the_signal",
         environment: environment.as_slice(),

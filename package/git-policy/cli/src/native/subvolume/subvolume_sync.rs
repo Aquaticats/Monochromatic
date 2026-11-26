@@ -58,17 +58,39 @@
 
 use crate::path_bytes::path_bytes_of;
 use crate::subvolume_anchor::Anchor;
-use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
-use crate::worktree_copy_prune::{holds_only_private_stages, names_a_private_stage};
-use std::collections::{HashMap, HashSet};
-use std::ffi::{OsStr, OsString};
-use std::fs::Metadata;
-use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt};
-use std::path::{Path, PathBuf};
-pub use crate::subvolume_sync_pass_state_and_checks::{SyncOptions, SyncStats};
 use crate::subvolume_sync_pass_state_and_checks::*;
+pub use crate::subvolume_sync_pass_state_and_checks::{
+    SyncOptions,
+    SyncStats,
+};
+use crate::worktree_copy_prune::{
+    holds_only_private_stages,
+    names_a_private_stage,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::fs::Metadata;
+use std::os::unix::fs::{
+    DirBuilderExt,
+    FileTypeExt,
+    MetadataExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 //region A test-only seam: one callback for every entry a pass examines
 #[cfg(test)]
@@ -115,39 +137,68 @@ fn note_entry(path: &Path) {
 //endregion
 
 impl Pass<'_> {
-
     /// Open the destination directory of a relative path.
     ///  `Ok(None)` means it was replaced by something else during an update-only pass,
     /// which keeps it and lists it.
-    fn open_destination(&mut self, relative: &Path) -> Result<Option<Anchor>, MigrateError> {
+    fn open_destination(
+        &mut self,
+        relative: &Path,
+    ) -> Result<Option<Anchor>, MigrateError> {
         return match Anchor::open_below(self.destination, relative) {
             Ok(anchor) => Ok(Some(anchor)),
-            Err(error) if is_replaced(&error) && self.options.update_only && !relative.as_os_str().is_empty() => {
+            Err(error)
+                if is_replaced(&error)
+                    && self.options.update_only
+                    && !relative.as_os_str().is_empty() =>
+            {
                 self.stats.conflicts.push(relative.to_path_buf());
                 Ok(None)
             }
-            Err(error) => Err(MigrateError::io("open the directory", self.shown(relative).as_path(), &error)),
+            Err(error) => Err(MigrateError::io(
+                "open the directory",
+                self.shown(relative).as_path(),
+                &error,
+            )),
         };
     }
 
     /// Handle one directory:
     /// delete extras,
     /// then handle each source child.
-    fn visit(&mut self, relative: &Path, stack: &mut Vec<Work>) -> Result<(), MigrateError> {
+    fn visit(
+        &mut self,
+        relative: &Path,
+        stack: &mut Vec<Work>,
+    ) -> Result<(), MigrateError> {
         let source_directory: PathBuf = self.source.join(relative);
-        let listing: std::fs::ReadDir = match vanished_is_counted(std::fs::read_dir(&source_directory), &mut self.stats.vanished) {
+        let listing: std::fs::ReadDir = match vanished_is_counted(
+            std::fs::read_dir(&source_directory),
+            &mut self.stats.vanished,
+        ) {
             Ok(Some(found)) => found,
             Ok(None) => return Ok(()),
-            Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory, reason: error.to_string() }),
+            Err(error) => {
+                return Err(MigrateError::UnreadableDirectory {
+                    path: source_directory,
+                    reason: error.to_string(),
+                });
+            }
         };
-        let Some(anchor) = self.open_destination(relative)? else { return Ok(()) };
+        let Some(anchor) = self.open_destination(relative)? else {
+            return Ok(());
+        };
         make_writable(&anchor, self.shown(relative).as_path())?;
         let mut names: HashSet<OsString> = HashSet::new();
         let mut children: Vec<(OsString, Metadata)> = Vec::new();
         for item in listing {
             let entry: std::fs::DirEntry = match item {
                 Ok(found) => found,
-                Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory.clone(), reason: error.to_string() }),
+                Err(error) => {
+                    return Err(MigrateError::UnreadableDirectory {
+                        path: source_directory.clone(),
+                        reason: error.to_string(),
+                    });
+                }
             };
             names.insert(entry.file_name());
             let child: PathBuf = relative.join(entry.file_name());
@@ -169,16 +220,27 @@ impl Pass<'_> {
             match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
                 Ok(Some(metadata)) => children.push((entry.file_name(), metadata)),
                 Ok(None) => {}
-                Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory, reason: error.to_string() }),
+                Err(error) => {
+                    return Err(MigrateError::UnreadableDirectory {
+                        path: source_directory,
+                        reason: error.to_string(),
+                    });
+                }
             }
         }
         let mut temporary: OsString = OsString::from(PARTIAL_NAME);
         while names.contains(&temporary) {
             temporary.push("~");
         }
-        let directory: Directory = Directory { anchor, temporary };
+        let directory: Directory = Directory {
+            anchor,
+            temporary,
+        };
         // A kill leaves at most this one entry behind; it is incomplete by construction, so it never stays.
-        remove_if_present(directory.partial().as_path(), self.shown(relative).join(&directory.temporary).as_path())?;
+        remove_if_present(
+            directory.partial().as_path(),
+            self.shown(relative).join(&directory.temporary).as_path(),
+        )?;
         if self.options.delete && !self.options.update_only {
             self.delete_extras(&directory, relative, &names)?;
         }
@@ -192,22 +254,41 @@ impl Pass<'_> {
     }
 
     /// Delete destination entries that the source (including its excluded names) no longer has.
-    fn delete_extras(&mut self, directory: &Directory, relative: &Path, names: &HashSet<OsString>) -> Result<(), MigrateError> {
-        let Ok(listing) = std::fs::read_dir(directory.anchor.path()) else { return Ok(()) };
+    fn delete_extras(
+        &mut self,
+        directory: &Directory,
+        relative: &Path,
+        names: &HashSet<OsString>,
+    ) -> Result<(), MigrateError> {
+        let Ok(listing) = std::fs::read_dir(directory.anchor.path()) else {
+            return Ok(());
+        };
         for item in listing.flatten() {
             if names.contains(&item.file_name()) {
                 continue;
             }
-            if self.options.excluded.contains(&relative.join(item.file_name())) {
+            if self
+                .options
+                .excluded
+                .contains(&relative.join(item.file_name()))
+            {
                 continue;
             }
             // The same rule as the source side: a stage container belongs to the command filling it, so a deletion pass leaves
             //  it where it is. The name a source container has is in `names` already; this is the container the source does not
             //  hold, which is a copy another command is filling into this destination right now.
-            if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
+            if names_a_private_stage(
+                relative
+                    .join(item.file_name())
+                    .as_os_str()
+                    .as_encoded_bytes(),
+            ) {
                 continue;
             }
-            remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;
+            remove_entry(
+                directory.child(item.file_name().as_os_str()).as_path(),
+                self.shown(relative).join(item.file_name()).as_path(),
+            )?;
             self.stats.deleted += 1;
         }
         return Ok(());
@@ -232,7 +313,10 @@ impl Pass<'_> {
     /// ```ts
     /// forgetsAFolderOfStageContainersOnly('.claude/worktrees'); // true when the source held only a container there
     /// ```
-    fn forgets_a_folder_of_stage_containers_only(&mut self, relative: &Path) -> Result<bool, MigrateError> {
+    fn forgets_a_folder_of_stage_containers_only(
+        &mut self,
+        relative: &Path,
+    ) -> Result<bool, MigrateError> {
         // A tree with no stage container in it is nearly every tree, and the question costs nothing there: the source
         //  folders are only looked at when a container was seen in one of them.
         let mut seen_a_stage_holder: bool = false;
@@ -257,14 +341,30 @@ impl Pass<'_> {
             Err(error)
                 if error.kind() == std::io::ErrorKind::DirectoryNotEmpty
                     || error.kind() == std::io::ErrorKind::NotFound
-                    || error.kind() == std::io::ErrorKind::NotADirectory => Ok(false),
-            Err(error) => Err(MigrateError::io("remove the folder the source held nothing of", self.shown(relative).as_path(), &error)),
+                    || error.kind() == std::io::ErrorKind::NotADirectory =>
+            {
+                Ok(false)
+            }
+            Err(error) => Err(MigrateError::io(
+                "remove the folder the source held nothing of",
+                self.shown(relative).as_path(),
+                &error,
+            )),
         };
     }
 
     /// Handle one source child by its type.
-    fn handle_child(&mut self, directory: &Directory, relative: PathBuf, metadata: Metadata, stack: &mut Vec<Work>) -> Result<(), MigrateError> {
-        let name: OsString = relative.file_name().map(OsStr::to_os_string).unwrap_or_default();
+    fn handle_child(
+        &mut self,
+        directory: &Directory,
+        relative: PathBuf,
+        metadata: Metadata,
+        stack: &mut Vec<Work>,
+    ) -> Result<(), MigrateError> {
+        let name: OsString = relative
+            .file_name()
+            .map(OsStr::to_os_string)
+            .unwrap_or_default();
         let destination: PathBuf = directory.child(name.as_os_str());
         let existing: Option<Metadata> = std::fs::symlink_metadata(&destination).ok();
         let older_than_since: bool = match self.options.created_since {
@@ -277,21 +377,34 @@ impl Pass<'_> {
         }
         let file_type: std::fs::FileType = metadata.file_type();
         if file_type.is_dir() {
-            if let Some(found) = &existing && !found.is_dir() {
+            if let Some(found) = &existing
+                && !found.is_dir()
+            {
                 if !self.replace_allowed(relative.as_path(), found, &metadata) {
                     return Ok(());
                 }
-                remove_entry(destination.as_path(), self.shown(relative.as_path()).as_path())?;
+                remove_entry(
+                    destination.as_path(),
+                    self.shown(relative.as_path()).as_path(),
+                )?;
             }
             let is_directory_now: bool = match existing.as_ref() {
                 Some(found) => found.is_dir(),
                 None => false,
             };
             if !is_directory_now {
-                MigrateError::from_io_result(std::fs::DirBuilder::new().mode(0o700).create(&destination), "create the directory", self.shown(relative.as_path()).as_path())?;
+                MigrateError::from_io_result(
+                    std::fs::DirBuilder::new().mode(0o700).create(&destination),
+                    "create the directory",
+                    self.shown(relative.as_path()).as_path(),
+                )?;
             }
             self.stats.directories += 1;
-            stack.push(Work::Finish { relative: relative.clone(), metadata, created: !is_directory_now });
+            stack.push(Work::Finish {
+                relative: relative.clone(),
+                metadata,
+                created: !is_directory_now,
+            });
             stack.push(Work::Visit(relative));
             return Ok(());
         }
@@ -307,7 +420,6 @@ impl Pass<'_> {
         self.stats.special_skipped.push(relative);
         return Ok(());
     }
-
 }
 
 /// What:
@@ -327,20 +439,51 @@ pub fn sync_tree(
     options: SyncOptions<'_>,
     interrupt: &Interrupt,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
-    let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
-    let mut stack: Vec<Work> = vec![Work::Finish { relative: PathBuf::new(), metadata: root_metadata, created: false }, Work::Visit(PathBuf::new())];
+    let mut pass: Pass<'_> = Pass {
+        platform,
+        source,
+        destination,
+        options,
+        interrupt,
+        stats: SyncStats::default(),
+        links: HashMap::new(),
+        stage_holders: HashSet::new(),
+    };
+    let root_metadata: Metadata =
+        MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
+    let mut stack: Vec<Work> = vec![
+        Work::Finish {
+            relative: PathBuf::new(),
+            metadata: root_metadata,
+            created: false,
+        },
+        Work::Visit(PathBuf::new()),
+    ];
     while let Some(work) = stack.pop() {
         match work {
             Work::Visit(relative) => pass.visit(relative.as_path(), &mut stack)?,
-            Work::Finish { relative, metadata, created } => {
+            Work::Finish {
+                relative,
+                metadata,
+                created,
+            } => {
                 if created && pass.forgets_a_folder_of_stage_containers_only(relative.as_path())? {
                     continue;
                 }
-                let Some(anchor) = pass.open_destination(relative.as_path())? else { continue };
+                let Some(anchor) = pass.open_destination(relative.as_path())? else {
+                    continue;
+                };
                 let shown: PathBuf = pass.shown(relative.as_path());
-                attribute_result(preserve_on_descriptor(source.join(&relative).as_path(), anchor.file(), &metadata, !options.update_only, &mut pass.stats.losses)
-                    , shown.as_path())?;
+                attribute_result(
+                    preserve_on_descriptor(
+                        source.join(&relative).as_path(),
+                        anchor.file(),
+                        &metadata,
+                        !options.update_only,
+                        &mut pass.stats.losses,
+                    ),
+                    shown.as_path(),
+                )?;
             }
         }
     }

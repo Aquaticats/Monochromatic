@@ -21,7 +21,10 @@
 
 use super::fs_beneath::handle_path;
 use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The path the kernel now finds at the name a held handle was opened at.
@@ -64,14 +67,25 @@ pub fn unique_mount_number_of(handle: &std::fs::File) -> std::io::Result<u64> {
     let empty: [libc::c_char; 1] = [0];
     // SAFETY: the descriptor is the caller's and open, the path is the empty string the flag tells the call to ignore,
     // and the answer is written into `facts`, which this function owns.
-    let answered: libc::c_int = unsafe { libc::statx(handle.as_raw_fd(), empty.as_ptr(), libc::AT_EMPTY_PATH, libc::STATX_MNT_ID_UNIQUE, &mut facts) };
+    let answered: libc::c_int = unsafe {
+        libc::statx(
+            handle.as_raw_fd(),
+            empty.as_ptr(),
+            libc::AT_EMPTY_PATH,
+            libc::STATX_MNT_ID_UNIQUE,
+            &mut facts,
+        )
+    };
     if answered != 0 {
         return Err(std::io::Error::last_os_error());
     }
     if facts.stx_mask & libc::STATX_MNT_ID_UNIQUE == 0 {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
-            format!("the kernel reports no unique mount number for {}", handle_path(handle).display()),
+            format!(
+                "the kernel reports no unique mount number for {}",
+                handle_path(handle).display()
+            ),
         ));
     }
     return Ok(facts.stx_mnt_id);
@@ -95,10 +109,29 @@ pub fn unique_mount_number_of(handle: &std::fs::File) -> std::io::Result<u64> {
 /// The read failure,
 /// or a refusal naming the descriptor's path because the text holds no mount ID.
 pub fn mount_id_of(handle: &std::fs::File) -> std::io::Result<u64> {
-    let text: String = std::fs::read_to_string(Path::new("/proc/self/fdinfo").join(handle.as_raw_fd().to_string()))?;
+    let text: String = std::fs::read_to_string(
+        Path::new("/proc/self/fdinfo").join(handle.as_raw_fd().to_string()),
+    )?;
     for line in text.lines() {
-        let Some(rest) = line.strip_prefix("mnt_id:") else { continue };
-        return rest.trim().parse::<u64>().map_err(|_error| return std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the mount ID of {} is not a number: {}", handle_path(handle).display(), rest.trim())));
+        let Some(rest) = line.strip_prefix("mnt_id:") else {
+            continue;
+        };
+        return rest.trim().parse::<u64>().map_err(|_error| {
+            return std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "the mount ID of {} is not a number: {}",
+                    handle_path(handle).display(),
+                    rest.trim()
+                ),
+            );
+        });
     }
-    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the kernel reports no mount ID for {}", handle_path(handle).display())));
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!(
+            "the kernel reports no mount ID for {}",
+            handle_path(handle).display()
+        ),
+    ));
 }

@@ -18,10 +18,22 @@
 //! const out = writeUntracked(cache);
 //! ```
 
-use crate::index_byte_search::{first_index_of_byte, has_nonzero_byte};
+use crate::index_byte_search::{
+    first_index_of_byte,
+    has_nonzero_byte,
+};
 use crate::index_ewah::Ewah;
-use crate::index_stat::{CACHE_STAT_LENGTH, StatData, be32, decode_varint, encode_varint};
-use crate::index_untracked::{Untracked, UntrackedDir};
+use crate::index_stat::{
+    CACHE_STAT_LENGTH,
+    StatData,
+    be32,
+    decode_varint,
+    encode_varint,
+};
+use crate::index_untracked::{
+    Untracked,
+    UntrackedDir,
+};
 
 /// The deepest directory nesting the reader follows:
 /// the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`),
@@ -38,7 +50,11 @@ fn take_text(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
 /// after it,
 /// its subdirectories in preorder;
 /// counts the directories read.
-fn read_dir<'a>(bytes: &'a [u8], count: &mut usize, depth: usize) -> Option<(UntrackedDir, &'a [u8])> {
+fn read_dir<'a>(
+    bytes: &'a [u8],
+    count: &mut usize,
+    depth: usize,
+) -> Option<(UntrackedDir, &'a [u8])> {
     if depth > DEPTH_LIMIT {
         return None;
     }
@@ -73,17 +89,30 @@ fn read_dir<'a>(bytes: &'a [u8], count: &mut usize, depth: usize) -> Option<(Unt
 
 /// Hand the flags,
 /// stat records and object names to the directories in preorder.
-fn assign(dir: &mut UntrackedDir, position: &mut usize, flags: &Flags<'_>, cursor: &mut (usize, usize)) -> Option<()> {
+fn assign(
+    dir: &mut UntrackedDir,
+    position: &mut usize,
+    flags: &Flags<'_>,
+    cursor: &mut (usize, usize),
+) -> Option<()> {
     let index: usize = *position;
     *position += 1;
     dir.check_only = flags.check_only.binary_search(&index).is_ok();
     dir.valid = flags.valid.binary_search(&index).is_ok();
     if dir.valid {
-        dir.stat = StatData::from_cache_bytes(flags.stats.get(cursor.0..cursor.0 + CACHE_STAT_LENGTH)?)?;
+        dir.stat =
+            StatData::from_cache_bytes(flags.stats.get(cursor.0..cursor.0 + CACHE_STAT_LENGTH)?)?;
         cursor.0 += CACHE_STAT_LENGTH;
     }
     let has_id: bool = flags.has_id.binary_search(&index).is_ok();
-    dir.exclude_id = if has_id { flags.ids.get(cursor.1..cursor.1 + flags.hash_length)?.to_vec() } else { vec![0; flags.hash_length] };
+    dir.exclude_id = if has_id {
+        flags
+            .ids
+            .get(cursor.1..cursor.1 + flags.hash_length)?
+            .to_vec()
+    } else {
+        vec![0; flags.hash_length]
+    };
     if has_id {
         cursor.1 += flags.hash_length;
     }
@@ -127,7 +156,10 @@ struct Header {
 impl Header {
     /// The cache these fields start,
     /// with `root` as its directories.
-    fn with_root(self, root: Option<UntrackedDir>) -> Untracked {
+    fn with_root(
+        self,
+        root: Option<UntrackedDir>,
+    ) -> Untracked {
         return Untracked {
             ident: self.ident,
             info_exclude: self.info_exclude,
@@ -140,7 +172,10 @@ impl Header {
 }
 
 /// The fixed part of `body` and the bytes after it.
-fn read_header(body: &[u8], hash_length: usize) -> Option<(Header, &[u8])> {
+fn read_header(
+    body: &[u8],
+    hash_length: usize,
+) -> Option<(Header, &[u8])> {
     let (ident_length, after_length) = decode_varint(body)?;
     let ident: &[u8] = after_length.get(..usize::try_from(ident_length).ok()?)?;
     let fixed: &[u8] = &after_length[ident.len()..];
@@ -149,8 +184,14 @@ fn read_header(body: &[u8], hash_length: usize) -> Option<(Header, &[u8])> {
     let (exclude_per_dir, after_name) = take_text(fixed.get(header_end..)?)?;
     let header: Header = Header {
         ident: ident.to_vec(),
-        info_exclude: (StatData::from_cache_bytes(fixed.get(..CACHE_STAT_LENGTH)?)?, fixed.get(ids_at..ids_at + hash_length)?.to_vec()),
-        excludes_file: (StatData::from_cache_bytes(fixed.get(CACHE_STAT_LENGTH..2 * CACHE_STAT_LENGTH)?)?, fixed.get(ids_at + hash_length..header_end)?.to_vec()),
+        info_exclude: (
+            StatData::from_cache_bytes(fixed.get(..CACHE_STAT_LENGTH)?)?,
+            fixed.get(ids_at..ids_at + hash_length)?.to_vec(),
+        ),
+        excludes_file: (
+            StatData::from_cache_bytes(fixed.get(CACHE_STAT_LENGTH..2 * CACHE_STAT_LENGTH)?)?,
+            fixed.get(ids_at + hash_length..header_end)?.to_vec(),
+        ),
         dir_flags: be32(fixed, 2 * CACHE_STAT_LENGTH)?,
         exclude_per_dir: exclude_per_dir.to_vec(),
     };
@@ -161,7 +202,10 @@ fn read_header(body: &[u8], hash_length: usize) -> Option<(Header, &[u8])> {
 /// or `None` for anything outside the layout Git writes (Git would drop such a cache;
 /// the
 /// caller lets Git answer instead).
-pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
+pub fn read_untracked(
+    data: &[u8],
+    hash_length: usize,
+) -> Option<Untracked> {
     let (last, body) = data.split_last()?;
     if *last != 0 {
         return None;
@@ -174,7 +218,11 @@ pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
     let (directory_count, after_count) = decode_varint(rest)?;
     rest = after_count;
     if directory_count == 0 {
-        return if rest.is_empty() { Some(header.with_root(None)) } else { None };
+        return if rest.is_empty() {
+            Some(header.with_root(None))
+        } else {
+            None
+        };
     }
     let mut count: usize = 0;
     let (mut root, after_dirs) = read_dir(rest, &mut count, 0)?;
@@ -195,7 +243,14 @@ pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
     if rest.len() != stats_length.checked_add(has_id_bits.len().checked_mul(hash_length)?)? {
         return None;
     }
-    let flags: Flags<'_> = Flags { valid: valid_bits, check_only: bitmaps[1].bits(), has_id: has_id_bits, stats: &rest[..stats_length], ids: &rest[stats_length..], hash_length };
+    let flags: Flags<'_> = Flags {
+        valid: valid_bits,
+        check_only: bitmaps[1].bits(),
+        has_id: has_id_bits,
+        stats: &rest[..stats_length],
+        ids: &rest[stats_length..],
+        hash_length,
+    };
     assign(&mut root, &mut 0, &flags, &mut (0, 0))?;
     return Some(header.with_root(Some(root)));
 }
@@ -231,11 +286,18 @@ fn recursing_children(dir: &UntrackedDir) -> Vec<&UntrackedDir> {
 }
 
 /// Write one directory and its recursing subdirectories (`write_one_dir`).
-fn write_dir(dir: &UntrackedDir, writer: &mut Writer) {
+fn write_dir(
+    dir: &UntrackedDir,
+    writer: &mut Writer,
+) {
     let index: usize = writer.count;
     writer.count += 1;
     // A directory that is not valid keeps no listing and no check-only mark, as Git clears them while writing.
-    let listing: &[Vec<u8>] = if dir.valid { dir.untracked.as_slice() } else { &[] };
+    let listing: &[Vec<u8>] = if dir.valid {
+        dir.untracked.as_slice()
+    } else {
+        &[]
+    };
     if dir.valid && dir.check_only {
         writer.check_only.push(index);
     }
@@ -278,7 +340,15 @@ pub fn write_untracked(cache: &Untracked) -> Vec<u8> {
         encode_varint(0, &mut out);
         return out;
     };
-    let mut writer: Writer = Writer { count: 0, records: Vec::new(), valid: Vec::new(), check_only: Vec::new(), has_id: Vec::new(), stats: Vec::new(), ids: Vec::new() };
+    let mut writer: Writer = Writer {
+        count: 0,
+        records: Vec::new(),
+        valid: Vec::new(),
+        check_only: Vec::new(),
+        has_id: Vec::new(),
+        stats: Vec::new(),
+        ids: Vec::new(),
+    };
     write_dir(root, &mut writer);
     encode_varint(writer.count as u64, &mut out);
     out.extend_from_slice(writer.records.as_slice());

@@ -45,12 +45,22 @@ use crate::subvolume_sync::SyncStats;
 /// ```ts
 /// function whatAPassCouldNotCarry(label, stats): string[];
 /// ```
-pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String> {
+pub fn what_a_pass_could_not_carry(
+    label: &str,
+    stats: &SyncStats,
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for path in &stats.special_skipped {
-        lines.push(format!("{label}: not recreated (a socket or device node): {}", path.display()));
+        lines.push(format!(
+            "{label}: not recreated (a socket or device node): {}",
+            path.display()
+        ));
     }
-    if stats.losses.owner > 0 || stats.losses.extended_attributes > 0 || stats.losses.mode > 0 || stats.losses.times > 0 {
+    if stats.losses.owner > 0
+        || stats.losses.extended_attributes > 0
+        || stats.losses.mode > 0
+        || stats.losses.times > 0
+    {
         lines.push(format!(
             "{label}: could not set the owner of {} entries, the permission bits of {}, the times of {}, and {} extended attributes (not running as the owner or as root)",
             stats.losses.owner, stats.losses.mode, stats.losses.times, stats.losses.extended_attributes
@@ -63,7 +73,10 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
         lines.push(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out.len()));
     }
     if stats.recopied > 0 {
-        lines.push(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied));
+        lines.push(format!(
+            "{label}: {} file(s) changed while they were copied and were copied again",
+            stats.recopied
+        ));
     }
     return lines;
 }

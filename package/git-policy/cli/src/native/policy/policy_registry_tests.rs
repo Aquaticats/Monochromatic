@@ -11,7 +11,12 @@
 
 /// Import the registry and its lookups from the module under test.
 use super::{
-    POLICY_REGISTRY, PolicyId, Severity, policy_by_name, policy_descriptor, severity_from_name,
+    POLICY_REGISTRY,
+    PolicyId,
+    Severity,
+    policy_by_name,
+    policy_descriptor,
+    severity_from_name,
     severity_name,
 };
 

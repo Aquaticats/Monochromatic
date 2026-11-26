@@ -21,9 +21,26 @@
 //! ```
 
 /// Import the shared fixtures and the bounded process helpers.
-use super::support::{Fixture, Observed, bounded, executable, fixture, git, observe, remove, repository, stderr_of};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use super::support::{
+    Fixture,
+    Observed,
+    bounded,
+    executable,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    stderr_of,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The option the wrapper adds,
 /// which opens the recorded command line:
@@ -51,25 +68,55 @@ fn recorded_repository(fixture: &Fixture) -> (PathBuf, PathBuf) {
 /// Run `git <arguments>` through the wrapper in `repo` with the stand-in behind it and `extra` variables added;
 /// return what the
 ///  caller saw and the command lines the stand-in recorded.
-fn run_recorded(fixture: &Fixture, repo: &Path, log: &Path, arguments: &[&str], extra: &[(&str, &str)]) -> (Observed, Vec<String>) {
+fn run_recorded(
+    fixture: &Fixture,
+    repo: &Path,
+    log: &Path,
+    arguments: &[&str],
+    extra: &[(&str, &str)],
+) -> (Observed, Vec<String>) {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(fixture.root.join("shim"));
-    let mut command = bounded(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str());
-    command.env("CLI_GIT_TEST_SPAWN_LOG", log).current_dir(repo).args(arguments);
+    let mut command = bounded(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        path.as_os_str(),
+    );
+    command
+        .env("CLI_GIT_TEST_SPAWN_LOG", log)
+        .current_dir(repo)
+        .args(arguments);
     for (name, value) in extra {
         command.env(name, value);
     }
     let observed: Observed = observe(&mut command, b"");
-    let lines: Vec<String> = std::fs::read_to_string(log).expect("spawn log").lines().map(str::to_owned).collect();
+    let lines: Vec<String> = std::fs::read_to_string(log)
+        .expect("spawn log")
+        .lines()
+        .map(str::to_owned)
+        .collect();
     return (observed, lines);
 }
 
 /// The one recorded line that is the checkout of the new worktree,
 /// or the panic that says it was not run.
-fn add_line(lines: &[String], observed: &Observed) -> String {
-    let found: Vec<&String> = lines.iter().filter(|line: &&String| { return line.contains("worktree add"); }).collect();
-    assert_eq!(found.len(), 1, "one worktree add reached Git: {lines:?} {}", stderr_of(observed));
+fn add_line(
+    lines: &[String],
+    observed: &Observed,
+) -> String {
+    let found: Vec<&String> = lines
+        .iter()
+        .filter(|line: &&String| {
+            return line.contains("worktree add");
+        })
+        .collect();
+    assert_eq!(
+        found.len(),
+        1,
+        "one worktree add reached Git: {lines:?} {}",
+        stderr_of(observed)
+    );
     return found[0].clone();
 }
 
@@ -80,11 +127,24 @@ fn add_line(lines: &[String], observed: &Observed) -> String {
 fn an_unset_checkout_workers_gets_parallel_checkout_before_the_subcommand() {
     let fixture: Fixture = fixture("workers-unset");
     let (repo, log) = recorded_repository(&fixture);
-    let (observed, lines) = run_recorded(&fixture, repo.as_path(), log.as_path(), &["worktree", "add", "-b", "topic", "../topic"], &[]);
+    let (observed, lines) = run_recorded(
+        &fixture,
+        repo.as_path(),
+        log.as_path(),
+        &["worktree", "add", "-b", "topic", "../topic"],
+        &[],
+    );
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
     let line: String = add_line(&lines, &observed);
-    assert!(line.starts_with(ADDED) && line.contains(" worktree add "), "{line}\n{}", stderr_of(&observed));
-    assert!(fixture.root.join("topic/.git").exists(), "the worktree was made");
+    assert!(
+        line.starts_with(ADDED) && line.contains(" worktree add "),
+        "{line}\n{}",
+        stderr_of(&observed)
+    );
+    assert!(
+        fixture.root.join("topic/.git").exists(),
+        "the worktree was made"
+    );
     remove(&fixture);
 }
 
@@ -96,13 +156,32 @@ fn a_checkout_workers_in_the_configuration_is_left_alone() {
     let fixture: Fixture = fixture("workers-config");
     let (repo, log) = recorded_repository(&fixture);
     for (index, value) in ["1", "4", "-1", "0"].iter().enumerate() {
-        git(&fixture, repo.as_path(), &["config", "checkout.workers", value]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["config", "checkout.workers", value],
+        );
         std::fs::write(&log, b"").expect("empty spawn log");
         let name: String = format!("topic{index}");
-        let (observed, lines) = run_recorded(&fixture, repo.as_path(), log.as_path(), &["worktree", "add", "-b", name.as_str(), format!("../{name}").as_str()], &[]);
+        let (observed, lines) = run_recorded(
+            &fixture,
+            repo.as_path(),
+            log.as_path(),
+            &[
+                "worktree",
+                "add",
+                "-b",
+                name.as_str(),
+                format!("../{name}").as_str(),
+            ],
+            &[],
+        );
         assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
         let line: String = add_line(&lines, &observed);
-        assert!(!line.contains("checkout.workers"), "the person's value {value} stands alone: {line}");
+        assert!(
+            !line.contains("checkout.workers"),
+            "the person's value {value} stands alone: {line}"
+        );
     }
     remove(&fixture);
 }
@@ -114,13 +193,41 @@ fn a_checkout_workers_in_the_configuration_is_left_alone() {
 fn a_typed_option_or_an_environment_value_is_left_alone() {
     let fixture: Fixture = fixture("workers-typed");
     let (repo, log) = recorded_repository(&fixture);
-    let (typed, typed_lines) = run_recorded(&fixture, repo.as_path(), log.as_path(), &["-c", "checkout.workers=3", "worktree", "add", "-b", "typed", "../typed"], &[]);
+    let (typed, typed_lines) = run_recorded(
+        &fixture,
+        repo.as_path(),
+        log.as_path(),
+        &[
+            "-c",
+            "checkout.workers=3",
+            "worktree",
+            "add",
+            "-b",
+            "typed",
+            "../typed",
+        ],
+        &[],
+    );
     assert_eq!(typed.code, Some(0), "{}", stderr_of(&typed));
     let typed_line: String = add_line(&typed_lines, &typed);
-    assert!(typed_line.starts_with("-c checkout.workers=3 ") && !typed_line.contains("checkout.workers=0"), "{typed_line}");
+    assert!(
+        typed_line.starts_with("-c checkout.workers=3 ")
+            && !typed_line.contains("checkout.workers=0"),
+        "{typed_line}"
+    );
     std::fs::write(&log, b"").expect("empty spawn log");
-    let environment = [("GIT_CONFIG_COUNT", "1"), ("GIT_CONFIG_KEY_0", "checkout.workers"), ("GIT_CONFIG_VALUE_0", "2")];
-    let (set, set_lines) = run_recorded(&fixture, repo.as_path(), log.as_path(), &["worktree", "add", "-b", "environment", "../environment"], &environment);
+    let environment = [
+        ("GIT_CONFIG_COUNT", "1"),
+        ("GIT_CONFIG_KEY_0", "checkout.workers"),
+        ("GIT_CONFIG_VALUE_0", "2"),
+    ];
+    let (set, set_lines) = run_recorded(
+        &fixture,
+        repo.as_path(),
+        log.as_path(),
+        &["worktree", "add", "-b", "environment", "../environment"],
+        &environment,
+    );
     assert_eq!(set.code, Some(0), "{}", stderr_of(&set));
     let set_line: String = add_line(&set_lines, &set);
     assert!(!set_line.contains("checkout.workers"), "{set_line}");

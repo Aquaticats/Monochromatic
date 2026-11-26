@@ -18,12 +18,33 @@
 use std::ffi::OsString;
 /// Long options with no value that never decide whether an editor opens.
 pub(crate) const NEUTRAL_LONG: [&str; 15] = [
-    "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author", "--allow-empty-message", "--verbose", "--include", "--pathspec-file-nul",
+    "--quiet",
+    "--no-verify",
+    "--only",
+    "--no-status",
+    "--no-post-rewrite",
+    "--no-gpg-sign",
+    "--all",
+    "--signoff",
+    "--allow-empty",
+    "--amend",
+    "--reset-author",
+    "--allow-empty-message",
+    "--verbose",
+    "--include",
+    "--pathspec-file-nul",
 ];
 
 /// Long options with a value that never decide whether an editor opens.
-pub(crate) const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template", "--pathspec-from-file"];
+pub(crate) const NEUTRAL_VALUE_LONG: [&str; 7] = [
+    "--author",
+    "--date",
+    "--trailer",
+    "--cleanup",
+    "--gpg-sign",
+    "--template",
+    "--pathspec-from-file",
+];
 
 /// What:
 ///  Whether `git commit` with these arguments may open an editor.
@@ -48,7 +69,9 @@ pub fn opens_editor(arguments: &[OsString]) -> bool {
     let mut edit: Option<bool> = None;
     let mut index: usize = 0;
     while index < arguments.len() {
-        let Some(token) = arguments[index].to_str() else { return true };
+        let Some(token) = arguments[index].to_str() else {
+            return true;
+        };
         index += 1;
         if token == "--" {
             break;
@@ -62,10 +85,21 @@ pub fn opens_editor(arguments: &[OsString]) -> bool {
                 None => (long, None),
             };
             let dashed: String = format!("--{name}");
-            let takes_value: bool = ["--message", "--file", "--reuse-message", "--reedit-message", "--fixup", "--squash"].contains(&dashed.as_str())
+            let takes_value: bool = [
+                "--message",
+                "--file",
+                "--reuse-message",
+                "--reedit-message",
+                "--fixup",
+                "--squash",
+            ]
+            .contains(&dashed.as_str())
                 || NEUTRAL_VALUE_LONG.contains(&dashed.as_str());
             // A separate value is the next token, except for the options whose value may be attached only.
-            let detached: Option<&str> = if takes_value && value.is_none() && !["--gpg-sign", "--squash"].contains(&dashed.as_str()) {
+            let detached: Option<&str> = if takes_value
+                && value.is_none()
+                && !["--gpg-sign", "--squash"].contains(&dashed.as_str())
+            {
                 index += 1;
                 match arguments.get(index - 1) {
                     Some(next) => next.to_str(),

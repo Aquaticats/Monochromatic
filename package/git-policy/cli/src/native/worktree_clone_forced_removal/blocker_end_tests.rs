@@ -25,20 +25,30 @@ const TERM_IGNORED_BIT: u64 = 1 << (15 - 1);
 ///  A stage that signals a child in the instant after `spawn` would test the kernel's default
 ///  disposition rather than the one the control built,
 ///  and the control's own reading of `/proc/<pid>/status` is what says the trap is in place.
-fn wait_until_ready(pid: i32, ignores_term: bool) {
+fn wait_until_ready(
+    pid: i32,
+    ignores_term: bool,
+) {
     for _attempt in 0..400 {
-        let text: String = std::fs::read_to_string(format!("/proc/{pid}/status")).unwrap_or_default();
-        let ready: bool = text.lines().find(|line| return line.starts_with("SigIgn:")).is_some_and(|line| {
-            let mask: u64 = u64::from_str_radix(line.trim_start_matches("SigIgn:").trim(), 16).unwrap_or(0);
-            return (mask & TERM_IGNORED_BIT) != 0;
-        });
+        let text: String =
+            std::fs::read_to_string(format!("/proc/{pid}/status")).unwrap_or_default();
+        let ready: bool = text
+            .lines()
+            .find(|line| return line.starts_with("SigIgn:"))
+            .is_some_and(|line| {
+                let mask: u64 =
+                    u64::from_str_radix(line.trim_start_matches("SigIgn:").trim(), 16).unwrap_or(0);
+                return (mask & TERM_IGNORED_BIT) != 0;
+            });
         if ready {
             // The trap is in place, and the shell is waiting on its own child.
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    panic!("the child {pid} never installed the disposition this control needs (ignores TERM = {ignores_term})");
+    panic!(
+        "the child {pid} never installed the disposition this control needs (ignores TERM = {ignores_term})"
+    );
 }
 
 /// Start one child that runs `body` under `sh -c` and answer its blocker and the child itself,
@@ -49,7 +59,8 @@ fn start_child(body: &str) -> (Blocker, std::process::Child) {
     let mut command: std::process::Command = std::process::Command::new("sh");
     command.arg("-c").arg(body);
     // Quiet, because nothing reads this child's output: the sleep it starts gives the run's output pipe back by holding none.
-    let child: std::process::Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a child starts");
+    let child: std::process::Child =
+        crate::test_support::spawn_owned_quiet(&mut command).expect("a child starts");
     let pid: i32 = i32::try_from(child.id()).expect("a child's number fits");
     let blocker: Blocker = Blocker::read(pid).expect("the new child has a record");
     if body.contains("trap") {
@@ -63,7 +74,10 @@ fn start_child(body: &str) -> (Blocker, std::process::Child) {
 #[test]
 fn a_task_that_leaves_on_the_ask_is_not_killed() {
     let (blocker, mut child) = start_child("exec sleep 30");
-    let stage: SignalStage = end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || { return true; });
+    let stage: SignalStage =
+        end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || {
+            return true;
+        });
     assert_eq!(stage.endings.len(), 1);
     assert_eq!(stage.endings[0].1, EndResult::ExitedAfterTheAsk);
     assert_eq!(stage.killed(), 0);
@@ -78,7 +92,10 @@ fn a_task_that_leaves_on_the_ask_is_not_killed() {
 #[test]
 fn a_task_that_ignores_the_ask_is_killed() {
     let (blocker, mut child) = start_child("trap '' TERM; /bin/sleep 5; :");
-    let stage: SignalStage = end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || { return true; });
+    let stage: SignalStage =
+        end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || {
+            return true;
+        });
     assert_eq!(stage.endings.len(), 1);
     assert_eq!(stage.endings[0].1, EndResult::Killed);
     assert_eq!(stage.killed(), 1);
@@ -90,7 +107,10 @@ fn a_task_that_ignores_the_ask_is_killed() {
 #[test]
 fn a_dead_wrapper_sends_no_kill() {
     let (blocker, mut child) = start_child("trap '' TERM; /bin/sleep 5; :");
-    let stage: SignalStage = end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || { return false; });
+    let stage: SignalStage =
+        end_the_blockers(&[blocker], a_short_window(), std::thread::sleep, || {
+            return false;
+        });
     assert!(stage.caller_gone);
     assert_eq!(stage.killed(), 0);
     assert_eq!(stage.endings.len(), 1);
@@ -104,8 +124,20 @@ fn a_dead_wrapper_sends_no_kill() {
 /// and nothing is sent to it.
 #[test]
 fn a_number_no_task_has_is_gone() {
-    let blocker: Blocker = Blocker { pid: 2_000_000_000, started: 1 };
-    let stage: SignalStage = end_the_blockers(&[blocker], a_short_window(), |_duration: std::time::Duration| { return; }, || { return true; });
+    let blocker: Blocker = Blocker {
+        pid: 2_000_000_000,
+        started: 1,
+    };
+    let stage: SignalStage = end_the_blockers(
+        &[blocker],
+        a_short_window(),
+        |_duration: std::time::Duration| {
+            return;
+        },
+        || {
+            return true;
+        },
+    );
     assert_eq!(stage.endings, vec![(blocker, EndResult::Gone)]);
     assert_eq!(stage.unproven(), 0);
 }
@@ -137,7 +169,10 @@ fn the_endability_read_tells_the_states_apart() {
     }
     let _killed = child.kill();
     let _reaped: std::io::Result<std::process::ExitStatus> = child.wait();
-    assert!(matches!(endability_of(std::path::Path::new("/proc"), 2_000_000_000), Endability::Gone));
+    assert!(matches!(
+        endability_of(std::path::Path::new("/proc"), 2_000_000_000),
+        Endability::Gone
+    ));
 }
 
 /// A list longer than one scan answers is refused whole,
@@ -145,9 +180,21 @@ fn the_endability_read_tells_the_states_apart() {
 #[test]
 fn a_list_past_the_bound_is_cut() {
     assert_eq!(MOST_BLOCKERS_ONE_ACT_HOLDS, 1024);
-    let blocker: Blocker = Blocker { pid: 2_000_000_000, started: 1 };
+    let blocker: Blocker = Blocker {
+        pid: 2_000_000_000,
+        started: 1,
+    };
     let many: Vec<Blocker> = vec![blocker; MOST_BLOCKERS_ONE_ACT_HOLDS + 5];
-    let stage: SignalStage = end_the_blockers(&many, a_short_window(), |_duration: std::time::Duration| { return; }, || { return true; });
+    let stage: SignalStage = end_the_blockers(
+        &many,
+        a_short_window(),
+        |_duration: std::time::Duration| {
+            return;
+        },
+        || {
+            return true;
+        },
+    );
     // A list past the scan's bound is refused whole rather than cut to a prefix the report would not mention.
     assert!(stage.endings.is_empty());
     assert_eq!(ASK, 15);

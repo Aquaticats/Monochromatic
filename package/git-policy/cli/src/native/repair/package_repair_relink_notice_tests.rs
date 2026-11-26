@@ -16,21 +16,45 @@
 //! ```
 
 use super::*;
-use crate::package_repair_relink::{RELINK_REFERENCE, SearchPathOfTheAdd, item_of, object_name_of};
-use crate::test_support::{fixture, remove};
-use crate::work_item::{WorkItem, WorkKind};
+use crate::package_repair_relink::{
+    RELINK_REFERENCE,
+    SearchPathOfTheAdd,
+    item_of,
+    object_name_of,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+};
 
 /// An entry naming both tools of this release,
 /// rooted at the worktree the notice is about.
 fn entry_rooted_at(worktree: &Path) -> RelinkEntry {
-    return RelinkEntry { root: worktree.to_path_buf(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
+    return RelinkEntry {
+        root: worktree.to_path_buf(),
+        search_path: SearchPathOfTheAdd::Unset,
+        tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain],
+    };
 }
 
 /// A record of one relink,
 /// as the add writes it.
-fn record_of(worktree: &Path, common_dir: &Path) -> WorkItem {
+fn record_of(
+    worktree: &Path,
+    common_dir: &Path,
+) -> WorkItem {
     let entry: RelinkEntry = entry_rooted_at(worktree);
-    return item_of(common_dir, worktree, &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    return item_of(
+        common_dir,
+        worktree,
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
 }
 
 /// What:
@@ -50,13 +74,36 @@ fn record_of(worktree: &Path, common_dir: &Path) -> WorkItem {
 fn the_words_name_the_worktree_what_failed_and_every_command() {
     let root: PathBuf = fixture("relink-notice-words");
     let worktree: PathBuf = root.join("the worktree");
-    let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, Some("pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"));
-    assert!(words.contains(worktree.to_string_lossy().as_ref()), "the words do not name the worktree: {words}");
-    assert!(words.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL."), "the words do not say what failed: {words}");
-    assert!(words.contains("ERR_PNPM_META_FETCH_FAIL. Running the same command again"), "the tool's own words run into the next sentence: {words}");
-    assert!(words.contains("3 times"), "the words do not say how many times the service tried: {words}");
-    assert!(words.contains("pnpm --dir "), "the words do not name the pnpm command: {words}");
-    assert!(words.contains(MANUAL_COMMAND), "the words do not name the toolchain command: {words}");
+    let words: String = words_for(
+        worktree.as_path(),
+        &entry_rooted_at(worktree.as_path()),
+        3,
+        Some("pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"),
+    );
+    assert!(
+        words.contains(worktree.to_string_lossy().as_ref()),
+        "the words do not name the worktree: {words}"
+    );
+    assert!(
+        words.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL."),
+        "the words do not say what failed: {words}"
+    );
+    assert!(
+        words.contains("ERR_PNPM_META_FETCH_FAIL. Running the same command again"),
+        "the tool's own words run into the next sentence: {words}"
+    );
+    assert!(
+        words.contains("3 times"),
+        "the words do not say how many times the service tried: {words}"
+    );
+    assert!(
+        words.contains("pnpm --dir "),
+        "the words do not name the pnpm command: {words}"
+    );
+    assert!(
+        words.contains(MANUAL_COMMAND),
+        "the words do not name the toolchain command: {words}"
+    );
     remove(root.as_path());
 }
 
@@ -78,10 +125,21 @@ fn the_words_name_the_worktree_what_failed_and_every_command() {
 fn the_words_of_a_record_with_no_kept_answer_point_at_the_journal() {
     let root: PathBuf = fixture("relink-notice-no-answer");
     let worktree: PathBuf = root.join("the worktree");
-    let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, None);
+    let words: String = words_for(
+        worktree.as_path(),
+        &entry_rooted_at(worktree.as_path()),
+        3,
+        None,
+    );
     assert!(words.contains("No tool's answer was kept for this record, so what stopped it is only in the commit service's journal."), "the words do not say what is known: {words}");
-    assert!(!words.contains("The last try failed with"), "the words name a failure no tool gave: {words}");
-    assert!(!words.contains("no tool's answer was ever recorded"), "the words claim something no file can show: {words}");
+    assert!(
+        !words.contains("The last try failed with"),
+        "the words name a failure no tool gave: {words}"
+    );
+    assert!(
+        !words.contains("no tool's answer was ever recorded"),
+        "the words claim something no file can show: {words}"
+    );
     remove(root.as_path());
 }
 
@@ -104,11 +162,21 @@ fn a_worktree_git_directory_is_the_one_its_pointer_names() {
     let admin: PathBuf = root.join("common/worktrees/the-worktree");
     std::fs::create_dir_all(worktree.as_path()).expect("worktree");
     std::fs::create_dir_all(admin.as_path()).expect("registration");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
-    assert_eq!(git_dir_of_a_worktree(worktree.as_path()), Some(admin.clone()));
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("pointer");
+    assert_eq!(
+        git_dir_of_a_worktree(worktree.as_path()),
+        Some(admin.clone())
+    );
     std::fs::remove_file(worktree.join(".git")).expect("pointer");
     std::fs::create_dir_all(worktree.join(".git")).expect("git directory");
-    assert_eq!(git_dir_of_a_worktree(worktree.as_path()), Some(worktree.join(".git")));
+    assert_eq!(
+        git_dir_of_a_worktree(worktree.as_path()),
+        Some(worktree.join(".git"))
+    );
     remove(root.as_path());
 }
 
@@ -146,8 +214,14 @@ fn a_notice_is_shown_once_and_taken_away() {
     let git_dir: PathBuf = root.join(".git");
     std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
     record_notice(git_dir.as_path(), "relink-1", "the words").expect("recorded");
-    assert_eq!(take_notices(git_dir.as_path()), vec![String::from("the words")]);
-    assert!(take_notices(git_dir.as_path()).is_empty(), "the notice was shown twice");
+    assert_eq!(
+        take_notices(git_dir.as_path()),
+        vec![String::from("the words")]
+    );
+    assert!(
+        take_notices(git_dir.as_path()).is_empty(),
+        "the notice was shown twice"
+    );
     remove(root.as_path());
 }
 
@@ -195,13 +269,30 @@ fn a_record_of_another_kind_leaves_no_notice() {
 fn a_relink_record_names_the_tools_it_asked_for() {
     let root: PathBuf = fixture("relink-notice-tools");
     let worktree: PathBuf = root.join("the worktree");
-    let entry: RelinkEntry = RelinkEntry { root: worktree.clone(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Pnpm] };
-    let item: WorkItem = item_of(root.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    let entry: RelinkEntry = RelinkEntry {
+        root: worktree.clone(),
+        search_path: SearchPathOfTheAdd::Unset,
+        tools: vec![RelinkTool::Pnpm],
+    };
+    let item: WorkItem = item_of(
+        root.as_path(),
+        worktree.as_path(),
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
     let notice: String = notice_for_given_up(&item, 3).expect("the notice");
     assert!(notice.contains("pnpm --dir "), "{notice}");
-    assert!(!notice.contains(MANUAL_COMMAND), "the notice names a tool the record did not ask for: {notice}");
+    assert!(
+        !notice.contains(MANUAL_COMMAND),
+        "the notice names a tool the record did not ask for: {notice}"
+    );
     let both: WorkItem = record_of(worktree.as_path(), root.as_path());
-    assert!(notice_for_given_up(&both, 3).expect("the notice").contains(MANUAL_COMMAND));
+    assert!(
+        notice_for_given_up(&both, 3)
+            .expect("the notice")
+            .contains(MANUAL_COMMAND)
+    );
     remove(root.as_path());
 }
 
@@ -223,9 +314,18 @@ fn the_notice_quotes_the_reason_the_last_try_gave() {
     let root: PathBuf = fixture("relink-notice-reason");
     let worktree: PathBuf = root.join("the worktree");
     let item: WorkItem = record_of(worktree.as_path(), root.as_path());
-    crate::package_repair_relink_failure::remember(item.git_dir.as_path(), item.id().as_str(), "pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE").expect("kept");
+    crate::package_repair_relink_failure::remember(
+        item.git_dir.as_path(),
+        item.id().as_str(),
+        "pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE",
+    )
+    .expect("kept");
     let notice: String = notice_for_given_up(&item, 3).expect("the notice");
-    assert!(notice.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."), "{notice}");
+    assert!(
+        notice
+            .contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."),
+        "{notice}"
+    );
     remove(root.as_path());
 }
 
@@ -241,23 +341,44 @@ fn the_notice_quotes_the_reason_the_last_try_gave() {
 /// ```ts
 /// const registered = (root, name) => { mkdir(common/worktrees/name); writeFile(worktree/.git, `gitdir: ${admin}`); writeFile(admin/gitdir, worktree/.git); writeFile(admin/commondir, '../..'); return { common, worktree, admin }; }
 /// ```
-fn registered_worktree(root: &Path, name: &str) -> (PathBuf, PathBuf, PathBuf) {
+fn registered_worktree(
+    root: &Path,
+    name: &str,
+) -> (PathBuf, PathBuf, PathBuf) {
     let common: PathBuf = root.join("common");
     let worktree: PathBuf = root.join(name);
     let admin: PathBuf = common.join("worktrees").join(name);
     std::fs::create_dir_all(admin.as_path()).expect("the registration");
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
-    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", worktree.join(".git").display()),
+    )
+    .expect("the back-link");
     std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("the pointer");
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("the pointer");
     return (common, worktree, admin);
 }
 
 /// A record of one relink whose moment is `queued_at`,
 /// so a control can put it before or after a worktree was registered.
-fn record_queued_at(common: &Path, worktree: &Path, queued_at: &str) -> WorkItem {
+fn record_queued_at(
+    common: &Path,
+    worktree: &Path,
+    queued_at: &str,
+) -> WorkItem {
     let entry: RelinkEntry = entry_rooted_at(worktree);
-    let mut item: WorkItem = item_of(common, worktree, &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    let mut item: WorkItem = item_of(
+        common,
+        worktree,
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
     item.created = String::from(queued_at);
     return item;
 }
@@ -285,8 +406,13 @@ fn a_pointer_file_past_the_git_file_limit_is_refused_instead_of_read() {
     text.push_str("x".repeat(1 << 20).as_str());
     std::fs::write(worktree.join(".git"), text).expect("the pointer");
     let resolved: Option<PathBuf> = git_dir_of_a_worktree(worktree.as_path());
-    let size: usize = resolved.as_ref().map_or(0, |path| return path.as_os_str().len());
-    assert!(resolved.is_none(), "a 1 MiB pointer file was read whole: a path of {size} bytes came back");
+    let size: usize = resolved
+        .as_ref()
+        .map_or(0, |path| return path.as_os_str().len());
+    assert!(
+        resolved.is_none(),
+        "a 1 MiB pointer file was read whole: a path of {size} bytes came back"
+    );
     remove(root.as_path());
 }
 
@@ -308,16 +434,31 @@ fn a_pointer_file_past_the_git_file_limit_is_refused_instead_of_read() {
 #[test]
 fn a_worktree_whose_registration_is_gone_is_told_where_a_command_reads_it() {
     let root: PathBuf = fixture("relink-notice-registration-gone");
-    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
-    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2030-01-01T00:00:00.000Z");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) =
+        registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(
+        common.as_path(),
+        worktree.as_path(),
+        "2030-01-01T00:00:00.000Z",
+    );
     std::fs::remove_dir_all(admin.as_path()).expect("the registration is gone");
     assert!(
-        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item)),
+        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(
+            common.as_path(),
+            std::slice::from_ref(&item)
+        ),
         "the person was not told at all"
     );
-    assert!(!admin.exists(), "the notice made the gone administrative directory again");
+    assert!(
+        !admin.exists(),
+        "the notice made the gone administrative directory again"
+    );
     let told: Vec<String> = take_notices(common.as_path());
-    assert_eq!(told.len(), 1, "the notice does not wait in the directory the record was drained from: {told:?}");
+    assert_eq!(
+        told.len(),
+        1,
+        "the notice does not wait in the directory the record was drained from: {told:?}"
+    );
     assert!(told[0].contains("was not relinked"), "{told:?}");
     remove(root.as_path());
 }
@@ -339,15 +480,35 @@ fn a_worktree_whose_registration_is_gone_is_told_where_a_command_reads_it() {
 fn a_worktree_whose_own_git_directory_refuses_the_words_is_told_in_the_drain_directory() {
     use std::os::unix::fs::PermissionsExt as _;
     let root: PathBuf = fixture("relink-notice-unwritable-worktree");
-    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
-    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2030-01-01T00:00:00.000Z");
-    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o555)).expect("the registration refuses writes");
-    let told: bool = crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item));
-    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the registration takes writes again");
-    assert!(told, "the record is not settled because the worktree's own Git directory refused the words");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) =
+        registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(
+        common.as_path(),
+        worktree.as_path(),
+        "2030-01-01T00:00:00.000Z",
+    );
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("the registration refuses writes");
+    let told: bool = crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(
+        common.as_path(),
+        std::slice::from_ref(&item),
+    );
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the registration takes writes again");
+    assert!(
+        told,
+        "the record is not settled because the worktree's own Git directory refused the words"
+    );
     let written: Vec<String> = take_notices(common.as_path());
-    assert_eq!(written.len(), 1, "no notice waits in the directory the record was drained from: {written:?}");
-    assert!(take_notices(admin.as_path()).is_empty(), "a notice is in a directory that refused the words");
+    assert_eq!(
+        written.len(),
+        1,
+        "no notice waits in the directory the record was drained from: {written:?}"
+    );
+    assert!(
+        take_notices(admin.as_path()).is_empty(),
+        "a notice is in a directory that refused the words"
+    );
     remove(root.as_path());
 }
 
@@ -369,21 +530,40 @@ fn a_worktree_whose_own_git_directory_refuses_the_words_is_told_in_the_drain_dir
 #[test]
 fn a_later_worktree_at_the_same_path_does_not_answer_for_an_earlier_records_notice() {
     let root: PathBuf = fixture("relink-notice-later-worktree");
-    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
-    let item: WorkItem = record_queued_at(common.as_path(), worktree.as_path(), "2020-01-01T00:00:00.000Z");
+    let (common, worktree, admin): (PathBuf, PathBuf, PathBuf) =
+        registered_worktree(root.as_path(), "W");
+    let item: WorkItem = record_queued_at(
+        common.as_path(),
+        worktree.as_path(),
+        "2020-01-01T00:00:00.000Z",
+    );
     std::fs::remove_dir_all(admin.as_path()).expect("the first registration is gone");
     std::fs::remove_dir_all(worktree.as_path()).expect("the first worktree is gone");
-    let (later_common, later_worktree, later_admin): (PathBuf, PathBuf, PathBuf) = registered_worktree(root.as_path(), "W");
-    assert_eq!(later_common, common, "the fixture registered the later worktree under the same repository");
+    let (later_common, later_worktree, later_admin): (PathBuf, PathBuf, PathBuf) =
+        registered_worktree(root.as_path(), "W");
+    assert_eq!(
+        later_common, common,
+        "the fixture registered the later worktree under the same repository"
+    );
     assert_eq!(later_worktree, worktree, "and at the same path");
     assert!(
-        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(common.as_path(), std::slice::from_ref(&item)),
+        crate::service_work_handlers_replanning_and_acceptance::tell_about_given_up(
+            common.as_path(),
+            std::slice::from_ref(&item)
+        ),
         "the person was not told at all"
     );
     let later: Vec<String> = take_notices(later_admin.as_path());
-    assert!(later.is_empty(), "a notice about the earlier worktree waits in the later one: {later:?}");
+    assert!(
+        later.is_empty(),
+        "a notice about the earlier worktree waits in the later one: {later:?}"
+    );
     let drain: Vec<String> = take_notices(common.as_path());
-    assert_eq!(drain.len(), 1, "the notice does not wait where a command of the adding worktree reads it: {drain:?}");
+    assert_eq!(
+        drain.len(),
+        1,
+        "the notice does not wait where a command of the adding worktree reads it: {drain:?}"
+    );
     remove(root.as_path());
 }
 
@@ -396,10 +576,14 @@ fn a_notice_that_is_a_named_pipe_is_answered_at_once() {
     let root: PathBuf = fixture("relink-notice-named-pipe");
     let directory: PathBuf = root.join(NOTICE_DIRECTORY);
     std::fs::create_dir_all(directory.as_path()).expect("the notice folder");
-    crate::subvolume_sync_attrs::make_fifo(directory.join("notice").as_path(), 0o600).expect("a named pipe where a notice goes");
+    crate::subvolume_sync_attrs::make_fifo(directory.join("notice").as_path(), 0o600)
+        .expect("a named pipe where a notice goes");
     let inside: PathBuf = root.clone();
-    let answered = crate::test_support::finished_within(move || return take_notices(inside.as_path()).len());
-    let Some(count) = answered else { panic!("a notice that is a named pipe held the command") };
+    let answered =
+        crate::test_support::finished_within(move || return take_notices(inside.as_path()).len());
+    let Some(count) = answered else {
+        panic!("a notice that is a named pipe held the command")
+    };
     assert_eq!(count, 0, "a pipe is no notice");
     remove(root.as_path());
 }

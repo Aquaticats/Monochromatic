@@ -30,7 +30,9 @@ fn drive(
     let result: Result<i32> = retry_refused_start_with(
         "a test child",
         budget,
-        &mut |wait: Duration| { pauses.push(wait); },
+        &mut |wait: Duration| {
+            pauses.push(wait);
+        },
         &mut || {
             tries += 1;
             return outcome(tries);
@@ -60,7 +62,9 @@ fn assert_growing_pauses(pauses: &[Duration]) {
 /// A start that works the first time never pauses.
 #[test]
 fn a_start_that_succeeds_at_once_never_pauses() {
-    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| { return Ok(7); });
+    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| {
+        return Ok(7);
+    });
     assert_eq!(result.expect("started"), 7);
     assert_eq!(pauses, Vec::<Duration>::new());
     assert_eq!(tries, 1);
@@ -94,7 +98,9 @@ fn pauses_double_up_to_the_longest_one() {
 /// A start refused for longer than the budget fails with the same kind and says how often it was refused.
 #[test]
 fn a_start_refused_past_the_budget_fails_and_counts_the_refusals() {
-    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| { return Err(refusal()); });
+    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| {
+        return Err(refusal());
+    });
     let error: Error = result.expect_err("the budget ran out");
     assert_eq!(error.kind(), ErrorKind::WouldBlock);
     let text: String = error.to_string();
@@ -116,14 +122,19 @@ fn a_start_refused_past_the_budget_fails_and_counts_the_refusals() {
         text.contains(format!("refused {refusals} times over {} ms", waited.as_millis()).as_str()),
         "{text}"
     );
-    assert!(waited <= START_RETRY_BUDGET, "the pauses never pass the budget");
+    assert!(
+        waited <= START_RETRY_BUDGET,
+        "the pauses never pass the budget"
+    );
 }
 
 /// An error that is not a shortage of processes is the caller's at once,
 /// without a pause.
 #[test]
 fn another_error_is_returned_at_once() {
-    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| { return Err(Error::from(ErrorKind::NotFound)); });
+    let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| {
+        return Err(Error::from(ErrorKind::NotFound));
+    });
     assert_eq!(result.expect_err("not retried").kind(), ErrorKind::NotFound);
     assert_eq!(pauses, Vec::<Duration>::new());
     assert_eq!(tries, 1);
@@ -133,12 +144,22 @@ fn another_error_is_returned_at_once() {
 /// and a program that does not exist fails at once.
 #[test]
 fn real_commands_start_through_the_retrying_calls() {
-    assert!(Command::new("true").status_retrying().expect("true starts").success());
-    let output: Output = Command::new("echo").arg("kept").output_retrying().expect("echo starts");
+    assert!(
+        Command::new("true")
+            .status_retrying()
+            .expect("true starts")
+            .success()
+    );
+    let output: Output = Command::new("echo")
+        .arg("kept")
+        .output_retrying()
+        .expect("echo starts");
     assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "kept\n");
     let mut child: Child = Command::new("true").spawn_retrying().expect("true spawns");
     assert!(child.wait().expect("true ends").success());
-    let error: Error = Command::new("/nonexistent-cli-git-program").status_retrying().expect_err("no such program");
+    let error: Error = Command::new("/nonexistent-cli-git-program")
+        .status_retrying()
+        .expect_err("no such program");
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }
 
@@ -158,8 +179,10 @@ fn a_failed_exec_returns_its_error_at_once() {
 ///  result.
 /// A pause that blocks the thread leaves the ticker no turn.
 fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_time().build().expect("a current-thread runtime");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("a current-thread runtime");
     let ticks: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let mut tries: u32 = 0;
     let result: Result<i32> = runtime.block_on(async {
@@ -180,7 +203,11 @@ fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
         };
         return outcome;
     });
-    return (result, ticks.load(std::sync::atomic::Ordering::SeqCst), tries);
+    return (
+        result,
+        ticks.load(std::sync::atomic::Ordering::SeqCst),
+        tries,
+    );
 }
 
 /// The pause between two refused starts is the runtime's timer:
@@ -190,32 +217,52 @@ fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
 #[test]
 fn a_pause_between_refused_starts_lets_other_tasks_run() {
     let (result, ticks, tries) = drive_awaiting_beside_a_ticker(Duration::from_millis(100));
-    assert_eq!(result.expect_err("the budget ran out").kind(), ErrorKind::WouldBlock);
+    assert_eq!(
+        result.expect_err("the budget ran out").kind(),
+        ErrorKind::WouldBlock
+    );
     // Every pause but none after the last refusal: one fewer pause than tries.
     let pauses: u32 = tries - 1;
-    assert!(pauses > 0, "the budget must hold at least one pause for this control to mean anything");
-    assert!(ticks >= pauses, "the ticker ran {ticks} times over {pauses} pauses: the pauses held the thread");
+    assert!(
+        pauses > 0,
+        "the budget must hold at least one pause for this control to mean anything"
+    );
+    assert!(
+        ticks >= pauses,
+        "the ticker ran {ticks} times over {pauses} pauses: the pauses held the thread"
+    );
 }
 
 /// The awaiting retry has the schedule and the final error of the sleeping one for the same refusals.
 #[test]
 fn the_awaiting_retry_refuses_in_the_same_words_as_the_sleeping_one() {
     let budget: Duration = Duration::from_millis(100);
-    let (sleeping, _, _) = drive(budget, |_| { return Err(refusal()); });
+    let (sleeping, _, _) = drive(budget, |_| {
+        return Err(refusal());
+    });
     let (awaiting, _, _) = drive_awaiting_beside_a_ticker(budget);
-    assert_eq!(awaiting.expect_err("refused").to_string(), sleeping.expect_err("refused").to_string());
+    assert_eq!(
+        awaiting.expect_err("refused").to_string(),
+        sleeping.expect_err("refused").to_string()
+    );
 }
 
 /// A real command starts through the awaiting call,
 /// and a program that does not exist fails at once.
 #[test]
 fn a_real_command_starts_through_the_awaiting_call() {
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_time().build().expect("a current-thread runtime");
-    let mut child: Child = runtime.block_on(spawn_retrying_without_blocking(&mut Command::new("true"))).expect("true spawns");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("a current-thread runtime");
+    let mut child: Child = runtime
+        .block_on(spawn_retrying_without_blocking(&mut Command::new("true")))
+        .expect("true spawns");
     assert!(child.wait().expect("true ends").success());
     let error: Error = runtime
-        .block_on(spawn_retrying_without_blocking(&mut Command::new("/nonexistent-cli-git-program")))
+        .block_on(spawn_retrying_without_blocking(&mut Command::new(
+            "/nonexistent-cli-git-program",
+        )))
         .expect_err("no such program");
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }

@@ -36,7 +36,10 @@
 /// // const command = { program: '/bin/sleep', args: [], options: {} };
 /// // const child: { pid: number; kill(): void; wait(): Promise<{ code: number }> } = spawn(command);
 /// ```
-use std::process::{Child, Command};
+use std::process::{
+    Child,
+    Command,
+};
 
 /// What:
 ///  The process groups the helper processes of one test thread lead,
@@ -85,7 +88,10 @@ impl OwnedGroups {
     /// ```ts
     /// own(child: Child): void; // const group = getpgid(child.pid); assert(group === child.pid); groups.push(group);
     /// ```
-    fn own(&self, child: &Child) {
+    fn own(
+        &self,
+        child: &Child,
+    ) {
         let group: libc::pid_t = group_of(child);
         // What: `assert_eq!` ends the test unless the two values are equal, naming both and the message it is given.
         // Why: a helper in the wrong group is not owned, and this must fail here rather than leave a process running.
@@ -191,7 +197,10 @@ fn end_groups(groups: &[libc::pid_t]) {
 /// ```ts
 /// function endOwnedGroups(): void { endGroups(ownedGroups.get().groups); ownedGroups.get().groups.length = 0; }
 /// ```
-#[allow(dead_code, reason = "the library's thread fixtures are what call this before their directories go; a target that keeps no fixtures ends its groups with the thread's own end")]
+#[allow(
+    dead_code,
+    reason = "the library's thread fixtures are what call this before their directories go; a target that keeps no fixtures ends its groups with the thread's own end"
+)]
 pub(crate) fn end_owned_groups() {
     // What: `try_with` asks the thread-local for this thread's list and answers an error instead of panicking when the
     //  list has already been destroyed, which happens when the fixtures go after the list does.
@@ -250,7 +259,11 @@ pub(crate) fn group_of(child: &Child) -> libc::pid_t {
     // ```ts
     // if (group <= 0) throw new Error(`the group of the helper ${pid} is asked while it is there: ${errno}`);
     // ```
-    assert!(group > 0, "the group of the helper {pid} is asked while it is there: {}", std::io::Error::last_os_error());
+    assert!(
+        group > 0,
+        "the group of the helper {pid} is asked while it is there: {}",
+        std::io::Error::last_os_error()
+    );
     return group;
 }
 
@@ -269,7 +282,9 @@ pub(crate) fn group_of(child: &Child) -> libc::pid_t {
 /// function ownGroup(child: Child): void; // ownedGroups.push(assertOwnGroup(child))
 /// ```
 pub(crate) fn own_group(child: &Child) {
-    OWNED_GROUPS.with(|owned| { owned.own(child); });
+    OWNED_GROUPS.with(|owned| {
+        owned.own(child);
+    });
 }
 
 /// What:

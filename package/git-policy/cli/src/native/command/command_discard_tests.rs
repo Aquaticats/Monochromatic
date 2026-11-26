@@ -12,11 +12,29 @@
 
 /// The readings and the argument builder.
 use super::{
-    Discard, abort_discard, checkout_discard, force_discard, previous_branch_expression,
-    read_tree_discard, restore_discard, restores_index_only, switch_discard,
+    Discard,
+    abort_discard,
+    checkout_discard,
+    force_discard,
+    previous_branch_expression,
+    read_tree_discard,
+    restore_discard,
+    restores_index_only,
+    switch_discard,
 };
-use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository, repository_with_tracked_file};
-use std::path::{Path, PathBuf};
+use crate::command_test_support::{
+    fixture,
+    git,
+    git_status,
+    os_arguments,
+    remove,
+    repository,
+    repository_with_tracked_file,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Every read of a checkout region that Git accepts.
@@ -77,7 +95,10 @@ fn switch_regions_are_read_by_what_they_overwrite() {
         (vec!["--force", "topic"], Discard::Overwrites),
         (vec!["--discard-changes", "topic"], Discard::Overwrites),
         (vec!["--discard", "topic"], Discard::Overwrites),
-        (vec!["--discard-changes", "--no-discard-changes", "topic"], Discard::MovesHead),
+        (
+            vec!["--discard-changes", "--no-discard-changes", "topic"],
+            Discard::MovesHead,
+        ),
     ] {
         assert_eq!(
             switch_discard(os_arguments(values.as_slice()).as_slice()),
@@ -96,7 +117,10 @@ fn every_restore_form_overwrites_except_usage() {
         (vec![], Discard::Overwrites),
         (vec!["a.txt"], Discard::Overwrites),
         (vec!["--staged", "a.txt"], Discard::Overwrites),
-        (vec!["--source=HEAD", "--staged", "--worktree", "--", "."], Discard::Overwrites),
+        (
+            vec!["--source=HEAD", "--staged", "--worktree", "--", "."],
+            Discard::Overwrites,
+        ),
         (vec!["-p"], Discard::Overwrites),
         (vec!["--", "-h"], Discard::Overwrites),
         (vec!["-h"], Discard::Harmless),
@@ -241,7 +265,10 @@ fn abort_in_any_abbreviation_overwrites() {
 }
 
 /// Run real Git in a repository and return its standard error.
-fn stderr_of(repo: &Path, values: &[&str]) -> String {
+fn stderr_of(
+    repo: &Path,
+    values: &[&str],
+) -> String {
     let output = git_status(repo, values);
     return String::from_utf8_lossy(&output.stderr).into_owned();
 }
@@ -272,8 +299,14 @@ fn real_git_accepts_the_shortest_abbreviations() {
     }
     for (values, mark) in [
         (vec!["merge", "--ab"], "no merge to abort"),
-        (vec!["cherry-pick", "--abort"], "no cherry-pick or revert in progress"),
-        (vec!["revert", "--abort"], "no cherry-pick or revert in progress"),
+        (
+            vec!["cherry-pick", "--abort"],
+            "no cherry-pick or revert in progress",
+        ),
+        (
+            vec!["revert", "--abort"],
+            "no cherry-pick or revert in progress",
+        ),
         (vec!["rebase", "--ab"], "no rebase in progress"),
     ] {
         let stderr = stderr_of(repo.as_path(), values.as_slice());
@@ -327,9 +360,16 @@ fn an_option_value_is_not_a_restore_flag() {
         (vec!["--source", "-S", "-W", "--", "f"], false),
         (vec!["--staged", "-W", "--source", "HEAD", "--", "f"], false),
         (vec!["-SW", "-s", "HEAD", "--", "f"], false),
-        (vec!["--staged", "--worktree", "--source=-S", "--", "f"], false),
+        (
+            vec!["--staged", "--worktree", "--source=-S", "--", "f"],
+            false,
+        ),
     ] {
-        assert_eq!(restores_index_only(os_arguments(values.as_slice()).as_slice()), expected, "{values:?}");
+        assert_eq!(
+            restores_index_only(os_arguments(values.as_slice()).as_slice()),
+            expected,
+            "{values:?}"
+        );
     }
 }
 
@@ -354,18 +394,26 @@ fn the_previous_branch_shorthand_becomes_the_expression_git_resolves() {
 /// Real Git resolves the expression the shorthand becomes to the previous branch of a worktree.
 #[test]
 fn real_git_resolves_the_previous_branch_expression() {
-    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("previous-branch-expression");
+    let (directory, root): (PathBuf, PathBuf) =
+        repository_with_tracked_file("previous-branch-expression");
     git(root.as_path(), &["branch", "tracks"]);
     git(root.as_path(), &["switch", "--quiet", "tracks"]);
-    let main: String = String::from_utf8_lossy(git(root.as_path(), &["rev-parse", "--abbrev-ref", "HEAD"]).stdout.as_slice())
-        .trim()
-        .to_owned();
+    let main: String = String::from_utf8_lossy(
+        git(root.as_path(), &["rev-parse", "--abbrev-ref", "HEAD"])
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_owned();
     assert_eq!(main, "tracks");
     // The worktree is on `tracks`, so the previous branch is the one before it.
     git(root.as_path(), &["switch", "--quiet", "tracks"]);
     let expression: &[u8] = previous_branch_expression(b"-").expect("the expression");
     let shown: String = String::from_utf8_lossy(expression).into_owned();
-    let resolved: Output = git(root.as_path(), &["rev-parse", "--symbolic-full-name", shown.as_str()]);
+    let resolved: Output = git(
+        root.as_path(),
+        &["rev-parse", "--symbolic-full-name", shown.as_str()],
+    );
     assert_eq!(
         String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
         "refs/heads/tracks"

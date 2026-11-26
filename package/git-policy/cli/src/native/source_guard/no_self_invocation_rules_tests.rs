@@ -23,29 +23,50 @@ pub(super) const RULES: &[Rule] = &[
         id: "argv0-dispatch",
         reason: "reads the program name the wrapper was started as, which only matters for a wrapper that is started under another name",
         matches: |line| {
-            return ["args_os().next()", "args().next()", ".nth(0)", "argv[0]", "arg0(", "/proc/self/cmdline", "/proc/self/comm", "/proc/thread-self/"]
-                .iter()
-                .any(|needle| {
-                    return line.contains(needle);
-                });
+            return [
+                "args_os().next()",
+                "args().next()",
+                ".nth(0)",
+                "argv[0]",
+                "arg0(",
+                "/proc/self/cmdline",
+                "/proc/self/comm",
+                "/proc/thread-self/",
+            ]
+            .iter()
+            .any(|needle| {
+                return line.contains(needle);
+            });
         },
     },
     Rule {
         id: "argv-vector-read",
         reason: "reads the argument vector, whose first element is the name the program was started under; the one collection belongs to main, which hands the whole vector to root_mode_names",
         matches: |line| {
-            return ["env::args", "args_os", "::args(", ".args()"].iter().any(|needle| { return line.contains(needle); });
+            return ["env::args", "args_os", "::args(", ".args()"]
+                .iter()
+                .any(|needle| {
+                    return line.contains(needle);
+                });
         },
     },
     Rule {
         id: "shell-text",
         reason: "writes or starts shell text; the wrapper writes no shell script, function or `sh -c`",
         matches: |line| {
-            return ["/bin/sh", "/bin/bash", "#!/", "Command::new(\"sh\")", "Command::new(\"bash\")", "\"$@\"", "exec \\\"$"]
-                .iter()
-                .any(|needle| {
-                    return line.contains(needle);
-                });
+            return [
+                "/bin/sh",
+                "/bin/bash",
+                "#!/",
+                "Command::new(\"sh\")",
+                "Command::new(\"bash\")",
+                "\"$@\"",
+                "exec \\\"$",
+            ]
+            .iter()
+            .any(|needle| {
+                return line.contains(needle);
+            });
         },
     },
     Rule {
@@ -70,11 +91,17 @@ pub(super) const RULES: &[Rule] = &[
         reason: "starts a process from the wrapper's own executable path",
         matches: |line| {
             return line.contains("Command::new(")
-                && ["own_executable", "executable.as_path()", "inputs.own", "WRAPPER", "request.own"]
-                    .iter()
-                    .any(|needle| {
-                        return line.contains(needle);
-                    });
+                && [
+                    "own_executable",
+                    "executable.as_path()",
+                    "inputs.own",
+                    "WRAPPER",
+                    "request.own",
+                ]
+                .iter()
+                .any(|needle| {
+                    return line.contains(needle);
+                });
         },
     },
 ];

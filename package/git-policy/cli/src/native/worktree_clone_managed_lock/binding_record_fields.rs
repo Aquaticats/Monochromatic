@@ -20,10 +20,17 @@
 //! ```
 
 use super::reading_a_bounded_file::ARefusedReading;
-use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, hexadecimal_as_bytes, path_from_bytes};
+use crate::worktree_clone_binding_record::binding_encoding::{
+    FolderIdentity,
+    hexadecimal_as_bytes,
+    path_from_bytes,
+};
 use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
 use crate::worktree_clone_binding_record::registration_home::binding_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The key whose value every lock sentence is recomputed from.
 pub const NONCE_KEY: &str = "nonce";
@@ -98,16 +105,39 @@ pub enum RecordedFactsRefusal {
 impl RecordedFactsRefusal {
     /// The words a person reads,
     /// naming the record and what is absent from it.
-    pub fn words(&self, slot: &str, home: &Path) -> String {
+    pub fn words(
+        &self,
+        slot: &str,
+        home: &Path,
+    ) -> String {
         let record: String = home.join(binding_name(slot)).display().to_string();
         return match self {
             RecordedFactsRefusal::Absent => format!("`{record}` does not exist"),
-            RecordedFactsRefusal::Refused(cause) => format!("`{record}` could not be read ({})", cause.words()),
-            RecordedFactsRefusal::AnotherAccount { owner, reader } => format!("`{record}` belongs to account {owner} and this command runs as account {reader}"),
-            RecordedFactsRefusal::WritableByOthers { mode } => format!("`{record}` has mode {mode:04o}, which lets another account write it"),
-            RecordedFactsRefusal::NotThisGrammar { line, found } => format!("`{record}` line {line} holds `{found}`, which is not a comment-free field line of the binding's grammar"),
-            RecordedFactsRefusal::MissingField { key } => format!("`{record}` holds no `{key}=` line"),
-            RecordedFactsRefusal::Malformed { key, found } => format!("`{record}` holds `{key}={found}`, which that key's encoding refuses"),
+            RecordedFactsRefusal::Refused(cause) => {
+                format!("`{record}` could not be read ({})", cause.words())
+            }
+            RecordedFactsRefusal::AnotherAccount {
+                owner,
+                reader,
+            } => format!(
+                "`{record}` belongs to account {owner} and this command runs as account {reader}"
+            ),
+            RecordedFactsRefusal::WritableByOthers {
+                mode,
+            } => format!("`{record}` has mode {mode:04o}, which lets another account write it"),
+            RecordedFactsRefusal::NotThisGrammar {
+                line,
+                found,
+            } => format!(
+                "`{record}` line {line} holds `{found}`, which is not a comment-free field line of the binding's grammar"
+            ),
+            RecordedFactsRefusal::MissingField {
+                key,
+            } => format!("`{record}` holds no `{key}=` line"),
+            RecordedFactsRefusal::Malformed {
+                key,
+                found,
+            } => format!("`{record}` holds `{key}={found}`, which that key's encoding refuses"),
         };
     }
 }
@@ -137,7 +167,12 @@ pub(super) struct Fields {
 
 impl Fields {
     /// Take one line's value under its key.
-    fn set(&mut self, key: &str, value: &str, line: usize) -> Result<(), RecordedFactsRefusal> {
+    fn set(
+        &mut self,
+        key: &str,
+        value: &str,
+        line: usize,
+    ) -> Result<(), RecordedFactsRefusal> {
         let place: &mut Option<String> = match key {
             NONCE_KEY => &mut self.nonce,
             SLOT_KEY => &mut self.slot,
@@ -149,7 +184,10 @@ impl Fields {
             _unknown => return Ok(()),
         };
         if place.is_some() {
-            return Err(RecordedFactsRefusal::NotThisGrammar { line, found: String::from(key) });
+            return Err(RecordedFactsRefusal::NotThisGrammar {
+                line,
+                found: String::from(key),
+            });
         }
         *place = Some(String::from(value));
         return Ok(());
@@ -158,30 +196,52 @@ impl Fields {
 
 /// The value one key must hold,
 /// or the refusal naming it.
-pub(super) fn required<'a>(value: Option<&'a String>, key: &'static str) -> Result<&'a String, RecordedFactsRefusal> {
-    return value.ok_or_else(|| return RecordedFactsRefusal::MissingField { key });
+pub(super) fn required<'a>(
+    value: Option<&'a String>,
+    key: &'static str,
+) -> Result<&'a String, RecordedFactsRefusal> {
+    return value.ok_or_else(|| {
+        return RecordedFactsRefusal::MissingField {
+            key,
+        };
+    });
 }
 
 /// A path a record writes as lowercase hexadecimal,
 /// with a value the encoding refuses named by its key.
-pub(super) fn path_field(value: Option<&String>, key: &'static str) -> Result<Option<PathBuf>, RecordedFactsRefusal> {
+pub(super) fn path_field(
+    value: Option<&String>,
+    key: &'static str,
+) -> Result<Option<PathBuf>, RecordedFactsRefusal> {
     let Some(digits) = value else { return Ok(None) };
     let Some(bytes) = hexadecimal_as_bytes(digits.as_str()) else {
-        return Err(RecordedFactsRefusal::Malformed { key, found: digits.clone() });
+        return Err(RecordedFactsRefusal::Malformed {
+            key,
+            found: digits.clone(),
+        });
     };
     return match path_from_bytes(bytes.as_slice()) {
         Some(path) => Ok(Some(path)),
-        None => Err(RecordedFactsRefusal::Malformed { key, found: digits.clone() }),
+        None => Err(RecordedFactsRefusal::Malformed {
+            key,
+            found: digits.clone(),
+        }),
     };
 }
 
 /// A folder identity a record writes,
 /// with a value the encoding refuses named by its key.
-pub(super) fn identity_field(value: Option<&String>, key: &'static str) -> Result<Option<FolderIdentity>, RecordedFactsRefusal> {
+pub(super) fn identity_field(
+    value: Option<&String>,
+    key: &'static str,
+) -> Result<Option<FolderIdentity>, RecordedFactsRefusal> {
     let Some(text) = value else { return Ok(None) };
     return match FolderIdentity::decode(text.as_str()) {
         Some(identity) => Ok(Some(identity)),
-        None => Err(RecordedFactsRefusal::Malformed { key, found: text.clone() }),
+        None => Err(RecordedFactsRefusal::Malformed {
+            key,
+            found: text.clone(),
+        }),
     };
 }
 
@@ -193,7 +253,10 @@ pub(super) fn fields_of(text: &str) -> Result<Fields, RecordedFactsRefusal> {
     let mut lines: std::str::Lines<'_> = text.lines();
     let header: &str = lines.next().unwrap_or("");
     if header != BINDING_HEADER {
-        return Err(RecordedFactsRefusal::NotThisGrammar { line: 1, found: String::from(header) });
+        return Err(RecordedFactsRefusal::NotThisGrammar {
+            line: 1,
+            found: String::from(header),
+        });
     }
     let mut number: usize = 1;
     for line in lines {
@@ -202,7 +265,10 @@ pub(super) fn fields_of(text: &str) -> Result<Fields, RecordedFactsRefusal> {
             continue;
         }
         let Some((key, value)): Option<(&str, &str)> = line.split_once('=') else {
-            return Err(RecordedFactsRefusal::NotThisGrammar { line: number, found: String::from(line) });
+            return Err(RecordedFactsRefusal::NotThisGrammar {
+                line: number,
+                found: String::from(line),
+            });
         };
         fields.set(key, value, number)?;
     }

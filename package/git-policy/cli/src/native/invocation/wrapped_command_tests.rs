@@ -19,29 +19,60 @@
 
 /// The lifecycle under test,
 ///  its inputs and the scripted facts.
-use super::{WrappedOutcome, run_wrapped_command};
+use super::{
+    WrappedOutcome,
+    run_wrapped_command,
+};
 use crate::command_test_support::os_arguments;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::diagnostics::EngineFailureCode;
-/// The event form of a pathname.
-use crate::event_path::EventPath;
-use crate::policy_checks::{ShippedChecks, shipped_checks};
-use crate::policy_content::LifecycleContent;
-use crate::policy_events::{FindingEvent, PolicyEvent, render_policy_events};
-use crate::policy_registry::{PolicyId, Severity};
 /// The tool-cache exemption entry these checks are built with.
 use crate::effective_target::ToolCacheDirectory;
+/// The event form of a pathname.
+use crate::event_path::EventPath;
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
+use crate::policy_content::LifecycleContent;
+use crate::policy_events::{
+    FindingEvent,
+    PolicyEvent,
+    render_policy_events,
+};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use crate::policy_test_support::{
-    ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
+    ScriptedFacts,
+    linked_worktree,
+    main_worktree,
+    outside_worktree,
+    scripted_facts,
 };
 use crate::policy_trigger::Trigger;
 use crate::repository_location::RepositoryLocation;
-use crate::rule_add_explicit::{StagedSelection, add_explicit_question, decide_add_explicit};
-use crate::test_support::{fixture, remove, repository};
+use crate::rule_add_explicit::{
+    StagedSelection,
+    add_explicit_question,
+    decide_add_explicit,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
+use crate::wrapper_invocation::{
+    StrippedInvocation,
+    strip_wrapper_controls,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The transaction ID the registry fixtures use.
 const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -49,7 +80,8 @@ const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 /// Leave a commit transaction of an earlier release in a repository's registry.
 fn registered(repo: &Path) -> PathBuf {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    std::fs::create_dir_all(registry.join(TRANSACTION_ID)).expect("a transaction directory an earlier release left");
+    std::fs::create_dir_all(registry.join(TRANSACTION_ID))
+        .expect("a transaction directory an earlier release left");
     return registry;
 }
 
@@ -122,9 +154,11 @@ fn measured_location_and_candidates() -> Vec<String> {
     return asked;
 }
 
-
 /// The require-root finding at `severity` for a command run in `sub/` below `root`.
-fn not_at_root(root: &str, severity: Severity) -> PolicyEvent {
+fn not_at_root(
+    root: &str,
+    severity: Severity,
+) -> PolicyEvent {
     return PolicyEvent::Finding(FindingEvent {
         trigger: Trigger::PreForward,
         policy: PolicyId::RequireRoot,
@@ -159,7 +193,10 @@ fn location_and_candidates() -> Vec<String> {
 
 /// A fixture directory used as a worktree top level,
 ///  with this configuration text.
-fn configured(name: &str, configuration: &str) -> PathBuf {
+fn configured(
+    name: &str,
+    configuration: &str,
+) -> PathBuf {
     let root: PathBuf = fixture(name);
     std::fs::write(root.join(CONFIG_FILE_NAME), configuration).expect("configuration");
     return root;
@@ -234,14 +271,21 @@ fn read_only_commands_skip_configuration_and_refusals() {
     let (stopped, stopped_asked) = run(&["log"], at_root(root.as_path()), &[]);
     assert_eq!(stopped_asked, location_only());
     match stopped {
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             assert_eq!(code, 2);
             assert!(
-                stderr.contains("holds a commit journal in a format this executable does not recover"),
+                stderr.contains(
+                    "holds a commit journal in a format this executable does not recover"
+                ),
                 "{stderr}"
             );
         }
-        WrappedOutcome::Forward { .. } => panic!("a journal this executable cannot recover never forwards"),
+        WrappedOutcome::Forward {
+            ..
+        } => panic!("a journal this executable cannot recover never forwards"),
     }
     std::fs::remove_dir(&journal).expect("remove the legacy journal directory");
     // Commands exempt from require-root ask Git nothing at all.
@@ -318,7 +362,10 @@ fn a_guarded_command_is_prepared_in_order() {
         run(&["commit", "-m", "x"], at_root(root.as_path()), &[]);
     assert_eq!(touched, location_only());
     match outcome {
-        WrappedOutcome::Exit { code: 2, stderr } => {
+        WrappedOutcome::Exit {
+            code: 2,
+            stderr,
+        } => {
             assert!(stderr.contains("\"code\":\"config-invalid\""), "{stderr}");
         }
         other => panic!("expected the configuration to stop the command, got {other:?}"),
@@ -327,7 +374,10 @@ fn a_guarded_command_is_prepared_in_order() {
     let (invalid, invalid_asked) = run(&["commit", "-m", "x"], at_root(root.as_path()), &[]);
     assert_eq!(invalid_asked, location_only());
     match invalid {
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             assert_eq!(code, 2);
             assert!(
                 stderr.starts_with(
@@ -337,7 +387,9 @@ fn a_guarded_command_is_prepared_in_order() {
             );
             assert_eq!(stderr.matches('\n').count(), 1, "{stderr}");
         }
-        WrappedOutcome::Forward { .. } => panic!("an invalid configuration never forwards"),
+        WrappedOutcome::Forward {
+            ..
+        } => panic!("an invalid configuration never forwards"),
     }
     remove(root.as_path());
 }
@@ -363,7 +415,10 @@ fn a_dry_run_commit_is_checked_and_forwarded() {
         vec![String::from("location"), String::from("sequencer")]
     );
     match rejected {
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             assert_eq!(code, 1);
             assert!(
                 stderr.starts_with(
@@ -372,7 +427,9 @@ fn a_dry_run_commit_is_checked_and_forwarded() {
                 "{stderr}"
             );
         }
-        WrappedOutcome::Forward { .. } => panic!("a pathless dry run is rejected"),
+        WrappedOutcome::Forward {
+            ..
+        } => panic!("a pathless dry run is rejected"),
     }
     // The commit hatch is removed and skips the transform.
     assert_eq!(
@@ -536,7 +593,13 @@ fn configuration_selects_the_policies_of_a_guarded_command() {
     // The probe finds no updates in a fixture without a repository, so the push fails closed with exit 2.
     let (refused, _location) = run(&["push", "origin"], at_root(root.as_path()), &[]);
     assert!(
-        matches!(refused, WrappedOutcome::Exit { code: 2, .. }),
+        matches!(
+            refused,
+            WrappedOutcome::Exit {
+                code: 2,
+                ..
+            }
+        ),
         "{refused:?}"
     );
     // A policy set to `warn` lets the command through and reports on standard error first.
@@ -585,7 +648,13 @@ fn a_real_push_must_clear_the_manual_push_gate() {
     ] {
         let (outcome, _location) = run(values.as_slice(), scripted_facts(), &[]);
         assert!(
-            matches!(outcome, WrappedOutcome::Exit { code: 2, .. }),
+            matches!(
+                outcome,
+                WrappedOutcome::Exit {
+                    code: 2,
+                    ..
+                }
+            ),
             "{values:?}: {outcome:?}"
         );
     }
@@ -626,14 +695,19 @@ fn worktree_policies_read_the_location() {
     let (rejected, asked) = run(&["reset", "--hard"], scripted_facts(), &[]);
     assert_eq!(asked, location_only());
     match rejected {
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             assert_eq!(code, 1);
             assert!(
                 stderr.contains("\"policyId\":\"linked-worktree-only\""),
                 "{stderr}"
             );
         }
-        WrappedOutcome::Forward { .. } => panic!("a hard reset in the main worktree is rejected"),
+        WrappedOutcome::Forward {
+            ..
+        } => panic!("a hard reset in the main worktree is rejected"),
     }
     // A hard reset writes a tree, so a clean linked worktree asks which one before it is let through.
     assert_eq!(
@@ -671,14 +745,19 @@ fn worktree_policies_read_the_location() {
         ]
     );
     match created {
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             assert_eq!(code, 1);
             assert!(
                 stderr.contains("\"policyId\":\"branch-worktree-only\""),
                 "{stderr}"
             );
         }
-        WrappedOutcome::Forward { .. } => panic!("a guessed branch creation is rejected"),
+        WrappedOutcome::Forward {
+            ..
+        } => panic!("a guessed branch creation is rejected"),
     }
 }
 

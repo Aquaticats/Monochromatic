@@ -20,25 +20,67 @@
 //! const lines = passLines(fixture, liveFolder, gate, probe, settle);
 //! ```
 
-use crate::worktree_clone_binding_record::registration_home::{clone_inventory_name, home_folder, plans_folder};
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
+use crate::worktree_clone_binding_record::registration_home::{
+    clone_inventory_name,
+    home_folder,
+    plans_folder,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass;
 use crate::worktree_clone_removal_finish_pass::the_plans_folder::FolderLook;
 use crate::worktree_clone_removal_finish_pass::the_plans_folder::ThePlansFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanFacts, PlanSnapshot};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanFacts,
+    PlanSnapshot,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
-    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, RemovalFixture, SANOID_GUID, SANOID_SNAPSHOT, OWN_GUID, the_stats,
+    CLONE,
+    CLONE_CREATETXG,
+    CLONE_GUID,
+    ORIGIN_CREATETXG,
+    ORIGIN_DATASET,
+    ORIGIN_DATASET_GUID,
+    ORIGIN_SNAPSHOT,
+    ORIGIN_SNAPSHOT_GUID,
+    OWN_GUID,
+    RemovalFixture,
+    SANOID_GUID,
+    SANOID_SNAPSHOT,
+    the_stats,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::zfs_compatibility_gate::{BeforeRequests, Verdict};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityRefusal, CompatibilityStep, DatasetIdentity, NvList};
-use std::cell::{Cell, RefCell};
-use std::path::{Path, PathBuf};
+use crate::zfs_compatibility_gate::{
+    BeforeRequests,
+    Verdict,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    CompatibilityRefusal,
+    CompatibilityStep,
+    DatasetIdentity,
+    NvList,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The slot every control's repository holds.
 pub const SLOT: &str = "fix-flaky-test";
@@ -74,33 +116,54 @@ pub fn a_finished_removal(name: &str) -> (RemovalFixture, DestructionPlan) {
 pub fn write_the_clone_inventory(fixture: &RemovalFixture) {
     let home: PathBuf = home_folder(fixture.common());
     std::fs::create_dir_all(home.as_path()).expect("the record folder");
-    std::fs::write(home.join(clone_inventory_name(SLOT)).as_path(), b"# a clone inventory\n").expect("the clone inventory");
+    std::fs::write(
+        home.join(clone_inventory_name(SLOT)).as_path(),
+        b"# a clone inventory\n",
+    )
+    .expect("the clone inventory");
 }
 
 /// One plan whose facts are the fixture's own,
 /// with the head a control names.
-pub fn a_plan_for(fixture: &RemovalFixture, head: HeadWord) -> DestructionPlan {
+pub fn a_plan_for(
+    fixture: &RemovalFixture,
+    head: HeadWord,
+) -> DestructionPlan {
     let facts: PlanFacts = PlanFacts {
         run: RequestNonce::parse(RUN_NONCE).expect("the control's nonce is canonical"),
         owner: String::from("48213:linux:9481733"),
         started: String::from("2026-11-25T09:12:44-05:00"),
         clone_dataset: String::from(CLONE),
-        clone_guid: DatasetGuid::parse(CLONE_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"),
+        clone_guid: DatasetGuid::parse(CLONE_GUID.to_string().as_str())
+            .expect("the fixture's GUID is canonical"),
         clone_createtxg: CLONE_CREATETXG,
         origin_dataset: String::from(ORIGIN_DATASET),
-        origin_dataset_guid: DatasetGuid::parse(ORIGIN_DATASET_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"),
+        origin_dataset_guid: DatasetGuid::parse(ORIGIN_DATASET_GUID.to_string().as_str())
+            .expect("the fixture's GUID is canonical"),
         origin_snapshot: String::from(ORIGIN_SNAPSHOT),
-        origin_snapshot_guid: DatasetGuid::parse(ORIGIN_SNAPSHOT_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"),
+        origin_snapshot_guid: DatasetGuid::parse(ORIGIN_SNAPSHOT_GUID.to_string().as_str())
+            .expect("the fixture's GUID is canonical"),
         origin_snapshot_createtxg: ORIGIN_CREATETXG,
         registration_id: Vec::from(SLOT.as_bytes()),
         admin: the_registrations_identity(fixture),
         target: fixture.slot_path.clone(),
-        unmount_nonce: RequestNonce::parse("0a1b2c3d4e5f60718293a4b5c6d7e8f9").expect("the digits are a nonce"),
+        unmount_nonce: RequestNonce::parse("0a1b2c3d4e5f60718293a4b5c6d7e8f9")
+            .expect("the digits are a nonce"),
         unmount_mount_id: None,
     };
     let snapshots: Vec<PlanSnapshot> = vec![
-        PlanSnapshot { name: String::from(FIRST_OWN), guid: DatasetGuid::parse(OWN_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"), createtxg: ORIGIN_CREATETXG },
-        PlanSnapshot { name: format!("{CLONE}@{SANOID_SNAPSHOT}"), guid: DatasetGuid::parse(SANOID_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"), createtxg: ORIGIN_CREATETXG },
+        PlanSnapshot {
+            name: String::from(FIRST_OWN),
+            guid: DatasetGuid::parse(OWN_GUID.to_string().as_str())
+                .expect("the fixture's GUID is canonical"),
+            createtxg: ORIGIN_CREATETXG,
+        },
+        PlanSnapshot {
+            name: format!("{CLONE}@{SANOID_SNAPSHOT}"),
+            guid: DatasetGuid::parse(SANOID_GUID.to_string().as_str())
+                .expect("the fixture's GUID is canonical"),
+            createtxg: ORIGIN_CREATETXG,
+        },
     ];
     let mut plan: DestructionPlan = DestructionPlan::first_write(facts, snapshots.as_slice());
     plan.head = head;
@@ -110,14 +173,21 @@ pub fn a_plan_for(fixture: &RemovalFixture, head: HeadWord) -> DestructionPlan {
 /// The identity the plan records for the registration directory,
 /// read from the folder the fixture made.
 pub fn the_registrations_identity(fixture: &RemovalFixture) -> String {
-    let opened: std::fs::File = std::fs::File::open(fixture.registration.as_path()).expect("the fixture's registration opens");
-    return crate::fs_beneath::identity_of(&opened).expect("the registration's identity reads").encode();
+    let opened: std::fs::File = std::fs::File::open(fixture.registration.as_path())
+        .expect("the fixture's registration opens");
+    return crate::fs_beneath::identity_of(&opened)
+        .expect("the registration's identity reads")
+        .encode();
 }
 
 /// The plan published under its clone's GUID,
 /// as a removal's writer leaves it.
-pub fn write_the_plan(fixture: &RemovalFixture, plan: &DestructionPlan) -> PathBuf {
-    let folder: PlanFolder = PlanFolder::open_or_create(fixture.common()).expect("the plan folder opens");
+pub fn write_the_plan(
+    fixture: &RemovalFixture,
+    plan: &DestructionPlan,
+) -> PathBuf {
+    let folder: PlanFolder =
+        PlanFolder::open_or_create(fixture.common()).expect("the plan folder opens");
     return folder.publish(plan).expect("the plan publishes");
 }
 
@@ -157,12 +227,18 @@ pub struct AFolder {
 impl AFolder {
     /// The folder a control answers with.
     pub fn answering(answer: FolderLook) -> AFolder {
-        return AFolder { answer, looks: Cell::new(0) };
+        return AFolder {
+            answer,
+            looks: Cell::new(0),
+        };
     }
 }
 
 impl ThePlansFolder for AFolder {
-    fn look(&self, _folder: &Path) -> FolderLook {
+    fn look(
+        &self,
+        _folder: &Path,
+    ) -> FolderLook {
         self.looks.set(self.looks.get() + 1);
         return self.answer.clone();
     }
@@ -187,21 +263,36 @@ pub struct AGate {
 impl AGate {
     /// A gate that passed.
     pub fn passing() -> AGate {
-        return AGate { refused: None };
+        return AGate {
+            refused: None,
+        };
     }
 
     /// A gate that refuses with one detail.
     pub fn refusing(detail: &str) -> AGate {
-        return AGate { refused: Some(String::from(detail)) };
+        return AGate {
+            refused: Some(String::from(detail)),
+        };
     }
 }
 
 impl BeforeRequests for AGate {
     fn verdict(&self) -> Verdict {
         let Some(detail) = &self.refused else {
-            return Verdict::Compatible(crate::zfs_compatibility_gate::Facts { target: "x86_64-unknown-linux-gnu", version: None, absent: Vec::new(), base_btf_bytes: 0, module_btf_bytes: 0, header_bytes: (0, 0) });
+            return Verdict::Compatible(crate::zfs_compatibility_gate::Facts {
+                target: "x86_64-unknown-linux-gnu",
+                version: None,
+                absent: Vec::new(),
+                base_btf_bytes: 0,
+                module_btf_bytes: 0,
+                header_bytes: (0, 0),
+            });
         };
-        return Verdict::Refused(CompatibilityRefusal { step: CompatibilityStep::Device, file: None, detail: detail.clone() });
+        return Verdict::Refused(CompatibilityRefusal {
+            step: CompatibilityStep::Device,
+            file: None,
+            detail: detail.clone(),
+        });
     }
 }
 
@@ -234,36 +325,71 @@ impl AProbe {
     /// The clone gone:
     /// its name answers nothing and no child carries its GUID.
     pub fn absent() -> AProbe {
-        return AProbe { clone: None, children: Vec::new(), refuses: None };
+        return AProbe {
+            clone: None,
+            children: Vec::new(),
+            refuses: None,
+        };
     }
 
     /// The clone still answering under its own name and GUID.
     pub fn standing() -> AProbe {
-        return AProbe { clone: Some(DatasetGuid::parse(CLONE_GUID.to_string().as_str()).expect("the fixture's GUID is canonical")), children: Vec::new(), refuses: None };
+        return AProbe {
+            clone: Some(
+                DatasetGuid::parse(CLONE_GUID.to_string().as_str())
+                    .expect("the fixture's GUID is canonical"),
+            ),
+            children: Vec::new(),
+            refuses: None,
+        };
     }
 
     /// The name absent and a child carrying the recorded GUID,
     /// which is the same clone under another name.
     pub fn renamed_to(name: &str) -> AProbe {
-        return AProbe { clone: None, children: vec![(String::from(name), DatasetGuid::parse(CLONE_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"))], refuses: None };
+        return AProbe {
+            clone: None,
+            children: vec![(
+                String::from(name),
+                DatasetGuid::parse(CLONE_GUID.to_string().as_str())
+                    .expect("the fixture's GUID is canonical"),
+            )],
+            refuses: None,
+        };
     }
 
     /// The name holding another object.
     pub fn reused(guid: u64) -> AProbe {
-        return AProbe { clone: Some(DatasetGuid::parse(guid.to_string().as_str()).expect("the control's GUID is canonical")), children: Vec::new(), refuses: None };
+        return AProbe {
+            clone: Some(
+                DatasetGuid::parse(guid.to_string().as_str())
+                    .expect("the control's GUID is canonical"),
+            ),
+            children: Vec::new(),
+            refuses: None,
+        };
     }
 
     /// The same probe with every read refused.
-    pub fn refusing(mut self, said: &str) -> AProbe {
+    pub fn refusing(
+        mut self,
+        said: &str,
+    ) -> AProbe {
         self.refuses = Some(String::from(said));
         return self;
     }
 }
 
 impl DatasetReader for AProbe {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         if let Some(said) = &self.refuses {
-            return Err(ReadFailure { said: said.clone(), errno: Some(libc::EIO) });
+            return Err(ReadFailure {
+                said: said.clone(),
+                errno: Some(libc::EIO),
+            });
         }
         for (name, guid) in &self.children {
             if name == dataset {
@@ -271,22 +397,35 @@ impl DatasetReader for AProbe {
             }
         }
         if dataset != CLONE {
-            return Err(ReadFailure { said: String::from("no such dataset"), errno: Some(libc::ENOENT) });
+            return Err(ReadFailure {
+                said: String::from("no such dataset"),
+                errno: Some(libc::ENOENT),
+            });
         }
         return match self.clone {
             Some(guid) => Ok(an_identity(guid)),
-            None => Err(ReadFailure { said: String::from("no such dataset"), errno: Some(libc::ENOENT) }),
+            None => Err(ReadFailure {
+                said: String::from("no such dataset"),
+                errno: Some(libc::ENOENT),
+            }),
         };
     }
 
-    fn next_child(&self, _parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        _parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         if let Some(said) = &self.refuses {
             return Err(said.clone());
         }
         let at: usize = cursor as usize;
         return match self.children.get(at) {
             None => Ok(None),
-            Some((name, _guid)) => Ok(Some(ListedChild { name: name.clone(), cursor: cursor + 1 })),
+            Some((name, _guid)) => Ok(Some(ListedChild {
+                name: name.clone(),
+                cursor: cursor + 1,
+            })),
         };
     }
 }
@@ -294,7 +433,16 @@ impl DatasetReader for AProbe {
 /// One dataset's own reply,
 /// carrying `guid`.
 fn an_identity(guid: DatasetGuid) -> DatasetIdentity {
-    return DatasetIdentity { stats: the_stats(guid.file_name().as_str().parse::<u64>().unwrap_or(1), false, 1, 0, ""), properties: NvList::new() };
+    return DatasetIdentity {
+        stats: the_stats(
+            guid.file_name().as_str().parse::<u64>().unwrap_or(1),
+            false,
+            1,
+            0,
+            "",
+        ),
+        properties: NvList::new(),
+    };
 }
 
 /// What:
@@ -322,24 +470,48 @@ pub struct ASettle {
 impl ASettle {
     /// A settle that answers what it did.
     pub fn succeeding() -> ASettle {
-        return ASettle { refuses: None, calls: Cell::new(0), slots: RefCell::new(Vec::new()) };
+        return ASettle {
+            refuses: None,
+            calls: Cell::new(0),
+            slots: RefCell::new(Vec::new()),
+        };
     }
 
     /// A settle that refuses with one sentence.
     pub fn refusing(said: &str) -> ASettle {
-        return ASettle { refuses: Some(String::from(said)), calls: Cell::new(0), slots: RefCell::new(Vec::new()) };
+        return ASettle {
+            refuses: Some(String::from(said)),
+            calls: Cell::new(0),
+            slots: RefCell::new(Vec::new()),
+        };
     }
 }
 
 impl RegistrationSettle for ASettle {
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
+    fn settle_the_registration(
+        &self,
+        request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop> {
         self.calls.set(self.calls.get() + 1);
         self.slots.borrow_mut().push(String::from(request.slot));
-        assert_eq!(request.proof.slot(), request.slot, "the destruction proof names the slot the settle is asked about");
+        assert_eq!(
+            request.proof.slot(),
+            request.slot,
+            "the destruction proof names the slot the settle is asked about"
+        );
         if let Some(said) = &self.refuses {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the registration"), said: said.clone() });
+            return Err(RemovalStop::TheSettleRefused {
+                step: String::from("the registration"),
+                said: said.clone(),
+            });
         }
-        return Ok(SettleAnswer { wrote_the_lost_lock: false, released_the_lock: true, removed_the_registration: true, removed_the_underlay: false, lines: Vec::new() });
+        return Ok(SettleAnswer {
+            wrote_the_lost_lock: false,
+            released_the_lock: true,
+            removed_the_registration: true,
+            removed_the_underlay: false,
+            lines: Vec::new(),
+        });
     }
 }
 
@@ -354,7 +526,19 @@ impl RegistrationSettle for ASettle {
 /// ```ts
 /// const lines = thePass(fixture, liveFolder, gate, probe, settle);
 /// ```
-pub fn the_pass(fixture: &RemovalFixture, folder: &dyn ThePlansFolder, gate: &dyn BeforeRequests, probe: &dyn DatasetReader, settle: &dyn RegistrationSettle) -> Vec<String> {
-    let pass: FinishPass<'_> = FinishPass { common_dir: fixture.common(), folder, gate, probe, settle };
+pub fn the_pass(
+    fixture: &RemovalFixture,
+    folder: &dyn ThePlansFolder,
+    gate: &dyn BeforeRequests,
+    probe: &dyn DatasetReader,
+    settle: &dyn RegistrationSettle,
+) -> Vec<String> {
+    let pass: FinishPass<'_> = FinishPass {
+        common_dir: fixture.common(),
+        folder,
+        gate,
+        probe,
+        settle,
+    };
     return crate::worktree_clone_removal_finish_pass::pass_over_the_plans::finish_the_removal_plans(&pass);
 }

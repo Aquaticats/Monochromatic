@@ -32,9 +32,16 @@
 /// ```ts
 /// import { patchBumpVersion } from './dependent_version_release.ts';
 /// ```
-use crate::dependent_version_release::{ReleaseBump, UnsupportedVersion, patch_bump_version};
+use crate::dependent_version_release::{
+    ReleaseBump,
+    UnsupportedVersion,
+    patch_bump_version,
+};
 /// Hash-based maps and sets for edges and visits.
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// What:
 /// One workspace package as the walk sees it.
@@ -147,7 +154,10 @@ pub fn transitive_dependent_names(
 /// ```ts
 /// const byName = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
 /// ```
-pub fn utf16_order(left: &str, right: &str) -> std::cmp::Ordering {
+pub fn utf16_order(
+    left: &str,
+    right: &str,
+) -> std::cmp::Ordering {
     return left.encode_utf16().cmp(right.encode_utf16());
 }
 
@@ -162,7 +172,10 @@ pub fn utf16_order(left: &str, right: &str) -> std::cmp::Ordering {
 /// ```ts
 /// const compareBumpsByName = (left: PlannedBump, right: PlannedBump) => utf16Order(left.name, right.name);
 /// ```
-fn compare_bumps_by_name(left: &PlannedBump, right: &PlannedBump) -> std::cmp::Ordering {
+fn compare_bumps_by_name(
+    left: &PlannedBump,
+    right: &PlannedBump,
+) -> std::cmp::Ordering {
     return utf16_order(&left.name, &right.name);
 }
 

@@ -20,20 +20,36 @@
 
 /// Debug diagnostics.
 use crate::diagnostic_log::debug;
+/// The command a Git alias really runs,
+///  the executable Git selects first included.
+use crate::external_git_command::{
+    alias_run_directory,
+    dashed_external_selected,
+    effective_directory,
+};
 /// The built-in command names.
 use crate::git_builtins::is_git_builtin;
 /// The global-option layout,
 ///  and the alias-only refusal about the environment.
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout, prefix_changes_environment};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+    prefix_changes_environment,
+};
 /// Running real Git.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-/// The command a Git alias really runs,
-///  the executable Git selects first included.
-use crate::external_git_command::{alias_run_directory, dashed_external_selected, effective_directory};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Alias expansions followed before giving up,
 ///  well above any realistic chain.
@@ -134,7 +150,10 @@ impl ResolvedCommand {
     /// command.args.slice(command.subcommandIndex + 1)
     /// ```
     pub fn region(&self) -> &[OsString] {
-        return self.arguments.get(self.subcommand_index + 1..).unwrap_or(&[]);
+        return self
+            .arguments
+            .get(self.subcommand_index + 1..)
+            .unwrap_or(&[]);
     }
 
     /// What:
@@ -153,7 +172,13 @@ impl ResolvedCommand {
 
 // The alias value splitter, the configuration variables and the alias
 //  they select, read beside the value they serve.
-pub use crate::alias_value::{ConfigVariable, alias_selection, alias_variable_matches, config_variables, split_alias_command};
+pub use crate::alias_value::{
+    ConfigVariable,
+    alias_selection,
+    alias_variable_matches,
+    config_variables,
+    split_alias_command,
+};
 
 /// What:
 ///  The value of the alias Git keeps,
@@ -177,7 +202,12 @@ pub use crate::alias_value::{ConfigVariable, alias_selection, alias_variable_mat
 /// ```ts
 /// async function lookupAlias({ gitPath, globalArgs, name, start }): Promise<string | typeof ALIAS_UNSET>;
 /// ```
-pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString, start: Option<&Path>) -> Option<Vec<u8>> {
+pub fn lookup_alias(
+    context: &GitContext,
+    global: &[OsString],
+    name: &OsString,
+    start: Option<&Path>,
+) -> Option<Vec<u8>> {
     // A caller that named no directory reads no alias: Git cannot start somewhere this command was not started.
     let directory: &Path = start?;
     let mut arguments: Vec<OsString> = global.to_vec();
@@ -189,7 +219,10 @@ pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString, 
     let output = match run_git(context, &request) {
         Ok(output) if output.succeeded() => output,
         Ok(_) | Err(_) => {
-            debug("readConfigVariables", "git config --null --list answered nothing");
+            debug(
+                "readConfigVariables",
+                "git config --null --list answered nothing",
+            );
             return None;
         }
     };
@@ -213,7 +246,11 @@ pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString, 
 /// ```ts
 /// ({ args, subcommandIndex, subcommand, route })
 /// ```
-fn resolved(arguments: &[OsString], layout: &GlobalLayout, route: Route) -> ResolvedCommand {
+fn resolved(
+    arguments: &[OsString],
+    layout: &GlobalLayout,
+    route: Route,
+) -> ResolvedCommand {
     return resolved_with_shell_command(arguments, layout, route, None);
 }
 
@@ -270,7 +307,9 @@ fn os_words(words: Vec<Vec<u8>>) -> Vec<OsString> {
         // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
         #[cfg(not(unix))]
         {
-            owned.push(OsString::from(String::from_utf8_lossy(word.as_slice()).into_owned()));
+            owned.push(OsString::from(
+                String::from_utf8_lossy(word.as_slice()).into_owned(),
+            ));
         }
     }
     return owned;
@@ -345,10 +384,18 @@ fn resolve_command(
     // The globals of the caller are the ones Git read before it reached the command word, and they decide the exec
     //  path the search for an executable uses; an alias expansion adds none of them back.
     let mut caller_globals: Vec<OsString> = inherited_globals.to_vec();
-    caller_globals.extend(arguments[..global_layout(arguments).prefix_len].iter().cloned());
+    caller_globals.extend(
+        arguments[..global_layout(arguments).prefix_len]
+            .iter()
+            .cloned(),
+    );
     for _ in 0..=MAX_ALIAS_EXPANSIONS {
         let layout: GlobalLayout = global_layout(current.as_slice());
-        let route: Route = if seen.is_empty() { Route::Direct } else { Route::Alias };
+        let route: Route = if seen.is_empty() {
+            Route::Direct
+        } else {
+            Route::Alias
+        };
         if layout.outcome != GlobalOutcome::Command {
             return resolved(current.as_slice(), &layout, route);
         }
@@ -363,9 +410,13 @@ fn resolve_command(
         // `mut` allows the directory the word runs in to be filled in for a shell alias's frame.
         let mut run_directory: Option<PathBuf> = None;
         if shell_depth != 0
-            && let Some(directory) = alias_run_directory(context, inherited_globals, current_directory)
+            && let Some(directory) =
+                alias_run_directory(context, inherited_globals, current_directory)
         {
-            run_directory = Some(effective_directory(&directory, &current[..layout.prefix_len]));
+            run_directory = Some(effective_directory(
+                &directory,
+                &current[..layout.prefix_len],
+            ));
         }
         // Git runs an installed `git-<word>` before it looks for an alias of that word (git.c:905 to git.c:912), so
         //  such a word reaches no alias and the wrapper leaves it to Git.
@@ -397,7 +448,12 @@ fn resolve_command(
         //  would miss what the process that started this one passed along.
         let mut process_globals: Vec<OsString> = inherited_globals.to_vec();
         process_globals.extend(current[..layout.prefix_len].iter().cloned());
-        let Some(value) = lookup_alias(context, process_globals.as_slice(), &name, current_directory) else {
+        let Some(value) = lookup_alias(
+            context,
+            process_globals.as_slice(),
+            &name,
+            current_directory,
+        ) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
@@ -414,7 +470,12 @@ fn resolve_command(
                 process_globals.as_slice(),
                 current_directory,
             );
-            return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
+            return resolved_with_shell_command(
+                current.as_slice(),
+                &layout,
+                Route::ShellAlias,
+                shell_command,
+            );
         }
         let Some(words) = split_alias_command(value.as_slice()) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
@@ -609,7 +670,10 @@ fn shell_git_words(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 /// ```
 fn is_plain_shell_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric()
-        || matches!(byte, b'-' | b'_' | b'.' | b'/' | b':' | b'=' | b'@' | b'+' | b',' );
+        || matches!(
+            byte,
+            b'-' | b'_' | b'.' | b'/' | b':' | b'=' | b'@' | b'+' | b','
+        );
 }
 
 /// Resolution controls stay out of the release executable.

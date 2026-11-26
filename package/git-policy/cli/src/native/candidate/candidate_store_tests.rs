@@ -19,20 +19,43 @@
 
 /// Import the store under test and shared fixtures.
 use super::CandidateStore;
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 use crate::candidate_record::CandidateChange;
-use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateSource,
+    CandidateVersion,
+};
 use crate::git_metadata::strip_git_line;
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// A store over real Git selecting one repository with `-C`.
-pub(super) fn store_with(program: &Path, directory: &Path) -> CandidateStore {
+pub(super) fn store_with(
+    program: &Path,
+    directory: &Path,
+) -> CandidateStore {
     return CandidateStore::new(
         program,
         &[OsString::from("-C"), directory.as_os_str().to_os_string()],
@@ -50,7 +73,10 @@ fn a_staging_listing_answers_under_the_callers_conflicting_glob_modes() {
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     let overlay: Vec<(OsString, OsString)> = vec![
-        (OsString::from("CLI_GIT_IN_PROCESS_READS"), OsString::from("off")),
+        (
+            OsString::from("CLI_GIT_IN_PROCESS_READS"),
+            OsString::from("off"),
+        ),
         (OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")),
         (OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")),
     ];
@@ -59,8 +85,14 @@ fn a_staging_listing_answers_under_the_callers_conflicting_glob_modes() {
         &[OsString::from("-C"), repo.as_os_str().to_os_string()],
         overlay.as_slice(),
     );
-    let records = inherited.stage_records(&[OsString::from(":/")]).expect("the staging listing answers despite the caller's modes");
-    assert_eq!(records.len(), 1, "the one staged entry is listed: {records:?}");
+    let records = inherited
+        .stage_records(&[OsString::from(":/")])
+        .expect("the staging listing answers despite the caller's modes");
+    assert_eq!(
+        records.len(),
+        1,
+        "the one staged entry is listed: {records:?}"
+    );
     remove(root.as_path());
 }
 
@@ -70,13 +102,20 @@ pub(super) fn store(directory: &Path) -> CandidateStore {
 }
 
 /// The object name a revision expression resolves to.
-pub(super) fn rev_parse(repository: &Path, revision: &str) -> ObjectId {
+pub(super) fn rev_parse(
+    repository: &Path,
+    revision: &str,
+) -> ObjectId {
     let output: std::process::Output = git(repository, &["rev-parse", "--verify", revision]);
     return parse_object_id(strip_git_line(output.stdout.as_slice())).expect("object name");
 }
 
 /// Write a worktree file whose name may be any bytes.
-pub(super) fn write(repository: &Path, name: &[u8], content: &[u8]) {
+pub(super) fn write(
+    repository: &Path,
+    name: &[u8],
+    content: &[u8],
+) {
     std::fs::write(repository.join(OsStr::from_bytes(name)), content).expect("worktree file");
 }
 
@@ -150,7 +189,9 @@ pub(super) fn staged_changes(root: &Path) -> PathBuf {
 ///  and nothing unchanged.
 #[test]
 fn staged_version_describes_every_kind_of_entry() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::staged_version_describes_every_kind_of_entry") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_store::tests::staged_version_describes_every_kind_of_entry",
+    ) {
         return;
     }
     let root: PathBuf = fixture("store-staged");
@@ -245,7 +286,9 @@ fn staged_version_describes_every_kind_of_entry() {
 ///  and nothing for a deletion.
 #[test]
 fn staged_bytes_are_exact_for_every_kind_of_entry() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::staged_bytes_are_exact_for_every_kind_of_entry") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_store::tests::staged_bytes_are_exact_for_every_kind_of_entry",
+    ) {
         return;
     }
     let root: PathBuf = fixture("store-bytes");
@@ -332,7 +375,9 @@ fn an_object_larger_than_a_check_reads_is_refused_and_the_reader_stays_in_step()
 ///  a blob starts it.
 #[test]
 fn reader_starts_only_for_blob_content() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::reader_starts_only_for_blob_content") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_store::tests::reader_starts_only_for_blob_content",
+    ) {
         return;
     }
     let root: PathBuf = fixture("store-lazy");

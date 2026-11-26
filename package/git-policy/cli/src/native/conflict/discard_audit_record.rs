@@ -11,22 +11,31 @@
 //! // auditLine(record) === '{"schemaVersion":1,"time":"...","level":"info",...}\n'
 //! ```
 
-/// The release and the quoting helpers every field uses.
-use crate::discard_audit_facts::{AuditFact, facts_object};
-use crate::iso_time::format_iso_milliseconds;
-use crate::json_record::{quote, string_array};
-/// The bytes of a path as the hexadecimal digits a record holds beside its text.
-use crate::path_bytes_in_records::hex_of_path;
-use crate::rule_linked_worktree::GuardedCommand;
-use crate::service_protocol::RELEASE;
 /// The outcome word an audit record carries.
 use crate::discard_audit::AuditOutcome;
+/// The release and the quoting helpers every field uses.
+use crate::discard_audit_facts::{
+    AuditFact,
+    facts_object,
+};
+use crate::iso_time::format_iso_milliseconds;
+use crate::json_record::{
+    quote,
+    string_array,
+};
+/// The bytes of a path as the hexadecimal digits a record holds beside its text.
+use crate::path_bytes_in_records::hex_of_path;
 /// The form the wrapper records without refusing it.
 use crate::rule_linked_worktree::AuditedCommand;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::service_protocol::RELEASE;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The form one record is about:
@@ -187,8 +196,13 @@ pub fn audit_line(record: &AuditRecord) -> String {
         format!(",\"copies\":{}", string_array(record.copies))
     };
     // A refusal is what a reader scanning the file looks for; the rest are decisions that let the command run.
-    let level: &str = if record.outcome == AuditOutcome::Rejected { "warn" } else { "info" };
-    let time: String = format_iso_milliseconds(i64::try_from(record.time_millis).unwrap_or(i64::MAX));
+    let level: &str = if record.outcome == AuditOutcome::Rejected {
+        "warn"
+    } else {
+        "info"
+    };
+    let time: String =
+        format_iso_milliseconds(i64::try_from(record.time_millis).unwrap_or(i64::MAX));
     // A recorded form is written before Git runs it, so this line cannot know what Git did with the command: the field
     //  says so in words a reader cannot take for the result. Every other outcome is a decision of the wrapper itself,
     //  which is complete before Git is asked to run.

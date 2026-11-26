@@ -8,12 +8,25 @@
 //! final-newline and forbidden-strings policies at fixed severities.
 
 use super::*;
+use crate::config_schema::{
+    ForbiddenStringsOptions,
+    RulesFileEntry,
+};
 use crate::policy_events::render_policy_events;
-use crate::policy_registry::{PolicyId, Severity};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use crate::repository_facts::RepositoryFacts;
-use crate::config_schema::{ForbiddenStringsOptions, RulesFileEntry};
-use crate::scanner_test_support::{needle, run_isolated};
-use crate::test_support::{fixture, git, remove};
+use crate::scanner_test_support::{
+    needle,
+    run_isolated,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
 use crate::wrapper_controls::no_controls;
 use std::path::PathBuf;
 
@@ -43,16 +56,30 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
 }
 
 /// A repository with a baseline commit (`stable.txt`) and one landed commit that adds `landed.txt`.
-fn landed_repository(name: &str, landed_bytes: &str) -> (PathBuf, String) {
+fn landed_repository(
+    name: &str,
+    landed_bytes: &str,
+) -> (PathBuf, String) {
     return landed_file(name, "landed.txt", landed_bytes);
 }
 
 /// A repository with a baseline commit (`stable.txt`) and one landed commit that adds `file`.
-fn landed_file(name: &str, file: &str, landed_bytes: &str) -> (PathBuf, String) {
+fn landed_file(
+    name: &str,
+    file: &str,
+    landed_bytes: &str,
+) -> (PathBuf, String) {
     let root = fixture(name);
     git(&root, &["init", "--quiet", "--initial-branch=main"]);
     git(&root, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&root, &["config", "user.name", "monochromatic-git-policy-cli fixture"]);
+    git(
+        &root,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli fixture",
+        ],
+    );
     std::fs::write(root.join("stable.txt"), "stable content\n").expect("stable file");
     git(&root, &["add", "stable.txt"]);
     git(&root, &["commit", "--quiet", "-m", "baseline"]);
@@ -66,7 +93,10 @@ fn landed_file(name: &str, file: &str, landed_bytes: &str) -> (PathBuf, String) 
 }
 
 /// The default configuration with one policy's severity replaced.
-fn with_severity(policy: PolicyId, severity: Severity) -> PolicyConfig {
+fn with_severity(
+    policy: PolicyId,
+    severity: Severity,
+) -> PolicyConfig {
     let mut config: PolicyConfig = PolicyConfig::defaults();
     for setting in &mut config.settings {
         if setting.id == policy {
@@ -261,8 +291,12 @@ fn an_engine_failure_retains_the_commit_and_reports_the_failure() {
         .iter()
         .map(|event| {
             return match event {
-                PolicyEvent::EngineFailure { .. } => "engine-failure",
-                PolicyEvent::CommitLanded { .. } => "commit-landed",
+                PolicyEvent::EngineFailure {
+                    ..
+                } => "engine-failure",
+                PolicyEvent::CommitLanded {
+                    ..
+                } => "commit-landed",
                 _ => "other",
             };
         })
@@ -294,7 +328,10 @@ fn a_reason_names_the_policy_that_failed_and_nothing_when_none_did() {
         policy: None,
         path: None,
     }];
-    assert_eq!(blocked_reason(without_policy.as_slice()), "the repository's top level cannot be read");
+    assert_eq!(
+        blocked_reason(without_policy.as_slice()),
+        "the repository's top level cannot be read"
+    );
     let with_policy = [PolicyEvent::EngineFailure {
         code: EngineFailureCode::ContentUnavailable,
         hint: crate::policy_events::EngineFailureHint::OfCode,
@@ -303,7 +340,10 @@ fn a_reason_names_the_policy_that_failed_and_nothing_when_none_did() {
         policy: Some(PolicyId::ForbiddenStrings),
         path: None,
     }];
-    assert_eq!(blocked_reason(with_policy.as_slice()), "security/forbidden-strings: the rules file cannot be read");
+    assert_eq!(
+        blocked_reason(with_policy.as_slice()),
+        "security/forbidden-strings: the rules file cannot be read"
+    );
 }
 
 /// A landed name that is not an object name is an engine failure,
@@ -401,7 +441,10 @@ fn configured_rules(_work: &Path) {
         &overlay,
         with_scanner(ForbiddenStringsOptions {
             builtin_rules: false,
-            rules_files: Some(vec![RulesFileEntry { path: String::from("rules.txt"), optional: false }]),
+            rules_files: Some(vec![RulesFileEntry {
+                path: String::from("rules.txt"),
+                optional: false,
+            }]),
         }),
         no_controls(),
     ));
@@ -426,7 +469,10 @@ fn variable_rules(_work: &Path) {
     let prefix = prefix_for(&root);
     let overlay = fixture_environment();
     let mut environment = fixture_environment();
-    environment.push((OsString::from("FORBIDDEN_STRINGS_RULES"), OsString::from("rules.txt")));
+    environment.push((
+        OsString::from("FORBIDDEN_STRINGS_RULES"),
+        OsString::from("rules.txt"),
+    ));
     let mut asked = request(
         &landed,
         &prefix,
@@ -457,10 +503,17 @@ fn with_markdown() -> PolicyConfig {
 /// can produce.
 #[test]
 fn a_landed_markdown_file_is_checked_in_process() {
-    let stale: String = format!("![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n", "b".repeat(64));
+    let stale: String = format!(
+        "![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n",
+        "b".repeat(64)
+    );
     let (root, landed) = landed_file("pc-linter", "landed.md", stale.as_str());
     // The linter reads the endpoint from the worktree it runs in.
-    std::fs::write(root.join(".lfsconfig"), b"[lfs]\n\turl = https://lfs.example.com/org/repo\n").expect("lfsconfig");
+    std::fs::write(
+        root.join(".lfsconfig"),
+        b"[lfs]\n\turl = https://lfs.example.com/org/repo\n",
+    )
+    .expect("lfsconfig");
     let prefix = prefix_for(&root);
     let overlay = fixture_environment();
     let mut asked = request(&landed, &prefix, &overlay, with_markdown(), no_controls());
@@ -497,7 +550,8 @@ fn the_markdown_options_reach_the_post_commit_policy() {
     let overlay = fixture_environment();
     let mut broken: PolicyConfig = with_markdown();
     broken.markdown_autofix.exclude = vec![String::from(UNCOMPILABLE_PATTERN)];
-    let unchecked = run_post_commit_gate(&request(&landed, &prefix, &overlay, broken, no_controls()));
+    let unchecked =
+        run_post_commit_gate(&request(&landed, &prefix, &overlay, broken, no_controls()));
     assert!(unchecked.blocked, "{unchecked:?}");
     assert!(
         unchecked.events.iter().any(|event| {
@@ -515,7 +569,8 @@ fn the_markdown_options_reach_the_post_commit_policy() {
     );
     let mut config: PolicyConfig = with_markdown();
     config.markdown_autofix.exclude = vec![String::from("landed.md")];
-    let excluded = run_post_commit_gate(&request(&landed, &prefix, &overlay, config, no_controls()));
+    let excluded =
+        run_post_commit_gate(&request(&landed, &prefix, &overlay, config, no_controls()));
     assert!(!excluded.blocked, "{excluded:?}");
     assert!(excluded.events.is_empty(), "{excluded:?}");
     remove(&root);

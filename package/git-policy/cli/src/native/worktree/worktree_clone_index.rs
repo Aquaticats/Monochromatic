@@ -17,16 +17,32 @@
 //! installTheIndex(admin, seed, stats, written, hashLength); // throws a reason
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
 use crate::diagnostic_log::debug;
-use crate::subvolume_index::{StatFields, StatLookup};
+use crate::subvolume_index::{
+    StatFields,
+    StatLookup,
+};
 #[cfg(any(test, feature = "measurement-routes"))]
 use crate::subvolume_index_files::install_index_in;
-use crate::subvolume_index_files::{discard_index_under_a_name, publish_index_under_a_name, write_index_under_a_name};
-use std::collections::{HashMap, HashSet};
+use crate::subvolume_index_files::{
+    discard_index_under_a_name,
+    publish_index_under_a_name,
+    write_index_under_a_name,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::ffi::OsStr;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cloneIndex";
@@ -60,7 +76,10 @@ struct StatsMadeByTheClones<'a> {
 }
 
 impl StatLookup for StatsMadeByTheClones<'_> {
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+    fn stat_now(
+        &mut self,
+        path: &[u8],
+    ) -> Option<StatFields> {
         if self.written.contains(path) {
             return None;
         }
@@ -86,9 +105,23 @@ impl StatLookup for StatsMadeByTheClones<'_> {
 /// installTheIndex(admin, seed, stats, written, hashLength); // throws a reason
 /// ```
 #[cfg(any(test, feature = "measurement-routes"))]
-pub(crate) fn install_the_index(admin: &File, seed: &[u8], stats: &HashMap<Vec<u8>, StatFields>, written: &HashSet<Vec<u8>>, hash_length: usize) -> Result<String, String> {
+pub(crate) fn install_the_index(
+    admin: &File,
+    seed: &[u8],
+    stats: &HashMap<Vec<u8>, StatFields>,
+    written: &HashSet<Vec<u8>>,
+    hash_length: usize,
+) -> Result<String, String> {
     let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, seed, &mut StatsMadeByTheClones { stats, written }, hash_length);
+    let installed: Result<String, String> = install_index_in(
+        admin,
+        seed,
+        &mut StatsMadeByTheClones {
+            stats,
+            written,
+        },
+        hash_length,
+    );
     end_step(index_entered);
     let report: String = installed?;
     debug(TAG, report.as_str());
@@ -138,13 +171,19 @@ impl PendingIndex {
     /// ```ts
     /// pending.publish(admin); // throws a reason
     /// ```
-    pub(crate) fn publish(self, admin: &File) -> Result<(), String> {
+    pub(crate) fn publish(
+        self,
+        admin: &File,
+    ) -> Result<(), String> {
         return publish_index_under_a_name(admin, &self.held, OsStr::new(PENDING_INDEX));
     }
 
     /// Remove the index written under its own name,
     /// when the rung ends before it is published.
-    pub(crate) fn discard(self, admin: &File) {
+    pub(crate) fn discard(
+        self,
+        admin: &File,
+    ) {
         discard_index_under_a_name(admin, &self.held, OsStr::new(PENDING_INDEX));
     }
 }
@@ -168,11 +207,29 @@ impl PendingIndex {
 /// ```ts
 /// const pending = installTheIndexBesideTheWrite([admin, adminPath], seed, stats, written, hashLength); // throws a reason
 /// ```
-pub(crate) fn install_the_index_beside_the_write((admin, admin_path): (&File, &Path), seed: &[u8], stats: &HashMap<Vec<u8>, StatFields>, written: &HashSet<Vec<u8>>, hash_length: usize) -> Result<PendingIndex, String> {
+pub(crate) fn install_the_index_beside_the_write(
+    (admin, admin_path): (&File, &Path),
+    seed: &[u8],
+    stats: &HashMap<Vec<u8>, StatFields>,
+    written: &HashSet<Vec<u8>>,
+    hash_length: usize,
+) -> Result<PendingIndex, String> {
     let index_entered: bool = begin_step("cloneIndex");
-    let written_index = write_index_under_a_name(admin, seed, &mut StatsMadeByTheClones { stats, written }, hash_length, OsStr::new(PENDING_INDEX));
+    let written_index = write_index_under_a_name(
+        admin,
+        seed,
+        &mut StatsMadeByTheClones {
+            stats,
+            written,
+        },
+        hash_length,
+        OsStr::new(PENDING_INDEX),
+    );
     end_step(index_entered);
     let (held, report): (File, String) = written_index?;
     debug(TAG, report.as_str());
-    return Ok(PendingIndex { held, path: admin_path.join(PENDING_INDEX) });
+    return Ok(PendingIndex {
+        held,
+        path: admin_path.join(PENDING_INDEX),
+    });
 }

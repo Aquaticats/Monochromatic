@@ -19,20 +19,33 @@
 /// The one path of the host's Git that the binary tests share.
 use super::REAL_GIT;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text (siblings `&str`/`String` must be UTF-8).
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Read`/`Write` fill the standard input of a query and drain its pipes.
-use std::io::{Read, Write};
-/// `Path` is a borrowed filesystem path of raw OS bytes.
-use std::path::Path;
-/// The command builder, the child's pipes and the finished child every fixture Git run is.
-use std::process::{Command, Output, Stdio};
+use std::io::{
+    Read,
+    Write,
+};
 /// `process_group` gives the query a process group of its own, which the bound ends as a whole.
 use std::os::unix::process::CommandExt as _;
 /// `signal` reads which signal ended the query, which is how the ending is known.
 use std::os::unix::process::ExitStatusExt as _;
+/// `Path` is a borrowed filesystem path of raw OS bytes.
+use std::path::Path;
+/// The command builder, the child's pipes and the finished child every fixture Git run is.
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
+pub(crate) fn git_output<S: AsRef<OsStr>>(
+    directory: &Path,
+    arguments: &[S],
+) -> Output {
     return Command::new(REAL_GIT)
         .current_dir(directory)
         .env_clear()
@@ -49,7 +62,10 @@ pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> 
 }
 
 /// Run real Git in a fixture and require success.
-pub(crate) fn git<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
+pub(crate) fn git<S: AsRef<OsStr>>(
+    directory: &Path,
+    arguments: &[S],
+) -> Output {
     let output: Output = git_output(directory, arguments);
     assert!(
         output.status.success(),
@@ -115,7 +131,8 @@ fn the_ending_seam(query: libc::pid_t) {
 
 /// The one ending seam a control arms, for the one call it measures.
 #[cfg(test)]
-static ENDING_SEAM: std::sync::Mutex<Option<Box<dyn FnOnce(libc::pid_t) + Send>>> = std::sync::Mutex::new(None);
+static ENDING_SEAM: std::sync::Mutex<Option<Box<dyn FnOnce(libc::pid_t) + Send>>> =
+    std::sync::Mutex::new(None);
 
 /// `the_ending_seam` in a build without controls: nothing runs.
 #[cfg(not(test))]
@@ -132,7 +149,11 @@ pub(crate) fn arm_the_ending_seam(seam: impl FnOnce(libc::pid_t) + Send + 'stati
 ///  a control that did not reach the seam must not leave it armed for another test.
 #[cfg(test)]
 pub(crate) fn disarm_the_ending_seam() -> bool {
-    return ENDING_SEAM.lock().expect("the ending seam").take().is_some();
+    return ENDING_SEAM
+        .lock()
+        .expect("the ending seam")
+        .take()
+        .is_some();
 }
 
 /// What ended one bounded query, as the last status the wait returned showed it.
@@ -181,21 +202,32 @@ pub(crate) struct QueryAnswer {
 /// ```ts
 /// const { bytes, ended } = drain(child.stdout); // ended: a message when the pipe reaches its end
 /// ```
-fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::sync::Mutex<Vec<u8>>>, std::sync::mpsc::Receiver<()>) {
-    let kept: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+fn draining<R: Read + Send + 'static>(
+    mut reader: R
+) -> (
+    std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    std::sync::mpsc::Receiver<()>,
+) {
+    let kept: std::sync::Arc<std::sync::Mutex<Vec<u8>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
     let sink: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&kept);
-    let _reader: std::thread::JoinHandle<()> = std::thread::Builder::new().spawn(move || {
-        let mut buffer: [u8; 8192] = [0; 8192];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(read) => sink.lock().expect("the pipe's bytes").extend_from_slice(&buffer[..read]),
-                Err(_) => break,
+    let _reader: std::thread::JoinHandle<()> = std::thread::Builder::new()
+        .spawn(move || {
+            let mut buffer: [u8; 8192] = [0; 8192];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(read) => sink
+                        .lock()
+                        .expect("the pipe's bytes")
+                        .extend_from_slice(&buffer[..read]),
+                    Err(_) => break,
+                }
             }
-        }
-        let _ended = sender.send(());
-    }).expect("the reader of a query's pipe starts");
+            let _ended = sender.send(());
+        })
+        .expect("the reader of a query's pipe starts");
     return (kept, receiver);
 }
 
@@ -248,27 +280,39 @@ pub(crate) fn real_git_within(
     for (name, value) in environment {
         command.env(name, value);
     }
-    command.stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
+    command.stdin(if input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    });
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     // The query leads a process group of its own, so the bound takes what it started in that group with it.
     command.process_group(0);
     let mut child: std::process::Child = command.spawn().expect("the query starts");
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    let (standard_output, output_reached_its_end) = draining(child.stdout.take().expect("piped standard output"));
-    let (standard_error, error_reached_its_end) = draining(child.stderr.take().expect("piped standard error"));
+    let (standard_output, output_reached_its_end) =
+        draining(child.stdout.take().expect("piped standard output"));
+    let (standard_error, error_reached_its_end) =
+        draining(child.stderr.take().expect("piped standard error"));
     // The input is written on a thread of its own, under the same bound as the wait:
     // a query that keeps its standard input open and reads none of it fills the pipe,
     // and a write on this thread would wait there with nothing watching the clock.
     let (input_sender, input_receiver) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let input_writer: Option<std::thread::JoinHandle<()>> = match input {
         Some(bytes) => {
-            let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
+            let mut standard_input: std::process::ChildStdin =
+                child.stdin.take().expect("piped standard input");
             let kept: Vec<u8> = bytes.to_vec();
-            Some(std::thread::Builder::new().spawn(move || {
-                let written: std::io::Result<()> = standard_input.write_all(kept.as_slice());
-                // Dropping the handle in this thread is what gives the query its end of file.
-                let _sent = input_sender.send(written);
-            }).expect("the writer of a query's input starts"))
+            Some(
+                std::thread::Builder::new()
+                    .spawn(move || {
+                        let written: std::io::Result<()> =
+                            standard_input.write_all(kept.as_slice());
+                        // Dropping the handle in this thread is what gives the query its end of file.
+                        let _sent = input_sender.send(written);
+                    })
+                    .expect("the writer of a query's input starts"),
+            )
         }
         // Without an input the query's standard input is the null device, and nothing is written.
         None => None,
@@ -292,7 +336,9 @@ pub(crate) fn real_git_within(
                     break status;
                 }
                 if std::time::Instant::now() >= reaping {
-                    panic!("the query {program:?} was killed at its bound of {bound:?} and not reaped within {REAPING:?}");
+                    panic!(
+                        "the query {program:?} was killed at its bound of {bound:?} and not reaped within {REAPING:?}"
+                    );
                 }
                 std::thread::sleep(LOOK_EVERY);
             };
@@ -301,7 +347,14 @@ pub(crate) fn real_git_within(
             // Which process sent a signal is not in a status, so a query killed by that same signal from elsewhere
             // in this instant reads as the bound's. Whether a signal could be sent says nothing about that,
             // so the kill's answer is not read here.
-            break (status, if status.signal() == Some(libc::SIGKILL) { QueryEnding::AtTheBound } else { QueryEnding::Itself });
+            break (
+                status,
+                if status.signal() == Some(libc::SIGKILL) {
+                    QueryEnding::AtTheBound
+                } else {
+                    QueryEnding::Itself
+                },
+            );
         }
         std::thread::sleep(LOOK_EVERY);
     };
@@ -313,25 +366,43 @@ pub(crate) fn real_git_within(
     // and a write a descendant of the query still holds is said in the answer, as a held pipe is.
     let mut input_held: bool = false;
     if let Some(writer) = input_writer {
-        let written: Option<std::io::Result<()>> = input_receiver.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).ok();
+        let written: Option<std::io::Result<()>> = input_receiver
+            .recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now()))
+            .ok();
         match written {
             // A descendant of the query kept the read end open and reads none of it: the write is left to that process.
             None => input_held = true,
             Some(Ok(())) => {}
             Some(Err(error)) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
-            Some(Err(error)) => panic!("the input of the query {program:?} could not be written: {error}"),
+            Some(Err(error)) => {
+                panic!("the input of the query {program:?} could not be written: {error}")
+            }
         }
         if !input_held {
             let _writer_joined = writer.join();
         }
     }
     // What the pipes gave, under the same grace, and never a wait past it.
-    let output_ended: bool = output_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
-    let error_ended: bool = error_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
-    let stdout: Vec<u8> = standard_output.lock().expect("the query's standard output").clone();
-    let stderr: Vec<u8> = standard_error.lock().expect("the query's standard error").clone();
+    let output_ended: bool = output_reached_its_end
+        .recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now()))
+        .is_ok();
+    let error_ended: bool = error_reached_its_end
+        .recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now()))
+        .is_ok();
+    let stdout: Vec<u8> = standard_output
+        .lock()
+        .expect("the query's standard output")
+        .clone();
+    let stderr: Vec<u8> = standard_error
+        .lock()
+        .expect("the query's standard error")
+        .clone();
     return QueryAnswer {
-        output: Output { status, stdout, stderr },
+        output: Output {
+            status,
+            stdout,
+            stderr,
+        },
         ending,
         held_open: !(output_ended && error_ended),
         input_held,

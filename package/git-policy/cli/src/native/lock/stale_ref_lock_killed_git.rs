@@ -15,11 +15,32 @@
 //! ```
 #![cfg(unix)]
 
-use crate::test_support::{executable, fixture, git, remove, repository};
-use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::time::{Duration, Instant};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    ChildStdin,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for a Git it started to reach the point where it holds its locks.
 pub const HOLD_PATIENCE: Duration = Duration::from_secs(60);
@@ -44,12 +65,18 @@ pub struct Stage {
 
 impl Stage {
     /// The lock file of a reference.
-    pub fn lock_of(&self, reference: &str) -> PathBuf {
+    pub fn lock_of(
+        &self,
+        reference: &str,
+    ) -> PathBuf {
         return self.git_dir.join(format!("{reference}.lock"));
     }
 
     /// The pid file beside the lock of a reference.
-    pub fn pid_file_of(&self, reference: &str) -> PathBuf {
+    pub fn pid_file_of(
+        &self,
+        reference: &str,
+    ) -> PathBuf {
         return self.git_dir.join(format!("{reference}~pid.lock"));
     }
 
@@ -95,14 +122,32 @@ impl Stage {
 /// `lockfile_pid` writes `core.lockfilePid` into the repository's own
 ///  configuration,
 /// as the wrapper turns it on for the Git it starts.
-pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
+pub fn stage(
+    name: &str,
+    lockfile_pid: bool,
+) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
-    git(root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
-    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
     git(repo.as_path(), &["branch", "gone"]);
-    git(repo.as_path(), &["push", "--quiet", "origin", "main", "gone"]);
+    git(
+        repo.as_path(),
+        &["push", "--quiet", "origin", "main", "gone"],
+    );
     git(repo.as_path(), &["fetch", "--quiet", "origin"]);
     git(repo.as_path(), &["pack-refs", "--all"]);
     git(remote.as_path(), &["branch", "--delete", "--force", "gone"]);
@@ -111,7 +156,12 @@ pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
     }
     let git_dir: PathBuf = repo.join(".git");
     let ready: PathBuf = root.join("ready");
-    return Stage { root, repo, git_dir, ready };
+    return Stage {
+        root,
+        repo,
+        git_dir,
+        ready,
+    };
 }
 
 /// Build a stage whose references the reftable backend keeps:
@@ -119,18 +169,37 @@ pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
 /// which is all a held `update-ref --stdin` needs.
 /// The reftable backend keeps its references and its lock in the `reftable` directory of the Git directory,
 /// so none of the files a files-backend repository locks exists.
-pub fn reftable_stage(name: &str, lockfile_pid: bool) -> Stage {
+pub fn reftable_stage(
+    name: &str,
+    lockfile_pid: bool,
+) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     if lockfile_pid {
         git(repo.as_path(), &["config", "core.lockfilePid", "true"]);
     }
     let git_dir: PathBuf = repo.join(".git");
     let ready: PathBuf = root.join("ready");
-    return Stage { root, repo, git_dir, ready };
+    return Stage {
+        root,
+        repo,
+        git_dir,
+        ready,
+    };
 }
 
 /// A Git the control started and must end however the control ends.
@@ -160,7 +229,9 @@ impl Held {
         if let Some(hook) = self.hook.take() {
             // SAFETY: `kill` takes a process number and a signal and touches no memory; the number is the hook of the Git
             // this control started.
-            unsafe { libc::kill(hook, libc::SIGKILL); }
+            unsafe {
+                libc::kill(hook, libc::SIGKILL);
+            }
         }
     }
 }
@@ -173,17 +244,25 @@ impl Drop for Held {
         let _reaped = self.child.wait();
         if let Some(hook) = self.hook.take() {
             // SAFETY: as above.
-            unsafe { libc::kill(hook, libc::SIGKILL); }
+            unsafe {
+                libc::kill(hook, libc::SIGKILL);
+            }
         }
     }
 }
 
 /// Wait for a condition,
 /// at most `HOLD_PATIENCE`.
-fn wait_for(what: &str, condition: impl Fn() -> bool) {
+fn wait_for(
+    what: &str,
+    condition: impl Fn() -> bool,
+) {
     let started: Instant = Instant::now();
     while !condition() {
-        assert!(started.elapsed() < HOLD_PATIENCE, "gave up waiting for {what}");
+        assert!(
+            started.elapsed() < HOLD_PATIENCE,
+            "gave up waiting for {what}"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
@@ -215,28 +294,52 @@ const HOLD_HOOK: &str = "#!/bin/sh\nif [ \"$1\" = prepared ] && [ -n \"$STALE_LO
 /// Start `git fetch --prune origin` and hold it at the moment its transaction has taken its locks.
 pub fn hold_fetch(stage: &Stage) -> Held {
     let hooks: PathBuf = stage.git_dir.join("hooks");
-    executable(hooks.join("reference-transaction").as_path(), HOLD_HOOK.as_bytes());
+    executable(
+        hooks.join("reference-transaction").as_path(),
+        HOLD_HOOK.as_bytes(),
+    );
     let mut command: Command = git_command(stage);
-    command.args(["fetch", "--prune", "--quiet", "origin"]).env("STALE_LOCK_READY", stage.ready.as_os_str());
+    command
+        .args(["fetch", "--prune", "--quiet", "origin"])
+        .env("STALE_LOCK_READY", stage.ready.as_os_str());
     let child: Child = crate::test_support::spawn_owned(&mut command).expect("start git fetch");
-    let mut held: Held = Held { child, _input: None, hook: None };
+    let mut held: Held = Held {
+        child,
+        _input: None,
+        hook: None,
+    };
     let ready: PathBuf = stage.ready.clone();
-    wait_for("the fetch to take its locks", || { return ready.exists(); });
-    held.hook = std::fs::read_to_string(stage.ready.as_path()).expect("hook pid").trim().parse::<i32>().ok();
+    wait_for("the fetch to take its locks", || {
+        return ready.exists();
+    });
+    held.hook = std::fs::read_to_string(stage.ready.as_path())
+        .expect("hook pid")
+        .trim()
+        .parse::<i32>()
+        .ok();
     return held;
 }
 
 /// Start `git update-ref --stdin`,
 /// send it `commands` and `prepare`,
 /// and keep it waiting with its locks held.
-pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
+pub fn hold_transaction(
+    stage: &Stage,
+    commands: &[&str],
+) -> Held {
     let mut command: Command = git_command(stage);
-    command.args(["update-ref", "--stdin"]).stdin(Stdio::piped()).stdout(Stdio::piped());
-    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
+    command
+        .args(["update-ref", "--stdin"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped());
+    let mut child: Child =
+        crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
     let mut input: ChildStdin = child.stdin.take().expect("the input");
     let output = child.stdout.take().expect("the output");
     let script: String = format!("start\n{}\nprepare\n", commands.join("\n"));
-    input.write_all(script.as_bytes()).expect("send the transaction");
+    input
+        .write_all(script.as_bytes())
+        .expect("send the transaction");
     input.flush().expect("flush the transaction");
     let (tell, hear) = std::sync::mpsc::channel::<()>();
     std::thread::spawn(move || {
@@ -246,8 +349,13 @@ pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
             }
         }
     });
-    let held: Held = Held { child, _input: Some(input), hook: None };
-    hear.recv_timeout(HOLD_PATIENCE).expect("the transaction to be prepared");
+    let held: Held = Held {
+        child,
+        _input: Some(input),
+        hook: None,
+    };
+    hear.recv_timeout(HOLD_PATIENCE)
+        .expect("the transaction to be prepared");
     return held;
 }
 
@@ -256,14 +364,24 @@ pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
 /// a Git that waits for input.
 pub fn idle_git(stage: &Stage) -> Held {
     let mut command: Command = git_command(stage);
-    command.args(["update-ref", "--stdin"]).stdin(Stdio::piped());
-    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
+    command
+        .args(["update-ref", "--stdin"])
+        .stdin(Stdio::piped());
+    let mut child: Child =
+        crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
     let input: ChildStdin = child.stdin.take().expect("the input");
-    return Held { child, _input: Some(input), hook: None };
+    return Held {
+        child,
+        _input: Some(input),
+        hook: None,
+    };
 }
 
 /// Create a regular file with `content`.
-pub fn write_file(path: &Path, content: &str) {
+pub fn write_file(
+    path: &Path,
+    content: &str,
+) {
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
     std::fs::write(path, content).expect("write the file");
 }
@@ -298,7 +416,12 @@ impl Drop for Helper {
 /// the veto keeps its own controls,
 /// which name the holder they plant.
 pub fn judge() -> crate::stale_ref_lock_judge::Judge {
-    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
+    return crate::stale_ref_lock_judge::Judge {
+        margin: Duration::ZERO,
+        boot: None,
+        scan_scope: Some(Vec::new()),
+        ..crate::stale_ref_lock_judge::Judge::here()
+    };
 }
 
 /// Make a new commit and start `git push origin main`,
@@ -306,16 +429,34 @@ pub fn judge() -> crate::stale_ref_lock_judge::Judge {
 ///  tracking reference,
 /// which is after the remote has taken the commit.
 pub fn hold_push(stage: &Stage) -> Held {
-    git(stage.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=ahead"]);
+    git(
+        stage.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=ahead"],
+    );
     let hooks: PathBuf = stage.git_dir.join("hooks");
-    executable(hooks.join("reference-transaction").as_path(), HOLD_HOOK.as_bytes());
+    executable(
+        hooks.join("reference-transaction").as_path(),
+        HOLD_HOOK.as_bytes(),
+    );
     let mut command: Command = git_command(stage);
-    command.args(["push", "--quiet", "origin", "main"]).env("STALE_LOCK_READY", stage.ready.as_os_str());
+    command
+        .args(["push", "--quiet", "origin", "main"])
+        .env("STALE_LOCK_READY", stage.ready.as_os_str());
     let child: Child = crate::test_support::spawn_owned(&mut command).expect("start git push");
-    let mut held: Held = Held { child, _input: None, hook: None };
+    let mut held: Held = Held {
+        child,
+        _input: None,
+        hook: None,
+    };
     let ready: PathBuf = stage.ready.clone();
-    wait_for("the push to take its locks", || { return ready.exists(); });
-    held.hook = std::fs::read_to_string(stage.ready.as_path()).expect("hook pid").trim().parse::<i32>().ok();
+    wait_for("the push to take its locks", || {
+        return ready.exists();
+    });
+    held.hook = std::fs::read_to_string(stage.ready.as_path())
+        .expect("hook pid")
+        .trim()
+        .parse::<i32>()
+        .ok();
     return held;
 }
 
@@ -323,7 +464,10 @@ pub fn hold_push(stage: &Stage) -> Held {
 /// no system or global
 ///  configuration,
 /// the stage as the working directory.
-pub fn plain_git(stage: &Stage, arguments: &[&str]) -> Command {
+pub fn plain_git(
+    stage: &Stage,
+    arguments: &[&str],
+) -> Command {
     let mut command: Command = git_command(stage);
     command.args(arguments);
     return command;

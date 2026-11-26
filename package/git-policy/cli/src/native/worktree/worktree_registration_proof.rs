@@ -28,9 +28,15 @@
 //! ```
 
 use crate::hooks_path_values::without_trailing_newlines;
-use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The most bytes one record of a registration may hold.
 /// Why:
@@ -93,21 +99,40 @@ impl RegistrationRefusal {
 /// ```ts
 /// const bytes = readRecord(path, shown, "the worktree's pointer"); // throws the refusal
 /// ```
-pub(crate) fn read_record(path: &Path, shown: &Path, what: &str) -> Result<Vec<u8>, RegistrationRefusal> {
+pub(crate) fn read_record(
+    path: &Path,
+    shown: &Path,
+    what: &str,
+) -> Result<Vec<u8>, RegistrationRefusal> {
     #[cfg(test)]
     if a_control_made_the_record_unreadable() {
-        return Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read now (a control's own answer)", shown.display())));
+        return Err(RegistrationRefusal::Undecided(format!(
+            "{what} ({}) cannot be read now (a control's own answer)",
+            shown.display()
+        )));
     }
     return match read_regular_file(path, RECORD_LIMIT) {
         Ok(bytes) => Ok(bytes),
-        Err(ReadRefusal::Missing) => Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) does not exist", shown.display()))),
+        Err(ReadRefusal::Missing) => Err(RegistrationRefusal::NotThisRepository(format!(
+            "{what} ({}) does not exist",
+            shown.display()
+        ))),
         Err(ReadRefusal::NotRegular) => {
-            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) is no regular file, and Git writes no such record", shown.display())))
+            return Err(RegistrationRefusal::NotThisRepository(format!(
+                "{what} ({}) is no regular file, and Git writes no such record",
+                shown.display()
+            )));
         }
         Err(ReadRefusal::TooLarge) => {
-            return Err(RegistrationRefusal::NotThisRepository(format!("{what} ({}) holds more than {RECORD_LIMIT} bytes, and Git writes no such record", shown.display())))
+            return Err(RegistrationRefusal::NotThisRepository(format!(
+                "{what} ({}) holds more than {RECORD_LIMIT} bytes, and Git writes no such record",
+                shown.display()
+            )));
         }
-        Err(ReadRefusal::Io(error)) => Err(RegistrationRefusal::Undecided(format!("{what} ({}) cannot be read ({error})", shown.display()))),
+        Err(ReadRefusal::Io(error)) => Err(RegistrationRefusal::Undecided(format!(
+            "{what} ({}) cannot be read ({error})",
+            shown.display()
+        ))),
     };
 }
 
@@ -122,7 +147,10 @@ pub(crate) fn read_record(path: &Path, shown: &Path, what: &str) -> Result<Vec<u
 /// ```ts
 /// const bytes = readRecordHere(path, "the worktree's pointer");
 /// ```
-pub(crate) fn read_record_here(path: &Path, what: &str) -> Result<Vec<u8>, RegistrationRefusal> {
+pub(crate) fn read_record_here(
+    path: &Path,
+    what: &str,
+) -> Result<Vec<u8>, RegistrationRefusal> {
     return read_record(path, path, what);
 }
 
@@ -139,7 +167,10 @@ pub(crate) fn read_record_here(path: &Path, what: &str) -> Result<Vec<u8>, Regis
 /// const absent = (error) => ['ENOENT', 'ENOTDIR', 'ELOOP'].includes(error.code);
 /// ```
 pub(crate) fn is_absent(error: &std::io::Error) -> bool {
-    return matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) || error.raw_os_error() == Some(libc::ELOOP);
+    return matches!(
+        error.kind(),
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+    ) || error.raw_os_error() == Some(libc::ELOOP);
 }
 
 #[cfg(test)]
@@ -181,8 +212,14 @@ fn a_control_made_the_record_unreadable() -> bool {
 fn resolve(path: &Path) -> Result<PathBuf, RegistrationRefusal> {
     return match std::fs::canonicalize(path) {
         Ok(resolved) => Ok(resolved),
-        Err(error) if is_absent(&error) => Err(RegistrationRefusal::NotThisRepository(format!("{} does not exist", path.display()))),
-        Err(error) => Err(RegistrationRefusal::Undecided(format!("{} cannot be resolved ({error})", path.display()))),
+        Err(error) if is_absent(&error) => Err(RegistrationRefusal::NotThisRepository(format!(
+            "{} does not exist",
+            path.display()
+        ))),
+        Err(error) => Err(RegistrationRefusal::Undecided(format!(
+            "{} cannot be resolved ({error})",
+            path.display()
+        ))),
     };
 }
 
@@ -198,11 +235,21 @@ fn resolve(path: &Path) -> Result<PathBuf, RegistrationRefusal> {
 /// ```ts
 /// const named = namedInTheRegistration(admin, 'commondir', "the registration's common directory");
 /// ```
-fn named_in_the_registration(admin: &Path, name: &str, what: &str) -> Result<PathBuf, RegistrationRefusal> {
+fn named_in_the_registration(
+    admin: &Path,
+    name: &str,
+    what: &str,
+) -> Result<PathBuf, RegistrationRefusal> {
     let record: PathBuf = admin.join(name);
     let bytes: Vec<u8> = read_record_here(record.as_path(), what)?;
-    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(bytes.as_slice())));
-    return Ok(if named.is_absolute() { named } else { admin.join(named) });
+    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(
+        bytes.as_slice(),
+    )));
+    return Ok(if named.is_absolute() {
+        named
+    } else {
+        admin.join(named)
+    });
 }
 
 /// What:
@@ -226,19 +273,31 @@ fn named_in_the_registration(admin: &Path, name: &str, what: &str) -> Result<Pat
 /// ```ts
 /// const admin = registrationOfPointer(commonDir, worktree, pointerBytes); // throws the reason
 /// ```
-pub(crate) fn registration_of_pointer(common_dir: &Path, worktree: &Path, pointer: &[u8]) -> Result<PathBuf, RegistrationRefusal> {
+pub(crate) fn registration_of_pointer(
+    common_dir: &Path,
+    worktree: &Path,
+    pointer: &[u8],
+) -> Result<PathBuf, RegistrationRefusal> {
     let pointer_path: PathBuf = worktree.join(".git");
     let line: &[u8] = without_trailing_newlines(pointer);
     let Some(named) = line.strip_prefix(b"gitdir: ") else {
-        return Err(RegistrationRefusal::NotThisRepository(format!("{} does not start with `gitdir: `", pointer_path.display())));
+        return Err(RegistrationRefusal::NotThisRepository(format!(
+            "{} does not start with `gitdir: `",
+            pointer_path.display()
+        )));
     };
     let named_path: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(named));
     let admin: PathBuf = resolve(named_path.as_path())?;
     let worktrees: PathBuf = resolve(common_dir.join("worktrees").as_path())?;
     if admin.parent() != Some(worktrees.as_path()) {
-        return Err(RegistrationRefusal::NotThisRepository(format!("{} is not one of the registrations in {}", admin.display(), worktrees.display())));
+        return Err(RegistrationRefusal::NotThisRepository(format!(
+            "{} is not one of the registrations in {}",
+            admin.display(),
+            worktrees.display()
+        )));
     }
-    let back_link: PathBuf = named_in_the_registration(admin.as_path(), "gitdir", "the registration's back-link")?;
+    let back_link: PathBuf =
+        named_in_the_registration(admin.as_path(), "gitdir", "the registration's back-link")?;
     if !crate::real_git_candidate::same_file(back_link.as_path(), pointer_path.as_path()) {
         return Err(RegistrationRefusal::NotThisRepository(format!(
             "the registration {} names {} as its worktree and not {}, so {} is no worktree it belongs to",
@@ -248,7 +307,11 @@ pub(crate) fn registration_of_pointer(common_dir: &Path, worktree: &Path, pointe
             worktree.display()
         )));
     }
-    let common_record: PathBuf = named_in_the_registration(admin.as_path(), "commondir", "the registration's common directory")?;
+    let common_record: PathBuf = named_in_the_registration(
+        admin.as_path(),
+        "commondir",
+        "the registration's common directory",
+    )?;
     if !crate::real_git_candidate::same_file(common_record.as_path(), common_dir) {
         return Err(RegistrationRefusal::NotThisRepository(format!(
             "the registration {} belongs to {} and not to {}",
@@ -272,8 +335,12 @@ pub(crate) fn registration_of_pointer(common_dir: &Path, worktree: &Path, pointe
 /// ```ts
 /// const admin = registrationOf(commonDir, worktree); // throws the reason
 /// ```
-pub(crate) fn registration_of(common_dir: &Path, worktree: &Path) -> Result<PathBuf, RegistrationRefusal> {
-    let pointer: Vec<u8> = read_record_here(worktree.join(".git").as_path(), "the worktree's pointer")?;
+pub(crate) fn registration_of(
+    common_dir: &Path,
+    worktree: &Path,
+) -> Result<PathBuf, RegistrationRefusal> {
+    let pointer: Vec<u8> =
+        read_record_here(worktree.join(".git").as_path(), "the worktree's pointer")?;
     return registration_of_pointer(common_dir, worktree, pointer.as_slice());
 }
 

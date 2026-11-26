@@ -1,7 +1,10 @@
 //! Controls for the per-case copies and the worker runner.
 
 use super::*;
-use crate::command_test_support::{fixture, remove};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 
 /// A copy holds every nested file with the same bytes and shares nothing with the source.
 #[test]
@@ -13,10 +16,19 @@ fn a_copy_holds_every_nested_file_and_shares_nothing() {
     std::fs::write(source.join("inner/deeper/leaf.txt"), b"leaf").expect("leaf file");
     let copy = directory.join("copy");
     copy_tree(source.as_path(), copy.as_path());
-    assert_eq!(std::fs::read(copy.join("top.txt")).expect("copied top"), b"top");
-    assert_eq!(std::fs::read(copy.join("inner/deeper/leaf.txt")).expect("copied leaf"), b"leaf");
+    assert_eq!(
+        std::fs::read(copy.join("top.txt")).expect("copied top"),
+        b"top"
+    );
+    assert_eq!(
+        std::fs::read(copy.join("inner/deeper/leaf.txt")).expect("copied leaf"),
+        b"leaf"
+    );
     std::fs::write(copy.join("top.txt"), b"changed").expect("change the copy");
-    assert_eq!(std::fs::read(source.join("top.txt")).expect("source top"), b"top");
+    assert_eq!(
+        std::fs::read(source.join("top.txt")).expect("source top"),
+        b"top"
+    );
     remove(directory.as_path());
 }
 
@@ -28,7 +40,8 @@ fn a_link_in_the_source_is_refused() {
     let source = directory.join("source");
     std::fs::create_dir_all(&source).expect("source directory");
     std::os::unix::fs::symlink("elsewhere", source.join("link")).expect("link");
-    let outcome = std::panic::catch_unwind(|| copy_tree(source.as_path(), directory.join("copy").as_path()));
+    let outcome =
+        std::panic::catch_unwind(|| copy_tree(source.as_path(), directory.join("copy").as_path()));
     assert!(outcome.is_err());
     remove(directory.as_path());
 }
@@ -56,7 +69,13 @@ fn every_item_is_handled_exactly_once() {
 #[test]
 fn each_worker_gets_its_own_result() {
     let items: Vec<usize> = (0..WORKER_CAP * 2).collect();
-    let results: Vec<usize> = across_workers(&items, |number| { return number; }, |_, _| {});
+    let results: Vec<usize> = across_workers(
+        &items,
+        |number| {
+            return number;
+        },
+        |_, _| {},
+    );
     let mut numbers: Vec<usize> = results.clone();
     numbers.sort_unstable();
     numbers.dedup();
@@ -71,5 +90,8 @@ fn a_panic_in_a_worker_reaches_the_caller() {
         return across_workers(&items, |_| (), |_, _| panic!("the case failed"));
     });
     let payload = outcome.expect_err("the panic resumes on the caller");
-    assert_eq!(payload.downcast_ref::<&str>().copied(), Some("the case failed"));
+    assert_eq!(
+        payload.downcast_ref::<&str>().copied(),
+        Some("the case failed")
+    );
 }

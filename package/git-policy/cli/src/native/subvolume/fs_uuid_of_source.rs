@@ -14,7 +14,10 @@
 //! const uuid = (await readdir(byUuid)).find(async (name) => (await realpath(join(byUuid, name))) === (await realpath(source)));
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where udev keeps one link per filesystem UUID,
 /// each to the device that holds the filesystem.
@@ -34,7 +37,10 @@ pub const BY_UUID_DIRECTORY: &str = "/dev/disk/by-uuid";
 /// ```ts
 /// await uuidOfSource(source)
 /// ```
-pub fn filesystem_uuid_of_source(source: &str, by_uuid_directory: &Path) -> Option<String> {
+pub fn filesystem_uuid_of_source(
+    source: &str,
+    by_uuid_directory: &Path,
+) -> Option<String> {
     let source_path: &Path = Path::new(source);
     // A relative source (`tmpfs`, `overlay`) would resolve against the working directory: it names no device.
     if !source_path.is_absolute() {

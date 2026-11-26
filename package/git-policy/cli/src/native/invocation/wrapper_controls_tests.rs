@@ -17,15 +17,28 @@
 /// The table,
 ///  the scan and the argument builder.
 use super::{
-    CONTROL_SPELLINGS, ControlMeaning, Controls, KEEP_GOING_FLAG, control_flags, control_meaning,
-    is_escaped, no_controls, record_control, strip_global_controls,
+    CONTROL_SPELLINGS,
+    ControlMeaning,
+    Controls,
+    KEEP_GOING_FLAG,
+    control_flags,
+    control_meaning,
+    is_escaped,
+    no_controls,
+    record_control,
+    strip_global_controls,
 };
 use crate::command_add::ADD_ESCAPE_HATCH;
 use crate::command_test_support::os_arguments;
 use crate::escape_hatch::{
-    BRANCH_WORKTREE_ESCAPE_HATCH, WORKTREE_COPY_ESCAPE_HATCH, WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
+    BRANCH_WORKTREE_ESCAPE_HATCH,
+    WORKTREE_COPY_ESCAPE_HATCH,
+    WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
 };
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+};
 use std::ffi::OsString;
 
 /// Strip one argument list and return the kept arguments with the recorded controls.
@@ -77,7 +90,9 @@ fn every_shipped_policy_has_its_enforce_spelling() {
     }
     for flag in fixed {
         assert!(
-            CONTROL_SPELLINGS.iter().any(|spelling| { return spelling.flag == flag; }),
+            CONTROL_SPELLINGS.iter().any(|spelling| {
+                return spelling.flag == flag;
+            }),
             "{flag} is not a spelling"
         );
     }

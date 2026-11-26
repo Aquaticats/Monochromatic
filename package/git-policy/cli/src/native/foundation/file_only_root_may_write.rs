@@ -28,9 +28,15 @@
 
 use rustix::process::geteuid;
 use std::io::Read;
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The permission bits that let an account other than the owner write the file.
 pub const WRITABLE_BY_OTHERS: u32 = 0o022;
@@ -85,10 +91,21 @@ impl FileControlRefusal {
     /// The path that was refused.
     pub fn path(&self) -> &Path {
         return match self {
-            FileControlRefusal::Link { path }
-            | FileControlRefusal::Open { path, .. }
-            | FileControlRefusal::Owner { path, .. }
-            | FileControlRefusal::WritableByOthers { path, .. } => path,
+            FileControlRefusal::Link {
+                path,
+            }
+            | FileControlRefusal::Open {
+                path,
+                ..
+            }
+            | FileControlRefusal::Owner {
+                path,
+                ..
+            }
+            | FileControlRefusal::WritableByOthers {
+                path,
+                ..
+            } => path,
         };
     }
 
@@ -102,13 +119,29 @@ impl FileControlRefusal {
     /// sentence for that case.
     pub fn reason(&self) -> String {
         return match self {
-            FileControlRefusal::Link { .. } => String::from("the path is a link, and this reader opens the file itself and never follows one"),
-            FileControlRefusal::Open { reason, .. } => reason.clone(),
-            FileControlRefusal::Owner { found, wanted, .. } => format!(
+            FileControlRefusal::Link {
+                ..
+            } => String::from(
+                "the path is a link, and this reader opens the file itself and never follows one",
+            ),
+            FileControlRefusal::Open {
+                reason,
+                ..
+            } => reason.clone(),
+            FileControlRefusal::Owner {
+                found,
+                wanted,
+                ..
+            } => format!(
                 "its owner is user {found} and this program runs as user {wanted}, so the account that owns it could rewrite the names this route acts on"
             ),
-            FileControlRefusal::WritableByOthers { mode, .. } => {
-                format!("its permission bits are {mode:04o}, and {WRITABLE_BY_OTHERS:04o} would let another account write it")
+            FileControlRefusal::WritableByOthers {
+                mode,
+                ..
+            } => {
+                format!(
+                    "its permission bits are {mode:04o}, and {WRITABLE_BY_OTHERS:04o} would let another account write it"
+                )
             }
         };
     }
@@ -159,22 +192,42 @@ pub fn read_file_only_root_may_write(path: &Path) -> Result<Option<String>, File
 /// # Errors
 /// Everything `read_file_only_root_may_write` refuses,
 /// including an owner other than `owner`.
-pub fn read_file_only_root_may_write_owned_by(path: &Path, owner: u32) -> Result<Option<String>, FileControlRefusal> {
+pub fn read_file_only_root_may_write_owned_by(
+    path: &Path,
+    owner: u32,
+) -> Result<Option<String>, FileControlRefusal> {
     let held: std::fs::File = match open_without_following_a_link(path)? {
         Some(file) => file,
         None => return Ok(None),
     };
-    let facts: std::fs::Metadata = held.metadata().map_err(|error| return FileControlRefusal::Open { path: path.to_path_buf(), reason: error.to_string() })?;
+    let facts: std::fs::Metadata = held.metadata().map_err(|error| {
+        return FileControlRefusal::Open {
+            path: path.to_path_buf(),
+            reason: error.to_string(),
+        };
+    })?;
     if facts.uid() != owner {
-        return Err(FileControlRefusal::Owner { path: path.to_path_buf(), found: facts.uid(), wanted: owner });
+        return Err(FileControlRefusal::Owner {
+            path: path.to_path_buf(),
+            found: facts.uid(),
+            wanted: owner,
+        });
     }
     let permission_bits: u32 = facts.mode() & 0o7777;
     if permission_bits & WRITABLE_BY_OTHERS != 0 {
-        return Err(FileControlRefusal::WritableByOthers { path: path.to_path_buf(), mode: permission_bits });
+        return Err(FileControlRefusal::WritableByOthers {
+            path: path.to_path_buf(),
+            mode: permission_bits,
+        });
     }
     let mut text: String = String::new();
     let mut text_reader: std::fs::File = held;
-    text_reader.read_to_string(&mut text).map_err(|error| return FileControlRefusal::Open { path: path.to_path_buf(), reason: error.to_string() })?;
+    text_reader.read_to_string(&mut text).map_err(|error| {
+        return FileControlRefusal::Open {
+            path: path.to_path_buf(),
+            reason: error.to_string(),
+        };
+    })?;
     return Ok(Some(text));
 }
 
@@ -192,21 +245,37 @@ pub fn read_file_only_root_may_write_owned_by(path: &Path, owner: u32) -> Result
 /// const file = openWithoutFollowingALink(path); // undefined when absent
 /// ```
 fn open_without_following_a_link(path: &Path) -> Result<Option<std::fs::File>, FileControlRefusal> {
-    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| {
-        return FileControlRefusal::Open { path: path.to_path_buf(), reason: String::from("the path holds a NUL byte") };
-    })?;
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
+        .map_err(|_nul| {
+            return FileControlRefusal::Open {
+                path: path.to_path_buf(),
+                reason: String::from("the path holds a NUL byte"),
+            };
+        })?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `open` takes no other pointer.
-    let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+    let descriptor: libc::c_int = unsafe {
+        libc::open(
+            text.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
     if descriptor < 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         return match (error.raw_os_error(), error.kind()) {
             (Some(libc::ENOENT), _) | (_, std::io::ErrorKind::NotFound) => Ok(None),
-            (Some(libc::ELOOP), _) => Err(FileControlRefusal::Link { path: path.to_path_buf() }),
-            _ => Err(FileControlRefusal::Open { path: path.to_path_buf(), reason: error.to_string() }),
+            (Some(libc::ELOOP), _) => Err(FileControlRefusal::Link {
+                path: path.to_path_buf(),
+            }),
+            _ => Err(FileControlRefusal::Open {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            }),
         };
     }
     // SAFETY: `open` returned a new descriptor that nothing else owns.
-    return Ok(Some(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) })));
+    return Ok(Some(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    })));
 }
 
 /// Controls stay out of the release executable.

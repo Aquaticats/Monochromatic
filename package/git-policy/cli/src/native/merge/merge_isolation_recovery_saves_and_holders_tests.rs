@@ -18,11 +18,24 @@
 //! ```
 
 use super::super::*;
-use super::fixtures::{World, an_earlier_releases_name, half_carried, place, record_of, world};
+use super::fixtures::{
+    World,
+    an_earlier_releases_name,
+    half_carried,
+    place,
+    record_of,
+    world,
+};
 use super::readings::the_bytes_of_a_commit;
 use crate::test_support::remove;
-use std::path::{Path, PathBuf};
-use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
+use crate::transaction_owner::{
+    TransactionOwner,
+    current_transaction_owner,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A save that holds exactly the merge's bytes and arrives after a kill stands,
@@ -51,17 +64,39 @@ fn a_save_of_the_merges_own_bytes_after_a_kill_stands() {
     // What the command that moved the checkout read, written where the recovery of a kill finds it.
     let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
         crate::merge_isolation_carry_landed::landed_of(world.repo.as_path(), &[b"f.txt".to_vec()]);
-    crate::merge_isolation_carry_landed::write_landed_record(world.git_dir.as_path(), id, landed.as_slice());
+    crate::merge_isolation_carry_landed::write_landed_record(
+        world.git_dir.as_path(),
+        id,
+        landed.as_slice(),
+    );
     // The person's editor saves its buffer, which holds the merge's version and no longer their older line.
     std::fs::write(world.repo.join("f.txt"), merged.as_slice()).expect("the save");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::AlreadyLanded,
+        "the merge is the branch's"
+    );
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("f.txt"), merged, "the newer save stands");
-    assert!(text.contains("f.txt"), "the line names the path it left alone: {text}");
-    assert!(text.contains("changed"), "the line says the path changed after the capture: {text}");
-    assert!(!text.contains("git merge refs/heads/"), "the line never calls a repository ref the merge the person ran: {text}");
+    assert_eq!(
+        std::fs::read(world.repo.join("f.txt")).expect("f.txt"),
+        merged,
+        "the newer save stands"
+    );
+    assert!(
+        text.contains("f.txt"),
+        "the line names the path it left alone: {text}"
+    );
+    assert!(
+        text.contains("changed"),
+        "the line says the path changed after the capture: {text}"
+    );
+    assert!(
+        !text.contains("git merge refs/heads/"),
+        "the line never calls a repository ref the merge the person ran: {text}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -94,25 +129,55 @@ fn a_save_of_the_merges_own_bytes_stands_when_the_reading_was_cut_short() {
     let merged: Vec<u8> = the_bytes_of_a_commit(&world, world.new_oid.as_str(), "f.txt");
     let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
         crate::merge_isolation_carry_landed::landed_of(world.repo.as_path(), &[b"f.txt".to_vec()]);
-    crate::merge_isolation_carry_landed::write_landed_record(world.git_dir.as_path(), id, landed.as_slice());
+    crate::merge_isolation_carry_landed::write_landed_record(
+        world.git_dir.as_path(),
+        id,
+        landed.as_slice(),
+    );
     // The bytes a killed write left before the record took its own name: half of a complete record.
-    let record: PathBuf = crate::merge_isolation_carry_landed::landed_record_path(world.git_dir.as_path(), id);
+    let record: PathBuf =
+        crate::merge_isolation_carry_landed::landed_record_path(world.git_dir.as_path(), id);
     let whole: Vec<u8> = std::fs::read(record.as_path()).expect("the reading");
     std::fs::write(record.as_path(), &whole[..whole.len() / 2]).expect("the cut reading");
     std::fs::write(world.repo.join("f.txt"), merged.as_slice()).expect("the save");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::AlreadyLanded,
+        "the merge is the branch's"
+    );
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     let saved: Vec<u8> = std::fs::read(world.repo.join("f.txt")).expect("f.txt");
-    assert_eq!(saved, merged, "the save stands: nothing proved it was the entry Git's update wrote");
-    let kept: Vec<crate::merge_isolation_take_aside_names::Aside> = crate::merge_isolation_take_aside_names::asides_of(world.repo.join("f.txt").as_path());
-    assert_eq!(kept.len(), 1, "the bytes this merge carried are kept beside the path");
-    let carried: String = String::from_utf8(std::fs::read(kept[0].path.as_path()).expect("the kept layer")).expect("the kept layer is text");
-    assert_eq!(carried, "f.txt feature\nthe person's line\n", "the layer the carry would have written is whole");
-    assert!(text.contains(kept[0].path.to_string_lossy().as_ref()), "the copy is named: {text}");
+    assert_eq!(
+        saved, merged,
+        "the save stands: nothing proved it was the entry Git's update wrote"
+    );
+    let kept: Vec<crate::merge_isolation_take_aside_names::Aside> =
+        crate::merge_isolation_take_aside_names::asides_of(world.repo.join("f.txt").as_path());
+    assert_eq!(
+        kept.len(),
+        1,
+        "the bytes this merge carried are kept beside the path"
+    );
+    let carried: String =
+        String::from_utf8(std::fs::read(kept[0].path.as_path()).expect("the kept layer"))
+            .expect("the kept layer is text");
+    assert_eq!(
+        carried, "f.txt feature\nthe person's line\n",
+        "the layer the carry would have written is whole"
+    );
     assert!(
-        crate::merge_isolation_kept_copies::record_of_a_control(world.git_dir.as_path(), kept[0].path.as_path()).exists(),
+        text.contains(kept[0].path.to_string_lossy().as_ref()),
+        "the copy is named: {text}"
+    );
+    assert!(
+        crate::merge_isolation_kept_copies::record_of_a_control(
+            world.git_dir.as_path(),
+            kept[0].path.as_path()
+        )
+        .exists(),
         "the copy is recorded, so a later command decides it again"
     );
     remove(world.parent.as_path());
@@ -142,18 +207,35 @@ fn a_save_of_the_merges_own_bytes_stands_when_the_reading_is_gone() {
     let merged: Vec<u8> = the_bytes_of_a_commit(&world, world.new_oid.as_str(), "f.txt");
     std::fs::write(world.repo.join("f.txt"), merged.as_slice()).expect("the save");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::AlreadyLanded,
+        "the merge is the branch's"
+    );
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("f.txt"), merged, "the save stands");
-    let kept: Vec<crate::merge_isolation_take_aside_names::Aside> = crate::merge_isolation_take_aside_names::asides_of(world.repo.join("f.txt").as_path());
-    assert_eq!(kept.len(), 1, "the bytes this merge carried are kept beside the path");
+    assert_eq!(
+        std::fs::read(world.repo.join("f.txt")).expect("f.txt"),
+        merged,
+        "the save stands"
+    );
+    let kept: Vec<crate::merge_isolation_take_aside_names::Aside> =
+        crate::merge_isolation_take_aside_names::asides_of(world.repo.join("f.txt").as_path());
+    assert_eq!(
+        kept.len(),
+        1,
+        "the bytes this merge carried are kept beside the path"
+    );
     assert_eq!(
         std::fs::read(kept[0].path.as_path()).expect("the kept layer"),
         b"f.txt feature\nthe person's line\n",
         "the layer the carry would have written is whole"
     );
-    assert!(text.contains(kept[0].path.to_string_lossy().as_ref()), "the copy is named: {text}");
+    assert!(
+        text.contains(kept[0].path.to_string_lossy().as_ref()),
+        "the copy is named: {text}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -183,24 +265,44 @@ fn a_take_that_recorded_nothing_is_put_back_before_a_landed_merge_finishes() {
     let record: PathBuf = crate::merge_isolation_journal::intent_path(world.git_dir.as_path(), id);
     let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
         crate::merge_isolation_carry_landed::landed_of(world.repo.as_path(), &[b"f.txt".to_vec()]);
-    crate::merge_isolation_carry_landed::write_landed_record(world.git_dir.as_path(), id, landed.as_slice());
+    crate::merge_isolation_carry_landed::write_landed_record(
+        world.git_dir.as_path(),
+        id,
+        landed.as_slice(),
+    );
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = crate::merge_isolation_take_aside_names::aside_name(location.as_path(), id);
-    std::fs::rename(location.as_path(), aside.as_path()).expect("the take the killed placement left");
+    let aside: PathBuf =
+        crate::merge_isolation_take_aside_names::aside_name(location.as_path(), id);
+    std::fs::rename(location.as_path(), aside.as_path())
+        .expect("the take the killed placement left");
     // The bytes the placement had written under its own private name, which no record names and the next command makes again.
-    let private: PathBuf = world.repo.join(format!(".cli-git-carry-{}-0-1-f.txt", std::process::id()));
-    std::fs::write(private.as_path(), b"f.txt feature\nthe person's line\n").expect("the placement's own bytes");
+    let private: PathBuf = world
+        .repo
+        .join(format!(".cli-git-carry-{}-0-1-f.txt", std::process::id()));
+    std::fs::write(private.as_path(), b"f.txt feature\nthe person's line\n")
+        .expect("the placement's own bytes");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::AlreadyLanded,
+        "the merge is the branch's"
+    );
     assert_eq!(
         std::fs::read(location.as_path()).expect("the person's file is back"),
         b"f.txt feature\nthe person's line\n",
         "the file is back with the merge and the person's own line: {text}"
     );
-    assert!(!aside.exists(), "the entry that was put back is not left beside the path: {text}");
-    assert!(!record.exists(), "the record goes once every byte of the person's is in the file");
+    assert!(
+        !aside.exists(),
+        "the entry that was put back is not left beside the path: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record goes once every byte of the person's is in the file"
+    );
     remove(world.parent.as_path());
 }
 
@@ -225,21 +327,45 @@ fn a_take_that_recorded_nothing_is_put_back_before_a_landed_merge_finishes() {
 fn a_copy_a_merge_that_still_runs_names_is_left_alone() {
     let world: World = world("merge-recovery-live-merge-copy");
     let id: &str = "29292929-0000-4000-8000-000000000092";
-    let owner: TransactionOwner = current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("the owner of this control");
+    let owner: TransactionOwner = current_transaction_owner(id, "2026-10-29T00:00:00.000Z")
+        .expect("the owner of this control");
     let record: PathBuf = record_of(&world, owner, Some("refs/heads/main"));
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = crate::merge_isolation_take_aside_names::aside_name(location.as_path(), id);
-    std::fs::write(aside.as_path(), b"the person's untracked bytes\n").expect("the copy the live merge kept");
-    crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
+    let aside: PathBuf =
+        crate::merge_isolation_take_aside_names::aside_name(location.as_path(), id);
+    std::fs::write(aside.as_path(), b"the person's untracked bytes\n")
+        .expect("the copy the live merge kept");
+    crate::merge_isolation_kept_copies::keep_the_copy(
+        world.git_dir.as_path(),
+        location.as_path(),
+        aside.as_path(),
+    );
     std::fs::remove_file(location.as_path()).expect("the path the live merge cleared");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::OwnerActive, "the record of a merge that still runs is not settled");
-    assert!(std::fs::symlink_metadata(location.as_path()).is_err(), "the path the live merge cleared stays free: {text}");
-    assert!(aside.exists(), "the copy the live merge kept is not put back under it: {text}");
-    assert!(!text.contains("put back"), "the command says nothing about putting a copy back: {text}");
-    assert!(record.exists(), "the record of the merge that still runs stays");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::OwnerActive,
+        "the record of a merge that still runs is not settled"
+    );
+    assert!(
+        std::fs::symlink_metadata(location.as_path()).is_err(),
+        "the path the live merge cleared stays free: {text}"
+    );
+    assert!(
+        aside.exists(),
+        "the copy the live merge kept is not put back under it: {text}"
+    );
+    assert!(
+        !text.contains("put back"),
+        "the command says nothing about putting a copy back: {text}"
+    );
+    assert!(
+        record.exists(),
+        "the record of the merge that still runs stays"
+    );
     remove(world.parent.as_path());
 }
 
@@ -267,33 +393,60 @@ fn a_copy_a_program_still_holds_open_is_not_removed() {
     let kept: &[u8] = b"same bytes\n";
     std::fs::write(aside.as_path(), kept).expect("the copy");
     std::fs::write(location.as_path(), kept).expect("the person's file holds the same bytes");
-    crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
+    crate::merge_isolation_kept_copies::keep_the_copy(
+        world.git_dir.as_path(),
+        location.as_path(),
+        aside.as_path(),
+    );
     let mut holder_command: std::process::Command = std::process::Command::new("sleep");
-    holder_command
-        .arg("120")
-        .stdin(std::process::Stdio::from(std::fs::File::open(aside.as_path()).expect("the copy's descriptor")));
-    let mut holder: std::process::Child = crate::test_support::spawn_owned(&mut holder_command).expect("a program holding the copy open");
+    holder_command.arg("120").stdin(std::process::Stdio::from(
+        std::fs::File::open(aside.as_path()).expect("the copy's descriptor"),
+    ));
+    let mut holder: std::process::Child = crate::test_support::spawn_owned(&mut holder_command)
+        .expect("a program holding the copy open");
     let mut said: Vec<u8> = Vec::new();
-    let _first = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let _first = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(aside.exists(), "the copy a program holds open stays: {text}");
-    assert!(text.contains("holds the copy open"), "the line says why the copy stays: {text}");
-    assert_eq!(std::fs::read(aside.as_path()).expect("the copy"), kept, "and its bytes are whole");
+    assert!(
+        aside.exists(),
+        "the copy a program holds open stays: {text}"
+    );
+    assert!(
+        text.contains("holds the copy open"),
+        "the line says why the copy stays: {text}"
+    );
+    assert_eq!(
+        std::fs::read(aside.as_path()).expect("the copy"),
+        kept,
+        "and its bytes are whole"
+    );
     holder.kill().expect("the holder ends");
     holder.wait().expect("the holder is reaped");
     let mut later: Vec<u8> = Vec::new();
-    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later).expect("recovery");
+    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later)
+        .expect("recovery");
     let ending: String = String::from_utf8(later).expect("the notices are UTF-8");
-    assert!(!aside.exists(), "the copy goes once nothing holds it open: {ending}");
-    assert!(ending.contains("removed"), "the line says the copy went: {ending}");
+    assert!(
+        !aside.exists(),
+        "the copy goes once nothing holds it open: {ending}"
+    );
+    assert!(
+        ending.contains("removed"),
+        "the line says the copy went: {ending}"
+    );
     remove(world.parent.as_path());
 }
 
 /// Set or clear the executable bits of one fixture entry.
-fn set_executable(path: &Path, executable: bool) {
+fn set_executable(
+    path: &Path,
+    executable: bool,
+) {
     use std::os::unix::fs::PermissionsExt;
     let mode: u32 = if executable { 0o755 } else { 0o644 };
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).expect("the mode of the fixture entry");
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+        .expect("the mode of the fixture entry");
 }
 
 /// What:
@@ -317,22 +470,38 @@ fn a_copy_with_a_mode_the_path_does_not_have_stays() {
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = an_earlier_releases_name(location.as_path());
     std::fs::write(aside.as_path(), b"same bytes\n").expect("the copy");
-    std::fs::write(location.as_path(), b"same bytes\n").expect("the person's file holds the same bytes");
+    std::fs::write(location.as_path(), b"same bytes\n")
+        .expect("the person's file holds the same bytes");
     set_executable(aside.as_path(), true);
     set_executable(location.as_path(), false);
-    crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
+    crate::merge_isolation_kept_copies::keep_the_copy(
+        world.git_dir.as_path(),
+        location.as_path(),
+        aside.as_path(),
+    );
     let mut said: Vec<u8> = Vec::new();
-    let _first = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let _first = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(aside.exists(), "the only executable copy stays: {text}");
-    assert!(text.contains("same permissions"), "the line says why the copy stays: {text}");
+    assert!(
+        text.contains("same permissions"),
+        "the line says why the copy stays: {text}"
+    );
     // The person makes their file executable, which is the end that line named.
     set_executable(location.as_path(), true);
     let mut later: Vec<u8> = Vec::new();
-    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later).expect("recovery");
+    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later)
+        .expect("recovery");
     let ending: String = String::from_utf8(later).expect("the notices are UTF-8");
-    assert!(!aside.exists(), "the copy goes once the path holds its bytes and its permissions: {ending}");
-    assert!(ending.contains("removed"), "the line says the copy went: {ending}");
+    assert!(
+        !aside.exists(),
+        "the copy goes once the path holds its bytes and its permissions: {ending}"
+    );
+    assert!(
+        ending.contains("removed"),
+        "the line says the copy went: {ending}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -359,24 +528,41 @@ fn a_pipe_beside_a_path_does_not_hold_the_command() {
     let aside: PathBuf = an_earlier_releases_name(location.as_path());
     std::fs::write(aside.as_path(), b"same bytes\n").expect("the copy");
     std::fs::remove_file(location.as_path()).expect("the path the take emptied");
-    let made: std::process::Output = std::process::Command::new("mkfifo").arg(&location).output().expect("mkfifo starts");
-    assert!(made.status.success(), "the pipe is made: {}", String::from_utf8_lossy(made.stderr.as_slice()));
-    crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
+    let made: std::process::Output = std::process::Command::new("mkfifo")
+        .arg(&location)
+        .output()
+        .expect("mkfifo starts");
+    assert!(
+        made.status.success(),
+        "the pipe is made: {}",
+        String::from_utf8_lossy(made.stderr.as_slice())
+    );
+    crate::merge_isolation_kept_copies::keep_the_copy(
+        world.git_dir.as_path(),
+        location.as_path(),
+        aside.as_path(),
+    );
     let git_dir: PathBuf = world.git_dir.clone();
     let recovery_place: RecoveryPlace = place(&world);
     let deadline: std::time::Duration = std::time::Duration::from_secs(20);
     // A reading of the pipe waits for a writer that never comes, so the probe thread is not joined: one that cannot answer
     //  within the deadline is left to its wait and the control fails with what it has, because joining it here would hold this
     //  test on the very wait it forbids (`parallel_test_support::finished_within_at`).
-    let answered: Option<Vec<u8>> = crate::parallel_test_support::finished_within_at(deadline, move || {
-        let mut said: Vec<u8> = Vec::new();
-        let _outcomes = recover_interrupted_merges(&recovery_place, git_dir.as_path(), &mut said).expect("recovery");
-        return said;
-    });
+    let answered: Option<Vec<u8>> =
+        crate::parallel_test_support::finished_within_at(deadline, move || {
+            let mut said: Vec<u8> = Vec::new();
+            let _outcomes =
+                recover_interrupted_merges(&recovery_place, git_dir.as_path(), &mut said)
+                    .expect("recovery");
+            return said;
+        });
     let Some(said) = answered else {
         panic!("a command did not answer within {deadline:?} for a pipe beside a copy");
     };
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(aside.exists(), "the copy stays: a pipe holds no bytes to compare: {text}");
+    assert!(
+        aside.exists(),
+        "the copy stays: a pipe holds no bytes to compare: {text}"
+    );
     remove(world.parent.as_path());
 }

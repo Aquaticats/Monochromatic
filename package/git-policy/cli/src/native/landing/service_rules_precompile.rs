@@ -23,23 +23,35 @@
 //! afterLanding(journal, repository, changedPaths); // fire and forget
 //! ```
 
+/// The blocking pool,
+/// for the compile.
+use crate::blocking_job::run_blocking_job;
+/// The repository's wrapper configuration.
+use crate::config_file::load_repository_config;
+/// The process's runtime,
+/// for the task that waits for the pool.
+use crate::lazy_runtime::spawn_on_runtime;
 /// The client's own load of the rules,
 /// so what is published is exactly what the client would look for.
 use crate::scanner_adapter::CandidateScanner;
 /// The choice of the rules files,
 /// as the client makes it.
-use crate::scanner_selection::{rules_candidate_paths, rules_source};
-/// The repository's wrapper configuration.
-use crate::config_file::load_repository_config;
-/// The blocking pool,
-/// for the compile.
-use crate::blocking_job::run_blocking_job;
-/// The process's runtime,
-/// for the task that waits for the pool.
-use crate::lazy_runtime::spawn_on_runtime;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use crate::scanner_selection::{
+    rules_candidate_paths,
+    rules_source,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The file in the service's state directory that names the repository it serves.
 pub const REMEMBERED_FILE: &str = "rules-repository";
@@ -152,7 +164,9 @@ fn mapped_pages() -> Option<u64> {
         if !byte.is_ascii_digit() {
             break;
         }
-        pages = pages.saturating_mul(10).saturating_add(u64::from(*byte - b'0'));
+        pages = pages
+            .saturating_mul(10)
+            .saturating_add(u64::from(*byte - b'0'));
         digits += 1;
     }
     return if digits == 0 { None } else { Some(pages) };
@@ -164,7 +178,9 @@ fn mapped_pages() -> Option<u64> {
 /// No step of it allocates on the heap.
 fn address_space_left_now() -> Option<u64> {
     let limit: u64 = rustix::process::getrlimit(rustix::process::Resource::As).current?;
-    let Some(pages) = mapped_pages() else { return Some(0) };
+    let Some(pages) = mapped_pages() else {
+        return Some(0);
+    };
     // SAFETY: `sysconf` takes a constant and writes nothing.
     let page_bytes: i64 = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
     // The largest page size a Linux machine uses stands in when the size cannot be read.
@@ -223,10 +239,17 @@ pub fn precompile_rules(repository_root: &Path) -> Result<Duration, String> {
 
 /// Whether any of `changed` (repository-relative,
 /// `/` separated) is a rules file of the repository's configuration.
-fn changes_a_rules_file(repository_root: &Path, changed: &[String]) -> bool {
-    let Ok(loaded) = load_repository_config(repository_root) else { return true };
+fn changes_a_rules_file(
+    repository_root: &Path,
+    changed: &[String],
+) -> bool {
+    let Ok(loaded) = load_repository_config(repository_root) else {
+        return true;
+    };
     let options = &loaded.config.policies.forbidden_strings;
-    let Ok(rules) = rules_source(options.rules_files.as_deref(), None, repository_root) else { return true };
+    let Ok(rules) = rules_source(options.rules_files.as_deref(), None, repository_root) else {
+        return true;
+    };
     let paths: Vec<Vec<u8>> = rules_candidate_paths(&rules, repository_root);
     for path in changed {
         if paths.contains(&path.as_bytes().to_vec()) {
@@ -240,8 +263,16 @@ fn changes_a_rules_file(repository_root: &Path, changed: &[String]) -> bool {
 /// warms when it is the first look at the repository or a rules file changed,
 /// says how long it took,
 /// and leaves its answer for a control to read.
-fn warm_job(repository_root: &Path, first: bool, changed: &[String]) {
-    let warmed: bool = if !first && !changes_a_rules_file(repository_root, changed) { false } else { warm_and_say(repository_root) };
+fn warm_job(
+    repository_root: &Path,
+    first: bool,
+    changed: &[String],
+) {
+    let warmed: bool = if !first && !changes_a_rules_file(repository_root, changed) {
+        false
+    } else {
+        warm_and_say(repository_root)
+    };
     note_a_warm_job_ended(warmed);
 }
 
@@ -250,11 +281,19 @@ fn warm_job(repository_root: &Path, first: bool, changed: &[String]) {
 fn warm_and_say(repository_root: &Path) -> bool {
     return match precompile_rules(repository_root) {
         Ok(elapsed) => {
-            crate::service_log!("rules warmed repository={:?} warm_ms={}", repository_root, elapsed.as_millis());
+            crate::service_log!(
+                "rules warmed repository={:?} warm_ms={}",
+                repository_root,
+                elapsed.as_millis()
+            );
             true
         }
         Err(error) => {
-            crate::service_log!("rules not warmed repository={:?} reason={:?}", repository_root, error);
+            crate::service_log!(
+                "rules not warmed repository={:?} reason={:?}",
+                repository_root,
+                error
+            );
             false
         }
     };
@@ -262,12 +301,19 @@ fn warm_and_say(repository_root: &Path) -> bool {
 
 /// Starts the job on the blocking pool unless one runs;
 /// nothing when no worker can run it.
-fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
+fn spawn_warm(
+    repository_root: PathBuf,
+    first: bool,
+    changed: Vec<String>,
+) {
     if !room_for_a_warm() || RUNNING.swap(true, Ordering::SeqCst) {
         return;
     }
     let started = spawn_on_runtime(async move {
-        let _ended = run_blocking_job(move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
+        let _ended = run_blocking_job(move || {
+            warm_job(repository_root.as_path(), first, changed.as_slice());
+        })
+        .await;
         RUNNING.store(false, Ordering::SeqCst);
     });
     if started.is_none() {
@@ -286,7 +332,10 @@ pub fn warm_in_background(repository_root: PathBuf) {
 /// which no lock decides,
 /// because the file is the
 ///  one owner of the answer and survives a restart.
-fn first_look_at(journal: &Path, repository: &Path) -> bool {
+fn first_look_at(
+    journal: &Path,
+    repository: &Path,
+) -> bool {
     return match std::fs::read_to_string(journal.join(REMEMBERED_FILE)) {
         Ok(text) => text.trim() != repository.to_string_lossy(),
         Err(_unreadable) => true,
@@ -296,15 +345,24 @@ fn first_look_at(journal: &Path, repository: &Path) -> bool {
 /// Writes the repository's root into the state directory,
 /// whole or not at all;
 /// a failure only costs the warm after a restart.
-fn remember(journal: &Path, repository: &Path) {
+fn remember(
+    journal: &Path,
+    repository: &Path,
+) {
     let target: PathBuf = journal.join(REMEMBERED_FILE);
     let staging: PathBuf = journal.join(format!("{REMEMBERED_FILE}{REMEMBERED_STAGING_ENDING}"));
     if let Err(error) = std::fs::write(&staging, format!("{}\n", repository.display())) {
-        crate::service_log!("the repository was not remembered for the rules warm in {}: {error}", journal.display());
+        crate::service_log!(
+            "the repository was not remembered for the rules warm in {}: {error}",
+            journal.display()
+        );
         return;
     }
     if let Err(error) = std::fs::rename(&staging, &target) {
-        crate::service_log!("the repository was not remembered for the rules warm in {}: {error}", journal.display());
+        crate::service_log!(
+            "the repository was not remembered for the rules warm in {}: {error}",
+            journal.display()
+        );
     }
 }
 
@@ -312,7 +370,11 @@ fn remember(journal: &Path, repository: &Path) {
 /// remembers the repository on the first one,
 /// and warms on the first one and when a landing
 ///  changed a path of the rules.
-pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
+pub fn after_landing(
+    journal: &Path,
+    repository: &Path,
+    changed: &[String],
+) {
     // Under a limit that leaves no room nothing here runs: not the file read, not the write, not a thread.
     if !room_for_a_warm() {
         return;
@@ -330,7 +392,9 @@ pub fn warm_remembered(journal: &Path) {
     if !room_for_a_warm() {
         return;
     }
-    let Ok(text) = std::fs::read_to_string(journal.join(REMEMBERED_FILE)) else { return };
+    let Ok(text) = std::fs::read_to_string(journal.join(REMEMBERED_FILE)) else {
+        return;
+    };
     let repository: PathBuf = PathBuf::from(text.trim());
     if repository.is_absolute() && repository.is_dir() {
         warm_in_background(repository);

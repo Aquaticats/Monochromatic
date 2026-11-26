@@ -23,9 +23,21 @@
 //! if (reading.kind === 'current') reuseFolder(reading.folder);
 //! ```
 
-use super::staged_folder_identity::{StagedFolderField, StagedFolderIdentity};
-use super::staged_folder_record::{read_record_text, record_from_text, StagedFolderRecord, StagedFolderRefusal};
-use super::staging_calls::{StagingCall, StagingCallRefusal, StagingCalls};
+use super::staged_folder_identity::{
+    StagedFolderField,
+    StagedFolderIdentity,
+};
+use super::staged_folder_record::{
+    StagedFolderRecord,
+    StagedFolderRefusal,
+    read_record_text,
+    record_from_text,
+};
+use super::staging_calls::{
+    StagingCall,
+    StagingCallRefusal,
+    StagingCalls,
+};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::path::Path;
 
@@ -77,10 +89,18 @@ impl RecordReading {
     pub fn word(&self) -> &'static str {
         return match self {
             RecordReading::Absent => "absent",
-            RecordReading::Unrecorded { .. } => "unrecorded",
-            RecordReading::Void { .. } => "void",
-            RecordReading::Current { .. } => "current",
-            RecordReading::Refused { .. } => "refused",
+            RecordReading::Unrecorded {
+                ..
+            } => "unrecorded",
+            RecordReading::Void {
+                ..
+            } => "void",
+            RecordReading::Current {
+                ..
+            } => "current",
+            RecordReading::Refused {
+                ..
+            } => "refused",
         };
     }
 }
@@ -90,7 +110,10 @@ impl RecordReading {
 /// Why:
 ///  The second half of the design's folder-gone test is the path key,
 ///  and a live bind or clone at the dentry leaves that row.
-fn a_row_names_the_path(calls: &dyn StagingCalls, folder_path: &Path) -> Result<bool, StagingCallRefusal> {
+fn a_row_names_the_path(
+    calls: &dyn StagingCalls,
+    folder_path: &Path,
+) -> Result<bool, StagingCallRefusal> {
     let table = calls.mount_table()?;
     for facts in table {
         if facts.mount_point == folder_path {
@@ -112,34 +135,89 @@ fn a_row_names_the_path(calls: &dyn StagingCalls, folder_path: &Path) -> Result<
 /// ```ts
 /// const reading = readStagedRecord(cache, guid, boot, folderPath, calls);
 /// ```
-pub fn read_staged_record(cache: &std::fs::File, guid: DatasetGuid, boot: &str, folder_path: &Path, calls: &dyn StagingCalls) -> RecordReading {
+pub fn read_staged_record(
+    cache: &std::fs::File,
+    guid: DatasetGuid,
+    boot: &str,
+    folder_path: &Path,
+    calls: &dyn StagingCalls,
+) -> RecordReading {
     let text: String = match read_record_text(cache, guid) {
         Ok(Some(text)) => text,
         Ok(None) => return RecordReading::Absent,
-        Err(StagedFolderRefusal::Unreadable { path, reason }) => return RecordReading::Refused { step: String::from(StagingCall::MountTable.word()), said: format!("{path} could not be read: {reason}") },
-        Err(refusal) => return RecordReading::Unrecorded { why: refusal.message() },
+        Err(StagedFolderRefusal::Unreadable {
+            path,
+            reason,
+        }) => {
+            return RecordReading::Refused {
+                step: String::from(StagingCall::MountTable.word()),
+                said: format!("{path} could not be read: {reason}"),
+            };
+        }
+        Err(refusal) => {
+            return RecordReading::Unrecorded {
+                why: refusal.message(),
+            };
+        }
     };
     let record: StagedFolderRecord = match record_from_text(text.as_str(), guid) {
         Ok(record) => record,
-        Err(refusal) => return RecordReading::Unrecorded { why: refusal.message() },
+        Err(refusal) => {
+            return RecordReading::Unrecorded {
+                why: refusal.message(),
+            };
+        }
     };
     if record.boot != boot {
-        return RecordReading::Void { why: format!("the record names boot `{}`, and this boot is `{boot}`; its handle and namespace pair are not consulted", record.boot) };
+        return RecordReading::Void {
+            why: format!(
+                "the record names boot `{}`, and this boot is `{boot}`; its handle and namespace pair are not consulted",
+                record.boot
+            ),
+        };
     }
-    let folder: std::fs::File = match calls.open_from_handle(cache, record.handle_type, record.handle.as_slice()) {
+    let folder: std::fs::File = match calls.open_from_handle(
+        cache,
+        record.handle_type,
+        record.handle.as_slice(),
+    ) {
         Ok(folder) => folder,
         Err(refusal) if refusal.errno == libc::ESTALE => {
             return match a_row_names_the_path(calls, folder_path) {
-                Ok(false) => RecordReading::Void { why: String::from("the handle answered ESTALE and no row of this process's mount table names the folder path, so the folder is gone") },
-                Ok(true) => RecordReading::Refused { step: String::from(StagingCall::OpenHandle.word()), said: format!("the handle answered ESTALE while a mount row still names {}, so the failure does not prove the folder is gone", folder_path.display()) },
-                Err(call) => RecordReading::Refused { step: String::from(StagingCall::MountTable.word()), said: call.message("the folder-gone test could not read this process's mount table") },
+                Ok(false) => RecordReading::Void {
+                    why: String::from(
+                        "the handle answered ESTALE and no row of this process's mount table names the folder path, so the folder is gone",
+                    ),
+                },
+                Ok(true) => RecordReading::Refused {
+                    step: String::from(StagingCall::OpenHandle.word()),
+                    said: format!(
+                        "the handle answered ESTALE while a mount row still names {}, so the failure does not prove the folder is gone",
+                        folder_path.display()
+                    ),
+                },
+                Err(call) => RecordReading::Refused {
+                    step: String::from(StagingCall::MountTable.word()),
+                    said: call
+                        .message("the folder-gone test could not read this process's mount table"),
+                },
             };
         }
-        Err(refusal) => return RecordReading::Refused { step: String::from(StagingCall::OpenHandle.word()), said: refusal.message("the record's handle could not be opened") },
+        Err(refusal) => {
+            return RecordReading::Refused {
+                step: String::from(StagingCall::OpenHandle.word()),
+                said: refusal.message("the record's handle could not be opened"),
+            };
+        }
     };
     let now: StagedFolderIdentity = match StagedFolderIdentity::of(&folder) {
         Ok(now) => now,
-        Err(refusal) => return RecordReading::Refused { step: String::from(StagingCall::MountId.word()), said: refusal.message() },
+        Err(refusal) => {
+            return RecordReading::Refused {
+                step: String::from(StagingCall::MountId.word()),
+                said: refusal.message(),
+            };
+        }
     };
     let fields: Vec<StagedFolderField> = now.differences(&record.identity);
     if !fields.is_empty() {
@@ -153,7 +231,10 @@ pub fn read_staged_record(cache: &std::fs::File, guid: DatasetGuid, boot: &str, 
             ),
         };
     }
-    return RecordReading::Current { record, folder };
+    return RecordReading::Current {
+        record,
+        folder,
+    };
 }
 
 /// What:
@@ -183,9 +264,19 @@ impl BindingDecision {
     /// The decision one reading gives.
     pub fn of(reading: &RecordReading) -> BindingDecision {
         return match reading {
-            RecordReading::Absent | RecordReading::Unrecorded { .. } | RecordReading::Void { .. } => BindingDecision::WriteFresh,
-            RecordReading::Current { .. } => BindingDecision::Rewrite,
-            RecordReading::Refused { .. } => BindingDecision::Refuse,
+            RecordReading::Absent
+            | RecordReading::Unrecorded {
+                ..
+            }
+            | RecordReading::Void {
+                ..
+            } => BindingDecision::WriteFresh,
+            RecordReading::Current {
+                ..
+            } => BindingDecision::Rewrite,
+            RecordReading::Refused {
+                ..
+            } => BindingDecision::Refuse,
         };
     }
 

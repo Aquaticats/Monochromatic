@@ -19,13 +19,34 @@
 //! const observed = observeRaw(command); // { code, stdout, stderr, signal }
 //! ```
 
-use std::ffi::{OsStr, OsString};
-use std::os::unix::process::CommandExt as _;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use crate::support_observation_bound::{Answer, LineBound, line_bound_of, spelled_command, wait_under_bound};
+use crate::support_observation_bound::{
+    Answer,
+    LineBound,
+    line_bound_of,
+    spelled_command,
+    wait_under_bound,
+};
 use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
-use git_policy_cli::work_item::{CLAIMED, PENDING, RECOVERING};
+use git_policy_cli::work_item::{
+    CLAIMED,
+    PENDING,
+    RECOVERING,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::os::unix::process::CommandExt as _;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 
 /// The signal `timeout --signal=KILL` re-raises on itself when the bound it was given was hit:
 ///  it kills
@@ -85,11 +106,13 @@ pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still wait
 /// The notice goes on with the command the service is inside,
 /// after a comma,
 /// so the prefix ends where the fixed words do.
-pub const SERVICE_INSIDE_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
+pub const SERVICE_INSIDE_WRITE_NOTICE_PREFIX: &[u8] =
+    b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
 
 /// How the commit service's longer warning begins,
 /// the one a client queued behind that write reads after minutes (`service_busy.rs`).
-pub const SERVICE_STUCK_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: the commit service has been inside a write ";
+pub const SERVICE_STUCK_WRITE_NOTICE_PREFIX: &[u8] =
+    b"monochromatic-git-policy-cli: the commit service has been inside a write ";
 
 /// What:
 ///  Whether a line is one of the notices a wait of the wrapper prints.
@@ -97,7 +120,11 @@ pub const SERVICE_STUCK_WRITE_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-
 ///   A control that means the wrapper's words and not the host's speed drops the same lines the three
 ///  notices are written with.
 pub fn is_a_wait_notice(line: &[u8]) -> bool {
-    for prefix in [WAIT_NOTICE_PREFIX, SERVICE_INSIDE_WRITE_NOTICE_PREFIX, SERVICE_STUCK_WRITE_NOTICE_PREFIX] {
+    for prefix in [
+        WAIT_NOTICE_PREFIX,
+        SERVICE_INSIDE_WRITE_NOTICE_PREFIX,
+        SERVICE_STUCK_WRITE_NOTICE_PREFIX,
+    ] {
         if line.starts_with(prefix) {
             return true;
         }
@@ -135,8 +162,12 @@ pub fn is_a_wait_notice(line: &[u8]) -> bool {
 ///  asserts a notice reads the raw bytes.
 pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
     return bytes
-        .split_inclusive(|byte| { return *byte == b'\n'; })
-        .filter(|line| { return !is_a_wait_notice(line); })
+        .split_inclusive(|byte| {
+            return *byte == b'\n';
+        })
+        .filter(|line| {
+            return !is_a_wait_notice(line);
+        })
         .flatten()
         .copied()
         .collect();
@@ -152,7 +183,10 @@ pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
 ///
 /// # Panics
 ///  As `observe_raw`.
-pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
+pub fn observe(
+    command: &mut Command,
+    input: &[u8],
+) -> Observed {
     let raw: Observed = observe_raw(command, input);
     return Observed {
         code: raw.code,
@@ -212,18 +246,28 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
     let region: &[OsString] = git_policy_cli::wrapper_invocation::command_region(&stripped);
     let word: &[u8] = git_policy_cli::wrapper_invocation::command_word(&stripped);
     if word == b"commit"
-        && git_policy_cli::command_commit::parse_commit_region(region, &[]).is_ok_and(|facts| { return !facts.dry_run; })
+        && git_policy_cli::command_commit::parse_commit_region(region, &[]).is_ok_and(|facts| {
+            return !facts.dry_run;
+        })
     {
         return Some(SharedBoundMisuse::CommitTransaction);
     }
-    let has_manual_stub: bool = Path::new(program)
-        .parent()
-        .is_some_and(|directory| { return directory.join("man").exists(); });
+    let has_manual_stub: bool = Path::new(program).parent().is_some_and(|directory| {
+        return directory.join("man").exists();
+    });
     let asks_for_help: bool = region
         .iter()
-        .take_while(|token| { return *token != "--"; })
-        .any(|token| { return token == "--help"; });
-    if word != b"monochromatic-git-policy-cli" && word != b"cli-git" && asks_for_help && !has_manual_stub {
+        .take_while(|token| {
+            return *token != "--";
+        })
+        .any(|token| {
+            return token == "--help";
+        });
+    if word != b"monochromatic-git-policy-cli"
+        && word != b"cli-git"
+        && asks_for_help
+        && !has_manual_stub
+    {
         return Some(SharedBoundMisuse::ManualPage);
     }
     return None;
@@ -249,7 +293,11 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 /// # Panics
 ///  With the supervisor's message when it ended the command.
 ///  When a process that outlived the child still holds one of its pipes after `PIPE_GRACE`.
-pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
+pub fn supervised_wait(
+    child: Child,
+    input: &[u8],
+    cleanup: impl FnOnce(),
+) -> Output {
     let answer: Answer = wait_under_bound(child, None, LineBound::UNSTATED, input);
     // The supervisor ended it:
     // a loop or a deadlock,
@@ -259,7 +307,11 @@ pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Ou
     }
     cleanup();
     answer.refuse_a_second_ending("the command this control started", None);
-    return Output { status: answer.status, stdout: answer.stdout, stderr: answer.stderr };
+    return Output {
+        status: answer.status,
+        stdout: answer.stdout,
+        stderr: answer.stderr,
+    };
 }
 
 /// Run a command to completion with every byte of its output kept,
@@ -273,7 +325,10 @@ pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Ou
 ///  or a process that outlived the command still holds one of its
 ///  pipes;
 ///  see `Answer::refuse_a_second_ending`.
-pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
+pub fn observe_raw(
+    command: &mut Command,
+    input: &[u8],
+) -> Observed {
     return observe_with(command, input, true);
 }
 
@@ -289,7 +344,10 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
 ///
 /// # Panics
 ///  As `observe_raw`.
-pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, input: &[u8]) -> Observed {
+pub fn observe_without_waiting_for_the_after_commit_work(
+    command: &mut Command,
+    input: &[u8],
+) -> Observed {
     return observe_with(command, input, false);
 }
 
@@ -322,7 +380,11 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 ///  When this wait ended the command at the bound,
 ///  or a pipe the command's output came through is still held;
 ///  see `Answer::refuse_a_second_ending`.
-fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commit_work: bool) -> Observed {
+fn observe_with(
+    command: &mut Command,
+    input: &[u8],
+    waiting_for_the_after_commit_work: bool,
+) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
             "a commit under the shared bound: the work of a landed commit happens in the commit service, outside the command's \
@@ -346,7 +408,8 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
         .spawn()
         .expect("process starts");
     let child_id: u32 = child.id();
-    let group: libc::pid_t = libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
+    let group: libc::pid_t =
+        libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
     let answer: Answer = wait_under_bound(child, Some(group), line_bound_of(command), input);
     // The supervisor ended it: a loop or a deadlock, and its message names the reason and the tasks of the tree.
     //  The wait claimed that message before it reaped the command,
@@ -359,7 +422,11 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
         settle_service_work(at);
     }
     answer.refuse_a_second_ending(spelled.as_str(), directory.as_deref());
-    return Observed { code: answer.status.code(), stdout: answer.stdout, stderr: answer.stderr };
+    return Observed {
+        code: answer.status.code(),
+        stdout: answer.stdout,
+        stderr: answer.stderr,
+    };
 }
 
 /// How long a control waits for the after-commit work (the push,
@@ -421,7 +488,9 @@ thread_local! {
 /// beforeEachFolderRead(step);
 /// ```
 pub fn run_before_each_folder_read(step: Option<BeforeAFolderRead>) {
-    BEFORE_A_FOLDER_READ.with(|installed| { installed.set(step); });
+    BEFORE_A_FOLDER_READ.with(|installed| {
+        installed.set(step);
+    });
 }
 
 /// What:
@@ -477,13 +546,21 @@ fn git_directory_of(directory: &Path) -> Option<PathBuf> {
         if !marker.is_file() {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(marker.as_path()) else { return None };
-        let named: &str = text.lines().next().and_then(|line| { return line.strip_prefix("gitdir: "); })?;
+        let Ok(text) = std::fs::read_to_string(marker.as_path()) else {
+            return None;
+        };
+        let named: &str = text.lines().next().and_then(|line| {
+            return line.strip_prefix("gitdir: ");
+        })?;
         if named.is_empty() {
             return None;
         }
         let path: PathBuf = PathBuf::from(named);
-        return Some(if path.is_absolute() { path } else { candidate.join(path) });
+        return Some(if path.is_absolute() {
+            path
+        } else {
+            candidate.join(path)
+        });
     }
     return None;
 }
@@ -495,7 +572,14 @@ pub fn work_listing(work: &Path) -> String {
         .iter()
         .map(|state| {
             let mut names: Vec<String> = std::fs::read_dir(work.join(state))
-                .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+                .map(|listing| {
+                    return listing
+                        .flatten()
+                        .map(|entry| {
+                            return entry.file_name().to_string_lossy().into_owned();
+                        })
+                        .collect();
+                })
                 .unwrap_or_default();
             names.sort();
             return format!("{state}={names:?}");
@@ -554,8 +638,16 @@ pub fn settle_service_work(directory: &Path) {
     // they closed all 3350 schedules of up to three moves, and all but 4 of 18365 of up to four.
     // So a chain of four or more moves that a thread's stall stretches across every sample of this wait is still missed.
     // A record renamed inside one folder while that folder is read was not tested.
-    while a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) {
-        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
+    while a_record_is_in_flight(work.as_path())
+        || a_record_is_in_flight(work.as_path())
+        || a_record_is_in_flight(work.as_path())
+    {
+        assert!(
+            began.elapsed() < SERVICE_WORK_PATIENCE,
+            "the service never settled the after-commit work in {}: {}",
+            work.display(),
+            work_listing(work.as_path())
+        );
         std::thread::sleep(SAMPLE_PAUSE);
     }
 }

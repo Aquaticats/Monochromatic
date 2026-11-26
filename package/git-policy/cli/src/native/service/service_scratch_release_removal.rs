@@ -27,14 +27,18 @@
 //! export const start = (path: string) => { void (async () => { ... })(); };
 //! ```
 
-/// The bounded removal and what it came to.
-use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
-/// The service's own runtime,
-/// which runs the removal beside the landing loop.
-use crate::lazy_runtime::spawn_on_runtime;
 /// One step of blocking work,
 /// off the runtime's threads.
 use crate::blocking_job::run_blocking_job;
+/// The service's own runtime,
+/// which runs the removal beside the landing loop.
+use crate::lazy_runtime::spawn_on_runtime;
+/// The bounded removal and what it came to.
+use crate::scratch_entry_removal::{
+    Removal,
+    SCRATCH_REMOVAL_CEILING,
+    remove_within,
+};
 /// A path and the span the removal is reported in.
 use std::path::PathBuf;
 use std::time::Duration;
@@ -54,7 +58,10 @@ use std::time::Duration;
 /// ```ts
 /// const tree = theTreeOf(request.scratch, request.gitDir); // undefined when it is not the wrapper's
 /// ```
-pub fn the_tree_of(named: &std::path::Path, git_dir: &std::path::Path) -> Option<PathBuf> {
+pub fn the_tree_of(
+    named: &std::path::Path,
+    git_dir: &std::path::Path,
+) -> Option<PathBuf> {
     if !crate::service_protocol_messages_and_name_checks::is_scratch_path(named, git_dir) {
         return None;
     }
@@ -79,7 +86,9 @@ pub fn start(path: PathBuf) {
     let named: String = path.display().to_string();
     let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime(remove(path));
     if started.is_none() {
-        crate::service_warn!("the released scratch directory {named} is left to the sweep: this service has no multi-threaded runtime to remove it on");
+        crate::service_warn!(
+            "the released scratch directory {named} is left to the sweep: this service has no multi-threaded runtime to remove it on"
+        );
     }
 }
 
@@ -89,7 +98,10 @@ pub fn start(path: PathBuf) {
 async fn remove(path: PathBuf) {
     let named: String = path.display().to_string();
     let outcome: Result<Removal, crate::blocking_job::BlockingJobError> =
-        run_blocking_job(move || { return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING); }).await;
+        run_blocking_job(move || {
+            return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING);
+        })
+        .await;
     let ceiling: Duration = SCRATCH_REMOVAL_CEILING;
     match outcome {
         Ok(Removal::Finished) => {}
@@ -99,10 +111,14 @@ async fn remove(path: PathBuf) {
             );
         }
         Ok(Removal::Failed(error)) => {
-            crate::service_warn!("the released scratch directory {named} could not be removed: {error}");
+            crate::service_warn!(
+                "the released scratch directory {named} could not be removed: {error}"
+            );
         }
         Err(error) => {
-            crate::service_warn!("the removal of the released scratch directory {named} could not be started: {error}");
+            crate::service_warn!(
+                "the removal of the released scratch directory {named} could not be started: {error}"
+            );
         }
     }
 }

@@ -42,17 +42,46 @@
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
 
-pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, discard_index_under_a_name, install_index_in, install_index_in_with, publish_index_under_a_name, write_index_under_a_name};
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
-use crate::subvolume_sha::{sha1, sha256};
-use crate::subvolume_index::{HEADER, IndexOutcome, Located, RewriteContext, STAT, StatFields, StatLookup, StatTrust, StoredStat, checksum_kind, rewrite_index_stat_with, walk_entries};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 use crate::subvolume_file_write_steps::write_all_then_sync;
+use crate::subvolume_index::{
+    HEADER,
+    IndexOutcome,
+    Located,
+    RewriteContext,
+    STAT,
+    StatFields,
+    StatLookup,
+    StatTrust,
+    StoredStat,
+    checksum_kind,
+    rewrite_index_stat_with,
+    walk_entries,
+};
+pub use crate::subvolume_index_install_into_new_worktree::{
+    InstallSeams,
+    discard_index_under_a_name,
+    install_index_in,
+    install_index_in_with,
+    publish_index_under_a_name,
+    write_index_under_a_name,
+};
 use crate::subvolume_lock::is_ours;
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The linked worktrees of a main checkout and the registrations that are not one of them.
@@ -64,7 +93,13 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// export * from './subvolume_registered_worktrees';
 /// ```
-pub use crate::subvolume_registered_worktrees::{LeftOutWorktree, LinkedWorktree, LinkedWorktreeScan, linked_worktrees_inside, scan_linked_worktrees};
+pub use crate::subvolume_registered_worktrees::{
+    LeftOutWorktree,
+    LinkedWorktree,
+    LinkedWorktreeScan,
+    linked_worktrees_inside,
+    scan_linked_worktrees,
+};
 
 /// The offset of an entry's mode inside its fixed stat fields.
 /// Why:
@@ -93,7 +128,11 @@ const MODE_AT: usize = 24;
 /// ```ts
 /// const seed = withZeroedStat(bytes, paths, hashLength) ?? throw new Error('unknown index layout');
 /// ```
-pub fn with_zeroed_stat(bytes: &[u8], paths: &HashSet<Vec<u8>>, hash_length: usize) -> Option<Vec<u8>> {
+pub fn with_zeroed_stat(
+    bytes: &[u8],
+    paths: &HashSet<Vec<u8>>,
+    hash_length: usize,
+) -> Option<Vec<u8>> {
     if bytes.len() < HEADER + hash_length {
         return None;
     }
@@ -150,8 +189,12 @@ const INDEX_FILE_LIMIT: u64 = 1 << 30;
 /// ```ts
 /// function statFields(tree: string, path: Uint8Array): StatFields | undefined;
 /// ```
-pub(crate) fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(tree.join(OsStr::from_bytes(path))).ok()?;
+pub(crate) fn stat_fields(
+    tree: &Path,
+    path: &[u8],
+) -> Option<StatFields> {
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(tree.join(OsStr::from_bytes(path))).ok()?;
     return Some(fields_of(&metadata));
 }
 
@@ -245,7 +288,10 @@ pub struct RefreshOptions<'a> {
 /// this is Git's own reading of such an entry,
 /// and it is not a proof
 ///  that the file holds the bytes the entry names (`matches_stored_exactly` is that proof).
-pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
+pub(crate) fn matches_stored(
+    now: &StatFields,
+    stored: &StoredStat,
+) -> bool {
     return now.size == stored.size
         && now.ino == stored.ino
         && now.uid == stored.uid
@@ -280,8 +326,13 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 /// ```ts
 /// matchesStoredExactly(now, stored); // every recorded field, the nanosecond counts included, is equal
 /// ```
-pub(crate) fn matches_stored_exactly(now: &StatFields, stored: &StoredStat) -> bool {
-    return now.ctime_nanos == stored.ctime_nanos && now.mtime_nanos == stored.mtime_nanos && matches_stored(now, stored);
+pub(crate) fn matches_stored_exactly(
+    now: &StatFields,
+    stored: &StoredStat,
+) -> bool {
+    return now.ctime_nanos == stored.ctime_nanos
+        && now.mtime_nanos == stored.mtime_nanos
+        && matches_stored(now, stored);
 }
 
 /// What:
@@ -301,7 +352,11 @@ pub(crate) fn matches_stored_exactly(now: &StatFields, stored: &StoredStat) -> b
 /// ```ts
 /// function refreshIndexFileWith(indexPath: string, tree: string, options: RefreshOptions): string;
 /// ```
-pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> String {
+pub fn refresh_index_file_with(
+    index_path: &Path,
+    tree: &Path,
+    options: &RefreshOptions<'_>,
+) -> String {
     return refresh_index_file_seamed(index_path, tree, options, &mut do_nothing);
 }
 
@@ -309,7 +364,12 @@ pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &Refresh
 /// before the lock is looked at again,
 /// where a
 ///  control may let another command take the lock name.
-pub fn refresh_index_file_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> String {
+pub fn refresh_index_file_seamed(
+    index_path: &Path,
+    tree: &Path,
+    options: &RefreshOptions<'_>,
+    after_rewrite: &mut dyn FnMut(),
+) -> String {
     return refresh_index_file_report_seamed(index_path, tree, options, after_rewrite).line;
 }
 
@@ -338,44 +398,81 @@ pub struct RefreshReport {
 
 /// `refresh_index_file_with` that says how it ended,
 /// so a caller that must not go on after a failed refresh can stop.
-pub fn refresh_index_file_report(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> RefreshReport {
+pub fn refresh_index_file_report(
+    index_path: &Path,
+    tree: &Path,
+    options: &RefreshOptions<'_>,
+) -> RefreshReport {
     return refresh_index_file_report_seamed(index_path, tree, options, &mut do_nothing);
 }
 
 /// `refresh_index_file_report` with a call at the moment right after the rewrite.
-pub fn refresh_index_file_report_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> RefreshReport {
+pub fn refresh_index_file_report_seamed(
+    index_path: &Path,
+    tree: &Path,
+    options: &RefreshOptions<'_>,
+    after_rewrite: &mut dyn FnMut(),
+) -> RefreshReport {
     let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
     lock_name.push(".lock");
     let lock_path: PathBuf = PathBuf::from(lock_name);
     let mut created: Option<std::fs::File> = None;
     match &options.lock {
-        IndexLock::Acquire => match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+        IndexLock::Acquire => match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+        {
             Ok(opened) => created = Some(opened),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return RefreshReport { line: String::from("skipped (index.lock exists: a Git command is running there; its first status will be slow)"), status: RefreshStatus::Skipped };
+                return RefreshReport {
+                    line: String::from(
+                        "skipped (index.lock exists: a Git command is running there; its first status will be slow)",
+                    ),
+                    status: RefreshStatus::Skipped,
+                };
             }
-            Err(error) => return RefreshReport { line: format!("skipped (cannot create the lock: {error})"), status: RefreshStatus::Skipped },
+            Err(error) => {
+                return RefreshReport {
+                    line: format!("skipped (cannot create the lock: {error})"),
+                    status: RefreshStatus::Skipped,
+                };
+            }
         },
         IndexLock::Held(token) => {
             if !is_ours(lock_path.as_path(), token.as_ref()) {
-                return RefreshReport { line: String::from("skipped (index.lock is held by another Git command; its first status will be slow)"), status: RefreshStatus::Skipped };
+                return RefreshReport {
+                    line: String::from(
+                        "skipped (index.lock is held by another Git command; its first status will be slow)",
+                    ),
+                    status: RefreshStatus::Skipped,
+                };
             }
         }
     }
-    let (outcome, status): (String, RefreshStatus) = rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
+    let (outcome, status): (String, RefreshStatus) =
+        rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
     after_rewrite();
     // Once the lock was renamed over the index the name is any Git command's to take; it is never touched again. Before that,
     // the lock is removed only if the name still holds the file this call made.
     if let (Some(file), true) = (created.as_ref(), status != RefreshStatus::Refreshed) {
         remove_if_same_file(lock_path.as_path(), file);
     }
-    return RefreshReport { line: outcome, status };
+    return RefreshReport {
+        line: outcome,
+        status,
+    };
 }
 
 /// Remove the file at `path` if it is the very file `held` is open on (same device and inode).
-fn remove_if_same_file(path: &Path, held: &std::fs::File) {
+fn remove_if_same_file(
+    path: &Path,
+    held: &std::fs::File,
+) {
     let same: bool = match (std::fs::symlink_metadata(path), held.metadata()) {
-        (Ok(named), Ok(own)) => named.dev() == own.dev() && named.ino() == own.ino() && named.file_type().is_file(),
+        (Ok(named), Ok(own)) => {
+            named.dev() == own.dev() && named.ino() == own.ino() && named.file_type().is_file()
+        }
         _ => false,
     };
     if same {
@@ -389,18 +486,44 @@ fn remove_if_same_file(path: &Path, held: &std::fs::File) {
 /// The flag
 ///  says whether the new index was published,
 /// after which the lock name is not this call's any more.
-fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> (String, RefreshStatus) {
+fn rewrite_under_lock(
+    index_path: &Path,
+    tree: &Path,
+    options: &RefreshOptions<'_>,
+    lock_file: Option<&mut std::fs::File>,
+    lock_path: &Path,
+) -> (String, RefreshStatus) {
     let index_mtime: Option<(u32, u32)> = match std::fs::metadata(index_path) {
         Ok(metadata) => Some((metadata.mtime() as u32, metadata.mtime_nsec() as u32)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
-        Err(error) => return (format!("skipped (cannot examine it: {error})"), RefreshStatus::Skipped),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (String::from("no index file"), RefreshStatus::NoIndex);
+        }
+        Err(error) => {
+            return (
+                format!("skipped (cannot examine it: {error})"),
+                RefreshStatus::Skipped,
+            );
+        }
     };
     let bytes: Vec<u8> = match read_plain_file(index_path, INDEX_FILE_LIMIT) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
-        Err(error) => return (format!("skipped (cannot read it: {error})"), RefreshStatus::Skipped),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (String::from("no index file"), RefreshStatus::NoIndex);
+        }
+        Err(error) => {
+            return (
+                format!("skipped (cannot read it: {error})"),
+                RefreshStatus::Skipped,
+            );
+        }
     };
-    return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
+    return rewrite_and_install(
+        bytes.as_slice(),
+        index_mtime,
+        [index_path, tree, lock_path],
+        options,
+        lock_file,
+    );
 }
 
 /// What:
@@ -419,7 +542,10 @@ struct StatOfTree<'a> {
 }
 
 impl StatLookup for StatOfTree<'_> {
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+    fn stat_now(
+        &mut self,
+        path: &[u8],
+    ) -> Option<StatFields> {
         return stat_fields(self.tree, path);
     }
 }
@@ -443,7 +569,11 @@ struct AgreeWithReferences<'a> {
 }
 
 impl StatTrust for AgreeWithReferences<'_> {
-    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
+    fn is_trusted(
+        &mut self,
+        path: &[u8],
+        stored: &StoredStat,
+    ) -> bool {
         return agrees_with_a_reference(self.references, path, stored);
     }
 }
@@ -452,13 +582,37 @@ impl StatTrust for AgreeWithReferences<'_> {
 /// with `paths` naming the index,
 /// the tree it
 ///  describes and the lock file.
-fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
+fn rewrite_and_install(
+    bytes: &[u8],
+    index_mtime: Option<(u32, u32)>,
+    paths: [&Path; 3],
+    options: &RefreshOptions<'_>,
+    lock_file: Option<&mut std::fs::File>,
+) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
-    let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
-    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut StatOfTree { tree }, &mut AgreeWithReferences { references: options.references });
+    let context: RewriteContext = RewriteContext {
+        hash_length: options.hash_length,
+        index_mtime,
+    };
+    let outcome: IndexOutcome = rewrite_index_stat_with(
+        bytes,
+        &context,
+        &mut StatOfTree {
+            tree,
+        },
+        &mut AgreeWithReferences {
+            references: options.references,
+        },
+    );
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
-        IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
-        IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), RefreshStatus::Skipped),
+        IndexOutcome::Rewritten {
+            bytes: new_bytes,
+            updated,
+            total,
+        } => (new_bytes, updated, total),
+        IndexOutcome::Skipped(reason) => {
+            return (format!("skipped ({reason})"), RefreshStatus::Skipped);
+        }
     };
     // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
     // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
@@ -467,9 +621,15 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
         None => stage_and_replace(index_path, rewritten.as_slice()),
     };
     if let Err(error) = installed {
-        return (format!("skipped (cannot install the new index: {error})"), RefreshStatus::Skipped);
+        return (
+            format!("skipped (cannot install the new index: {error})"),
+            RefreshStatus::Skipped,
+        );
     }
-    return (format!("{updated} of {total} entries refreshed"), RefreshStatus::Refreshed);
+    return (
+        format!("{updated} of {total} entries refreshed"),
+        RefreshStatus::Refreshed,
+    );
 }
 
 /// Whether some reference tree has the file `path` as the entry `stored` records;
@@ -482,7 +642,11 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
 /// which no longer match the copy,
 /// so Git hashes the file
 ///  instead of trusting fields nothing proved.
-fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredStat) -> bool {
+fn agrees_with_a_reference(
+    references: &[PathBuf],
+    path: &[u8],
+    stored: &StoredStat,
+) -> bool {
     if references.is_empty() {
         return true;
     }
@@ -500,7 +664,12 @@ fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredS
 /// flush it to disk,
 /// then rename `from` over `to`;
 /// each step runs only if the one before it worked.
-fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &Path) -> std::io::Result<()> {
+fn write_sync_rename(
+    file: &mut std::fs::File,
+    bytes: &[u8],
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     write_all_then_sync(file, bytes)?;
     return std::fs::rename(from, to);
 }
@@ -525,12 +694,19 @@ fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &P
 /// ```ts
 /// await stageAndReplace(indexPath, bytes);
 /// ```
-fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn stage_and_replace(
+    index_path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut sibling_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
     sibling_name.push(".cli-git-new");
     let sibling: PathBuf = PathBuf::from(sibling_name);
-    let mut staged: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).open(&sibling)?;
-    let written: std::io::Result<()> = write_sync_and_rename_if_same(&mut staged, bytes, sibling.as_path(), index_path);
+    let mut staged: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&sibling)?;
+    let written: std::io::Result<()> =
+        write_sync_and_rename_if_same(&mut staged, bytes, sibling.as_path(), index_path);
     if written.is_err() {
         remove_if_same_file(sibling.as_path(), &staged);
     }
@@ -540,12 +716,19 @@ fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// Write `bytes` into `staged`,
 /// flush it,
 /// and rename `sibling` over `index_path` only while `sibling` still names `staged`.
-fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibling: &Path, index_path: &Path) -> std::io::Result<()> {
+fn write_sync_and_rename_if_same(
+    staged: &mut std::fs::File,
+    bytes: &[u8],
+    sibling: &Path,
+    index_path: &Path,
+) -> std::io::Result<()> {
     write_all_then_sync(staged, bytes)?;
     let named = std::fs::symlink_metadata(sibling)?;
     let own = staged.metadata()?;
     if named.dev() != own.dev() || named.ino() != own.ino() {
-        return Err(std::io::Error::other("the staging file was replaced while the index was written"));
+        return Err(std::io::Error::other(
+            "the staging file was replaced while the index was written",
+        ));
     }
     return std::fs::rename(sibling, index_path);
 }
@@ -561,8 +744,20 @@ fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibli
 /// ```ts
 /// function refreshIndexFileLocked(indexPath: string, tree: string, lock: IndexLock): string;
 /// ```
-pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock) -> String {
-    return refresh_index_file_with(index_path, tree, &RefreshOptions { lock, references: &[], hash_length: None });
+pub fn refresh_index_file_locked(
+    index_path: &Path,
+    tree: &Path,
+    lock: IndexLock,
+) -> String {
+    return refresh_index_file_with(
+        index_path,
+        tree,
+        &RefreshOptions {
+            lock,
+            references: &[],
+            hash_length: None,
+        },
+    );
 }
 
 /// What:
@@ -576,7 +771,10 @@ pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock
 /// ```ts
 /// function refreshIndexFile(indexPath: string, tree: string): string;
 /// ```
-pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
+pub fn refresh_index_file(
+    index_path: &Path,
+    tree: &Path,
+) -> String {
     return refresh_index_file_locked(index_path, tree, IndexLock::Acquire);
 }
 
@@ -598,7 +796,12 @@ pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
 /// function repositoryHashLength(gitDirectory: string): 20 | 32 | undefined;
 /// ```
 pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
-    let text: String = String::from_utf8_lossy(read_plain_file(&git_directory.join("config"), SMALL_FILE_LIMIT).ok()?.as_slice()).into_owned();
+    let text: String = String::from_utf8_lossy(
+        read_plain_file(&git_directory.join("config"), SMALL_FILE_LIMIT)
+            .ok()?
+            .as_slice(),
+    )
+    .into_owned();
     let mut in_extensions: bool = false;
     for raw in text.lines() {
         let line: &str = raw.trim();
@@ -612,8 +815,12 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
         if !in_extensions {
             continue;
         }
-        let Some((key, value)) = line.split_once('=') else { continue };
-        if key.trim().eq_ignore_ascii_case("objectformat") && value.trim().eq_ignore_ascii_case("sha256") {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if key.trim().eq_ignore_ascii_case("objectformat")
+            && value.trim().eq_ignore_ascii_case("sha256")
+        {
             return Some(32);
         }
     }

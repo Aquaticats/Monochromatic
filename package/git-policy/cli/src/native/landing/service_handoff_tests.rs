@@ -4,21 +4,36 @@ use super::*;
 use crate::service_client::Activation;
 use crate::service_messages::Platform;
 use crate::service_server::Bind;
-use crate::test_support::{fixture, remove, spawn_owned};
-use crate::work_item::{PENDING, state_directory};
+use crate::test_support::{
+    fixture,
+    remove,
+    spawn_owned,
+};
+use crate::work_item::{
+    PENDING,
+    state_directory,
+};
 use std::time::Duration;
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
 const PARENT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 
-fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
+fn handoff(
+    root: &std::path::Path,
+    activation: Activation,
+) -> ServiceHandoff {
     return ServiceHandoff {
         config: ClientConfig {
             address: Bind::Path(root.join("no-service.sock")),
             activation,
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
-            start_watch: None, keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
+            start_watch: None,
+            keep_fresh: None,
+            answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
+            withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
+            extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
+            start_ceiling: crate::wait_ceilings::START_CEILING,
             waiting_notice_after: Duration::from_secs(60),
         },
         repository: root.join("worktree"),
@@ -35,19 +50,49 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
 #[test]
 fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let root: std::path::PathBuf = fixture("handoff-records");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let mut sink: Vec<u8> = Vec::new();
     let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service can be started");
     // The commit landed, so the failure says the work was not handed over, never that the commit was not made.
-    assert_eq!(failure, ClientFailure::WorkNotHandedOver(String::from("this account cannot start the commit service on demand")));
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
-    let mut found: Vec<String> = std::fs::read_dir(pending).expect("pending").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(
+        failure,
+        ClientFailure::WorkNotHandedOver(String::from(
+            "this account cannot start the commit service on demand"
+        ))
+    );
+    let pending: std::path::PathBuf =
+        state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
+    let mut found: Vec<String> = std::fs::read_dir(pending)
+        .expect("pending")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     found.sort();
     // Each record is named by its own id, which for the push carries the branch as well as the commit.
     let mut expected: Vec<String> = HANDED_OVER
         .iter()
         .map(|kind| {
-            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 , transport: false}.id();
+            return WorkItem {
+                kind: *kind,
+                repository: PathBuf::new(),
+                git_dir: PathBuf::new(),
+                branch_ref: handoff
+                    .reference
+                    .text()
+                    .expect("a branch name that is text")
+                    .to_string(),
+                oid: String::from(OID),
+                parent: String::from(PARENT),
+                created: String::new(),
+                tries: 0,
+                transport: false,
+            }
+            .id();
         })
         .collect();
     expected.sort();
@@ -60,12 +105,19 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
 #[test]
 fn a_repeated_handoff_adds_no_second_record() {
     let root: std::path::PathBuf = fixture("handoff-repeat");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let mut sink: Vec<u8> = Vec::new();
     let _first = hand_over(&handoff, OID, &mut sink);
     let _second = hand_over(&handoff, OID, &mut sink);
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
-    assert_eq!(std::fs::read_dir(pending).expect("pending").count(), HANDED_OVER.len());
+    let pending: std::path::PathBuf =
+        state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
+    assert_eq!(
+        std::fs::read_dir(pending).expect("pending").count(),
+        HANDED_OVER.len()
+    );
     remove(root.as_path());
 }
 
@@ -74,17 +126,34 @@ fn a_repeated_handoff_adds_no_second_record() {
 #[test]
 fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     let root: std::path::PathBuf = fixture("handoff-review");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
+    let pending: std::path::PathBuf =
+        state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     let mut sink: Vec<u8> = Vec::new();
     let _without = hand_over(&handoff, OID, &mut sink);
-    assert!(!pending.join(format!("{}-{OID}", WorkKind::Review.name())).exists());
-    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
+    assert!(
+        !pending
+            .join(format!("{}-{OID}", WorkKind::Review.name()))
+            .exists()
+    );
+    let log: std::path::PathBuf = handoff
+        .repository
+        .join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
     std::fs::write(log.as_path(), "").expect("log");
     let _with = hand_over(&handoff, PARENT, &mut sink);
-    assert!(pending.join(format!("{}-{PARENT}", WorkKind::Review.name())).exists());
-    assert_eq!(std::fs::read_dir(pending).expect("pending").count(), 2 * HANDED_OVER.len() + 1);
+    assert!(
+        pending
+            .join(format!("{}-{PARENT}", WorkKind::Review.name()))
+            .exists()
+    );
+    assert_eq!(
+        std::fs::read_dir(pending).expect("pending").count(),
+        2 * HANDED_OVER.len() + 1
+    );
     remove(root.as_path());
 }
 
@@ -106,8 +175,13 @@ fn files_under(directory: &std::path::Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Whether `needle` occurs in `bytes`.
-fn contains_bytes(bytes: &[u8], needle: &[u8]) -> bool {
-    return bytes.windows(needle.len()).any(|window| { return window == needle; });
+fn contains_bytes(
+    bytes: &[u8],
+    needle: &[u8],
+) -> bool {
+    return bytes.windows(needle.len()).any(|window| {
+        return window == needle;
+    });
 }
 
 /// The credential never reaches a file:
@@ -119,21 +193,42 @@ fn contains_bytes(bytes: &[u8], needle: &[u8]) -> bool {
 fn the_on_disk_work_items_never_hold_the_key() {
     const SECRET: &str = "test-key-not-a-secret-on-disk";
     let root: std::path::PathBuf = fixture("handoff-key-disk");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
+    let log: std::path::PathBuf = handoff
+        .repository
+        .join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
     std::fs::write(log.as_path(), "").expect("log");
     let key: ReviewKey = ReviewKey::new(SECRET).expect("a key");
     let mut sink: Vec<u8> = Vec::new();
     let _result = hand_over_with_key(&handoff, OID, Some(&key), &mut sink);
     let files: Vec<std::path::PathBuf> = files_under(root.as_path());
-    let records: usize = files.iter().filter(|path| { return path.to_string_lossy().contains(OID); }).count();
-    assert_eq!(records, HANDED_OVER.len() + 1, "the scan sees the records, review included");
+    let records: usize = files
+        .iter()
+        .filter(|path| {
+            return path.to_string_lossy().contains(OID);
+        })
+        .count();
+    assert_eq!(
+        records,
+        HANDED_OVER.len() + 1,
+        "the scan sees the records, review included"
+    );
     for path in &files {
         let bytes: Vec<u8> = std::fs::read(path).expect("a readable file");
-        assert!(!contains_bytes(bytes.as_slice(), SECRET.as_bytes()), "{} holds the key", path.display());
+        assert!(
+            !contains_bytes(bytes.as_slice(), SECRET.as_bytes()),
+            "{} holds the key",
+            path.display()
+        );
     }
-    assert!(!String::from_utf8_lossy(sink.as_slice()).contains(SECRET), "the notices never print the key");
+    assert!(
+        !String::from_utf8_lossy(sink.as_slice()).contains(SECRET),
+        "the notices never print the key"
+    );
     remove(root.as_path());
 }
 
@@ -144,20 +239,37 @@ fn the_wake_message_carries_the_key_to_the_service() {
     const SECRET: &str = "test-key-not-a-secret-on-the-wire";
     let root: std::path::PathBuf = fixture("handoff-key-wire");
     let name: String = format!("cli-git-test-wake-key-{}", std::process::id());
-    let mut config: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let mut config: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     config.config.address = Bind::Abstract(name.clone());
-    let listener: std::os::unix::net::UnixListener = crate::service_server::bind(&Bind::Abstract(name)).expect("fake service socket");
-    let received: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let listener: std::os::unix::net::UnixListener =
+        crate::service_server::bind(&Bind::Abstract(name)).expect("fake service socket");
+    let received: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&received);
     let server: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        use std::io::{BufRead, Write};
+        use std::io::{
+            BufRead,
+            Write,
+        };
         for _ in 0..2 {
-            let Ok((mut stream, _)) = listener.accept() else { return };
-            let welcome: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from(crate::service_protocol::RELEASE)) });
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let welcome: String = crate::service_protocol::encode_service(
+                &crate::service_protocol::ServiceMessage::Welcome {
+                    version: crate::service_protocol::PROTOCOL_VERSION,
+                    release: Some(String::from(crate::service_protocol::RELEASE)),
+                },
+            );
             let _written = writeln!(stream, "{welcome}");
             let mut line: String = String::new();
             let _read = std::io::BufReader::new(&stream).read_line(&mut line);
-            sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(line);
+            sink.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(line);
         }
     });
     let mut notices: Vec<u8> = Vec::new();
@@ -165,19 +277,35 @@ fn the_wake_message_carries_the_key_to_the_service() {
     hand_over_with_key(&config, OID, Some(&key), &mut notices).expect("woken with a key");
     hand_over_with_key(&config, PARENT, None, &mut notices).expect("woken without a key");
     let _joined = server.join();
-    let lines: Vec<String> = received.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    let lines: Vec<String> = received
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     assert_eq!(lines.len(), 2);
     match crate::service_protocol::decode_client(lines[0].trim_end()) {
-        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir, push_programs }) => {
+        Ok(crate::service_protocol::ClientMessage::Work {
+            review_key,
+            git_dir,
+            push_programs,
+        }) => {
             assert_eq!(review_key, Some(key));
             assert_eq!(git_dir, config.git_dir);
             // The records this wake is about are the commit's upkeep and review; a push of a landed commit comes from the
             //  landing, which holds the request's programs itself.
-            assert!(push_programs.is_empty(), "no push record was announced by this wake");
+            assert!(
+                push_programs.is_empty(),
+                "no push record was announced by this wake"
+            );
         }
         other => panic!("not a work message: {other:?}"),
     }
-    assert!(matches!(crate::service_protocol::decode_client(lines[1].trim_end()), Ok(crate::service_protocol::ClientMessage::Work { review_key: None, .. })));
+    assert!(matches!(
+        crate::service_protocol::decode_client(lines[1].trim_end()),
+        Ok(crate::service_protocol::ClientMessage::Work {
+            review_key: None,
+            ..
+        })
+    ));
     remove(root.as_path());
 }
 
@@ -193,24 +321,63 @@ fn the_wake_message_carries_the_key_to_the_service() {
 #[test]
 fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     let root: std::path::PathBuf = fixture("handoff-blocked-gate-earlier-name");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     std::fs::create_dir_all(pending.as_path()).expect("a state directory");
-    std::fs::write(pending.join(item.id_before_the_branch()), item.encode()).expect("a record an earlier release left");
+    std::fs::write(pending.join(item.id_before_the_branch()), item.encode())
+        .expect("a record an earlier release left");
     let woken: Woken = Woken::default();
-    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &woken);
-    assert!(!pending.join(item.id()).exists(), "no record waits under this release's name");
-    assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
-    assert_eq!(woken.1.borrow().len(), 1, "the service is told the records can no longer run");
+    let _unkept: Option<String> = forget_the_push(
+        &handoff,
+        OID,
+        "final-newline: the file does not end with a newline",
+        &woken,
+    );
+    assert!(
+        !pending.join(item.id()).exists(),
+        "no record waits under this release's name"
+    );
+    assert!(
+        !pending.join(item.id_before_the_branch()).exists(),
+        "the record an earlier release named is forgotten too"
+    );
+    assert_eq!(
+        woken.1.borrow().len(),
+        1,
+        "the service is told the records can no longer run"
+    );
     let told: Vec<String> = woken.1.borrow()[0].1.clone();
-    assert!(told.contains(&item.id()) && told.contains(&item.id_before_the_branch()), "under both names the records were removed by: {told:?}");
-    assert_eq!(crate::work_item::hold(work.as_path(), &item, ""), Ok(()), "a later hold asks nothing of a blocked id");
-    assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
+    assert!(
+        told.contains(&item.id()) && told.contains(&item.id_before_the_branch()),
+        "under both names the records were removed by: {told:?}"
+    );
+    assert_eq!(
+        crate::work_item::hold(work.as_path(), &item, ""),
+        Ok(()),
+        "a later hold asks nothing of a blocked id"
+    );
+    assert!(
+        !state_directory(work.as_path(), crate::work_item::HELD)
+            .join(item.id())
+            .exists(),
+        "the blocked verdict stands, so the push is not held again"
+    );
     // The verdict keeps the branch and the gate's words, because the next push of that branch reads them to know where it must stop
     //  and every command reads them to say why.
-    let verdicts: Vec<crate::work_item_holding::BlockedVerdict> = crate::work_item_holding::blocked_verdicts(work.as_path());
+    let verdicts: Vec<crate::work_item_holding::BlockedVerdict> =
+        crate::work_item_holding::blocked_verdicts(work.as_path());
     assert_eq!(
         verdicts,
         vec![crate::work_item_holding::BlockedVerdict {
@@ -237,26 +404,57 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
 #[test]
 fn the_verdict_a_commit_records_flushes_nothing() {
     let root: std::path::PathBuf = fixture("handoff-verdict-no-flush");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     // The positive control: the recorders do report the flushes of the writer that keeps them.
     let probe: std::path::PathBuf = root.join("probe.json");
     std::fs::write(probe.as_path(), b"before\n").expect("a record to replace");
-    crate::private_storage::replace_private_file(probe.as_path(), b"after\n").expect("the synced writer");
-    assert_eq!(crate::private_storage::take_file_syncs(), vec![probe.clone()], "the synced writer flushes the record");
-    assert_eq!(crate::private_storage::take_directory_syncs().len(), 1, "and its directory once");
+    crate::private_storage::replace_private_file(probe.as_path(), b"after\n")
+        .expect("the synced writer");
+    assert_eq!(
+        crate::private_storage::take_file_syncs(),
+        vec![probe.clone()],
+        "the synced writer flushes the record"
+    );
+    assert_eq!(
+        crate::private_storage::take_directory_syncs().len(),
+        1,
+        "and its directory once"
+    );
     crate::private_storage::take_file_syncs();
     crate::private_storage::take_directory_syncs();
     crate::work_item::hold(work.as_path(), &item, "1/2/3").expect("the push is held");
     crate::private_storage::take_file_syncs();
     crate::private_storage::take_directory_syncs();
     promote_the_push(&handoff, OID).expect("the gate approved the backup");
-    assert_eq!(crate::private_storage::take_file_syncs(), Vec::<std::path::PathBuf>::new(), "a pass is written without a flush");
-    assert_eq!(crate::private_storage::take_directory_syncs(), Vec::<std::path::PathBuf>::new(), "and its directory is not flushed either");
+    assert_eq!(
+        crate::private_storage::take_file_syncs(),
+        Vec::<std::path::PathBuf>::new(),
+        "a pass is written without a flush"
+    );
+    assert_eq!(
+        crate::private_storage::take_directory_syncs(),
+        Vec::<std::path::PathBuf>::new(),
+        "and its directory is not flushed either"
+    );
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
-    let record: String = std::fs::read_to_string(pending.as_path()).expect("the record the pass moved into the queue");
-    assert!(record.contains("\"verdict\":\"passed\""), "the record holds the whole verdict: {record}");
+    let record: String = std::fs::read_to_string(pending.as_path())
+        .expect("the record the pass moved into the queue");
+    assert!(
+        record.contains("\"verdict\":\"passed\""),
+        "the record holds the whole verdict: {record}"
+    );
     remove(root.as_path());
 }
 
@@ -277,9 +475,18 @@ fn the_verdict_a_commit_records_flushes_nothing() {
 /// ```ts
 /// utimes(pendingRecordOf(item), when)
 /// ```
-fn age_the_pending_record(work: &std::path::Path, item: &WorkItem, when: std::time::SystemTime) {
+fn age_the_pending_record(
+    work: &std::path::Path,
+    item: &WorkItem,
+    when: std::time::SystemTime,
+) {
     let pending: std::path::PathBuf = state_directory(work, PENDING).join(item.id());
-    std::fs::File::options().write(true).open(pending.as_path()).expect("the pending record").set_modified(when).expect("the record is aged");
+    std::fs::File::options()
+        .write(true)
+        .open(pending.as_path())
+        .expect("the pending record")
+        .set_modified(when)
+        .expect("the record is aged");
 }
 
 /// A push record the wrapper promoted and no service has taken says the push is queued,
@@ -287,40 +494,110 @@ fn age_the_pending_record(work: &std::path::Path, item: &WorkItem, when: std::ti
 #[test]
 fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     let root: std::path::PathBuf = fixture("handoff-queued-push");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
     let now: std::time::SystemTime = std::time::SystemTime::now();
     assert!(
-        queued_push_notices(handoff.git_dir.as_path(), now, &TheRemoteHolds(false), &the_service_is_not_woken()).is_empty(),
+        queued_push_notices(
+            handoff.git_dir.as_path(),
+            now,
+            &TheRemoteHolds(false),
+            &the_service_is_not_woken()
+        )
+        .is_empty(),
         "a record younger than the bound is a push in flight, and nothing is said about it"
     );
     // The wait the bound names is put on the record itself, so no load between the capture and the write can make a record this
     //  control queued look fresher than the instant it asks about.
     let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
     age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
-    let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
+    let said: Vec<String> = queued_push_notices(
+        handoff.git_dir.as_path(),
+        waited,
+        &TheRemoteHolds(false),
+        &the_service_is_not_woken(),
+    );
     assert_eq!(said.len(), 1, "one line: {said:?}");
-    assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
-    assert!(said[0].contains("is queued for its push from refs/heads/main"), "{}", said[0]);
-    assert!(said[0].contains("has not been made yet"), "the line claims only what is known: {}", said[0]);
+    assert!(
+        said[0].contains(OID),
+        "the line names the commit: {}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("is queued for its push from refs/heads/main"),
+        "{}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("has not been made yet"),
+        "the line claims only what is known: {}",
+        said[0]
+    );
     assert!(said[0].contains("needs no further commit"), "{}", said[0]);
     // A second waiting push is counted rather than named: the list of a container's unserved commits has no end.
-    let second: WorkItem = push_item(&handoff, PARENT, handoff.reference.text().expect("a branch name that is text"));
+    let second: WorkItem = push_item(
+        &handoff,
+        PARENT,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
     age_the_pending_record(work.as_path(), &second, now);
-    let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
-    assert_eq!(more.len(), 2, "the oldest is named and the rest counted: {more:?}");
+    let more: Vec<String> = queued_push_notices(
+        handoff.git_dir.as_path(),
+        waited,
+        &TheRemoteHolds(false),
+        &the_service_is_not_woken(),
+    );
+    assert_eq!(
+        more.len(),
+        2,
+        "the oldest is named and the rest counted: {more:?}"
+    );
     assert_eq!(more[0], said[0], "the oldest keeps its line");
-    assert!(more[1].contains("1 more commit is queued for its push the same way"), "{}", more[1]);
+    assert!(
+        more[1].contains("1 more commit is queued for its push the same way"),
+        "{}",
+        more[1]
+    );
     // The line is the record's: a service that takes it leaves nothing to name.
-    let claimed: Option<crate::work_item::Claimed> =
-        crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("a claim");
+    let claimed: Option<crate::work_item::Claimed> = crate::work_item::claim_next_of(
+        work.as_path(),
+        &crate::claim_time::ClaimTime::read(),
+        &[WorkKind::Push],
+    )
+    .expect("a claim");
     assert!(claimed.is_some(), "the service took the oldest record");
-    let taken: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
-    assert_eq!(taken.len(), 1, "a claimed record is no longer waiting: {taken:?}");
-    assert!(!taken[0].contains(OID), "the claimed record is not named: {}", taken[0]);
+    let taken: Vec<String> = queued_push_notices(
+        handoff.git_dir.as_path(),
+        waited,
+        &TheRemoteHolds(false),
+        &the_service_is_not_woken(),
+    );
+    assert_eq!(
+        taken.len(),
+        1,
+        "a claimed record is no longer waiting: {taken:?}"
+    );
+    assert!(
+        !taken[0].contains(OID),
+        "the claimed record is not named: {}",
+        taken[0]
+    );
     remove(root.as_path());
 }
 
@@ -338,32 +615,78 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
 #[test]
 fn a_queued_push_the_remote_already_holds_is_settled_and_not_said() {
     let root: std::path::PathBuf = fixture("handoff-queued-settled");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
     let now: std::time::SystemTime = std::time::SystemTime::now();
     age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
     let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
     let woken: Woken = Woken::default();
     // A record the branch's remote does not hold is named, and the command wakes the service that can take it.
-    assert_eq!(queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &woken).len(), 1, "a record that waits is named");
-    assert_eq!(woken.0.borrow().len(), 1, "the service is told to look at a repository whose record waits");
+    assert_eq!(
+        queued_push_notices(
+            handoff.git_dir.as_path(),
+            waited,
+            &TheRemoteHolds(false),
+            &woken
+        )
+        .len(),
+        1,
+        "a record that waits is named"
+    );
+    assert_eq!(
+        woken.0.borrow().len(),
+        1,
+        "the service is told to look at a repository whose record waits"
+    );
     // The person's push made the commit: the record goes where a push that was made is kept, and nothing is said about it.
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
-    let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    let done: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
     let settling: Woken = Woken::default();
     assert_eq!(
-        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &settling),
+        queued_push_notices(
+            handoff.git_dir.as_path(),
+            waited,
+            &TheRemoteHolds(true),
+            &settling
+        ),
         Vec::<String>::new(),
         "a commit the branch's remote holds is not queued"
     );
-    assert_eq!(settling.1.borrow().len(), 1, "the service is told the settled record can no longer run");
-    assert_eq!(settling.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
-    assert!(!pending.exists(), "the record left `pending`");
-    assert!(done.exists(), "and is known to the queue as a push that was made");
     assert_eq!(
-        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &Woken::default()),
+        settling.1.borrow().len(),
+        1,
+        "the service is told the settled record can no longer run"
+    );
+    assert_eq!(
+        settling.1.borrow()[0].1,
+        vec![item.id()],
+        "by the id the service holds its values against"
+    );
+    assert!(!pending.exists(), "the record left `pending`");
+    assert!(
+        done.exists(),
+        "and is known to the queue as a push that was made"
+    );
+    assert_eq!(
+        queued_push_notices(
+            handoff.git_dir.as_path(),
+            waited,
+            &TheRemoteHolds(true),
+            &Woken::default()
+        ),
         Vec::<String>::new(),
         "settled once"
     );
@@ -381,8 +704,16 @@ fn the_service_is_not_woken() -> crate::held_push_release_wakes_the_service::Not
 struct TheRemoteHolds(bool);
 
 impl crate::held_push_commit_on_the_remote::RemoteRecord for TheRemoteHolds {
-    fn on_the_remote(&self, _reference: &str, _commit: &str) -> OnTheRemote {
-        return if self.0 { OnTheRemote::There } else { OnTheRemote::NotThere };
+    fn on_the_remote(
+        &self,
+        _reference: &str,
+        _commit: &str,
+    ) -> OnTheRemote {
+        return if self.0 {
+            OnTheRemote::There
+        } else {
+            OnTheRemote::NotThere
+        };
     }
 }
 
@@ -391,24 +722,66 @@ impl crate::held_push_commit_on_the_remote::RemoteRecord for TheRemoteHolds {
 #[test]
 fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
     let root: std::path::PathBuf = fixture("handoff-held-settled");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     crate::work_item::hold(work.as_path(), &item, "").expect("the push is held");
-    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
-    let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    let held: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    let done: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
     // The state the record describes: Git's record of the branch's remote does not hold the commit, so the line stands.
-    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken()).len(), 1);
+    assert_eq!(
+        held_push_notices(
+            handoff.git_dir.as_path(),
+            &TheRemoteHolds(false),
+            &the_service_is_not_woken()
+        )
+        .len(),
+        1
+    );
     assert!(held.exists(), "a proof that says no settles nothing");
     // A later push of the branch carried the commit: the record is settled where a finished push goes, and nothing is said.
     let settling: Woken = Woken::default();
-    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &settling), Vec::<String>::new(), "a commit the remote holds is not held");
+    assert_eq!(
+        held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &settling),
+        Vec::<String>::new(),
+        "a commit the remote holds is not held"
+    );
     assert!(!held.exists(), "the record left the held state");
-    assert!(done.exists(), "and is known to the queue as a push that was made");
-    assert_eq!(settling.1.borrow().len(), 1, "the service is told the settled record can no longer run");
-    assert_eq!(settling.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
+    assert!(
+        done.exists(),
+        "and is known to the queue as a push that was made"
+    );
+    assert_eq!(
+        settling.1.borrow().len(),
+        1,
+        "the service is told the settled record can no longer run"
+    );
+    assert_eq!(
+        settling.1.borrow()[0].1,
+        vec![item.id()],
+        "by the id the service holds its values against"
+    );
     // Settled once, so a second command says nothing either.
-    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &the_service_is_not_woken()), Vec::<String>::new());
+    assert_eq!(
+        held_push_notices(
+            handoff.git_dir.as_path(),
+            &TheRemoteHolds(true),
+            &the_service_is_not_woken()
+        ),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -423,9 +796,12 @@ fn a_command_that_has_ended() -> String {
     // Only a child that outlives the read of its identity has one: a child that has already ended, or a zombie the
     // parent has not reaped yet, answers "gone" (`process_identity.rs`), and a `true` raced this read in about one
     // run in ten.
-    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
+    let mut child: std::process::Child =
+        spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
     let pid: u32 = child.id();
-    let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
+    let birth: String = crate::process_identity::process_birth_identity(i64::from(pid))
+        .expect("the table is readable")
+        .expect("the child runs");
     let _ended = child.kill();
     let _reaped = child.wait();
     return format!("{}/{pid}/{birth}", crate::claim_time::current_boot_id());
@@ -438,12 +814,26 @@ fn a_command_that_has_ended() -> String {
 ///  A command killed between its gate and its promote or forget leaves exactly this,
 /// and the next command is what
 ///  settles it.
-fn held_with_verdict(handoff: &ServiceHandoff, commit: &str, holding: &Holding) -> (WorkItem, std::path::PathBuf) {
-    let item: WorkItem = push_item(handoff, commit, handoff.reference.text().expect("a branch name that is text"));
+fn held_with_verdict(
+    handoff: &ServiceHandoff,
+    commit: &str,
+    holding: &Holding,
+) -> (WorkItem, std::path::PathBuf) {
+    let item: WorkItem = push_item(
+        handoff,
+        commit,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let path: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    let path: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     std::fs::create_dir_all(path.parent().expect("the held directory")).expect("a state directory");
-    let record: String = crate::held_push_holder_and_verdict::with_holding(item.encode().as_str(), holding).expect("one record");
+    let record: String =
+        crate::held_push_holder_and_verdict::with_holding(item.encode().as_str(), holding)
+            .expect("one record");
     std::fs::write(path.as_path(), record.as_bytes()).expect("a record a killed command left");
     return (item, path);
 }
@@ -457,15 +847,27 @@ fn held_with_verdict(handoff: &ServiceHandoff, commit: &str, holding: &Holding) 
 /// The woken directories and the forgotten records,
 /// as the seam recorded them.
 #[derive(Default)]
-struct Woken(std::cell::RefCell<Vec<std::path::PathBuf>>, std::cell::RefCell<Vec<(std::path::PathBuf, Vec<String>)>>);
+struct Woken(
+    std::cell::RefCell<Vec<std::path::PathBuf>>,
+    std::cell::RefCell<Vec<(std::path::PathBuf, Vec<String>)>>,
+);
 
 impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
-    fn wake(&self, git_dir: &std::path::Path) {
+    fn wake(
+        &self,
+        git_dir: &std::path::Path,
+    ) {
         self.0.borrow_mut().push(git_dir.to_path_buf());
     }
 
-    fn forget_programs(&self, git_dir: &std::path::Path, records: &[String]) {
-        self.1.borrow_mut().push((git_dir.to_path_buf(), records.to_vec()));
+    fn forget_programs(
+        &self,
+        git_dir: &std::path::Path,
+        records: &[String],
+    ) {
+        self.1
+            .borrow_mut()
+            .push((git_dir.to_path_buf(), records.to_vec()));
     }
 }
 
@@ -480,18 +882,35 @@ impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
 #[test]
 fn a_held_push_whose_command_left_a_pass_is_released_by_the_next_command() {
     let root: std::path::PathBuf = fixture("handoff-held-pass");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let dead: String = a_command_that_has_ended();
-    let holding: Holding = Holding { holder: dead, verdict: Verdict::Passed, reason: String::new() };
+    let holding: Holding = Holding {
+        holder: dead,
+        verdict: Verdict::Passed,
+        reason: String::new(),
+    };
     let (item, held) = held_with_verdict(&handoff, OID, &holding);
     let woken: Woken = Woken::default();
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+    let said: Vec<String> =
+        held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
     assert_eq!(said.len(), 1, "the released push is named once: {said:?}");
     assert!(said[0].contains(OID), "{}", said[0]);
-    assert!(said[0].contains("is queued for its push from refs/heads/main"), "the release is said as a queued push: {}", said[0]);
+    assert!(
+        said[0].contains("is queued for its push from refs/heads/main"),
+        "the release is said as a queued push: {}",
+        said[0]
+    );
     assert!(!held.exists(), "the record is no longer held");
-    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "and waits for the service in `pending`");
+    assert!(
+        state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "and waits for the service in `pending`"
+    );
     assert_eq!(woken.0.borrow().len(), 1, "the service was told to look");
     remove(root.as_path());
 }
@@ -506,7 +925,10 @@ fn a_held_push_whose_command_left_a_pass_is_released_by_the_next_command() {
 #[test]
 fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
     let root: std::path::PathBuf = fixture("handoff-held-refusal");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let holding: Holding = Holding {
         holder: a_command_that_has_ended(),
@@ -515,14 +937,35 @@ fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
     };
     let (item, held) = held_with_verdict(&handoff, OID, &holding);
     let woken: Woken = Woken::default();
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
-    assert!(said.is_empty(), "a refused push is not said as held: {said:?}");
+    let said: Vec<String> =
+        held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+    assert!(
+        said.is_empty(),
+        "a refused push is not said as held: {said:?}"
+    );
     assert!(!held.exists(), "the record left the held state");
-    assert!(!state_directory(work.as_path(), PENDING).join(item.id()).exists(), "and never becomes runnable");
-    assert!(woken.0.borrow().is_empty(), "nothing is pushed, so nothing is woken");
-    assert_eq!(woken.1.borrow().len(), 1, "the service is told the record whose commit stays local can no longer run");
-    assert_eq!(woken.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
-    let verdicts: Vec<crate::work_item_holding::BlockedVerdict> = crate::work_item_holding::blocked_verdicts(work.as_path());
+    assert!(
+        !state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "and never becomes runnable"
+    );
+    assert!(
+        woken.0.borrow().is_empty(),
+        "nothing is pushed, so nothing is woken"
+    );
+    assert_eq!(
+        woken.1.borrow().len(),
+        1,
+        "the service is told the record whose commit stays local can no longer run"
+    );
+    assert_eq!(
+        woken.1.borrow()[0].1,
+        vec![item.id()],
+        "by the id the service holds its values against"
+    );
+    let verdicts: Vec<crate::work_item_holding::BlockedVerdict> =
+        crate::work_item_holding::blocked_verdicts(work.as_path());
     assert_eq!(
         verdicts,
         vec![crate::work_item_holding::BlockedVerdict {
@@ -547,25 +990,56 @@ fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
 #[test]
 fn a_held_push_whose_command_is_gone_says_so_and_names_what_sends_it() {
     let root: std::path::PathBuf = fixture("handoff-held-gone");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let dead: String = a_command_that_has_ended();
     let pid: i64 = pid_of(dead.as_str()).expect("the holder names a process");
-    let holding: Holding = Holding { holder: dead, verdict: Verdict::Undecided, reason: String::new() };
+    let holding: Holding = Holding {
+        holder: dead,
+        verdict: Verdict::Undecided,
+        reason: String::new(),
+    };
     let (_item, held) = held_with_verdict(&handoff, OID, &holding);
     let woken: Woken = Woken::default();
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+    let said: Vec<String> =
+        held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
     assert_eq!(said.len(), 1, "one line: {said:?}");
-    assert!(said[0].contains(format!("process {pid}").as_str()), "the command is named by its number: {}", said[0]);
-    assert!(said[0].contains("ended before its checks ran"), "{}", said[0]);
-    assert!(said[0].contains("this record pushes nothing"), "the line claims what the record does and no more: {}", said[0]);
+    assert!(
+        said[0].contains(format!("process {pid}").as_str()),
+        "the command is named by its number: {}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("ended before its checks ran"),
+        "{}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("this record pushes nothing"),
+        "the line claims what the record does and no more: {}",
+        said[0]
+    );
     assert!(
         said[0].contains("the next automatic push of refs/heads/main carries the commit if it is not published yet"),
         "the line names what carries the commit, because nothing stops that push: {}",
         said[0]
     );
-    assert!(said[0].contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", said[0]);
-    assert!(!said[0].contains("nothing here publishes it"), "the line claims no publication state a lagging ref could make false: {}", said[0]);
-    assert!(held.exists(), "no verdict was written, so the record stays where the commit's checks left it");
+    assert!(
+        said[0].contains("a push you make of refs/heads/main sends it"),
+        "the remedy is named: {}",
+        said[0]
+    );
+    assert!(
+        !said[0].contains("nothing here publishes it"),
+        "the line claims no publication state a lagging ref could make false: {}",
+        said[0]
+    );
+    assert!(
+        held.exists(),
+        "no verdict was written, so the record stays where the commit's checks left it"
+    );
     assert!(woken.0.borrow().is_empty(), "and nothing is woken for it");
     remove(root.as_path());
 }
@@ -579,16 +1053,38 @@ fn a_held_push_whose_command_is_gone_says_so_and_names_what_sends_it() {
 #[test]
 fn a_held_push_whose_command_still_runs_is_left_to_it() {
     let root: std::path::PathBuf = fixture("handoff-held-live");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let holding: Holding = Holding { holder: crate::held_push_holder_and_verdict::this_command(), verdict: Verdict::Passed, reason: String::new() };
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
+    let holding: Holding = Holding {
+        holder: crate::held_push_holder_and_verdict::this_command(),
+        verdict: Verdict::Passed,
+        reason: String::new(),
+    };
     let (_item, held) = held_with_verdict(&handoff, OID, &holding);
     let woken: Woken = Woken::default();
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+    let said: Vec<String> =
+        held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
     assert_eq!(said.len(), 1, "one line: {said:?}");
-    assert!(said[0].contains(format!("process {}", std::process::id()).as_str()), "{}", said[0]);
-    assert!(said[0].contains("has not finished its checks"), "{}", said[0]);
-    assert!(held.exists(), "the record stays where the command that decided it left it");
-    assert!(woken.0.borrow().is_empty(), "and nothing is woken by another command");
+    assert!(
+        said[0].contains(format!("process {}", std::process::id()).as_str()),
+        "{}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("has not finished its checks"),
+        "{}",
+        said[0]
+    );
+    assert!(
+        held.exists(),
+        "the record stays where the command that decided it left it"
+    );
+    assert!(
+        woken.0.borrow().is_empty(),
+        "and nothing is woken by another command"
+    );
     remove(root.as_path());
 }
 
@@ -606,23 +1102,50 @@ fn a_held_push_whose_command_still_runs_is_left_to_it() {
 #[test]
 fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
     let root: std::path::PathBuf = fixture("handoff-retry-takes-over");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
-    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
+    let held: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
     let dead: String = a_command_that_has_ended();
-    crate::work_item::hold(work.as_path(), &item, dead.as_str()).expect("the first try's push is held");
+    crate::work_item::hold(work.as_path(), &item, dead.as_str())
+        .expect("the first try's push is held");
     let before: String = std::fs::read_to_string(held.as_path()).expect("the held record");
-    assert!(before.contains(dead.as_str()), "the record names the command that landed the commit: {before}");
+    assert!(
+        before.contains(dead.as_str()),
+        "the record names the command that landed the commit: {before}"
+    );
     let _promoted: () = promote_the_push(&handoff, OID).expect("the record is made runnable");
     assert!(!held.exists(), "the first try's hold is gone");
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
     let after: String = std::fs::read_to_string(pending.as_path()).expect("the runnable record");
     let holding: Holding = holding_in(after.as_str());
-    assert_eq!(holding.verdict, Verdict::Passed, "the retry wrote the verdict it recorded: {after}");
-    assert_eq!(holding.holder, crate::held_push_holder_and_verdict::this_command(), "and named itself as the command that decided: {after}");
+    assert_eq!(
+        holding.verdict,
+        Verdict::Passed,
+        "the retry wrote the verdict it recorded: {after}"
+    );
+    assert_eq!(
+        holding.holder,
+        crate::held_push_holder_and_verdict::this_command(),
+        "and named itself as the command that decided: {after}"
+    );
     let written: WorkItem = WorkItem::decode(after.as_str()).expect("the item the record states");
-    assert_eq!(written.id(), item.id(), "the record is the first try's own, not a second one");
+    assert_eq!(
+        written.id(),
+        item.id(),
+        "the record is the first try's own, not a second one"
+    );
     remove(root.as_path());
 }
 
@@ -639,7 +1162,10 @@ fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
 #[test]
 fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
     let root: std::path::PathBuf = fixture("handoff-refusal-verdict-unkept");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let holding: Holding = Holding {
         holder: a_command_that_has_ended(),
@@ -648,12 +1174,21 @@ fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
     };
     let (item, held) = held_with_verdict(&handoff, OID, &holding);
     // The one place a durable verdict lives cannot be used: its name is a regular file.
-    let blocked: std::path::PathBuf = state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
-    std::fs::write(blocked.as_path(), "not a directory").expect("a file in the verdict directory's place");
+    let blocked: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
+    std::fs::write(blocked.as_path(), "not a directory")
+        .expect("a file in the verdict directory's place");
 
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+    let said: Vec<String> = held_push_notices(
+        handoff.git_dir.as_path(),
+        &TheRemoteHolds(false),
+        &the_service_is_not_woken(),
+    );
 
-    assert!(held.exists(), "the record that holds the refusal is still there");
+    assert!(
+        held.exists(),
+        "the record that holds the refusal is still there"
+    );
     // The verdict every push reads could not be written, so the refusal the record still states is what stops the next push.
     assert_eq!(
         crate::work_item_holding::blocked_verdicts(work.as_path()),
@@ -664,19 +1199,51 @@ fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
         }],
         "the refusal the record still states is what the next push of the branch stops before"
     );
-    assert!(!state_directory(work.as_path(), PENDING).join(item.id()).exists(), "nothing became runnable");
+    assert!(
+        !state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "nothing became runnable"
+    );
     assert_eq!(said.len(), 1, "the command says what it kept: {said:?}");
-    assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
-    assert!(said[0].contains("refused it"), "the line says the checks refused it: {}", said[0]);
-    assert!(said[0].contains("final-newline"), "the line keeps the gate's words: {}", said[0]);
-    assert!(said[0].contains("a push you make of it still sends it"), "the line names the one push that sends a refused commit: {}", said[0]);
+    assert!(
+        said[0].contains(OID),
+        "the line names the commit: {}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("refused it"),
+        "the line says the checks refused it: {}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("final-newline"),
+        "the line keeps the gate's words: {}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("a push you make of it still sends it"),
+        "the line names the one push that sends a refused commit: {}",
+        said[0]
+    );
 
     // Once the place works, the very next command settles the refusal and gives the record up.
     std::fs::remove_file(blocked.as_path()).expect("the obstruction goes");
-    let settled: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
-    assert!(settled.is_empty(), "a kept verdict is not said as held: {settled:?}");
+    let settled: Vec<String> = held_push_notices(
+        handoff.git_dir.as_path(),
+        &TheRemoteHolds(false),
+        &the_service_is_not_woken(),
+    );
+    assert!(
+        settled.is_empty(),
+        "a kept verdict is not said as held: {settled:?}"
+    );
     assert!(!held.exists(), "the record left the held state");
-    assert_eq!(crate::work_item_holding::blocked_verdicts(work.as_path()).len(), 1, "the verdict the next push reads is kept");
+    assert_eq!(
+        crate::work_item_holding::blocked_verdicts(work.as_path()).len(),
+        1,
+        "the verdict the next push reads is kept"
+    );
     remove(root.as_path());
 }
 
@@ -694,25 +1261,61 @@ fn a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so() {
 #[test]
 fn a_refusal_is_flushed_before_its_record_is_given_up() {
     let root: std::path::PathBuf = fixture("handoff-refusal-durable");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
-    crate::work_item::hold(work.as_path(), &item, "1/2/3").expect("the push is held while the gate decides");
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
+    crate::work_item::hold(work.as_path(), &item, "1/2/3")
+        .expect("the push is held while the gate decides");
     let held_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD);
-    let blocked_dir: std::path::PathBuf = state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
+    let blocked_dir: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item_holding::BLOCKED);
     crate::private_storage::take_file_syncs();
     crate::private_storage::take_directory_syncs();
 
-    let _reported = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &Woken::default());
+    let _reported = forget_the_push(
+        &handoff,
+        OID,
+        "final-newline: the file does not end with a newline",
+        &Woken::default(),
+    );
 
     let files: Vec<std::path::PathBuf> = crate::private_storage::take_file_syncs();
     let directories: Vec<std::path::PathBuf> = crate::private_storage::take_directory_syncs();
-    assert!(files.contains(&held_dir.join(item.id())), "the refusal in the record is flushed: {files:?}");
-    assert!(files.contains(&blocked_dir.join(item.id())), "the verdict the next push reads is flushed: {files:?}");
-    assert!(directories.contains(&held_dir), "the record's directory is flushed: {directories:?}");
-    assert!(directories.contains(&blocked_dir), "the verdict's directory is flushed: {directories:?}");
-    assert!(!held_dir.join(item.id()).exists(), "the record went once the verdict was durable");
-    assert_eq!(crate::work_item_holding::blocked_verdicts(work.as_path()).len(), 1, "and the verdict stands");
+    assert!(
+        files.contains(&held_dir.join(item.id())),
+        "the refusal in the record is flushed: {files:?}"
+    );
+    assert!(
+        files.contains(&blocked_dir.join(item.id())),
+        "the verdict the next push reads is flushed: {files:?}"
+    );
+    assert!(
+        directories.contains(&held_dir),
+        "the record's directory is flushed: {directories:?}"
+    );
+    assert!(
+        directories.contains(&blocked_dir),
+        "the verdict's directory is flushed: {directories:?}"
+    );
+    assert!(
+        !held_dir.join(item.id()).exists(),
+        "the record went once the verdict was durable"
+    );
+    assert_eq!(
+        crate::work_item_holding::blocked_verdicts(work.as_path()).len(),
+        1,
+        "and the verdict stands"
+    );
     remove(root.as_path());
 }
 
@@ -731,20 +1334,44 @@ fn a_refusal_is_flushed_before_its_record_is_given_up() {
 fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal() {
     use std::os::unix::fs::PermissionsExt;
     let root: std::path::PathBuf = fixture("handoff-blocked-verdict-not-written");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
+    let item: WorkItem = push_item(
+        &handoff,
+        OID,
+        handoff
+            .reference
+            .text()
+            .expect("a branch name that is text"),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
-    std::fs::create_dir_all(held.parent().expect("the held directory")).expect("the held directory");
+    let held: std::path::PathBuf =
+        state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    std::fs::create_dir_all(held.parent().expect("the held directory"))
+        .expect("the held directory");
     std::fs::write(held.as_path(), item.encode()).expect("the held record the gate's command left");
     // The verdict record cannot be written: its directory refuses every new name.
     let blocked: std::path::PathBuf = state_directory(work.as_path(), "blocked");
     std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
-    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a directory no name can be made in");
     let woken: Woken = Woken::default();
-    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &woken);
-    assert!(held.exists(), "the held record stays: it is the only statement of the refusal");
-    assert!(woken.1.borrow().is_empty(), "a record that stays can still run, so its values are not given up");
+    let _unkept: Option<String> = forget_the_push(
+        &handoff,
+        OID,
+        "final-newline: the file does not end with a newline",
+        &woken,
+    );
+    assert!(
+        held.exists(),
+        "the held record stays: it is the only statement of the refusal"
+    );
+    assert!(
+        woken.1.borrow().is_empty(),
+        "a record that stays can still run, so its values are not given up"
+    );
     assert_eq!(
         crate::work_item_holding::blocked_verdicts(work.as_path()),
         vec![crate::work_item_holding::BlockedVerdict {
@@ -754,7 +1381,8 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
         }],
         "the refusal the record still states is what the next push of the branch stops before"
     );
-    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("writable again");
     remove(root.as_path());
 }
 
@@ -767,27 +1395,58 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
 #[test]
 fn a_record_that_is_a_named_pipe_is_answered_at_once() {
     let root: std::path::PathBuf = fixture("handoff-named-pipe");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let handoff: ServiceHandoff = handoff(
+        root.as_path(),
+        Activation::Unsupported(Platform::LinuxWithoutUserServices),
+    );
     let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD);
     crate::private_storage::create_private_directory_all(held.as_path()).expect("held");
     let name: String = format!("{}-{OID}", WorkKind::Push.name());
     let held_pipe: std::path::PathBuf = held.join(name.as_str());
-    crate::subvolume_sync_attrs::make_fifo(held_pipe.as_path(), 0o600).expect("a pipe where a held record goes");
+    crate::subvolume_sync_attrs::make_fifo(held_pipe.as_path(), 0o600)
+        .expect("a pipe where a held record goes");
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     crate::private_storage::create_private_directory_all(pending.as_path()).expect("pending");
-    let pending_pipe: std::path::PathBuf = pending.join(format!("{}-{PARENT}", WorkKind::Push.name()));
-    crate::subvolume_sync_attrs::make_fifo(pending_pipe.as_path(), 0o600).expect("a pipe where a pending record goes");
-    crate::plain_file::open_without_blocking(pending_pipe.as_path()).expect("the pipe opens without a writer").set_modified(std::time::SystemTime::now() - crate::service_handoff::PUSH_QUEUED_AFTER * 4).expect("an old record");
+    let pending_pipe: std::path::PathBuf =
+        pending.join(format!("{}-{PARENT}", WorkKind::Push.name()));
+    crate::subvolume_sync_attrs::make_fifo(pending_pipe.as_path(), 0o600)
+        .expect("a pipe where a pending record goes");
+    crate::plain_file::open_without_blocking(pending_pipe.as_path())
+        .expect("the pipe opens without a writer")
+        .set_modified(std::time::SystemTime::now() - crate::service_handoff::PUSH_QUEUED_AFTER * 4)
+        .expect("an old record");
     let inside: std::path::PathBuf = handoff.git_dir.clone();
     let answered = crate::test_support::finished_within(move || {
-        let held_lines: Vec<String> = held_push_notices(inside.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
-        let queued_lines: Vec<String> = queued_push_notices(inside.as_path(), std::time::SystemTime::now(), &TheRemoteHolds(false), &the_service_is_not_woken());
+        let held_lines: Vec<String> = held_push_notices(
+            inside.as_path(),
+            &TheRemoteHolds(false),
+            &the_service_is_not_woken(),
+        );
+        let queued_lines: Vec<String> = queued_push_notices(
+            inside.as_path(),
+            std::time::SystemTime::now(),
+            &TheRemoteHolds(false),
+            &the_service_is_not_woken(),
+        );
         return (held_lines, queued_lines);
     });
-    let Some((held_lines, queued_lines)) = answered else { panic!("a record that is a named pipe held the notices") };
-    assert_eq!(held_lines.len(), 1, "the one record still says what its own file name holds: {held_lines:?}");
-    assert_eq!(queued_lines.len(), 1, "and the one pending record names its commit from its name: {queued_lines:?}");
-    assert!(held_pipe.exists() && pending_pipe.exists(), "neither pipe is moved or removed, because neither was read as a record");
+    let Some((held_lines, queued_lines)) = answered else {
+        panic!("a record that is a named pipe held the notices")
+    };
+    assert_eq!(
+        held_lines.len(),
+        1,
+        "the one record still says what its own file name holds: {held_lines:?}"
+    );
+    assert_eq!(
+        queued_lines.len(),
+        1,
+        "and the one pending record names its commit from its name: {queued_lines:?}"
+    );
+    assert!(
+        held_pipe.exists() && pending_pipe.exists(),
+        "neither pipe is moved or removed, because neither was read as a record"
+    );
     remove(root.as_path());
 }

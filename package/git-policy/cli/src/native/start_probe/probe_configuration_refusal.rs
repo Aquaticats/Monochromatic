@@ -16,10 +16,17 @@
 //! type SourceRefusal = { kind: 'configuration-unreadable' | 'name-refused' | 'no-mounted-checkout' | ... };
 //! ```
 
-use super::probe_configuration::{CHECKOUT_KEY, DATASET_KEY, START_PROBE_KEY};
+use super::probe_configuration::{
+    CHECKOUT_KEY,
+    DATASET_KEY,
+    START_PROBE_KEY,
+};
 use super::probe_source_name::NameRefusal;
 use crate::zfs_mounted_dataset::mounted_dataset_refusal::MountedDatasetRefusal;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why the source name could not be told,
@@ -94,55 +101,98 @@ impl SourceRefusal {
     /// The word the record carries for this cause.
     pub fn word(&self) -> &'static str {
         return match self {
-            SourceRefusal::ConfigurationUnreadable { .. } => "configuration-unreadable",
-            SourceRefusal::ConfigurationNotUnderRootControl { .. } => "configuration-not-under-root-control",
-            SourceRefusal::ConfigurationEmpty { .. } => "configuration-empty",
-            SourceRefusal::ConfigurationUnparsable { .. } => "configuration-unparsable",
-            SourceRefusal::NameNotText { .. } => "name-not-text",
-            SourceRefusal::NameRefused { .. } => "name-refused",
-            SourceRefusal::Checkout { refusal } => refusal.word(),
-            SourceRefusal::CheckoutNotFound { .. } => "no-mounted-checkout",
+            SourceRefusal::ConfigurationUnreadable {
+                ..
+            } => "configuration-unreadable",
+            SourceRefusal::ConfigurationNotUnderRootControl {
+                ..
+            } => "configuration-not-under-root-control",
+            SourceRefusal::ConfigurationEmpty {
+                ..
+            } => "configuration-empty",
+            SourceRefusal::ConfigurationUnparsable {
+                ..
+            } => "configuration-unparsable",
+            SourceRefusal::NameNotText {
+                ..
+            } => "name-not-text",
+            SourceRefusal::NameRefused {
+                ..
+            } => "name-refused",
+            SourceRefusal::Checkout {
+                refusal,
+            } => refusal.word(),
+            SourceRefusal::CheckoutNotFound {
+                ..
+            } => "no-mounted-checkout",
         };
     }
 
     /// The refusal in words,
     /// naming the path,
     /// the key and what to change.
-    pub fn message(&self, configuration: &Path) -> String {
+    pub fn message(
+        &self,
+        configuration: &Path,
+    ) -> String {
         let key: String = format!("{START_PROBE_KEY}.{DATASET_KEY}");
         return match self {
-            SourceRefusal::ConfigurationUnreadable { path, reason } => format!(
+            SourceRefusal::ConfigurationUnreadable {
+                path,
+                reason,
+            } => format!(
                 "the probe's source is not configured: {} could not be read ({reason}). Nothing was attached. Ways forward: make the file readable by root and run the probe again.",
                 path.display()
             ),
-            SourceRefusal::ConfigurationNotUnderRootControl { path, reason } => format!(
+            SourceRefusal::ConfigurationNotUnderRootControl {
+                path,
+                reason,
+            } => format!(
                 "the probe's source is not configured: {} is not a file this program alone may write ({reason}). Nothing was attached. Ways forward: make it root's own file with `chown root:root {}` and `chmod go-w {}`, and run the probe again.",
                 path.display(),
                 path.display(),
                 path.display()
             ),
-            SourceRefusal::ConfigurationEmpty { path } => format!(
+            SourceRefusal::ConfigurationEmpty {
+                path,
+            } => format!(
                 "the probe's source is not configured: {} is empty, and an empty file is not the same as no file. Nothing was attached. Ways forward: remove the file so the probe finds its dataset by the design's own name, or write `{key}` in it.",
                 path.display()
             ),
-            SourceRefusal::ConfigurationUnparsable { path, reason } => format!(
+            SourceRefusal::ConfigurationUnparsable {
+                path,
+                reason,
+            } => format!(
                 "the probe's source is not configured: {} is not one JSONC document ({reason}). Nothing was attached. Ways forward: fix the file so it parses, then run the probe again.",
                 path.display()
             ),
-            SourceRefusal::NameNotText { path } => format!(
+            SourceRefusal::NameNotText {
+                path,
+            } => format!(
                 "the probe's source is not configured: `{key}` in {} is not one text value. Nothing was attached. Ways forward: give it one quoted dataset name.",
                 path.display()
             ),
-            SourceRefusal::NameRefused { name, why } => format!(
+            SourceRefusal::NameRefused {
+                name,
+                why,
+            } => format!(
                 "the probe's source is not configured: `{key}` names `{name}`, which is not a dataset name the kernel takes ({}). Nothing was attached. Ways forward: give `{key}` the dataset name, with no snapshot, bookmark or path separator a name may not hold.",
                 why.message()
             ),
-            SourceRefusal::Checkout { refusal } => format!(
+            SourceRefusal::Checkout {
+                refusal,
+            } => format!(
                 "the probe's dataset is not configured and its design's own name needs the checkout: {cause}. Nothing was attached. {remedy}",
                 cause = refusal.cause(),
-                remedy = probe_checkout_remedy(refusal, configuration, format!("{START_PROBE_KEY}.{CHECKOUT_KEY}").as_str())
+                remedy = probe_checkout_remedy(
+                    refusal,
+                    configuration,
+                    format!("{START_PROBE_KEY}.{CHECKOUT_KEY}").as_str()
+                )
             ),
-            SourceRefusal::CheckoutNotFound { path } => format!(
+            SourceRefusal::CheckoutNotFound {
+                path,
+            } => format!(
                 "the probe's dataset is not configured and no checkout was found to take the pool from, so `nosnap/git-worktree-probe` has no pool to sit in ({} was read). Nothing was attached. Ways forward: write `{key}` in {} naming the probe dataset, or mount the checkout dataset so the route can find the pool.",
                 path.display(),
                 configuration.display()
@@ -168,24 +218,49 @@ impl SourceRefusal {
 /// ```ts
 /// const remedy = probeCheckoutRemedy(refusal, path, 'startProbe.checkout');
 /// ```
-fn probe_checkout_remedy(refusal: &MountedDatasetRefusal, path: &Path, key: &str) -> String {
+fn probe_checkout_remedy(
+    refusal: &MountedDatasetRefusal,
+    path: &Path,
+    key: &str,
+) -> String {
     let file = path.display();
     return match refusal {
-        MountedDatasetRefusal::TableUnreadable { .. } => format!(
+        MountedDatasetRefusal::TableUnreadable {
+            ..
+        } => format!(
             "Ways forward: run the probe from a process that can read `/proc/self/mountinfo`, or write `{key}` in {file} naming the checkout path."
         ),
-        MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => format!(
+        MountedDatasetRefusal::SeveralMounted {
+            ..
+        }
+        | MountedDatasetRefusal::DatasetMountedSeveralTimes {
+            ..
+        } => format!(
             "Ways forward: leave one mounted instance of the checkout dataset and run the probe again, or write `{key}` in {file} naming the checkout path."
         ),
-        MountedDatasetRefusal::NoPoolForTheProbeDataset { .. } => format!(
+        MountedDatasetRefusal::NoPoolForTheProbeDataset {
+            ..
+        } => format!(
             "Ways forward: write `{START_PROBE_KEY}.{DATASET_KEY}` in {file} naming the probe dataset in full."
         ),
-        MountedDatasetRefusal::NoParentForTheContainer { .. }
-        | MountedDatasetRefusal::NoneMounted { .. }
-        | MountedDatasetRefusal::DatasetNotMounted { .. }
-        | MountedDatasetRefusal::NoDatasetAtThePath { .. }
-        | MountedDatasetRefusal::LeafNameDiffers { .. }
-        | MountedDatasetRefusal::NotADataset { .. } => format!(
+        MountedDatasetRefusal::NoParentForTheContainer {
+            ..
+        }
+        | MountedDatasetRefusal::NoneMounted {
+            ..
+        }
+        | MountedDatasetRefusal::DatasetNotMounted {
+            ..
+        }
+        | MountedDatasetRefusal::NoDatasetAtThePath {
+            ..
+        }
+        | MountedDatasetRefusal::LeafNameDiffers {
+            ..
+        }
+        | MountedDatasetRefusal::NotADataset {
+            ..
+        } => format!(
             "Ways forward: mount the checkout dataset `monochromatic-git-checkout`, which this release carries no setup for, or write `{key}` in {file} naming the checkout path."
         ),
     };
@@ -230,13 +305,18 @@ impl CheckoutRefusal {
             CheckoutRefusal::Unparsable => "configuration-unparsable",
             CheckoutRefusal::NotText => "name-not-text",
             CheckoutRefusal::NotAbsolute => "name-refused",
-            CheckoutRefusal::NotFound { refusal } => refusal.word(),
+            CheckoutRefusal::NotFound {
+                refusal,
+            } => refusal.word(),
         };
     }
 
     /// The refusal in words,
     /// naming the key and what to change.
-    pub fn message(&self, path: &Path) -> String {
+    pub fn message(
+        &self,
+        path: &Path,
+    ) -> String {
         let key: String = format!("{START_PROBE_KEY}.{CHECKOUT_KEY}");
         return match self {
             CheckoutRefusal::Empty => format!(
@@ -255,7 +335,9 @@ impl CheckoutRefusal {
                 "the probe's checkout could not be told: `{key}` in {} is not an absolute path, and a relative one would be resolved against the worker's own directory. Ways forward: write the checkout's absolute path there, or remove the key.",
                 path.display()
             ),
-            CheckoutRefusal::NotFound { refusal } => format!(
+            CheckoutRefusal::NotFound {
+                refusal,
+            } => format!(
                 "the probe's checkout could not be told: {cause}. The probe added nothing to the mount table and enables no managed attach. {remedy}",
                 cause = refusal.cause(),
                 remedy = probe_checkout_remedy(refusal, path, key.as_str())

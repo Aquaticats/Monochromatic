@@ -24,7 +24,10 @@
 
 /// The credential variable,
 /// and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: [&str; 2] = ["SHADOW_REVIEW_LLMGATEWAY_API_KEY", "STOP_REMINDER_LLMGATEWAY_API_KEY"];
+pub const KEY_VARIABLES: [&str; 2] = [
+    "SHADOW_REVIEW_LLMGATEWAY_API_KEY",
+    "STOP_REMINDER_LLMGATEWAY_API_KEY",
+];
 
 /// What:
 ///  A non-empty credential.
@@ -62,7 +65,10 @@ impl ReviewKey {
 /// Debug output never carries the value.
 impl std::fmt::Debug for ReviewKey {
     /// Writes a placeholder.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str("ReviewKey(<redacted>)");
     }
 }
@@ -83,7 +89,11 @@ impl std::fmt::Debug for ReviewKey {
 /// ```
 pub fn key_from_environment(variable: &dyn Fn(&str) -> Option<String>) -> Option<ReviewKey> {
     // The first variable wins; the second is asked only when the first is not set.
-    let chosen: Option<String> = if let Some(first) = variable(KEY_VARIABLES[0]) { Some(first) } else { variable(KEY_VARIABLES[1]) };
+    let chosen: Option<String> = if let Some(first) = variable(KEY_VARIABLES[0]) {
+        Some(first)
+    } else {
+        variable(KEY_VARIABLES[1])
+    };
     let text: String = chosen?;
     return ReviewKey::new(text.as_str());
 }

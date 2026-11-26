@@ -84,14 +84,20 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// ```ts
 /// const said = aFillingThatDidNotRunToItsEnd(fixture, gitDir, worktree); // undefined when the record settled in done
 /// ```
-pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::path::Path, worktree: &std::path::Path) -> Option<String> {
+pub fn a_filling_that_did_not_run_to_its_end(
+    fixture: &Fixture,
+    git_dir: &std::path::Path,
+    worktree: &std::path::Path,
+) -> Option<String> {
     let work: std::path::PathBuf = git_policy_cli::service_work::work_directory(git_dir);
     let began: std::time::Instant = std::time::Instant::now();
     // A record the queue still holds is a filling that may yet run: it is waited for, and a wait that ends with the record
     //  still open says so instead of claiming a verdict it did not see.
     let standing: Standing = loop {
         let standing: Standing = where_the_filling_stands(work.as_path(), worktree);
-        if !matches!(standing, Standing::Open(_)) || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE {
+        if !matches!(standing, Standing::Open(_))
+            || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE
+        {
             break standing;
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
@@ -102,7 +108,9 @@ pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::p
     let where_it_stands: String = match standing {
         Standing::Done => String::from(git_policy_cli::work_item::DONE),
         Standing::GivenUp(state) => String::from(state),
-        Standing::Open(state) => format!("{state}, where it was still to come after the wait for its filling"),
+        Standing::Open(state) => {
+            format!("{state}, where it was still to come after the wait for its filling")
+        }
         Standing::Nowhere => String::from(NAMED_NOWHERE),
     };
     let said: String = match the_services_words(fixture, worktree) {
@@ -148,7 +156,10 @@ const NAMED_NOWHERE: &str = "no state of the work directory";
 /// ```ts
 /// const standing = states.find((state) => standsIn(work, state, worktree)) ?? 'nowhere';
 /// ```
-fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) -> Standing {
+fn where_the_filling_stands(
+    work: &std::path::Path,
+    worktree: &std::path::Path,
+) -> Standing {
     if stands_in(work, git_policy_cli::work_item::DONE, worktree) {
         return Standing::Done;
     }
@@ -179,13 +190,24 @@ fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) 
 /// ```ts
 /// const stands = readdir(stateDir).some((name) => { const item = decode(readFile(name)); return item.kind === 'prewarm' && item.repository === worktree; });
 /// ```
-fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path) -> bool {
+fn stands_in(
+    work: &std::path::Path,
+    state: &str,
+    worktree: &std::path::Path,
+) -> bool {
     let directory: std::path::PathBuf = git_policy_cli::work_item::state_directory(work, state);
-    let Ok(entries) = std::fs::read_dir(directory) else { return false };
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
     for entry in entries.flatten() {
-        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
-        let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { continue };
-        if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree {
+        let Ok(text) = std::fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else {
+            continue;
+        };
+        if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree
+        {
             return true;
         }
     }
@@ -206,7 +228,10 @@ fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path) ->
 /// ```ts
 /// const said = lines(serviceLog(root)).filter((line) => line.includes('could not be filled') && line.includes(worktree)).at(-1);
 /// ```
-fn the_services_words(fixture: &Fixture, worktree: &std::path::Path) -> Option<String> {
+fn the_services_words(
+    fixture: &Fixture,
+    worktree: &std::path::Path,
+) -> Option<String> {
     let needle: String = worktree.display().to_string();
     let began: std::time::Instant = std::time::Instant::now();
     loop {
@@ -214,7 +239,9 @@ fn the_services_words(fixture: &Fixture, worktree: &std::path::Path) -> Option<S
         let found: Option<String> = log
             .lines()
             .rev()
-            .find(|line| { return line.contains("could not be filled") && line.contains(needle.as_str()); })
+            .find(|line| {
+                return line.contains("could not be filled") && line.contains(needle.as_str());
+            })
             .map(str::to_owned);
         if found.is_some() || began.elapsed() >= A_FILLINGS_WORDS_PATIENCE {
             return found;
@@ -261,7 +288,10 @@ pub fn end_the_fills_clean(fixture: &Fixture) {
 /// ```ts
 /// const script = `case " $* " in *' clean '*) case "$CARGO_BUILD_BUILD_DIR" in *'.monochromatic-prewarm') : > '${marker}'; kill -9 $$ ;; esac ;; esac; exec '${real}' "$@"`;
 /// ```
-pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
+pub fn end_the_fills_clean_within(
+    fixture: &Fixture,
+    ending: Option<&str>,
+) {
     let Some(asked) = ending else { return };
     let link: std::path::PathBuf = fixture.root.join("bin/cargo");
     let real: std::path::PathBuf = std::fs::read_link(link.as_path()).unwrap_or_else(|error| {
@@ -269,7 +299,9 @@ pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
     });
     let marker: std::path::PathBuf = fixture.root.join("filling-clean-ended");
     // A single quote in a path ends the quoted text, is written as itself, and starts it again.
-    let quote = |path: &std::path::Path| -> String { return path.display().to_string().replace('\'', "'\\''"); };
+    let quote = |path: &std::path::Path| -> String {
+        return path.display().to_string().replace('\'', "'\\''");
+    };
     // What the filling's own clean does, and what the resolution after it does, which is nothing unless the clean was ended
     //  with the signal.
     let (clean, resolution): (String, String) = match asked {
@@ -280,7 +312,10 @@ pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
                 quote(marker.as_path())
             ),
         ),
-        SLOW_FILLS_CLEAN => (format!("sleep {A_SLOW_FILLS_CLEAN_SECONDS}"), String::from(":")),
+        SLOW_FILLS_CLEAN => (
+            format!("sleep {A_SLOW_FILLS_CLEAN_SECONDS}"),
+            String::from(":"),
+        ),
         other => panic!(
             "the endings a control may name for a filling's clean are {ENDED_WITH_SIGKILL} and {SLOW_FILLS_CLEAN}, and {A_FILLS_CLEAN_ENDING_VARIABLE} says {other:?}"
         ),
@@ -302,6 +337,7 @@ pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
          exec '{real}' \"$@\"\n",
         real = quote(real.as_path()),
     );
-    std::fs::remove_file(link.as_path()).expect("the fixture's Cargo link goes before the stand-in takes its name");
+    std::fs::remove_file(link.as_path())
+        .expect("the fixture's Cargo link goes before the stand-in takes its name");
     crate::support_fixture_directories::executable(link.as_path(), script.as_bytes());
 }

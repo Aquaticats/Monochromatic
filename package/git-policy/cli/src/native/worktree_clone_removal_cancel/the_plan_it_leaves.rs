@@ -23,11 +23,17 @@
 //! ```
 
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What became of the plan a removal left.
@@ -90,20 +96,31 @@ pub fn the_plan_a_cancellation_leaves(
         return Ok(ThePlansFate::NoPlan);
     };
     let path: PathBuf = plans_folder(common_dir).join(recorded.clone_guid.file_name());
-    if standing.facts.clone_guid != recorded.clone_guid || standing.facts.clone_dataset != recorded.clone_dataset {
+    if standing.facts.clone_guid != recorded.clone_guid
+        || standing.facts.clone_dataset != recorded.clone_dataset
+    {
         return Err(CancelRefusal::ThePlanIsOfAnotherClone {
             path,
             plan_guid: standing.facts.clone_guid.file_name(),
             recorded_guid: recorded.clone_guid.file_name(),
         });
     }
-    let witnessed_nothing: bool = destroyed.is_empty() && standing.head == HeadWord::Present && every_line_is_planned(standing);
+    let witnessed_nothing: bool = destroyed.is_empty()
+        && standing.head == HeadWord::Present
+        && every_line_is_planned(standing);
     if !witnessed_nothing {
-        return Ok(ThePlansFate::Kept { path });
+        return Ok(ThePlansFate::Kept {
+            path,
+        });
     }
     return match std::fs::remove_file(path.as_path()) {
-        Ok(()) => Ok(ThePlansFate::Removed { path }),
-        Err(error) => Err(CancelRefusal::ThePlanCouldNotGo { path, said: error.to_string() }),
+        Ok(()) => Ok(ThePlansFate::Removed {
+            path,
+        }),
+        Err(error) => Err(CancelRefusal::ThePlanCouldNotGo {
+            path,
+            said: error.to_string(),
+        }),
     };
 }
 

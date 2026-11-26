@@ -17,17 +17,37 @@
 #![cfg(unix)]
 
 /// Import the module under test.
-use super::{CandidateRequest, PreparedCandidates, prepare_candidates};
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use super::{
+    CandidateRequest,
+    PreparedCandidates,
+    prepare_candidates,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 use crate::candidate_object::CandidateMode;
 use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::Candidate;
-use crate::test_support::{REAL_GIT, fixture, git, git_output, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    git_output,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// The arguments of a request,
@@ -64,21 +84,30 @@ fn prepare_with(
 
 /// The prediction of `git add` with these arguments,
 ///  which the control requires to succeed.
-fn add(directory: &Path, values: &[&str]) -> PreparedCandidates {
+fn add(
+    directory: &Path,
+    values: &[&str],
+) -> PreparedCandidates {
     return prepare_with(directory, &[], &CandidateRequest::Add(arguments(values)))
         .expect("prediction");
 }
 
 /// The projection of these pathspecs,
 ///  which the control requires to succeed.
-fn direct(directory: &Path, values: &[&str]) -> PreparedCandidates {
+fn direct(
+    directory: &Path,
+    values: &[&str],
+) -> PreparedCandidates {
     return prepare_with(directory, &[], &CandidateRequest::Direct(arguments(values)))
         .expect("projection");
 }
 
 /// The failure of a preparation,
 ///  which the control requires.
-fn refused(directory: &Path, request: &CandidateRequest) -> CandidateError {
+fn refused(
+    directory: &Path,
+    request: &CandidateRequest,
+) -> CandidateError {
     match prepare_with(directory, &[], request) {
         Ok(prepared) => panic!(
             "expected a failure, got {} candidates",
@@ -103,7 +132,10 @@ fn listed(prepared: &PreparedCandidates) -> Vec<(String, CandidateChange)> {
 }
 
 /// The bytes of the candidate at `path`.
-fn bytes(prepared: &mut PreparedCandidates, path: &[u8]) -> Vec<u8> {
+fn bytes(
+    prepared: &mut PreparedCandidates,
+    path: &[u8],
+) -> Vec<u8> {
     let candidate: Candidate = prepared
         .version
         .candidate_at_path(path)
@@ -139,7 +171,10 @@ fn private_leftovers(git_dir: &Path) -> Vec<String> {
 ///  `tracked.txt`,
 ///  `remove.txt`,
 ///  `link` and `keep.txt`.
-fn base(root: &Path, name: &str) -> PathBuf {
+fn base(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
     std::fs::write(repo.join("remove.txt"), b"to remove\n").expect("remove");
@@ -345,7 +380,9 @@ fn a_conflict_elsewhere_does_not_stop_the_prediction() {
 ///  a repository without commits and a linked worktree all work.
 #[test]
 fn names_directories_unborn_heads_and_linked_worktrees() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_prediction::tests::names_directories_unborn_heads_and_linked_worktrees") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_prediction::tests::names_directories_unborn_heads_and_linked_worktrees",
+    ) {
         return;
     }
     let root: PathBuf = fixture("predict-add-places");
@@ -588,27 +625,57 @@ fn direct_candidates_are_every_selected_worktree_file() {
 fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
     let root: PathBuf = fixture("predict-staged-at-base");
     let repo: PathBuf = base(root.as_path(), "repo");
-    let recorded: String = String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", "HEAD"]).stdout.as_slice())
-        .trim()
-        .to_string();
+    let recorded: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["rev-parse", "HEAD"])
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_string();
     std::fs::write(repo.join("fresh.txt"), b"fresh\n").expect("fresh");
     git(repo.as_path(), &["add", "--", "fresh.txt"]);
     // Another landing moves HEAD by committing the same path.
-    git(repo.as_path(), &["commit", "--quiet", "--message=moved", "--only", "--", "fresh.txt"]);
+    git(
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--message=moved",
+            "--only",
+            "--",
+            "fresh.txt",
+        ],
+    );
     let scope: Vec<OsString> = vec![OsString::from(":(top,literal)fresh.txt")];
-    let live: Vec<(String, CandidateChange)> =
-        listed(&prepare_with(repo.as_path(), &[], &CandidateRequest::Staged(scope.clone())).expect("staged"));
-    assert_eq!(live, vec![(String::from("fresh.txt"), CandidateChange::Modified)]);
-    let object = crate::candidate_object::parse_object_id(recorded.as_bytes()).expect("object name");
+    let live: Vec<(String, CandidateChange)> = listed(
+        &prepare_with(
+            repo.as_path(),
+            &[],
+            &CandidateRequest::Staged(scope.clone()),
+        )
+        .expect("staged"),
+    );
+    assert_eq!(
+        live,
+        vec![(String::from("fresh.txt"), CandidateChange::Modified)]
+    );
+    let object =
+        crate::candidate_object::parse_object_id(recorded.as_bytes()).expect("object name");
     let at_base: Vec<(String, CandidateChange)> = listed(
         &prepare_with(
             repo.as_path(),
             &[],
-            &CandidateRequest::StagedAtBase { base: Some(object), pathspecs: scope.clone() },
+            &CandidateRequest::StagedAtBase {
+                base: Some(object),
+                pathspecs: scope.clone(),
+            },
         )
         .expect("at base"),
     );
-    assert_eq!(at_base, vec![(String::from("fresh.txt"), CandidateChange::Added)]);
+    assert_eq!(
+        at_base,
+        vec![(String::from("fresh.txt"), CandidateChange::Added)]
+    );
     let unborn: Vec<(String, CandidateChange)> = listed(
         &prepare_with(
             repo.as_path(),
@@ -620,11 +687,17 @@ fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
         )
         .expect("unborn"),
     );
-    assert_eq!(unborn, vec![(String::from("tracked.txt"), CandidateChange::Added)]);
+    assert_eq!(
+        unborn,
+        vec![(String::from("tracked.txt"), CandidateChange::Added)]
+    );
     let nothing = prepare_with(
         repo.as_path(),
         &[],
-        &CandidateRequest::StagedAtBase { base: None, pathspecs: Vec::new() },
+        &CandidateRequest::StagedAtBase {
+            base: None,
+            pathspecs: Vec::new(),
+        },
     )
     .expect("empty scope");
     assert!(nothing.version.candidates().is_empty());
@@ -646,10 +719,7 @@ fn staged_arms_name_their_paths_under_literal_pathspec_mode() {
         (
             "the variable",
             vec![OsString::from("-C"), repo.as_os_str().to_os_string()],
-            vec![(
-                OsString::from("GIT_LITERAL_PATHSPECS"),
-                OsString::from("1"),
-            )],
+            vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("1"))],
         ),
         (
             "the global option",
@@ -712,17 +782,28 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
     let limit: libc::c_long = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
     assert!(limit > 0, "the argument limit is known");
     let half: usize = usize::try_from(limit).expect("a positive limit") / 2;
-    let paths: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
-    let names: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
-    assert!(paths <= half, "{paths} bytes of paths must fit under {half}");
-    assert!(names <= half, "{names} bytes of names must fit under {half}");
+    let paths: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE
+        * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
+    let names: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE
+        * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
+    assert!(
+        paths <= half,
+        "{paths} bytes of paths must fit under {half}"
+    );
+    assert!(
+        names <= half,
+        "{names} bytes of names must fit under {half}"
+    );
 }
 
 /// The three chunk sizes that split argument lists are one value,
 /// so a change is made once.
 #[test]
 fn the_argument_chunk_sizes_are_one_value() {
-    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE);
+    assert_eq!(
+        crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE,
+        crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE
+    );
 }
 
 /// A request that only lists the index prepares its candidates with the Git directory closed to writing,
@@ -742,14 +823,25 @@ fn a_listing_request_prepares_without_a_private_copy_of_the_index() {
     let before: Vec<u8> = index_bytes(repo.as_path());
     let scope: Vec<OsString> = vec![OsString::from(":(top,literal)tracked.txt")];
     let git_dir: PathBuf = repo.join(".git");
-    let writable: std::fs::Permissions = std::fs::metadata(git_dir.as_path()).expect("Git directory").permissions();
-    std::fs::set_permissions(git_dir.as_path(), std::fs::Permissions::from_mode(0o555)).expect("closed for writing");
+    let writable: std::fs::Permissions = std::fs::metadata(git_dir.as_path())
+        .expect("Git directory")
+        .permissions();
+    std::fs::set_permissions(git_dir.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("closed for writing");
     let listed_without_a_copy: Result<PreparedCandidates, CandidateError> =
         prepare_with(repo.as_path(), &[], &CandidateRequest::Staged(scope));
     std::fs::set_permissions(git_dir.as_path(), writable).expect("writable again");
-    let prepared: PreparedCandidates = listed_without_a_copy.expect("a request that only lists the index needs no private copy of it");
-    assert_eq!(listed(&prepared), vec![(String::from("tracked.txt"), CandidateChange::Modified)]);
-    assert_eq!(index_bytes(repo.as_path()), before, "the index it listed in place is byte for byte as it was");
+    let prepared: PreparedCandidates = listed_without_a_copy
+        .expect("a request that only lists the index needs no private copy of it");
+    assert_eq!(
+        listed(&prepared),
+        vec![(String::from("tracked.txt"), CandidateChange::Modified)]
+    );
+    assert_eq!(
+        index_bytes(repo.as_path()),
+        before,
+        "the index it listed in place is byte for byte as it was"
+    );
     assert_eq!(private_leftovers(git_dir.as_path()), Vec::<String>::new());
     remove(root.as_path());
 }

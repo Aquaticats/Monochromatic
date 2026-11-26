@@ -24,7 +24,10 @@
 //! const place = thePlaceOfOneJob(permit); // one of the two gives it back, once
 //! ```
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use tokio::sync::OwnedSemaphorePermit;
 
 /// What:
@@ -46,7 +49,9 @@ impl ThePlaceOfOneJob {
     /// The place of one job,
     /// shared by the frame that waits for it and the job itself.
     pub(crate) fn holding(place: OwnedSemaphorePermit) -> Arc<ThePlaceOfOneJob> {
-        return Arc::new(ThePlaceOfOneJob { place: Mutex::new(Some(place)) });
+        return Arc::new(ThePlaceOfOneJob {
+            place: Mutex::new(Some(place)),
+        });
     }
 
     /// What:

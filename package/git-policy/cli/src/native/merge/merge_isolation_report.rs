@@ -17,7 +17,10 @@
 /// a few names,
 /// then a count.
 /// The finding event and its rendering.
-use crate::policy_events::{PolicyEvent, render_policy_events};
+use crate::policy_events::{
+    PolicyEvent,
+    render_policy_events,
+};
 
 /// The finding family of every refusal here.
 pub const CORE_ID: &str = "merge-isolation";
@@ -38,7 +41,10 @@ pub const APPLY_REFUSED_CODE: &str = "not-applied";
 /// ```ts
 /// renderPolicyEvents(1, [finding])
 /// ```
-fn render(code: &'static str, message: String) -> String {
+fn render(
+    code: &'static str,
+    message: String,
+) -> String {
     return render_policy_events(
         1,
         &[PolicyEvent::CoreFinding {
@@ -63,7 +69,10 @@ fn render(code: &'static str, message: String) -> String {
 /// ```ts
 /// function conflictFinding({ reference, paths }): string;
 /// ```
-pub fn conflict_finding(reference: &str, paths: &[String]) -> String {
+pub fn conflict_finding(
+    reference: &str,
+    paths: &[String],
+) -> String {
     return render(
         CONFLICT_CODE,
         format!(
@@ -93,7 +102,10 @@ pub fn conflict_finding(reference: &str, paths: &[String]) -> String {
 /// ```ts
 /// function notAppliedFinding({ reference, detail }): string;
 /// ```
-pub fn not_applied_finding(reference: &str, detail: &str) -> String {
+pub fn not_applied_finding(
+    reference: &str,
+    detail: &str,
+) -> String {
     return render(
         APPLY_REFUSED_CODE,
         format!(

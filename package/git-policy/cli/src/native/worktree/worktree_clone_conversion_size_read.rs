@@ -29,21 +29,53 @@
 //! const fence = fenceTheCloneWithTheReadBesideTheCheck(source, context, started); // takes it, or reads here
 //! ```
 
-use crate::add_timing::{begin_step, end_step, note_work};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+    note_work,
+};
 use crate::diagnostic_log::debug;
 use crate::repo_read_layout::ObjectFormat;
+use crate::scoped_start::{
+    refused_thread_sentence,
+    spawn_named,
+};
 use crate::subvolume_index_files::repository_hash_length;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_clean::head_commit;
-use crate::worktree_clone_conversion_fence::{AttributeFence, Fence, decide_the_paths_with_sizes, fence_the_attributes};
-use crate::worktree_clone_conversion_git_reads::{BlobSizes, a_git_run_that_did_not_answer, blob_sizes, parse_sizes, unreadable_sizes};
+use crate::worktree_clone_conversion_fence::{
+    AttributeFence,
+    Fence,
+    decide_the_paths_with_sizes,
+    fence_the_attributes,
+};
+use crate::worktree_clone_conversion_git_reads::{
+    BlobSizes,
+    a_git_run_that_did_not_answer,
+    blob_sizes,
+    parse_sizes,
+    unreadable_sizes,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::scoped_start::{refused_thread_sentence, spawn_named};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{RecvTimeoutError, Sender};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::mpsc::{
+    RecvTimeoutError,
+    Sender,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCloneConversionSizeRead";
@@ -64,7 +96,8 @@ const WORK: &str = "fenceSizesBesideTheCheck";
 /// this deadline only catches a read whose task died or is held outside it,
 /// and the numbers are that step's own,
 /// not a new limit.
-const THE_JOIN_DEADLINE: Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING.saturating_add(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+const THE_JOIN_DEADLINE: Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING
+    .saturating_add(crate::wait_ceilings::SHORT_EXTRA_WAIT);
 
 /// The name the read's thread carries in the process.
 /// Why:
@@ -189,8 +222,24 @@ pub struct SizeReadBesideTheCheck {
 /// ```
 fn directories_of(identity: &WorktreeIdentity) -> Option<(&Path, &Path, &Path)> {
     return match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, git_dir, common_dir } | WorktreeIdentity::LinkedWorktree { worktree_root, git_dir, common_dir } => Some((worktree_root.as_path(), git_dir.as_path(), common_dir.as_path())),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => None,
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            git_dir,
+            common_dir,
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            git_dir,
+            common_dir,
+        } => Some((
+            worktree_root.as_path(),
+            git_dir.as_path(),
+            common_dir.as_path(),
+        )),
+        WorktreeIdentity::BareRepository {
+            ..
+        }
+        | WorktreeIdentity::OutsideWorktree => None,
     };
 }
 
@@ -220,24 +269,59 @@ fn directories_of(identity: &WorktreeIdentity) -> Option<(&Path, &Path, &Path)> 
 /// ```ts
 /// function startBesideTheCheck(context, identity): SizeReadBesideTheCheck | undefined;
 /// ```
-pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity) -> Option<SizeReadBesideTheCheck> {
+pub fn start_beside_the_check(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Option<SizeReadBesideTheCheck> {
     let (root, git_dir, common_dir): (&Path, &Path, &Path) = directories_of(identity)?;
     let hash_length: usize = repository_hash_length(common_dir)?;
-    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let format: ObjectFormat = if hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let Some(commit): Option<String> = head_commit(git_dir, common_dir, format) else {
-        debug(TAG, "the commit HEAD names is not a plain ref, so the size read does not start beside the check");
+        debug(
+            TAG,
+            "the commit HEAD names is not a plain ref, so the size read does not start beside the check",
+        );
         return None;
     };
-    let child: std::sync::Arc<std::sync::atomic::AtomicI32> = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
-    let (sender, answer): (Sender<ReadAnswer>, std::sync::mpsc::Receiver<ReadAnswer>) = std::sync::mpsc::channel();
-    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>) = (context.clone(), root.to_path_buf(), commit.clone(), sender, child.clone());
+    let child: std::sync::Arc<std::sync::atomic::AtomicI32> =
+        std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
+    let (sender, answer): (Sender<ReadAnswer>, std::sync::mpsc::Receiver<ReadAnswer>) =
+        std::sync::mpsc::channel();
+    let state: (
+        GitContext,
+        PathBuf,
+        String,
+        Sender<ReadAnswer>,
+        std::sync::Arc<std::sync::atomic::AtomicI32>,
+    ) = (
+        context.clone(),
+        root.to_path_buf(),
+        commit.clone(),
+        sender,
+        child.clone(),
+    );
     if let Err(error) = spawn_named(THREAD, move || {
         return read_the_sizes_where_nothing_is_fetched(state);
     }) {
-        debug(TAG, refused_thread_sentence("read the fence's blob sizes beside the source check", &error).as_str());
+        debug(
+            TAG,
+            refused_thread_sentence(
+                "read the fence's blob sizes beside the source check",
+                &error,
+            )
+            .as_str(),
+        );
         return None;
     }
-    return Some(SizeReadBesideTheCheck { commit, answer, child });
+    return Some(SizeReadBesideTheCheck {
+        commit,
+        answer,
+        child,
+    });
 }
 
 /// What:
@@ -255,15 +339,29 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```ts
 /// function readTheSizesWhereNothingIsFetched([context, root, commit, sender]) { const began = performance.now(); sender.send([performance.now() - began, sizesOf(context, root, commit)]); }
 /// ```
-fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
+fn read_the_sizes_where_nothing_is_fetched(
+    (context, root, commit, sender, child): (
+        GitContext,
+        PathBuf,
+        String,
+        Sender<ReadAnswer>,
+        std::sync::Arc<std::sync::atomic::AtomicI32>,
+    )
+) {
     let began: Instant = Instant::now();
-    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
+    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(
+        &context,
+        root.as_path(),
+        commit.as_str(),
+        &child,
+    );
     // The cell is not cleared here: the runner clears it with a compare-exchange when the child it published is
     //  gone (`child_watch_one_shot_run.rs`, the `StepBound::EndAt` arm), so a store here would erase an abandon
     //  marker for nothing, and it can name no process the runner has not already dealt with.
     #[cfg(test)]
     free::note_the_answer_was_sent();
-    let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
+    let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> =
+        sender.send((began.elapsed(), sizes));
 }
 
 /// What:
@@ -286,16 +384,28 @@ fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child
 /// ```ts
 /// const theEarlyReadRequest = (root, commit) => ({ cwd: root, args: ['ls-tree', '-r', '-l', '-z', commit], env: { GIT_NO_LAZY_FETCH: '1' }, besideAnotherStep: true, endWithTheStartingThread: true });
 /// ```
-fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
-    let arguments: Vec<OsString> = vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)];
-    let environment: Vec<(OsString, OsString)> = vec![(OsString::from(NO_LAZY_FETCH), OsString::from("1"))];
+fn the_early_read_request(
+    root: &Path,
+    commit: &str,
+) -> GitRequest {
+    let arguments: Vec<OsString> = vec![
+        OsString::from("ls-tree"),
+        OsString::from("-r"),
+        OsString::from("-l"),
+        OsString::from("-z"),
+        OsString::from(commit),
+    ];
+    let environment: Vec<(OsString, OsString)> =
+        vec![(OsString::from(NO_LAZY_FETCH), OsString::from("1"))];
     return GitRequest {
         cwd: root.to_path_buf(),
         arguments,
         without_prefix: true,
         environment,
         ..GitRequest::default()
-    }.beside_another_step().ends_with_the_starting_thread();
+    }
+    .beside_another_step()
+    .ends_with_the_starting_thread();
 }
 
 /// What:
@@ -315,12 +425,21 @@ fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
 /// ```ts
 /// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): BlobSizes;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(
+    context: &GitContext,
+    root: &Path,
+    commit: &str,
+    child: &std::sync::Arc<std::sync::atomic::AtomicI32>,
+) -> Result<BlobSizes, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
     die_where_a_control_asked();
-    let output: GitOutput = run_git(context, &the_early_read_request(root, commit).publishing_its_child(child.clone())).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
+    let output: GitOutput = run_git(
+        context,
+        &the_early_read_request(root, commit).publishing_its_child(child.clone()),
+    )
+    .map_err(|error| return a_git_run_that_did_not_answer(&error))?;
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
@@ -342,7 +461,10 @@ fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Pat
 /// ```ts
 /// const lists = (read, commit) => read.commit === commit;
 /// ```
-fn lists(read: &SizeReadBesideTheCheck, commit: &str) -> bool {
+fn lists(
+    read: &SizeReadBesideTheCheck,
+    commit: &str,
+) -> bool {
     return read.commit == commit;
 }
 
@@ -362,7 +484,11 @@ fn lists(read: &SizeReadBesideTheCheck, commit: &str) -> bool {
 /// ```ts
 /// function fenceTheCloneWithTheReadBesideTheCheck(source, context, started): Fence;
 /// ```
-pub fn fence_the_clone_with_the_read_beside_the_check(source: &SnapshotSource, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<Fence, String> {
+pub fn fence_the_clone_with_the_read_beside_the_check(
+    source: &SnapshotSource,
+    context: &GitContext,
+    started: &mut Option<SizeReadBesideTheCheck>,
+) -> Result<Fence, String> {
     let read: AttributeFence = fence_the_attributes(source, context)?;
     if !read.needs_sizes() {
         // No path needs a size, so this read has nothing to answer: an add that leaves it running pays it beside
@@ -410,11 +536,17 @@ fn end_the_read_the_fence_will_not_use(started: &mut Option<SizeReadBesideTheChe
 /// ```ts
 /// function sizesOfThePaths(source, context, started): BlobSizes;
 /// ```
-fn sizes_of_the_paths(source: &SnapshotSource, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<BlobSizes, String> {
+fn sizes_of_the_paths(
+    source: &SnapshotSource,
+    context: &GitContext,
+    started: &mut Option<SizeReadBesideTheCheck>,
+) -> Result<BlobSizes, String> {
     let commit: &str = source.clean.head_commit.as_str();
     match started.as_ref() {
         Some(proved) if lists(proved, commit) => {
-            let taken: SizeReadBesideTheCheck = started.take().expect("the read that lists the proved commit is the one just matched");
+            let taken: SizeReadBesideTheCheck = started
+                .take()
+                .expect("the read that lists the proved commit is the one just matched");
             return taken.join();
         }
         Some(read) => {
@@ -449,7 +581,10 @@ impl SizeReadBesideTheCheck {
         let joined: Joined = self.answer_within_the_deadline();
         end_step(entered);
         return match joined {
-            Joined::Answered { spent, outcome } => {
+            Joined::Answered {
+                spent,
+                outcome,
+            } => {
                 note_work(WORK, spent);
                 match outcome {
                     Ok(sizes) => Ok(sizes),
@@ -498,11 +633,17 @@ impl SizeReadBesideTheCheck {
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 crate::add_timing::note(WORK, "started and not joined");
-                debug(TAG, "the size read started beside the check has not answered, so the add states it as started and not joined; this value's end settles its child");
+                debug(
+                    TAG,
+                    "the size read started beside the check has not answered, so the add states it as started and not joined; this value's end settles its child",
+                );
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 crate::add_timing::note(WORK, "started and not joined");
-                debug(TAG, "the size read started beside the check ended without answering, so the add states it as started and not joined");
+                debug(
+                    TAG,
+                    "the size read started beside the check ended without answering, so the add states it as started and not joined",
+                );
             }
         }
     }
@@ -550,7 +691,9 @@ impl SizeReadBesideTheCheck {
                     }
                 }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty | std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(
+                std::sync::mpsc::TryRecvError::Empty | std::sync::mpsc::TryRecvError::Disconnected,
+            ) => {
                 crate::add_timing::note(WORK, "started and not joined");
                 None
             }
@@ -559,7 +702,10 @@ impl SizeReadBesideTheCheck {
         end_step(take_entered);
         let child_entered: bool = begin_step("abandonEndTheChild");
         if self.child.load(std::sync::atomic::Ordering::SeqCst) == 0 {
-            debug(TAG, "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it");
+            debug(
+                TAG,
+                "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it",
+            );
         }
         self.end_the_child();
         end_step(child_entered);
@@ -578,7 +724,10 @@ impl SizeReadBesideTheCheck {
     /// endTheChild() { const published = this.child.swap(ABANDONED_CHILD); if (published > 0) kill(published, 'SIGKILL'); }
     /// ```
     fn end_the_child(&self) {
-        let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
+        let published: i32 = self.child.swap(
+            crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         if published > 0 {
             // SAFETY: `published` is this add's own Git child, published by its runner while it ran;
             // a signal to a process that ended in between reaches nothing.
@@ -603,9 +752,19 @@ impl SizeReadBesideTheCheck {
     fn answer_within_the_deadline(self) -> Joined {
         let deadline: Duration = deadline::the_deadline(THE_JOIN_DEADLINE);
         return match self.answer.recv_timeout(deadline) {
-            Ok((spent, outcome)) => Joined::Answered { spent, outcome },
-            Err(RecvTimeoutError::Timeout) => Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::new(std::io::ErrorKind::TimedOut, format!("`git ls-tree` did not answer within {deadline:?}")))),
-            Err(RecvTimeoutError::Disconnected) => Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::other("the read ended without answering"))),
+            Ok((spent, outcome)) => Joined::Answered {
+                spent,
+                outcome,
+            },
+            Err(RecvTimeoutError::Timeout) => {
+                Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!("`git ls-tree` did not answer within {deadline:?}"),
+                )))
+            }
+            Err(RecvTimeoutError::Disconnected) => Joined::Silent(a_git_run_that_did_not_answer(
+                &std::io::Error::other("the read ended without answering"),
+            )),
         };
     }
 
@@ -699,15 +858,21 @@ fn hold_the_read_where_a_control_asked() {
     if !THE_READ_IS_HELD.load(std::sync::atomic::Ordering::SeqCst) {
         return;
     }
-    let held = THE_HELD_READ.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _lets_go = THE_HELD_READ_LETS_GO.wait_timeout(held, Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+    let held = THE_HELD_READ
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _lets_go = THE_HELD_READ_LETS_GO
+        .wait_timeout(held, Duration::from_secs(30))
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 }
 
 #[cfg(test)]
-static THE_SIZES_ARE_HELD_AFTER_THE_WAIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_SIZES_ARE_HELD_AFTER_THE_WAIT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
-static THE_SIZES_WERE_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_SIZES_WERE_HELD: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
 static THE_HELD_SIZES: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -733,8 +898,12 @@ fn hold_the_sizes_after_the_wait_where_a_control_asked() {
         return;
     }
     THE_SIZES_WERE_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
-    let held = THE_HELD_SIZES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _lets_go = THE_HELD_SIZES_LET_GO.wait_timeout(held, Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+    let held = THE_HELD_SIZES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _lets_go = THE_HELD_SIZES_LET_GO
+        .wait_timeout(held, Duration::from_secs(30))
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 }
 
 /// What:
@@ -872,7 +1041,10 @@ mod free;
 #[cfg(test)]
 pub(crate) use deadline::a_control_shortens_the_deadline_to;
 #[cfg(test)]
-pub(crate) use free::{answered_maps_freed_for_a_control, the_answer_was_sent_for_a_control};
+pub(crate) use free::{
+    answered_maps_freed_for_a_control,
+    the_answer_was_sent_for_a_control,
+};
 
 use free::free_the_answered_map_beside_the_add;
 

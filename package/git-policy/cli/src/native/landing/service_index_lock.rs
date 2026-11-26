@@ -40,25 +40,74 @@
 //! const lock = await acquireIndexLock(indexPath, deadline, announce); ... await lock.releaseWith(newIndex);
 //! ```
 
-use crate::service_index_attempts::{Placing, wait_and_place};
-use crate::wait_ceilings::LANDING_LOCK_CEILING;
+use crate::service_index_attempts::{
+    Placing,
+    wait_and_place,
+};
 use crate::service_protocol::FailureCode;
-use std::path::{Path, PathBuf};
+use crate::wait_ceilings::LANDING_LOCK_CEILING;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
-use crate::service_index_prestage::{Prestaged, take};
-pub use crate::service_index_found::{WaitNotes, describe_lock};
-pub use crate::service_index_hold::{IndexLock, Record};
-pub use crate::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
-pub use crate::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
-#[cfg(target_os = "linux")]
-pub use crate::service_index_watch::{events_end_watch, events_name};
-pub use crate::service_index_placement::{Placed, Platform, SYSTEM, placement_failure_text};
-pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
+pub use crate::service_index_found::{
+    WaitNotes,
+    describe_lock,
+};
+pub use crate::service_index_hold::{
+    IndexLock,
+    Record,
+};
+pub use crate::service_index_marker::{
+    LOCK_MARKER,
+    Marked,
+    marker_text,
+    parse_marker,
+};
+pub use crate::service_index_ownership::{
+    Ownership,
+    inspect_ownership,
+    unsettled_locks,
+};
+pub use crate::service_index_placement::{
+    Placed,
+    Platform,
+    SYSTEM,
+    placement_failure_text,
+};
+use crate::service_index_placement::{
+    log_placement_failure,
+    place_lock,
+    reclaim,
+};
+use crate::service_index_prestage::{
+    Prestaged,
+    take,
+};
+pub use crate::service_index_reclaim::{
+    Reclaimed,
+    foreign_words,
+    remove_stale,
+    stale_lock_words,
+    unjudged_words,
+};
+pub use crate::service_index_staging::{
+    STAGED_INFIX,
+    staged_path_for,
+};
+use crate::service_index_staging::{
+    refresh_age,
+    remove_dead_staging,
+    stage_marker_synced,
+};
 pub use crate::service_index_watch::Watch;
-use crate::service_index_placement::{log_placement_failure, place_lock, reclaim};
-pub use crate::service_index_reclaim::{Reclaimed, foreign_words, remove_stale, stale_lock_words, unjudged_words};
-use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
+#[cfg(target_os = "linux")]
+pub use crate::service_index_watch::{
+    events_end_watch,
+    events_name,
+};
 
 /// How often the holder's notice is repeated while the wait lasts.
 ///  Exempt from a citation under `LQM` (class:
@@ -128,7 +177,10 @@ pub enum Announce {
 /// ```
 pub trait Announcer {
     /// Tell the clients `note`.
-    fn announce(&self, note: Announce);
+    fn announce(
+        &self,
+        note: Announce,
+    );
 
     /// What:
     ///  Whether the client of the request at `place` of the batch is gone,
@@ -143,7 +195,10 @@ pub trait Announcer {
     /// ```ts
     /// interface Announcer { announce(note: Announce): void; clientIsGone(place: number): boolean }
     /// ```
-    fn client_is_gone(&self, _place: usize) -> bool {
+    fn client_is_gone(
+        &self,
+        _place: usize,
+    ) -> bool {
         return false;
     }
 }
@@ -169,17 +224,27 @@ pub struct LockFailure {
 /// ```ts
 /// tryAcquireIndexLock(index, seq)
 /// ```
-pub fn try_acquire(index: &Path, seq: u64) -> Option<IndexLock> {
+pub fn try_acquire(
+    index: &Path,
+    seq: u64,
+) -> Option<IndexLock> {
     return try_acquire_on(&SYSTEM, index, seq);
 }
 
 /// `try_acquire` with the calls of `platform`.
-pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<IndexLock> {
+pub fn try_acquire_on(
+    platform: &Platform,
+    index: &Path,
+    seq: u64,
+) -> Option<IndexLock> {
     let lock: PathBuf = lock_path_of(index);
     let marker: String = match marker_text(seq, platform.identity) {
         Ok(text) => text,
         Err(error) => {
-            crate::service_error!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+            crate::service_error!(
+                "cannot take the index lock {}: this process has no birth identity to name in the lock ({error})",
+                lock.display()
+            );
             return None;
         }
     };
@@ -191,15 +256,29 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         }
     };
     refresh_age(&held);
-    let attempt: std::io::Result<Placed> = match place_lock(platform, &staged, marker.as_str(), &lock) {
-        // A stale lock removed (or replaced by then) is worth one more placement; a lock another reclaimer is removing, a live
-        //  one, and one that cannot be removed leave the batch open for the next round.
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
-            Reclaimed::Removed | Reclaimed::Changed => place_lock(platform, &staged, marker.as_str(), &lock),
-            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) | Reclaimed::Foreign { .. } | Reclaimed::Unjudged { .. } => Err(error),
-        },
-        other => other,
-    };
+    let attempt: std::io::Result<Placed> =
+        match place_lock(platform, &staged, marker.as_str(), &lock) {
+            // A stale lock removed (or replaced by then) is worth one more placement; a lock another reclaimer is removing, a live
+            //  one, and one that cannot be removed leave the batch open for the next round.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                match reclaim(platform, &lock) {
+                    Reclaimed::Removed | Reclaimed::Changed => {
+                        place_lock(platform, &staged, marker.as_str(), &lock)
+                    }
+                    Reclaimed::Busy
+                    | Reclaimed::Kept
+                    | Reclaimed::Stuck
+                    | Reclaimed::Unguarded(_)
+                    | Reclaimed::Foreign {
+                        ..
+                    }
+                    | Reclaimed::Unjudged {
+                        ..
+                    } => Err(error),
+                }
+            }
+            other => other,
+        };
     let _removed = std::fs::remove_file(&staged);
     let placed: Placed = match attempt {
         Ok(found) => found,
@@ -209,7 +288,13 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         }
     };
     remove_dead_staging(&lock);
-    return Some(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));
+    return Some(IndexLock::placed(
+        lock,
+        index,
+        marker,
+        placed.held_or(held),
+        (platform.inspect, platform.release),
+    ));
 }
 
 /// The path of the lock of an index.
@@ -249,7 +334,11 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 /// `LockFailure` with `IndexInUse` when the lock's owner is dead,
 /// and with the storage
 ///  code when the lock cannot be created.
-pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
+pub fn acquire(
+    index: &Path,
+    seq: u64,
+    announce: &dyn Announcer,
+) -> Result<IndexLock, LockFailure> {
     return acquire_noting_holder(index, seq, announce, &mut None);
 }
 
@@ -269,9 +358,22 @@ pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<Index
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_holder(
+    index: &Path,
+    seq: u64,
+    announce: &dyn Announcer,
+    holder: &mut Option<String>,
+) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LANDING_LOCK_CEILING, announce, &mut notes, None);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(
+        &SYSTEM,
+        index,
+        seq,
+        LANDING_LOCK_CEILING,
+        announce,
+        &mut notes,
+        None,
+    );
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -294,7 +396,12 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, h
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait(
+    index: &Path,
+    seq: u64,
+    announce: &dyn Announcer,
+    notes: &mut WaitNotes,
+) -> Result<IndexLock, LockFailure> {
     return acquire_noting_wait_within(index, seq, LANDING_LOCK_CEILING, announce, notes);
 }
 
@@ -304,7 +411,13 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, not
 ///
 /// As `acquire`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
-pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait_within(
+    index: &Path,
+    seq: u64,
+    ceiling: Duration,
+    announce: &dyn Announcer,
+    notes: &mut WaitNotes,
+) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, removing the markers it cannot use,
     //  and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
@@ -320,8 +433,21 @@ pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, ann
 /// As `acquire`;
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
-pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, LANDING_LOCK_CEILING, announce, &mut WaitNotes::default(), None);
+pub fn acquire_on(
+    platform: &Platform,
+    index: &Path,
+    seq: u64,
+    announce: &dyn Announcer,
+) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(
+        platform,
+        index,
+        seq,
+        LANDING_LOCK_CEILING,
+        announce,
+        &mut WaitNotes::default(),
+        None,
+    );
 }
 
 /// `acquire_on` that gives up on a foreign holder after `ceiling`,
@@ -331,8 +457,22 @@ pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn An
 ///
 /// As `acquire_on`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
-pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
+pub fn acquire_within(
+    platform: &Platform,
+    index: &Path,
+    seq: u64,
+    ceiling: Duration,
+    announce: &dyn Announcer,
+) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(
+        platform,
+        index,
+        seq,
+        ceiling,
+        announce,
+        &mut WaitNotes::default(),
+        None,
+    );
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
@@ -347,7 +487,10 @@ fn acquire_placing(
 ) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
-    let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let lock_name: std::ffi::OsString = lock
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     // The watch and the marker's text are timed apart from the making of the marker, so a wait whose whole is far longer than
     //  its parts names the phase that took the time.
     let watching_began: std::time::Instant = std::time::Instant::now();
@@ -364,8 +507,13 @@ fn acquire_placing(
             let marker: String = match marker_text(seq, platform.identity) {
                 Ok(text) => text,
                 Err(error) => {
-                    crate::service_error!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
-                    return Err(LockFailure { code: FailureCode::Unavailable });
+                    crate::service_error!(
+                        "cannot take the index lock {}: this process has no birth identity to name in the lock ({error})",
+                        lock.display()
+                    );
+                    return Err(LockFailure {
+                        code: FailureCode::Unavailable,
+                    });
                 }
             };
             notes.setup += naming_began.elapsed();
@@ -377,7 +525,9 @@ fn acquire_placing(
                 Ok(made) => made,
                 Err(error) => {
                     log_placement_failure(&lock, &error);
-                    return Err(LockFailure { code: crate::service_land_follow::storage_failure(&error) });
+                    return Err(LockFailure {
+                        code: crate::service_land_follow::storage_failure(&error),
+                    });
                 }
             };
             (marker, staged, held)
@@ -386,7 +536,15 @@ fn acquire_placing(
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<Placed, LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, marker: marker.as_str(), lock: &lock, lock_name: lock_name.as_os_str(), index, ceiling },
+        &Placing {
+            staged: &staged,
+            held: &held,
+            marker: marker.as_str(),
+            lock: &lock,
+            lock_name: lock_name.as_os_str(),
+            index,
+            ceiling,
+        },
         &mut watch,
         announce,
         notes,
@@ -397,7 +555,13 @@ fn acquire_placing(
     notes.after += removing_began.elapsed();
     let placed: Placed = outcome?;
     remove_dead_staging(&lock);
-    return Ok(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));
+    return Ok(IndexLock::placed(
+        lock,
+        index,
+        marker,
+        placed.held_or(held),
+        (platform.inspect, platform.release),
+    ));
 }
 
 /// Controls for the removal of a stale lock stay out of the release executable.

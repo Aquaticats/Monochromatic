@@ -30,9 +30,15 @@
 
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
-use crate::worktree_clone_slot_state::slot_state_mounts::{SlotMount, slot_mount_of};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    SlotMount,
+    slot_mount_of,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The pointer's own opening words,
 /// which Git writes and the add's finder reads.
@@ -177,7 +183,9 @@ fn entry_names(folder: &Path) -> Result<Vec<String>, String> {
 /// The pointer's target,
 /// with Git's own line ending trimmed.
 fn the_pointer_names(bytes: &[u8]) -> Option<PathBuf> {
-    let text: String = String::from_utf8_lossy(bytes).trim_end_matches('\n').to_string();
+    let text: String = String::from_utf8_lossy(bytes)
+        .trim_end_matches('\n')
+        .to_string();
     let target: &str = text.strip_prefix(POINTER_PREFIX)?;
     return Some(PathBuf::from(target));
 }
@@ -198,20 +206,44 @@ fn the_pointer_names(bytes: &[u8]) -> Option<PathBuf> {
 /// ```ts
 /// const pointer = readThePointer(slot, registration);
 /// ```
-fn read_the_pointer(slot: &Path, registration: &Path) -> Result<ThePointer, SettlingStop> {
+fn read_the_pointer(
+    slot: &Path,
+    registration: &Path,
+) -> Result<ThePointer, SettlingStop> {
     let path: PathBuf = slot.join(POINTER_NAME);
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(path.as_path()) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(ThePointer::Absent),
-        Err(error) => return Err(SettlingStop::TheSlotCouldNotBeRead { path, said: error.to_string() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ThePointer::Absent);
+        }
+        Err(error) => {
+            return Err(SettlingStop::TheSlotCouldNotBeRead {
+                path,
+                said: error.to_string(),
+            });
+        }
     };
     if !metadata.is_file() {
-        return Ok(ThePointer::NamesAnother { found: format!("a `.git` that is no file, whose mode is {:04o}", mode_of(&metadata)) });
+        return Ok(ThePointer::NamesAnother {
+            found: format!(
+                "a `.git` that is no file, whose mode is {:04o}",
+                mode_of(&metadata)
+            ),
+        });
     }
-    let bytes: Vec<u8> = std::fs::read(path.as_path()).map_err(|error| return SettlingStop::TheSlotCouldNotBeRead { path: path.clone(), said: error.to_string() })?;
+    let bytes: Vec<u8> = std::fs::read(path.as_path()).map_err(|error| {
+        return SettlingStop::TheSlotCouldNotBeRead {
+            path: path.clone(),
+            said: error.to_string(),
+        };
+    })?;
     return match the_pointer_names(bytes.as_slice()) {
         Some(target) if target == registration => Ok(ThePointer::NamesThis),
-        _ => Ok(ThePointer::NamesAnother { found: String::from_utf8_lossy(bytes.as_slice()).trim_end_matches('\n').to_string() }),
+        _ => Ok(ThePointer::NamesAnother {
+            found: String::from_utf8_lossy(bytes.as_slice())
+                .trim_end_matches('\n')
+                .to_string(),
+        }),
     };
 }
 
@@ -244,17 +276,35 @@ fn mode_of(metadata: &std::fs::Metadata) -> u32 {
 /// ```ts
 /// const registration = readTheRegistration(recordedPath, recorded);
 /// ```
-fn read_the_registration(registration: &Path, recorded: FolderIdentity) -> Result<TheRegistration, SettlingStop> {
+fn read_the_registration(
+    registration: &Path,
+    recorded: FolderIdentity,
+) -> Result<TheRegistration, SettlingStop> {
     match std::fs::symlink_metadata(registration) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(TheRegistration::Gone),
-        Err(error) => return Err(SettlingStop::TheRegistrationDoesNotAnswer { path: registration.to_path_buf(), said: error.to_string() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(TheRegistration::Gone);
+        }
+        Err(error) => {
+            return Err(SettlingStop::TheRegistrationDoesNotAnswer {
+                path: registration.to_path_buf(),
+                said: error.to_string(),
+            });
+        }
         Ok(_) => {}
     }
-    let live: FolderIdentity =
-        FolderIdentity::of_folder(registration).map_err(|error| return SettlingStop::TheRegistrationDoesNotAnswer { path: registration.to_path_buf(), said: error.to_string() })?;
+    let live: FolderIdentity = FolderIdentity::of_folder(registration).map_err(|error| {
+        return SettlingStop::TheRegistrationDoesNotAnswer {
+            path: registration.to_path_buf(),
+            said: error.to_string(),
+        };
+    })?;
     return match live == recorded {
-        true => Ok(TheRegistration::Stands { identity: live }),
-        false => Ok(TheRegistration::Differs { live }),
+        true => Ok(TheRegistration::Stands {
+            identity: live,
+        }),
+        false => Ok(TheRegistration::Differs {
+            live,
+        }),
     };
 }
 
@@ -275,23 +325,56 @@ fn read_the_registration(registration: &Path, recorded: FolderIdentity) -> Resul
 /// ```ts
 /// const slot = readTheSlot(path, registrationPath, recordedIdentity, mounts);
 /// ```
-pub fn read_the_slot(slot: &Path, registration: &Path, recorded_identity: FolderIdentity, mounts: &dyn MountedDatasets) -> Result<TheSlot, SettlingStop> {
+pub fn read_the_slot(
+    slot: &Path,
+    registration: &Path,
+    recorded_identity: FolderIdentity,
+    mounts: &dyn MountedDatasets,
+) -> Result<TheSlot, SettlingStop> {
     let mount: SlotMount = slot_mount_of(mounts, slot);
     match &mount {
-        SlotMount::Something { described } => return Err(SettlingStop::AMountAtTheSlot { described: described.clone() }),
-        SlotMount::Unreadable { reason } => return Err(SettlingStop::TheMountTableCouldNotBeRead { said: reason.clone() }),
+        SlotMount::Something {
+            described,
+        } => {
+            return Err(SettlingStop::AMountAtTheSlot {
+                described: described.clone(),
+            });
+        }
+        SlotMount::Unreadable {
+            reason,
+        } => {
+            return Err(SettlingStop::TheMountTableCouldNotBeRead {
+                said: reason.clone(),
+            });
+        }
         SlotMount::Nothing => {}
     }
     let pointer: ThePointer = read_the_pointer(slot, registration)?;
-    let registration_state: TheRegistration = read_the_registration(registration, recorded_identity)?;
+    let registration_state: TheRegistration =
+        read_the_registration(registration, recorded_identity)?;
     let entries: Vec<String> = entry_names(slot)
-        .map_err(|said| return SettlingStop::TheSlotCouldNotBeRead { path: slot.to_path_buf(), said })?
+        .map_err(|said| {
+            return SettlingStop::TheSlotCouldNotBeRead {
+                path: slot.to_path_buf(),
+                said,
+            };
+        })?
         .into_iter()
         .filter(|name| return name != POINTER_NAME)
         .collect();
     let registration_entries: Vec<String> = match registration_state {
-        TheRegistration::Stands { .. } => entry_names(registration).map_err(|said| return SettlingStop::TheRegistrationDoesNotAnswer { path: registration.to_path_buf(), said })?,
-        TheRegistration::Gone | TheRegistration::Differs { .. } => Vec::new(),
+        TheRegistration::Stands {
+            ..
+        } => entry_names(registration).map_err(|said| {
+            return SettlingStop::TheRegistrationDoesNotAnswer {
+                path: registration.to_path_buf(),
+                said,
+            };
+        })?,
+        TheRegistration::Gone
+        | TheRegistration::Differs {
+            ..
+        } => Vec::new(),
     };
     return Ok(TheSlot {
         path: slot.to_path_buf(),

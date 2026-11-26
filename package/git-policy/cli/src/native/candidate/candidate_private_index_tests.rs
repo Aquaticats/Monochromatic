@@ -19,12 +19,28 @@
 #![cfg(unix)]
 
 /// Import the type under test and its name prefix.
-use super::{PRIVATE_INDEX_PREFIX, PrivateIndex, STAGING_SUFFIX};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::test_support::{fixture, remove};
+use super::{
+    PRIVATE_INDEX_PREFIX,
+    PrivateIndex,
+    STAGING_SUFFIX,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The entries of a directory,
 ///  sorted by name.
@@ -66,7 +82,8 @@ const COPY_ANSWER_SLACK: u32 = 3;
 
 /// The longest the creating thread may take,
 /// in all.
-const THE_COPY_ANSWERS_WITHIN: Duration = COPY_ANSWER_MEASURED_QUIET_STRETCH.saturating_mul(COPY_ANSWER_SLACK);
+const THE_COPY_ANSWERS_WITHIN: Duration =
+    COPY_ANSWER_MEASURED_QUIET_STRETCH.saturating_mul(COPY_ANSWER_SLACK);
 
 /// The failure `create` returned,
 ///  which the control requires.
@@ -310,7 +327,13 @@ fn a_copy_without_an_owner_record_is_kept_and_every_published_copy_has_one() {
     }
     assert_eq!(
         unnamed,
-        vec![recordless.file_name().expect("name").to_string_lossy().into_owned()],
+        vec![
+            recordless
+                .file_name()
+                .expect("name")
+                .to_string_lossy()
+                .into_owned()
+        ],
         "only the copy this release did not make may lack a record"
     );
     // The record names this process, so a later sweep keeps the copy it is reading.
@@ -346,12 +369,16 @@ fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
     std::fs::create_dir(&blocked).expect("a copy directory");
     std::fs::write(blocked.join("index"), b"stale copy").expect("stale copy");
     let record: PathBuf = blocked.join("owner");
-    let path: std::ffi::CString = std::ffi::CString::new(record.as_os_str().as_bytes()).expect("a path without a NUL");
+    let path: std::ffi::CString =
+        std::ffi::CString::new(record.as_os_str().as_bytes()).expect("a path without a NUL");
     // SAFETY: `mkfifo` takes a valid C string and a mode; it touches no memory of this process.
     let made: libc::c_int = unsafe { libc::mkfifo(path.as_ptr(), 0o600) };
     assert_eq!(made, 0, "mkfifo: {}", std::io::Error::last_os_error());
     // The creation runs on a thread of its own, so a wait that never answers fails this control instead of hanging it.
-    let (told, heard): (std::sync::mpsc::Sender<bool>, std::sync::mpsc::Receiver<bool>) = std::sync::mpsc::channel();
+    let (told, heard): (
+        std::sync::mpsc::Sender<bool>,
+        std::sync::mpsc::Receiver<bool>,
+    ) = std::sync::mpsc::channel();
     let for_the_copy: PathBuf = real.clone();
     let made_on_a_thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let _told = told.send(PrivateIndex::create(for_the_copy.as_path()).is_ok());
@@ -362,10 +389,15 @@ fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
         Some(true),
         "a private index was not created beside an owner record that is a FIFO with no writer"
     );
-    assert!(blocked.exists(), "a record that proves nothing keeps its copy");
+    assert!(
+        blocked.exists(),
+        "a record that proves nothing keeps its copy"
+    );
     std::fs::remove_dir_all(&blocked).expect("the unproven copy");
     // The thread answers before it drops its copy, so the listing waits for that thread.
-    made_on_a_thread.join().expect("the thread that made the copy");
+    made_on_a_thread
+        .join()
+        .expect("the thread that made the copy");
     assert_eq!(entries(root.as_path()), vec!["index"]);
     remove(root.as_path());
 }

@@ -23,7 +23,10 @@
 //! const removal = remove_known_staging_forms({ store }); // { removed: ['.a1b2...', '..parent.3f.partial'] }
 //! ```
 
-use crate::worktree_clone_mount::{SlotIdentityStore, StoreRefusal};
+use crate::worktree_clone_mount::{
+    SlotIdentityStore,
+    StoreRefusal,
+};
 
 /// What:
 ///  Why the store's staging names were not removed.
@@ -94,10 +97,16 @@ pub struct StagingRemovalRequest<'a> {
 /// # Errors
 /// Everything the store's listing and removal refuse,
 /// with the store's own words.
-pub fn remove_known_staging_forms(request: StagingRemovalRequest<'_>) -> Result<StagingRemoval, StagingRemovalRefusal> {
+pub fn remove_known_staging_forms(
+    request: StagingRemovalRequest<'_>
+) -> Result<StagingRemoval, StagingRemovalRefusal> {
     return match request.store.remove_staging_entries() {
-        Ok(removed) => Ok(StagingRemoval { removed }),
-        Err(refusal) => Err(StagingRemovalRefusal { why: refusal_words(&refusal) }),
+        Ok(removed) => Ok(StagingRemoval {
+            removed,
+        }),
+        Err(refusal) => Err(StagingRemovalRefusal {
+            why: refusal_words(&refusal),
+        }),
     };
 }
 

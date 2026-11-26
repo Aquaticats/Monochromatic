@@ -30,8 +30,14 @@
 /// import { triggerName } from './policy_trigger.ts';
 /// ```
 use crate::policy_engine::Unavailable;
-use crate::policy_registry::{PolicyId, policy_descriptor};
-use crate::policy_trigger::{Trigger, trigger_name};
+use crate::policy_registry::{
+    PolicyId,
+    policy_descriptor,
+};
+use crate::policy_trigger::{
+    Trigger,
+    trigger_name,
+};
 /// What:
 ///  `PathBuf` is an owned filesystem path of raw bytes.
 ///  Sibling the reader might
@@ -100,7 +106,15 @@ pub fn unported_from_unavailable(unavailable: Unavailable) -> Unported {
     // `match` picks one arm per variant and binds the fields each one carries.
     match unavailable {
         Unavailable::Lifecycle(trigger) => return Unported::Lifecycle(trigger),
-        Unavailable::Policy { policy, needs } => return Unported::PolicyNeeds { policy, needs },
+        Unavailable::Policy {
+            policy,
+            needs,
+        } => {
+            return Unported::PolicyNeeds {
+                policy,
+                needs,
+            };
+        }
     }
 }
 
@@ -131,7 +145,10 @@ fn unported_subject(what: &Unported) -> String {
         Unported::Lifecycle(trigger) => {
             return format!("the {} policy lifecycle", trigger_name(*trigger));
         }
-        Unported::PolicyNeeds { policy, needs } => {
+        Unported::PolicyNeeds {
+            policy,
+            needs,
+        } => {
             return format!(
                 "{needs}, which the policy {} needs,",
                 policy_descriptor(*policy).name
@@ -155,7 +172,10 @@ fn unported_subject(what: &Unported) -> String {
 /// ```ts
 /// function unportedNotice(what: Unported, command: string): string;
 /// ```
-pub fn unported_notice(what: &Unported, command: &str) -> String {
+pub fn unported_notice(
+    what: &Unported,
+    command: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: {} is not implemented in this native development executable, so git \
          {command} was not run. Run it with the installed monochromatic-git-policy-cli.\n",

@@ -20,10 +20,18 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the validated object name,
 ///  the candidate modes and their parsers.
-use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    mode_from_git,
+    parse_object_id,
+};
 
 /// What:
 ///  How a path differs from the baseline it was compared with.
@@ -92,7 +100,11 @@ pub struct CandidateRecord {
 /// ```ts
 /// function recordFailure(failure: CandidateFailure, position: number, detail: string): CandidateError;
 /// ```
-fn record_failure(failure: CandidateFailure, position: usize, detail: &str) -> CandidateError {
+fn record_failure(
+    failure: CandidateFailure,
+    position: usize,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
         format!(

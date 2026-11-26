@@ -14,11 +14,20 @@
 
 use crate::action::Action;
 use crate::child_environment::environment_value;
-use crate::global_arguments::{GlobalLayout, GlobalOutcome};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+};
 use crate::repository_link_answer::EXIT_GIT_FATAL;
-use crate::repository_link_gate::{LinkGate, invocation_link_gate};
+use crate::repository_link_gate::{
+    LinkGate,
+    invocation_link_gate,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The exit action when the invocation's paths lie under the repository link and the link is not usable,
@@ -31,7 +40,12 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// repositoryLinkStop({ globalClean, layout, environment, currentDirectory })
 /// ```
-pub fn repository_link_stop(global_clean: &[OsString], layout: &GlobalLayout, environment: &[(OsString, OsString)], current_directory: &Path) -> Option<Action> {
+pub fn repository_link_stop(
+    global_clean: &[OsString],
+    layout: &GlobalLayout,
+    environment: &[(OsString, OsString)],
+    current_directory: &Path,
+) -> Option<Action> {
     if layout.outcome != GlobalOutcome::Command {
         return None;
     }
@@ -42,7 +56,11 @@ pub fn repository_link_stop(global_clean: &[OsString], layout: &GlobalLayout, en
     let prefix: &[OsString] = &global_clean[..layout.prefix_len];
     return match invocation_link_gate(home.as_deref(), current_directory, prefix, environment) {
         LinkGate::Clear => None,
-        LinkGate::Stop(stderr) => Some(Action::Exit { code: EXIT_GIT_FATAL, stdout: String::new(), stderr }),
+        LinkGate::Stop(stderr) => Some(Action::Exit {
+            code: EXIT_GIT_FATAL,
+            stdout: String::new(),
+            stderr,
+        }),
     };
 }
 

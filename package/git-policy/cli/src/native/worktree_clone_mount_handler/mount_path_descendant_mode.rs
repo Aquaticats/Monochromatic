@@ -26,15 +26,35 @@
 //! ```
 
 use crate::worktree_clone_mount::attach_the_clone::attach_with_attributes;
-use crate::worktree_clone_mount_handler::handler_install_paths::{CHECKOUT_RECORD_PATH, CONFIGURATION_PATH};
+use crate::worktree_clone_mount_handler::handler_install_paths::{
+    CHECKOUT_RECORD_PATH,
+    CONFIGURATION_PATH,
+};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::MountPathDescendantRequest;
-use crate::worktree_clone_mount_handler::record_checkout_mode::{RecordedCheckout, read_record};
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, value_of};
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ReadFailure, ZfsDatasetReader};
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasetInstance, MountedDatasets};
+use crate::worktree_clone_mount_handler::record_checkout_mode::{
+    RecordedCheckout,
+    read_record,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    CloneObjectFacts,
+    value_of,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ReadFailure,
+    ZfsDatasetReader,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasetInstance,
+    MountedDatasets,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 use rustix::process::geteuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Why the mode mounted nothing,
 /// one variant per cause,
@@ -44,12 +64,35 @@ pub use super::mount_path_descendant_mode_refusals::MountPathDescendantFailure;
 /// The properties and values an explicit mount is refused by,
 /// and the values they hold.
 pub use super::mount_path_descendant_mode_properties::{
-    ATIME_PROPERTY, CANMOUNT_OFF, CANMOUNT_PROPERTY, DEVICES_PROPERTY, ENCRYPTION_PROPERTY, EXEC_PROPERTY, INCONSISTENT_PROPERTY, KEY_STATUS_AVAILABLE, KEY_STATUS_PROPERTY, MOUNTPOINT_DASH,
-    MOUNTPOINT_LEGACY, MOUNTPOINT_NONE, MOUNTPOINT_PROPERTY, NBMAND_PROPERTY, OVERLAY_PROPERTY, READONLY_PROPERTY, RECEIVE_RESUME_TOKEN_PROPERTY, REDACTED_PROPERTY, RELATIME_PROPERTY,
-    SETUID_PROPERTY, SWITCHED_OFF, SWITCHED_ON, ZONED_PROPERTY,
+    ATIME_PROPERTY,
+    CANMOUNT_OFF,
+    CANMOUNT_PROPERTY,
+    DEVICES_PROPERTY,
+    ENCRYPTION_PROPERTY,
+    EXEC_PROPERTY,
+    INCONSISTENT_PROPERTY,
+    KEY_STATUS_AVAILABLE,
+    KEY_STATUS_PROPERTY,
+    MOUNTPOINT_DASH,
+    MOUNTPOINT_LEGACY,
+    MOUNTPOINT_NONE,
+    MOUNTPOINT_PROPERTY,
+    NBMAND_PROPERTY,
+    OVERLAY_PROPERTY,
+    READONLY_PROPERTY,
+    RECEIVE_RESUME_TOKEN_PROPERTY,
+    REDACTED_PROPERTY,
+    RELATIME_PROPERTY,
+    SETUID_PROPERTY,
+    SWITCHED_OFF,
+    SWITCHED_ON,
+    ZONED_PROPERTY,
 };
 
-use super::mount_path_descendant_mode_properties::{attributes_of, refuse_unmountable};
+use super::mount_path_descendant_mode_properties::{
+    attributes_of,
+    refuse_unmountable,
+};
 
 /// What:
 ///  The one mount this mode may place,
@@ -141,14 +184,24 @@ pub struct MountPlaces<'a> {
 /// or everything `run_with` refuses.
 pub fn run(request: &MountPathDescendantRequest) -> Result<String, MountPathDescendantFailure> {
     let effective_user = geteuid();
-    let datasets: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| return MountPathDescendantFailure::DatasetRead { dataset: String::from("<the device>"), failure: ReadFailure::at(error.to_string()) })?;
+    let datasets: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| {
+        return MountPathDescendantFailure::DatasetRead {
+            dataset: String::from("<the device>"),
+            failure: ReadFailure::at(error.to_string()),
+        };
+    })?;
     let places: MountPlaces<'_> = MountPlaces {
         record: PathBuf::from(CHECKOUT_RECORD_PATH),
         configuration: PathBuf::from(CONFIGURATION_PATH),
         datasets: &datasets,
         mounted: &LiveMountedDatasets,
     };
-    return run_with(&places, request, effective_user.is_root(), effective_user.as_raw());
+    return run_with(
+        &places,
+        request,
+        effective_user.is_root(),
+        effective_user.as_raw(),
+    );
 }
 
 /// What:
@@ -167,9 +220,17 @@ pub fn run(request: &MountPathDescendantRequest) -> Result<String, MountPathDesc
 ///
 /// # Errors
 /// Every refusal in `MountPathDescendantFailure`.
-pub fn run_with(places: &MountPlaces<'_>, request: &MountPathDescendantRequest, running_as_root: bool, effective_user: u32) -> Result<String, MountPathDescendantFailure> {
+pub fn run_with(
+    places: &MountPlaces<'_>,
+    request: &MountPathDescendantRequest,
+    running_as_root: bool,
+    effective_user: u32,
+) -> Result<String, MountPathDescendantFailure> {
     return match plan_with(places, request, running_as_root, effective_user)? {
-        Answer::AlreadyMountedAtItsOwnMountpoint { dataset, mountpoint } => Ok(already_mounted_line(dataset.as_str(), mountpoint.as_path())),
+        Answer::AlreadyMountedAtItsOwnMountpoint {
+            dataset,
+            mountpoint,
+        } => Ok(already_mounted_line(dataset.as_str(), mountpoint.as_path())),
         Answer::Plan(plan) => place_the_mount(&plan),
     };
 }
@@ -191,13 +252,23 @@ pub fn run_with(places: &MountPlaces<'_>, request: &MountPathDescendantRequest, 
 ///
 /// # Errors
 /// Every refusal in `MountPathDescendantFailure`.
-pub fn plan_with(places: &MountPlaces<'_>, request: &MountPathDescendantRequest, running_as_root: bool, effective_user: u32) -> Result<Answer, MountPathDescendantFailure> {
+pub fn plan_with(
+    places: &MountPlaces<'_>,
+    request: &MountPathDescendantRequest,
+    running_as_root: bool,
+    effective_user: u32,
+) -> Result<Answer, MountPathDescendantFailure> {
     if !running_as_root {
-        return Err(MountPathDescendantFailure::NotRoot { effective_user });
+        return Err(MountPathDescendantFailure::NotRoot {
+            effective_user,
+        });
     }
-    let recorded: Option<RecordedCheckout> = read_record(places.record.as_path()).map_err(MountPathDescendantFailure::Record)?;
+    let recorded: Option<RecordedCheckout> =
+        read_record(places.record.as_path()).map_err(MountPathDescendantFailure::Record)?;
     let Some(record) = recorded else {
-        return Err(MountPathDescendantFailure::NoRecordedCheckout { record: places.record.clone() });
+        return Err(MountPathDescendantFailure::NoRecordedCheckout {
+            record: places.record.clone(),
+        });
     };
     let checkout_facts: CloneObjectFacts = read_facts(places.datasets, record.dataset.as_str())?;
     if record.guid != checkout_facts.guid.to_string() {
@@ -213,54 +284,115 @@ pub fn plan_with(places: &MountPlaces<'_>, request: &MountPathDescendantRequest,
             return Err(MountPathDescendantFailure::RecordNoLongerMatches {
                 field: String::from("mountpoint"),
                 recorded: record.checkout.display().to_string(),
-                kernel: other.map_or_else(|| return checkout_facts.mountpoint.describe(MOUNTPOINT_PROPERTY), String::from),
+                kernel: other.map_or_else(
+                    || return checkout_facts.mountpoint.describe(MOUNTPOINT_PROPERTY),
+                    String::from,
+                ),
             });
         }
     }
     let container_facts: CloneObjectFacts = read_facts(places.datasets, record.container.as_str())?;
-    let container_mountpoint: String = container_facts.mountpoint.text().map_or_else(|| return container_facts.mountpoint.describe(MOUNTPOINT_PROPERTY), String::from);
-    if !the_container_is_beside(record.dataset.as_str(), record.container.as_str(), container_mountpoint.as_str(), record.checkout.as_path()) {
+    let container_mountpoint: String = container_facts.mountpoint.text().map_or_else(
+        || return container_facts.mountpoint.describe(MOUNTPOINT_PROPERTY),
+        String::from,
+    );
+    if !the_container_is_beside(
+        record.dataset.as_str(),
+        record.container.as_str(),
+        container_mountpoint.as_str(),
+        record.checkout.as_path(),
+    ) {
         return Err(MountPathDescendantFailure::RecordNoLongerMatches {
             field: String::from("container"),
             recorded: record.container.clone(),
             kernel: container_mountpoint,
         });
     }
-    let rows: Vec<MountedDatasetInstance> = places.mounted.mounted_datasets().map_err(|said| return MountPathDescendantFailure::DatasetRead { dataset: String::from("<the mount table>"), failure: ReadFailure::at(said) })?;
-    if !mounted_at(rows.as_slice(), record.dataset.as_str(), record.checkout.as_path()) {
-        return Err(MountPathDescendantFailure::CheckoutNotMounted { checkout: record.checkout.clone(), dataset: record.dataset.clone() });
+    let rows: Vec<MountedDatasetInstance> = places.mounted.mounted_datasets().map_err(|said| {
+        return MountPathDescendantFailure::DatasetRead {
+            dataset: String::from("<the mount table>"),
+            failure: ReadFailure::at(said),
+        };
+    })?;
+    if !mounted_at(
+        rows.as_slice(),
+        record.dataset.as_str(),
+        record.checkout.as_path(),
+    ) {
+        return Err(MountPathDescendantFailure::CheckoutNotMounted {
+            checkout: record.checkout.clone(),
+            dataset: record.dataset.clone(),
+        });
     }
     let dataset: String = request.dataset.clone();
     if dataset == record.dataset {
-        return Err(MountPathDescendantFailure::DatasetOutsideTheCheckout { dataset, mountpoint: record.checkout.clone(), checkout: record.checkout.clone() });
+        return Err(MountPathDescendantFailure::DatasetOutsideTheCheckout {
+            dataset,
+            mountpoint: record.checkout.clone(),
+            checkout: record.checkout.clone(),
+        });
     }
     let pool: String = pool_of(dataset.as_str());
     if pool != record.pool {
-        return Err(MountPathDescendantFailure::DatasetInAnotherPool { dataset, pool, recorded: record.pool.clone() });
+        return Err(MountPathDescendantFailure::DatasetInAnotherPool {
+            dataset,
+            pool,
+            recorded: record.pool.clone(),
+        });
     }
     let facts: CloneObjectFacts = read_facts(places.datasets, dataset.as_str())?;
     let Some(mountpoint_text) = facts.mountpoint.text() else {
-        return Err(MountPathDescendantFailure::DatasetWithoutAMountpoint { dataset, mountpoint: facts.mountpoint.describe(MOUNTPOINT_PROPERTY) });
+        return Err(MountPathDescendantFailure::DatasetWithoutAMountpoint {
+            dataset,
+            mountpoint: facts.mountpoint.describe(MOUNTPOINT_PROPERTY),
+        });
     };
-    if matches!(mountpoint_text, MOUNTPOINT_NONE | MOUNTPOINT_DASH | MOUNTPOINT_LEGACY) {
-        return Err(MountPathDescendantFailure::DatasetWithoutAMountpoint { dataset, mountpoint: String::from(mountpoint_text) });
+    if matches!(
+        mountpoint_text,
+        MOUNTPOINT_NONE | MOUNTPOINT_DASH | MOUNTPOINT_LEGACY
+    ) {
+        return Err(MountPathDescendantFailure::DatasetWithoutAMountpoint {
+            dataset,
+            mountpoint: String::from(mountpoint_text),
+        });
     }
     let mountpoint: PathBuf = PathBuf::from(mountpoint_text);
     if !is_strictly_under(mountpoint.as_path(), record.checkout.as_path()) {
-        return Err(MountPathDescendantFailure::DatasetOutsideTheCheckout { dataset, mountpoint, checkout: record.checkout.clone() });
+        return Err(MountPathDescendantFailure::DatasetOutsideTheCheckout {
+            dataset,
+            mountpoint,
+            checkout: record.checkout.clone(),
+        });
     }
     if let Some(row) = rows.iter().find(|row| return row.dataset == dataset) {
         if row.mount_point == mountpoint {
-            return Ok(Answer::AlreadyMountedAtItsOwnMountpoint { dataset, mountpoint });
+            return Ok(Answer::AlreadyMountedAtItsOwnMountpoint {
+                dataset,
+                mountpoint,
+            });
         }
-        return Err(MountPathDescendantFailure::DatasetAlreadyMountedElsewhere { dataset, mounted_at: row.mount_point.clone(), mountpoint });
+        return Err(MountPathDescendantFailure::DatasetAlreadyMountedElsewhere {
+            dataset,
+            mounted_at: row.mount_point.clone(),
+            mountpoint,
+        });
     }
     refuse_unmountable(&dataset, &facts)?;
-    if value_of(&facts.properties, OVERLAY_PROPERTY).text() != Some(SWITCHED_ON) && holds_anything(mountpoint.as_path()) {
-        return Err(MountPathDescendantFailure::MountpointNotEmpty { dataset, mountpoint });
+    if value_of(&facts.properties, OVERLAY_PROPERTY).text() != Some(SWITCHED_ON)
+        && holds_anything(mountpoint.as_path())
+    {
+        return Err(MountPathDescendantFailure::MountpointNotEmpty {
+            dataset,
+            mountpoint,
+        });
     }
     let attributes: u64 = attributes_of(&facts, places.datasets, &pool)?;
-    return Ok(Answer::Plan(MountPlan { dataset, checkout: record.checkout, mountpoint, attributes }));
+    return Ok(Answer::Plan(MountPlan {
+        dataset,
+        checkout: record.checkout,
+        mountpoint,
+        attributes,
+    }));
 }
 
 /// What:
@@ -282,22 +414,72 @@ pub fn plan_with(places: &MountPlaces<'_>, request: &MountPathDescendantRequest,
 /// `MountpointUnusable` when the walk refuses,
 /// and `MountFailed` when the primitive does.
 fn place_the_mount(plan: &MountPlan) -> Result<String, MountPathDescendantFailure> {
-    let root: std::fs::File = crate::subvolume::fs_beneath::open_root(plan.checkout.as_path()).map_err(|error| return MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: error.to_string() })?;
+    let root: std::fs::File = crate::subvolume::fs_beneath::open_root(plan.checkout.as_path())
+        .map_err(|error| {
+            return MountPathDescendantFailure::MountpointUnusable {
+                dataset: plan.dataset.clone(),
+                mountpoint: plan.mountpoint.clone(),
+                because: error.to_string(),
+            };
+        })?;
     let names = relative_names(plan.checkout.as_path(), plan.mountpoint.as_path());
     let Some((last, between)) = names.split_last() else {
-        return Err(MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: String::from("the mountpoint is the checkout itself") });
+        return Err(MountPathDescendantFailure::MountpointUnusable {
+            dataset: plan.dataset.clone(),
+            mountpoint: plan.mountpoint.clone(),
+            because: String::from("the mountpoint is the checkout itself"),
+        });
     };
-    let held: Vec<std::fs::File> = crate::subvolume::fs_beneath_walk_chain::open_chain_beneath(&root, between).map_err(|refusal| return MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: describe_chain_refusal(&refusal) })?;
+    let held: Vec<std::fs::File> = crate::subvolume::fs_beneath_walk_chain::open_chain_beneath(
+        &root, between,
+    )
+    .map_err(|refusal| {
+        return MountPathDescendantFailure::MountpointUnusable {
+            dataset: plan.dataset.clone(),
+            mountpoint: plan.mountpoint.clone(),
+            because: describe_chain_refusal(&refusal),
+        };
+    })?;
     let Some(parent) = held.last() else {
-        return Err(MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: String::from("the walk held no descriptor") });
+        return Err(MountPathDescendantFailure::MountpointUnusable {
+            dataset: plan.dataset.clone(),
+            mountpoint: plan.mountpoint.clone(),
+            because: String::from("the walk held no descriptor"),
+        });
     };
-    let folder: std::fs::File = match crate::subvolume::fs_beneath_walk_chain::open_directory_at_a_mount(parent, last.as_os_str()) {
-        Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => create_and_open(parent, last.as_os_str()).map_err(|why| return MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: why })?,
-        Err(error) => return Err(MountPathDescendantFailure::MountpointUnusable { dataset: plan.dataset.clone(), mountpoint: plan.mountpoint.clone(), because: error.to_string() }),
-    };
-    attach_with_attributes(plan.dataset.as_str(), &folder, plan.attributes).map_err(|refusal| return MountPathDescendantFailure::MountFailed { dataset: plan.dataset.clone(), refusal })?;
-    return Ok(mounted_line(plan.dataset.as_str(), plan.mountpoint.as_path()));
+    let folder: std::fs::File =
+        match crate::subvolume::fs_beneath_walk_chain::open_directory_at_a_mount(
+            parent,
+            last.as_os_str(),
+        ) {
+            Ok(opened) => opened,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                create_and_open(parent, last.as_os_str()).map_err(|why| {
+                    return MountPathDescendantFailure::MountpointUnusable {
+                        dataset: plan.dataset.clone(),
+                        mountpoint: plan.mountpoint.clone(),
+                        because: why,
+                    };
+                })?
+            }
+            Err(error) => {
+                return Err(MountPathDescendantFailure::MountpointUnusable {
+                    dataset: plan.dataset.clone(),
+                    mountpoint: plan.mountpoint.clone(),
+                    because: error.to_string(),
+                });
+            }
+        };
+    attach_with_attributes(plan.dataset.as_str(), &folder, plan.attributes).map_err(|refusal| {
+        return MountPathDescendantFailure::MountFailed {
+            dataset: plan.dataset.clone(),
+            refusal,
+        };
+    })?;
+    return Ok(mounted_line(
+        plan.dataset.as_str(),
+        plan.mountpoint.as_path(),
+    ));
 }
 
 /// What:
@@ -312,12 +494,31 @@ fn place_the_mount(plan: &MountPlan) -> Result<String, MountPathDescendantFailur
 /// ```ts
 /// const said = describeChainRefusal({ kind: 'link', step: 1, component: 'worktrees' });
 /// ```
-fn describe_chain_refusal(refusal: &crate::subvolume::fs_beneath_walk_chain::ChainRefusal) -> String {
+fn describe_chain_refusal(
+    refusal: &crate::subvolume::fs_beneath_walk_chain::ChainRefusal
+) -> String {
     use crate::subvolume::fs_beneath_walk_chain::ChainRefusal;
     return match refusal {
-        ChainRefusal::Link { step, component } => format!("component {} (`{}`) is a link, and the walk follows none", step + 1, component.to_string_lossy()),
-        ChainRefusal::Boundary { step, component } => format!("component {} (`{}`) is a mount point or a folder on another device", step + 1, component.to_string_lossy()),
-        ChainRefusal::Unreadable { step, error } => format!("component {} could not be opened: {error}", step + 1),
+        ChainRefusal::Link {
+            step,
+            component,
+        } => format!(
+            "component {} (`{}`) is a link, and the walk follows none",
+            step + 1,
+            component.to_string_lossy()
+        ),
+        ChainRefusal::Boundary {
+            step,
+            component,
+        } => format!(
+            "component {} (`{}`) is a mount point or a folder on another device",
+            step + 1,
+            component.to_string_lossy()
+        ),
+        ChainRefusal::Unreadable {
+            step,
+            error,
+        } => format!("component {} could not be opened: {error}", step + 1),
     };
 }
 
@@ -333,19 +534,37 @@ fn describe_chain_refusal(refusal: &crate::subvolume::fs_beneath_walk_chain::Cha
 /// ```ts
 /// const folder = mkdirAndOpen(parent, 'output');
 /// ```
-fn create_and_open(parent: &std::fs::File, name: &std::ffi::OsStr) -> Result<std::fs::File, String> {
-    rustix::fs::mkdirat(parent, name, rustix::fs::Mode::from_bits_truncate(0o755)).map_err(|error| return format!("the last component could not be created: {error}"))?;
-    return rustix::fs::openat(parent, name, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map(std::fs::File::from)
-        .map_err(|error| return format!("the folder could not be reopened: {error}"));
+fn create_and_open(
+    parent: &std::fs::File,
+    name: &std::ffi::OsStr,
+) -> Result<std::fs::File, String> {
+    rustix::fs::mkdirat(parent, name, rustix::fs::Mode::from_bits_truncate(0o755))
+        .map_err(|error| return format!("the last component could not be created: {error}"))?;
+    return rustix::fs::openat(
+        parent,
+        name,
+        rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::DIRECTORY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )
+    .map(std::fs::File::from)
+    .map_err(|error| return format!("the folder could not be reopened: {error}"));
 }
 
 /// The components of a mountpoint below a checkout,
 /// as names,
 /// which is what the walk takes.
-fn relative_names(checkout: &Path, mountpoint: &Path) -> Vec<std::ffi::OsString> {
+fn relative_names(
+    checkout: &Path,
+    mountpoint: &Path,
+) -> Vec<std::ffi::OsString> {
     let relative: &Path = mountpoint.strip_prefix(checkout).unwrap_or(mountpoint);
-    return relative.components().map(|component| return component.as_os_str().to_os_string()).collect();
+    return relative
+        .components()
+        .map(|component| return component.as_os_str().to_os_string())
+        .collect();
 }
 
 /// What:
@@ -360,7 +579,10 @@ fn relative_names(checkout: &Path, mountpoint: &Path) -> Vec<std::ffi::OsString>
 /// ```ts
 /// const inside = isStrictlyUnder('/home/user/Monochromatic/package/output', '/home/user/Monochromatic');
 /// ```
-fn is_strictly_under(inner: &Path, outer: &Path) -> bool {
+fn is_strictly_under(
+    inner: &Path,
+    outer: &Path,
+) -> bool {
     let folded_inner: PathBuf = fold(inner);
     let folded_outer: PathBuf = fold(outer);
     return folded_inner != folded_outer && folded_inner.starts_with(folded_outer);
@@ -393,8 +615,14 @@ fn holds_anything(folder: &Path) -> bool {
 }
 
 /// Whether the mount table shows the dataset mounted at the given path now.
-fn mounted_at(rows: &[MountedDatasetInstance], dataset: &str, path: &Path) -> bool {
-    return rows.iter().any(|row| return row.dataset == dataset && fold(row.mount_point.as_path()) == fold(path));
+fn mounted_at(
+    rows: &[MountedDatasetInstance],
+    dataset: &str,
+    path: &Path,
+) -> bool {
+    return rows
+        .iter()
+        .any(|row| return row.dataset == dataset && fold(row.mount_point.as_path()) == fold(path));
 }
 
 /// What:
@@ -409,19 +637,36 @@ fn mounted_at(rows: &[MountedDatasetInstance], dataset: &str, path: &Path) -> bo
 /// ```ts
 /// const beside = theContainerIsBeside(dataset, container, containerMountpoint, checkout);
 /// ```
-fn the_container_is_beside(dataset: &str, container: &str, container_mountpoint: &str, checkout: &Path) -> bool {
-    if container == dataset || container.starts_with(format!("{dataset}/").as_str()) || dataset.starts_with(format!("{container}/").as_str()) {
+fn the_container_is_beside(
+    dataset: &str,
+    container: &str,
+    container_mountpoint: &str,
+    checkout: &Path,
+) -> bool {
+    if container == dataset
+        || container.starts_with(format!("{dataset}/").as_str())
+        || dataset.starts_with(format!("{container}/").as_str())
+    {
         return false;
     }
     return !is_strictly_under(Path::new(container_mountpoint), checkout);
 }
 
-
 /// One dataset's facts,
 /// or the refusal naming the dataset and what the read answered.
-fn read_facts(datasets: &dyn DatasetReader, dataset: &str) -> Result<CloneObjectFacts, MountPathDescendantFailure> {
-    let identity: DatasetIdentity = datasets.identity(dataset).map_err(|failure| return MountPathDescendantFailure::DatasetRead { dataset: String::from(dataset), failure })?;
-    return Ok(crate::worktree_clone_mount_handler::sweep_dataset_facts::facts_of(dataset, &identity));
+fn read_facts(
+    datasets: &dyn DatasetReader,
+    dataset: &str,
+) -> Result<CloneObjectFacts, MountPathDescendantFailure> {
+    let identity: DatasetIdentity = datasets.identity(dataset).map_err(|failure| {
+        return MountPathDescendantFailure::DatasetRead {
+            dataset: String::from(dataset),
+            failure,
+        };
+    })?;
+    return Ok(
+        crate::worktree_clone_mount_handler::sweep_dataset_facts::facts_of(dataset, &identity),
+    );
 }
 
 /// The pool a dataset's name stands in.
@@ -430,12 +675,18 @@ fn pool_of(dataset: &str) -> String {
 }
 
 /// The line a run that placed a mount answers.
-fn mounted_line(dataset: &str, mountpoint: &Path) -> String {
+fn mounted_line(
+    dataset: &str,
+    mountpoint: &Path,
+) -> String {
     return format!("mounted: {dataset} at {}", mountpoint.display());
 }
 
 /// The line a run that found the dataset already mounted answers.
-fn already_mounted_line(dataset: &str, mountpoint: &Path) -> String {
+fn already_mounted_line(
+    dataset: &str,
+    mountpoint: &Path,
+) -> String {
     return format!("already mounted: {dataset} at {}", mountpoint.display());
 }
 

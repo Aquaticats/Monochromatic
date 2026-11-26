@@ -65,16 +65,39 @@ use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
 use crate::push_retry::PLAN_DIRECTORY;
-use crate::service_claim_watch::{WATCH_DIRECTORY, WatchedRepositories, watched_repositories};
-use crate::service_instance::{service_unit_instance, socket_path};
-use crate::service_journal::{CLAIM_EXTENSION, CONCLUSION_COPY_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
+use crate::service_claim_watch::{
+    WATCH_DIRECTORY,
+    WatchedRepositories,
+    watched_repositories,
+};
+use crate::service_instance::{
+    service_unit_instance,
+    socket_path,
+};
+use crate::service_journal::{
+    CLAIM_EXTENSION,
+    CONCLUSION_COPY_EXTENSION,
+    DONE_EXTENSION,
+    INDEXED_EXTENSION,
+    OPEN_EXTENSION,
+    SCRATCH_EXTENSION,
+    START_EXTENSION,
+    TEMPORARY_EXTENSION,
+};
 use crate::service_journal_folder_of_an_instance::journal_of;
-use crate::service_journal_record_age::{a_client_may_still_read, a_client_may_still_read_finished_batch, modified_time_of};
+use crate::service_journal_record_age::{
+    a_client_may_still_read,
+    a_client_may_still_read_finished_batch,
+    modified_time_of,
+};
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
 use crate::service_rules_precompile::is_the_remembered_repository;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "serviceFilesOfAnInstance";
@@ -94,8 +117,13 @@ pub const NOTES_FOLDER: &str = "monochromatic-git-policy-cli-worktree-notes";
 const LANDING_RECORD_DIRECTORY: &str = "busy";
 
 /// The note file of an instance.
-pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).join(format!("{instance}{NOTE_ENDING}"));
+pub fn note_path(
+    runtime_dir: &Path,
+    instance: &str,
+) -> PathBuf {
+    return runtime_unit_dir(runtime_dir)
+        .join(NOTES_FOLDER)
+        .join(format!("{instance}{NOTE_ENDING}"));
 }
 
 /// What:
@@ -112,7 +140,11 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 /// ```ts
 /// if ((await readText(notePath)) !== gitDir) await writeAtomically(notePath, gitDir);
 /// ```
-pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> std::io::Result<()> {
+pub fn record_worktree(
+    runtime_dir: &Path,
+    instance: &str,
+    git_dir: &Path,
+) -> std::io::Result<()> {
     // The note holds the bytes of the directory: its text would name another place, or none, for a path that is not text.
     let text: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
     let path: PathBuf = note_path(runtime_dir, instance);
@@ -137,7 +169,11 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
 /// ```ts
 /// await noteWorktree(runtimeDir, instance, await realpath(gitDir)).catch(log);
 /// ```
-pub fn note_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) {
+pub fn note_worktree(
+    runtime_dir: &Path,
+    instance: &str,
+    git_dir: &Path,
+) {
     let real: PathBuf = match std::fs::canonicalize(git_dir) {
         Ok(resolved) => resolved,
         Err(_unresolvable) => git_dir.to_path_buf(),
@@ -211,12 +247,15 @@ enum Kept {
 
 /// Why a finished batch's record keeps the journal:
 /// the client of its request may still look for the commit it became.
-const A_LOST_ANSWER_MAY_READ_IT: &str = "a batch that landed too recently for every client of it to be gone";
+const A_LOST_ANSWER_MAY_READ_IT: &str =
+    "a batch that landed too recently for every client of it to be gone";
 
 /// Whether a file name is the record of a batch that landed,
 /// which a stopped instance's journal may lose once no client of it can still look.
 fn is_finished_memory(name: &str) -> bool {
-    let Some((stem, extension)) = name.rsplit_once('.') else { return false };
+    let Some((stem, extension)) = name.rsplit_once('.') else {
+        return false;
+    };
     if !are_digits(stem) {
         return false;
     }
@@ -241,7 +280,10 @@ fn reason_of_a_kept_file(name: &str) -> &'static str {
     if extension == SCRATCH_EXTENSION {
         return "the record of a batch whose objects a scratch reference may hold";
     }
-    if extension == CLAIM_EXTENSION || extension == INDEXED_EXTENSION || extension == START_EXTENSION {
+    if extension == CLAIM_EXTENSION
+        || extension == INDEXED_EXTENSION
+        || extension == START_EXTENSION
+    {
         return "the record of a batch that was being landed";
     }
     // A `.tmp` file can hold a record that was written whole and never published, so it is no remains.
@@ -267,8 +309,12 @@ fn reason_of_a_kept_file(name: &str) -> &'static str {
 /// const copy = /^[0-9]+\.cleanup$/.test(name);
 /// ```
 fn is_a_conclusion_copy(name: &str) -> bool {
-    let Some((stem, extension)) = name.rsplit_once('.') else { return false };
-    return extension == CONCLUSION_COPY_EXTENSION && !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit() });
+    let Some((stem, extension)) = name.rsplit_once('.') else {
+        return false;
+    };
+    return extension == CONCLUSION_COPY_EXTENSION
+        && !stem.is_empty()
+        && stem.bytes().all(|byte| return byte.is_ascii_digit());
 }
 
 /// Why a folder inside a journal keeps it.
@@ -289,7 +335,10 @@ fn reason_of_a_kept_folder(name: &str) -> &'static str {
 fn entries_of(folder: &Path) -> Result<std::fs::ReadDir, String> {
     return match std::fs::read_dir(folder) {
         Ok(listing) => Ok(listing),
-        Err(error) => Err(format!("{} could not be listed ({error})", folder.display())),
+        Err(error) => Err(format!(
+            "{} could not be listed ({error})",
+            folder.display()
+        )),
     };
 }
 
@@ -310,9 +359,15 @@ fn holds_nothing(folder: &Path) -> Result<bool, String> {
 /// ```ts
 /// journalOfTheInstance(stateDir, instance) // stateDir && join(stateDir, SERVICE_UNIT, 'service', instance)
 /// ```
-pub fn journal_of_the_instance(state_dir: Option<&Path>, instance: &str) -> Option<PathBuf> {
+pub fn journal_of_the_instance(
+    state_dir: Option<&Path>,
+    instance: &str,
+) -> Option<PathBuf> {
     let state: &Path = state_dir?;
-    return Some(journal_of(state.join(SERVICE_UNIT.current).as_path(), instance));
+    return Some(journal_of(
+        state.join(SERVICE_UNIT.current).as_path(),
+        instance,
+    ));
 }
 
 /// What:
@@ -330,11 +385,22 @@ pub fn journal_of_the_instance(state_dir: Option<&Path>, instance: &str) -> Opti
 /// ```ts
 /// workAPersonMayWant(stateDir, instance) // { journal, entry, reason } or undefined
 /// ```
-pub fn work_a_person_may_want(state_dir: Option<&Path>, instance: &str) -> Option<KeptJournal> {
+pub fn work_a_person_may_want(
+    state_dir: Option<&Path>,
+    instance: &str,
+) -> Option<KeptJournal> {
     let journal: PathBuf = journal_of_the_instance(state_dir, instance)?;
     return match kept_entry_of(journal.as_path(), &ClaimTime::read()) {
-        Ok(Some(Kept::Work(entry, reason))) => Some(KeptJournal { journal, entry, reason }),
-        Err(reason) => Some(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
+        Ok(Some(Kept::Work(entry, reason))) => Some(KeptJournal {
+            journal,
+            entry,
+            reason,
+        }),
+        Err(reason) => Some(KeptJournal {
+            journal,
+            entry: String::from("something this command could not read"),
+            reason,
+        }),
         _ => None,
     };
 }
@@ -371,7 +437,10 @@ pub fn work_a_person_may_want(state_dir: Option<&Path>, instance: &str) -> Optio
 /// ```ts
 /// keptEntryOf(journal, now) // { name, reason, forAReader } or undefined
 /// ```
-fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String> {
+fn kept_entry_of(
+    journal: &Path,
+    now: &ClaimTime,
+) -> Result<Option<Kept>, String> {
     let listing = match entries_of(journal) {
         Ok(listing) => listing,
         Err(reason) => {
@@ -388,14 +457,20 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
         Some(name) => name.to_string_lossy().into_owned(),
         None => journal.display().to_string(),
     };
-    let mut readable: Option<Kept> = match a_client_may_still_read(None, modified_time_of(journal), now) {
-        true => Some(Kept::Read(folder_name, A_LOST_ANSWER_MAY_READ_IT)),
-        false => None,
-    };
+    let mut readable: Option<Kept> =
+        match a_client_may_still_read(None, modified_time_of(journal), now) {
+            true => Some(Kept::Read(folder_name, A_LOST_ANSWER_MAY_READ_IT)),
+            false => None,
+        };
     for listed in listing {
         let entry = match listed {
             Ok(entry) => entry,
-            Err(error) => return Err(format!("{} could not be listed ({error})", journal.display())),
+            Err(error) => {
+                return Err(format!(
+                    "{} could not be listed ({error})",
+                    journal.display()
+                ));
+            }
         };
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let path: PathBuf = entry.path();
@@ -420,7 +495,10 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
             if name == WATCH_DIRECTORY {
                 match watched_repositories(path.as_path()) {
                     WatchedRepositories::AllGone => continue,
-                    WatchedRepositories::StillThere { git_dir, note } => {
+                    WatchedRepositories::StillThere {
+                        git_dir,
+                        note,
+                    } => {
                         return Ok(Some(Kept::Work(
                             format!("{name}/{note}"),
                             format!(
@@ -429,10 +507,16 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
                             ),
                         )));
                     }
-                    WatchedRepositories::Unexplained { entry: unreadable, reason } => return Ok(Some(Kept::Work(format!("{name}/{unreadable}"), reason))),
+                    WatchedRepositories::Unexplained {
+                        entry: unreadable,
+                        reason,
+                    } => return Ok(Some(Kept::Work(format!("{name}/{unreadable}"), reason))),
                 }
             }
-            return Ok(Some(Kept::Work(name.clone(), String::from(reason_of_a_kept_folder(name.as_str())))));
+            return Ok(Some(Kept::Work(
+                name.clone(),
+                String::from(reason_of_a_kept_folder(name.as_str())),
+            )));
         }
         if is_finished_memory(name.as_str()) {
             if a_client_may_still_read_finished_batch(path.as_path(), now) {
@@ -445,7 +529,10 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
         if is_the_remembered_repository(name.as_str()) {
             continue;
         }
-        return Ok(Some(Kept::Work(name.clone(), String::from(reason_of_a_kept_file(name.as_str())))));
+        return Ok(Some(Kept::Work(
+            name.clone(),
+            String::from(reason_of_a_kept_file(name.as_str())),
+        )));
     }
     return Ok(readable);
 }
@@ -470,7 +557,11 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
 /// ```ts
 /// removeJournalOfAStoppedInstance(stateDir, instance, serviceIsGone) // 'removed' | { journal, entry, reason } | { keptForAReader: journal }
 /// ```
-pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: &str, service_is_gone: bool) -> Option<JournalAfterStop> {
+pub fn remove_journal_of_a_stopped_instance(
+    state_dir: Option<&Path>,
+    instance: &str,
+    service_is_gone: bool,
+) -> Option<JournalAfterStop> {
     let state: &Path = state_dir?;
     let journal: PathBuf = journal_of_the_instance(Some(state), instance)?;
     // A service that may still run writes into the journal, so nothing about it is decided here.
@@ -487,14 +578,30 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
                 && error.kind() != std::io::ErrorKind::NotFound
             {
                 warn(TAG, format!("the journal of {instance} could not be removed ({error}), so it is left at {}", journal.display()).as_str());
-                JournalAfterStop::StillRead(KeptJournal { journal, entry: String::from("something this command could not remove"), reason: String::from("it could not be removed") })
+                JournalAfterStop::StillRead(KeptJournal {
+                    journal,
+                    entry: String::from("something this command could not remove"),
+                    reason: String::from("it could not be removed"),
+                })
             } else {
                 JournalAfterStop::Removed
             }
         }
-        Ok(Some(Kept::Work(entry, reason))) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry, reason }),
-        Ok(Some(Kept::Read(entry, reason))) => JournalAfterStop::StillRead(KeptJournal { journal, entry, reason: String::from(reason) }),
-        Err(reason) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
+        Ok(Some(Kept::Work(entry, reason))) => JournalAfterStop::HoldsWork(KeptJournal {
+            journal,
+            entry,
+            reason,
+        }),
+        Ok(Some(Kept::Read(entry, reason))) => JournalAfterStop::StillRead(KeptJournal {
+            journal,
+            entry,
+            reason: String::from(reason),
+        }),
+        Err(reason) => JournalAfterStop::HoldsWork(KeptJournal {
+            journal,
+            entry: String::from("something this command could not read"),
+            reason,
+        }),
     });
 }
 
@@ -511,12 +618,25 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
 /// ```ts
 /// for (const path of [notePath(runtimeDir, instance), socketPath(runtimeDir, instance)]) await rm(path);
 /// ```
-pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
-    for path in [note_path(runtime_dir, instance), socket_path(runtime_dir, instance)] {
+pub fn forget_stopped_instance(
+    runtime_dir: &Path,
+    instance: &str,
+) {
+    for path in [
+        note_path(runtime_dir, instance),
+        socket_path(runtime_dir, instance),
+    ] {
         if let Err(error) = std::fs::remove_file(path.as_path())
             && error.kind() != std::io::ErrorKind::NotFound
         {
-            warn(TAG, format!("{} could not be removed after the units of {instance} were stopped ({error})", path.display()).as_str());
+            warn(
+                TAG,
+                format!(
+                    "{} could not be removed after the units of {instance} were stopped ({error})",
+                    path.display()
+                )
+                .as_str(),
+            );
         }
     }
 }

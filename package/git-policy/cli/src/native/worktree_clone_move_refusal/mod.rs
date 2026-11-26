@@ -27,4 +27,8 @@
 
 pub mod managed_move_refusal;
 
-pub use managed_move_refusal::{ManagedMoveRefusal, ManagedMoveRefusalCause, refuse_move_of_a_bound_slot};
+pub use managed_move_refusal::{
+    ManagedMoveRefusal,
+    ManagedMoveRefusalCause,
+    refuse_move_of_a_bound_slot,
+};

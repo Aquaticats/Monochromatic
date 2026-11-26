@@ -13,11 +13,22 @@
 
 /// Import the values under test and the registry they are derived from.
 use super::{
-    CliGitConfig, ConcurrencyConfig, DEFAULT_RESERVE_AFTER_LOST_RACES,
-    DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS, MarkdownRule, PolicyConfig, PolicySetting,
-    markdown_rule_from_name, markdown_rule_name, unlisted_severity,
+    CliGitConfig,
+    ConcurrencyConfig,
+    DEFAULT_RESERVE_AFTER_LOST_RACES,
+    DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS,
+    MarkdownRule,
+    PolicyConfig,
+    PolicySetting,
+    markdown_rule_from_name,
+    markdown_rule_name,
+    unlisted_severity,
 };
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+    Severity,
+};
 
 /// The shipped rule has one exact spelling in both directions;
 ///  near misses are not rules.

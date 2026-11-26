@@ -227,61 +227,207 @@ pub(crate) mod route_test_facts;
 #[path = "clone_lines_guest_arm_tests.rs"]
 mod clone_lines_guest_arm_tests;
 
+/// The binding record one add wrote.
+pub use binding_record_checks::{
+    NOT_RECORDED,
+    check_binding_record,
+};
+/// The blocked-removal state of one clone.
+pub use blocked_removal_checks::{
+    BlockedRemovalFacts,
+    check_blocked_removal,
+};
 /// What one check answered.
-pub use check_outcome::{Check, CheckOutcome, CheckReport, finding, pass, unknown};
+pub use check_outcome::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+    finding,
+    pass,
+    unknown,
+};
+/// The origin each clone names and its deferred-destroy mark.
+pub use clone_origin_checks::{
+    CloneOriginFacts,
+    RecordedOrigin,
+    check_clone_origin,
+};
+/// What one clone and its snapshots retain.
+pub use clone_retention_checks::{
+    AccountingFacts,
+    CloneRetentionFacts,
+    LOGICAL_REFERENCED_PROPERTY,
+    REFERENCED_PROPERTY,
+    USED_PROPERTY,
+    WRITTEN_PROPERTY,
+    check_clone_retention,
+};
+/// The clone's own snapshots beside the plan's states.
+pub use clone_snapshot_checks::{
+    CloneSnapshotFacts,
+    check_clone_snapshots,
+};
+/// What one managed slot is.
+pub use clone_state_checks::{
+    CloneStateFacts,
+    check_clone_state,
+};
+/// The effective delegation.
+pub use delegation_checks::{
+    FORBIDDEN_PERMISSIONS,
+    GrantPlace,
+    REQUIRED_GRANTS,
+    RequiredGrant,
+    allow_command,
+    check_delegation,
+    missing_grants,
+    place_dataset,
+};
+/// The kernel's delegation reply and the grant model it becomes.
+pub use delegation_reply::{
+    DelegationFacts,
+    Grant,
+    Inheritance,
+    Who,
+    grants_of,
+};
+/// The handler's installation and folders.
+pub use handler_checks::{
+    FolderFacts,
+    HandlerConfigurationFacts,
+    HandlerInstallationFacts,
+    HandlerWiringFacts,
+    PathFacts,
+    PathState,
+    REQUIRED_ROOT_MODES,
+    ROOT_MODE_EXECUTABLE_PATH,
+    ReadinessFacts,
+    RequestFacts,
+    ZEDLET_EVENT_PATH,
+    check_handler_configuration,
+    check_handler_folders,
+    check_handler_installation,
+    check_modes,
+    check_readiness,
+    check_root_modes,
+    check_unresolved_requests,
+    check_zed_wiring,
+};
+/// The namespaces that hold a clone.
+pub use holder_checks::{
+    HolderFacts,
+    NamespaceHold,
+    check_holders,
+};
+/// The recorded parent and slot identities.
+pub use identity_checks::{
+    LiveIdentity,
+    ParentIdentityFacts,
+    RecordedIdentity,
+    SlotIdentityFacts,
+    check_parent_identity,
+    check_slot_identity,
+    walk_refusal_is_unproved,
+};
+/// The checks later steps still owe.
+pub use later_step_checks::{
+    LaterStep,
+    check_later_step,
+};
+/// The sentence one slot's managed Git lock prints.
+pub use managed_lock_checks::{
+    ManagedLockFacts,
+    check_managed_lock,
+};
+/// The checkout mount,
+/// its propagation and the nested mounts' reachability.
+pub use mount_checks::{
+    MountCheckFacts,
+    NestedMount,
+    check_checkout_mount,
+    check_checkout_propagation,
+    check_nested_reachability,
+    nested_mounts,
+};
+/// The Git registration one slot's record names.
+pub use registration_checks::{
+    RegistrationFacts,
+    check_registration,
+};
+/// The destruction plan one removal left.
+pub use removal_plan_checks::{
+    PlanFileReading,
+    RecordedSnapshot,
+    RemovalPlanFacts,
+    check_removal_plan,
+    recorded_outcomes,
+};
+/// Every check's answer in one list.
+pub use route_checks::{
+    CloneFacts,
+    RouteFacts,
+    route_checks,
+};
+/// The `snapdir` of the checkout dataset and of the clone container.
+pub use snapshot_directory_checks::{
+    SNAPDIR_DISABLED,
+    SNAPDIR_HIDDEN,
+    SNAPDIR_PROPERTY,
+    SNAPDIR_VISIBLE,
+    SnapdirSetting,
+    check_snapdir,
+    snapdir_report,
+    snapdir_setting,
+    snapdir_word,
+};
+/// The staging folder and its bind.
+pub use staging_folder_checks::{
+    StagedFolder,
+    StagingBind,
+    StagingFolderFacts,
+    check_staging_bind_propagation,
+    check_staging_folder,
+    is_derived_folder_name,
+    staging_binds,
+};
+/// The store's folder listing.
+pub use store_listing::{
+    ListedEntry,
+    RecordFacts,
+    SlotRecordFacts,
+    StoreListingFacts,
+    check_staging_forms,
+    check_store_entries,
+    check_unknown_dot_entries,
+    is_foreign_entry,
+    is_unknown_dot_entry,
+    known_staging_entries,
+};
+/// The removal of the two known staging forms.
+pub use store_staging_removal::{
+    StagingRemoval,
+    StagingRemovalRefusal,
+    StagingRemovalRequest,
+    remove_known_staging_forms,
+};
 /// The device,
 /// ABI,
 /// pool,
 /// dataset,
 /// key and property checks and what they read.
 pub use zfs_checks::{
-    AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, DeviceState, PoolFacts, Reading, check_abi, check_clone_properties, check_dataset, check_device, check_key, check_pool, reading_of,
+    AbiFacts,
+    DatasetFacts,
+    DatasetRole,
+    DeviceFacts,
+    DeviceState,
+    PoolFacts,
+    Reading,
+    check_abi,
+    check_clone_properties,
+    check_dataset,
+    check_device,
+    check_key,
+    check_pool,
+    reading_of,
 };
-/// The checkout mount,
-/// its propagation and the nested mounts' reachability.
-pub use mount_checks::{MountCheckFacts, NestedMount, check_checkout_mount, check_checkout_propagation, check_nested_reachability, nested_mounts};
-/// The `snapdir` of the checkout dataset and of the clone container.
-pub use snapshot_directory_checks::{SNAPDIR_DISABLED, SNAPDIR_HIDDEN, SNAPDIR_PROPERTY, SNAPDIR_VISIBLE, SnapdirSetting, check_snapdir, snapdir_report, snapdir_setting, snapdir_word};
-/// The store's folder listing.
-pub use store_listing::{
-    ListedEntry, RecordFacts, SlotRecordFacts, StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries, is_foreign_entry, is_unknown_dot_entry, known_staging_entries,
-};
-/// The removal of the two known staging forms.
-pub use store_staging_removal::{StagingRemoval, StagingRemovalRefusal, StagingRemovalRequest, remove_known_staging_forms};
-/// The recorded parent and slot identities.
-pub use identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity, SlotIdentityFacts, check_parent_identity, check_slot_identity, walk_refusal_is_unproved};
-/// The kernel's delegation reply and the grant model it becomes.
-pub use delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_of};
-/// The effective delegation.
-pub use delegation_checks::{FORBIDDEN_PERMISSIONS, REQUIRED_GRANTS, RequiredGrant, GrantPlace, allow_command, check_delegation, missing_grants, place_dataset};
-/// The handler's installation and folders.
-pub use handler_checks::{
-    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ROOT_MODE_EXECUTABLE_PATH, ZEDLET_EVENT_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
-    check_handler_configuration, check_handler_folders, check_handler_installation, check_modes, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
-};
-/// The staging folder and its bind.
-pub use staging_folder_checks::{StagedFolder, StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder, is_derived_folder_name, staging_binds};
-/// The namespaces that hold a clone.
-pub use holder_checks::{HolderFacts, NamespaceHold, check_holders};
-/// What one managed slot is.
-pub use clone_state_checks::{CloneStateFacts, check_clone_state};
-/// The Git registration one slot's record names.
-pub use registration_checks::{RegistrationFacts, check_registration};
-/// The sentence one slot's managed Git lock prints.
-pub use managed_lock_checks::{ManagedLockFacts, check_managed_lock};
-/// The binding record one add wrote.
-pub use binding_record_checks::{NOT_RECORDED, check_binding_record};
-/// The destruction plan one removal left.
-pub use removal_plan_checks::{PlanFileReading, RecordedSnapshot, RemovalPlanFacts, check_removal_plan, recorded_outcomes};
-/// The clone's own snapshots beside the plan's states.
-pub use clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
-/// The origin each clone names and its deferred-destroy mark.
-pub use clone_origin_checks::{CloneOriginFacts, RecordedOrigin, check_clone_origin};
-/// What one clone and its snapshots retain.
-pub use clone_retention_checks::{AccountingFacts, CloneRetentionFacts, LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
-/// The blocked-removal state of one clone.
-pub use blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
-/// The checks later steps still owe.
-pub use later_step_checks::{LaterStep, check_later_step};
-/// Every check's answer in one list.
-pub use route_checks::{CloneFacts, RouteFacts, route_checks};

@@ -32,13 +32,26 @@ fn a_user_manager_init(uid: u32) -> String {
 #[test]
 fn the_first_process_is_the_system_manager() {
     let shape: ManagerReads<'static> = a_shell_shape();
-    let reads: ManagerReads<'static> = ManagerReads { parent_pid: THE_FIRST_PROCESS, ..shape };
-    let refusal: ManagerRefusal = started_by_the_service_manager(&reads).expect("the first process refuses");
-    assert_eq!(refusal.place, ManagerPlace::Parent { pid: THE_FIRST_PROCESS, manager: ManagerKind::System });
+    let reads: ManagerReads<'static> = ManagerReads {
+        parent_pid: THE_FIRST_PROCESS,
+        ..shape
+    };
+    let refusal: ManagerRefusal =
+        started_by_the_service_manager(&reads).expect("the first process refuses");
+    assert_eq!(
+        refusal.place,
+        ManagerPlace::Parent {
+            pid: THE_FIRST_PROCESS,
+            manager: ManagerKind::System
+        }
+    );
     let sentence: String = the_refusal_text("<slot>", &refusal);
     assert!(sentence.contains("pid 1, systemd"), "{sentence}");
     assert!(sentence.contains("setsid --wait"), "{sentence}");
-    assert!(sentence.contains("nothing was changed and nothing was ended"), "{sentence}");
+    assert!(
+        sentence.contains("nothing was changed and nothing was ended"),
+        "{sentence}"
+    );
 }
 
 /// A user manager is its cgroup path and its own name together,
@@ -47,14 +60,36 @@ fn the_first_process_is_the_system_manager() {
 fn a_user_manager_is_its_cgroup_and_its_name() {
     let uid: u32 = 1000;
     let init: String = a_user_manager_init(uid);
-    assert_eq!(manager_of(4000, Some(MANAGER_COMMAND), Some(init.as_str()), uid), Some(ManagerKind::User));
+    assert_eq!(
+        manager_of(4000, Some(MANAGER_COMMAND), Some(init.as_str()), uid),
+        Some(ManagerKind::User)
+    );
     // The same cgroup without the manager's own name is another program running under it.
-    assert_eq!(manager_of(4000, Some("bash"), Some(init.as_str()), uid), None);
+    assert_eq!(
+        manager_of(4000, Some("bash"), Some(init.as_str()), uid),
+        None
+    );
     // The manager's name under another cgroup is not the account's manager.
-    assert_eq!(manager_of(4000, Some(MANAGER_COMMAND), Some("/user.slice/user-1000.slice/session-3.scope"), uid), None);
+    assert_eq!(
+        manager_of(
+            4000,
+            Some(MANAGER_COMMAND),
+            Some("/user.slice/user-1000.slice/session-3.scope"),
+            uid
+        ),
+        None
+    );
     assert_eq!(manager_of(4000, Some(MANAGER_COMMAND), None, uid), None);
     // Another account's manager path is not this account's.
-    assert_eq!(manager_of(4000, Some(MANAGER_COMMAND), Some(a_user_manager_init(1001).as_str()), uid), None);
+    assert_eq!(
+        manager_of(
+            4000,
+            Some(MANAGER_COMMAND),
+            Some(a_user_manager_init(1001).as_str()),
+            uid
+        ),
+        None
+    );
 }
 
 /// A session leader whose parent is the manager refuses as that place,
@@ -69,10 +104,20 @@ fn the_session_leaders_parent_is_looked_for_too() {
         leader_parent_cgroup: Some(init.as_str()),
         ..shape
     };
-    let refusal: ManagerRefusal = started_by_the_service_manager(&reads).expect("the leader's parent refuses");
-    assert_eq!(refusal.place, ManagerPlace::SessionLeaderParent { pid: 4100, manager: ManagerKind::User });
+    let refusal: ManagerRefusal =
+        started_by_the_service_manager(&reads).expect("the leader's parent refuses");
+    assert_eq!(
+        refusal.place,
+        ManagerPlace::SessionLeaderParent {
+            pid: 4100,
+            manager: ManagerKind::User
+        }
+    );
     let sentence: String = the_refusal_text("one", &refusal);
-    assert!(sentence.contains("session leader's parent is the manager (pid 4100, systemd --user)"), "{sentence}");
+    assert!(
+        sentence.contains("session leader's parent is the manager (pid 4100, systemd --user)"),
+        "{sentence}"
+    );
 }
 
 /// A session leader whose own record could not be read refuses as an orphan,
@@ -80,11 +125,23 @@ fn the_session_leaders_parent_is_looked_for_too() {
 #[test]
 fn an_unreadable_leader_is_an_orphan() {
     let shape: ManagerReads<'static> = a_shell_shape();
-    let reads: ManagerReads<'static> = ManagerReads { leader_parent: None, ..shape };
-    let refusal: ManagerRefusal = started_by_the_service_manager(&reads).expect("an unreadable leader refuses");
-    assert_eq!(refusal.place, ManagerPlace::Orphan { leader: 4200 });
+    let reads: ManagerReads<'static> = ManagerReads {
+        leader_parent: None,
+        ..shape
+    };
+    let refusal: ManagerRefusal =
+        started_by_the_service_manager(&reads).expect("an unreadable leader refuses");
+    assert_eq!(
+        refusal.place,
+        ManagerPlace::Orphan {
+            leader: 4200
+        }
+    );
     let sentence: String = the_refusal_text("one", &refusal);
-    assert!(sentence.contains("nothing proves what started the session"), "{sentence}");
+    assert!(
+        sentence.contains("nothing proves what started the session"),
+        "{sentence}"
+    );
 }
 
 /// A shape the measured agent runs have is allowed:
@@ -101,7 +158,9 @@ fn the_unified_cgroup_path_is_the_zero_line() {
     let text: &str = "0::/user.slice/user-1000.slice/user@1000.service/init.scope\n";
     assert_eq!(
         unified_cgroup_path(text),
-        Some(String::from("/user.slice/user-1000.slice/user@1000.service/init.scope"))
+        Some(String::from(
+            "/user.slice/user-1000.slice/user@1000.service/init.scope"
+        ))
     );
     assert_eq!(unified_cgroup_path("1:name=systemd:/x\n"), None);
     assert_eq!(unified_cgroup_path("0::\n"), None);
@@ -113,5 +172,8 @@ fn the_unified_cgroup_path_is_the_zero_line() {
 #[test]
 fn a_command_name_is_escaped_in_the_sentence() {
     assert_eq!(command_word(Some("a\nb")).text(), "a\\x0ab");
-    assert_eq!(command_word(None).text(), "a command this wrapper could not read");
+    assert_eq!(
+        command_word(None).text(),
+        "a command this wrapper could not read"
+    );
 }

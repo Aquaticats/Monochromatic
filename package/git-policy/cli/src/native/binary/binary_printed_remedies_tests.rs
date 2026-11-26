@@ -23,13 +23,26 @@
 //! ```
 
 use super::support::{
-    Fixture, Observed, dead_copy_owner, fixture, git, observe_raw, porcelain, remove, repository,
-    run_wrapped, stderr_of, wrapped,
+    Fixture,
+    Observed,
+    dead_copy_owner,
+    fixture,
+    git,
+    observe_raw,
+    porcelain,
+    remove,
+    repository,
+    run_wrapped,
+    stderr_of,
+    wrapped,
 };
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use git_policy_cli::worktree_copy_stage_claim::claim_stage_for_add_as;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The text between backticks in a message,
 /// in the order the message prints it.
@@ -38,7 +51,9 @@ fn backticked_commands(text: &str) -> Vec<String> {
     let mut rest: &str = text;
     while let Some(opening) = rest.find('`') {
         let after: &str = &rest[opening + 1..];
-        let Some(closing) = after.find('`') else { break };
+        let Some(closing) = after.find('`') else {
+            break;
+        };
         found.push(String::from(&after[..closing]));
         rest = &after[closing + 1..];
     }
@@ -100,7 +115,11 @@ fn shell_words(command: &str) -> Vec<String> {
 /// ```ts
 /// function runAsPrinted(fixture: Fixture, directory: string, printed: string): Observed;
 /// ```
-fn run_as_printed(fixture: &Fixture, directory: &Path, printed: &str) -> Observed {
+fn run_as_printed(
+    fixture: &Fixture,
+    directory: &Path,
+    printed: &str,
+) -> Observed {
     let words: Vec<String> = shell_words(printed);
     let arguments: &[String] = match words.first().map(String::as_str) {
         Some("git") => &words[1..],
@@ -115,11 +134,18 @@ fn refused_by_policy(observed: &Observed) -> bool {
 }
 
 /// A repository with `tracked.txt` committed and the branch `topic`.
-fn repository_with_a_tracked_file(fixture: &Fixture, name: &str) -> PathBuf {
+fn repository_with_a_tracked_file(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=tracked"],
+    );
     git(fixture, repo.as_path(), &["branch", "topic"]);
     return repo;
 }
@@ -143,14 +169,36 @@ fn worktree_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf, Pa
     let repo: PathBuf = repository_with_a_tracked_file(fixture, "repo");
     let destination: PathBuf = fixture.root.join("half-added");
     let shown: &str = destination.to_str().expect("the fixture path is text");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", shown, "topic"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            shown,
+            "topic",
+        ],
+    );
     let watcher: PathBuf = fixture.root.join("watcher");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--detach", watcher.to_str().expect("text")]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            watcher.to_str().expect("text"),
+        ],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     // The record the wrapper's own add writes before real Git runs; its owner is a process that is gone, which is what
     // an add killed between the registration and the checkout leaves.
-    let _claim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner())
-        .expect("the destination record of an add");
+    let _claim =
+        claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner())
+            .expect("the destination record of an add");
     return (repo, destination, watcher);
 }
 
@@ -159,16 +207,26 @@ fn worktree_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf, Pa
 #[test]
 fn the_interrupted_adds_finish_command_runs_as_printed() {
     let fixture: Fixture = fixture("printed-interrupted-add");
-    let (repo, destination, watcher): (PathBuf, PathBuf, PathBuf) = worktree_whose_checkout_never_ran(&fixture);
+    let (repo, destination, watcher): (PathBuf, PathBuf, PathBuf) =
+        worktree_whose_checkout_never_ran(&fixture);
     // Every later command in a linked worktree reports the worktree the interrupted add left.
-    let noticed: Observed = run_wrapped(&fixture, watcher.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let noticed: Observed = run_wrapped(
+        &fixture,
+        watcher.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     let text: String = stderr_of(&noticed);
-    assert!(text.contains("an interrupted `git worktree add` left"), "{text}");
+    assert!(
+        text.contains("an interrupted `git worktree add` left"),
+        "{text}"
+    );
     let printed: Vec<String> = backticked_commands(text.as_str());
     let finish: &String = printed
         .iter()
         .find(|one| return one.contains(" reset "))
-        .unwrap_or_else(|| panic!("the report names the command that finishes the checkout: {text}"));
+        .unwrap_or_else(|| {
+            panic!("the report names the command that finishes the checkout: {text}")
+        });
     let ran: Observed = run_as_printed(&fixture, repo.as_path(), finish.as_str());
     assert!(
         !refused_by_policy(&ran),
@@ -188,9 +246,23 @@ fn the_stash_drops_branch_command_runs_as_printed() {
     let fixture: Fixture = fixture("printed-stash-branch");
     let repo: PathBuf = repository_with_a_tracked_file(&fixture, "repo");
     let linked: PathBuf = fixture.root.join("linked");
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("text"), "topic"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked.to_str().expect("text"),
+            "topic",
+        ],
+    );
     std::fs::write(linked.join("tracked.txt"), b"two\n").expect("edit");
-    git(&fixture, linked.as_path(), &["stash", "push", "--message=parked"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["stash", "push", "--message=parked"],
+    );
     // The report of a stash drop in the main worktree, where every stash form is refused.
     let dropped: Observed = run_wrapped(&fixture, repo.as_path(), &["stash", "drop"]);
     let text: String = stderr_of(&dropped);
@@ -200,8 +272,16 @@ fn the_stash_drops_branch_command_runs_as_printed() {
         "the report must not call a refused command allowed: {text}"
     );
     // The report's own words say a clean linked worktree runs it, so the command runs there.
-    let ran: Observed = run_wrapped(&fixture, linked.as_path(), &["stash", "branch", "from-stash"]);
-    assert!(!refused_by_policy(&ran), "git stash branch was refused in a clean linked worktree: {}", stderr_of(&ran));
+    let ran: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["stash", "branch", "from-stash"],
+    );
+    assert!(
+        !refused_by_policy(&ran),
+        "git stash branch was refused in a clean linked worktree: {}",
+        stderr_of(&ran)
+    );
     assert_eq!(ran.code, Some(0), "{}", stderr_of(&ran));
     remove(&fixture);
 }
@@ -214,7 +294,11 @@ fn the_clean_ignored_reports_delete_runs_as_printed() {
     let repo: PathBuf = repository_with_a_tracked_file(&fixture, "repo");
     std::fs::write(repo.join(".gitignore"), b"ignored.txt\n").expect("ignore");
     git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=ignore"],
+    );
     std::fs::write(repo.join("ignored.txt"), b"kept\n").expect("ignored file");
     std::fs::write(repo.join("untracked.txt"), b"new\n").expect("untracked file");
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["clean", "-f", "-x"]);
@@ -227,14 +311,28 @@ fn the_clean_ignored_reports_delete_runs_as_printed() {
     let printed: Vec<String> = backticked_commands(text.as_str());
     let delete: &String = printed
         .iter()
-        .find(|one| return one.contains(" clean ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH))
-        .unwrap_or_else(|| panic!("the report names a clean that deletes untracked files only: {text}"));
+        .find(|one| {
+            return one.contains(" clean ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
+        })
+        .unwrap_or_else(|| {
+            panic!("the report names a clean that deletes untracked files only: {text}")
+        });
     let ran: Observed = run_as_printed(&fixture, repo.as_path(), delete.as_str());
-    assert!(!refused_by_policy(&ran), "the command the report prints was refused: {delete}\n{}", stderr_of(&ran));
+    assert!(
+        !refused_by_policy(&ran),
+        "the command the report prints was refused: {delete}\n{}",
+        stderr_of(&ran)
+    );
     assert_eq!(ran.code, Some(0), "{delete}: {}", stderr_of(&ran));
     // The untracked file went and the ignored one stayed, which is what the report promises.
-    assert!(!repo.join("untracked.txt").exists(), "the untracked file was deleted");
-    assert!(repo.join("ignored.txt").exists(), "the ignored file was kept");
+    assert!(
+        !repo.join("untracked.txt").exists(),
+        "the untracked file was deleted"
+    );
+    assert!(
+        repo.join("ignored.txt").exists(),
+        "the ignored file was kept"
+    );
     remove(&fixture);
 }
 
@@ -249,9 +347,15 @@ fn the_clean_ignored_reports_delete_runs_as_printed() {
 /// ```ts
 /// const line = gitLine(fixture, dir, ['rev-parse', 'HEAD']);
 /// ```
-fn git_line(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
+fn git_line(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     let output = git(fixture, directory, arguments);
-    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    return String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
 }
 
 /// What:
@@ -270,29 +374,65 @@ fn git_line(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
 /// ```ts
 /// const { clone, remote, from } = aCloneWhoseRemoteAddsAnUntrackedPath(fixture, 'new.txt', PRECIOUS);
 /// ```
-fn a_clone_whose_remote_adds_an_untracked_path(fixture: &Fixture, name: &str, precious: &str) -> (PathBuf, PathBuf, String) {
+fn a_clone_whose_remote_adds_an_untracked_path(
+    fixture: &Fixture,
+    name: &str,
+    precious: &str,
+) -> (PathBuf, PathBuf, String) {
     let remote: PathBuf = repository(fixture, OsStr::new("remote"));
     std::fs::write(remote.join("base.txt"), b"base\n").expect("a file on the remote");
     git(fixture, remote.as_path(), &["add", "--", "base.txt"]);
-    git(fixture, remote.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        fixture,
+        remote.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     let clone: PathBuf = fixture.root.join("main");
     git(
         fixture,
         fixture.root.as_path(),
-        &["clone", "--quiet", remote.to_str().expect("a text path"), clone.to_str().expect("a text path")],
+        &[
+            "clone",
+            "--quiet",
+            remote.to_str().expect("a text path"),
+            clone.to_str().expect("a text path"),
+        ],
     );
     // The fetch writes the checked-out branch itself, which is what makes the pull move the worktree here.
-    git(fixture, clone.as_path(), &["config", "remote.origin.fetch", "+refs/heads/main:refs/heads/main"]);
-    git(fixture, clone.as_path(), &["config", "pull.rebase", "false"]);
+    git(
+        fixture,
+        clone.as_path(),
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/main:refs/heads/main",
+        ],
+    );
+    git(
+        fixture,
+        clone.as_path(),
+        &["config", "pull.rebase", "false"],
+    );
     let from: String = git_line(fixture, clone.as_path(), &["rev-parse", "HEAD"]);
     let written: PathBuf = remote.join(name);
-    std::fs::create_dir_all(written.parent().expect("the folders above the added path")).expect("the folders the remote's commit writes below");
+    std::fs::create_dir_all(written.parent().expect("the folders above the added path"))
+        .expect("the folders the remote's commit writes below");
     std::fs::write(&written, b"remote content\n").expect("the file the remote adds");
     git(fixture, remote.as_path(), &["add", "--", name]);
-    git(fixture, remote.as_path(), &["commit", "--quiet", "--message=adds-the-file"]);
+    git(
+        fixture,
+        remote.as_path(),
+        &["commit", "--quiet", "--message=adds-the-file"],
+    );
     let untracked: PathBuf = clone.join(name);
-    std::fs::create_dir_all(untracked.parent().expect("the folders above the added path")).expect("the folders the untracked file stands below");
-    std::fs::write(&untracked, precious.as_bytes()).expect("the untracked file only this worktree holds");
+    std::fs::create_dir_all(
+        untracked
+            .parent()
+            .expect("the folders above the added path"),
+    )
+    .expect("the folders the untracked file stands below");
+    std::fs::write(&untracked, precious.as_bytes())
+        .expect("the untracked file only this worktree holds");
     return (clone, remote, from);
 }
 
@@ -306,9 +446,14 @@ fn a_clone_whose_remote_adds_an_untracked_path(fixture: &Fixture, name: &str, pr
 /// ```ts
 /// const copy = backticked(text).find((one) => one.endsWith(` ${name}`) && one.includes('pull-kept') && one.includes('/'));
 /// ```
-fn a_copy_the_words_name(text: &str, name: &str) -> Option<String> {
+fn a_copy_the_words_name(
+    text: &str,
+    name: &str,
+) -> Option<String> {
     for printed in backticked_commands(text) {
-        if printed.contains("pull-kept") && (printed.ends_with(format!("/{name}").as_str()) || printed == name) {
+        if printed.contains("pull-kept")
+            && (printed.ends_with(format!("/{name}").as_str()) || printed == name)
+        {
             return Some(printed);
         }
     }
@@ -323,29 +468,65 @@ fn a_copy_the_words_name(text: &str, name: &str) -> Option<String> {
 fn the_pulls_recovery_runs_as_printed_and_keeps_the_untracked_file() {
     const PRECIOUS: &str = "the only copy of this line\n";
     let fixture: Fixture = fixture("printed-pull-untracked");
-    let (clone, remote, from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "new.txt", PRECIOUS);
+    let (clone, remote, from): (PathBuf, PathBuf, String) =
+        a_clone_whose_remote_adds_an_untracked_path(&fixture, "new.txt", PRECIOUS);
 
-    let pulled: Observed = run_wrapped(&fixture, clone.as_path(), &["pull", "--no-rebase", "origin"]);
+    let pulled: Observed = run_wrapped(
+        &fixture,
+        clone.as_path(),
+        &["pull", "--no-rebase", "origin"],
+    );
     let text: String = stderr_of(&pulled);
-    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
-    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
-    assert!(text.contains(from.as_str()), "Git's own words name the commit the diff compares against: {text}");
+    assert_eq!(
+        pulled.code,
+        Some(128),
+        "the pull stops where Git's own does: {text}"
+    );
+    assert!(
+        text.contains("fatal: Cannot fast-forward your working tree."),
+        "{text}"
+    );
+    assert!(
+        text.contains(from.as_str()),
+        "Git's own words name the commit the diff compares against: {text}"
+    );
     let copy: String = a_copy_the_words_name(text.as_str(), "new.txt")
         .unwrap_or_else(|| panic!("the words name the copy the wrapper made: {text}"));
-    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy is there"), PRECIOUS.as_bytes(), "the copy holds the untracked bytes");
-    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the untracked file is still there"), PRECIOUS.as_bytes(), "the pull changed nothing");
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy is there"),
+        PRECIOUS.as_bytes(),
+        "the copy holds the untracked bytes"
+    );
+    assert_eq!(
+        std::fs::read(clone.join("new.txt")).expect("the untracked file is still there"),
+        PRECIOUS.as_bytes(),
+        "the pull changed nothing"
+    );
 
     let printed: Vec<String> = backticked_commands(text.as_str());
     let finish: &String = printed
         .iter()
-        .find(|one| return one.contains(" reset ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH))
+        .find(|one| {
+            return one.contains(" reset ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
+        })
         .unwrap_or_else(|| panic!("the words name the reset the guard refused: {text}"));
     let ran: Observed = run_as_printed(&fixture, clone.as_path(), finish.as_str());
-    assert!(!refused_by_policy(&ran), "the command the words print was refused: {finish}\n{}", stderr_of(&ran));
+    assert!(
+        !refused_by_policy(&ran),
+        "the command the words print was refused: {finish}\n{}",
+        stderr_of(&ran)
+    );
     assert_eq!(ran.code, Some(0), "{finish}: {}", stderr_of(&ran));
     // What the words promise: the reset takes the remote's file and the copy still holds the person's bytes.
-    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"), b"remote content\n");
-    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"), PRECIOUS.as_bytes(), "the printed reset left the copy alone");
+    assert_eq!(
+        std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"),
+        b"remote content\n"
+    );
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"),
+        PRECIOUS.as_bytes(),
+        "the printed reset left the copy alone"
+    );
     assert!(remote.join("new.txt").exists());
     remove(&fixture);
 }
@@ -361,14 +542,24 @@ fn the_pulls_recovery_runs_as_printed_and_keeps_the_untracked_file() {
 /// ```ts
 /// const ran = runAsPrinted(fixture, clone, backticked(text).find((one) => one.includes(' reset ') && one.includes(WORKTREE_ENFORCEMENT_ESCAPE_HATCH)));
 /// ```
-fn the_pulls_recovery(fixture: &Fixture, clone: &Path, text: &str) -> Observed {
+fn the_pulls_recovery(
+    fixture: &Fixture,
+    clone: &Path,
+    text: &str,
+) -> Observed {
     let printed: Vec<String> = backticked_commands(text);
     let finish: &String = printed
         .iter()
-        .find(|one| return one.contains(" reset ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH))
+        .find(|one| {
+            return one.contains(" reset ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
+        })
         .unwrap_or_else(|| panic!("the words name the reset the guard refused: {text}"));
     let ran: Observed = run_as_printed(fixture, clone, finish.as_str());
-    assert!(!refused_by_policy(&ran), "the command the words print was refused: {finish}\n{}", stderr_of(&ran));
+    assert!(
+        !refused_by_policy(&ran),
+        "the command the words print was refused: {finish}\n{}",
+        stderr_of(&ran)
+    );
     assert_eq!(ran.code, Some(0), "{finish}: {}", stderr_of(&ran));
     return ran;
 }
@@ -381,24 +572,48 @@ fn the_pulls_recovery(fixture: &Fixture, clone: &Path, text: &str) -> Observed {
 fn the_pulls_recovery_keeps_the_file_behind_a_relative_directory_change() {
     const PRECIOUS: &str = "the only copy behind a relative -C\n";
     let fixture: Fixture = fixture("printed-pull-relative-c");
-    let (clone, remote, from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "new.txt", PRECIOUS);
+    let (clone, remote, from): (PathBuf, PathBuf, String) =
+        a_clone_whose_remote_adds_an_untracked_path(&fixture, "new.txt", PRECIOUS);
 
-    let pulled: Observed = run_wrapped(&fixture, fixture.root.as_path(), &["-C", "main", "pull", "--no-rebase", "origin"]);
+    let pulled: Observed = run_wrapped(
+        &fixture,
+        fixture.root.as_path(),
+        &["-C", "main", "pull", "--no-rebase", "origin"],
+    );
     let text: String = stderr_of(&pulled);
-    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
-    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
-    assert!(text.contains(from.as_str()), "Git's own words name the commit the diff compares against: {text}");
+    assert_eq!(
+        pulled.code,
+        Some(128),
+        "the pull stops where Git's own does: {text}"
+    );
+    assert!(
+        text.contains("fatal: Cannot fast-forward your working tree."),
+        "{text}"
+    );
+    assert!(
+        text.contains(from.as_str()),
+        "Git's own words name the commit the diff compares against: {text}"
+    );
     assert!(
         !text.contains("could not be listed"),
         "the listing runs whatever directory the caller's options name: {text}"
     );
     let copy: String = a_copy_the_words_name(text.as_str(), "new.txt")
         .unwrap_or_else(|| panic!("the words name the copy the wrapper made: {text}"));
-    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy is there"), PRECIOUS.as_bytes());
-    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the untracked file is still there"), PRECIOUS.as_bytes());
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy is there"),
+        PRECIOUS.as_bytes()
+    );
+    assert_eq!(
+        std::fs::read(clone.join("new.txt")).expect("the untracked file is still there"),
+        PRECIOUS.as_bytes()
+    );
 
     let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
-    assert_eq!(std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"), b"remote content\n");
+    assert_eq!(
+        std::fs::read(clone.join("new.txt")).expect("the remote's file is checked out"),
+        b"remote content\n"
+    );
     assert_eq!(
         std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"),
         PRECIOUS.as_bytes(),
@@ -415,22 +630,43 @@ fn the_pulls_recovery_keeps_the_file_behind_a_relative_directory_change() {
 fn the_pulls_recovery_keeps_a_file_standing_where_an_added_path_needs_a_folder() {
     const PRECIOUS: &str = "the only copy of the parent-path blocker\n";
     let fixture: Fixture = fixture("printed-pull-parent-file");
-    let (clone, _remote, _from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "dir/new.txt", PRECIOUS);
+    let (clone, _remote, _from): (PathBuf, PathBuf, String) =
+        a_clone_whose_remote_adds_an_untracked_path(&fixture, "dir/new.txt", PRECIOUS);
     // The move needs a folder at `dir`, and a plain file stands there.
     std::fs::remove_dir_all(clone.join("dir")).expect("the folder the untracked file stood below");
     std::fs::write(clone.join("dir"), PRECIOUS.as_bytes()).expect("the file standing on the way");
 
-    let pulled: Observed = run_wrapped(&fixture, clone.as_path(), &["pull", "--no-rebase", "origin"]);
+    let pulled: Observed = run_wrapped(
+        &fixture,
+        clone.as_path(),
+        &["pull", "--no-rebase", "origin"],
+    );
     let text: String = stderr_of(&pulled);
-    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
-    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
-    assert_eq!(std::fs::read(clone.join("dir")).expect("the file is still there"), PRECIOUS.as_bytes());
+    assert_eq!(
+        pulled.code,
+        Some(128),
+        "the pull stops where Git's own does: {text}"
+    );
+    assert!(
+        text.contains("fatal: Cannot fast-forward your working tree."),
+        "{text}"
+    );
+    assert_eq!(
+        std::fs::read(clone.join("dir")).expect("the file is still there"),
+        PRECIOUS.as_bytes()
+    );
     let copy: String = a_copy_the_words_name(text.as_str(), "dir")
         .unwrap_or_else(|| panic!("the words name the copy of the file that stands there: {text}"));
-    assert_eq!(std::fs::read(Path::new(copy.as_str())).expect("the copy is there"), PRECIOUS.as_bytes());
+    assert_eq!(
+        std::fs::read(Path::new(copy.as_str())).expect("the copy is there"),
+        PRECIOUS.as_bytes()
+    );
 
     let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
-    assert!(clone.join("dir").join("new.txt").exists(), "the reset wrote the remote's file below `dir`");
+    assert!(
+        clone.join("dir").join("new.txt").exists(),
+        "the reset wrote the remote's file below `dir`"
+    );
     assert_eq!(
         std::fs::read(Path::new(copy.as_str())).expect("the copy survives the reset"),
         PRECIOUS.as_bytes(),
@@ -446,15 +682,34 @@ fn the_pulls_recovery_keeps_a_file_standing_where_an_added_path_needs_a_folder()
 fn the_pulls_recovery_keeps_a_link_standing_where_an_added_path_needs_a_folder() {
     let fixture: Fixture = fixture("printed-pull-parent-link");
     let target: &str = "the-only-record-of-the-link-target";
-    let (clone, _remote, _from): (PathBuf, PathBuf, String) = a_clone_whose_remote_adds_an_untracked_path(&fixture, "dir/new.txt", "an unused first copy\n");
+    let (clone, _remote, _from): (PathBuf, PathBuf, String) =
+        a_clone_whose_remote_adds_an_untracked_path(
+            &fixture,
+            "dir/new.txt",
+            "an unused first copy\n",
+        );
     std::fs::remove_dir_all(clone.join("dir")).expect("the folder the untracked file stood below");
     std::os::unix::fs::symlink(target, clone.join("dir")).expect("the link standing on the way");
 
-    let pulled: Observed = run_wrapped(&fixture, clone.as_path(), &["pull", "--no-rebase", "origin"]);
+    let pulled: Observed = run_wrapped(
+        &fixture,
+        clone.as_path(),
+        &["pull", "--no-rebase", "origin"],
+    );
     let text: String = stderr_of(&pulled);
-    assert_eq!(pulled.code, Some(128), "the pull stops where Git's own does: {text}");
-    assert!(text.contains("fatal: Cannot fast-forward your working tree."), "{text}");
-    assert_eq!(std::fs::read_link(clone.join("dir")).expect("the link is still there"), PathBuf::from(target));
+    assert_eq!(
+        pulled.code,
+        Some(128),
+        "the pull stops where Git's own does: {text}"
+    );
+    assert!(
+        text.contains("fatal: Cannot fast-forward your working tree."),
+        "{text}"
+    );
+    assert_eq!(
+        std::fs::read_link(clone.join("dir")).expect("the link is still there"),
+        PathBuf::from(target)
+    );
     let copy: String = a_copy_the_words_name(text.as_str(), "dir")
         .unwrap_or_else(|| panic!("the words name the copy of the link that stands there: {text}"));
     assert_eq!(
@@ -464,7 +719,10 @@ fn the_pulls_recovery_keeps_a_link_standing_where_an_added_path_needs_a_folder()
     );
 
     let _ran: Observed = the_pulls_recovery(&fixture, clone.as_path(), text.as_str());
-    assert!(clone.join("dir").join("new.txt").exists(), "the reset wrote the remote's file below `dir`");
+    assert!(
+        clone.join("dir").join("new.txt").exists(),
+        "the reset wrote the remote's file below `dir`"
+    );
     assert_eq!(
         std::fs::read_link(Path::new(copy.as_str())).expect("the copy survives the reset"),
         PathBuf::from(target),
@@ -483,9 +741,14 @@ fn the_pulls_recovery_keeps_a_link_standing_where_an_added_path_needs_a_folder()
 /// ```
 fn a_superproject_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     let submodule: PathBuf = repository(fixture, OsStr::new("sub"));
-    std::fs::write(submodule.join("tracked.txt"), b"submodule content\n").expect("a file of the submodule");
+    std::fs::write(submodule.join("tracked.txt"), b"submodule content\n")
+        .expect("a file of the submodule");
     git(fixture, submodule.as_path(), &["add", "--", "tracked.txt"]);
-    git(fixture, submodule.as_path(), &["commit", "--quiet", "--message=sub"]);
+    git(
+        fixture,
+        submodule.as_path(),
+        &["commit", "--quiet", "--message=sub"],
+    );
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     git(
         fixture,
@@ -500,17 +763,48 @@ fn a_superproject_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathB
             "modules/sub",
         ],
     );
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=with-submodule"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=with-submodule"],
+    );
     git(fixture, repo.as_path(), &["branch", "topic"]);
     let destination: PathBuf = fixture.root.join("half-added");
     let shown: &str = destination.to_str().expect("the fixture path is text");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", shown, "topic"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            shown,
+            "topic",
+        ],
+    );
     let watcher: PathBuf = fixture.root.join("watcher");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--detach", watcher.to_str().expect("text")]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            watcher.to_str().expect("text"),
+        ],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let _claim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("the destination record of an add");
+    let _claim =
+        claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner())
+            .expect("the destination record of an add");
     // A setting of the person's that makes Git's own reset recurse into every submodule it meets.
-    git(fixture, repo.as_path(), &["config", "submodule.recurse", "true"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "submodule.recurse", "true"],
+    );
     return (repo, destination, watcher);
 }
 
@@ -519,18 +813,36 @@ fn a_superproject_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathB
 #[test]
 fn the_interrupted_adds_finish_command_runs_with_submodule_recursion_enabled() {
     let fixture: Fixture = fixture("printed-interrupted-add-submodules");
-    let (repo, destination, watcher): (PathBuf, PathBuf, PathBuf) = a_superproject_whose_checkout_never_ran(&fixture);
-    let noticed: Observed = run_wrapped(&fixture, watcher.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let (repo, destination, watcher): (PathBuf, PathBuf, PathBuf) =
+        a_superproject_whose_checkout_never_ran(&fixture);
+    let noticed: Observed = run_wrapped(
+        &fixture,
+        watcher.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     let text: String = stderr_of(&noticed);
-    assert!(text.contains("an interrupted `git worktree add` left"), "{text}");
+    assert!(
+        text.contains("an interrupted `git worktree add` left"),
+        "{text}"
+    );
     let printed: Vec<String> = backticked_commands(text.as_str());
     let finish: &String = printed
         .iter()
         .find(|one| return one.contains(" reset "))
-        .unwrap_or_else(|| panic!("the report names the command that finishes the checkout: {text}"));
+        .unwrap_or_else(|| {
+            panic!("the report names the command that finishes the checkout: {text}")
+        });
     let ran: Observed = run_as_printed(&fixture, repo.as_path(), finish.as_str());
-    assert!(!refused_by_policy(&ran), "the command the report prints was refused: {finish}\n{}", stderr_of(&ran));
+    assert!(
+        !refused_by_policy(&ran),
+        "the command the report prints was refused: {finish}\n{}",
+        stderr_of(&ran)
+    );
     assert_eq!(ran.code, Some(0), "{finish}: {}", stderr_of(&ran));
-    assert_eq!(porcelain(&fixture, destination.as_path()), "", "the checkout the command finishes leaves nothing behind");
+    assert_eq!(
+        porcelain(&fixture, destination.as_path()),
+        "",
+        "the checkout the command finishes leaves nothing behind"
+    );
     remove(&fixture);
 }

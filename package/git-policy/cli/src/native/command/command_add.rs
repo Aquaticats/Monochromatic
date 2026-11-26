@@ -25,11 +25,22 @@
 /// import { parseOptions, row } from './command_options.ts';
 /// ```
 use crate::command_options::{
-    Arity, DEFAULT_MODE, Occurrence, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options,
+    Arity,
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    parse_options,
     row,
 };
 use crate::command_options_query::{
-    WrapperFlags, is_enabled, last_occurrence, positional_tokens, split_wrapper_flags,
+    WrapperFlags,
+    is_enabled,
+    last_occurrence,
+    positional_tokens,
+    split_wrapper_flags,
 };
 /// `OsStr` is borrowed operating-system text of raw bytes,
 /// which an environment value is.
@@ -241,7 +252,10 @@ struct Reading<'pattern> {
 /// ```ts
 /// function reading(spelling: Uint8Array, literal: boolean): Reading | undefined;
 /// ```
-fn reading(spelling: &[u8], literal: bool) -> Option<Reading<'_>> {
+fn reading(
+    spelling: &[u8],
+    literal: bool,
+) -> Option<Reading<'_>> {
     // A caller that reads pathspecs literally has no magic at all: every character is a name's.
     if literal {
         return Some(Reading {
@@ -331,7 +345,10 @@ fn resolved_segments(pattern: &[u8]) -> Vec<&[u8]> {
 /// ```ts
 /// const namesNoLiteralCharacter = (spelling, literal) => { const read = reading(spelling, literal); if (!read) return false; if (read.excludes) return true; const segments = resolvedSegments(read.pattern); if (read.patternIsAName) return segments.length === 0; return segments.every((s) => [...s].every((b) => GLOB_CHARACTERS.includes(b))); };
 /// ```
-pub fn names_no_literal_character(spelling: &[u8], literal: bool) -> bool {
+pub fn names_no_literal_character(
+    spelling: &[u8],
+    literal: bool,
+) -> bool {
     let Some(read) = reading(spelling, literal) else {
         return false;
     };
@@ -379,7 +396,10 @@ const LITERAL_OPTIONS: [&[u8]; 2] = [b"--literal-pathspecs", b"--no-literal-path
 /// ```ts
 /// const literalPathspecs = (globalPrefix: string[], variable?: string) => last(optionTokens(globalPrefix).filter((o) => LITERAL_OPTIONS.includes(o))) === '--literal-pathspecs' || (variable !== undefined && parseBool(variable) === true);
 /// ```
-pub fn literal_pathspecs_enabled(global_prefix: &[OsString], variable: Option<&OsStr>) -> bool {
+pub fn literal_pathspecs_enabled(
+    global_prefix: &[OsString],
+    variable: Option<&OsStr>,
+) -> bool {
     let mut from_options: Option<bool> = None;
     for option in crate::global_arguments::option_tokens(global_prefix) {
         let spelling: &[u8] = option.as_encoded_bytes();

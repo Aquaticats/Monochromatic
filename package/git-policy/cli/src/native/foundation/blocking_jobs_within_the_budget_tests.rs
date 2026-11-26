@@ -6,9 +6,12 @@
 
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
-use std::sync::atomic::AtomicUsize;
-use std::sync::{Condvar, Mutex};
 use crate::parallel_test_support::ONE_PLACE;
+use std::sync::atomic::AtomicUsize;
+use std::sync::{
+    Condvar,
+    Mutex,
+};
 use std::time::Duration;
 
 /// How many jobs the bound's control starts at once,
@@ -75,7 +78,14 @@ struct Held {
 impl Concurrency {
     /// A count where nothing is running yet and nothing has been counted.
     fn new() -> Arc<Self> {
-        return Arc::new(Concurrency { state: Mutex::new(Held { live: 0, counted: false }), changed: Condvar::new(), most: AtomicUsize::new(0) });
+        return Arc::new(Concurrency {
+            state: Mutex::new(Held {
+                live: 0,
+                counted: false,
+            }),
+            changed: Condvar::new(),
+            most: AtomicUsize::new(0),
+        });
     }
 
     /// Count one job in and keep the most that were inside together.
@@ -97,9 +107,18 @@ impl Concurrency {
 
     /// Wait until `wanted` jobs are inside together;
     /// false when they did not all come within `patience`.
-    fn wait_for_live(&self, wanted: usize, patience: Duration) -> bool {
+    fn wait_for_live(
+        &self,
+        wanted: usize,
+        patience: Duration,
+    ) -> bool {
         let locked = self.state.lock().expect("lock");
-        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return held.live < wanted; }).expect("wait");
+        let (released, waited) = self
+            .changed
+            .wait_timeout_while(locked, patience, |held: &mut Held| {
+                return held.live < wanted;
+            })
+            .expect("wait");
         drop(released);
         return !waited.timed_out();
     }
@@ -107,9 +126,17 @@ impl Concurrency {
     /// Hold the job until the control has counted the burst;
     /// false only when the control never counted,
     /// which is a control that failed before it could.
-    fn wait_until_counted(&self, patience: Duration) -> bool {
+    fn wait_until_counted(
+        &self,
+        patience: Duration,
+    ) -> bool {
         let locked = self.state.lock().expect("lock");
-        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return !held.counted; }).expect("wait");
+        let (released, waited) = self
+            .changed
+            .wait_timeout_while(locked, patience, |held: &mut Held| {
+                return !held.counted;
+            })
+            .expect("wait");
         drop(released);
         return !waited.timed_out();
     }
@@ -141,7 +168,11 @@ fn hold_a_place(shared: Arc<Concurrency>) -> impl FnOnce() -> usize + Send + 'st
 /// A job's value comes back from the blocking pool.
 #[test]
 fn a_job_gives_its_value() {
-    let value: usize = run_on_runtime(run_blocking_job_within_the_budget(|| { return 41 + 1; })).expect("the runtime").expect("the job");
+    let value: usize = run_on_runtime(run_blocking_job_within_the_budget(|| {
+        return 41 + 1;
+    }))
+    .expect("the runtime")
+    .expect("the job");
     assert_eq!(value, 42);
 }
 
@@ -149,9 +180,16 @@ fn a_job_gives_its_value() {
 #[test]
 fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
     // The cap only lowers what the CPUs allow, so the control gives the process room for the bound it measures.
-    let _room: usize = crate::parallel_test_support::room_for("the_budget_is_at_least_one_place_and_a_cap_holds_it_lower", BOUND_HELD_TO);
+    let _room: usize = crate::parallel_test_support::room_for(
+        "the_budget_is_at_least_one_place_and_a_cap_holds_it_lower",
+        BOUND_HELD_TO,
+    );
     hold_blocking_jobs_to(BOUND_HELD_TO);
-    assert_eq!(budgeted_blocking_jobs(), BOUND_HELD_TO, "the cap the process asked for is the bound in force");
+    assert_eq!(
+        budgeted_blocking_jobs(),
+        BOUND_HELD_TO,
+        "the cap the process asked for is the bound in force"
+    );
 }
 
 /// No more jobs run at once than the budget allows,
@@ -162,7 +200,10 @@ fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
 #[test]
 fn no_more_jobs_run_at_once_than_the_budget_allows() {
     // Two of the burst's jobs must really run at once, so the balance of places must be as wide as the number of places.
-    let _room: usize = crate::parallel_test_support::room_for("no_more_jobs_run_at_once_than_the_budget_allows", BOUND_HELD_TO);
+    let _room: usize = crate::parallel_test_support::room_for(
+        "no_more_jobs_run_at_once_than_the_budget_allows",
+        BOUND_HELD_TO,
+    );
     hold_blocking_jobs_to(BOUND_HELD_TO);
     let shared: Arc<Concurrency> = Concurrency::new();
     let burst_shared: Arc<Concurrency> = Arc::clone(&shared);
@@ -178,21 +219,35 @@ fn no_more_jobs_run_at_once_than_the_budget_allows() {
                 run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
                 run_blocking_job_within_the_budget(hold_a_place(Arc::clone(&burst_shared))),
             );
-            return [started.0, started.1, started.2, started.3, started.4, started.5];
+            return [
+                started.0, started.1, started.2, started.3, started.4, started.5,
+            ];
         })
         .expect("the runtime");
     });
     // The bound is reached: the burst is three times it, so every place is taken by a job that holds it.
-    assert!(shared.wait_for_live(BOUND_HELD_TO, PATIENCE), "the burst of {BURST} jobs never reached the budget of {BOUND_HELD_TO} places");
+    assert!(
+        shared.wait_for_live(BOUND_HELD_TO, PATIENCE),
+        "the burst of {BURST} jobs never reached the budget of {BOUND_HELD_TO} places"
+    );
     // And it is not passed: only this control lets a job out of its work, so a job inside beyond the bound is still inside
     //  when the window ends.
     let beyond: bool = shared.wait_for_live(BOUND_HELD_TO + 1, BEYOND_THE_BOUND_WINDOW);
     let most: usize = shared.most();
     shared.count_the_burst();
     let outcome = burst.join().expect("the burst's thread");
-    assert!(outcome.iter().all(Result::is_ok), "every job of the burst ran: {outcome:?}");
-    assert!(!beyond, "the burst of {BURST} jobs held more than the budget of {BOUND_HELD_TO} places at once");
-    assert_eq!(most, BOUND_HELD_TO, "the burst of {BURST} jobs held {most} places at once, and the budget is {BOUND_HELD_TO}");
+    assert!(
+        outcome.iter().all(Result::is_ok),
+        "every job of the burst ran: {outcome:?}"
+    );
+    assert!(
+        !beyond,
+        "the burst of {BURST} jobs held more than the budget of {BOUND_HELD_TO} places at once"
+    );
+    assert_eq!(
+        most, BOUND_HELD_TO,
+        "the burst of {BURST} jobs held {most} places at once, and the budget is {BOUND_HELD_TO}"
+    );
 }
 
 /// A job that panics gives its place back,
@@ -201,13 +256,23 @@ fn no_more_jobs_run_at_once_than_the_budget_allows() {
 fn a_job_that_panics_gives_its_place_back() {
     hold_blocking_jobs_to(1);
     let (refused, after) = run_on_runtime(async {
-        let refused = run_blocking_job_within_the_budget(|| -> u8 { panic!("the job panicked") }).await;
-        let after = tokio::time::timeout(PATIENCE, run_blocking_job_within_the_budget(|| { return 5_u8; })).await;
+        let refused =
+            run_blocking_job_within_the_budget(|| -> u8 { panic!("the job panicked") }).await;
+        let after = tokio::time::timeout(
+            PATIENCE,
+            run_blocking_job_within_the_budget(|| {
+                return 5_u8;
+            }),
+        )
+        .await;
         return (refused, after);
     })
     .expect("the runtime");
     assert_eq!(refused, Err(BlockingJobError::Panicked));
-    assert_eq!(after.expect("the place of a job that panicked was never given back"), Ok(5));
+    assert_eq!(
+        after.expect("the place of a job that panicked was never given back"),
+        Ok(5)
+    );
 }
 
 /// Where the system refuses every thread,
@@ -220,21 +285,40 @@ fn a_job_that_panics_gives_its_place_back() {
 ///  thread leaves it queued with nothing to run it.
 #[test]
 fn where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back",
+    ) {
         return;
     }
     hold_blocking_jobs_to(1);
-    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ran: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
     let outcomes = run_on_runtime(async {
-        let first = run_blocking_job_within_the_budget(move || { flag.store(true, Ordering::SeqCst); }).await;
-        let second = tokio::time::timeout(PATIENCE, run_blocking_job_within_the_budget(|| { return 5_u8; })).await;
+        let first = run_blocking_job_within_the_budget(move || {
+            flag.store(true, Ordering::SeqCst);
+        })
+        .await;
+        let second = tokio::time::timeout(
+            PATIENCE,
+            run_blocking_job_within_the_budget(|| {
+                return 5_u8;
+            }),
+        )
+        .await;
         return (first, second);
     })
     .expect("a current-thread runtime stands in where no thread can start");
-    assert_eq!(outcomes.0, Err(BlockingJobError::NoThreadToStart), "the first job had not run when the refusal was reported");
     assert_eq!(
-        outcomes.1.expect("the place of a job refused a thread was never given back"),
+        outcomes.0,
+        Err(BlockingJobError::NoThreadToStart),
+        "the first job had not run when the refusal was reported"
+    );
+    assert_eq!(
+        outcomes
+            .1
+            .expect("the place of a job refused a thread was never given back"),
         Err(BlockingJobError::NoThreadToStart),
         "the second job had not run either, so the first job's place was given back"
     );
@@ -264,12 +348,16 @@ const POOL_THREADS_FOR_THE_CONTROL: usize = 8;
 /// because only a refused thread start queues a job this way.
 #[test]
 fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_job_the_pool_queued_after_a_refusal_does_not_run") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_job_the_pool_queued_after_a_refusal_does_not_run",
+    ) {
         return;
     }
     hold_blocking_jobs_to(BOUND_HELD_TO);
     // A runtime with a pool deep enough for the jobs below, built while a thread may start.
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises");
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .max_blocking_threads(POOL_THREADS_FOR_THE_CONTROL)
@@ -278,15 +366,34 @@ fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
         .expect("a runtime with a deep pool");
     // Every thread is refused: the first job is queued, and its frame is told it did not start.
     crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ran: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
     let queued = Arc::clone(&ran);
-    let refused = runtime.block_on(async move { return run_blocking_job_within_the_budget(move || { queued.store(true, Ordering::SeqCst); }).await; });
-    assert_eq!(refused, Err(BlockingJobError::NoThreadToStart), "no thread could start the first job");
-    assert!(!ran.load(Ordering::SeqCst), "the first job had not run when the refusal was reported");
+    let refused = runtime.block_on(async move {
+        return run_blocking_job_within_the_budget(move || {
+            queued.store(true, Ordering::SeqCst);
+        })
+        .await;
+    });
+    assert_eq!(
+        refused,
+        Err(BlockingJobError::NoThreadToStart),
+        "no thread could start the first job"
+    );
+    assert!(
+        !ran.load(Ordering::SeqCst),
+        "the first job had not run when the refusal was reported"
+    );
     // A thread may start again, and the pool's first new thread runs what it queued before anything else.
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
-    let kicked = runtime.block_on(async { return run_blocking_job_within_the_budget(|| ()).await; });
-    assert!(kicked.is_ok(), "the job that starts the pool's first thread ran: {kicked:?}");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises again");
+    let kicked = runtime.block_on(async {
+        return run_blocking_job_within_the_budget(|| ()).await;
+    });
+    assert!(
+        kicked.is_ok(),
+        "the job that starts the pool's first thread ran: {kicked:?}"
+    );
     assert!(
         !ran.load(Ordering::SeqCst),
         "the job the report gave up on ran afterwards with no place of the bound held for it, so the bound no longer covers every running blocking job"
@@ -326,21 +433,43 @@ fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
         })
         .await;
     });
-    assert!(busy.is_some(), "the runtime has a worker, so a place of the blocking pool can be held");
-    assert!(held.recv_timeout(PATIENCE).is_ok(), "the job that keeps the pool's thread never started");
+    assert!(
+        busy.is_some(),
+        "the runtime has a worker, so a place of the blocking pool can be held"
+    );
+    assert!(
+        held.recv_timeout(PATIENCE).is_ok(),
+        "the job that keeps the pool's thread never started"
+    );
     // The place this job takes is free, so its closure is queued behind the only pool thread.
-    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ran: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
     let did_run = Arc::clone(&ran);
     let stopped = run_on_runtime(async move {
-        let timed = tokio::time::timeout(Duration::from_millis(200), run_blocking_job_within_the_budget(move || { did_run.store(true, Ordering::SeqCst); })).await;
+        let timed = tokio::time::timeout(
+            Duration::from_millis(200),
+            run_blocking_job_within_the_budget(move || {
+                did_run.store(true, Ordering::SeqCst);
+            }),
+        )
+        .await;
         return timed;
     })
     .expect("the runtime");
-    assert!(stopped.is_err(), "the caller stopped waiting for a job whose closure the pool had not started");
+    assert!(
+        stopped.is_err(),
+        "the caller stopped waiting for a job whose closure the pool had not started"
+    );
     // The pool's thread is free again, and its queue runs what the caller gave up on.
     let _let_go = release.send(());
-    let pool_ran = run_on_runtime(async { return run_blocking_job_within_the_budget(|| ()).await; }).expect("the runtime");
-    assert!(pool_ran.is_ok(), "the job that drains the pool's queue ran: {pool_ran:?}");
+    let pool_ran = run_on_runtime(async {
+        return run_blocking_job_within_the_budget(|| ()).await;
+    })
+    .expect("the runtime");
+    assert!(
+        pool_ran.is_ok(),
+        "the job that drains the pool's queue ran: {pool_ran:?}"
+    );
     let waited: std::time::Instant = std::time::Instant::now();
     while ran.load(Ordering::SeqCst) && waited.elapsed() < AFTER_THE_CANCEL {
         std::thread::sleep(Duration::from_millis(5));
@@ -376,32 +505,66 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
     let never: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     let (bound, taken) = {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
-        let taken = Arc::clone(&semaphore).try_acquire_owned().expect("the place is free");
+        let taken = Arc::clone(&semaphore)
+            .try_acquire_owned()
+            .expect("the place is free");
         (semaphore, taken)
     };
-    let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(taken);
-    let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &never, &held);
+    let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> =
+        crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(taken);
+    let will_not_run: BlockingJobError = a_refused_thread_start(
+        BlockingJobError::MayStillRunAfterItsThreadWasRefused,
+        &never,
+        &held,
+    );
     assert_eq!(will_not_run, BlockingJobError::NoThreadToStart);
     let said: String = will_not_run.to_string();
-    assert!(said.contains("will not run"), "the step cannot run, and the message says so: {said}");
-    assert!(!said.contains("may still run later"), "nothing is left that may run the step: {said}");
-    assert_eq!(bound.available_permits(), 1, "the place went back, because the job will never run");
+    assert!(
+        said.contains("will not run"),
+        "the step cannot run, and the message says so: {said}"
+    );
+    assert!(
+        !said.contains("may still run later"),
+        "nothing is left that may run the step: {said}"
+    );
+    assert_eq!(
+        bound.available_permits(),
+        1,
+        "the place went back, because the job will never run"
+    );
 
     // The job took the claim first: it started on another thread, and what it did is not known from here.
     let would_run: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     assert!(would_run.the_job_takes_it(), "the job is first");
     let (other_bound, other_taken) = {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(ONE_PLACE));
-        let other_taken = Arc::clone(&semaphore).try_acquire_owned().expect("the place is free");
+        let other_taken = Arc::clone(&semaphore)
+            .try_acquire_owned()
+            .expect("the place is free");
         (semaphore, other_taken)
     };
-    let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_taken);
-    let started: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &would_run, &other);
+    let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> =
+        crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_taken);
+    let started: BlockingJobError = a_refused_thread_start(
+        BlockingJobError::MayStillRunAfterItsThreadWasRefused,
+        &would_run,
+        &other,
+    );
     assert_eq!(started, BlockingJobError::StartedAfterItsThreadWasRefused);
     let started_text: String = started.to_string();
-    assert!(started_text.contains("has started"), "the job started on another thread, and the message says so: {started_text}");
-    assert!(!started_text.contains("will not run"), "the job runs, so nothing may promise it will not: {started_text}");
-    assert_eq!(other_bound.available_permits(), 0, "the place stays with the job that holds it");
+    assert!(
+        started_text.contains("has started"),
+        "the job started on another thread, and the message says so: {started_text}"
+    );
+    assert!(
+        !started_text.contains("will not run"),
+        "the job runs, so nothing may promise it will not: {started_text}"
+    );
+    assert_eq!(
+        other_bound.available_permits(),
+        0,
+        "the place stays with the job that holds it"
+    );
 }
 
 /// What one job of the fallback control reads:
@@ -425,14 +588,28 @@ fn count_the_run(state: Arc<AtomicUsize>) -> usize {
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_job_refused_a_thread_runs_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_job_refused_a_thread_runs_in_turn") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_job_refused_a_thread_runs_in_turn",
+    ) {
         return;
     }
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     let runs: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let value = runtime.block_on(run_a_job_or_in_turn(Arc::clone(&runs), count_the_run));
-    assert_eq!(value, Ok(1), "the work gave its value from the task that awaited it");
-    assert_eq!(runs.load(std::sync::atomic::Ordering::SeqCst), 1, "the work ran once, in turn");
+    assert_eq!(
+        value,
+        Ok(1),
+        "the work gave its value from the task that awaited it"
+    );
+    assert_eq!(
+        runs.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the work ran once, in turn"
+    );
 }
 
 /// What one fallback of the bound's control does:
@@ -450,7 +627,12 @@ fn a_job_refused_a_thread_runs_in_turn() {
 /// ```ts
 /// const tellAndWait = ([inside, release]: [Sender, Mutex<Receiver>]) => { inside.send(); return release.lock().recvTimeout(PATIENCE).isOk(); };
 /// ```
-fn tell_and_wait_inside((inside, release): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)) -> bool {
+fn tell_and_wait_inside(
+    (inside, release): (
+        std::sync::mpsc::Sender<()>,
+        Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
+    )
+) -> bool {
     let _told = inside.send(());
     let waited = release.lock().expect("lock").recv_timeout(PATIENCE);
     return waited.is_ok();
@@ -471,25 +653,54 @@ fn tell_and_wait_inside((inside, release): (std::sync::mpsc::Sender<()>, Arc<Mut
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound",
+    ) {
         return;
     }
     hold_blocking_jobs_to(ONE_PLACE);
     // The runtime is built while a thread may start,
     // because the workers the control reads the bound beside are threads too.
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime of two workers");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("a runtime of two workers");
     crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    assert_eq!(budget().places.available_permits(), ONE_PLACE, "the control can see the process's one place while no work runs");
+    assert_eq!(
+        budget().places.available_permits(),
+        ONE_PLACE,
+        "the control can see the process's one place while no work runs"
+    );
     let (inside, has_inside) = std::sync::mpsc::channel::<()>();
     let (release, waiting) = std::sync::mpsc::channel::<()>();
-    let ran = runtime.spawn(async move { return run_a_job_or_in_turn((inside, Arc::new(Mutex::new(waiting))), tell_and_wait_inside).await; });
-    assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the fallback never reached its work, so the system did not refuse its thread");
+    let ran = runtime.spawn(async move {
+        return run_a_job_or_in_turn(
+            (inside, Arc::new(Mutex::new(waiting))),
+            tell_and_wait_inside,
+        )
+        .await;
+    });
+    assert!(
+        has_inside.recv_timeout(PATIENCE).is_ok(),
+        "the fallback never reached its work, so the system did not refuse its thread"
+    );
     let free: usize = budget().places.available_permits();
     let _let_go = release.send(());
-    let ended = runtime.block_on(async { return tokio::time::timeout(PATIENCE, ran).await; });
+    let ended = runtime.block_on(async {
+        return tokio::time::timeout(PATIENCE, ran).await;
+    });
     std::mem::forget(runtime);
-    assert_eq!(ended.expect("the fallback ended").expect("the fallback's task"), Ok(true), "the work ended when the control let it go");
+    assert_eq!(
+        ended
+            .expect("the fallback ended")
+            .expect("the fallback's task"),
+        Ok(true),
+        "the work ended when the control let it go"
+    );
     assert_eq!(
         free, 0,
         "the fallback ran its blocking work with the process's place free, so a second job took that place and both ran at once"
@@ -545,16 +756,29 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
         })
         .await;
     });
-    assert!(slow.is_some(), "the runtime has a worker, so a slow job can take its place");
-    assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the slow job never took its place");
+    assert!(
+        slow.is_some(),
+        "the runtime has a worker, so a slow job can take its place"
+    );
+    assert!(
+        has_inside.recv_timeout(PATIENCE).is_ok(),
+        "the slow job never took its place"
+    );
     // The work a person waits for: one blocking job, which a push's own read of its child is.
     let began: std::time::Instant = std::time::Instant::now();
-    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(fn_seven).await; }).expect("the runtime");
+    let answered: Result<u8, BlockingJobError> = run_on_runtime(async {
+        return run_blocking_job_within_the_budget(fn_seven).await;
+    })
+    .expect("the runtime");
     let waited: Duration = began.elapsed();
     assert_eq!(answered, Ok(7), "the work a person waits for ran");
-    assert!(waited < PATIENCE, "the work a person waits for ran beside the slow job, in {waited:?}");
+    assert!(
+        waited < PATIENCE,
+        "the work a person waits for ran beside the slow job, in {waited:?}"
+    );
     // A second slow job must wait for the place the gate keeps, so slow work never takes the reserve.
-    let started: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let started: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
     let told: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&started);
     let second = crate::lazy_runtime::spawn_on_runtime(async move {
         let _held: Result<(), BlockingJobError> = run_a_slow_job_within_the_budget(move || {
@@ -562,9 +786,15 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
         })
         .await;
     });
-    assert!(second.is_some(), "the runtime has a worker, so a second slow job can ask");
+    assert!(
+        second.is_some(),
+        "the runtime has a worker, so a second slow job can ask"
+    );
     std::thread::sleep(SLOW_JOB_PATIENCE);
     let took_the_reserve: bool = started.load(Ordering::SeqCst);
     let _let_go = release.send(());
-    assert!(!took_the_reserve, "a second slow job took the place the gate keeps for the work a person waits for");
+    assert!(
+        !took_the_reserve,
+        "a second slow job took the place the gate keeps for the work a person waits for"
+    );
 }

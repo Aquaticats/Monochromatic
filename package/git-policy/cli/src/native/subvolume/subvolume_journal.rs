@@ -28,14 +28,26 @@
 //! const journal = await loadJournal(path); await journal.mark('copy', 'started'); ... await journal.mark('copy', 'done');
 //! ```
 
-use crate::iso_time::{format_iso_milliseconds, now_iso};
+use crate::iso_time::{
+    format_iso_milliseconds,
+    now_iso,
+};
 use crate::plain_file::read_plain_text;
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
-use serde_json::{Map, Value};
+use crate::subvolume_file_write_steps::{
+    sync_directory_to_disk,
+    write_all_then_sync,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeMap;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The journal format version this code writes and reads.
 const SCHEMA: u64 = 1;
@@ -73,13 +85,22 @@ const TEMPORARY_SUFFIX: &str = ".tmp";
 /// ```ts
 /// const leftover = new RegExp(`^${escape(journalName)}\\.tmp(\\.\\d+\\.\\d+)?$`).test(candidate);
 /// ```
-fn is_leftover_name(candidate: &[u8], journal_name: &[u8]) -> bool {
-    let Some(after_name) = candidate.strip_prefix(journal_name) else { return false };
-    let Some(rest) = after_name.strip_prefix(TEMPORARY_SUFFIX.as_bytes()) else { return false };
+fn is_leftover_name(
+    candidate: &[u8],
+    journal_name: &[u8],
+) -> bool {
+    let Some(after_name) = candidate.strip_prefix(journal_name) else {
+        return false;
+    };
+    let Some(rest) = after_name.strip_prefix(TEMPORARY_SUFFIX.as_bytes()) else {
+        return false;
+    };
     if rest.is_empty() {
         return true;
     }
-    let Some(numbers) = rest.strip_prefix(b".") else { return false };
+    let Some(numbers) = rest.strip_prefix(b".") else {
+        return false;
+    };
     let mut parts = numbers.split(is_dot);
     let process: Option<&[u8]> = parts.next();
     let clock: Option<&[u8]> = parts.next();
@@ -102,14 +123,24 @@ fn is_number(part: Option<&[u8]>) -> bool {
 
 /// The error for a journal file that cannot be understood:
 /// it says what is wrong with the file at `path`.
-fn broken_journal(path: &Path, why: &str) -> MigrateError {
-    return MigrateError::Journal(format!("the journal {} {why}; read it, and delete it only if no migration is in progress", path.display()));
+fn broken_journal(
+    path: &Path,
+    why: &str,
+) -> MigrateError {
+    return MigrateError::Journal(format!(
+        "the journal {} {why}; read it, and delete it only if no migration is in progress",
+        path.display()
+    ));
 }
 
 /// Write `bytes` to a new file at `sibling`,
 /// rename it over `target`,
 /// and make the rename durable with the directory that holds the new name.
-fn write_and_rename(sibling: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn write_and_rename(
+    sibling: &Path,
+    target: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     write_exclusively(sibling, bytes)?;
     if let Err(error) = std::fs::rename(sibling, target) {
         let _removed: std::io::Result<()> = std::fs::remove_file(sibling);
@@ -137,8 +168,15 @@ fn write_and_rename(sibling: &Path, target: &Path, bytes: &[u8]) -> std::io::Res
 /// ```ts
 /// await writeFile(path, bytes, { flag: 'wx', mode: 0o600 }); // rejects with EEXIST on anything there, a link included
 /// ```
-fn write_exclusively(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(PRIVATE_FILE_MODE).open(path)?;
+fn write_exclusively(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(PRIVATE_FILE_MODE)
+        .open(path)?;
     let written: std::io::Result<()> = write_all_then_sync(&mut file, bytes);
     if let Err(error) = written {
         let _removed: std::io::Result<()> = std::fs::remove_file(path);
@@ -196,13 +234,25 @@ impl Journal {
         let text: String = match read_plain_text(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: false });
+                return Ok(Journal {
+                    path: path.to_path_buf(),
+                    started: now_iso(),
+                    states: BTreeMap::new(),
+                    times: BTreeMap::new(),
+                    values: BTreeMap::new(),
+                    persisted: false,
+                });
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
         let value: Value = match serde_json::from_str(text.as_str()) {
             Ok(parsed) => parsed,
-            Err(error) => return Err(broken_journal(path, format!("is not valid JSON ({error})").as_str())),
+            Err(error) => {
+                return Err(broken_journal(
+                    path,
+                    format!("is not valid JSON ({error})").as_str(),
+                ));
+            }
         };
         if value.get("schema").and_then(Value::as_u64) != Some(SCHEMA) {
             return Err(broken_journal(path, "has an unknown schema version"));
@@ -238,7 +288,14 @@ impl Journal {
                 values.insert(name.clone(), recorded_text.to_string());
             }
         }
-        return Ok(Journal { path: path.to_path_buf(), started, states, times, values, persisted: true });
+        return Ok(Journal {
+            path: path.to_path_buf(),
+            started,
+            states,
+            times,
+            values,
+            persisted: true,
+        });
     }
 
     /// When the migration began,
@@ -263,7 +320,10 @@ impl Journal {
     /// at which the step got its current state;
     /// nothing for a step with no
     ///  record or a record written without a time.
-    pub fn seconds_of(&self, step: &str) -> Option<i64> {
+    pub fn seconds_of(
+        &self,
+        step: &str,
+    ) -> Option<i64> {
         let milliseconds: &i64 = self.times.get(step)?;
         return Some(milliseconds.div_euclid(1000));
     }
@@ -280,7 +340,10 @@ impl Journal {
     /// ```ts
     /// journal.values.get('installed-root')
     /// ```
-    pub fn value(&self, name: &str) -> Option<&str> {
+    pub fn value(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         return self.values.get(name).map(String::as_str);
     }
 
@@ -295,23 +358,36 @@ impl Journal {
     /// ```ts
     /// journal.setValue('installed-root', '0:256');
     /// ```
-    pub fn set_value(&mut self, name: &str, text: &str) {
+    pub fn set_value(
+        &mut self,
+        name: &str,
+        text: &str,
+    ) {
         self.values.insert(name.to_string(), text.to_string());
     }
 
     /// The recorded state of a step,
     /// if any.
-    pub fn state(&self, step: &str) -> Option<&str> {
+    pub fn state(
+        &self,
+        step: &str,
+    ) -> Option<&str> {
         return self.states.get(step).map(String::as_str);
     }
 
     /// Whether the step finished.
-    pub fn is_done(&self, step: &str) -> bool {
+    pub fn is_done(
+        &self,
+        step: &str,
+    ) -> bool {
         return self.state(step) == Some("done");
     }
 
     /// Whether the step began (finished or not).
-    pub fn has_begun(&self, step: &str) -> bool {
+    pub fn has_begun(
+        &self,
+        step: &str,
+    ) -> bool {
         return matches!(self.state(step), Some("started" | "done"));
     }
 
@@ -329,7 +405,11 @@ impl Journal {
     /// ```ts
     /// await journal.mark('copy', 'done');
     /// ```
-    pub fn mark(&mut self, step: &str, state: &str) -> Result<(), MigrateError> {
+    pub fn mark(
+        &mut self,
+        step: &str,
+        state: &str,
+    ) -> Result<(), MigrateError> {
         self.states.insert(step.to_string(), state.to_string());
         let now: i64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
             Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
@@ -351,7 +431,10 @@ impl Journal {
     ///  kill cannot leave one without the other,
     /// and the migration pays no second write of the journal on the step that
     ///  creates the stage.
-    pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) {
+    pub fn record_stage_identity(
+        &mut self,
+        identity: crate::fs_beneath::ObjectId,
+    ) {
         self.set_value(STAGE_ROOT, identity.encode().as_str());
     }
 
@@ -361,7 +444,9 @@ impl Journal {
     /// which the
     ///  callers treat the same way and refuse to destroy what they cannot name.
     pub fn stage_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
-        return self.value(STAGE_ROOT).and_then(crate::fs_beneath::ObjectId::decode);
+        return self
+            .value(STAGE_ROOT)
+            .and_then(crate::fs_beneath::ObjectId::decode);
     }
 
     /// Write the journal as it stands,
@@ -376,7 +461,10 @@ impl Journal {
             let milliseconds: i64 = self.times.get(name).copied().unwrap_or(now);
             let mut record: Map<String, Value> = Map::new();
             record.insert(String::from("state"), Value::String(recorded.clone()));
-            record.insert(String::from("at"), Value::String(format_iso_milliseconds(milliseconds)));
+            record.insert(
+                String::from("at"),
+                Value::String(format_iso_milliseconds(milliseconds)),
+            );
             record.insert(String::from("epoch_ms"), Value::from(milliseconds));
             steps.insert(name.clone(), Value::Object(record));
         }
@@ -391,9 +479,11 @@ impl Journal {
             }
             document.insert(String::from("values"), Value::Object(values));
         }
-        let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
+        let text: String =
+            serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
         let sibling_path: PathBuf = self.temporary_path();
-        let written: std::io::Result<()> = write_and_rename(sibling_path.as_path(), self.path.as_path(), text.as_bytes());
+        let written: std::io::Result<()> =
+            write_and_rename(sibling_path.as_path(), self.path.as_path(), text.as_bytes());
         MigrateError::from_io_result(written, "write the journal", self.path.as_path())?;
         self.persisted = true;
         self.remove_leftovers();
@@ -427,8 +517,13 @@ impl Journal {
     ///  A failure to list or remove is not an error:
     /// a leftover costs only space.
     fn remove_leftovers(&self) {
-        let (Some(directory), Some(journal_name)) = (self.path.parent(), self.path.file_name()) else { return };
-        let Ok(listing) = std::fs::read_dir(directory) else { return };
+        let (Some(directory), Some(journal_name)) = (self.path.parent(), self.path.file_name())
+        else {
+            return;
+        };
+        let Ok(listing) = std::fs::read_dir(directory) else {
+            return;
+        };
         for item in listing.flatten() {
             let name: std::ffi::OsString = item.file_name();
             if !is_leftover_name(name.as_encoded_bytes(), journal_name.as_encoded_bytes()) {
@@ -458,7 +553,13 @@ impl Journal {
         match std::fs::remove_file(&self.path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(MigrateError::io("delete the journal", self.path.as_path(), &error)),
+            Err(error) => {
+                return Err(MigrateError::io(
+                    "delete the journal",
+                    self.path.as_path(),
+                    &error,
+                ));
+            }
         }
         self.states.clear();
         self.times.clear();

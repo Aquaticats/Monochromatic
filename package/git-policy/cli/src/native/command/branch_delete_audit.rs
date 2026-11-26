@@ -20,13 +20,19 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
-use crate::git_metadata::{MetadataOutput, run_metadata_git};
+use crate::git_metadata::{
+    MetadataOutput,
+    run_metadata_git,
+};
 /// The bytes of a name as the record keeps them beside their text.
 use crate::path_bytes_in_records::hex_of_bytes;
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes,
 ///  `&OsStr` its borrowed form and `Path` a borrowed path.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 /// What:
@@ -45,14 +51,14 @@ use std::path::Path;
 /// ```ts
 /// const prefix = root ? ['-C', root] : context.globalPrefix;
 /// ```
-fn prefix_for(context: &GitContext, root: Option<&Path>) -> Vec<OsString> {
+fn prefix_for(
+    context: &GitContext,
+    root: Option<&Path>,
+) -> Vec<OsString> {
     let Some(directory) = root else {
         return context.global_prefix.clone();
     };
-    return vec![
-        OsString::from("-C"),
-        directory.as_os_str().to_os_string(),
-    ];
+    return vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
 }
 
 /// The reference namespace a local branch lives in.
@@ -73,7 +79,10 @@ pub const REMOTES: &str = "refs/remotes/";
 /// ```ts
 /// const reference = (remotes ? 'refs/remotes/' : 'refs/heads/') + name;
 /// ```
-pub fn reference_of(name: &OsStr, remotes: bool) -> OsString {
+pub fn reference_of(
+    name: &OsStr,
+    remotes: bool,
+) -> OsString {
     let mut reference: OsString = OsString::from(if remotes { REMOTES } else { HEADS });
     reference.push(name);
     return reference;
@@ -92,7 +101,12 @@ pub fn reference_of(name: &OsStr, remotes: bool) -> OsString {
 /// ```ts
 /// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
-pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<String> {
+pub fn branch_commit(
+    context: &GitContext,
+    root: Option<&Path>,
+    name: &OsStr,
+    remotes: bool,
+) -> Option<String> {
     let (reference, _short): (OsString, String) = deleted_reference(context, root, name, remotes)?;
     return commit_of(context, root, reference.as_os_str());
 }
@@ -109,10 +123,19 @@ pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, re
 /// ```ts
 /// function rev_parse({ context, root, arguments }): MetadataOutput | undefined;
 /// ```
-fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[OsString]) -> Option<MetadataOutput> {
+fn rev_parse(
+    context: &GitContext,
+    root: Option<&Path>,
+    arguments: &[OsString],
+) -> Option<MetadataOutput> {
     let mut spelled: Vec<OsString> = prefix_for(context, root);
     spelled.extend(arguments.iter().cloned());
-    return run_metadata_git(context.real_git.as_path(), spelled.as_slice(), context.overlay.as_slice()).ok();
+    return run_metadata_git(
+        context.real_git.as_path(),
+        spelled.as_slice(),
+        context.overlay.as_slice(),
+    )
+    .ok();
 }
 
 /// What:
@@ -129,7 +152,10 @@ fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[OsString]) 
 /// ```ts
 /// const arguments = [...words.map(w => Buffer.from(w)), Buffer.from(reference)];
 /// ```
-fn query_arguments(words: &[&str], reference: &OsStr) -> Vec<OsString> {
+fn query_arguments(
+    words: &[&str],
+    reference: &OsStr,
+) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = Vec::<OsString>::with_capacity(words.len() + 1);
     for word in words {
         arguments.push(OsString::from(word));
@@ -149,13 +175,19 @@ fn query_arguments(words: &[&str], reference: &OsStr) -> Vec<OsString> {
 /// ```ts
 /// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
-fn commit_of(context: &GitContext, root: Option<&Path>, reference: &OsStr) -> Option<String> {
+fn commit_of(
+    context: &GitContext,
+    root: Option<&Path>,
+    reference: &OsStr,
+) -> Option<String> {
     let query: Vec<OsString> = query_arguments(&["rev-parse", "--verify", "--quiet"], reference);
     let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
     }
-    let commit: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let commit: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     if commit.is_empty() {
         return None;
     }
@@ -182,7 +214,12 @@ fn commit_of(context: &GitContext, root: Option<&Path>, reference: &OsStr) -> Op
 /// ```ts
 /// function deletedReference({ context, root, name, remotes }): [string, string] | undefined;
 /// ```
-fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<(OsString, String)> {
+fn deleted_reference(
+    context: &GitContext,
+    root: Option<&Path>,
+    name: &OsStr,
+    remotes: bool,
+) -> Option<(OsString, String)> {
     let intended: OsString = reference_of(name, remotes);
     // The typed name is the branch itself for every spelling but an expression of Git's own.
     if commit_of(context, root, intended.as_os_str()).is_some() {
@@ -218,7 +255,12 @@ fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, re
 ///   ? await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name])
 ///   : await runGit([...global, 'check-ref-format', '--branch', name]);
 /// ```
-fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<OsString> {
+fn expanded_branch_name(
+    context: &GitContext,
+    root: Option<&Path>,
+    name: &OsStr,
+    remotes: bool,
+) -> Option<OsString> {
     if remotes {
         return expanded_remote_tracking_name(context, root, name);
     }
@@ -228,7 +270,11 @@ fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr,
         return None;
     }
     // A reference name holds no whitespace, so what Git ended with its line break is the name itself.
-    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let first: &[u8] = output
+        .stdout
+        .split(is_line_break)
+        .next()
+        .unwrap_or_default();
     let reference: &[u8] = first.trim_ascii();
     if reference.is_empty() {
         return None;
@@ -257,18 +303,29 @@ fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr,
 /// if (!name.includes('@{')) return undefined;
 /// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
 /// ```
-fn expanded_remote_tracking_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
+fn expanded_remote_tracking_name(
+    context: &GitContext,
+    root: Option<&Path>,
+    name: &OsStr,
+) -> Option<OsString> {
     let bytes: &[u8] = name.as_encoded_bytes();
     let mark: bool = bytes.windows(2).any(is_branch_mark_start);
     if !mark {
         return None;
     }
-    let query: Vec<OsString> = query_arguments(&["rev-parse", "--symbolic-full-name", "--verify", "--quiet"], name);
+    let query: Vec<OsString> = query_arguments(
+        &["rev-parse", "--symbolic-full-name", "--verify", "--quiet"],
+        name,
+    );
     let output: MetadataOutput = rev_parse(context, root, query.as_slice())?;
     if !output.success {
         return None;
     }
-    let first: &[u8] = output.stdout.split(is_line_break).next().unwrap_or_default();
+    let first: &[u8] = output
+        .stdout
+        .split(is_line_break)
+        .next()
+        .unwrap_or_default();
     let reference: &[u8] = first.trim_ascii();
     let short: &[u8] = reference.strip_prefix(REMOTES.as_bytes())?;
     if short.is_empty() {
@@ -343,15 +400,23 @@ fn os_string_of(bytes: &[u8]) -> OsString {
 /// ```ts
 /// const output = await runGit([...global, 'merge-base', '--is-ancestor', commit, 'HEAD']);
 /// ```
-pub fn merged_into_head(context: &GitContext, root: Option<&Path>, commit: &str) -> Option<bool> {
+pub fn merged_into_head(
+    context: &GitContext,
+    root: Option<&Path>,
+    commit: &str,
+) -> Option<bool> {
     let mut arguments: Vec<OsString> = prefix_for(context, root);
     for token in ["merge-base", "--is-ancestor"] {
         arguments.push(OsString::from(token));
     }
     arguments.push(OsString::from(commit));
     arguments.push(OsString::from("HEAD"));
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    let output: MetadataOutput = run_metadata_git(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+    )
+    .ok()?;
     // 0 is "yes", 1 is "no", and anything else is a repository Git could not read, which is no answer.
     return match output.code {
         Some(0) => Some(true),
@@ -374,7 +439,12 @@ pub fn merged_into_head(context: &GitContext, root: Option<&Path>, commit: &str)
 /// ```ts
 /// function deletionFacts({ context, name }): [string, AuditFact[]] | undefined;
 /// ```
-pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<Vec<AuditFact>> {
+pub fn deletion_facts(
+    context: &GitContext,
+    root: Option<&Path>,
+    name: &OsStr,
+    remotes: bool,
+) -> Option<Vec<AuditFact>> {
     let (reference, branch): (OsString, String) = deleted_reference(context, root, name, remotes)?;
     let commit: String = commit_of(context, root, reference.as_os_str())?;
     let mut facts: Vec<AuditFact> = vec![

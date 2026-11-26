@@ -31,22 +31,35 @@
 /// The proof and the removal of one lock.
 use crate::abandoned_lock_proving as proving;
 /// The words for what a clearance or a standing lock is.
-use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
-/// The names a lock and its PID file have.
-use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
+use crate::abandoned_lock_words::{
+    clearance_line,
+    standing_lock_line,
+};
 /// The common Git directory that holds the records of the processes started here.
 use crate::common_directory_of_a_git_directory::common_directory_of;
 /// The Git directory a working directory belongs to.
 use crate::git_directory_roots::git_directory_of;
-/// The records themselves:
-/// the repository this command works in,
-/// and the account of this process.
-use crate::lock_holder_records::{record_this_process, remember_repository, the_self_record_is_this_processs};
 /// The read of the records,
 /// for the sweep that keeps only the ones that explain a lock.
 use crate::lock_holder_record_reads::sweep;
+/// The records themselves:
+/// the repository this command works in,
+/// and the account of this process.
+use crate::lock_holder_records::{
+    record_this_process,
+    remember_repository,
+    the_self_record_is_this_processs,
+};
+/// The names a lock and its PID file have.
+use crate::stopped_git_locks::{
+    LOCK_SUFFIX,
+    PID_LOCK_SUFFIX,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How deep below a Git directory the walk looks,
 /// which reaches every reference and every linked worktree's own directory.
@@ -196,7 +209,10 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
     }
     found.sort();
     found.dedup();
-    return Walked { locks: found, complete };
+    return Walked {
+        locks: found,
+        complete,
+    };
 }
 
 /// What:
@@ -227,7 +243,11 @@ fn is_a_lock_name(name: &str) -> bool {
 /// ```ts
 /// standsInTheWay('/r/.git/worktrees/held/index.lock', '/r/.git', '/r/.git'); // false
 /// ```
-fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
+fn stands_in_the_way(
+    lock: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> bool {
     if !lock.starts_with(common_dir.join(LINKED_WORKTREES_FOLDER).as_path()) {
         return true;
     }
@@ -280,7 +300,10 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     //  record naming a dead number either, because a Git that takes a lock writes its own number into the PID file, and a
     //  PID file left over from an earlier holder (the one case a record would be read for) is a lock no pass may remove.
     if searched.complete {
-        sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
+        sweep(
+            common_dir.as_path(),
+            standing_lock_pids(outcome.standing.as_slice()).as_slice(),
+        );
     }
     return outcome;
 }
@@ -295,7 +318,10 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
 /// ```ts
 /// function clearAbandonedLocksTelling(roots, stderr): number;
 /// ```
-pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::Write) -> usize {
+pub fn clear_abandoned_locks_telling(
+    roots: &[PathBuf],
+    out: &mut dyn std::io::Write,
+) -> usize {
     let outcome: Outcome = clear_abandoned_locks(roots);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
@@ -320,7 +346,8 @@ pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::W
 fn standing_lock_pids(locks: &[PathBuf]) -> Vec<i64> {
     let mut pids: Vec<i64> = Vec::new();
     for lock in locks {
-        if let Some(pid) = crate::stopped_git_locks::pid_named_by(proving_pid_file(lock).as_path()) {
+        if let Some(pid) = crate::stopped_git_locks::pid_named_by(proving_pid_file(lock).as_path())
+        {
             pids.push(i64::from(pid));
         }
     }
@@ -369,7 +396,10 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// meetTheLocks(env, start) // GIT_DIR, else the working directory's repository
 /// ```
-pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)], start: &crate::start_directory::StartDirectory) {
+pub fn meet_the_locks_of_the_working_directory(
+    environment: &[(std::ffi::OsString, std::ffi::OsString)],
+    start: &crate::start_directory::StartDirectory,
+) {
     let working: PathBuf = start.path().map_or_else(PathBuf::new, Path::to_path_buf);
     let mut named: Option<PathBuf> = None;
     for (name, value) in environment.iter().rev() {
@@ -393,7 +423,10 @@ pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsStrin
         return;
     }
     record_this_process(common.as_path());
-    clear_abandoned_locks_telling(roots_of_git_directory(git_dir.as_path()).as_slice(), &mut std::io::stderr());
+    clear_abandoned_locks_telling(
+        roots_of_git_directory(git_dir.as_path()).as_slice(),
+        &mut std::io::stderr(),
+    );
 }
 
 /// Controls of the answer that decides which locks are named stay out of the release executable.

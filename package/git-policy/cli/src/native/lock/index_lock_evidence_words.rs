@@ -16,7 +16,12 @@
 //! ```
 
 /// The evidence a verdict rests on and the verdict itself.
-use crate::index_lock_evidence::{Evidence, PidFile, Verdict, classify_index_lock};
+use crate::index_lock_evidence::{
+    Evidence,
+    PidFile,
+    Verdict,
+    classify_index_lock,
+};
 /// The summary of what a scan of open descriptors could not read.
 use crate::index_lock_holder_words::partial_summary;
 /// `Path` is a borrowed filesystem path.
@@ -33,7 +38,10 @@ use std::time::Duration;
 /// ```ts
 /// `PID ${pid}${command === undefined ? '' : ` (${command})`}`
 /// ```
-fn holder_name(pid: i64, command: Option<&str>) -> String {
+fn holder_name(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
     match command {
         Some(name) => return format!("PID {pid} ({name})"),
         None => return format!("PID {pid}"),
@@ -79,8 +87,18 @@ pub struct WaitEnd<'a> {
 /// ```ts
 /// function provenHolderLine({ verdict, lockPath, end }): string;
 /// ```
-pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, end: WaitEnd<'_>) -> String {
-    let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
+pub fn proven_holder_line(
+    pid: i64,
+    by_descriptor: bool,
+    command: Option<&str>,
+    lock_path: &Path,
+    end: WaitEnd<'_>,
+) -> String {
+    let proof: &str = if by_descriptor {
+        "an open descriptor"
+    } else {
+        "its Git lock PID file"
+    };
     return format!(
         "monochromatic-git-policy-cli: waiting for {}, which holds {} (proven by {proof}); this waits until that process lets go, for at most {} seconds; \
          after that, {}, and the lock is left in place.\n",
@@ -105,8 +123,19 @@ pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, 
 /// ```ts
 /// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds, end }): string;
 /// ```
-pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, waited_seconds: u64, end: WaitEnd<'_>) -> String {
-    let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
+pub fn proven_holder_progress_line(
+    pid: i64,
+    by_descriptor: bool,
+    command: Option<&str>,
+    lock_path: &Path,
+    waited_seconds: u64,
+    end: WaitEnd<'_>,
+) -> String {
+    let proof: &str = if by_descriptor {
+        "an open descriptor"
+    } else {
+        "its Git lock PID file"
+    };
     return format!(
         "monochromatic-git-policy-cli: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits until that process \
          lets go, for at most {} seconds in all; after that, {}, and the lock is left in place.\n",
@@ -126,13 +155,22 @@ fn evidence_words(evidence: &Evidence) -> String {
             partial_summary(scan.unresolvable.as_slice())
         ),
         Some(scan) if scan.partial.is_empty() => String::from("no process has the lock open"),
-        Some(scan) => format!("no process the scan could see has the lock open (the scan could not see everything: {})", partial_summary(scan.partial.as_slice())),
+        Some(scan) => format!(
+            "no process the scan could see has the lock open (the scan could not see everything: {})",
+            partial_summary(scan.partial.as_slice())
+        ),
         None => String::from("the open descriptors were not scanned"),
     };
     let pid_file: String = match &evidence.pid_file {
-        PidFile::Absent => String::from("no Git lock PID file beside it (`core.lockfilePid` is off for the program that made it, or it is not Git)"),
-        PidFile::Malformed(text) => format!("a Git lock PID file whose text is not `pid <number>` ({text:?})"),
-        PidFile::Unreadable(reason) => format!("a Git lock PID file that could not be read ({reason})"),
+        PidFile::Absent => String::from(
+            "no Git lock PID file beside it (`core.lockfilePid` is off for the program that made it, or it is not Git)",
+        ),
+        PidFile::Malformed(text) => {
+            format!("a Git lock PID file whose text is not `pid <number>` ({text:?})")
+        }
+        PidFile::Unreadable(reason) => {
+            format!("a Git lock PID file that could not be read ({reason})")
+        }
         PidFile::Owner(pid, process) if process.gone() => format!(
             "a Git lock PID file naming PID {pid}, which this process table does not have (a Git of another PID namespace writes a number this table has never had, \
              and it holds the lock through its editor with no descriptor open)"
@@ -141,7 +179,10 @@ fn evidence_words(evidence: &Evidence) -> String {
             "a Git lock PID file naming PID {pid} ({}), which runs, and which this host's clock puts after the lock was made, which a reused number would explain and so would a clock that moved",
             process.command.as_deref().unwrap_or("command name unknown")
         ),
-        PidFile::Owner(pid, process) => format!("a Git lock PID file naming PID {pid} ({}), which runs", process.command.as_deref().unwrap_or("command name unknown")),
+        PidFile::Owner(pid, process) => format!(
+            "a Git lock PID file naming PID {pid} ({}), which runs",
+            process.command.as_deref().unwrap_or("command name unknown")
+        ),
     };
     return format!("{descriptors}, and {pid_file}");
 }
@@ -166,7 +207,11 @@ fn evidence_words(evidence: &Evidence) -> String {
 /// ```ts
 /// function unprovenWaitLine({ lockPath, evidence, end }): string;
 /// ```
-pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: WaitEnd<'_>) -> String {
+pub fn unproven_wait_line(
+    lock_path: &Path,
+    evidence: Option<&Evidence>,
+    end: WaitEnd<'_>,
+) -> String {
     let known: String = match evidence {
         Some(found) => format!(" ({})", evidence_words(found)),
         None => String::from(" (the evidence about its owner could not be read)"),
@@ -195,7 +240,12 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: Wa
 /// ```ts
 /// function ceilingLine({ lockPath, blocker, waitedSeconds, consequence }): string;
 /// ```
-pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
+pub fn ceiling_line(
+    lock_path: &Path,
+    blocker: &str,
+    waited_seconds: u64,
+    consequence: &str,
+) -> String {
     // A wait writes nothing, and it is reached after a clear that may have written the branch's content over the person's
     //  bytes, so the line says what the wait did rather than what the command did.
     return format!(
@@ -244,12 +294,29 @@ pub fn unproven_removal_advice(lock_path: &Path) -> String {
 /// ```
 pub fn blocker_words(evidence: &Evidence) -> String {
     return match classify_index_lock(evidence) {
-        Verdict::ProvenAlive { pid, by_descriptor, command } => {
-            let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
-            format!("{} (proven by {proof})", holder_name(pid, command.as_deref()))
+        Verdict::ProvenAlive {
+            pid,
+            by_descriptor,
+            command,
+        } => {
+            let proof: &str = if by_descriptor {
+                "an open descriptor"
+            } else {
+                "its Git lock PID file"
+            };
+            format!(
+                "{} (proven by {proof})",
+                holder_name(pid, command.as_deref())
+            )
         }
-        Verdict::Dead(pid) => format!("{} (a number this process table does not have)", holder_name(pid, None)),
-        Verdict::EvidenceFree => format!("an owner nothing proves alive ({})", evidence_words(evidence)),
+        Verdict::Dead(pid) => format!(
+            "{} (a number this process table does not have)",
+            holder_name(pid, None)
+        ),
+        Verdict::EvidenceFree => format!(
+            "an owner nothing proves alive ({})",
+            evidence_words(evidence)
+        ),
     };
 }
 
@@ -283,7 +350,12 @@ pub const THE_ENDING_SAYS_IT: &str = "";
 /// ```ts
 /// function deadOwnerDiagnostic({ lockPath, pid, consequence, ending }): string;
 /// ```
-pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str, ending: &str) -> String {
+pub fn dead_owner_diagnostic(
+    lock_path: &Path,
+    pid: i64,
+    consequence: &str,
+    ending: &str,
+) -> String {
     // A caller whose ending states what happens to the lock passes no consequence, so the line never claims the work stops
     //  and then that it goes on.
     let says: String = match consequence.is_empty() {

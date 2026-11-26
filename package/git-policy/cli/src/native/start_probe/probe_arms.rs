@@ -261,14 +261,26 @@ impl ProbeStep {
     /// The arm the step belongs to.
     pub fn arm(self) -> ProbeArm {
         return match self {
-            ProbeStep::Unshare | ProbeStep::PrivatePropagation | ProbeStep::ScratchTmpfs | ProbeStep::ScratchTree => ProbeArm::Namespace,
-            ProbeStep::WalkSlot | ProbeStep::WalkRefusalControls | ProbeStep::CheckoutRoot => ProbeArm::Walk,
+            ProbeStep::Unshare
+            | ProbeStep::PrivatePropagation
+            | ProbeStep::ScratchTmpfs
+            | ProbeStep::ScratchTree => ProbeArm::Namespace,
+            ProbeStep::WalkSlot | ProbeStep::WalkRefusalControls | ProbeStep::CheckoutRoot => {
+                ProbeArm::Walk
+            }
             ProbeStep::ReadSourceName => ProbeArm::Source,
-            ProbeStep::AttachContext | ProbeStep::AttachSource | ProbeStep::AttachOptions | ProbeStep::AttachExclusiveCreate | ProbeStep::AttachMountDescriptor | ProbeStep::AttachPlace => ProbeArm::Attach,
+            ProbeStep::AttachContext
+            | ProbeStep::AttachSource
+            | ProbeStep::AttachOptions
+            | ProbeStep::AttachExclusiveCreate
+            | ProbeStep::AttachMountDescriptor
+            | ProbeStep::AttachPlace => ProbeArm::Attach,
             ProbeStep::VerifyMount => ProbeArm::Verify,
             ProbeStep::HolderAttach | ProbeStep::HolderWait => ProbeArm::Holder,
             ProbeStep::ScanWhileHeld | ProbeStep::ScanAfterHolder => ProbeArm::Scan,
-            ProbeStep::Move | ProbeStep::Unmount | ProbeStep::ClosingScan => ProbeArm::MoveAndUnmount,
+            ProbeStep::Move | ProbeStep::Unmount | ProbeStep::ClosingScan => {
+                ProbeArm::MoveAndUnmount
+            }
             ProbeStep::Teardown => ProbeArm::Teardown,
         };
     }
@@ -283,7 +295,11 @@ impl ProbeStep {
     /// Q2 and Q5).
     pub fn refuses_removal_of_a_mounted_clone(self) -> bool {
         return match self {
-            ProbeStep::ScanWhileHeld | ProbeStep::ScanAfterHolder | ProbeStep::Move | ProbeStep::Unmount | ProbeStep::ClosingScan => true,
+            ProbeStep::ScanWhileHeld
+            | ProbeStep::ScanAfterHolder
+            | ProbeStep::Move
+            | ProbeStep::Unmount
+            | ProbeStep::ClosingScan => true,
             ProbeStep::Unshare
             | ProbeStep::PrivatePropagation
             | ProbeStep::ScratchTmpfs
@@ -308,7 +324,10 @@ impl ProbeStep {
     /// The step's name back from the word a status line carries,
     /// or nothing when the word is none of them.
     pub fn from_name(word: &str) -> Option<ProbeStep> {
-        return ProbeStep::ALL.iter().copied().find(|step| return step.name() == word);
+        return ProbeStep::ALL
+            .iter()
+            .copied()
+            .find(|step| return step.name() == word);
     }
 }
 

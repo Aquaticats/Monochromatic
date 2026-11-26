@@ -25,13 +25,32 @@
 //! expect(await exists(join(chosen, 'young.txt'))).toBe(true);
 //! ```
 
-use super::{Limits, ProblemKind, Reason, Stamped, YOUNG_FLOOR_MILLISECONDS, doctor_section, list_stamped, parse_stamp, plan, prune, prune_with};
-use crate::command_test_support::{audit_records, fixture, remove};
+use super::{
+    Limits,
+    ProblemKind,
+    Reason,
+    Stamped,
+    YOUNG_FLOOR_MILLISECONDS,
+    doctor_section,
+    list_stamped,
+    parse_stamp,
+    plan,
+    prune,
+    prune_with,
+};
+use crate::command_test_support::{
+    audit_records,
+    fixture,
+    remove,
+};
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A day in milliseconds.
 const DAY: i64 = 24 * 60 * 60 * 1000;
@@ -47,19 +66,33 @@ const NOW: i64 = 1_793_660_000_000;
 /// A directory name for a save made `age` before `NOW`,
 /// the way the wrapper names it.
 fn name_at(age: i64) -> String {
-    return format_iso_milliseconds(NOW - age).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
+    return format_iso_milliseconds(NOW - age)
+        .chars()
+        .take(19)
+        .map(|each| {
+            return if each == ':' { '-' } else { each };
+        })
+        .collect();
 }
 
 /// The limits of the controls:
 /// thirty days and no size limit that matters.
 fn age_only() -> Limits {
-    return Limits { max_age_days: 30, max_bytes: u64::MAX };
+    return Limits {
+        max_age_days: 30,
+        max_bytes: u64::MAX,
+    };
 }
 
 /// Makes the directory of a save made `age` before `NOW` under `root`,
 /// holding one file,
 /// and gives its path.
-fn save_under(root: &Path, age: i64, file: &str, text: &str) -> PathBuf {
+fn save_under(
+    root: &Path,
+    age: i64,
+    file: &str,
+    text: &str,
+) -> PathBuf {
     let directory: PathBuf = root.join(name_at(age));
     std::fs::create_dir_all(&directory).expect("save directory");
     std::fs::write(directory.join(file), text).expect("copy");
@@ -109,8 +142,17 @@ fn the_audit_reader_skips_an_empty_line_and_a_last_line_without_its_newline() {
     let root: PathBuf = fixture("prune-audit-reader");
     let common: PathBuf = root.join("repo.git");
     std::fs::create_dir_all(&common).expect("the common directory");
-    std::fs::write(common.join(AUDIT_FILE), "{\"copiesTotal\":1}\n\n{\"copiesTotal\":2}\n{\"copiesTotal\":").expect("the audit file");
-    let totals: Vec<Option<u64>> = audit_records(common.as_path()).iter().map(|record| { return record["copiesTotal"].as_u64(); }).collect();
+    std::fs::write(
+        common.join(AUDIT_FILE),
+        "{\"copiesTotal\":1}\n\n{\"copiesTotal\":2}\n{\"copiesTotal\":",
+    )
+    .expect("the audit file");
+    let totals: Vec<Option<u64>> = audit_records(common.as_path())
+        .iter()
+        .map(|record| {
+            return record["copiesTotal"].as_u64();
+        })
+        .collect();
     assert_eq!(totals, vec![Some(1), Some(2)]);
     remove(root.as_path());
 }
@@ -124,14 +166,35 @@ fn a_folder_that_is_a_link_is_never_followed() {
     let root: PathBuf = fixture("prune-link-folder");
     let common: PathBuf = root.join("repo.git");
     let outside: PathBuf = root.join("elsewhere");
-    let victim: PathBuf = save_under(outside.as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
-    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
+    let victim: PathBuf = save_under(
+        outside.as_path(),
+        90 * DAY,
+        "precious.txt",
+        "not the wrapper's",
+    );
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli"))
+        .expect("the wrapper's directory");
     std::os::unix::fs::symlink(&outside, common.join(SAVED_DIRECTORY)).expect("the link");
     let outcome = prune(common.as_path(), NOW, age_only(), None);
-    assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
+    assert!(
+        victim.join("precious.txt").exists(),
+        "a directory the link reaches was removed"
+    );
     assert!(outcome.removed.is_empty());
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::StoreUnusable]);
-    assert!(audit_records(common.as_path()).is_empty(), "nothing was removed, so nothing is audited");
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::StoreUnusable]
+    );
+    assert!(
+        audit_records(common.as_path()).is_empty(),
+        "nothing was removed, so nothing is audited"
+    );
     remove(root.as_path());
 }
 
@@ -142,12 +205,30 @@ fn a_wrapper_directory_that_is_a_link_is_never_followed() {
     let root: PathBuf = fixture("prune-link-parent");
     let common: PathBuf = root.join("repo.git");
     let outside: PathBuf = root.join("elsewhere");
-    let victim: PathBuf = save_under(outside.join("discarded").as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
+    let victim: PathBuf = save_under(
+        outside.join("discarded").as_path(),
+        90 * DAY,
+        "precious.txt",
+        "not the wrapper's",
+    );
     std::fs::create_dir_all(&common).expect("the common directory");
-    std::os::unix::fs::symlink(&outside, common.join("monochromatic-git-policy-cli")).expect("the link");
+    std::os::unix::fs::symlink(&outside, common.join("monochromatic-git-policy-cli"))
+        .expect("the link");
     let outcome = prune(common.as_path(), NOW, age_only(), None);
-    assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::StoreUnusable]);
+    assert!(
+        victim.join("precious.txt").exists(),
+        "a directory the link reaches was removed"
+    );
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::StoreUnusable]
+    );
     remove(root.as_path());
 }
 
@@ -161,15 +242,33 @@ fn a_folder_swapped_for_a_link_after_the_listing_reaches_nothing_outside() {
     let saved_root: PathBuf = saved_root_of(common.as_path());
     save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
     let outside: PathBuf = root.join("elsewhere");
-    let victim: PathBuf = save_under(outside.as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
+    let victim: PathBuf = save_under(
+        outside.as_path(),
+        90 * DAY,
+        "precious.txt",
+        "not the wrapper's",
+    );
     let mut swapped: bool = false;
-    let _outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        std::fs::rename(&saved_root, common.join("monochromatic-git-policy-cli/discarded.moved")).expect("move the folder aside");
-        std::os::unix::fs::symlink(&outside, &saved_root).expect("the link");
-        swapped = true;
-    });
+    let _outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |_candidate: &Path| {
+            std::fs::rename(
+                &saved_root,
+                common.join("monochromatic-git-policy-cli/discarded.moved"),
+            )
+            .expect("move the folder aside");
+            std::os::unix::fs::symlink(&outside, &saved_root).expect("the link");
+            swapped = true;
+        },
+    );
     assert!(swapped, "the step ran");
-    assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
+    assert!(
+        victim.join("precious.txt").exists(),
+        "a directory the link reaches was removed"
+    );
     remove(root.as_path());
 }
 
@@ -185,17 +284,36 @@ fn a_replacement_under_the_chosen_name_is_kept() {
     let saved_root: PathBuf = saved_root_of(common.as_path());
     let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
     let mut swapped: bool = false;
-    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |candidate: &Path| {
-        assert_eq!(candidate, chosen.as_path());
-        std::fs::rename(&chosen, saved_root.join("aside")).expect("the judged directory goes aside");
-        std::fs::create_dir(&chosen).expect("a new directory under the name");
-        std::fs::write(chosen.join("young.txt"), "written a moment ago").expect("its file");
-        swapped = true;
-    });
+    let outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |candidate: &Path| {
+            assert_eq!(candidate, chosen.as_path());
+            std::fs::rename(&chosen, saved_root.join("aside"))
+                .expect("the judged directory goes aside");
+            std::fs::create_dir(&chosen).expect("a new directory under the name");
+            std::fs::write(chosen.join("young.txt"), "written a moment ago").expect("its file");
+            swapped = true;
+        },
+    );
     assert!(swapped, "the step ran");
-    assert_eq!(std::fs::read_to_string(chosen.join("young.txt")).expect("the replacement survived"), "written a moment ago");
+    assert_eq!(
+        std::fs::read_to_string(chosen.join("young.txt")).expect("the replacement survived"),
+        "written a moment ago"
+    );
     assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::EntryChanged]
+    );
     assert!(audit_records(common.as_path()).is_empty());
     remove(root.as_path());
 }
@@ -210,11 +328,21 @@ fn a_chosen_directory_replaced_by_a_link_reaches_nothing_outside() {
     let outside: PathBuf = root.join("elsewhere");
     std::fs::create_dir_all(&outside).expect("elsewhere");
     std::fs::write(outside.join("precious.txt"), "not the wrapper's").expect("a file elsewhere");
-    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        std::fs::rename(&chosen, saved_root.join("aside")).expect("the judged directory goes aside");
-        std::os::unix::fs::symlink(&outside, &chosen).expect("the link");
-    });
-    assert_eq!(std::fs::read_to_string(outside.join("precious.txt")).expect("untouched"), "not the wrapper's");
+    let outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |_candidate: &Path| {
+            std::fs::rename(&chosen, saved_root.join("aside"))
+                .expect("the judged directory goes aside");
+            std::os::unix::fs::symlink(&outside, &chosen).expect("the link");
+        },
+    );
+    assert_eq!(
+        std::fs::read_to_string(outside.join("precious.txt")).expect("untouched"),
+        "not the wrapper's"
+    );
     assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
     remove(root.as_path());
 }
@@ -234,11 +362,20 @@ fn a_subdirectory_replaced_by_a_link_is_removed_as_a_link() {
     let outside: PathBuf = root.join("elsewhere");
     std::fs::create_dir_all(&outside).expect("elsewhere");
     std::fs::write(outside.join("precious.txt"), "not the wrapper's").expect("a file elsewhere");
-    let _outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        std::fs::remove_dir_all(chosen.join("inner")).expect("the subdirectory goes");
-        std::os::unix::fs::symlink(&outside, chosen.join("inner")).expect("the link");
-    });
-    assert_eq!(std::fs::read_to_string(outside.join("precious.txt")).expect("untouched"), "not the wrapper's");
+    let _outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |_candidate: &Path| {
+            std::fs::remove_dir_all(chosen.join("inner")).expect("the subdirectory goes");
+            std::os::unix::fs::symlink(&outside, chosen.join("inner")).expect("the link");
+        },
+    );
+    assert_eq!(
+        std::fs::read_to_string(outside.join("precious.txt")).expect("untouched"),
+        "not the wrapper's"
+    );
     remove(root.as_path());
 }
 
@@ -255,16 +392,32 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     let saved_root: PathBuf = saved_root_of(common.as_path());
     let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
     let mut nested = None;
-    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        let second = prune(common.as_path(), NOW, age_only(), None);
-        assert!(!chosen.exists(), "the second pass left the directory it judged to a pass that holds the folder: {second:?}");
-        nested = Some(second);
-    });
+    let outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |_candidate: &Path| {
+            let second = prune(common.as_path(), NOW, age_only(), None);
+            assert!(
+                !chosen.exists(),
+                "the second pass left the directory it judged to a pass that holds the folder: {second:?}"
+            );
+            nested = Some(second);
+        },
+    );
     let second = nested.expect("the step ran");
     assert_eq!(second.removed.len(), 1, "{second:?}");
     assert!(second.problems.is_empty(), "{second:?}");
-    assert!(outcome.removed.is_empty() && outcome.problems.is_empty(), "the first pass found the directory gone and had nothing to say: {outcome:?}");
-    assert_eq!(audit_records(common.as_path()).len(), 1, "one directory removed, one line");
+    assert!(
+        outcome.removed.is_empty() && outcome.problems.is_empty(),
+        "the first pass found the directory gone and had nothing to say: {outcome:?}"
+    );
+    assert_eq!(
+        audit_records(common.as_path()).len(),
+        1,
+        "one directory removed, one line"
+    );
     remove(root.as_path());
 }
 
@@ -283,13 +436,35 @@ fn a_file_added_after_the_listing_keeps_the_directory() {
     let common: PathBuf = root.join("repo.git");
     let saved_root: PathBuf = saved_root_of(common.as_path());
     let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
-    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        std::fs::write(chosen.join("added.txt"), "written after the listing").expect("a new file");
-    });
-    assert_eq!(std::fs::read_to_string(chosen.join("added.txt")).expect("kept"), "written after the listing");
-    assert!(chosen.join("old.txt").exists(), "nothing of the directory was removed");
+    let outcome = prune_with(
+        common.as_path(),
+        NOW,
+        age_only(),
+        None,
+        &mut |_candidate: &Path| {
+            std::fs::write(chosen.join("added.txt"), "written after the listing")
+                .expect("a new file");
+        },
+    );
+    assert_eq!(
+        std::fs::read_to_string(chosen.join("added.txt")).expect("kept"),
+        "written after the listing"
+    );
+    assert!(
+        chosen.join("old.txt").exists(),
+        "nothing of the directory was removed"
+    );
     assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::EntryChanged]
+    );
     assert!(audit_records(common.as_path()).is_empty());
     remove(root.as_path());
 }
@@ -310,22 +485,42 @@ fn passes_emptying_one_directory_together_audit_every_copy_once() {
     }
     std::fs::create_dir(chosen.join("inner")).expect("a subdirectory");
     for number in 0..copies {
-        std::fs::write(chosen.join("inner").join(format!("deep-{number}.txt")), "y").expect("a deeper copy");
+        std::fs::write(chosen.join("inner").join(format!("deep-{number}.txt")), "y")
+            .expect("a deeper copy");
     }
     let total: usize = copies * 2 + 1;
     let starting: std::sync::Barrier = std::sync::Barrier::new(SHARED_PASSES);
     let outcomes: Vec<super::PruneOutcome> = std::thread::scope(|scope| {
         let passes: Vec<_> = (0..SHARED_PASSES)
-            .map(|_| { return scope.spawn(|| { starting.wait(); return prune(common.as_path(), NOW, age_only(), None); }); })
+            .map(|_| {
+                return scope.spawn(|| {
+                    starting.wait();
+                    return prune(common.as_path(), NOW, age_only(), None);
+                });
+            })
             .collect();
-        return passes.into_iter().map(|pass| { return pass.join().expect("a pass finished"); }).collect();
+        return passes
+            .into_iter()
+            .map(|pass| {
+                return pass.join().expect("a pass finished");
+            })
+            .collect();
     });
     for outcome in &outcomes {
         assert!(outcome.problems.is_empty(), "{outcome:?}");
     }
     assert!(!chosen.exists(), "the directory is gone");
-    let audited: u64 = audit_records(common.as_path()).iter().map(|line| { return line["copiesTotal"].as_u64().unwrap_or(0); }).sum();
-    assert_eq!(audited, u64::try_from(total).expect("a count"), "every copy is audited once across the passes: {outcomes:?}");
+    let audited: u64 = audit_records(common.as_path())
+        .iter()
+        .map(|line| {
+            return line["copiesTotal"].as_u64().unwrap_or(0);
+        })
+        .sum();
+    assert_eq!(
+        audited,
+        u64::try_from(total).expect("a count"),
+        "every copy is audited once across the passes: {outcomes:?}"
+    );
     remove(root.as_path());
 }
 
@@ -351,7 +546,12 @@ fn a_name_that_is_no_calendar_date_is_not_a_stamp() {
     ] {
         assert_eq!(parse_stamp(impossible), None, "{impossible:?}");
     }
-    for possible in ["2024-02-29T00-00-00", "2000-02-29T00-00-00", "2026-12-31T23-59-59", "2026-04-30T23-59-59-12"] {
+    for possible in [
+        "2024-02-29T00-00-00",
+        "2000-02-29T00-00-00",
+        "2026-12-31T23-59-59",
+        "2026-04-30T23-59-59-12",
+    ] {
         assert!(parse_stamp(possible).is_some(), "{possible:?}");
     }
 }
@@ -362,27 +562,95 @@ fn a_name_that_is_no_calendar_date_is_not_a_stamp() {
 #[test]
 fn the_floor_and_the_age_limit_count_from_the_end_of_the_named_second() {
     let stamped: i64 = parse_stamp("2026-11-02T14-01-07").expect("a stamp");
-    let entry: Stamped = Stamped { name: String::from("2026-11-02T14-01-07"), millis: stamped, bytes: 1 << 30, identity: super::Identity::default() };
-    let tight: Limits = Limits { max_age_days: 1, max_bytes: 1 };
-    let at = |now: i64| -> Vec<(usize, Reason)> { return plan(std::slice::from_ref(&entry), now, tight, None); };
-    assert!(at(stamped + YOUNG_FLOOR_MILLISECONDS).is_empty(), "the save may be 999 milliseconds short of a day");
-    assert!(at(stamped + YOUNG_FLOOR_MILLISECONDS + SECOND - 1).is_empty(), "a millisecond short of a day from the end of the second");
-    assert_eq!(at(stamped + YOUNG_FLOOR_MILLISECONDS + SECOND), vec![(0, Reason::Size)], "a whole day from the end of the second");
-    let loose: Limits = Limits { max_age_days: 30, max_bytes: u64::MAX };
+    let entry: Stamped = Stamped {
+        name: String::from("2026-11-02T14-01-07"),
+        millis: stamped,
+        bytes: 1 << 30,
+        identity: super::Identity::default(),
+    };
+    let tight: Limits = Limits {
+        max_age_days: 1,
+        max_bytes: 1,
+    };
+    let at = |now: i64| -> Vec<(usize, Reason)> {
+        return plan(std::slice::from_ref(&entry), now, tight, None);
+    };
+    assert!(
+        at(stamped + YOUNG_FLOOR_MILLISECONDS).is_empty(),
+        "the save may be 999 milliseconds short of a day"
+    );
+    assert!(
+        at(stamped + YOUNG_FLOOR_MILLISECONDS + SECOND - 1).is_empty(),
+        "a millisecond short of a day from the end of the second"
+    );
+    assert_eq!(
+        at(stamped + YOUNG_FLOOR_MILLISECONDS + SECOND),
+        vec![(0, Reason::Size)],
+        "a whole day from the end of the second"
+    );
+    let loose: Limits = Limits {
+        max_age_days: 30,
+        max_bytes: u64::MAX,
+    };
     let thirty: i64 = 30 * DAY;
-    assert!(plan(std::slice::from_ref(&entry), stamped + thirty + SECOND, loose, None).is_empty(), "exactly the age limit from the end of the second");
-    assert_eq!(plan(std::slice::from_ref(&entry), stamped + thirty + SECOND + 1, loose, None), vec![(0, Reason::Age)]);
+    assert!(
+        plan(
+            std::slice::from_ref(&entry),
+            stamped + thirty + SECOND,
+            loose,
+            None
+        )
+        .is_empty(),
+        "exactly the age limit from the end of the second"
+    );
+    assert_eq!(
+        plan(
+            std::slice::from_ref(&entry),
+            stamped + thirty + SECOND + 1,
+            loose,
+            None
+        ),
+        vec![(0, Reason::Age)]
+    );
 }
 
 /// A clock that cannot be subtracted from an entry's time without overflow chooses nothing and does not panic.
 #[test]
 fn an_age_that_overflows_chooses_nothing() {
-    let entry: Stamped = Stamped { name: name_at(0), millis: NOW, bytes: 1, identity: super::Identity::default() };
-    let limits: Limits = Limits { max_age_days: u64::MAX, max_bytes: 1 };
+    let entry: Stamped = Stamped {
+        name: name_at(0),
+        millis: NOW,
+        bytes: 1,
+        identity: super::Identity::default(),
+    };
+    let limits: Limits = Limits {
+        max_age_days: u64::MAX,
+        max_bytes: 1,
+    };
     assert!(plan(std::slice::from_ref(&entry), i64::MIN, limits, None).is_empty());
-    assert!(plan(std::slice::from_ref(&entry), i64::MAX, limits, None).is_empty(), "an age limit past any clock removes nothing by age, and one entry is not over a size by itself");
-    let old: Stamped = Stamped { name: name_at(0), millis: i64::MIN, bytes: 1, identity: super::Identity::default() };
-    assert_eq!(plan(std::slice::from_ref(&old), i64::MAX, Limits { max_age_days: 1, max_bytes: u64::MAX }, None), vec![(0, Reason::Age)], "a very old entry is old");
+    assert!(
+        plan(std::slice::from_ref(&entry), i64::MAX, limits, None).is_empty(),
+        "an age limit past any clock removes nothing by age, and one entry is not over a size by itself"
+    );
+    let old: Stamped = Stamped {
+        name: name_at(0),
+        millis: i64::MIN,
+        bytes: 1,
+        identity: super::Identity::default(),
+    };
+    assert_eq!(
+        plan(
+            std::slice::from_ref(&old),
+            i64::MAX,
+            Limits {
+                max_age_days: 1,
+                max_bytes: u64::MAX
+            },
+            None
+        ),
+        vec![(0, Reason::Age)],
+        "a very old entry is old"
+    );
 }
 
 /// Sizes that together pass what a 64-bit count holds still add up,
@@ -391,12 +659,34 @@ fn an_age_that_overflows_chooses_nothing() {
 fn sizes_that_pass_a_sixty_four_bit_count_still_add_up() {
     let huge: u128 = u128::from(u64::MAX);
     let entries: Vec<Stamped> = vec![
-        Stamped { name: name_at(5 * DAY), millis: NOW - 5 * DAY, bytes: huge, identity: super::Identity::default() },
-        Stamped { name: name_at(4 * DAY), millis: NOW - 4 * DAY, bytes: huge, identity: super::Identity::default() },
-        Stamped { name: name_at(3 * DAY), millis: NOW - 3 * DAY, bytes: huge, identity: super::Identity::default() },
+        Stamped {
+            name: name_at(5 * DAY),
+            millis: NOW - 5 * DAY,
+            bytes: huge,
+            identity: super::Identity::default(),
+        },
+        Stamped {
+            name: name_at(4 * DAY),
+            millis: NOW - 4 * DAY,
+            bytes: huge,
+            identity: super::Identity::default(),
+        },
+        Stamped {
+            name: name_at(3 * DAY),
+            millis: NOW - 3 * DAY,
+            bytes: huge,
+            identity: super::Identity::default(),
+        },
     ];
-    let limits: Limits = Limits { max_age_days: 30, max_bytes: u64::MAX };
-    assert_eq!(plan(entries.as_slice(), NOW, limits, None), vec![(0, Reason::Size), (1, Reason::Size)], "three counts of the limit leave one");
+    let limits: Limits = Limits {
+        max_age_days: 30,
+        max_bytes: u64::MAX,
+    };
+    assert_eq!(
+        plan(entries.as_slice(), NOW, limits, None),
+        vec![(0, Reason::Size), (1, Reason::Size)],
+        "three counts of the limit leave one"
+    );
 }
 
 /// A pass cannot append to the audit file,
@@ -410,9 +700,21 @@ fn an_audit_file_that_cannot_be_appended_stops_the_pass_before_any_removal() {
     let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
     std::fs::create_dir(common.join(AUDIT_FILE)).expect("a directory where the audit file belongs");
     let outcome = prune(common.as_path(), NOW, age_only(), None);
-    assert!(chosen.join("old.txt").exists(), "a directory went without its audit line");
+    assert!(
+        chosen.join("old.txt").exists(),
+        "a directory went without its audit line"
+    );
     assert!(outcome.removed.is_empty());
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::AuditUnwritable]);
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::AuditUnwritable]
+    );
     remove(root.as_path());
 }
 
@@ -427,23 +729,69 @@ fn a_removal_that_fails_part_way_is_reported_and_audited_as_partial() {
     std::fs::write(chosen.join("second.txt"), "two").expect("a second copy");
     std::fs::create_dir(chosen.join("locked")).expect("a subdirectory");
     std::fs::write(chosen.join("locked/inside.txt"), "three").expect("its file");
-    std::fs::set_permissions(chosen.join("locked"), std::fs::Permissions::from_mode(0o555)).expect("read-only directory");
+    std::fs::set_permissions(
+        chosen.join("locked"),
+        std::fs::Permissions::from_mode(0o555),
+    )
+    .expect("read-only directory");
     let before: Vec<&str> = vec!["first.txt", "locked/inside.txt", "second.txt"];
     let outcome = prune(common.as_path(), NOW, age_only(), None);
-    let remaining: Vec<&str> = before.iter().copied().filter(|name| { return chosen.join(name).exists(); }).collect();
-    std::fs::set_permissions(chosen.join("locked"), std::fs::Permissions::from_mode(0o755)).expect("restore");
-    assert!(outcome.removed.is_empty(), "a half-removed directory is not a removed one: {:?}", outcome.removed);
-    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::PartiallyRemoved], "{outcome:?}");
+    let remaining: Vec<&str> = before
+        .iter()
+        .copied()
+        .filter(|name| {
+            return chosen.join(name).exists();
+        })
+        .collect();
+    std::fs::set_permissions(
+        chosen.join("locked"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .expect("restore");
+    assert!(
+        outcome.removed.is_empty(),
+        "a half-removed directory is not a removed one: {:?}",
+        outcome.removed
+    );
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::PartiallyRemoved],
+        "{outcome:?}"
+    );
     let lines = audit_records(common.as_path());
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert_eq!(lines[0]["outcome"], "partial");
-    let mut gone: Vec<String> = before.iter().filter(|name| { return !remaining.contains(name); }).map(|name| { return (*name).to_string(); }).collect();
+    let mut gone: Vec<String> = before
+        .iter()
+        .filter(|name| {
+            return !remaining.contains(name);
+        })
+        .map(|name| {
+            return (*name).to_string();
+        })
+        .collect();
     gone.sort();
-    let mut listed: Vec<String> = lines[0]["copies"].as_array().expect("copies").iter().map(|each| { return each.as_str().expect("text").to_string(); }).collect();
+    let mut listed: Vec<String> = lines[0]["copies"]
+        .as_array()
+        .expect("copies")
+        .iter()
+        .map(|each| {
+            return each.as_str().expect("text").to_string();
+        })
+        .collect();
     // The line lists the files in the order the walk removed them, which no file system promises, so both sides are
     // compared by name: what the control holds is that the line names what went and nothing else.
     listed.sort();
-    assert_eq!(listed, gone, "the line names the files that went and no other");
+    assert_eq!(
+        listed, gone,
+        "the line names the files that went and no other"
+    );
     remove(root.as_path());
 }
 
@@ -460,14 +808,54 @@ fn an_unreadable_directory_is_kept_and_reported_not_counted_as_empty() {
     let readable: PathBuf = save_under(saved_root.as_path(), 80 * DAY, "fine.txt", "fine");
     std::fs::create_dir(chosen.join("closed")).expect("a subdirectory");
     std::fs::write(chosen.join("closed/inside.txt"), "hidden").expect("its file");
-    std::fs::set_permissions(chosen.join("closed"), std::fs::Permissions::from_mode(0o000)).expect("closed directory");
+    std::fs::set_permissions(
+        chosen.join("closed"),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .expect("closed directory");
     let listing = list_stamped(common.as_path());
     let outcome = prune(common.as_path(), NOW, age_only(), None);
-    std::fs::set_permissions(chosen.join("closed"), std::fs::Permissions::from_mode(0o755)).expect("restore");
-    assert_eq!(listing.entries.iter().map(|entry| { return entry.name.clone(); }).collect::<Vec<_>>(), vec![readable.file_name().expect("name").to_string_lossy().into_owned()]);
-    assert_eq!(listing.problems.iter().map(|problem| { return (problem.kind, problem.path.clone()); }).collect::<Vec<_>>(), vec![(ProblemKind::EntryUnreadable, chosen.clone())]);
-    assert!(chosen.join("closed/inside.txt").exists(), "an entry that could not be read was removed");
-    assert!(outcome.problems.iter().any(|problem| { return problem.kind == ProblemKind::EntryUnreadable; }), "{outcome:?}");
+    std::fs::set_permissions(
+        chosen.join("closed"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .expect("restore");
+    assert_eq!(
+        listing
+            .entries
+            .iter()
+            .map(|entry| {
+                return entry.name.clone();
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            readable
+                .file_name()
+                .expect("name")
+                .to_string_lossy()
+                .into_owned()
+        ]
+    );
+    assert_eq!(
+        listing
+            .problems
+            .iter()
+            .map(|problem| {
+                return (problem.kind, problem.path.clone());
+            })
+            .collect::<Vec<_>>(),
+        vec![(ProblemKind::EntryUnreadable, chosen.clone())]
+    );
+    assert!(
+        chosen.join("closed/inside.txt").exists(),
+        "an entry that could not be read was removed"
+    );
+    assert!(
+        outcome.problems.iter().any(|problem| {
+            return problem.kind == ProblemKind::EntryUnreadable;
+        }),
+        "{outcome:?}"
+    );
     remove(root.as_path());
 }
 
@@ -480,10 +868,14 @@ fn the_doctor_says_when_the_folder_is_a_link() {
     let common: PathBuf = root.join("repo.git");
     let outside: PathBuf = root.join("elsewhere");
     save_under(outside.as_path(), 9 * DAY, "one.txt", "one");
-    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli"))
+        .expect("the wrapper's directory");
     std::os::unix::fs::symlink(&outside, common.join(SAVED_DIRECTORY)).expect("the link");
     let text: String = doctor_section(common.as_path(), Limits::default());
-    assert!(text.contains(&common.join(SAVED_DIRECTORY).display().to_string()), "{text}");
+    assert!(
+        text.contains(&common.join(SAVED_DIRECTORY).display().to_string()),
+        "{text}"
+    );
     assert!(text.contains("symbolic link"), "{text}");
     remove(root.as_path());
 }

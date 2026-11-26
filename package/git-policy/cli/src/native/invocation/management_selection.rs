@@ -19,13 +19,25 @@
 /// Import the refusal's error type.
 use crate::config_error::ConfigError;
 /// Import the severities in effect.
-use crate::config_schema::{PolicyConfig, PolicySetting};
+use crate::config_schema::{
+    PolicyConfig,
+    PolicySetting,
+};
 /// Import the registry rows and the severity spellings.
 use crate::policy_registry::{
-    POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, policy_descriptor, severity_name,
+    POLICY_REGISTRY,
+    PolicyDescriptor,
+    PolicyId,
+    Severity,
+    policy_by_name,
+    policy_descriptor,
+    severity_name,
 };
 /// Import the lifecycle points and which policy runs at which.
-use crate::policy_trigger::{Trigger, policy_runs_on};
+use crate::policy_trigger::{
+    Trigger,
+    policy_runs_on,
+};
 
 /// What:
 ///  Turn the selected policy names into policy identities.
@@ -81,11 +93,17 @@ pub fn selected_policies(names: &[String]) -> Result<Vec<PolicyId>, ConfigError>
 /// ```ts
 /// const offMessage = (name: string, explicit: boolean, on: string): string => `...`;
 /// ```
-fn off_message(name: &str, explicit: bool, on: &str) -> String {
+fn off_message(
+    name: &str,
+    explicit: bool,
+    on: &str,
+) -> String {
     let cause: String = if explicit {
         format!("monochromatic-git-policy-cli.config.jsonc sets policies.\"{name}\" to \"off\"")
     } else {
-        format!("monochromatic-git-policy-cli.config.jsonc does not list \"{name}\", and an unlisted policy of this kind is off")
+        format!(
+            "monochromatic-git-policy-cli.config.jsonc does not list \"{name}\", and an unlisted policy of this kind is off"
+        )
     };
     return format!(
         "Policy {name} is off, so --policy {name} would check nothing and exit clean: {cause}. \
@@ -110,7 +128,11 @@ fn off_message(name: &str, explicit: bool, on: &str) -> String {
 /// ```ts
 /// const unrunMessage = (name: string, command: string, runsFor: string[]): string => `...`;
 /// ```
-fn unrun_message(name: &str, command: &str, runs_for: &[&str]) -> String {
+fn unrun_message(
+    name: &str,
+    command: &str,
+    runs_for: &[&str],
+) -> String {
     if runs_for.is_empty() {
         return format!(
             "Policy {name} does not run for the monochromatic-git-policy-cli check or fix commands, only when the Git command it guards is \
@@ -145,7 +167,11 @@ fn unrun_message(name: &str, command: &str, runs_for: &[&str]) -> String {
 /// ```ts
 /// function selectionError(selected: PolicyId[], policies: PolicyConfig, trigger: PolicyTrigger): ConfigError | undefined;
 /// ```
-pub fn selection_error(selected: &[PolicyId], policies: &PolicyConfig, trigger: Trigger) -> Option<ConfigError> {
+pub fn selection_error(
+    selected: &[PolicyId],
+    policies: &PolicyConfig,
+    trigger: Trigger,
+) -> Option<ConfigError> {
     let mut messages: Vec<String> = Vec::new();
     // A policy named twice gets one sentence.
     let mut seen: Vec<PolicyId> = Vec::new();
@@ -167,7 +193,11 @@ pub fn selection_error(selected: &[PolicyId], policies: &PolicyConfig, trigger: 
             if policy_runs_on(*id, Trigger::DirectFix) {
                 runs_for.push("fix");
             }
-            let command: &str = if trigger == Trigger::DirectFix { "fix" } else { "check" };
+            let command: &str = if trigger == Trigger::DirectFix {
+                "fix"
+            } else {
+                "check"
+            };
             messages.push(unrun_message(descriptor.name, command, runs_for.as_slice()));
         }
     }

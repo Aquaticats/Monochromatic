@@ -31,22 +31,52 @@
 //! const route = chooseRoute({ runtimeDir, busAddress, configHome, homeDir, ownExecutable, realGit }); // undefined: no route
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
-use crate::repo_read_layout::{RepoLayout, read_layout_in};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_awaited_no_longer_than,
+};
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
-use crate::hooks_path_values::{path_answer, without_the_terminator};
-use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
+use crate::hooks_path_values::{
+    path_answer,
+    without_the_terminator,
+};
+use crate::repo_read_layout::{
+    RepoLayout,
+    read_layout_in,
+};
+use crate::service_address_of_a_worktree::{
+    socket_address_of,
+    the_address_is_there,
+};
 use crate::service_client_listen_and_ask_to_retire::Reached;
-use crate::service_instance::{SOCKET_DIRECTORY, service_unit_instance, try_instance_of};
-use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
+use crate::service_instance::{
+    SOCKET_DIRECTORY,
+    service_unit_instance,
+    try_instance_of,
+};
+use crate::service_provision::{
+    ProvisionHost,
+    RETIREMENT_WAIT,
+};
 use crate::service_server::Bind;
 use crate::systemd_dbus::session_bus_path;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
-use crate::wait_ceilings::{HAND_OVER_GREETING_WAIT, ROUTE_STATE_CEILING};
+use crate::wait_ceilings::{
+    HAND_OVER_GREETING_WAIT,
+    ROUTE_STATE_CEILING,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
@@ -107,7 +137,10 @@ pub struct Route {
 }
 
 /// The directory a user's own unit files live in.
-pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+pub fn user_unit_dir(
+    config_home: Option<&Path>,
+    home: Option<&Path>,
+) -> Option<PathBuf> {
     // The configuration home when one is set, else `.config` under the home directory.
     if let Some(directory) = config_home {
         return Some(directory.join("systemd").join("user"));
@@ -147,13 +180,31 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     // A bus socket that is not there is no bus to provision through.
     let bus: PathBuf = match session_bus_path(inputs.bus_address, Some(runtime_dir)) {
         Some(path) if path.exists() => path,
-        _ => return if socket_exists { Some(Route { address: socket, provision: None }) } else { None },
+        _ => {
+            return if socket_exists {
+                Some(Route {
+                    address: socket,
+                    provision: None,
+                })
+            } else {
+                None
+            };
+        }
     };
     // The service is a mode of the wrapper's own executable (`service_main.rs`), so the unit names that file; a path that
     //  is not a file (a deleted executable) is no program for a unit to name.
     let service_binary: PathBuf = match inputs.own_executable {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
-        _ => return if socket_exists { Some(Route { address: socket, provision: None }) } else { None },
+        _ => {
+            return if socket_exists {
+                Some(Route {
+                    address: socket,
+                    provision: None,
+                })
+            } else {
+                None
+            };
+        }
     };
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: runtime_dir.to_path_buf(),
@@ -165,7 +216,10 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         git_dir: inputs.git_dir.to_path_buf(),
         retirement_wait: RETIREMENT_WAIT,
     };
-    return Some(Route { address: socket, provision: Some(host) });
+    return Some(Route {
+        address: socket,
+        provision: Some(host),
+    });
 }
 
 /// What `git monochromatic-git-policy-cli service status` prints and exits with.
@@ -226,8 +280,15 @@ fn layout_of(question: LayoutQuestion) -> Option<RepoLayout> {
 /// ```ts
 /// async function layoutWithin(ceilingMs: number, question: LayoutQuestion): Promise<RepoLayout | undefined>;
 /// ```
-async fn layout_within(ceiling: Duration, directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
-    let question: LayoutQuestion = LayoutQuestion { directory: directory.to_path_buf(), overlay: overlay.to_vec() };
+async fn layout_within(
+    ceiling: Duration,
+    directory: &Path,
+    overlay: &[(OsString, OsString)],
+) -> Option<RepoLayout> {
+    let question: LayoutQuestion = LayoutQuestion {
+        directory: directory.to_path_buf(),
+        overlay: overlay.to_vec(),
+    };
     return match run_a_job_awaited_no_longer_than(ceiling, question, layout_of).await {
         TheAnswerOfAJobAwaited::Ran(answer) => answer,
         // No thread was given, or the job outlasted its ceiling: the files said nothing this task may wait for.
@@ -248,8 +309,15 @@ async fn layout_within(ceiling: Duration, directory: &Path, overlay: &[(OsString
 /// ```ts
 /// const request = { cwd, arguments: ['rev-parse', '--path-format=absolute', '--absolute-git-dir'], withoutPrefix: named, repositorySelection: selection };
 /// ```
-fn git_directory_request(cwd: &Path, selection: &[OsString], named: bool) -> GitRequest {
-    let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+fn git_directory_request(
+    cwd: &Path,
+    selection: &[OsString],
+    named: bool,
+) -> GitRequest {
+    let mut request: GitRequest = GitRequest::new(
+        cwd,
+        &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
+    );
     if named {
         request.without_prefix = true;
         request.repository_selection = selection.to_vec();
@@ -286,7 +354,11 @@ fn git_directory_answered(output: &GitOutput) -> Option<PathBuf> {
         return None;
     }
     let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
-    return if printed.is_empty() { None } else { Some(path_answer(printed)) };
+    return if printed.is_empty() {
+        None
+    } else {
+        Some(path_answer(printed))
+    };
 }
 
 /// What:
@@ -305,15 +377,21 @@ fn git_directory_answered(output: &GitOutput) -> Option<PathBuf> {
 /// ```ts
 /// worktreeGitDir(context, cwd) // undefined outside a repository
 /// ```
-pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
-    let selection: Vec<std::ffi::OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+pub fn worktree_git_dir(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<PathBuf> {
+    let selection: Vec<std::ffi::OsString> =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     let named: bool = !selection.is_empty();
-    if !named
-        && let Some(layout) = read_layout_in(cwd, context.overlay.as_slice())
-    {
+    if !named && let Some(layout) = read_layout_in(cwd, context.overlay.as_slice()) {
         return Some(layout.git_dir);
     }
-    let output = run_git(context, &git_directory_request(cwd, selection.as_slice(), named)).ok()?;
+    let output = run_git(
+        context,
+        &git_directory_request(cwd, selection.as_slice(), named),
+    )
+    .ok()?;
     return git_directory_answered(&output);
 }
 
@@ -334,15 +412,25 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// const gitDir = await worktreeGitDirAwaiting(context, cwd); // undefined outside a repository
 /// ```
-pub async fn worktree_git_dir_awaiting(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
-    let selection: Vec<std::ffi::OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+pub async fn worktree_git_dir_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<PathBuf> {
+    let selection: Vec<std::ffi::OsString> =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     let named: bool = !selection.is_empty();
     if !named
-        && let Some(layout) = layout_within(ROUTE_STATE_CEILING, cwd, context.overlay.as_slice()).await
+        && let Some(layout) =
+            layout_within(ROUTE_STATE_CEILING, cwd, context.overlay.as_slice()).await
     {
         return Some(layout.git_dir);
     }
-    let output = run_git_awaiting(context, &git_directory_request(cwd, selection.as_slice(), named)).await.ok()?;
+    let output = run_git_awaiting(
+        context,
+        &git_directory_request(cwd, selection.as_slice(), named),
+    )
+    .await
+    .ok()?;
     return git_directory_answered(&output);
 }
 
@@ -374,7 +462,10 @@ pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
 /// ```ts
 /// routeFromEnvironment(realGit, gitDir) // undefined: no way to reach a service
 /// ```
-pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> {
+pub fn route_from_environment(
+    real_git: &Path,
+    git_dir: &Path,
+) -> Option<Route> {
     // The read of this process's environment is the read of the invocation's: `main` hands the entry `std::env::vars_os()` as
     //  that environment, and nothing in the crate changes the wrapper's own environment, so a command started with another
     //  `HOME` reads that home here. No service chooses a route (a service start goes to `service_main` before any command's
@@ -432,12 +523,14 @@ enum Answered {
 /// const answered = asking(address); // 'greeted' | 'said-nothing' | 'nothing'
 /// ```
 fn asking(address: &Bind) -> Answered {
-    let Reached::Ours(stream) = crate::service_client_listen_and_ask_to_retire::reach(address) else {
+    let Reached::Ours(stream) = crate::service_client_listen_and_ask_to_retire::reach(address)
+    else {
         // Nothing took the connection, or a process of another account did, which is no service of this command.
         return Answered::Nothing;
     };
     let _timeout = stream.set_read_timeout(Some(HAND_OVER_GREETING_WAIT));
-    let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> = std::io::BufReader::new(stream);
+    let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> =
+        std::io::BufReader::new(stream);
     return match crate::service_client_listen_and_ask_to_retire::listen(&mut reader) {
         crate::service_client_listen_and_ask_to_retire::Heard::Message(_) => Answered::Greeted,
         crate::service_client_listen_and_ask_to_retire::Heard::Silent => Answered::SaidNothing,
@@ -484,7 +577,9 @@ fn any_service_greets(runtime_dir: &Path) -> bool {
     //       `listening_names_of` reads only the names whose account and place are this runtime directory's, so a service of
     //       another account, or of another runtime directory, is never counted. A path-form instance is the socket file
     //       asked above and is not in that list.
-    for name in crate::service_address_of_a_worktree::listening_names_of(runtime_dir, Path::new("/proc")) {
+    for name in
+        crate::service_address_of_a_worktree::listening_names_of(runtime_dir, Path::new("/proc"))
+    {
         if asking(&Bind::Abstract(name)) == Answered::Greeted {
             return true;
         }
@@ -508,8 +603,15 @@ fn any_service_greets(runtime_dir: &Path) -> bool {
 /// ```ts
 /// serviceStatus(runtimeDir, gitDir)
 /// ```
-pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
-    let what: &str = if git_dir.is_some() { "The commit service of this worktree" } else { "A commit service" };
+pub fn service_status(
+    runtime_dir: Option<&Path>,
+    git_dir: Option<&Path>,
+) -> StatusReport {
+    let what: &str = if git_dir.is_some() {
+        "The commit service of this worktree"
+    } else {
+        "A commit service"
+    };
     let instance: Option<String> = match (runtime_dir, git_dir) {
         (Some(_runtime), Some(git)) => match try_instance_of(git) {
             Ok(found) => Some(found),
@@ -542,7 +644,11 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
         None => String::new(),
     };
     return match answered {
-        Answered::Greeted => StatusReport { code: 0, stdout: format!("{what} is running and answers.{unit}\n"), stderr: String::new() },
+        Answered::Greeted => StatusReport {
+            code: 0,
+            stdout: format!("{what} is running and answers.{unit}\n"),
+            stderr: String::new(),
+        },
         Answered::SaidNothing => StatusReport {
             code: 1,
             stdout: String::new(),

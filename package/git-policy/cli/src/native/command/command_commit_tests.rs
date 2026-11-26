@@ -21,8 +21,18 @@
 
 /// The parser under test,
 ///  the tokenizer refusal types and the shared argument builders.
-use super::{COMMIT_ESCAPE_HATCH, CommitRegion, FixupKind, parse_commit_region};
-use crate::command_options::{OptionError, OptionErrorKind, OptionValue, WrapperOccurrence};
+use super::{
+    COMMIT_ESCAPE_HATCH,
+    CommitRegion,
+    FixupKind,
+    parse_commit_region,
+};
+use crate::command_options::{
+    OptionError,
+    OptionErrorKind,
+    OptionValue,
+    WrapperOccurrence,
+};
 use crate::command_options_query::value_bytes;
 use crate::command_test_support::os_arguments;
 use std::ffi::OsString;
@@ -112,7 +122,10 @@ fn extracts_pathspecs_without_wrapper_flags_or_option_values() {
     assert_eq!(parsed.pathspecs, vec![5, 7]);
     assert_eq!(
         parsed.wrapper.other,
-        vec![WrapperOccurrence { flag: 0, token: 0 }]
+        vec![WrapperOccurrence {
+            flag: 0,
+            token: 0
+        }]
     );
     assert!(parsed.wrapper.escape.is_empty());
     // An unlisted wrapper spelling is an option Git does not know.
@@ -225,7 +238,9 @@ fn reports_the_pathspec_file_value() {
     let first: CommitRegion = parse_commit_region(separated.as_slice(), &[]).expect("valid");
     assert_eq!(
         first.pathspec_from_file,
-        Some(OptionValue::Detached { token: 1 })
+        Some(OptionValue::Detached {
+            token: 1
+        })
     );
     assert_eq!(first.pathspecs, vec![2]);
     let joined: Vec<OsString> = os_arguments(&["--pathspec-from-file=a", "--pathspec-from-file=-"]);
@@ -313,7 +328,10 @@ fn refuses_regions_git_refuses() {
     ] {
         assert_eq!(
             refusal(values.as_slice()),
-            OptionError { kind, token },
+            OptionError {
+                kind,
+                token
+            },
             "{values:?}"
         );
     }

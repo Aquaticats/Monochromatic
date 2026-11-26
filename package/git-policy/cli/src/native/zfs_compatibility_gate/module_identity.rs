@@ -31,7 +31,10 @@
 //! ```
 
 use super::gate_paths::GatePaths;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityRefusal as Refusal, CompatibilityStep as Step};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    CompatibilityRefusal as Refusal,
+    CompatibilityStep as Step,
+};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -131,11 +134,16 @@ impl ModuleIdentity {
     /// so the file facts do not stand in there,
     /// which is the weaker reload
     ///  check `doctor` reports.
-    pub fn same_as(&self, other: &Self) -> bool {
+    pub fn same_as(
+        &self,
+        other: &Self,
+    ) -> bool {
         if !self.carries_any() && !other.carries_any() {
             return true;
         }
-        return self.same_values_as(other) && self.base == other.base && self.module == other.module;
+        return self.same_values_as(other)
+            && self.base == other.base
+            && self.module == other.module;
     }
 
     /// Whether the module that answered now is the one a remembered verdict
@@ -147,13 +155,19 @@ impl ModuleIdentity {
     ///  size and modification time,
     /// whichever values the module carries,
     ///  so a replacement that keeps the values is still noticed.
-    pub fn same_module_as(&self, other: &Self) -> bool {
+    pub fn same_module_as(
+        &self,
+        other: &Self,
+    ) -> bool {
         let values_hold: bool = !self.carries_any() || self.same_values_as(other);
         return values_hold && self.base == other.base && self.module == other.module;
     }
 
     /// Whether the three identity values this read holds are the other's.
-    fn same_values_as(&self, other: &Self) -> bool {
+    fn same_values_as(
+        &self,
+        other: &Self,
+    ) -> bool {
         return self.version == other.version
             && self.srcversion == other.srcversion
             && self.build_id == other.build_id;
@@ -210,6 +224,8 @@ fn read_bytes(path: &Path) -> Option<Vec<u8>> {
     use std::io::Read;
     let file = std::fs::File::open(path).ok()?;
     let mut bytes: Vec<u8> = Vec::<u8>::new();
-    file.take(IDENTITY_BOUND as u64).read_to_end(&mut bytes).ok()?;
+    file.take(IDENTITY_BOUND as u64)
+        .read_to_end(&mut bytes)
+        .ok()?;
     return Some(bytes);
 }

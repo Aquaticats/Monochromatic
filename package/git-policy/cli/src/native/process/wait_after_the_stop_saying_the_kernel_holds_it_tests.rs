@@ -17,17 +17,28 @@
 
 use super::*;
 use crate::child_awaited_through_a_pidfd::adopt;
-use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::{Ceilings, WhatTheCeilingIsTold, wait_until_it_exits_the_stop_or_the_ceiling};
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::{
+    Ceilings,
+    WhatTheCeilingIsTold,
+    wait_until_it_exits_the_stop_or_the_ceiling,
+};
 use crate::forwarding::ChildOutcome;
 use crate::lazy_runtime::run_on_runtime;
-use crate::native_commit_waiting_notice::{NativeCommitNotice, NoticeStart, refuse_the_next_notice_thread};
+use crate::native_commit_waiting_notice::{
+    NativeCommitNotice,
+    NoticeStart,
+    refuse_the_next_notice_thread,
+};
 use crate::scratch_step_look_below::the_controls_window as the_look_controls;
 use crate::test_support::SharedSink;
 use crate::wait_progress::Cadence;
 use std::ffi::OsString;
 use std::io::Write;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::time::Instant;
 
 /// The words of a commit command line,
@@ -40,7 +51,8 @@ fn words(text: &[&str]) -> Vec<OsString> {
 /// standing in for the one the commit runs in its scratch repository,
 /// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn sleeping_step() -> std::process::Child {
-    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120")).expect("a long-running child");
+    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120"))
+        .expect("a long-running child");
 }
 
 /// The number of a child.
@@ -67,7 +79,11 @@ const A_HOLD_BOUND: Duration = Duration::from_millis(1500);
 ///  A control reads the line while the wait still runs,
 ///  and a wait that is not going to say it must fail,
 ///  never block the run.
-fn until_the_text(read: &dyn Fn() -> String, bound: Duration, needle: &str) -> String {
+fn until_the_text(
+    read: &dyn Fn() -> String,
+    bound: Duration,
+    needle: &str,
+) -> String {
     let deadline: Instant = Instant::now() + bound;
     loop {
         let said: String = read();
@@ -84,16 +100,38 @@ fn until_the_text(read: &dyn Fn() -> String, bound: Duration, needle: &str) -> S
 /// Why:
 ///   Every control here runs the same wait with the same words,
 ///  and differs only in what the kernel answers and in how the reader behaves.
-fn says_while_the_wait_lasts(lines: Option<&SyncSender<String>>, step: std::process::Child, read: &dyn Fn() -> String) -> String {
+fn says_while_the_wait_lasts(
+    lines: Option<&SyncSender<String>>,
+    step: std::process::Child,
+    read: &dyn Fn() -> String,
+) -> String {
     let the_lines: &SyncSender<String> = lines.expect("the notice's writer thread runs");
     // The two bounds a control pays: the ceiling comes at once, and the bound a step the kernel holds is waited for
     //  is short, so a control never waits the five minutes the shipped bound allows.
-    let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(300), while_the_kernel_holds_it: Duration::from_millis(600) };
-    let (outcome, a_stop): (ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) =
-        run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold { stall: None, lines: Some(the_lines) }))
-            .expect("the runtime")
-            .expect("the wait answers");
-    assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the ceiling ended the step the wait owns");
+    let ceilings: Ceilings = Ceilings {
+        usually: Duration::from_millis(300),
+        while_the_kernel_holds_it: Duration::from_millis(600),
+    };
+    let (outcome, a_stop): (
+        ChildOutcome,
+        Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>,
+    ) = run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(
+        adopt(step),
+        None,
+        ceilings,
+        "a step",
+        WhatTheCeilingIsTold {
+            stall: None,
+            lines: Some(the_lines),
+        },
+    ))
+    .expect("the runtime")
+    .expect("the wait answers");
+    assert_eq!(
+        outcome,
+        ChildOutcome::Signaled(libc::SIGKILL),
+        "the ceiling ended the step the wait owns"
+    );
     assert!(a_stop.is_some(), "the ceiling's stop is recorded");
     return until_the_text(read, A_LINE_BOUND, "has not released");
 }
@@ -115,12 +153,18 @@ struct AReaderThatStops {
 }
 
 impl Write for AReaderThatStops {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.entered.store(true, Ordering::SeqCst);
         while !self.released.load(Ordering::SeqCst) {
             std::thread::sleep(Duration::from_millis(5));
         }
-        self.written.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+        self.written
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -149,7 +193,10 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
     let _look_window = the_look_controls::take_the_window();
     let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(50),
+        interval: Duration::from_millis(200),
+    };
     refuse_the_next_notice_thread(1);
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
@@ -166,14 +213,19 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| {
+        return sink.text();
+    });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
         said.contains(format!("(process {number})").as_str()),
         "the command named no process it says the kernel has not released, so the person cannot tell what the wait is: {said:?}"
     );
-    assert!(said.contains("has not released"), "the command said nothing of the kernel holding the step: {said:?}");
+    assert!(
+        said.contains("has not released"),
+        "the command said nothing of the kernel holding the step: {said:?}"
+    );
 }
 
 /// What:
@@ -197,7 +249,10 @@ fn the_line_is_said_once_however_long_the_wait_lasts() {
     let _look_window = the_look_controls::take_the_window();
     let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(50),
+        interval: Duration::from_millis(200),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -212,11 +267,16 @@ fn the_line_is_said_once_however_long_the_wait_lasts() {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| {
+        return sink.text();
+    });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     let times: usize = said.matches("has not released").count();
-    assert_eq!(times, 1, "a wait that outlasted several notice intervals said the kernel holds the step {times} time(s): {said:?}");
+    assert_eq!(
+        times, 1,
+        "a wait that outlasted several notice intervals said the kernel holds the step {times} time(s): {said:?}"
+    );
 }
 
 /// What:
@@ -239,7 +299,10 @@ fn a_look_that_could_not_be_made_is_made_again() {
     let _look_window = the_look_controls::take_the_window();
     let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(50),
+        interval: Duration::from_millis(200),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -256,7 +319,9 @@ fn a_look_that_could_not_be_made_is_made_again() {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| {
+        return sink.text();
+    });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
@@ -287,9 +352,16 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
     let entered: Arc<AtomicBool> = Arc::default();
     let released: Arc<AtomicBool> = Arc::default();
     let written: Arc<std::sync::Mutex<Vec<u8>>> = Arc::default();
-    let reader: AReaderThatStops = AReaderThatStops { entered: entered.clone(), released: released.clone(), written: written.clone() };
+    let reader: AReaderThatStops = AReaderThatStops {
+        entered: entered.clone(),
+        released: released.clone(),
+        written: written.clone(),
+    };
     // A line every tenth of a second, so the queue behind the stopped reader is full before the ceiling comes.
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(100),
+        interval: Duration::from_millis(100),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -301,7 +373,10 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
     while !entered.load(Ordering::SeqCst) && Instant::now() < writing {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(entered.load(Ordering::SeqCst), "the notice never wrote a line, so no reader ever stopped");
+    assert!(
+        entered.load(Ordering::SeqCst),
+        "the notice never wrote a line, so no reader ever stopped"
+    );
     // Two more intervals: the writer holds the first line, and the line behind it fills the one queue place.
     std::thread::sleep(Duration::from_millis(250));
     let step: std::process::Child = sleeping_step();
@@ -319,7 +394,13 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
     let read = {
         let written_by_the_reader: Arc<std::sync::Mutex<Vec<u8>>> = written.clone();
         move || -> String {
-            return String::from_utf8_lossy(written_by_the_reader.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_slice()).into_owned();
+            return String::from_utf8_lossy(
+                written_by_the_reader
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_slice(),
+            )
+            .into_owned();
         }
     };
     // Far longer than the wait lasts, so a line that waited for the next interval never arrives in it.
@@ -351,7 +432,10 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
     let _look_window = the_look_controls::take_the_window();
     let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(200) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(50),
+        interval: Duration::from_millis(200),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -363,13 +447,22 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
     //  a control marks a process the look found and never adds one
     //  (`scratch_step_look_below_control_window.rs`).
     let mut command: std::process::Command = std::process::Command::new("sh");
-    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(std::process::Stdio::piped());
-    let mut step: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    command
+        .arg("-c")
+        .arg("sleep 600 & echo $!; wait")
+        .stdout(std::process::Stdio::piped());
+    let mut step: std::process::Child =
+        crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
     let helper_number: i32 = {
-        use std::io::{BufRead, BufReader};
+        use std::io::{
+            BufRead,
+            BufReader,
+        };
         let printed = step.stdout.take().expect("the helper's number");
         let mut line: String = String::new();
-        BufReader::new(printed).read_line(&mut line).expect("a number");
+        BufReader::new(printed)
+            .read_line(&mut line)
+            .expect("a number");
         line.trim().parse::<i32>().expect("a process number")
     };
     let step_number: i32 = number_of(&step);
@@ -379,7 +472,9 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| {
+        return sink.text();
+    });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
@@ -387,7 +482,8 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
         "the line did not name the program the kernel is holding: {said:?}"
     );
     assert!(
-        !(said.contains(format!("(process {step_number})").as_str()) && said.contains("it is in uninterruptible sleep")),
+        !(said.contains(format!("(process {step_number})").as_str())
+            && said.contains("it is in uninterruptible sleep")),
         "the line said the step itself is in uninterruptible sleep, which the look never found: {said:?}"
     );
 }

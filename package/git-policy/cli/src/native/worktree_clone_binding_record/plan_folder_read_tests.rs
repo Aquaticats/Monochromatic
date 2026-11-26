@@ -10,11 +10,20 @@
 //!  because the removal's plan reader calls this one rather than repeating it.
 
 use crate::worktree_clone_binding_record::add_state_commands::PlanHeadWord;
-use crate::worktree_clone_binding_record::plan_folder_read::{APlanThatNamesTheClone, PLAN_HEADER, PlanUnreadable, is_canonical_guid_name, the_plan_naming_the_clone};
+use crate::worktree_clone_binding_record::plan_folder_read::{
+    APlanThatNamesTheClone,
+    PLAN_HEADER,
+    PlanUnreadable,
+    is_canonical_guid_name,
+    the_plan_naming_the_clone,
+};
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One fixture's common directory,
 /// with the plan folder made.
@@ -28,7 +37,10 @@ fn with_plans(name: &str) -> (PathBuf, PathBuf) {
 
 /// The common directory above one plan folder.
 fn common_of(folder: &Path) -> &Path {
-    return folder.parent().and_then(|path| return path.parent()).expect("the common directory is the grandparent");
+    return folder
+        .parent()
+        .and_then(|path| return path.parent())
+        .expect("the common directory is the grandparent");
 }
 
 /// The fixture's clone.
@@ -38,12 +50,21 @@ fn clone_guid() -> DatasetGuid {
 
 /// One planned attempt line,
 /// which is the line a plan's first write records for one snapshot.
-const A_PLANNED_ATTEMPT: &str = "tuple=snapshot 0 planned 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
+const A_PLANNED_ATTEMPT: &str =
+    "tuple=snapshot 0 planned 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
 
 /// One plan's bytes,
 /// its header and the four fields this reader asks.
-fn plan_text(clone_guid: &str, clone_dataset: &str, head: &str, attempts: &[&str]) -> String {
-    let mut text: String = format!("{PLAN_HEADER}\ncloneDataset={clone_dataset}\ncloneGuid={clone_guid}\nhead={head}\nattempts={}\n", attempts.len());
+fn plan_text(
+    clone_guid: &str,
+    clone_dataset: &str,
+    head: &str,
+    attempts: &[&str],
+) -> String {
+    let mut text: String = format!(
+        "{PLAN_HEADER}\ncloneDataset={clone_dataset}\ncloneGuid={clone_guid}\nhead={head}\nattempts={}\n",
+        attempts.len()
+    );
     for attempt in attempts {
         text.push_str(attempt);
         text.push('\n');
@@ -57,7 +78,14 @@ fn plan_text(clone_guid: &str, clone_dataset: &str, head: &str, attempts: &[&str
 fn a_missing_folder_holds_no_plan() {
     let root: PathBuf = crate::test_support::fixture("plans-missing");
     let common: PathBuf = root.join(".git");
-    assert_eq!(the_plan_naming_the_clone(common.as_path(), Some(clone_guid()), "tank/clones/add-cache-layer"), Ok(None));
+    assert_eq!(
+        the_plan_naming_the_clone(
+            common.as_path(),
+            Some(clone_guid()),
+            "tank/clones/add-cache-layer"
+        ),
+        Ok(None)
+    );
 }
 
 /// A plan for another clone is no stop,
@@ -66,18 +94,46 @@ fn a_missing_folder_holds_no_plan() {
 fn a_plan_naming_this_clone_by_its_field_is_found() {
     let (_root, folder) = with_plans("plans-naming");
     let other: PathBuf = folder.join("111");
-    std::fs::write(other.as_path(), plan_text("111", "tank/clones/other", "present", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the other plan is written");
-    assert_eq!(the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer"), Ok(None));
+    std::fs::write(
+        other.as_path(),
+        plan_text("111", "tank/clones/other", "present", &[A_PLANNED_ATTEMPT]).as_bytes(),
+    )
+    .expect("the other plan is written");
+    assert_eq!(
+        the_plan_naming_the_clone(
+            common_of(folder.as_path()),
+            Some(clone_guid()),
+            "tank/clones/add-cache-layer"
+        ),
+        Ok(None)
+    );
     let ours: PathBuf = folder.join("222");
-    std::fs::write(ours.as_path(), plan_text(clone_guid().file_name().as_str(), "tank/clones/add-cache-layer", "requested", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the plan is written");
-    let answer: Option<APlanThatNamesTheClone> =
-        the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer").expect("a readable plan naming the clone is found");
+    std::fs::write(
+        ours.as_path(),
+        plan_text(
+            clone_guid().file_name().as_str(),
+            "tank/clones/add-cache-layer",
+            "requested",
+            &[A_PLANNED_ATTEMPT],
+        )
+        .as_bytes(),
+    )
+    .expect("the plan is written");
+    let answer: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
+        common_of(folder.as_path()),
+        Some(clone_guid()),
+        "tank/clones/add-cache-layer",
+    )
+    .expect("a readable plan naming the clone is found");
     let found: APlanThatNamesTheClone = answer.expect("the plan names this clone");
     assert_eq!(found.plan, ours.as_path());
     assert_eq!(found.clone_dataset, "tank/clones/add-cache-layer");
     assert_eq!(found.clone_guid, clone_guid());
     assert_eq!(found.head, PlanHeadWord::Requested);
-    assert!(found.every_tuple_planned, "the fixture's one attempt line still says `planned`");
+    assert!(
+        found.every_tuple_planned,
+        "the fixture's one attempt line still says `planned`"
+    );
 }
 
 /// A plan filed under this clone's own GUID is this clone's whatever its fields
@@ -87,9 +143,23 @@ fn a_plan_naming_this_clone_by_its_field_is_found() {
 fn a_plan_under_this_clones_key_is_this_clones() {
     let (_root, folder) = with_plans("plans-key");
     let ours: PathBuf = folder.join(clone_guid().file_name());
-    std::fs::write(ours.as_path(), plan_text("999", "tank/clones/another-name", "gone", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the file under the key is written");
-    let answer: Option<APlanThatNamesTheClone> =
-        the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer").expect("the plan under the key is found");
+    std::fs::write(
+        ours.as_path(),
+        plan_text(
+            "999",
+            "tank/clones/another-name",
+            "gone",
+            &[A_PLANNED_ATTEMPT],
+        )
+        .as_bytes(),
+    )
+    .expect("the file under the key is written");
+    let answer: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
+        common_of(folder.as_path()),
+        Some(clone_guid()),
+        "tank/clones/add-cache-layer",
+    )
+    .expect("the plan under the key is found");
     let found: APlanThatNamesTheClone = answer.expect("the key names this clone");
     assert_eq!(found.plan, ours.as_path());
     assert_eq!(found.head, PlanHeadWord::Gone);
@@ -100,9 +170,27 @@ fn a_plan_under_this_clones_key_is_this_clones() {
 #[test]
 fn a_plan_naming_the_clones_dataset_is_found() {
     let (_root, folder) = with_plans("plans-dataset");
-    std::fs::write(folder.join("333"), plan_text("333", "tank/clones/add-cache-layer", "present", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the plan is written");
-    let found: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(common_of(folder.as_path()), None, "tank/clones/add-cache-layer").expect("the plan is found by its dataset");
-    assert_eq!(found.map(|plan| return plan.head), Some(PlanHeadWord::Present));
+    std::fs::write(
+        folder.join("333"),
+        plan_text(
+            "333",
+            "tank/clones/add-cache-layer",
+            "present",
+            &[A_PLANNED_ATTEMPT],
+        )
+        .as_bytes(),
+    )
+    .expect("the plan is written");
+    let found: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
+        common_of(folder.as_path()),
+        None,
+        "tank/clones/add-cache-layer",
+    )
+    .expect("the plan is found by its dataset");
+    assert_eq!(
+        found.map(|plan| return plan.head),
+        Some(PlanHeadWord::Present)
+    );
 }
 
 /// An attempt line whose outcome left `planned` is a plan that witnesses a
@@ -111,12 +199,30 @@ fn a_plan_naming_the_clones_dataset_is_found() {
 #[test]
 fn an_attempt_past_planned_is_not_a_plan_witnessing_nothing() {
     let (_root, folder) = with_plans("plans-destroyed");
-    let destroyed: &str = "tuple=snapshot 1 destroyed 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
-    std::fs::write(folder.join("555"), plan_text("555", "tank/clones/add-cache-layer", "present", &[A_PLANNED_ATTEMPT, destroyed]).as_bytes()).expect("the plan is written");
-    let found: APlanThatNamesTheClone = the_plan_naming_the_clone(common_of(folder.as_path()), None, "tank/clones/add-cache-layer")
-        .expect("the plan is found by its dataset")
-        .expect("the plan names this clone");
-    assert!(!found.every_tuple_planned, "a destroyed attempt witnesses a destroy");
+    let destroyed: &str =
+        "tuple=snapshot 1 destroyed 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
+    std::fs::write(
+        folder.join("555"),
+        plan_text(
+            "555",
+            "tank/clones/add-cache-layer",
+            "present",
+            &[A_PLANNED_ATTEMPT, destroyed],
+        )
+        .as_bytes(),
+    )
+    .expect("the plan is written");
+    let found: APlanThatNamesTheClone = the_plan_naming_the_clone(
+        common_of(folder.as_path()),
+        None,
+        "tank/clones/add-cache-layer",
+    )
+    .expect("the plan is found by its dataset")
+    .expect("the plan names this clone");
+    assert!(
+        !found.every_tuple_planned,
+        "a destroyed attempt witnesses a destroy"
+    );
 }
 
 /// A plan under a clone's GUID that cannot be read stops the add,
@@ -125,16 +231,34 @@ fn an_attempt_past_planned_is_not_a_plan_witnessing_nothing() {
 fn an_unreadable_plan_stops_the_add() {
     let (_root, folder) = with_plans("plans-unreadable");
     let unreadable: PathBuf = folder.join("444");
-    std::fs::write(unreadable.as_path(), plan_text("444", "tank/clones/other", "present", &[]).as_bytes()).expect("the plan is written");
-    let mut permissions: std::fs::Permissions = std::fs::metadata(unreadable.as_path()).expect("the plan's metadata reads").permissions();
+    std::fs::write(
+        unreadable.as_path(),
+        plan_text("444", "tank/clones/other", "present", &[]).as_bytes(),
+    )
+    .expect("the plan is written");
+    let mut permissions: std::fs::Permissions = std::fs::metadata(unreadable.as_path())
+        .expect("the plan's metadata reads")
+        .permissions();
     permissions.set_mode(0o000);
     std::fs::set_permissions(unreadable.as_path(), permissions).expect("the plan's mode is closed");
-    let stop: PlanUnreadable = the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer").expect_err("the unreadable plan stops the add");
+    let stop: PlanUnreadable = the_plan_naming_the_clone(
+        common_of(folder.as_path()),
+        Some(clone_guid()),
+        "tank/clones/add-cache-layer",
+    )
+    .expect_err("the unreadable plan stops the add");
     assert_eq!(stop.plan, unreadable.as_path());
-    assert!(stop.sentence.contains("could not be read"), "{}", stop.sentence);
-    let mut opened: std::fs::Permissions = std::fs::metadata(unreadable.as_path()).expect("the plan's metadata reads").permissions();
+    assert!(
+        stop.sentence.contains("could not be read"),
+        "{}",
+        stop.sentence
+    );
+    let mut opened: std::fs::Permissions = std::fs::metadata(unreadable.as_path())
+        .expect("the plan's metadata reads")
+        .permissions();
     opened.set_mode(0o600);
-    std::fs::set_permissions(unreadable.as_path(), opened).expect("the plan's mode is opened for removal");
+    std::fs::set_permissions(unreadable.as_path(), opened)
+        .expect("the plan's mode is opened for removal");
 }
 
 /// A file that is not filed under a clone's key is foreign and read by nobody,
@@ -142,9 +266,25 @@ fn an_unreadable_plan_stops_the_add() {
 #[test]
 fn a_foreign_entry_is_not_read() {
     let (_root, folder) = with_plans("plans-foreign");
-    std::fs::write(folder.join("foreign-entry"), plan_text(clone_guid().file_name().as_str(), "tank/clones/add-cache-layer", "present", &[]).as_bytes())
-        .expect("the foreign entry is written");
-    assert_eq!(the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer"), Ok(None));
+    std::fs::write(
+        folder.join("foreign-entry"),
+        plan_text(
+            clone_guid().file_name().as_str(),
+            "tank/clones/add-cache-layer",
+            "present",
+            &[],
+        )
+        .as_bytes(),
+    )
+    .expect("the foreign entry is written");
+    assert_eq!(
+        the_plan_naming_the_clone(
+            common_of(folder.as_path()),
+            Some(clone_guid()),
+            "tank/clones/add-cache-layer"
+        ),
+        Ok(None)
+    );
 }
 
 /// What:
@@ -157,10 +297,26 @@ fn a_foreign_entry_is_not_read() {
 fn a_plan_name_is_the_clones_canonical_guid_and_nothing_else() {
     assert!(is_canonical_guid_name("7828944690444299989"));
     assert!(is_canonical_guid_name("0"));
-    assert!(is_canonical_guid_name("78289446904442999890"), "a twenty-digit GUID is canonical");
-    for refused in ["", "007", "+1", "7a", ".7828944690444299989", "7828944690444299989\n"] {
-        assert!(!is_canonical_guid_name(refused), "`{refused}` is not a plan name");
+    assert!(
+        is_canonical_guid_name("78289446904442999890"),
+        "a twenty-digit GUID is canonical"
+    );
+    for refused in [
+        "",
+        "007",
+        "+1",
+        "7a",
+        ".7828944690444299989",
+        "7828944690444299989\n",
+    ] {
+        assert!(
+            !is_canonical_guid_name(refused),
+            "`{refused}` is not a plan name"
+        );
     }
     let twenty_one_digits: String = format!("1{}", "0".repeat(20));
-    assert!(!is_canonical_guid_name(twenty_one_digits.as_str()), "21 digits are past the bound");
+    assert!(
+        !is_canonical_guid_name(twenty_one_digits.as_str()),
+        "21 digits are past the bound"
+    );
 }

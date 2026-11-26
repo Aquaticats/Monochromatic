@@ -21,7 +21,10 @@
 /// The one lookup of a named variable in an injected environment.
 use crate::child_environment::environment_value;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes (siblings `&str`/`String` must be UTF-8).
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 ///  The name of the marker variable.
 ///       `&str` is a borrowed text baked into the program (owned sibling:
@@ -158,14 +161,21 @@ pub struct StartMarker {
 /// ```ts
 /// const value = [pid, identity, { replace: 'replace', child: 'child', query: 'query' }[mode], starts].join('\x1f');
 /// ```
-pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str, starts: u32) -> OsString {
+pub fn marker_value(
+    mode: StartMode,
+    own_pid: u32,
+    own_identity: &str,
+    starts: u32,
+) -> OsString {
     let word: &str = match mode {
         StartMode::Replace => REPLACE_WORD,
         StartMode::Child => CHILD_WORD,
         StartMode::Query => QUERY_WORD,
     };
     // `format!` builds owned text; `OsString::from` turns it into environment text.
-    return OsString::from(format!("{own_pid}{FIELD_SEPARATOR}{own_identity}{FIELD_SEPARATOR}{word}{FIELD_SEPARATOR}{starts}"));
+    return OsString::from(format!(
+        "{own_pid}{FIELD_SEPARATOR}{own_identity}{FIELD_SEPARATOR}{word}{FIELD_SEPARATOR}{starts}"
+    ));
 }
 
 /// What:
@@ -209,7 +219,12 @@ pub fn parse_marker(value: &OsStr) -> Option<StartMarker> {
         _ => return None,
     };
     // `Some(...)` is the "present" case of an `Option`.
-    return Some(StartMarker { starter_pid, starter_identity: identity.to_string(), mode, starts });
+    return Some(StartMarker {
+        starter_pid,
+        starter_identity: identity.to_string(),
+        mode,
+        starts,
+    });
 }
 
 /// What:

@@ -29,15 +29,34 @@ use crate::worktree_clone_binding_record::binding_inventory::InventoryRecord;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{explanations_of, refuse_the_unexplained_bookmarks};
-use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{ProvenRemoval, prove_the_lineage};
+use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{
+    explanations_of,
+    refuse_the_unexplained_bookmarks,
+};
+use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{
+    ProvenRemoval,
+    prove_the_lineage,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{EnteredRemoval, RemovalEntry, TheLiveClock, enter_the_removal};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    EnteredRemoval,
+    RemovalEntry,
+    TheLiveClock,
+    enter_the_removal,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{ACCOUNT, LivePoolFixture, PoolVariables, SLOT};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    ACCOUNT,
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_removal_deferred_origin_check::removal_history::RemovalHistory;
 use std::path::PathBuf;
 
@@ -86,15 +105,28 @@ struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
 fn the_removal_lineage_guest_arms() {
-    let Some(fixture) = LivePoolFixture::from_environment("the_removal_lineage_guest_arms", &variables()) else {
+    let Some(fixture) =
+        LivePoolFixture::from_environment("the_removal_lineage_guest_arms", &variables())
+    else {
         return;
     };
     println!("REMOVAL guest={} pool={}", fixture.guest, fixture.pool);
@@ -104,68 +136,225 @@ fn the_removal_lineage_guest_arms() {
     // Arm 1: the healthy removal enters, writes its plan and prints its one own snapshot.
     let recorded: RecordedBinding = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
+    let unmount: ADoneUnmount = ADoneUnmount {
+        clone_guid: recorded.clone_guid,
+    };
     let common: PathBuf = fixture.common();
-    let entry: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
-    let entered: EnteredRemoval = enter_the_removal(&entry, &reads, &unmount, &TheLiveClock).expect("the healthy removal enters");
-    assert_eq!(entered.plan.attempts.len(), 1, "the clone's one own snapshot is the plan's one tuple");
+    let entry: RemovalEntry<'_> = RemovalEntry {
+        common_dir: common.as_path(),
+        slot: SLOT,
+    };
+    let entered: EnteredRemoval = enter_the_removal(&entry, &reads, &unmount, &TheLiveClock)
+        .expect("the healthy removal enters");
+    assert_eq!(
+        entered.plan.attempts.len(),
+        1,
+        "the clone's one own snapshot is the plan's one tuple"
+    );
     assert_eq!(entered.plan.facts.clone_guid, recorded.clone_guid);
-    let read_back = read_the_plan(common.as_path(), recorded.clone_guid).expect("the plan reads back");
+    let read_back =
+        read_the_plan(common.as_path(), recorded.clone_guid).expect("the plan reads back");
     assert_eq!(read_back, entered.plan);
-    assert!(entered.lost.text().contains(&format!("{}@{OWN_SNAPSHOT}", fixture.clone())));
-    println!("REMOVAL healthy=entered snapshots={} bookmarks={}", entered.plan.attempts.len(), entered.lost.bookmarks.len());
+    assert!(
+        entered
+            .lost
+            .text()
+            .contains(&format!("{}@{OWN_SNAPSHOT}", fixture.clone()))
+    );
+    println!(
+        "REMOVAL healthy=entered snapshots={} bookmarks={}",
+        entered.plan.attempts.len(),
+        entered.lost.bookmarks.len()
+    );
 
     // Arm 2: promotion moves the checkout's older history under the clone, and the proof refuses.
     let before: Vec<String> = fixture.protected_guids();
     // The fixture makes three snapshots and one bookmark, and a bookmark shares its source snapshot's tuple:
     // the kind is what keeps the four objects four entries here.
-    assert_eq!(before.len(), 4, "the arm read the fixture's three snapshots and one bookmark: {before:?}");
+    assert_eq!(
+        before.len(),
+        4,
+        "the arm read the fixture's three snapshots and one bookmark: {before:?}"
+    );
     fixture.run("zfs", &["promote", fixture.clone().as_str()]);
     let origin_inventory: InventoryRecord = fixture.the_origin_inventory(&recorded);
-    let refused: RemovalStop = prove_the_lineage(&reads, &recorded, &origin_inventory, &RemovalHistory::NothingDestroyed).expect_err("a promoted clone's lineage is not the recorded one");
+    let refused: RemovalStop = prove_the_lineage(
+        &reads,
+        &recorded,
+        &origin_inventory,
+        &RemovalHistory::NothingDestroyed,
+    )
+    .expect_err("a promoted clone's lineage is not the recorded one");
     let after: Vec<String> = fixture.protected_guids();
-    assert_eq!(before, after, "promotion moved tuples between the datasets without losing one, and the refusal destroyed nothing");
-    println!("REMOVAL promoted=refused cause={:?} protected=survived", refusal_name(&refused));
+    assert_eq!(
+        before, after,
+        "promotion moved tuples between the datasets without losing one, and the refusal destroyed nothing"
+    );
+    println!(
+        "REMOVAL promoted=refused cause={:?} protected=survived",
+        refusal_name(&refused)
+    );
 
     // Reverse promotion restores the map, and the recorded tuple proves again.
     fixture.run("zfs", &["promote", fixture.checkout().as_str()]);
-    let proven: ProvenRemoval = prove_the_lineage(&reads, &recorded, &fixture.the_origin_inventory(&recorded), &RemovalHistory::NothingDestroyed).expect("the reverse promotion restores the recorded lineage");
-    assert_eq!(proven.own_snapshots.len(), 1, "the clone owns exactly its own snapshot again");
-    println!("REMOVAL reverse-promotion=proved origin={}", fixture.origin());
+    let proven: ProvenRemoval = prove_the_lineage(
+        &reads,
+        &recorded,
+        &fixture.the_origin_inventory(&recorded),
+        &RemovalHistory::NothingDestroyed,
+    )
+    .expect("the reverse promotion restores the recorded lineage");
+    assert_eq!(
+        proven.own_snapshots.len(),
+        1,
+        "the clone owns exactly its own snapshot again"
+    );
+    println!(
+        "REMOVAL reverse-promotion=proved origin={}",
+        fixture.origin()
+    );
 
     // Arm 3: a bookmark a live snapshot explains passes, and one whose snapshot went refuses.
-    fixture.run("zfs", &["bookmark", format!("{}@{OWN_SNAPSHOT}", fixture.clone()).as_str(), format!("{}#from-own", fixture.clone()).as_str()]);
-    let live: ProvenRemoval = prove_the_lineage(&reads, &recorded, &fixture.the_origin_inventory(&recorded), &RemovalHistory::NothingDestroyed).expect("a bookmark of an own snapshot keeps the lineage proved");
+    fixture.run(
+        "zfs",
+        &[
+            "bookmark",
+            format!("{}@{OWN_SNAPSHOT}", fixture.clone()).as_str(),
+            format!("{}#from-own", fixture.clone()).as_str(),
+        ],
+    );
+    let live: ProvenRemoval = prove_the_lineage(
+        &reads,
+        &recorded,
+        &fixture.the_origin_inventory(&recorded),
+        &RemovalHistory::NothingDestroyed,
+    )
+    .expect("a bookmark of an own snapshot keeps the lineage proved");
     let explanations = explanations_of(&live.inventory, None);
-    let refused_live = refuse_the_unexplained_bookmarks(&explanations, live.inventory.bookmarks().as_slice(), &fixture.the_origin_inventory(&recorded));
-    assert!(refused_live.is_empty(), "a bookmark its own live snapshot explains passes");
+    let refused_live = refuse_the_unexplained_bookmarks(
+        &explanations,
+        live.inventory.bookmarks().as_slice(),
+        &fixture.the_origin_inventory(&recorded),
+    );
+    assert!(
+        refused_live.is_empty(),
+        "a bookmark its own live snapshot explains passes"
+    );
     println!("REMOVAL bookmark-live=passed");
-    fixture.run("zfs", &["snapshot", format!("{}@gone", fixture.clone()).as_str()]);
-    fixture.run("zfs", &["bookmark", format!("{}@gone", fixture.clone()).as_str(), format!("{}#from-gone", fixture.clone()).as_str()]);
-    fixture.run("zfs", &["destroy", format!("{}@gone", fixture.clone()).as_str()]);
-    assert!(fixture.exists(format!("{}#from-gone", fixture.clone()).as_str()), "the kernel keeps a bookmark whose snapshot it destroyed");
-    let after_the_destroy: ProvenRemoval = prove_the_lineage(&reads, &recorded, &fixture.the_origin_inventory(&recorded), &RemovalHistory::NothingDestroyed).expect("the clone's own history still proves");
+    fixture.run(
+        "zfs",
+        &["snapshot", format!("{}@gone", fixture.clone()).as_str()],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "bookmark",
+            format!("{}@gone", fixture.clone()).as_str(),
+            format!("{}#from-gone", fixture.clone()).as_str(),
+        ],
+    );
+    fixture.run(
+        "zfs",
+        &["destroy", format!("{}@gone", fixture.clone()).as_str()],
+    );
+    assert!(
+        fixture.exists(format!("{}#from-gone", fixture.clone()).as_str()),
+        "the kernel keeps a bookmark whose snapshot it destroyed"
+    );
+    let after_the_destroy: ProvenRemoval = prove_the_lineage(
+        &reads,
+        &recorded,
+        &fixture.the_origin_inventory(&recorded),
+        &RemovalHistory::NothingDestroyed,
+    )
+    .expect("the clone's own history still proves");
     let stale = explanations_of(&after_the_destroy.inventory, None);
-    let refused_stale = refuse_the_unexplained_bookmarks(&stale, after_the_destroy.inventory.bookmarks().as_slice(), &fixture.the_origin_inventory(&recorded));
-    assert_eq!(refused_stale.len(), 1, "one bookmark's snapshot is gone and nothing explains it");
-    assert_eq!(refused_stale[0].name, format!("{}#from-gone", fixture.clone()));
-    println!("REMOVAL bookmark-stale=refused name={}", refused_stale[0].name);
+    let refused_stale = refuse_the_unexplained_bookmarks(
+        &stale,
+        after_the_destroy.inventory.bookmarks().as_slice(),
+        &fixture.the_origin_inventory(&recorded),
+    );
+    assert_eq!(
+        refused_stale.len(),
+        1,
+        "one bookmark's snapshot is gone and nothing explains it"
+    );
+    assert_eq!(
+        refused_stale[0].name,
+        format!("{}#from-gone", fixture.clone())
+    );
+    println!(
+        "REMOVAL bookmark-stale=refused name={}",
+        refused_stale[0].name
+    );
 
     // Arm 4: the item-12 grant set carries no lineage-changing grant, and a same-name replacement refuses.
-    fixture.run("zfs", &["allow", "-d", "-u", ACCOUNT, "mount,destroy,userprop", fixture.named("clones").as_str()]);
-    fixture.run("zfs", &["allow", "-u", ACCOUNT, "create,mount", fixture.named("clones").as_str()]);
-    fixture.run("zfs", &["allow", "-d", "-u", ACCOUNT, "clone", fixture.checkout().as_str()]);
+    fixture.run(
+        "zfs",
+        &[
+            "allow",
+            "-d",
+            "-u",
+            ACCOUNT,
+            "mount,destroy,userprop",
+            fixture.named("clones").as_str(),
+        ],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "allow",
+            "-u",
+            ACCOUNT,
+            "create,mount",
+            fixture.named("clones").as_str(),
+        ],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "allow",
+            "-d",
+            "-u",
+            ACCOUNT,
+            "clone",
+            fixture.checkout().as_str(),
+        ],
+    );
     let grants: String = fixture.ask("zfs", &["allow", fixture.named("clones").as_str()]);
     for forbidden in ["promote", "rename", "receive"] {
-        assert!(!grants.contains(forbidden), "the decided grant set carries no `{forbidden}`, and it reads: {grants}");
+        assert!(
+            !grants.contains(forbidden),
+            "the decided grant set carries no `{forbidden}`, and it reads: {grants}"
+        );
     }
     println!("REMOVAL grants=lineage-changing-absent");
-    fixture.run("zfs", &["destroy", format!("{}@{OWN_SNAPSHOT}", fixture.clone()).as_str()]);
+    fixture.run(
+        "zfs",
+        &[
+            "destroy",
+            format!("{}@{OWN_SNAPSHOT}", fixture.clone()).as_str(),
+        ],
+    );
     fixture.run("zfs", &["destroy", fixture.clone().as_str()]);
-    fixture.run("zfs", &["clone", fixture.origin().as_str(), fixture.clone().as_str()]);
-    match prove_the_lineage(&reads, &recorded, &fixture.the_origin_inventory(&recorded), &RemovalHistory::NothingDestroyed) {
-        Err(RemovalStop::IdentityDiffers { field, .. }) => {
-            assert_eq!(field, "cloneGuid", "a replacement clone answers another GUID");
+    fixture.run(
+        "zfs",
+        &["clone", fixture.origin().as_str(), fixture.clone().as_str()],
+    );
+    match prove_the_lineage(
+        &reads,
+        &recorded,
+        &fixture.the_origin_inventory(&recorded),
+        &RemovalHistory::NothingDestroyed,
+    ) {
+        Err(RemovalStop::IdentityDiffers {
+            field,
+            ..
+        }) => {
+            assert_eq!(
+                field, "cloneGuid",
+                "a replacement clone answers another GUID"
+            );
             println!("REMOVAL replacement=refused field={field}");
         }
         Err(other) => panic!("a replacement clone refuses on its GUID, not {other:?}"),
@@ -180,11 +369,21 @@ fn the_removal_lineage_guest_arms() {
 /// for the log line the recipe greps.
 fn refusal_name(stop: &RemovalStop) -> &'static str {
     return match stop {
-        RemovalStop::TransferredHistory { .. } => "transferred-history",
-        RemovalStop::OriginIsNotTheRecordedOne { .. } => "origin-is-not-the-recorded-one",
-        RemovalStop::IdentityDiffers { .. } => "identity-differs",
-        RemovalStop::OriginSideHit { .. } => "origin-side-hit",
-        RemovalStop::OriginCheckRefused { .. } => "origin-marked",
+        RemovalStop::TransferredHistory {
+            ..
+        } => "transferred-history",
+        RemovalStop::OriginIsNotTheRecordedOne {
+            ..
+        } => "origin-is-not-the-recorded-one",
+        RemovalStop::IdentityDiffers {
+            ..
+        } => "identity-differs",
+        RemovalStop::OriginSideHit {
+            ..
+        } => "origin-side-hit",
+        RemovalStop::OriginCheckRefused {
+            ..
+        } => "origin-marked",
         _ => "another-refusal",
     };
 }

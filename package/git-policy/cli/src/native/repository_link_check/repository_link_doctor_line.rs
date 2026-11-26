@@ -18,9 +18,18 @@
 //! const line = (await readIdentity(path)).found ? `repository link: ${(await check()).message}\n` : '';
 //! ```
 
-use crate::repository_link_check_walk::{DEFAULT_DEADLINE, check_repository_link_within};
-use crate::repository_link_identity::{IdentityRead, read_identity};
-use crate::repository_link_probe::{LinkProbe, RealLinkProbe};
+use crate::repository_link_check_walk::{
+    DEFAULT_DEADLINE,
+    check_repository_link_within,
+};
+use crate::repository_link_identity::{
+    IdentityRead,
+    read_identity,
+};
+use crate::repository_link_probe::{
+    LinkProbe,
+    RealLinkProbe,
+};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -35,14 +44,22 @@ use std::sync::Arc;
 /// ```ts
 /// doctorLinkLineWithProbe({ probe, home })
 /// ```
-pub fn doctor_link_line_with_probe(probe: Arc<dyn LinkProbe + Send + Sync>, home: Option<&Path>) -> String {
+pub fn doctor_link_line_with_probe(
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    home: Option<&Path>,
+) -> String {
     let Some(directory) = home else {
         return String::new();
     };
     return match read_identity(directory) {
         IdentityRead::Absent => String::new(),
-        IdentityRead::Unreadable(why) => format!("repository link: the identity file cannot be used ({why}), so the link to the 860 is not checked\n"),
-        IdentityRead::Found(identity) => format!("repository link: {}\n", check_repository_link_within(&identity, probe, DEFAULT_DEADLINE).message),
+        IdentityRead::Unreadable(why) => format!(
+            "repository link: the identity file cannot be used ({why}), so the link to the 860 is not checked\n"
+        ),
+        IdentityRead::Found(identity) => format!(
+            "repository link: {}\n",
+            check_repository_link_within(&identity, probe, DEFAULT_DEADLINE).message
+        ),
     };
 }
 

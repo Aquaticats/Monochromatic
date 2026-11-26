@@ -36,9 +36,16 @@
 /// ```ts
 /// import { PolicyIncomplete, displayPath } from './dependent_version_content.ts';
 /// ```
-use crate::dependent_version_content::{PolicyIncomplete, display_path};
+use crate::dependent_version_content::{
+    PolicyIncomplete,
+    display_path,
+};
 /// The crate's JSONC parser and its value model.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncValue,
+    parse_jsonc,
+};
 /// The set that keeps one field's names unique in source order.
 use std::collections::HashSet;
 
@@ -193,7 +200,10 @@ fn jsonc_extension(text: &str) -> Option<&'static str> {
 /// ```ts
 /// const manifestSyntax = (path: Uint8Array, detail: string) => ({ kind: 'ManifestSyntax', path, detail });
 /// ```
-fn manifest_syntax(path: &[u8], detail: String) -> PolicyIncomplete {
+fn manifest_syntax(
+    path: &[u8],
+    detail: String,
+) -> PolicyIncomplete {
     return PolicyIncomplete::ManifestSyntax {
         path: path.to_vec(),
         detail,
@@ -217,7 +227,10 @@ fn manifest_syntax(path: &[u8], detail: String) -> PolicyIncomplete {
 /// ```ts
 /// const value: unknown = JSON.parse(text);
 /// ```
-fn parse_json(path: &[u8], text: &str) -> Result<JsoncValue, PolicyIncomplete> {
+fn parse_json(
+    path: &[u8],
+    text: &str,
+) -> Result<JsoncValue, PolicyIncomplete> {
     // `if let Some(found) = ...` runs only when an extension was found.
     if let Some(extension) = jsonc_extension(text) {
         return Err(manifest_syntax(path, format!("JSON allows no {extension}")));
@@ -247,7 +260,10 @@ fn parse_json(path: &[u8], text: &str) -> Result<JsoncValue, PolicyIncomplete> {
 /// ```ts
 /// const value = parsed[key];
 /// ```
-fn member<'value>(entries: &'value [JsoncEntry], key: &str) -> Option<&'value JsoncValue> {
+fn member<'value>(
+    entries: &'value [JsoncEntry],
+    key: &str,
+) -> Option<&'value JsoncValue> {
     for entry in entries.iter().rev() {
         if entry.key.units.iter().copied().eq(key.encode_utf16()) {
             return Some(&entry.value);
@@ -276,7 +292,11 @@ fn member<'value>(entries: &'value [JsoncEntry], key: &str) -> Option<&'value Js
 /// ```ts
 /// return isJsonObject(manifest[field]) ? Object.keys(manifest[field]) : [];
 /// ```
-fn dependency_names(entries: &[JsoncEntry], field: &str, names: &mut Vec<String>) {
+fn dependency_names(
+    entries: &[JsoncEntry],
+    field: &str,
+    names: &mut Vec<String>,
+) {
     let fields: &[JsoncEntry] = member(entries, field)
         .and_then(JsoncValue::entries)
         .unwrap_or(&[]);
@@ -305,7 +325,10 @@ fn dependency_names(entries: &[JsoncEntry], field: &str, names: &mut Vec<String>
 /// ```ts
 /// throw new ManifestShapeError(`${path} ${problem}`);
 /// ```
-pub fn shape(path: &[u8], problem: &str) -> PolicyIncomplete {
+pub fn shape(
+    path: &[u8],
+    problem: &str,
+) -> PolicyIncomplete {
     return PolicyIncomplete::ManifestShape {
         path: path.to_vec(),
         problem: format!("{} {problem}", display_path(path)),
@@ -330,7 +353,10 @@ pub fn shape(path: &[u8], problem: &str) -> PolicyIncomplete {
 /// ```ts
 /// function readManifestDependencyFacts({ path, text }): ManifestDependencyFacts;
 /// ```
-pub fn read_manifest_facts(path: &[u8], text: &str) -> Result<ManifestFacts, PolicyIncomplete> {
+pub fn read_manifest_facts(
+    path: &[u8],
+    text: &str,
+) -> Result<ManifestFacts, PolicyIncomplete> {
     let value: JsoncValue = parse_json(path, text)?;
     let Some(entries) = value.entries() else {
         return Err(shape(path, "is not a JSON object"));

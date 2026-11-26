@@ -180,83 +180,225 @@ mod the_forced_act_guest_fixture;
 #[path = "the_forced_act_guest_arms_tests.rs"]
 mod the_forced_act_guest_arms;
 
-/// Every word this arm writes or answers.
-pub use forced_removal_words::{
-    CALLER_PROPERTY, DESTINATION_DIRECTORY_PREFIX, FAILED_STEP_MAXIMUM_BYTES, FORCE_PROPERTY, PROGRESS_FILE_SUFFIX,
-    RefusalWord, SCAN_FILE_SUFFIX, Stage,
+/// The signal stage.
+pub use blocker_end::{
+    ASK,
+    Blocker,
+    EndResult,
+    Endability,
+    KILL,
+    MOST_BLOCKERS_ONE_ACT_HOLDS,
+    SignalStage,
+    end_the_blockers,
+    endability_of,
+    endable_from,
 };
-/// The waits and the heartbeat.
-pub use forced_arm_numbers::{
-    GIVE_UP_HEARTBEATS, HEARTBEAT_PERIOD, RefusedClock, STOP_WAIT, TERMINATION_WAIT, TimeoutWindow, the_stop_wait,
-};
-/// One process record and what a read failure proves.
-pub use process_session_record::{
-    CommandWord, GROUP_FIELD, PARENT_FIELD, ProcessRecord, ReadOutcome, SESSION_FIELD, STARTED_FIELD, STAT_FIELDS,
-    STATE_FIELD, cause_of, parse_process_record, read_process_record,
+/// The walk to the first process and the protected set.
+pub use caller_chain_walk::{
+    CallerChain,
+    ChainRefusal,
+    MOST_ANCESTORS_ASKED_FOR,
+    SparedBy,
+    walk_the_caller_chain,
 };
 /// The caller property and the force property.
 pub use caller_property::{
-    BOOT_ID_BYTES, CallerIdentity, CallerPropertyRefusal, ForceWordRefusal, MAXIMUM_CALLER_PROPERTY_BYTES, MAXIMUM_FORCE_PROPERTY_BYTES,
-    caller_property_value, force_property_value, is_boot_id, parse_caller_property, parse_force_property,
-};
-/// The walk to the first process and the protected set.
-pub use caller_chain_walk::{CallerChain, ChainRefusal, MOST_ANCESTORS_ASKED_FOR, SparedBy, walk_the_caller_chain};
-/// The refusal of a command the service manager started.
-pub use started_by_the_service_manager::{
-    MANAGER_COMMAND, ManagerKind, ManagerPlace, ManagerReads, ManagerRefusal, THE_FIRST_PROCESS, command_word, manager_of,
-    started_by_the_service_manager, the_refusal_text, unified_cgroup_path,
-};
-/// How root's finding reaches the wrapper.
-pub use holder_scan_file::{ScanFile, ScanFileRefusal};
-/// The mounts an unmount reaches.
-pub use receiver_closure::{
-    MountRow, NamespaceTable, Receiver, ReceiverSet, parent_of, plan_the_receivers,
-};
-/// What this arm may do to each kind of holder.
-pub use holder_endings::{
-    Ending, HolderKind, IN_PLACE_SHOWN_BY, KindEvidence, LOCKED_NOT_BUILT, MOVE_SHOWN_BY, MissingKind,
-    PATH_HOLDER_SHOWN_BY, TASKLESS_NOT_BUILT, THE_KINDS, ending_of, ends_blockers,
-};
-/// The reads before the first act, and their refusals.
-pub use holder_preflight::{ForcedPlan, ForcedRefusal, PreflightReads, Route, plan_the_forced_removal};
-/// The user namespace that owns a mount namespace.
-pub use namespace_owner::{NamespaceOwner, OUR_USER_NAMESPACE, OwnerRefusal, identity_of, open_a_namespace, our_user_namespace, owner_of, read_the_owner};
-/// The add's recorded handle and the calls that take and reopen it.
-pub use recorded_handle::{
-    HANDLE_RECORD_VERSION, HandleRefusal, MAXIMUM_HANDLE_BYTES, RecordedHandle, folder_facts, mount_id_of, name_the_handle,
-    open_from_the_handle,
+    BOOT_ID_BYTES,
+    CallerIdentity,
+    CallerPropertyRefusal,
+    ForceWordRefusal,
+    MAXIMUM_CALLER_PROPERTY_BYTES,
+    MAXIMUM_FORCE_PROPERTY_BYTES,
+    caller_property_value,
+    force_property_value,
+    is_boot_id,
+    parse_caller_property,
+    parse_force_property,
 };
 /// The descriptor-relative calls the act and the progress file make.
 pub use descriptor_calls::{
-    create_at, make_directory_at, open_directory, open_directory_below, open_file_below, remove_directory_at, remove_entry_at,
-    rename_at, sync_directory,
+    create_at,
+    make_directory_at,
+    open_directory,
+    open_directory_below,
+    open_file_below,
+    remove_directory_at,
+    remove_entry_at,
+    rename_at,
+    sync_directory,
+};
+/// The waits and the heartbeat.
+pub use forced_arm_numbers::{
+    GIVE_UP_HEARTBEATS,
+    HEARTBEAT_PERIOD,
+    RefusedClock,
+    STOP_WAIT,
+    TERMINATION_WAIT,
+    TimeoutWindow,
+    the_stop_wait,
+};
+/// The receipt the act files for its own answer.
+pub use forced_receipt::{
+    FilingRefusal,
+    TheActsAnswer,
+    file_the_receipt,
+    receipt_of,
+    refusal_answer,
+};
+/// Every word this arm writes or answers.
+pub use forced_removal_words::{
+    CALLER_PROPERTY,
+    DESTINATION_DIRECTORY_PREFIX,
+    FAILED_STEP_MAXIMUM_BYTES,
+    FORCE_PROPERTY,
+    PROGRESS_FILE_SUFFIX,
+    RefusalWord,
+    SCAN_FILE_SUFFIX,
+    Stage,
+};
+/// What this arm may do to each kind of holder.
+pub use holder_endings::{
+    Ending,
+    HolderKind,
+    IN_PLACE_SHOWN_BY,
+    KindEvidence,
+    LOCKED_NOT_BUILT,
+    MOVE_SHOWN_BY,
+    MissingKind,
+    PATH_HOLDER_SHOWN_BY,
+    TASKLESS_NOT_BUILT,
+    THE_KINDS,
+    ending_of,
+    ends_blockers,
+};
+/// The reads before the first act, and their refusals.
+pub use holder_preflight::{
+    ForcedPlan,
+    ForcedRefusal,
+    PreflightReads,
+    Route,
+    plan_the_forced_removal,
+};
+/// How root's finding reaches the wrapper.
+pub use holder_scan_file::{
+    ScanFile,
+    ScanFileRefusal,
 };
 /// The child that enters one holder namespace and runs one piece of the act.
-pub use mount_namespace_child::{ActOutcome, ActReport, ChildRefusal, MAXIMUM_HEADER_BYTES, run_in};
-/// The act on one holder namespace's copy.
-pub use the_copy_taken_out_of_a_namespace::{
-    CopyRefusal, DESTINATION_MODE, NamespaceCopy, Ready, WayOut, make_the_way_ready, row_of, rows_of, take_the_copy_out,
-    topmost_at,
+pub use mount_namespace_child::{
+    ActOutcome,
+    ActReport,
+    ChildRefusal,
+    MAXIMUM_HEADER_BYTES,
+    run_in,
+};
+/// The user namespace that owns a mount namespace.
+pub use namespace_owner::{
+    NamespaceOwner,
+    OUR_USER_NAMESPACE,
+    OwnerRefusal,
+    identity_of,
+    open_a_namespace,
+    our_user_namespace,
+    owner_of,
+    read_the_owner,
+};
+/// One process record and what a read failure proves.
+pub use process_session_record::{
+    CommandWord,
+    GROUP_FIELD,
+    PARENT_FIELD,
+    ProcessRecord,
+    ReadOutcome,
+    SESSION_FIELD,
+    STARTED_FIELD,
+    STAT_FIELDS,
+    STATE_FIELD,
+    cause_of,
+    parse_process_record,
+    read_process_record,
+};
+/// The mounts an unmount reaches.
+pub use receiver_closure::{
+    MountRow,
+    NamespaceTable,
+    Receiver,
+    ReceiverSet,
+    parent_of,
+    plan_the_receivers,
+};
+/// The add's recorded handle and the calls that take and reopen it.
+pub use recorded_handle::{
+    HANDLE_RECORD_VERSION,
+    HandleRefusal,
+    MAXIMUM_HANDLE_BYTES,
+    RecordedHandle,
+    folder_facts,
+    mount_id_of,
+    name_the_handle,
+    open_from_the_handle,
 };
 /// The progress file the handler advances while the act lives.
 pub use removal_progress_file::{
-    MAXIMUM_PROGRESS_BYTES, PROGRESS_KIND, PROGRESS_VERSION, ProgressFile, ProgressReading, ProgressRefusal, ProgressWriting,
-    parse_progress, progress_text,
+    MAXIMUM_PROGRESS_BYTES,
+    PROGRESS_KIND,
+    PROGRESS_VERSION,
+    ProgressFile,
+    ProgressReading,
+    ProgressRefusal,
+    ProgressWriting,
+    parse_progress,
+    progress_text,
 };
-/// The receipt the act files for its own answer.
-pub use forced_receipt::{FilingRefusal, TheActsAnswer, file_the_receipt, receipt_of, refusal_answer};
+/// The refusal of a command the service manager started.
+pub use started_by_the_service_manager::{
+    MANAGER_COMMAND,
+    ManagerKind,
+    ManagerPlace,
+    ManagerReads,
+    ManagerRefusal,
+    THE_FIRST_PROCESS,
+    command_word,
+    manager_of,
+    started_by_the_service_manager,
+    the_refusal_text,
+    unified_cgroup_path,
+};
 /// The handler's journal lines.
 pub use the_acts_journal_lines::{
-    ABlockersEnd, AClosingLine, ADestinationDirectory, AHolderNotEnded, APropagationChange, ARefusedNamespace, AStoppedUnit,
-    AStructuralRefusal, LINE_PREFIX, TheActsJournal, as_a_block, dataset_word, quoted,
+    ABlockersEnd,
+    AClosingLine,
+    ADestinationDirectory,
+    AHolderNotEnded,
+    APropagationChange,
+    ARefusedNamespace,
+    AStoppedUnit,
+    AStructuralRefusal,
+    LINE_PREFIX,
+    TheActsJournal,
+    as_a_block,
+    dataset_word,
+    quoted,
+};
+/// The act on one holder namespace's copy.
+pub use the_copy_taken_out_of_a_namespace::{
+    CopyRefusal,
+    DESTINATION_MODE,
+    NamespaceCopy,
+    Ready,
+    WayOut,
+    make_the_way_ready,
+    row_of,
+    rows_of,
+    take_the_copy_out,
+    topmost_at,
 };
 /// The sentences a forced removal prints.
 pub use the_refusal_sentences::{
-    TheHolder, WhyNotStopped, a_holder_that_would_not_end, a_locked_holder, caller_holds_in_its_working_directory,
+    TheHolder,
+    WhyNotStopped,
+    a_holder_that_would_not_end,
+    a_locked_holder,
+    caller_holds_in_its_working_directory,
     the_callers_namespace_holds,
-};
-/// The signal stage.
-pub use blocker_end::{
-    ASK, Blocker, EndResult, Endability, KILL, MOST_BLOCKERS_ONE_ACT_HOLDS, SignalStage, end_the_blockers,
-    endability_of, endable_from,
 };

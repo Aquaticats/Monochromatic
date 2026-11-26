@@ -5,7 +5,12 @@
 //! of a real `git version` run through a fixture executable that prints a chosen release.
 
 use super::*;
-use crate::test_support::{executable, fixture, git_context, remove};
+use crate::test_support::{
+    executable,
+    fixture,
+    git_context,
+    remove,
+};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -15,11 +20,23 @@ use std::sync::OnceLock;
 #[test]
 fn release_numbers_are_read_from_plain_and_suffixed_output() {
     assert_eq!(parse_git_version(b"git version 2.56.0\n"), Some((2, 56, 0)));
-    assert_eq!(parse_git_version(b"git version 2.56.0.windows.1\n"), Some((2, 56, 0)));
-    assert_eq!(parse_git_version(b"git version 2.56.0-rc1\n"), Some((2, 56, 0)));
-    assert_eq!(parse_git_version(b"git version 2.56.0a\n"), Some((2, 56, 0)));
+    assert_eq!(
+        parse_git_version(b"git version 2.56.0.windows.1\n"),
+        Some((2, 56, 0))
+    );
+    assert_eq!(
+        parse_git_version(b"git version 2.56.0-rc1\n"),
+        Some((2, 56, 0))
+    );
+    assert_eq!(
+        parse_git_version(b"git version 2.56.0a\n"),
+        Some((2, 56, 0))
+    );
     assert_eq!(parse_git_version(b"git version 2.55.9\n"), Some((2, 55, 9)));
-    assert_eq!(parse_git_version(b"git version 10.0.12 extra\n"), Some((10, 0, 12)));
+    assert_eq!(
+        parse_git_version(b"git version 10.0.12 extra\n"),
+        Some((10, 0, 12))
+    );
 }
 
 /// Output that is not a `git version` line,
@@ -68,7 +85,10 @@ fn the_unreadable_message_names_the_git_and_the_remedy() {
 
 /// Build a fixture Git that answers `git version` with `line` and exits with success.
 #[cfg(unix)]
-fn fake_git(name: &str, line: &str) -> (PathBuf, GitContext) {
+fn fake_git(
+    name: &str,
+    line: &str,
+) -> (PathBuf, GitContext) {
     let root: PathBuf = fixture(name);
     let path: PathBuf = root.join("git");
     executable(
@@ -90,7 +110,8 @@ fn fake_git(name: &str, line: &str) -> (PathBuf, GitContext) {
 #[test]
 #[cfg(unix)]
 fn a_supported_release_is_accepted() {
-    let (root, context): (PathBuf, GitContext) = fake_git("git-version-supported", "git version 2.56.0");
+    let (root, context): (PathBuf, GitContext) =
+        fake_git("git-version-supported", "git version 2.56.0");
     assert_eq!(ask_git_version(&context), Ok(MINIMUM_GIT_VERSION));
     remove(root.as_path());
 }
@@ -103,7 +124,8 @@ fn a_supported_release_is_accepted() {
 #[test]
 #[cfg(unix)]
 fn an_older_release_is_accepted() {
-    let (root, context): (PathBuf, GitContext) = fake_git("git-version-older", "git version 2.54.0");
+    let (root, context): (PathBuf, GitContext) =
+        fake_git("git-version-older", "git version 2.54.0");
     assert_eq!(ask_git_version(&context), Ok((2, 54, 0)));
     remove(root.as_path());
 }
@@ -117,15 +139,34 @@ fn an_older_release_is_accepted() {
 #[test]
 fn an_older_release_draws_a_warning_that_names_both_releases() {
     let context: GitContext = git_context();
-    let warning: String = older_git_warning(&context, (2, 54, 0)).expect("2.54.0 is older than the minimum");
+    let warning: String =
+        older_git_warning(&context, (2, 54, 0)).expect("2.54.0 is older than the minimum");
     assert!(warning.contains("/usr/bin/git"), "{warning}");
     assert!(warning.contains("2.54.0"), "{warning}");
-    assert!(warning.contains(format!("{}.{}.{}", MINIMUM_GIT_VERSION.0, MINIMUM_GIT_VERSION.1, MINIMUM_GIT_VERSION.2).as_str()), "{warning}");
+    assert!(
+        warning.contains(
+            format!(
+                "{}.{}.{}",
+                MINIMUM_GIT_VERSION.0, MINIMUM_GIT_VERSION.1, MINIMUM_GIT_VERSION.2
+            )
+            .as_str()
+        ),
+        "{warning}"
+    );
     assert!(warning.contains("continues"), "{warning}");
     assert!(warning.ends_with('\n'), "{warning}");
     assert_eq!(older_git_warning(&context, MINIMUM_GIT_VERSION), None);
-    assert_eq!(older_git_warning(&context, (MINIMUM_GIT_VERSION.0, MINIMUM_GIT_VERSION.1 + 1, 0)), None);
-    assert_eq!(older_git_warning(&context, (MINIMUM_GIT_VERSION.0 + 1, 0, 0)), None);
+    assert_eq!(
+        older_git_warning(
+            &context,
+            (MINIMUM_GIT_VERSION.0, MINIMUM_GIT_VERSION.1 + 1, 0)
+        ),
+        None
+    );
+    assert_eq!(
+        older_git_warning(&context, (MINIMUM_GIT_VERSION.0 + 1, 0, 0)),
+        None
+    );
 }
 
 /// A `git version` answer that cannot be read is refused and shows what was printed.
@@ -173,8 +214,14 @@ fn the_answer_is_asked_once_and_then_reused() {
     let cell: OnceLock<Result<(u64, u64, u64), String>> = OnceLock::new();
     let context: GitContext = git_context();
     let before: usize = ASKS.load(std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(check_once(&cell, &context, counting_supported), Ok(MINIMUM_GIT_VERSION));
-    assert_eq!(check_once(&cell, &context, counting_supported), Ok(MINIMUM_GIT_VERSION));
+    assert_eq!(
+        check_once(&cell, &context, counting_supported),
+        Ok(MINIMUM_GIT_VERSION)
+    );
+    assert_eq!(
+        check_once(&cell, &context, counting_supported),
+        Ok(MINIMUM_GIT_VERSION)
+    );
     assert_eq!(ASKS.load(std::sync::atomic::Ordering::SeqCst) - before, 1);
 }
 

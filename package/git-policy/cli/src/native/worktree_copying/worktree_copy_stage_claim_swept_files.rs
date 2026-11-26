@@ -16,11 +16,18 @@
 //! const records = await removeRecordsNothingClaims(root);
 //! ```
 
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
 use crate::worktree_copy_journal_removal::remove_file_and_say;
 use crate::worktree_copy_stage_claim_reaping::StageVerdicts;
 use crate::worktree_copy_stage_made_object::MADE_SUFFIX;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Removes the temporaries that dead writers left in the journal root.
@@ -37,7 +44,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
 /// ```
-pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<bool, WorktreeCopyError> {
+pub fn remove_dead_temporaries(
+    root: &Path,
+    verdicts: &StageVerdicts,
+) -> Result<bool, WorktreeCopyError> {
     let mut removed: bool = false;
     for name in verdicts.dead_temporary_names() {
         removed |= remove_file_and_say(root.join(name).as_path())?;
@@ -77,8 +87,14 @@ pub(crate) fn remove_records_nothing_claims(root: &Path) -> Result<bool, Worktre
     let mut unclaimed: Vec<PathBuf> = Vec::new();
     for listed in listing {
         let path: PathBuf = listed.map_err(raw_failure_of)?.path();
-        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
+        let name: String = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else {
+            continue;
+        };
         if !root.join(format!("{identifier}.stage")).exists() {
             unclaimed.push(path);
         }

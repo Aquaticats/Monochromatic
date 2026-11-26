@@ -14,7 +14,10 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -23,7 +26,12 @@ use std::process::Command;
 
 /// A finding with the facts the notice words,
 /// and none that vary between runs.
-fn found(lock: &str, verdict: Verdict, pid_file: PidFile, companions: &[&str]) -> Found {
+fn found(
+    lock: &str,
+    verdict: Verdict,
+    pid_file: PidFile,
+    companions: &[&str],
+) -> Found {
     return Found {
         lock: PathBuf::from(lock),
         verdict,
@@ -44,7 +52,9 @@ fn awkward_names() -> Vec<OsString> {
         OsString::from("new\nline.lock"),
         OsString::from("escape\u{1b}[31mred.lock"),
         OsString::from("tab\there\\back.lock"),
-        OsString::from_vec(vec![b'n', b'o', b't', 0xff, 0xfe, b'.', b'l', b'o', b'c', b'k']),
+        OsString::from_vec(vec![
+            b'n', b'o', b't', 0xff, 0xfe, b'.', b'l', b'o', b'c', b'k',
+        ]),
         OsString::from("-leading-dash.lock"),
     ];
 }
@@ -54,7 +64,9 @@ fn awkward_names() -> Vec<OsString> {
 /// clears exactly its own file in a real shell and runs nothing.
 #[test]
 fn quoted_names_name_exactly_their_files_in_a_real_shell() {
-    if !in_a_fixture_root_taking_any_name("lock::stale_ref_lock_message::tests::quoted_names_name_exactly_their_files_in_a_real_shell") {
+    if !in_a_fixture_root_taking_any_name(
+        "lock::stale_ref_lock_message::tests::quoted_names_name_exactly_their_files_in_a_real_shell",
+    ) {
         return;
     }
     let root: PathBuf = fixture("stale-message-quoting");
@@ -66,11 +78,27 @@ fn quoted_names_name_exactly_their_files_in_a_real_shell() {
         std::fs::write(target.as_path(), "").expect("target");
         std::fs::write(bystander.as_path(), "").expect("bystander");
         let command: String = format!("cd \"$1\" && rm -- {}", shell_quote(Path::new(&name)));
-        let ran = Command::new("bash").arg("-c").arg(command.as_str()).arg("bash").arg(directory.as_os_str()).output().expect("start bash");
-        assert!(ran.status.success(), "{command}: {}", String::from_utf8_lossy(&ran.stderr));
+        let ran = Command::new("bash")
+            .arg("-c")
+            .arg(command.as_str())
+            .arg("bash")
+            .arg(directory.as_os_str())
+            .output()
+            .expect("start bash");
+        assert!(
+            ran.status.success(),
+            "{command}: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
         assert!(!target.exists() && bystander.exists(), "{command}");
-        assert!(!directory.join("pwned").exists() && !root.join("pwned").exists(), "{command} ran something");
-        assert!(!shell_quote(Path::new(&name)).contains('\u{1b}'), "a terminal escape is printed raw");
+        assert!(
+            !directory.join("pwned").exists() && !root.join("pwned").exists(),
+            "{command} ran something"
+        );
+        assert!(
+            !shell_quote(Path::new(&name)).contains('\u{1b}'),
+            "a terminal escape is printed raw"
+        );
         remove(directory.as_path());
     }
     remove(root.as_path());
@@ -81,7 +109,10 @@ fn quoted_names_name_exactly_their_files_in_a_real_shell() {
 /// and an empty name is quoted.
 #[test]
 fn quoting_leaves_plain_names_alone_and_escapes_single_quotes() {
-    assert_eq!(shell_quote(Path::new("/repo/.git/refs/heads/main.lock")), "/repo/.git/refs/heads/main.lock");
+    assert_eq!(
+        shell_quote(Path::new("/repo/.git/refs/heads/main.lock")),
+        "/repo/.git/refs/heads/main.lock"
+    );
     assert_eq!(shell_quote(Path::new("/r/it's.lock")), "'/r/it'\\''s.lock'");
     assert_eq!(shell_quote(Path::new("")), "''");
 }
@@ -92,7 +123,12 @@ fn quoting_leaves_plain_names_alone_and_escapes_single_quotes() {
 #[test]
 fn an_unproven_lock_is_described_with_the_command_that_clears_it() {
     let outcome: Outcome = Outcome {
-        left: vec![found("/r/.git/refs/remotes/origin/main.lock", Verdict::Unproven(String::from("no pid file beside it names a holder")), PidFile::Absent, &[])],
+        left: vec![found(
+            "/r/.git/refs/remotes/origin/main.lock",
+            Verdict::Unproven(String::from("no pid file beside it names a holder")),
+            PidFile::Absent,
+            &[],
+        )],
         ..Outcome::default()
     };
     let expected: &str = "monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/main.lock alone: no pid file beside it names a holder.\n\
@@ -108,15 +144,33 @@ monochromatic-git-policy-cli: Git writes a process number beside its locks only 
 fn the_command_names_the_companions_and_quotes_an_odd_reference() {
     let outcome: Outcome = Outcome {
         left: vec![
-            found("/r/.git/packed-refs.lock", Verdict::Unproven(String::from("why")), PidFile::Older(7), &["/r/.git/packed-refs~pid.lock", "/r/.git/packed-refs.new"]),
-            found("/r/.git/refs/heads/it's$(x).lock", Verdict::Unproven(String::from("why")), PidFile::Older(7), &[]),
+            found(
+                "/r/.git/packed-refs.lock",
+                Verdict::Unproven(String::from("why")),
+                PidFile::Older(7),
+                &["/r/.git/packed-refs~pid.lock", "/r/.git/packed-refs.new"],
+            ),
+            found(
+                "/r/.git/refs/heads/it's$(x).lock",
+                Verdict::Unproven(String::from("why")),
+                PidFile::Older(7),
+                &[],
+            ),
         ],
         ..Outcome::default()
     };
     let text: String = outcome.notice();
     assert!(text.contains("monochromatic-git-policy-cli:   rm -- /r/.git/packed-refs.lock '/r/.git/packed-refs~pid.lock' /r/.git/packed-refs.new\n"), "{text}");
-    assert!(text.contains("monochromatic-git-policy-cli:   rm -- '/r/.git/refs/heads/it'\\''s$(x).lock'\n"), "{text}");
-    assert!(!text.contains("core.lockfilePid"), "the hint is only for locks without a pid file: {text}");
+    assert!(
+        text.contains(
+            "monochromatic-git-policy-cli:   rm -- '/r/.git/refs/heads/it'\\''s$(x).lock'\n"
+        ),
+        "{text}"
+    );
+    assert!(
+        !text.contains("core.lockfilePid"),
+        "the hint is only for locks without a pid file: {text}"
+    );
 }
 
 /// The notice for a removed lock,
@@ -125,10 +179,20 @@ fn the_command_names_the_companions_and_quotes_an_odd_reference() {
 #[test]
 fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
     let outcome: Outcome = Outcome {
-        cleared: vec![
-            found("/r/.git/packed-refs.new", Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, &[]),
-        ],
-        left: vec![found("/r/.git/refs/heads/d.lock", Verdict::Held(String::from("process 43 (git), which the pid file beside it names, is running")), PidFile::Names(43), &[])],
+        cleared: vec![found(
+            "/r/.git/packed-refs.new",
+            Verdict::Stale(Proof::OrphanStaging),
+            PidFile::Absent,
+            &[],
+        )],
+        left: vec![found(
+            "/r/.git/refs/heads/d.lock",
+            Verdict::Held(String::from(
+                "process 43 (git), which the pid file beside it names, is running",
+            )),
+            PidFile::Names(43),
+            &[],
+        )],
         displaced: vec![PathBuf::from("/r/.git/cli-git-stale-lock-1-0-ff")],
     };
     let expected: &str = "monochromatic-git-policy-cli: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\

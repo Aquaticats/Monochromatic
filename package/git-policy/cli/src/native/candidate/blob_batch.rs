@@ -14,10 +14,18 @@
 //! ```
 
 /// Running real Git.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// `HashMap` maps object IDs to bytes,
 /// and `HashSet` answers whether a name was requested already.
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 

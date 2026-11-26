@@ -32,7 +32,11 @@ pub const STAMP_RESOLUTION_MILLISECONDS: i64 = 1000;
 
 /// The whole number written in the characters `from` to `to` of a name;
 /// zero when they are not a number.
-fn number_at(name: &str, from: usize, to: usize) -> i64 {
+fn number_at(
+    name: &str,
+    from: usize,
+    to: usize,
+) -> i64 {
     return name[from..to].parse::<i64>().unwrap_or(0);
 }
 
@@ -62,17 +66,33 @@ pub fn parse_stamp(name: &str) -> Option<i64> {
     }
     let shape: &[u8; 19] = b"dddd-dd-ddTdd-dd-dd";
     for (found, wanted) in bytes[..19].iter().zip(shape) {
-        let fits: bool = if *wanted == b'd' { found.is_ascii_digit() } else { found == wanted };
+        let fits: bool = if *wanted == b'd' {
+            found.is_ascii_digit()
+        } else {
+            found == wanted
+        };
         if !fits {
             return None;
         }
     }
     let suffix: &str = &name[19..];
-    if !(suffix.is_empty() || (suffix.starts_with('-') && suffix.len() > 1 && suffix.as_bytes()[1..].iter().all(u8::is_ascii_digit))) {
+    if !(suffix.is_empty()
+        || (suffix.starts_with('-')
+            && suffix.len() > 1
+            && suffix.as_bytes()[1..].iter().all(u8::is_ascii_digit)))
+    {
         return None;
     }
-    let (year, month, day): (i64, i64, i64) = (number_at(name, 0, 4), number_at(name, 5, 7), number_at(name, 8, 10));
-    let (hour, minute, second): (i64, i64, i64) = (number_at(name, 11, 13), number_at(name, 14, 16), number_at(name, 17, 19));
+    let (year, month, day): (i64, i64, i64) = (
+        number_at(name, 0, 4),
+        number_at(name, 5, 7),
+        number_at(name, 8, 10),
+    );
+    let (hour, minute, second): (i64, i64, i64) = (
+        number_at(name, 11, 13),
+        number_at(name, 14, 16),
+        number_at(name, 17, 19),
+    );
     // `jiff` refuses a month, day, hour, minute or second the calendar does not have (February 30, hour 24, minute 60).
     let civil: jiff::civil::DateTime = jiff::civil::DateTime::new(
         i16::try_from(year).ok()?,

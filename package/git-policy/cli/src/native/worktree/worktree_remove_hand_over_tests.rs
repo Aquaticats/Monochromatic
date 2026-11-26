@@ -16,12 +16,23 @@ use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::service_work::Verdict;
 use crate::shadow_pool::pool_root_for;
-use crate::test_support::{an_empty_process_table, fixture, git_context, remove};
-use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
+use crate::test_support::{
+    an_empty_process_table,
+    fixture,
+    git_context,
+    remove,
+};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::work_item::WorkKind;
+use crate::worktree_remove::{
+    Held,
+    RemoveOperations,
+    RemoveOutcome,
+    RemoveRequest,
+    remove_with,
+};
 use crate::worktree_remove_hand_over as test_support;
 use crate::worktree_remove_plan::RemovePlan;
-use crate::work_item::WorkKind;
-use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,
@@ -46,9 +57,15 @@ fn made_subvolume(name: &str) -> Option<(PathBuf, PathBuf)> {
 /// which no person gives a worktree.
 #[test]
 fn a_handed_over_subvolume_takes_a_name_built_from_its_id() {
-    assert_eq!(deleting_name(0x1f), OsString::from("cli-git-deleting-000000000000001f"));
+    assert_eq!(
+        deleting_name(0x1f),
+        OsString::from("cli-git-deleting-000000000000001f")
+    );
     assert!(DELETING_PREFIX.starts_with("cli-git-"));
-    assert_eq!(removal_item(Path::new("/r/.git"), Path::new("/r"), 0x2a).oid, "000000000000000000000000000000000000002a");
+    assert_eq!(
+        removal_item(Path::new("/r/.git"), Path::new("/r"), 0x2a).oid,
+        "000000000000000000000000000000000000002a"
+    );
 }
 
 /// What:
@@ -67,23 +84,56 @@ fn a_handed_over_subvolume_takes_a_name_built_from_its_id() {
 /// ```
 #[test]
 fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
-    let Some((root, made)) = made_subvolume("remove-hand-over") else { return };
+    let Some((root, made)) = made_subvolume("remove-hand-over") else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
-    let told: RememberingTold = RememberingTold { told_of: std::cell::RefCell::new(Vec::new()), answer: Err(String::from("no service answers here")) };
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), std::ffi::OsStr::new("wt"), &told).expect("handed over");
+    let told: RememberingTold = RememberingTold {
+        told_of: std::cell::RefCell::new(Vec::new()),
+        answer: Err(String::from("no service answers here")),
+    };
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        7,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &told,
+    )
+    .expect("handed over");
     assert!(!made.exists(), "the path the person named is gone");
     let deleting: PathBuf = parent_path.join(deleting_name(7));
-    assert!(deleting.is_dir(), "the subvolume stands under the name built from its id");
-    assert_eq!(told.told_of.borrow().clone(), vec![common.clone()], "the service of the common directory is told");
-    let pending: PathBuf = crate::worktree_remove_hand_over::pending_record_path(common.as_path(), &removal_item(common.as_path(), parent_path.as_path(), 7));
-    assert!(pending.is_file(), "the record that outlives the command is written: {}", pending.display());
+    assert!(
+        deleting.is_dir(),
+        "the subvolume stands under the name built from its id"
+    );
+    assert_eq!(
+        told.told_of.borrow().clone(),
+        vec![common.clone()],
+        "the service of the common directory is told"
+    );
+    let pending: PathBuf = crate::worktree_remove_hand_over::pending_record_path(
+        common.as_path(),
+        &removal_item(common.as_path(), parent_path.as_path(), 7),
+    );
+    assert!(
+        pending.is_file(),
+        "the record that outlives the command is written: {}",
+        pending.display()
+    );
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 7);
     assert_eq!(item.kind, WorkKind::SubvolumeDelete);
-    assert_eq!(item.parent, deleting.display().to_string(), "the record names the exact path the rename made");
+    assert_eq!(
+        item.parent,
+        deleting.display().to_string(),
+        "the record names the exact path the rename made"
+    );
     remove(root.as_path());
 }
 
@@ -103,19 +153,43 @@ fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
 /// ```
 #[test]
 fn the_service_deletes_the_subvolume_a_record_names_and_a_gone_path_is_done() {
-    let Some((root, made)) = made_subvolume("remove-service-delete") else { return };
+    let Some((root, made)) = made_subvolume("remove-service-delete") else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
-    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    let id: u64 =
+        subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        id,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &NobodyTold,
+    )
+    .expect("handed over");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the service's own call deletes it");
-    assert!(!parent_path.join(deleting_name(id)).exists(), "the directory is gone");
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "a path that is gone is nothing to delete");
+    assert_eq!(
+        delete_subvolume_of(&item),
+        Verdict::Done,
+        "the service's own call deletes it"
+    );
+    assert!(
+        !parent_path.join(deleting_name(id)).exists(),
+        "the directory is gone"
+    );
+    assert_eq!(
+        delete_subvolume_of(&item),
+        Verdict::Done,
+        "a path that is gone is nothing to delete"
+    );
     remove(root.as_path());
 }
 
@@ -138,17 +212,46 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     crate::test_support::git(repo.as_path(), &["add", "tracked.txt"]);
     crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let written: PathBuf = root.join("topic");
-    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", written.to_str().expect("utf8")]);
+    crate::test_support::git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            written.to_str().expect("utf8"),
+        ],
+    );
     let target: PathBuf = std::fs::canonicalize(written.as_path()).expect("canonical");
     crate::test_support::age(target.join("tracked.txt").as_path());
     crate::test_support::git(target.as_path(), &["update-index", "--refresh"]);
-    let stand = HandingOverStand { target: target.clone(), handed: std::cell::Cell::new(false), destroyed: std::cell::Cell::new(false) };
+    let stand = HandingOverStand {
+        target: target.clone(),
+        handed: std::cell::Cell::new(false),
+        destroyed: std::cell::Cell::new(false),
+    };
     let context = crate::test_support::git_context();
-    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
+    let plan = RemovePlan {
+        target: target.clone(),
+        operand: target.as_os_str().to_os_string(),
+        force: false,
+    };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_with(
+        &stand,
+        &RemoveRequest {
+            context: &context,
+            plan: &plan,
+            common_dir: common_dir.as_path(),
+            last_look: None,
+        },
+    );
     assert!(stand.handed.get(), "the removal handed the subvolume over");
-    assert!(!stand.destroyed.get(), "and did not destroy it on the person's path");
+    assert!(
+        !stand.destroyed.get(),
+        "and did not destroy it on the person's path"
+    );
     assert_eq!(outcome, RemoveOutcome::Removed, "{outcome:?}");
     remove(root.as_path());
 }
@@ -168,26 +271,50 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
 /// ```
 #[test]
 fn a_subvolume_that_took_the_hidden_names_place_is_not_the_records_to_delete() {
-    let Some((root, made)) = made_subvolume("remove-replacement") else { return };
+    let Some((root, made)) = made_subvolume("remove-replacement") else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
-    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    let id: u64 =
+        subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        id,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &NobodyTold,
+    )
+    .expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
     let moved_away: PathBuf = root.join("the-original");
-    std::fs::rename(hidden.as_path(), moved_away.as_path()).expect("the original is moved elsewhere");
+    std::fs::rename(hidden.as_path(), moved_away.as_path())
+        .expect("the original is moved elsewhere");
     subvolume_create_at(hidden.as_path()).expect("another subvolume takes the name");
     let kept: PathBuf = hidden.join("kept.txt");
     std::fs::write(kept.as_path(), b"another command's bytes\n").expect("the replacement's file");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     let verdict: Verdict = delete_subvolume_of(&item);
-    assert_ne!(verdict, Verdict::Done, "the name holds another subvolume than the record names, so nothing was deleted: {verdict:?}");
-    assert!(kept.is_file(), "the record of one subvolume must never delete another subvolume that took its name");
-    assert!(moved_away.is_dir(), "the subvolume the record does name was left where it was moved");
+    assert_ne!(
+        verdict,
+        Verdict::Done,
+        "the name holds another subvolume than the record names, so nothing was deleted: {verdict:?}"
+    );
+    assert!(
+        kept.is_file(),
+        "the record of one subvolume must never delete another subvolume that took its name"
+    );
+    assert!(
+        moved_away.is_dir(),
+        "the subvolume the record does name was left where it was moved"
+    );
     remove(root.as_path());
 }
 
@@ -214,8 +341,15 @@ fn two_subvolumes_of_one_id_on_two_filesystems_are_two_records() {
     std::fs::create_dir(second_parent.as_path()).expect("second parent");
     let first: WorkItem = removal_item(common.as_path(), first_parent.as_path(), 257);
     let second: WorkItem = removal_item(common.as_path(), second_parent.as_path(), 257);
-    assert_ne!(first.id(), second.id(), "the id must hold the directory that holds the removed subvolume, not the id alone");
-    assert_eq!(enqueue(work_directory(common.as_path()).as_path(), &first).expect("first enqueue"), crate::work_item::Enqueued::Added);
+    assert_ne!(
+        first.id(),
+        second.id(),
+        "the id must hold the directory that holds the removed subvolume, not the id alone"
+    );
+    assert_eq!(
+        enqueue(work_directory(common.as_path()).as_path(), &first).expect("first enqueue"),
+        crate::work_item::Enqueued::Added
+    );
     assert_eq!(
         enqueue(work_directory(common.as_path()).as_path(), &second).expect("second enqueue"),
         crate::work_item::Enqueued::Added,
@@ -244,28 +378,49 @@ fn two_subvolumes_of_one_id_on_two_filesystems_are_two_records() {
 /// ```
 #[test]
 fn a_claimed_record_whose_consumer_found_no_directory_is_deleted_here() {
-    let Some((root, made)) = made_subvolume("remove-claimed-before-rename") else { return };
+    let Some((root, made)) = made_subvolume("remove-claimed-before-rename") else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
-    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    let id: u64 =
+        subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record");
-    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete])
-        .expect("claim")
-        .expect("the record is claimable");
+    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(
+        work.as_path(),
+        &crate::claim_time::ClaimTime::read(),
+        &[WorkKind::SubvolumeDelete],
+    )
+    .expect("claim")
+    .expect("the record is claimable");
     assert_eq!(
         delete_subvolume_of(&claimed.item),
         Verdict::Done,
         "a directory that is not at its hidden name yet is nothing to delete, and the consumer has yet to settle the claim"
     );
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        id,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &NobodyTold,
+    )
+    .expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
-    assert!(!hidden.exists(), "a claim is no promise of a delete, so the removal deletes the directory: {}", hidden.display());
+    assert!(
+        !hidden.exists(),
+        "a claim is no promise of a delete, so the removal deletes the directory: {}",
+        hidden.display()
+    );
     remove(root.as_path());
 }
 
@@ -286,23 +441,50 @@ fn a_claimed_record_whose_consumer_found_no_directory_is_deleted_here() {
 /// ```
 #[test]
 fn a_renamed_subvolume_whose_record_was_already_settled_is_deleted_here() {
-    let Some((root, made)) = made_subvolume("remove-settled-before-rename") else { return };
+    let Some((root, made)) = made_subvolume("remove-settled-before-rename") else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
-    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    let id: u64 =
+        subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record");
-    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("claim").expect("the record is claimable");
-    crate::work_item::settle(work.as_path(), &claimed, crate::work_item::DONE).expect("the service settles it before the rename");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(
+        work.as_path(),
+        &crate::claim_time::ClaimTime::read(),
+        &[WorkKind::SubvolumeDelete],
+    )
+    .expect("claim")
+    .expect("the record is claimable");
+    crate::work_item::settle(work.as_path(), &claimed, crate::work_item::DONE)
+        .expect("the service settles it before the rename");
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        id,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &NobodyTold,
+    )
+    .expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
-    assert!(!hidden.exists(), "the subvolume the removal renamed is named by no record, so the removal deletes it: {}", hidden.display());
-    assert!(!pending_record_path(common.as_path(), &item).exists(), "no record is left for a directory that is gone");
+    assert!(
+        !hidden.exists(),
+        "the subvolume the removal renamed is named by no record, so the removal deletes it: {}",
+        hidden.display()
+    );
+    assert!(
+        !pending_record_path(common.as_path(), &item).exists(),
+        "no record is left for a directory that is gone"
+    );
     remove(root.as_path());
 }
 
@@ -326,7 +508,9 @@ fn a_renamed_subvolume_whose_record_was_already_settled_is_deleted_here() {
 /// ```
 #[test]
 fn a_parent_path_no_record_can_name_is_not_handed_over() {
-    if !in_a_fixture_root_taking_any_name("worktree::worktree_remove_hand_over::tests::a_parent_path_no_record_can_name_is_not_handed_over") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree::worktree_remove_hand_over::tests::a_parent_path_no_record_can_name_is_not_handed_over",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt as _;
@@ -338,14 +522,42 @@ fn a_parent_path_no_record_can_name_is_not_handed_over() {
     let made: PathBuf = parent_path.join("worktree");
     std::fs::create_dir(made.as_path()).expect("worktree");
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
-    let told: RememberingTold = RememberingTold { told_of: std::cell::RefCell::new(Vec::new()), answer: Ok(()) };
-    let answer: Result<(), String> = hand_over_with(common.as_path(), &parent, parent_path.as_path(), OsStr::new("worktree"), 47, made.as_path(), OsStr::new("wt"), &told);
-    assert!(answer.is_err(), "a path no record can name is not handed over: {answer:?}");
-    assert!(made.is_dir(), "nothing was renamed, so the removal destroys the subvolume in place");
-    assert!(told.told_of.borrow().is_empty(), "no service is told of a hand-over that did not happen");
+    let told: RememberingTold = RememberingTold {
+        told_of: std::cell::RefCell::new(Vec::new()),
+        answer: Ok(()),
+    };
+    let answer: Result<(), String> = hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        OsStr::new("worktree"),
+        47,
+        made.as_path(),
+        OsStr::new("wt"),
+        &told,
+    );
+    assert!(
+        answer.is_err(),
+        "a path no record can name is not handed over: {answer:?}"
+    );
+    assert!(
+        made.is_dir(),
+        "nothing was renamed, so the removal destroys the subvolume in place"
+    );
+    assert!(
+        told.told_of.borrow().is_empty(),
+        "no service is told of a hand-over that did not happen"
+    );
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    let recorded: usize = std::fs::read_dir(pending.as_path()).map(|entries| { return entries.flatten().count(); }).unwrap_or(0);
-    assert_eq!(recorded, 0, "no record a different path could be read from is written");
+    let recorded: usize = std::fs::read_dir(pending.as_path())
+        .map(|entries| {
+            return entries.flatten().count();
+        })
+        .unwrap_or(0);
+    assert_eq!(
+        recorded, 0,
+        "no record a different path could be read from is written"
+    );
     remove(root.as_path());
 }
 
@@ -362,24 +574,49 @@ struct HandingOverStand {
 }
 
 impl RemoveOperations for HandingOverStand {
-    fn is_subvolume_root(&self, path: &Path) -> bool {
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> bool {
         return path == self.target.as_path();
     }
 
-    fn removal_allowed(&self, _path: &Path) -> bool {
+    fn removal_allowed(
+        &self,
+        _path: &Path,
+    ) -> bool {
         return true;
     }
 
-    fn check_clean(&self, _request: &RemoveRequest<'_>, _admin: &Path, _common_dir: &Path) -> Result<(), String> {
+    fn check_clean(
+        &self,
+        _request: &RemoveRequest<'_>,
+        _admin: &Path,
+        _common_dir: &Path,
+    ) -> Result<(), String> {
         return Ok(());
     }
 
-    fn destroy(&self, held: &Held) -> Result<(), String> {
+    fn destroy(
+        &self,
+        held: &Held,
+    ) -> Result<(), String> {
         self.destroyed.set(true);
-        return std::fs::remove_dir_all(held.parent_path.join(held.name.as_os_str())).map_err(|error| { return error.to_string(); });
+        return std::fs::remove_dir_all(held.parent_path.join(held.name.as_os_str())).map_err(
+            |error| {
+                return error.to_string();
+            },
+        );
     }
 
-    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path, _registration: &std::ffi::OsStr) -> Result<(), String> {
+    fn hand_over(
+        &self,
+        _context: &GitContext,
+        _common_dir: &Path,
+        _held: &Held,
+        _target: &Path,
+        _registration: &std::ffi::OsStr,
+    ) -> Result<(), String> {
         self.handed.set(true);
         return Ok(());
     }
@@ -399,7 +636,10 @@ impl RemoveOperations for HandingOverStand {
 struct NobodyTold;
 
 impl ToldOfHandOver for NobodyTold {
-    fn told(&self, _common_dir: &Path) -> Result<(), String> {
+    fn told(
+        &self,
+        _common_dir: &Path,
+    ) -> Result<(), String> {
         return Ok(());
     }
 }
@@ -425,7 +665,10 @@ struct RememberingTold {
 }
 
 impl ToldOfHandOver for RememberingTold {
-    fn told(&self, common_dir: &Path) -> Result<(), String> {
+    fn told(
+        &self,
+        common_dir: &Path,
+    ) -> Result<(), String> {
         self.told_of.borrow_mut().push(common_dir.to_path_buf());
         return self.answer.clone();
     }
@@ -470,11 +713,26 @@ fn a_repository_with_a_linked_worktree(name: &str) -> Linked {
     crate::test_support::git(repo.as_path(), &["add", "tracked.txt"]);
     crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let written: PathBuf = root.join("topic");
-    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", written.to_str().expect("utf8")]);
+    crate::test_support::git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            written.to_str().expect("utf8"),
+        ],
+    );
     let worktree: PathBuf = std::fs::canonicalize(written.as_path()).expect("canonical");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    crate::worktree_added_by_the_wrapper::record(common.as_path(), worktree.as_path()).expect("the record of a worktree this program made");
-    return Linked { root, common, worktree };
+    crate::worktree_added_by_the_wrapper::record(common.as_path(), worktree.as_path())
+        .expect("the record of a worktree this program made");
+    return Linked {
+        root,
+        common,
+        worktree,
+    };
 }
 
 /// What:
@@ -488,7 +746,10 @@ fn a_repository_with_a_linked_worktree(name: &str) -> Linked {
 /// ```ts
 /// const fixture = aRepositoryWithALinkedWorktreeAndIgnoreRules('name', '.claude/\n*.log\n');
 /// ```
-fn a_repository_with_a_linked_worktree_and_ignore_rules(name: &str, rules: &str) -> Linked {
+fn a_repository_with_a_linked_worktree_and_ignore_rules(
+    name: &str,
+    rules: &str,
+) -> Linked {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let tracked: PathBuf = repo.join("tracked.txt");
@@ -500,11 +761,26 @@ fn a_repository_with_a_linked_worktree_and_ignore_rules(name: &str, rules: &str)
     crate::test_support::git(repo.as_path(), &["add", "--", "tracked.txt", ".gitignore"]);
     crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let written: PathBuf = root.join("topic");
-    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", written.to_str().expect("utf8")]);
+    crate::test_support::git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            written.to_str().expect("utf8"),
+        ],
+    );
     let worktree: PathBuf = std::fs::canonicalize(written.as_path()).expect("canonical");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    crate::worktree_added_by_the_wrapper::record(common.as_path(), worktree.as_path()).expect("the record of a worktree this program made");
-    return Linked { root, common, worktree };
+    crate::worktree_added_by_the_wrapper::record(common.as_path(), worktree.as_path())
+        .expect("the record of a worktree this program made");
+    return Linked {
+        root,
+        common,
+        worktree,
+    };
 }
 
 /// The commit as the notice words it,
@@ -526,10 +802,23 @@ fn whole_name(commit: &str) -> String {
 /// ```ts
 /// const item = handedOver(linked, linked.repo);
 /// ```
-fn handed_over(linked: &Linked, compared_with: Option<&Path>) -> WorkItem {
+fn handed_over(
+    linked: &Linked,
+    compared_with: Option<&Path>,
+) -> WorkItem {
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let told = |_: &GitContext, _: &Path| -> Result<(), String> { return Err(String::from("no service answers here")); };
-    return hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), compared_with, &told).expect("handed over");
+    let told = |_: &GitContext, _: &Path| -> Result<(), String> {
+        return Err(String::from("no service answers here"));
+    };
+    return hand_over_worktree_removal(
+        &git_context(),
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        registration.as_path(),
+        compared_with,
+        &told,
+    )
+    .expect("handed over");
 }
 
 /// The words of every kept-worktree notice this repository holds,
@@ -560,22 +849,63 @@ fn a_worktree_removal_record_is_keyed_by_its_path_and_registration_and_names_git
     let registration: PathBuf = root.join("registration");
     std::fs::create_dir(registration.as_path()).expect("a registration");
     let target: PathBuf = root.join("topic");
-    let one: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), registration.as_path());
-    let again: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), registration.as_path());
-    let other: WorkItem = worktree_removal_item(Path::new("/r/.git"), root.join("elsewhere").as_path(), registration.as_path());
+    let one: WorkItem = worktree_removal_item(
+        Path::new("/r/.git"),
+        target.as_path(),
+        registration.as_path(),
+    );
+    let again: WorkItem = worktree_removal_item(
+        Path::new("/r/.git"),
+        target.as_path(),
+        registration.as_path(),
+    );
+    let other: WorkItem = worktree_removal_item(
+        Path::new("/r/.git"),
+        root.join("elsewhere").as_path(),
+        registration.as_path(),
+    );
     // A worktree added again at the same path has a registration of its own, with an identity of its own.
     let added_again: PathBuf = root.join("registration-again");
-    std::fs::create_dir(added_again.as_path()).expect("the registration a second worktree at one path gets");
-    let second: WorkItem = worktree_removal_item(Path::new("/r/.git"), target.as_path(), added_again.as_path());
-    assert_ne!(one.id(), second.id(), "a worktree added again at one path is a new removal");
+    std::fs::create_dir(added_again.as_path())
+        .expect("the registration a second worktree at one path gets");
+    let second: WorkItem = worktree_removal_item(
+        Path::new("/r/.git"),
+        target.as_path(),
+        added_again.as_path(),
+    );
+    assert_ne!(
+        one.id(),
+        second.id(),
+        "a worktree added again at one path is a new removal"
+    );
     remove(root.as_path());
     assert_eq!(one.id(), again.id(), "one worktree is one record");
     assert_ne!(one.id(), other.id(), "two worktrees are two records");
-    assert_eq!(one.oid.len(), 40, "the id keeps the shape every reader of a record requires: {}", one.oid);
-    assert!(one.oid.as_bytes().iter().all(u8::is_ascii_hexdigit), "{}", one.oid);
-    assert_eq!(one.branch_ref, WORKTREE_REMOVAL_REFERENCE, "the record says the removal is Git's own");
-    assert_eq!(one.parent, target.display().to_string(), "the record names the worktree to remove");
-    assert_eq!(one.repository, PathBuf::from("/r/.git"), "the record names the directory Git is started in, which outlives the merge");
+    assert_eq!(
+        one.oid.len(),
+        40,
+        "the id keeps the shape every reader of a record requires: {}",
+        one.oid
+    );
+    assert!(
+        one.oid.as_bytes().iter().all(u8::is_ascii_hexdigit),
+        "{}",
+        one.oid
+    );
+    assert_eq!(
+        one.branch_ref, WORKTREE_REMOVAL_REFERENCE,
+        "the record says the removal is Git's own"
+    );
+    assert_eq!(
+        one.parent,
+        target.display().to_string(),
+        "the record names the worktree to remove"
+    );
+    assert_eq!(
+        one.repository,
+        PathBuf::from("/r/.git"),
+        "the record names the directory Git is started in, which outlives the merge"
+    );
     assert_eq!(one.kind, WorkKind::SubvolumeDelete);
 }
 
@@ -596,11 +926,30 @@ fn a_handed_over_worktree_is_recorded_before_it_is_told() {
         return Err(String::from("no service answers here"));
     };
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), None, &told).expect("handed over");
-    assert_eq!(woken.borrow().clone(), vec![linked.common.clone()], "the service of the queue the record is in is told");
+    let item: WorkItem = hand_over_worktree_removal(
+        &git_context(),
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        registration.as_path(),
+        None,
+        &told,
+    )
+    .expect("handed over");
+    assert_eq!(
+        woken.borrow().clone(),
+        vec![linked.common.clone()],
+        "the service of the queue the record is in is told"
+    );
     let pending: PathBuf = pending_record_path(linked.common.as_path(), &item);
-    assert!(pending.is_file(), "the record outlives the command: {}", pending.display());
-    assert!(linked.worktree.is_dir(), "nothing here touches the worktree: Git's own read is its proof");
+    assert!(
+        pending.is_file(),
+        "the record outlives the command: {}",
+        pending.display()
+    );
+    assert!(
+        linked.worktree.is_dir(),
+        "nothing here touches the worktree: Git's own read is its proof"
+    );
     remove(linked.root.as_path());
 }
 
@@ -626,12 +975,23 @@ fn the_warning_of_a_removal_the_service_was_not_told_names_both_commands_and_its
     let target: PathBuf = root.join(".claude").join("worktrees").join("x");
     let line: String = not_woken_warning(target.as_path(), "the service could not be reached");
     assert!(
-        line.starts_with(format!("the removal of {} is recorded and not woken (the service could not be reached). ", target.display()).as_str()),
+        line.starts_with(
+            format!(
+                "the removal of {} is recorded and not woken (the service could not be reached). ",
+                target.display()
+            )
+            .as_str()
+        ),
         "the line says what happened to the removal, with the path it names: {line}"
     );
-    assert!(line.contains("Your next `git commit` here finishes it"), "the line names the commit that finishes the removal: {line}");
     assert!(
-        line.contains(format!("`git worktree remove {}` removes it now", target.display()).as_str()),
+        line.contains("Your next `git commit` here finishes it"),
+        "the line names the commit that finishes the removal: {line}"
+    );
+    assert!(
+        line.contains(
+            format!("`git worktree remove {}` removes it now", target.display()).as_str()
+        ),
         "the line names the worktree the record names, so the command runs over that directory and no other: {line}"
     );
 }
@@ -648,17 +1008,41 @@ fn the_warning_of_a_removal_the_service_was_not_told_names_both_commands_and_its
 #[test]
 fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-service");
-    let pool: PathBuf = pool_root_for(linked.common.as_path(), &linked.common.join("worktrees/topic"));
-    std::fs::create_dir_all(pool.join("member").join("objects")).expect("a pool as a fill leaves it");
+    let pool: PathBuf = pool_root_for(
+        linked.common.as_path(),
+        &linked.common.join("worktrees/topic"),
+    );
+    std::fs::create_dir_all(pool.join("member").join("objects"))
+        .expect("a pool as a fill leaves it");
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
-        .expect("handed over");
+    let item: WorkItem = hand_over_worktree_removal(
+        &git_context(),
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        registration.as_path(),
+        Some(linked.repo_root().as_path()),
+        &|_: &GitContext, _: &Path| {
+            return Ok(());
+        },
+    )
+    .expect("handed over");
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
-    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "Git removes the worktree the record names");
+    assert_eq!(
+        delete_subvolume_of_with(&item, table.as_path()),
+        Verdict::Done,
+        "Git removes the worktree the record names"
+    );
     assert!(!linked.worktree.exists(), "the worktree directory is gone");
-    assert!(!linked.common.join("worktrees/topic").exists(), "and its registration with it");
+    assert!(
+        !linked.common.join("worktrees/topic").exists(),
+        "and its registration with it"
+    );
     assert!(!pool.exists(), "and the pool its commits filled");
-    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "a path that is gone is nothing to remove");
+    assert_eq!(
+        delete_subvolume_of_with(&item, table.as_path()),
+        Verdict::Done,
+        "a path that is gone is nothing to remove"
+    );
     remove(linked.root.as_path());
 }
 
@@ -673,18 +1057,34 @@ fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
 fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_it() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-refused");
     let notes: PathBuf = linked.worktree.join("notes.txt");
-    std::fs::write(notes.as_path(), b"what I was in the middle of\n").expect("a file the person wrote");
+    std::fs::write(notes.as_path(), b"what I was in the middle of\n")
+        .expect("a file the person wrote");
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
-        .expect("handed over");
+    let item: WorkItem = hand_over_worktree_removal(
+        &git_context(),
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        registration.as_path(),
+        Some(linked.repo_root().as_path()),
+        &|_: &GitContext, _: &Path| {
+            return Ok(());
+        },
+    )
+    .expect("handed over");
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     match &verdict {
-        Verdict::Failed(words) => assert!(words.contains("modified or untracked files"), "Git's own sentence is the reason: {words}"),
+        Verdict::Failed(words) => assert!(
+            words.contains("modified or untracked files"),
+            "Git's own sentence is the reason: {words}"
+        ),
         other => panic!("Git refuses a worktree holding a file it would keep: {other:?}"),
     }
     assert!(linked.worktree.is_dir(), "the worktree stays");
-    assert_eq!(std::fs::read(notes.as_path()).expect("the file is still there"), b"what I was in the middle of\n");
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("the file is still there"),
+        b"what I was in the middle of\n"
+    );
     remove(linked.root.as_path());
 }
 
@@ -702,29 +1102,65 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
 ///  finding 3.2).
 #[test]
 fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand_over() {
-    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-nested", ".claude/\n");
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules(
+        "worktree-hand-over-nested",
+        ".claude/\n",
+    );
     let item: WorkItem = handed_over(&linked, Some(linked.root.as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // A command that adds a worktree inside this one finishes after the record was written and exits.
     let inside: PathBuf = linked.worktree.join(".claude/worktrees/b");
-    crate::test_support::git(linked.worktree.as_path(), &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("utf8")]);
+    crate::test_support::git(
+        linked.worktree.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "sub",
+            inside.to_str().expect("utf8"),
+        ],
+    );
     let changed: PathBuf = inside.join("tracked.txt");
-    std::fs::write(changed.as_path(), b"the person changed this in the nested worktree\n").expect("a tracked file the person changed there");
+    std::fs::write(
+        changed.as_path(),
+        b"the person changed this in the nested worktree\n",
+    )
+    .expect("a tracked file the person changed there");
     let notes: PathBuf = inside.join("notes.txt");
-    std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
+    std::fs::write(notes.as_path(), b"work the person has not committed\n")
+        .expect("an untracked file the person wrote there");
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("another worktree this repository registers is inside it")),
         "the worktree that holds another one stays, and the reason names it: {verdict:?}"
     );
-    assert_eq!(std::fs::read(changed.as_path()).expect("the changed file is still there"), b"the person changed this in the nested worktree\n");
-    assert_eq!(std::fs::read(notes.as_path()).expect("the untracked file is still there"), b"work the person has not committed\n");
-    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    assert_eq!(
+        std::fs::read(changed.as_path()).expect("the changed file is still there"),
+        b"the person changed this in the nested worktree\n"
+    );
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("the untracked file is still there"),
+        b"work the person has not committed\n"
+    );
+    assert!(
+        linked.worktree.is_dir(),
+        "the worktree the merge landed stays"
+    );
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
     assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
-    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
-    assert!(texts[0].contains("refs/heads/topic"), "and the branch: {texts:?}");
-    assert!(texts[0].contains("another worktree this repository registers is inside it"), "and the reason: {texts:?}");
+    assert!(
+        texts[0].contains(linked.worktree.display().to_string().as_str()),
+        "the notice names the worktree: {texts:?}"
+    );
+    assert!(
+        texts[0].contains("refs/heads/topic"),
+        "and the branch: {texts:?}"
+    );
+    assert!(
+        texts[0].contains("another worktree this repository registers is inside it"),
+        "and the reason: {texts:?}"
+    );
     remove(linked.root.as_path());
 }
 
@@ -740,20 +1176,33 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 ///  finding 3.2).
 #[test]
 fn the_service_keeps_a_worktree_whose_ignored_file_was_written_after_the_hand_over() {
-    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-ignored", "*.log\n");
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules(
+        "worktree-hand-over-ignored",
+        "*.log\n",
+    );
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let written: PathBuf = linked.worktree.join("person.log");
-    std::fs::write(written.as_path(), b"what the person wrote after the hand over\n").expect("an ignored file the person wrote");
+    std::fs::write(
+        written.as_path(),
+        b"what the person wrote after the hand over\n",
+    )
+    .expect("an ignored file the person wrote");
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("person.log")),
         "the worktree stays and the reason names the ignored file: {verdict:?}"
     );
-    assert_eq!(std::fs::read(written.as_path()).expect("the ignored file is still there"), b"what the person wrote after the hand over\n");
+    assert_eq!(
+        std::fs::read(written.as_path()).expect("the ignored file is still there"),
+        b"what the person wrote after the hand over\n"
+    );
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
     assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
-    assert!(texts[0].contains("person.log"), "the notice names the file: {texts:?}");
+    assert!(
+        texts[0].contains("person.log"),
+        "the notice names the file: {texts:?}"
+    );
     remove(linked.root.as_path());
 }
 
@@ -765,16 +1214,32 @@ fn the_service_keeps_a_worktree_whose_ignored_file_was_written_after_the_hand_ov
 ///  and this is the positive control of the two controls above.
 #[test]
 fn the_service_removes_a_worktree_whose_ignored_file_the_compared_worktree_also_holds() {
-    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-ignored-same", "*.log\n");
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules(
+        "worktree-hand-over-ignored-same",
+        "*.log\n",
+    );
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let both: PathBuf = linked.worktree.join("build.log");
-    std::fs::write(both.as_path(), b"the same words in both trees\n").expect("an ignored file the add carried");
-    std::fs::write(linked.repo_root().join("build.log").as_path(), b"the same words in both trees\n").expect("the source's copy");
+    std::fs::write(both.as_path(), b"the same words in both trees\n")
+        .expect("an ignored file the add carried");
+    std::fs::write(
+        linked.repo_root().join("build.log").as_path(),
+        b"the same words in both trees\n",
+    )
+    .expect("the source's copy");
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
-    assert_eq!(verdict, Verdict::Done, "a copy the other tree also holds is nothing to lose");
+    assert_eq!(
+        verdict,
+        Verdict::Done,
+        "a copy the other tree also holds is nothing to lose"
+    );
     assert!(!linked.worktree.exists(), "the worktree is gone");
-    assert!(kept_notice_texts(linked.common.as_path()).is_empty(), "nothing was kept, so nothing is said: {}", linked.root.display());
+    assert!(
+        kept_notice_texts(linked.common.as_path()).is_empty(),
+        "nothing was kept, so nothing is said: {}",
+        linked.root.display()
+    );
     remove(linked.root.as_path());
 }
 
@@ -794,19 +1259,45 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-held-commit");
     // The branch's commit, so the worktree is one a `git worktree remove` would take.
     let tracked: PathBuf = linked.worktree.join("tracked.txt");
-    std::fs::write(tracked.as_path(), b"tracked, edited in the worktree\n").expect("a tracked file");
+    std::fs::write(tracked.as_path(), b"tracked, edited in the worktree\n")
+        .expect("a tracked file");
     crate::test_support::age(tracked.as_path());
     crate::test_support::git(linked.worktree.as_path(), &["add", "--", "tracked.txt"]);
-    crate::test_support::git(linked.worktree.as_path(), &["commit", "--quiet", "--message=the branch's own work"]);
+    crate::test_support::git(
+        linked.worktree.as_path(),
+        &["commit", "--quiet", "--message=the branch's own work"],
+    );
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // The hold is recorded after the hand-over, as a commit whose branch move met a reference lock leaves it.
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
-    let tree: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD^{tree}"]);
-    let held: String = crate::test_support::git_text(linked.worktree.as_path(), &["commit-tree", tree.as_str(), "-p", "HEAD", "-m", "the held edit"]);
+    let tree: String =
+        crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let held: String = crate::test_support::git_text(
+        linked.worktree.as_path(),
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            "HEAD",
+            "-m",
+            "the held edit",
+        ],
+    );
     let reference: String = String::from("refs/worktree/cli-git-service/7");
-    crate::test_support::git(linked.worktree.as_path(), &["update-ref", "--no-deref", reference.as_str(), held.as_str()]);
-    crate::test_support::git(linked.common.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    crate::test_support::git(
+        linked.worktree.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            reference.as_str(),
+            held.as_str(),
+        ],
+    );
+    crate::test_support::git(
+        linked.common.as_path(),
+        &["reflog", "expire", "--expire=now", "--all"],
+    );
     let record: crate::held_commit_record::Held = crate::held_commit_record::Held {
         seq: 7,
         journal: linked.root.join("journal"),
@@ -824,14 +1315,31 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
     };
     crate::held_commit_record::write(admin.as_path(), &record).expect("the record of the hold");
     assert_eq!(
-        crate::test_support::git_text(linked.worktree.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]).trim(),
+        crate::test_support::git_text(
+            linked.worktree.as_path(),
+            &[
+                "for-each-ref",
+                "--contains",
+                held.as_str(),
+                "--format=%(refname)"
+            ]
+        )
+        .trim(),
         reference,
         "nothing but the worktree's own reference names the held commit"
     );
-    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "the commit is kept, so the worktree may go");
+    assert_eq!(
+        delete_subvolume_of_with(&item, table.as_path()),
+        Verdict::Done,
+        "the commit is kept, so the worktree may go"
+    );
     assert!(!linked.worktree.exists(), "the worktree is gone");
     assert_eq!(
-        crate::test_support::git_text(linked.common.as_path(), &["rev-parse", "--verify", "refs/cli-git/kept/7"]).trim(),
+        crate::test_support::git_text(
+            linked.common.as_path(),
+            &["rev-parse", "--verify", "refs/cli-git/kept/7"]
+        )
+        .trim(),
         held,
         "the commit the reference lock held is named by a reference no removal deletes"
     );
@@ -872,7 +1380,8 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
-    let commit: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String =
+        crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
     crate::push_failure_notice::record_push_failure(
         admin.as_path(),
         "refs/heads/topic",
@@ -881,13 +1390,24 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
         "refused after the hand over",
     )
     .expect("a failed push nobody has seen yet, recorded after the hand over");
-    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "Git removes the worktree the record names");
-    assert!(!admin.exists(), "the removal took the record's original with the Git directory");
+    assert_eq!(
+        delete_subvolume_of_with(&item, table.as_path()),
+        Verdict::Done,
+        "Git removes the worktree the record names"
+    );
+    assert!(
+        !admin.exists(),
+        "the removal took the record's original with the Git directory"
+    );
     // What the next command does with the removal this one made.
     crate::worktree_removal_rescue::settle_removals(linked.common.as_path());
-    let texts: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::orphaned_push_failures(linked.common.as_path(), &whole_name));
+    let texts: Vec<String> = crate::test_support::shown_notices(
+        crate::push_failure_notice::orphaned_push_failures(linked.common.as_path(), &whole_name),
+    );
     assert!(
-        texts.iter().any(|text| return text.contains("refused after the hand over")),
+        texts
+            .iter()
+            .any(|text| return text.contains("refused after the hand over")),
         "the push failure recorded after the hand over is shown to the person: {texts:?}"
     );
     remove(linked.root.as_path());
@@ -908,23 +1428,51 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
 ///  finding 3.3).
 #[test]
 fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_named() {
-    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-reused-path", "*.log\n");
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules(
+        "worktree-hand-over-reused-path",
+        "*.log\n",
+    );
     let item: WorkItem = handed_over(&linked, Some(linked.root.as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // The person takes the README's advice and removes the handed-over worktree by hand.
-    crate::test_support::git(linked.repo_root().as_path(), &["worktree", "remove", "--force", linked.worktree.to_str().expect("utf8")]);
-    assert!(!linked.worktree.exists(), "the worktree the record names is gone");
+    crate::test_support::git(
+        linked.repo_root().as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            linked.worktree.to_str().expect("utf8"),
+        ],
+    );
+    assert!(
+        !linked.worktree.exists(),
+        "the worktree the record names is gone"
+    );
     // The next run of whatever launcher this is adds a worktree at the same path and writes ignored state there.
-    crate::test_support::git(linked.repo_root().as_path(), &["worktree", "add", "--quiet", "-b", "hotfix", linked.worktree.to_str().expect("utf8")]);
+    crate::test_support::git(
+        linked.repo_root().as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "hotfix",
+            linked.worktree.to_str().expect("utf8"),
+        ],
+    );
     let written: PathBuf = linked.worktree.join("build.log");
-    std::fs::write(written.as_path(), b"the new worktree's own ignored state\n").expect("an ignored file of the new worktree");
+    std::fs::write(written.as_path(), b"the new worktree's own ignored state\n")
+        .expect("an ignored file of the new worktree");
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Skipped(words) if words.contains("nothing proves the worktree standing at") && words.contains(linked.worktree.display().to_string().as_str())),
         "the record's worktree is gone, and the one standing there now is nothing to it: {verdict:?}"
     );
     assert!(linked.worktree.is_dir(), "the new worktree stays");
-    assert_eq!(std::fs::read(written.as_path()).expect("the ignored file is still there"), b"the new worktree's own ignored state\n");
+    assert_eq!(
+        std::fs::read(written.as_path()).expect("the ignored file is still there"),
+        b"the new worktree's own ignored state\n"
+    );
     remove(linked.root.as_path());
 }
 
@@ -935,10 +1483,19 @@ fn work_of(common: &Path) -> PathBuf {
 
 /// Write a record into one state of the queue,
 /// as a producer or a settled attempt leaves it.
-fn put_a_record(common: &Path, state: &str, item: &WorkItem) {
+fn put_a_record(
+    common: &Path,
+    state: &str,
+    item: &WorkItem,
+) {
     let directory: PathBuf = work_of(common).join(state);
-    crate::private_storage::create_private_directory_all(directory.as_path()).expect("the state directory");
-    std::fs::write(directory.join(item.id()).as_path(), item.encode().as_bytes()).expect("the record");
+    crate::private_storage::create_private_directory_all(directory.as_path())
+        .expect("the state directory");
+    std::fs::write(
+        directory.join(item.id()).as_path(),
+        item.encode().as_bytes(),
+    )
+    .expect("the record");
 }
 
 /// What:
@@ -954,29 +1511,72 @@ fn put_a_record(common: &Path, state: &str, item: &WorkItem) {
 ///  finding 2).
 #[test]
 fn a_removal_an_earlier_service_refused_is_queued_once_more() {
-    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-by-an-earlier-service");
+    let linked: Linked =
+        a_repository_with_a_linked_worktree("worktree-removal-refused-by-an-earlier-service");
     // What the release before this one left: the record it queued, with no identity beside the registration, settled in
     // `failed` by a service that read its `oid` as a subvolume number.
-    let item: WorkItem = worktree_removal_item(linked.common.as_path(), linked.worktree.as_path(), linked.common.join("worktrees/topic").as_path());
+    let item: WorkItem = worktree_removal_item(
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        linked.common.join("worktrees/topic").as_path(),
+    );
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     put_a_record(linked.common.as_path(), "failed", &item);
     let said: Vec<String> = requeue_removals_an_earlier_release_refused(linked.common.as_path());
     assert_eq!(said.len(), 1, "the person is told once: {said:?}");
-    assert!(said[0].contains(linked.worktree.display().to_string().as_str()), "the line names the worktree: {said:?}");
-    let queued: PathBuf = work_of(linked.common.as_path()).join("pending").join(item.id());
-    assert!(queued.is_file(), "the record is queued again: {}", queued.display());
-    assert!(!work_of(linked.common.as_path()).join("failed").join(item.id()).exists(), "and it is no longer failed");
-    let again: WorkItem = WorkItem::decode(std::fs::read_to_string(queued.as_path()).expect("the queued record").as_str()).expect("a record this release reads");
-    assert_eq!(again.tries, 1, "the record says it has had the one attempt it was owed");
-    assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a removal is queued once more once");
+    assert!(
+        said[0].contains(linked.worktree.display().to_string().as_str()),
+        "the line names the worktree: {said:?}"
+    );
+    let queued: PathBuf = work_of(linked.common.as_path())
+        .join("pending")
+        .join(item.id());
+    assert!(
+        queued.is_file(),
+        "the record is queued again: {}",
+        queued.display()
+    );
+    assert!(
+        !work_of(linked.common.as_path())
+            .join("failed")
+            .join(item.id())
+            .exists(),
+        "and it is no longer failed"
+    );
+    let again: WorkItem = WorkItem::decode(
+        std::fs::read_to_string(queued.as_path())
+            .expect("the queued record")
+            .as_str(),
+    )
+    .expect("a record this release reads");
+    assert_eq!(
+        again.tries, 1,
+        "the record says it has had the one attempt it was owed"
+    );
+    assert!(
+        requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(),
+        "a removal is queued once more once"
+    );
     // What this release's service makes of it: the record of that release carries no identity and no worktree its ignored
     // files were compared with, so nothing proves them again, and the worktree is kept and named rather than removed in
     // silence.
-    assert!(matches!(delete_subvolume_of_with(&again, table.as_path()), Verdict::Failed(_)), "a record an earlier release wrote is not re-proven, so it is kept");
-    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    assert!(
+        matches!(
+            delete_subvolume_of_with(&again, table.as_path()),
+            Verdict::Failed(_)
+        ),
+        "a record an earlier release wrote is not re-proven, so it is kept"
+    );
+    assert!(
+        linked.worktree.is_dir(),
+        "the worktree the merge landed stays"
+    );
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
     assert_eq!(texts.len(), 1, "and the person reads why: {texts:?}");
-    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
+    assert!(
+        texts[0].contains(linked.worktree.display().to_string().as_str()),
+        "the notice names the worktree: {texts:?}"
+    );
     remove(linked.root.as_path());
 }
 
@@ -988,13 +1588,35 @@ fn a_removal_an_earlier_service_refused_is_queued_once_more() {
 ///  and a refused push is a record its own settlement already reported.
 #[test]
 fn a_refused_record_with_nothing_left_to_do_is_left_where_it_is() {
-    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-nothing-to-do");
-    let item: WorkItem = worktree_removal_item(linked.common.as_path(), linked.worktree.as_path(), linked.common.join("worktrees/topic").as_path());
+    let linked: Linked =
+        a_repository_with_a_linked_worktree("worktree-removal-refused-nothing-to-do");
+    let item: WorkItem = worktree_removal_item(
+        linked.common.as_path(),
+        linked.worktree.as_path(),
+        linked.common.join("worktrees/topic").as_path(),
+    );
     // The worktree the record named is gone, as a person removing it by hand leaves it.
-    crate::test_support::git(linked.repo_root().as_path(), &["worktree", "remove", "--force", linked.worktree.to_str().expect("utf8")]);
+    crate::test_support::git(
+        linked.repo_root().as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            linked.worktree.to_str().expect("utf8"),
+        ],
+    );
     put_a_record(linked.common.as_path(), "failed", &item);
-    assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a worktree that is gone is nothing to queue");
-    assert!(!work_of(linked.common.as_path()).join("pending").join(item.id()).exists(), "nothing was queued");
+    assert!(
+        requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(),
+        "a worktree that is gone is nothing to queue"
+    );
+    assert!(
+        !work_of(linked.common.as_path())
+            .join("pending")
+            .join(item.id())
+            .exists(),
+        "nothing was queued"
+    );
     remove(linked.root.as_path());
 }
 
@@ -1011,7 +1633,8 @@ fn a_refused_record_with_nothing_left_to_do_is_left_where_it_is() {
 fn a_record_of_a_later_release_is_left_queued_for_it() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-a-later-release");
     let work: PathBuf = work_of(linked.common.as_path());
-    let tracked: String = crate::test_support::git_text(linked.repo_root().as_path(), &["rev-parse", "HEAD"]);
+    let tracked: String =
+        crate::test_support::git_text(linked.repo_root().as_path(), &["rev-parse", "HEAD"]);
     // A record of a kind this build does not know, under an id whose shape it does.
     let unknown_kind: String = format!(
         "{{\"v\":1,\"tries\":0,\"kind\":\"a kind a later release added\",\"id\":\"review-{tracked}\",\"repository\":\"{}\",\"gitDir\":\"{}\",\"ref\":\"refs/heads/main\",\"oid\":\"{tracked}\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}}\n",
@@ -1024,25 +1647,66 @@ fn a_record_of_a_later_release_is_left_queued_for_it() {
         linked.common.display()
     );
     let by_kind: PathBuf = work.join("pending").join(format!("review-{tracked}"));
-    std::fs::create_dir_all(by_kind.parent().expect("the pending directory")).expect("the pending directory");
+    std::fs::create_dir_all(by_kind.parent().expect("the pending directory"))
+        .expect("the pending directory");
     // A claim is published into `claimed`, which a queue that has run has made. A queue whose producer never ran has none,
     // and an entry it holds is no different: this control makes the directories every state directory of a queue has.
     std::fs::create_dir_all(work.join("claimed")).expect("the claimed directory");
     std::fs::create_dir_all(work.join("failed")).expect("the failed directory");
     std::fs::create_dir_all(work.join("recovering")).expect("the recovering directory");
-    std::fs::write(by_kind.as_path(), unknown_kind.as_bytes()).expect("a record of a kind this build does not know");
-    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a kind this build does not know is no work of its own");
-    assert!(by_kind.is_file(), "the record is left for the release that wrote it");
-    assert!(!work.join("failed").join(format!("review-{tracked}")).exists(), "and it is not settled in failed");
+    std::fs::write(by_kind.as_path(), unknown_kind.as_bytes())
+        .expect("a record of a kind this build does not know");
+    assert!(
+        crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read())
+            .expect("a claim finds nothing to take")
+            .is_none(),
+        "a kind this build does not know is no work of its own"
+    );
+    assert!(
+        by_kind.is_file(),
+        "the record is left for the release that wrote it"
+    );
+    assert!(
+        !work
+            .join("failed")
+            .join(format!("review-{tracked}"))
+            .exists(),
+        "and it is not settled in failed"
+    );
     std::fs::remove_file(by_kind.as_path()).expect("the kind control gives its name back");
-    std::fs::write(by_kind.as_path(), newer_version.as_bytes()).expect("a record of a version this build does not know");
-    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a version this build does not know is no work of its own");
-    assert!(by_kind.is_file(), "the record is left for the release that wrote it");
-    assert!(!work.join("failed").join(format!("review-{tracked}")).exists(), "and it is not settled in failed");
+    std::fs::write(by_kind.as_path(), newer_version.as_bytes())
+        .expect("a record of a version this build does not know");
+    assert!(
+        crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read())
+            .expect("a claim finds nothing to take")
+            .is_none(),
+        "a version this build does not know is no work of its own"
+    );
+    assert!(
+        by_kind.is_file(),
+        "the record is left for the release that wrote it"
+    );
+    assert!(
+        !work
+            .join("failed")
+            .join(format!("review-{tracked}"))
+            .exists(),
+        "and it is not settled in failed"
+    );
     // A record that is no record at all is still settled where nothing reads it again.
     std::fs::write(by_kind.as_path(), b"this is not a record\n").expect("a file that is no record");
-    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a file that is no record is no work");
-    assert!(work.join("failed").join(format!("review-{tracked}")).is_file(), "a file that is no record is settled in failed");
+    assert!(
+        crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read())
+            .expect("a claim finds nothing to take")
+            .is_none(),
+        "a file that is no record is no work"
+    );
+    assert!(
+        work.join("failed")
+            .join(format!("review-{tracked}"))
+            .is_file(),
+        "a file that is no record is settled in failed"
+    );
     remove(linked.root.as_path());
 }
 
@@ -1066,11 +1730,27 @@ fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     // The state a service killed inside `git worktree remove` leaves: the record of a begun removal, and the tracked
     // files Git had already deleted.
-    test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
-    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
-    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "the next attempt finishes this program's own half-done removal");
+    test_support::record_begun(
+        linked.common.as_path(),
+        item.id().as_str(),
+        test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str(),
+    );
+    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path())
+        .expect("a tracked file Git's own removal deleted before the kill");
+    assert_eq!(
+        delete_subvolume_of_with(&item, table.as_path()),
+        Verdict::Done,
+        "the next attempt finishes this program's own half-done removal"
+    );
     assert!(!linked.worktree.exists(), "the worktree is gone");
-    assert!(!linked.common.join(super::BEGUN_FOLDER).join(item.id()).exists(), "and the record of the beginning goes with it");
+    assert!(
+        !linked
+            .common
+            .join(super::BEGUN_FOLDER)
+            .join(item.id())
+            .exists(),
+        "and the record of the beginning goes with it"
+    );
     remove(linked.root.as_path());
 }
 
@@ -1087,19 +1767,31 @@ fn a_half_deleted_worktree_holding_a_persons_file_is_kept_and_said() {
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
-    test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
-    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
+    test_support::record_begun(
+        linked.common.as_path(),
+        item.id().as_str(),
+        test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str(),
+    );
+    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path())
+        .expect("a tracked file Git's own removal deleted before the kill");
     let theirs: PathBuf = linked.worktree.join("notes.txt");
-    std::fs::write(theirs.as_path(), b"what the person wrote after the kill\n").expect("a file the person wrote there");
+    std::fs::write(theirs.as_path(), b"what the person wrote after the kill\n")
+        .expect("a file the person wrote there");
     let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("began and a kill cut it short")),
         "the worktree stays and the reason names the started removal: {verdict:?}"
     );
-    assert_eq!(std::fs::read(theirs.as_path()).expect("the file is still there"), b"what the person wrote after the kill\n");
+    assert_eq!(
+        std::fs::read(theirs.as_path()).expect("the file is still there"),
+        b"what the person wrote after the kill\n"
+    );
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
     assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
-    assert!(texts[0].contains("began and a kill cut it short"), "the notice says why: {texts:?}");
+    assert!(
+        texts[0].contains("began and a kill cut it short"),
+        "the notice says why: {texts:?}"
+    );
     remove(linked.root.as_path());
 }
 
@@ -1131,25 +1823,50 @@ fn a_half_deleted_worktree_holding_a_persons_file_is_kept_and_said() {
 /// ```
 #[test]
 fn a_removal_whose_own_destroy_is_refused_leaves_the_delete_queued_for_a_round() {
-    let Some((root, made)): Option<(PathBuf, PathBuf)> = made_subvolume("remove-refused-destroy") else { return };
+    let Some((root, made)): Option<(PathBuf, PathBuf)> = made_subvolume("remove-refused-destroy")
+    else {
+        return;
+    };
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let child: File = File::open(made.as_path()).expect("child handle");
-    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    let id: u64 =
+        subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record");
-    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("claim").expect("the record is claimable");
-    crate::work_item::settle(work.as_path(), &claimed, crate::work_item::DONE).expect("a round looked before the rename and settled a delete it found nothing for");
+    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(
+        work.as_path(),
+        &crate::claim_time::ClaimTime::read(),
+        &[WorkKind::SubvolumeDelete],
+    )
+    .expect("claim")
+    .expect("the record is claimable");
+    crate::work_item::settle(work.as_path(), &claimed, crate::work_item::DONE)
+        .expect("a round looked before the rename and settled a delete it found nothing for");
     // A subvolume inside the one being removed is a reason the kernel refuses its destroy, and one that lasts while it stands.
     let nested: PathBuf = made.join("nested");
     subvolume_create_at(nested.as_path()).expect("a subvolume inside the one being removed");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    hand_over_with(
+        common.as_path(),
+        &parent,
+        parent_path.as_path(),
+        name.as_os_str(),
+        id,
+        made.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &NobodyTold,
+    )
+    .expect("handed over");
     let hidden: PathBuf = parent_path.join(deleting_name(id));
-    assert!(hidden.is_dir(), "the rename happened, so the worktree's files stand under the name the removal chose: {}", hidden.display());
+    assert!(
+        hidden.is_dir(),
+        "the rename happened, so the worktree's files stand under the name the removal chose: {}",
+        hidden.display()
+    );
     let pending: PathBuf = pending_record_path(common.as_path(), &item);
     assert!(
         pending.is_file(),
@@ -1159,9 +1876,20 @@ fn a_removal_whose_own_destroy_is_refused_leaves_the_delete_queued_for_a_round()
     );
     // The reason the kernel refused is gone, and the queued delete takes the directory.
     let held: File = File::open(hidden.as_path()).expect("the renamed subvolume");
-    crate::fs_btrfs_ioctl::snapshot_destroy_in(&held, OsStr::new("nested"), nested.as_path()).expect("the subvolume inside it is destroyed");
-    let queued: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("claim").expect("the queued delete is claimable");
-    assert_eq!(delete_subvolume_of(&queued.item), Verdict::Done, "the round's own delete takes it");
+    crate::fs_btrfs_ioctl::snapshot_destroy_in(&held, OsStr::new("nested"), nested.as_path())
+        .expect("the subvolume inside it is destroyed");
+    let queued: crate::work_item::Claimed = crate::work_item::claim_next_of(
+        work.as_path(),
+        &crate::claim_time::ClaimTime::read(),
+        &[WorkKind::SubvolumeDelete],
+    )
+    .expect("claim")
+    .expect("the queued delete is claimable");
+    assert_eq!(
+        delete_subvolume_of(&queued.item),
+        Verdict::Done,
+        "the round's own delete takes it"
+    );
     assert!(!hidden.exists(), "the worktree's files are gone with it");
     remove(root.as_path());
 }
@@ -1172,14 +1900,42 @@ fn a_removal_whose_own_destroy_is_refused_leaves_the_delete_queued_for_a_round()
 fn a_failed_record_that_is_a_named_pipe_is_answered_at_once() {
     let root: PathBuf = fixture("remove-failed-named-pipe");
     let common: PathBuf = root.join("common");
-    let failed: PathBuf = state_directory(work_directory(common.as_path()).as_path(), crate::work_item::FAILED);
-    crate::private_storage::create_private_directory_all(failed.as_path()).expect("the failed folder");
-    let record: PathBuf = failed.join(crate::work_item::WorkItem { kind: WorkKind::SubvolumeDelete, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: String::from("refs/worktree/cli-git-service/worktree-remove"), oid: String::from("0123456789abcdef0123456789abcdef01234567"), parent: String::new(), created: String::new(), tries: 0, transport: false }.id());
-    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600).expect("a named pipe where a removal record goes");
+    let failed: PathBuf = state_directory(
+        work_directory(common.as_path()).as_path(),
+        crate::work_item::FAILED,
+    );
+    crate::private_storage::create_private_directory_all(failed.as_path())
+        .expect("the failed folder");
+    let record: PathBuf = failed.join(
+        crate::work_item::WorkItem {
+            kind: WorkKind::SubvolumeDelete,
+            repository: PathBuf::new(),
+            git_dir: PathBuf::new(),
+            branch_ref: String::from("refs/worktree/cli-git-service/worktree-remove"),
+            oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+            parent: String::new(),
+            created: String::new(),
+            tries: 0,
+            transport: false,
+        }
+        .id(),
+    );
+    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600)
+        .expect("a named pipe where a removal record goes");
     let inside: PathBuf = common.clone();
-    let answered = crate::test_support::finished_within(move || return requeue_removals_an_earlier_release_refused(inside.as_path()));
-    let Some(said) = answered else { panic!("a failed record that is a named pipe held the command") };
-    assert!(said.is_empty(), "a pipe is no removal this command offers again");
-    assert!(record.exists(), "and it is left where it is, for a person to look at");
+    let answered = crate::test_support::finished_within(move || {
+        return requeue_removals_an_earlier_release_refused(inside.as_path());
+    });
+    let Some(said) = answered else {
+        panic!("a failed record that is a named pipe held the command")
+    };
+    assert!(
+        said.is_empty(),
+        "a pipe is no removal this command offers again"
+    );
+    assert!(
+        record.exists(),
+        "and it is left where it is, for a person to look at"
+    );
     remove(root.as_path());
 }

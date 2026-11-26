@@ -25,9 +25,19 @@
 //! ```
 
 use crate::global_arguments::takes_value;
-use crate::worktree_identity::{WorktreeIdentity, git_directory, worktree_root};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::worktree_identity::{
+    WorktreeIdentity,
+    git_directory,
+    worktree_root,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The spelling of the option that names the Git directory.
 const GIT_DIR: &str = "--git-dir";
@@ -48,8 +58,13 @@ const BARE: &[u8] = b"--bare";
 /// ```ts
 /// const inlineValue = (token: string, spelling: string) => token.startsWith(spelling + '=') ? token.slice(spelling.length + 1) : undefined;
 /// ```
-fn inline_value(token: &[u8], spelling: &str) -> Option<OsString> {
-    let value: &[u8] = token.strip_prefix(spelling.as_bytes())?.strip_prefix(b"=")?;
+fn inline_value(
+    token: &[u8],
+    spelling: &str,
+) -> Option<OsString> {
+    let value: &[u8] = token
+        .strip_prefix(spelling.as_bytes())?
+        .strip_prefix(b"=")?;
     #[cfg(unix)]
     {
         /// The Unix byte-to-native-string conversion for a configured path.
@@ -98,7 +113,10 @@ fn inline_value(token: &[u8], spelling: &str) -> Option<OsString> {
 ///   return named.flatMap(([spelling, value]) => [spelling, join(ends, value)]);
 /// }
 /// ```
-pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<OsString> {
+pub fn from_global_options(
+    directory: &Path,
+    global_prefix: &[OsString],
+) -> Vec<OsString> {
     let mut ends: PathBuf = directory.to_path_buf();
     let mut git_dir: Option<OsString> = None;
     let mut work_tree: Option<OsString> = None;
@@ -132,7 +150,9 @@ pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<
             index += 1;
             continue;
         }
-        if (argument == GIT_DIR.as_bytes() || argument == WORK_TREE.as_bytes()) && index + 1 < global_prefix.len() {
+        if (argument == GIT_DIR.as_bytes() || argument == WORK_TREE.as_bytes())
+            && index + 1 < global_prefix.len()
+        {
             let value: OsString = global_prefix[index + 1].clone();
             if argument == GIT_DIR.as_bytes() {
                 git_dir = Some(value);
@@ -170,8 +190,12 @@ pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<
 /// ```ts
 /// const ofPaths = ({ gitDir, workTree }) => dirname(gitDir) === workTree && basename(gitDir) === '.git' ? [] : ['--git-dir', gitDir, '--work-tree', workTree];
 /// ```
-pub fn of_paths(git_dir: &Path, work_tree: &Path) -> Vec<OsString> {
-    let plain: bool = git_dir.parent() == Some(work_tree) && git_dir.file_name() == Some(OsStr::new(".git"));
+pub fn of_paths(
+    git_dir: &Path,
+    work_tree: &Path,
+) -> Vec<OsString> {
+    let plain: bool =
+        git_dir.parent() == Some(work_tree) && git_dir.file_name() == Some(OsStr::new(".git"));
     if plain {
         return Vec::new();
     }
@@ -202,7 +226,8 @@ pub fn of_paths(git_dir: &Path, work_tree: &Path) -> Vec<OsString> {
 /// const ofIdentity = (identity) => 'worktreeRoot' in identity ? ofPaths(identity.gitDir, identity.worktreeRoot) : [];
 /// ```
 pub fn of_identity(identity: &WorktreeIdentity) -> Vec<OsString> {
-    let (Some(git_dir), Some(work_tree)) = (git_directory(identity), worktree_root(identity)) else {
+    let (Some(git_dir), Some(work_tree)) = (git_directory(identity), worktree_root(identity))
+    else {
         return Vec::new();
     };
     return of_paths(git_dir, work_tree);
@@ -235,7 +260,10 @@ pub fn without_repository_selection(global_prefix: &[OsString]) -> Vec<OsString>
             index += 2;
             continue;
         }
-        if argument == BARE || inline_value(argument, GIT_DIR).is_some() || inline_value(argument, WORK_TREE).is_some() {
+        if argument == BARE
+            || inline_value(argument, GIT_DIR).is_some()
+            || inline_value(argument, WORK_TREE).is_some()
+        {
             index += 1;
             continue;
         }

@@ -4,9 +4,15 @@
 //! and what each end is called.
 
 use super::*;
+use crate::package_repair_report::{
+    Outcome,
+    Tool,
+};
 use crate::test_support::executable;
-use crate::package_repair_report::{Outcome, Tool};
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -19,7 +25,11 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(destination.join("node_modules")).expect("node_modules");
     std::fs::create_dir_all(&bin).expect("bin");
-    std::fs::write(destination.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
+    std::fs::write(
+        destination.join("pnpm-lock.yaml"),
+        b"lockfileVersion: '9.0'\n",
+    )
+    .expect("lockfile");
     let environment: RepairEnvironment = RepairEnvironment {
         search_path: Some(bin.clone().into_os_string()),
         quiet_window: Duration::from_secs(60),
@@ -36,13 +46,33 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
 fn starts_pnpm_offline_and_frozen_in_the_worktree() {
     let (root, destination, bin, environment) = scene("pnpm-args");
     let record: PathBuf = root.join("record");
-    executable(bin.join("pnpm").as_path(), format!("#!/bin/sh\necho \"$* in $(pwd -P)\" > '{}'\n", record.display()).as_bytes());
+    executable(
+        bin.join("pnpm").as_path(),
+        format!(
+            "#!/bin/sh\necho \"$* in $(pwd -P)\" > '{}'\n",
+            record.display()
+        )
+        .as_bytes(),
+    );
     let finding: Finding = repair_pnpm(destination.as_path(), &environment).expect("a finding");
     assert_eq!(finding.tool, Tool::Pnpm);
-    assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?}");
+    assert!(
+        matches!(finding.outcome, Outcome::Repaired { .. }),
+        "{finding:?}"
+    );
     let recorded: String = std::fs::read_to_string(&record).expect("record");
-    assert!(recorded.contains("install") && recorded.contains("--offline") && recorded.contains("--frozen-lockfile"), "{recorded}");
-    assert!(recorded.trim_end().ends_with(destination.to_str().expect("utf8")), "{recorded}");
+    assert!(
+        recorded.contains("install")
+            && recorded.contains("--offline")
+            && recorded.contains("--frozen-lockfile"),
+        "{recorded}"
+    );
+    assert!(
+        recorded
+            .trim_end()
+            .ends_with(destination.to_str().expect("utf8")),
+        "{recorded}"
+    );
     remove(&root);
 }
 
@@ -51,7 +81,10 @@ fn starts_pnpm_offline_and_frozen_in_the_worktree() {
 fn applies_only_with_a_lockfile_and_node_modules() {
     let (root, destination, bin, environment) = scene("pnpm-applies");
     let record: PathBuf = root.join("record");
-    executable(bin.join("pnpm").as_path(), format!("#!/bin/sh\necho started > '{}'\n", record.display()).as_bytes());
+    executable(
+        bin.join("pnpm").as_path(),
+        format!("#!/bin/sh\necho started > '{}'\n", record.display()).as_bytes(),
+    );
     std::fs::remove_dir(destination.join("node_modules")).expect("remove node_modules");
     assert!(repair_pnpm(destination.as_path(), &environment).is_none());
     std::fs::create_dir(destination.join("node_modules")).expect("node_modules");
@@ -78,13 +111,23 @@ fn applies_only_with_a_lockfile_and_node_modules() {
 fn a_node_modules_a_link_carries_out_of_the_worktree_is_not_relinked() {
     let (root, destination, bin, environment) = scene("pnpm-linked-modules");
     let record: PathBuf = root.join("record");
-    executable(bin.join("pnpm").as_path(), format!("#!/bin/sh\necho started > '{}'\n", record.display()).as_bytes());
+    executable(
+        bin.join("pnpm").as_path(),
+        format!("#!/bin/sh\necho started > '{}'\n", record.display()).as_bytes(),
+    );
     let source_modules: PathBuf = root.join("source/node_modules");
     std::fs::create_dir_all(source_modules.join("leaf")).expect("the source's packages");
     std::fs::remove_dir(destination.join("node_modules")).expect("remove the copied directory");
-    std::os::unix::fs::symlink(source_modules.as_path(), destination.join("node_modules")).expect("a link to the source's packages");
-    assert!(repair_pnpm(destination.as_path(), &environment).is_none(), "a link that leaves the worktree starts nothing");
-    assert!(!record.exists(), "pnpm was started against the checkout's packages");
+    std::os::unix::fs::symlink(source_modules.as_path(), destination.join("node_modules"))
+        .expect("a link to the source's packages");
+    assert!(
+        repair_pnpm(destination.as_path(), &environment).is_none(),
+        "a link that leaves the worktree starts nothing"
+    );
+    assert!(
+        !record.exists(),
+        "pnpm was started against the checkout's packages"
+    );
     remove(&root);
 }
 
@@ -93,11 +136,23 @@ fn a_node_modules_a_link_carries_out_of_the_worktree_is_not_relinked() {
 #[test]
 fn a_failure_names_a_command_that_runs_from_anywhere() {
     let (root, destination, bin, environment) = scene("pnpm-fails");
-    executable(bin.join("pnpm").as_path(), b"#!/bin/sh\necho 'ERR_PNPM_NO_OFFLINE_TARBALL' >&2\nexit 1\n");
+    executable(
+        bin.join("pnpm").as_path(),
+        b"#!/bin/sh\necho 'ERR_PNPM_NO_OFFLINE_TARBALL' >&2\nexit 1\n",
+    );
     let finding: Finding = repair_pnpm(destination.as_path(), &environment).expect("a finding");
-    let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("expected a failure") };
+    let Outcome::Failed {
+        reason,
+        run_instead,
+    } = finding.outcome
+    else {
+        panic!("expected a failure")
+    };
     assert!(reason.contains("ERR_PNPM_NO_OFFLINE_TARBALL"), "{reason}");
-    assert!(run_instead.contains(destination.to_str().expect("utf8")) && run_instead.contains("pnpm"), "{run_instead}");
+    assert!(
+        run_instead.contains(destination.to_str().expect("utf8")) && run_instead.contains("pnpm"),
+        "{run_instead}"
+    );
     remove(&root);
 }
 
@@ -109,9 +164,18 @@ fn a_slow_pnpm_is_stopped_and_reported() {
     environment.quiet_window = Duration::from_millis(300);
     // The install's own children read the search path the repair resolved it on, so the fixture names what it needs
     //  absolutely and reaches nothing else.
-    executable(bin.join("pnpm").as_path(), b"#!/bin/sh\nexec /usr/bin/sleep 30\n");
+    executable(
+        bin.join("pnpm").as_path(),
+        b"#!/bin/sh\nexec /usr/bin/sleep 30\n",
+    );
     let finding: Finding = repair_pnpm(destination.as_path(), &environment).expect("a finding");
-    let Outcome::Failed { reason, .. } = finding.outcome else { panic!("expected a failure") };
+    let Outcome::Failed {
+        reason,
+        ..
+    } = finding.outcome
+    else {
+        panic!("expected a failure")
+    };
     assert!(reason.contains("no sign of work"), "{reason}");
     remove(&root);
 }

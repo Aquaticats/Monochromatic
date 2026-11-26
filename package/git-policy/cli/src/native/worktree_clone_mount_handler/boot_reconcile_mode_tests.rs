@@ -14,12 +14,26 @@
 //! expect(ReconcilePlaces.installed().store).toBe('/var/lib/…/git-worktree-clone-slot-identities');
 //! ```
 
-use super::{ReconcilePlaces, run_at};
-use crate::start_probe::{RECORD_DIRECTORY, RESULT_NAME};
+use super::{
+    ReconcilePlaces,
+    run_at,
+};
+use crate::start_probe::{
+    RECORD_DIRECTORY,
+    RESULT_NAME,
+};
 use crate::worktree_clone_mount::SLOT_IDENTITY_STORE_PATH;
 use crate::worktree_clone_mount_handler::handler_install_paths::CONFIGURATION_PATH;
-use crate::worktree_clone_mount_handler::sweep_configuration::{CHECKOUT_DATASET_KEY, CLONE_MOUNTS_KEY, CHECKOUT_KEY, PARENT_KEY};
-use crate::worktree_clone_mount_protocol::{READINESS_NAME, ReadinessFile};
+use crate::worktree_clone_mount_handler::sweep_configuration::{
+    CHECKOUT_DATASET_KEY,
+    CHECKOUT_KEY,
+    CLONE_MOUNTS_KEY,
+    PARENT_KEY,
+};
+use crate::worktree_clone_mount_protocol::{
+    READINESS_NAME,
+    ReadinessFile,
+};
 use std::path::PathBuf;
 
 /// One fixture folder of this control's own,
@@ -32,11 +46,16 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new(name: &str) -> Self {
-        return Fixture { path: crate::test_support::fixture(format!("boot-reconcile-mode-{name}").as_str()) };
+        return Fixture {
+            path: crate::test_support::fixture(format!("boot-reconcile-mode-{name}").as_str()),
+        };
     }
 
     /// Write one configuration document and answer its path.
-    fn configuration(&self, document: &str) -> PathBuf {
+    fn configuration(
+        &self,
+        document: &str,
+    ) -> PathBuf {
         let file: PathBuf = self.path.join("git-worktree-clone-mounts.jsonc");
         std::fs::write(file.as_path(), document).expect("the fixture configuration is written");
         return file;
@@ -49,7 +68,10 @@ fn the_installed_places_are_the_designs() {
     let places: ReconcilePlaces = ReconcilePlaces::installed();
     assert_eq!(places.configuration, PathBuf::from(CONFIGURATION_PATH));
     assert_eq!(places.store, PathBuf::from(SLOT_IDENTITY_STORE_PATH));
-    assert_eq!(places.probe_record, PathBuf::from(RECORD_DIRECTORY).join(RESULT_NAME));
+    assert_eq!(
+        places.probe_record,
+        PathBuf::from(RECORD_DIRECTORY).join(RESULT_NAME)
+    );
 }
 
 /// What:
@@ -69,13 +91,29 @@ fn a_boot_with_no_probe_record_publishes_no_readiness() {
         fixture.path.display()
     );
     let configuration: PathBuf = fixture.configuration(document.as_str());
-    let places: ReconcilePlaces = ReconcilePlaces::at(configuration, fixture.path.join("store"), fixture.path.join("probe-record"));
+    let places: ReconcilePlaces = ReconcilePlaces::at(
+        configuration,
+        fixture.path.join("store"),
+        fixture.path.join("probe-record"),
+    );
     let readiness: ReadinessFile = ReadinessFile::at(fixture.path.join("readiness"), 0);
     let Err(said): Result<String, String> = run_at(&places, &readiness) else {
         panic!("a boot with no probe record answered a report");
     };
-    assert!(said.contains("start probe"), "the refusal is the record's own: {said}");
-    assert!(said.contains("Nothing was enumerated"), "the refusal says nothing acted: {said}");
-    assert!(!readiness.directory().join(READINESS_NAME).exists(), "no readiness record was published for a boot that failed its checks");
-    assert!(!PathBuf::from(&places.store).exists(), "a refused boot wrote no store");
+    assert!(
+        said.contains("start probe"),
+        "the refusal is the record's own: {said}"
+    );
+    assert!(
+        said.contains("Nothing was enumerated"),
+        "the refusal says nothing acted: {said}"
+    );
+    assert!(
+        !readiness.directory().join(READINESS_NAME).exists(),
+        "no readiness record was published for a boot that failed its checks"
+    );
+    assert!(
+        !PathBuf::from(&places.store).exists(),
+        "a refused boot wrote no store"
+    );
 }

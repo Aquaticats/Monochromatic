@@ -27,7 +27,10 @@
 //! ```
 
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kinds of commit a landing moves a branch for,
 /// each with the word native Git writes for it.
@@ -83,7 +86,11 @@ impl Committed {
 /// ```ts
 /// const conclusion = cleanup ? pathOf(journal, seq) : undefined;
 /// ```
-pub fn conclusion_copy(journal: &Path, seq: u64, cleanup: bool) -> Option<PathBuf> {
+pub fn conclusion_copy(
+    journal: &Path,
+    seq: u64,
+    cleanup: bool,
+) -> Option<PathBuf> {
     if !cleanup {
         return None;
     }
@@ -100,7 +107,10 @@ pub fn conclusion_copy(journal: &Path, seq: u64, cleanup: bool) -> Option<PathBu
 /// ```ts
 /// const holds = (copy, name) => existsSync(join(copy, 'shadow', name));
 /// ```
-fn copy_holds(copy: Option<&Path>, name: &str) -> bool {
+fn copy_holds(
+    copy: Option<&Path>,
+    name: &str,
+) -> bool {
     let Some(folder) = copy else { return false };
     return folder.join("shadow").join(name).exists();
 }
@@ -122,7 +132,12 @@ fn copy_holds(copy: Option<&Path>, name: &str) -> bool {
 /// ```ts
 /// const kind = initial ? 'initial' : amend ? 'amend' : holds(copy, 'MERGE_HEAD') ? 'merge' : holds(copy, 'CHERRY_PICK_HEAD') ? 'cherryPick' : holds(copy, 'REVERT_HEAD') ? 'revert' : parents > 1 ? 'merge' : 'plain';
 /// ```
-pub fn kind(amend: bool, initial: bool, parents: usize, copy: Option<&Path>) -> Committed {
+pub fn kind(
+    amend: bool,
+    initial: bool,
+    parents: usize,
+    copy: Option<&Path>,
+) -> Committed {
     if initial {
         return Committed::Initial;
     }
@@ -160,7 +175,10 @@ fn ends_the_line(byte: &u8) -> bool {
 /// const firstLine = (message) => message.subarray(0, Math.min(...[message.indexOf(10), message.indexOf(0)].filter((at) => at >= 0)));
 /// ```
 fn first_line(message: &[u8]) -> &[u8] {
-    let end: usize = message.iter().position(ends_the_line).unwrap_or(message.len());
+    let end: usize = message
+        .iter()
+        .position(ends_the_line)
+        .unwrap_or(message.len());
     return &message[..end];
 }
 
@@ -173,7 +191,10 @@ fn first_line(message: &[u8]) -> &[u8] {
 /// ```ts
 /// const reflogMessage = (kind, message) => `${kind.action()}: ${firstLine(message).toString()}`;
 /// ```
-pub fn message(kind: Committed, message: &[u8]) -> OsString {
+pub fn message(
+    kind: Committed,
+    message: &[u8],
+) -> OsString {
     let subject: &[u8] = first_line(message);
     let action: &str = kind.action();
     let mut text: Vec<u8> = Vec::with_capacity(action.len() + 2 + subject.len());

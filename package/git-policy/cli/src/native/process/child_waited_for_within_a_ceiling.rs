@@ -25,8 +25,14 @@
 //! ```
 
 use crate::bounded_push::STOP_GRACE;
-use std::process::{Child, ExitStatus};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    ExitStatus,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 // What:
 //  A control that refuses the next kill, which is how a child the kernel will not let end looks from this wait's side.
@@ -43,14 +49,18 @@ thread_local! {
 /// which is how a child the kernel will not let end looks from a wait's side.
 #[cfg(test)]
 pub(crate) fn a_control_refuses_the_next_kill() {
-    A_KILL_IS_REFUSED.with(|refused| { refused.set(true); });
+    A_KILL_IS_REFUSED.with(|refused| {
+        refused.set(true);
+    });
 }
 
 /// Ask a child to end,
 /// unless a control refuses the signal.
 pub(crate) fn kill(child: &mut Child) -> std::io::Result<()> {
     #[cfg(test)]
-    if A_KILL_IS_REFUSED.with(|refused| { return refused.replace(false); }) {
+    if A_KILL_IS_REFUSED.with(|refused| {
+        return refused.replace(false);
+    }) {
         return Ok(());
     }
     return child.kill();
@@ -85,8 +95,15 @@ pub struct AtTheCeiling {
 }
 
 impl std::fmt::Display for AtTheCeiling {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(self.sentence.as_deref().unwrap_or("the child did not answer within its ceiling"));
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return formatter.write_str(
+            self.sentence
+                .as_deref()
+                .unwrap_or("the child did not answer within its ceiling"),
+        );
     }
 }
 
@@ -103,7 +120,9 @@ pub fn left_running_when_the_ceiling_was_reached(error: &std::io::Error) -> bool
 
 /// The ceiling answer inside an error,
 /// when it is this error's cause.
-fn ceiling_reached_in<'cause>(inner: &'cause (dyn std::error::Error + Send + Sync + 'static)) -> Option<&'cause AtTheCeiling> {
+fn ceiling_reached_in<'cause>(
+    inner: &'cause (dyn std::error::Error + Send + Sync + 'static)
+) -> Option<&'cause AtTheCeiling> {
     return inner.downcast_ref::<AtTheCeiling>();
 }
 
@@ -120,7 +139,11 @@ fn ceiling_reached_in<'cause>(inner: &'cause (dyn std::error::Error + Send + Syn
 /// ```ts
 /// `${program} did not answer within ${seconds} seconds ... and was ${leftRunning ? 'left running' : 'ended'} ...`
 /// ```
-pub fn ceiling_reached_text(program: &str, ceiling: Duration, left_running: bool) -> String {
+pub fn ceiling_reached_text(
+    program: &str,
+    ceiling: Duration,
+    left_running: bool,
+) -> String {
     let ending: &str = if left_running {
         "and could not be ended: it is in a call the kernel has not returned from (a stalled disk or a network file system), so it \
          was left running, and the system reaps it when that call returns"
@@ -163,7 +186,10 @@ pub fn ceiling_reached_text(program: &str, ceiling: Duration, left_running: bool
 /// ```ts
 /// function waitWithin(child: Child, ceiling: Duration): ExitStatus; // throws and hands a stuck child to a reaper
 /// ```
-pub fn wait_within(mut child: Child, ceiling: Duration) -> std::io::Result<ExitStatus> {
+pub fn wait_within(
+    mut child: Child,
+    ceiling: Duration,
+) -> std::io::Result<ExitStatus> {
     let began: Instant = Instant::now();
     loop {
         if let Some(status) = child.try_wait()? {
@@ -180,13 +206,25 @@ pub fn wait_within(mut child: Child, ceiling: Duration) -> std::io::Result<ExitS
     let grace: Instant = Instant::now();
     loop {
         if let Some(_status) = child.try_wait()? {
-            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: false, sentence: None }));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                AtTheCeiling {
+                    left_running: false,
+                    sentence: None,
+                },
+            ));
         }
         if grace.elapsed() >= STOP_GRACE {
             // Nothing here can end it: it is in a call the kernel has not returned from. A thread of this command reaps it when
             //  the kernel lets it go, and keeps it if the system refuses that thread, so the child is never lost.
             crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
-            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, AtTheCeiling { left_running: true, sentence: None }));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                AtTheCeiling {
+                    left_running: true,
+                    sentence: None,
+                },
+            ));
         }
         std::thread::sleep(LOOK_INTERVAL);
     }

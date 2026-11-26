@@ -30,10 +30,16 @@
 //! await unloadInstance(host, manager) // stop this worktree's units, wait for the manager to drop them
 //! ```
 
-use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
 use crate::service_address_of_a_worktree::socket_address_of;
-use crate::service_instance::{service_unit_instance, socket_unit_instance};
-use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
+use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
+use crate::service_instance::{
+    service_unit_instance,
+    socket_unit_instance,
+};
+use crate::service_provision_host_and_manager::{
+    Manager,
+    ProvisionHost,
+};
 use crate::systemd_dbus::CallError;
 
 /// The longest the manager is given to drop a unit after it was stopped,
@@ -60,11 +66,21 @@ const UNLOAD_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 pub(crate) fn describe(error: &CallError) -> String {
     return match error {
         CallError::Connection(reason) => format!("the session bus could not be reached ({reason})"),
-        CallError::Authentication(reason) => format!("the session bus refused the connection ({reason})"),
+        CallError::Authentication(reason) => {
+            format!("the session bus refused the connection ({reason})")
+        }
         CallError::TimedOut => String::from("the session bus did not answer in time"),
-        CallError::Manager { text, name } if text.is_empty() => format!("the service manager refused the request ({name})"),
-        CallError::Manager { text, .. } => format!("the service manager refused the request ({text})"),
-        CallError::Malformed(reason) => format!("the service manager's answer could not be read ({reason})"),
+        CallError::Manager {
+            text,
+            name,
+        } if text.is_empty() => format!("the service manager refused the request ({name})"),
+        CallError::Manager {
+            text,
+            ..
+        } => format!("the service manager refused the request ({text})"),
+        CallError::Malformed(reason) => {
+            format!("the service manager's answer could not be read ({reason})")
+        }
     };
 }
 
@@ -173,7 +189,10 @@ impl ServiceLeft {
 /// ```ts
 /// await unloadInstance(host, manager) // stop this worktree's units, wait for the manager to drop them
 /// ```
-pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -> Unloaded {
+pub(crate) fn unload_instance(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+) -> Unloaded {
     let instance: &str = host.instance.as_str();
     let service: String = service_unit_instance(instance);
     let socket: String = socket_unit_instance(instance);
@@ -255,9 +274,15 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
 /// ```ts
 /// stopAlone(manager, unit) // StopUnit with ignore-dependencies, NO_SUCH_UNIT taken as done
 /// ```
-fn stop_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+fn stop_alone(
+    manager: &mut dyn Manager,
+    unit: &str,
+) -> Result<(), CallError> {
     return match manager.stop_alone(unit) {
-        Err(CallError::Manager { name, .. }) if name == crate::systemd_dbus::NO_SUCH_UNIT => Ok(()),
+        Err(CallError::Manager {
+            name,
+            ..
+        }) if name == crate::systemd_dbus::NO_SUCH_UNIT => Ok(()),
         other => other,
     };
 }
@@ -275,7 +300,11 @@ fn stop_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
 /// ```ts
 /// retireService(host, manager, instance) // { gone } | { stillRunning } | { notAsked }
 /// ```
-fn retire_service(host: &ProvisionHost, manager: &mut dyn Manager, instance: &str) -> ServiceLeft {
+fn retire_service(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+    instance: &str,
+) -> ServiceLeft {
     // The ask goes to the address the service really holds: a socket file, or an abstract name where the runtime
     // directory's path leaves no room for one (`service_address_of_a_worktree.rs`). A path here was the finding: under a
     // name it reached a file that cannot exist, so the service was never asked and the repair never finished.
@@ -298,7 +327,11 @@ fn retire_service(host: &ProvisionHost, manager: &mut dyn Manager, instance: &st
 /// ```ts
 /// await waitUntilAtRest(host, manager, unit)
 /// ```
-fn wait_until_at_rest(host: &ProvisionHost, manager: &mut dyn Manager, unit: &str) -> ServiceLeft {
+fn wait_until_at_rest(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+    unit: &str,
+) -> ServiceLeft {
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
     loop {
         manager.within(deadline.saturating_duration_since(std::time::Instant::now()));
@@ -339,7 +372,13 @@ fn wait_until_at_rest(host: &ProvisionHost, manager: &mut dyn Manager, unit: &st
 /// ```ts
 /// await waitUntilDropped(host, manager, instance, '<service>', '<socket>')
 /// ```
-fn wait_until_dropped(host: &ProvisionHost, manager: &mut dyn Manager, instance: &str, service: &str, socket: &str) -> Unloaded {
+fn wait_until_dropped(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+    instance: &str,
+    service: &str,
+    socket: &str,
+) -> Unloaded {
     let deadline: std::time::Instant = std::time::Instant::now() + UNLOAD_WAIT;
     // What: Whether a service started inside this wait was already asked to retire.
     // Why:  One ask each, so a service that keeps answering is not asked in a loop inside this wait.
@@ -347,7 +386,11 @@ fn wait_until_dropped(host: &ProvisionHost, manager: &mut dyn Manager, instance:
     loop {
         let mut held: Option<&str> = None;
         for unit in [service, socket] {
-            manager.within(deadline.saturating_duration_since(std::time::Instant::now()).max(UNLOAD_POLL));
+            manager.within(
+                deadline
+                    .saturating_duration_since(std::time::Instant::now())
+                    .max(UNLOAD_POLL),
+            );
             match manager.active_state(unit) {
                 Ok(None) => {}
                 Ok(Some(state)) => {
@@ -383,7 +426,9 @@ fn wait_until_dropped(host: &ProvisionHost, manager: &mut dyn Manager, instance:
                 }
             }
         }
-        let Some(unit) = held else { return Unloaded::Dropped };
+        let Some(unit) = held else {
+            return Unloaded::Dropped;
+        };
         if std::time::Instant::now() >= deadline {
             crate::service_warn!(
                 "the service manager still holds this worktree's unit ({unit}) {:.0} seconds after it was stopped, so this commit goes on without the record of what the manager read, and the next commit asks it to drop the unit again",

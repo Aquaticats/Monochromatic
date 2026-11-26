@@ -14,9 +14,14 @@
 //! ```
 
 use super::{
-    dry_run_lines_from_answer, nested_repositories_the_clean_deletes, removed_paths_from_dry_run,
+    dry_run_lines_from_answer,
+    nested_repositories_the_clean_deletes,
+    removed_paths_from_dry_run,
 };
-use crate::command_test_support::{fixture, remove};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 use crate::git_metadata::MetadataOutput;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -27,7 +32,13 @@ use std::path::PathBuf;
 fn lines(values: &[&str]) -> Vec<Vec<u8>> {
     return values
         .iter()
-        .map(|value| { return value.strip_suffix('\n').unwrap_or(value).as_bytes().to_vec(); })
+        .map(|value| {
+            return value
+                .strip_suffix('\n')
+                .unwrap_or(value)
+                .as_bytes()
+                .to_vec();
+        })
         .collect();
 }
 
@@ -39,7 +50,11 @@ fn line(value: &str) -> Vec<u8> {
 }
 
 /// A one-line `git clean --dry-run` answer.
-fn answer(success: bool, stdout: &[u8], stderr: &[u8]) -> MetadataOutput {
+fn answer(
+    success: bool,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> MetadataOutput {
     return MetadataOutput {
         success,
         code: Some(if success { 0 } else { 128 }),
@@ -137,7 +152,12 @@ fn the_removed_paths_are_read_through_their_own_git_entry() {
     std::fs::create_dir_all(root.join("cache/build")).expect("an ignored directory");
     std::fs::create_dir_all(root.join("vendor")).expect("a directory Git keeps");
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
-        lines(&["Would remove nested/\n", "Would remove cache/\n", "Would remove vendor/\n"]).as_slice(),
+        lines(&[
+            "Would remove nested/\n",
+            "Would remove cache/\n",
+            "Would remove vendor/\n",
+        ])
+        .as_slice(),
         root.as_path(),
     )
     .expect("a plain answer");
@@ -157,7 +177,8 @@ fn the_removed_paths_are_read_through_their_own_git_entry() {
 fn a_repository_below_a_removed_directory_is_found() {
     let root: PathBuf = fixture("clean-nested-below");
     std::fs::create_dir_all(root.join("container/nested/.git")).expect("a nested repository");
-    std::fs::create_dir_all(root.join("container/deeper/again/nested/.git")).expect("a deeper repository");
+    std::fs::create_dir_all(root.join("container/deeper/again/nested/.git"))
+        .expect("a deeper repository");
     std::fs::create_dir_all(root.join("container/elsewhere")).expect("an ordinary directory");
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove container/\n"]).as_slice(),
@@ -166,7 +187,10 @@ fn a_repository_below_a_removed_directory_is_found() {
     .expect("a plain answer");
     assert_eq!(
         found,
-        vec![line("container/nested"), line("container/deeper/again/nested")]
+        vec![
+            line("container/nested"),
+            line("container/deeper/again/nested")
+        ]
     );
     remove(root.as_path());
 }
@@ -200,7 +224,8 @@ fn a_link_to_a_repository_is_not_a_repository_the_clean_deletes() {
     let root: PathBuf = fixture("clean-nested-link");
     std::fs::create_dir_all(root.join("elsewhere/.git")).expect("a repository beside the link");
     std::fs::create_dir_all(root.join("elsewhere/inner/.git")).expect("a repository inside it");
-    std::os::unix::fs::symlink(root.join("elsewhere"), root.join("linked")).expect("a symbolic link");
+    std::os::unix::fs::symlink(root.join("elsewhere"), root.join("linked"))
+        .expect("a symbolic link");
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove linked/\n", "Would remove linked/inner/\n"]).as_slice(),
         root.as_path(),
@@ -217,7 +242,12 @@ fn a_removed_name_that_leaves_the_worktree_names_nothing() {
     let root: PathBuf = fixture("clean-nested-outside");
     std::fs::create_dir_all(root.join("nested/.git")).expect("a nested repository");
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
-        lines(&["Would remove ../outside/\n", "Would remove /absolute/\n", "Would remove nested/\n"]).as_slice(),
+        lines(&[
+            "Would remove ../outside/\n",
+            "Would remove /absolute/\n",
+            "Would remove nested/\n",
+        ])
+        .as_slice(),
         root.as_path(),
     )
     .expect("a plain answer");
@@ -237,13 +267,15 @@ fn a_directory_the_wrapper_cannot_look_inside_stops_the_clean() {
     let root: PathBuf = fixture("clean-nested-unreadable");
     std::fs::create_dir_all(root.join("cache/held")).expect("a directory Git would remove");
     std::fs::write(root.join("cache/held/data.txt"), b"the person work\n").expect("a file");
-    std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o300)).expect("lock the cache");
+    std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o300))
+        .expect("lock the cache");
     let failure: String = nested_repositories_the_clean_deletes(
         lines(&["Would remove cache/\n"]).as_slice(),
         root.as_path(),
     )
     .expect_err("a directory that cannot be read");
-    std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o700)).expect("free the cache");
+    std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o700))
+        .expect("free the cache");
     assert!(failure.contains("cache"), "{failure}");
     assert!(failure.contains("not judged"), "{failure}");
     remove(root.as_path());
@@ -253,8 +285,13 @@ fn a_directory_the_wrapper_cannot_look_inside_stops_the_clean() {
 ///  because a refusal deletes nothing and must never read as "nothing to save".
 #[test]
 fn a_refused_dry_run_is_an_error() {
-    let failed: MetadataOutput = answer(false, b"", b"fatal: clean.requireForce is true and -f not given\n");
-    let failure: String = dry_run_lines_from_answer(&failed, "what the clean would delete").expect_err("a refused dry run");
+    let failed: MetadataOutput = answer(
+        false,
+        b"",
+        b"fatal: clean.requireForce is true and -f not given\n",
+    );
+    let failure: String = dry_run_lines_from_answer(&failed, "what the clean would delete")
+        .expect_err("a refused dry run");
     assert_eq!(
         failure,
         "Git could not read what the clean would delete: fatal: clean.requireForce is true and -f not given"
@@ -275,8 +312,8 @@ fn a_dry_run_that_never_answered_is_not_a_refusal() {
         stdout: Vec::<u8>::new(),
         stderr: Vec::<u8>::new(),
     };
-    let failure: String =
-        dry_run_lines_from_answer(&killed, "what the clean would delete").expect_err("a read that never answered");
+    let failure: String = dry_run_lines_from_answer(&killed, "what the clean would delete")
+        .expect_err("a read that never answered");
     assert_eq!(
         failure,
         "Git never answered what the clean would delete: the read ended without an exit status, so the clean was not judged"
@@ -288,6 +325,7 @@ fn a_dry_run_that_never_answered_is_not_a_refusal() {
 #[test]
 fn an_empty_answer_names_nothing() {
     let empty: MetadataOutput = answer(true, b"\n  \n", b"");
-    let read: Vec<Vec<u8>> = dry_run_lines_from_answer(&empty, "what the clean would delete").expect("a successful answer");
+    let read: Vec<Vec<u8>> = dry_run_lines_from_answer(&empty, "what the clean would delete")
+        .expect("a successful answer");
     assert!(read.is_empty(), "{read:?}");
 }

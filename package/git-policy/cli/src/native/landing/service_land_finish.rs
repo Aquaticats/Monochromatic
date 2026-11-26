@@ -24,24 +24,55 @@
 //! const done = await finishAfterMove(git, intent, lock, journal, headCheck) // true: every obligation of the batch is settled
 //! ```
 
+use crate::autostash_carry::carry_stages;
 use crate::service_head::still_checked_out;
+use crate::service_index_lock::{
+    IndexLock,
+    Record,
+    remove_stale,
+    try_acquire,
+};
 use crate::service_instance::instance_of;
-use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, remove_start};
+use crate::service_journal::{
+    INDEXED_EXTENSION,
+    Indexed,
+    Intent,
+    OPEN_EXTENSION,
+    Recovery,
+    Started,
+    indexed_state,
+    list_intents,
+    list_intents_read_only,
+    mark_done,
+    mark_indexed,
+    read_start,
+    remove_start,
+};
 use crate::service_journal_intent_text_and_parse::parse_intent;
-use crate::service_land_follow::{IndexPaths, build_index};
+use crate::service_land_context::LandContext;
+use crate::service_land_follow::{
+    IndexPaths,
+    build_index,
+};
 use crate::service_land_start::witness_of;
-use crate::transaction_git::GitContext;
-use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
+use crate::service_protocol::FailureCode;
 use crate::service_scratch_ref_marker_of_a_batch::clear_recorded_scratch_refs;
 use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
-use crate::autostash_carry::carry_stages;
-use crate::service_land_context::LandContext;
-use crate::service_protocol::FailureCode;
-use std::path::{Path, PathBuf};
+use crate::transaction_git::GitContext;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The index entries a batch's intent names.
 pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
-    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Named(intent.paths.as_slice()) };
+    return if intent.derived {
+        IndexPaths::Derived {
+            old: intent.old.as_str(),
+        }
+    } else {
+        IndexPaths::Named(intent.paths.as_slice())
+    };
 }
 
 /// What:
@@ -56,7 +87,11 @@ pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
 /// const settledOf = (finished: boolean) => finished ? 'done' : 'open';
 /// ```
 fn settled_of(finished: bool) -> Settled {
-    return if finished { Settled::Done } else { Settled::Open };
+    return if finished {
+        Settled::Done
+    } else {
+        Settled::Open
+    };
 }
 
 /// What:
@@ -94,13 +129,26 @@ impl Record for RecordIndexed<'_> {
 ///  up,
 /// whether or not the conclusion state could be removed.
 /// Whether both are done.
-pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
+pub fn follow_up(
+    git: &GitContext,
+    repository: &Path,
+    intent: &Intent,
+    lock: IndexLock,
+    journal: &Path,
+) -> bool {
     let cleaned: bool = crate::service_land_follow::cleanup_done(git, repository, intent, journal);
     if crate::service_fault::fails("build-index") {
         return false;
     }
     // The new index is built beside the real one and installed by the release of the lock the landing holds.
-    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
+    let Ok(built) = build_index(
+        git,
+        repository,
+        intent.new.as_str(),
+        intent_paths(intent),
+        &lock,
+        intent.seq,
+    ) else {
         return false;
     };
     // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
@@ -115,8 +163,13 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
     // Every writer of the copy is done, so it takes the live index's times for the last time before it is installed:
     // an index newer than the stat data it holds hides a same-second edit from Git (`PrivateCopy::keep_the_live_times`).
     crate::service_land_follow::put_the_live_times_back(&built);
-    let recorded: RecordIndexed<'_> = RecordIndexed { journal, intent };
-    let installed: bool = lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok();
+    let recorded: RecordIndexed<'_> = RecordIndexed {
+        journal,
+        intent,
+    };
+    let installed: bool = lock
+        .release_flushed_with_record(built.path(), built.is_flushed(), &recorded)
+        .is_ok();
     if installed {
         // The index holds the commit now, so nothing is owed any more; the record goes by a rename, so a kill here leaves either
         //  an owed record or none, never a settled obligation that still looks owed.
@@ -146,7 +199,13 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
 /// ```ts
 /// const done = await finishAfterMove(git, intent, lock, journal, followsMove)
 /// ```
-pub fn finish_after_move(git: &GitContext, intent: &Intent, lock: IndexLock, journal: &Path, follows_move: Result<bool, FailureCode>) -> bool {
+pub fn finish_after_move(
+    git: &GitContext,
+    intent: &Intent,
+    lock: IndexLock,
+    journal: &Path,
+    follows_move: Result<bool, FailureCode>,
+) -> bool {
     let repository: &Path = intent.repository.as_path();
     let own_index: bool = intent.index == intent.git_dir.join("index");
     return match follows_move {
@@ -157,7 +216,11 @@ pub fn finish_after_move(git: &GitContext, intent: &Intent, lock: IndexLock, jou
         Ok(_) => follow_up(git, repository, intent, lock, journal),
         Err(code) => {
             drop(lock);
-            crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
+            crate::service_error!(
+                "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
+                intent.seq,
+                crate::service_timing::in_the_repository_at(repository)
+            );
             false
         }
     };
@@ -200,7 +263,10 @@ enum Gate {
 /// ```ts
 /// const gate = gateOf(journal, intent) // 'replay' | 'wait' | { leave: reason }
 /// ```
-fn gate_of(journal: &Path, intent: &Intent) -> Gate {
+fn gate_of(
+    journal: &Path,
+    intent: &Intent,
+) -> Gate {
     let recorded = match read_start(journal, intent.seq) {
         Started::Absent => return Gate::Leave("no record says which index file the landing saw"),
         Started::Unreadable => return Gate::Wait,
@@ -208,7 +274,9 @@ fn gate_of(journal: &Path, intent: &Intent) -> Gate {
     };
     return match witness_of(intent.index.as_path()) {
         Ok(now) if now == recorded => Gate::Replay,
-        Ok(_) => Gate::Leave("the index file is not the one the landing saw, so another program may have staged into it"),
+        Ok(_) => Gate::Leave(
+            "the index file is not the one the landing saw, so another program may have staged into it",
+        ),
         Err(_) => Gate::Wait,
     };
 }
@@ -225,17 +293,35 @@ pub(crate) enum Settled {
 
 /// Settles one batch whose branch has moved,
 /// found open.
-pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
+pub(crate) fn settle(
+    git: &GitContext,
+    intent: &Intent,
+    journal: &Path,
+) -> Settled {
     let repository: &Path = intent.repository.as_path();
     let own_index: bool = intent.index == intent.git_dir.join("index");
     // A worktree that has since left the batch's branch has a default index that describes another branch: it is not updated.
     //  Skipping the index is safe whatever the head does next, so this look needs no lock. A head that cannot be read stops here.
     if own_index {
-        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference) {
-            Ok(false) => return settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal)),
+        match still_checked_out(
+            git,
+            repository,
+            intent.git_dir.as_path(),
+            intent.common_dir.as_path(),
+            &intent.reference,
+        ) {
+            Ok(false) => {
+                return settled_of(crate::service_land_follow::cleanup_done(
+                    git, repository, intent, journal,
+                ));
+            }
             Ok(true) => {}
             Err(code) => {
-                crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
+                crate::service_error!(
+                    "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
+                    intent.seq,
+                    crate::service_timing::in_the_repository_at(repository)
+                );
                 return Settled::Open;
             }
         }
@@ -246,11 +332,17 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
             // The index was installed and recorded, so nothing is owed: a kill between that installation and the landing's own
             //  settling leaves the record behind, and this is where it goes.
             crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
-            return settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal));
+            return settled_of(crate::service_land_follow::cleanup_done(
+                git, repository, intent, journal,
+            ));
         }
         // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
         Indexed::Unreadable => {
-            crate::service_error!("batch {} {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
+            crate::service_error!(
+                "batch {} {} stays open: its completion record cannot be read, so the index is left as it is",
+                intent.seq,
+                crate::service_timing::in_the_repository_at(repository)
+            );
             return Settled::Open;
         }
         Indexed::Absent => {}
@@ -262,15 +354,27 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     crate::service_fault::reach("restart-locked");
     // Everything the replay depends on is judged again under the lock this restart holds: the head, then the index file.
     if own_index {
-        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference) {
+        match still_checked_out(
+            git,
+            repository,
+            intent.git_dir.as_path(),
+            intent.common_dir.as_path(),
+            &intent.reference,
+        ) {
             Ok(true) => {}
             Ok(false) => {
                 drop(held);
-                return settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal));
+                return settled_of(crate::service_land_follow::cleanup_done(
+                    git, repository, intent, journal,
+                ));
             }
             Err(code) => {
                 drop(held);
-                crate::service_error!("batch {} {} stays open: the head of the worktree cannot be read under the lock ({code:?}), so the index is left as it is", intent.seq, crate::service_timing::in_the_repository_at(repository));
+                crate::service_error!(
+                    "batch {} {} stays open: the head of the worktree cannot be read under the lock ({code:?}), so the index is left as it is",
+                    intent.seq,
+                    crate::service_timing::in_the_repository_at(repository)
+                );
                 return Settled::Open;
             }
         }
@@ -279,7 +383,11 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         Gate::Replay => settled_of(follow_up(git, repository, intent, held, journal)),
         Gate::Wait => {
             drop(held);
-            crate::service_error!("batch {} {} stays open: the record of the index file its landing saw cannot be read now", intent.seq, crate::service_timing::in_the_repository_at(repository));
+            crate::service_error!(
+                "batch {} {} stays open: the record of the index file its landing saw cannot be read now",
+                intent.seq,
+                crate::service_timing::in_the_repository_at(repository)
+            );
             Settled::Open
         }
         Gate::Leave(reason) => {
@@ -292,7 +400,9 @@ so `git status` shows the commit's paths against the index until then",
                 crate::service_timing::in_the_repository_at(repository),
                 crate::owed_index_update::path_of(intent.git_dir.as_path(), intent.seq).display()
             );
-            settled_of(crate::service_land_follow::cleanup_done(git, repository, intent, journal))
+            settled_of(crate::service_land_follow::cleanup_done(
+                git, repository, intent, journal,
+            ))
         }
     };
 }
@@ -396,7 +506,10 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// ```ts
 /// await recoverInstance(context, instance)
 /// ```
-pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
+pub fn recover_instance(
+    context: &LandContext,
+    instance: &str,
+) -> Vec<RecoveryReport> {
     return recover_selected(context, Some(instance), JournalOwner::ThisService);
 }
 
@@ -426,7 +539,10 @@ pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryRe
 /// ```ts
 /// await recoverInstanceWithoutDrops(context, instance)
 /// ```
-pub fn recover_instance_without_drops(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
+pub fn recover_instance_without_drops(
+    context: &LandContext,
+    instance: &str,
+) -> Vec<RecoveryReport> {
     return recover_selected(context, Some(instance), JournalOwner::EarlierHelper);
 }
 
@@ -458,11 +574,17 @@ fn the_intent_as_it_reads_now(path: &std::path::Path) -> Option<Option<Intent>> 
     return Some(parse_intent(text.as_str()));
 }
 
-fn recover_selected(context: &LandContext, instance: Option<&str>, owner: JournalOwner) -> Vec<RecoveryReport> {
+fn recover_selected(
+    context: &LandContext,
+    instance: Option<&str>,
+    owner: JournalOwner,
+) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     let listed: Vec<(std::path::PathBuf, Option<Intent>)> = match owner {
         JournalOwner::ThisService => list_intents(context.journal.as_path(), OPEN_EXTENSION),
-        JournalOwner::EarlierHelper => list_intents_read_only(context.journal.as_path(), OPEN_EXTENSION),
+        JournalOwner::EarlierHelper => {
+            list_intents_read_only(context.journal.as_path(), OPEN_EXTENSION)
+        }
     };
     for (path, parsed) in listed {
         let Some(mut intent) = parsed else {
@@ -480,19 +602,34 @@ settled from the worktree's own record of it, and the file may be removed once t
             continue;
         };
         // With an instance named, only the batches of that instance's worktree are recovered.
-        let selected: bool = match instance { Some(named) => instance_of(intent.git_dir.as_path()) == named, None => true };
+        let selected: bool = match instance {
+            Some(named) => instance_of(intent.git_dir.as_path()) == named,
+            None => true,
+        };
         if !selected {
             continue;
         }
         // The selection follows whatever this service already ran its Git with, so an absolute path it names wins over a
         //  relative one an earlier option wrote.
         let mut prefix: Vec<std::ffi::OsString> = context.git.global_prefix.clone();
-        prefix.extend(crate::repository_selection::of_paths(intent.git_dir.as_path(), intent.repository.as_path()));
-        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), global_prefix: prefix, ..context.git.clone() };
+        prefix.extend(crate::repository_selection::of_paths(
+            intent.git_dir.as_path(),
+            intent.repository.as_path(),
+        ));
+        let git: GitContext = GitContext {
+            common_dir: Some(intent.common_dir.clone()),
+            global_prefix: prefix,
+            ..context.git.clone()
+        };
         // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the settlement tries it first,
         //  and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
-        let was_held: bool = crate::held_commit_settle::record_of(&intent, context.journal.as_path()).is_some();
-        if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(&git, context.journal.as_path(), &intent) {
+        let was_held: bool =
+            crate::held_commit_settle::record_of(&intent, context.journal.as_path()).is_some();
+        if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(
+            &git,
+            context.journal.as_path(),
+            &intent,
+        ) {
             reports.push(report);
             continue;
         }
@@ -521,13 +658,21 @@ settled from the worktree's own record of it, and the file may be removed once t
                 // A record this build cannot read is kept and named rather than dropped: removing it would forget a landed commit's
                 //  owed index update (`owed_index_update.rs`).
                 Some(None) => {
-                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(&intent, path.as_path());
+                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(
+                        &intent,
+                        path.as_path(),
+                    );
                     continue;
                 }
             }
         }
         let Some(decision) = decision_for(&git, &intent) else {
-            crate::service_error!("batch {} stays open: Git gave no answer about {} {}, so its intent is kept", intent.seq, intent.reference, crate::service_timing::in_the_repository_at(intent.repository.as_path()));
+            crate::service_error!(
+                "batch {} stays open: Git gave no answer about {} {}, so its intent is kept",
+                intent.seq,
+                intent.reference,
+                crate::service_timing::in_the_repository_at(intent.repository.as_path())
+            );
             continue;
         };
         let handled: Handled = match (decision, owner) {
@@ -546,7 +691,11 @@ settled from the worktree's own record of it, and the file may be removed once t
                 crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
                 crate::conclusion_state_copy::remove(context.journal.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
-                let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
+                let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(
+                    context.journal.as_path(),
+                    intent.seq,
+                    INDEXED_EXTENSION,
+                ));
                 remove_start(context.journal.as_path(), intent.seq);
                 Handled::Dropped
             }
@@ -554,7 +703,10 @@ settled from the worktree's own record of it, and the file may be removed once t
                 // The batch landed, so its pushes are owed: a service killed before it held them leaves recovery to do it.
                 crate::service_server_land_group::hold_the_pushes_of(&intent);
                 remove_stale(intent.index.as_path(), intent.seq);
-                if matches!(settle(&git, &intent, context.journal.as_path()), Settled::Done) {
+                if matches!(
+                    settle(&git, &intent, context.journal.as_path()),
+                    Settled::Done
+                ) {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
                     Handled::Finished
                 } else {
@@ -562,7 +714,12 @@ settled from the worktree's own record of it, and the file may be removed once t
                 }
             }
         };
-        reports.push(RecoveryReport { seq: intent.seq, repository: intent.repository.clone(), decision, handled });
+        reports.push(RecoveryReport {
+            seq: intent.seq,
+            repository: intent.repository.clone(),
+            decision,
+            handled,
+        });
     }
     // A landing killed between its import and its intent leaves its batch's scratch reference with no intent to settle it, and
     //  the record it wrote is the only thing that names that reference's worktree: the sweep keeps the commit it holds and then

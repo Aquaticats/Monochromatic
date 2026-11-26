@@ -27,14 +27,24 @@
 //! ```
 
 use super::lexical_path_resolution::the_lexical_path;
-use super::lock_and_pointer_readings::{LOCK_FILE_NAME, SLOT_POINTER_NAME, read_the_slot_pointer};
-use super::reading_a_bounded_file::{Reading, read_a_bounded_file};
+use super::lock_and_pointer_readings::{
+    LOCK_FILE_NAME,
+    SLOT_POINTER_NAME,
+    read_the_slot_pointer,
+};
+use super::reading_a_bounded_file::{
+    Reading,
+    read_a_bounded_file,
+};
 use super::registration_proof_two_facts::REGISTRATION_RECORD_MAXIMUM_BYTES;
 use crate::hooks_path_values::without_trailing_newlines;
 use crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_MAXIMUM_BYTES;
 use crate::worktree_clone_binding_record::registration_finder::EntryFacts;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The registration's name for its back-link,
 /// read here only to decide whether the finder may attribute the entry.
@@ -54,7 +64,10 @@ pub const HEAD_FILE_NAME: &str = "HEAD";
 ///  The finder compares bytes and matches paths,
 ///  and it has no state for a link or a pipe,
 ///  so a name this route refuses to read is one it cannot attribute.
-fn bytes_or_nothing(path: &Path, bound: u64) -> Option<Vec<u8>> {
+fn bytes_or_nothing(
+    path: &Path,
+    bound: u64,
+) -> Option<Vec<u8>> {
     return match read_a_bounded_file(path, bound) {
         Reading::Bytes(bytes) => Some(bytes),
         Reading::Absent | Reading::Refused(_) => None,
@@ -71,16 +84,27 @@ fn an_entry_stands(path: &Path) -> bool {
 /// The path one `gitdir` file names,
 /// its ending newline trimmed and a relative spelling resolved against the entry.
 fn back_link_of(entry: &Path) -> Option<PathBuf> {
-    let bytes: Vec<u8> = bytes_or_nothing(entry.join(GITDIR_FILE_NAME).as_path(), REGISTRATION_RECORD_MAXIMUM_BYTES)?;
-    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(bytes.as_slice())));
-    let spelled: PathBuf = if named.is_absolute() { named } else { entry.join(named) };
+    let bytes: Vec<u8> = bytes_or_nothing(
+        entry.join(GITDIR_FILE_NAME).as_path(),
+        REGISTRATION_RECORD_MAXIMUM_BYTES,
+    )?;
+    let named: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_trailing_newlines(
+        bytes.as_slice(),
+    )));
+    let spelled: PathBuf = if named.is_absolute() {
+        named
+    } else {
+        entry.join(named)
+    };
     return Some(the_lexical_path(spelled.as_path()));
 }
 
 /// How many entries the slot holds besides its `.git`,
 /// which is what tells a bare registration (row 1) from one beside a filled slot.
 fn other_entries_of_slot(slot: &Path) -> usize {
-    let Ok(entries) = std::fs::read_dir(slot) else { return 0 };
+    let Ok(entries) = std::fs::read_dir(slot) else {
+        return 0;
+    };
     let mut count: usize = 0;
     for entry in entries.flatten() {
         if entry.file_name() != std::ffi::OsStr::new(SLOT_POINTER_NAME) {
@@ -101,9 +125,16 @@ fn other_entries_of_slot(slot: &Path) -> usize {
 /// ```ts
 /// const facts = { name, locked, gitdir, slotGitPointer, commondir, head, slotOtherEntries };
 /// ```
-pub fn read_one_entry(worktrees: &Path, name: &str, slot: &Path) -> EntryFacts {
+pub fn read_one_entry(
+    worktrees: &Path,
+    name: &str,
+    slot: &Path,
+) -> EntryFacts {
     let entry: PathBuf = worktrees.join(name);
-    let locked: Option<Vec<u8>> = match read_a_bounded_file(entry.join(LOCK_FILE_NAME).as_path(), LOCK_WORDS_MAXIMUM_BYTES) {
+    let locked: Option<Vec<u8>> = match read_a_bounded_file(
+        entry.join(LOCK_FILE_NAME).as_path(),
+        LOCK_WORDS_MAXIMUM_BYTES,
+    ) {
         Reading::Absent => None,
         Reading::Bytes(bytes) => Some(bytes),
         Reading::Refused(_cause) => Some(Vec::new()),

@@ -18,14 +18,20 @@
 //! const stagingOf = (destination: string) => `${destination}${STAGING_SUFFIX}`;
 //! ```
 
-/// Import the staging suffix the add and this job share and the record's entry.
-use crate::package_repair_prewarm::{PrewarmEntry, STAGING_SUFFIX};
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
+/// Import the staging suffix the add and this job share and the record's entry.
+use crate::package_repair_prewarm::{
+    PrewarmEntry,
+    STAGING_SUFFIX,
+};
 /// Import the owned file-name buffer a suffixed name is built in.
 use std::ffi::OsString;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Tag used for diagnostics from this module.
 pub(super) const TAG: &str = "packageRepairPrewarmJob";
 
@@ -94,7 +100,8 @@ const MARKER_SUFFIX: &str = ".owner";
 
 /// The text a marker carries,
 /// so a person who finds one knows which program wrote it and what it claims.
-pub(crate) const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
+pub(crate) const MARKER_TEXT: &[u8] =
+    b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
 The directory whose name is this file's name without '.owner' is its staging copy, \
 and the '.target' directory beside it is the target its clean deletes from. \
 Both are the wrapper's own and are removed or published when the filling ends.\n";
@@ -180,14 +187,22 @@ pub(super) fn names_for(destination: &Path) -> Result<TheNames, String> {
         // An earlier filling of this same workspace was interrupted, so what it left under these names is this job's.
         remove_if_any(usual.as_path())?;
         remove_if_any(usual_target.as_path())?;
-        return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) });
+        return Ok(TheNames {
+            staging: usual,
+            target: usual_target,
+            marker: Some(marker),
+        });
     }
     if usual.exists() || usual_target.exists() || marker.exists() {
         // Somebody else's file or directory holds one of the names, so this run stages under names of its own.
         return Ok(names_of_this_runs_own(usual.as_path()));
     }
     return match write_marker(marker.as_path())? {
-        TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) }),
+        TheMarkersAnswer::WrittenByThisRun => Ok(TheNames {
+            staging: usual,
+            target: usual_target,
+            marker: Some(marker),
+        }),
         // Another command has the name: what is there is not this run's to remove, and this run stages
         //  under names of its own.
         TheMarkersAnswer::WrittenByAnother => Ok(names_of_this_runs_own(usual.as_path())),
@@ -212,7 +227,11 @@ pub(super) fn names_for(destination: &Path) -> Result<TheNames, String> {
 fn names_of_this_runs_own(usual: &Path) -> TheNames {
     let own: PathBuf = a_name_of_this_runs_own(usual);
     let own_target: PathBuf = target_of(own.as_path());
-    return TheNames { staging: own, target: own_target, marker: None };
+    return TheNames {
+        staging: own,
+        target: own_target,
+        marker: None,
+    };
 }
 
 /// What:
@@ -230,7 +249,9 @@ fn names_of_this_runs_own(usual: &Path) -> TheNames {
 /// const anOwnName = (usual) => `${usual}-${process.pid}-${nanos.toString(16)}`;
 /// ```
 fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
-    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
+    let since_the_epoch: std::time::Duration = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap_or_default();
     let nanos: u128 = since_the_epoch.as_nanos();
     let mut named: OsString = usual.as_os_str().to_os_string();
     named.push(format!("-{}-{nanos:x}", std::process::id()));
@@ -271,8 +292,13 @@ pub(crate) enum TheMarkersAnswer {
 pub(crate) fn write_marker(marker: &Path) -> Result<TheMarkersAnswer, String> {
     return match crate::private_storage::write_private_file_unsynced(marker, MARKER_TEXT) {
         Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),
-        Err(error) => Err(format!("{} could not be written, so nothing of this workspace was filled ({error})", marker.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Ok(TheMarkersAnswer::WrittenByAnother)
+        }
+        Err(error) => Err(format!(
+            "{} could not be written, so nothing of this workspace was filled ({error})",
+            marker.display()
+        )),
     };
 }
 
@@ -294,13 +320,26 @@ pub(super) fn give_back(names: &TheNames) {
     if let Err(reason) = remove_if_any(names.target.as_path()) {
         // The filling itself is done and published, and this directory is this job's own: the next filling of the same
         //  workspace clears it.
-        debug(TAG, format!("{reason}; the filling is done and the directory stays for the next one").as_str());
+        debug(
+            TAG,
+            format!("{reason}; the filling is done and the directory stays for the next one")
+                .as_str(),
+        );
     }
-    let Some(marker) = names.marker.as_ref() else { return };
+    let Some(marker) = names.marker.as_ref() else {
+        return;
+    };
     match std::fs::remove_file(marker.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => debug(TAG, format!("{} could not be removed after the filling ({error})", marker.display()).as_str()),
+        Err(error) => debug(
+            TAG,
+            format!(
+                "{} could not be removed after the filling ({error})",
+                marker.display()
+            )
+            .as_str(),
+        ),
     }
 }
 
@@ -348,10 +387,18 @@ pub(super) fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
     if !marker_claims(marker.as_path()) {
         return;
     }
-    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker) };
+    let names: TheNames = TheNames {
+        staging: staging.clone(),
+        target: target_of(staging.as_path()),
+        marker: Some(marker),
+    };
     if let Err(reason) = remove_if_any(names.staging.as_path()) {
         // Nothing of the worktree depends on this directory; the next filling of the same workspace tries again.
-        debug(TAG, format!("{reason}; a staging copy a killed filling left stays for the next one").as_str());
+        debug(
+            TAG,
+            format!("{reason}; a staging copy a killed filling left stays for the next one")
+                .as_str(),
+        );
     }
     give_back(&names);
 }
@@ -375,9 +422,14 @@ pub(super) fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
 /// A directory that cannot be made,
 /// which fills nothing and says why.
 pub(super) fn make_the_destinations_own_directory(entry: &PrewarmEntry) -> Result<(), String> {
-    let Some(parent) = entry.to.parent() else { return Ok(()) };
+    let Some(parent) = entry.to.parent() else {
+        return Ok(());
+    };
     return match std::fs::create_dir_all(parent) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("{} could not be made, so nothing of this workspace was filled ({error})", parent.display())),
+        Err(error) => Err(format!(
+            "{} could not be made, so nothing of this workspace was filled ({error})",
+            parent.display()
+        )),
     };
 }

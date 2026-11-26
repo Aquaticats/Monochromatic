@@ -22,13 +22,41 @@
 //! ```
 
 use super::companion_buffers::CompanionBuffers;
-use super::companion_calls::{CompanionCall, Failure};
-use super::companion_child_attach::{attach, move_and_unmount};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+};
+use super::companion_child_attach::{
+    attach,
+    move_and_unmount,
+};
 use super::companion_child_controls::run_the_controls;
-use super::companion_child_tree::{Slots, make_the_tree, walk_to_the_slot};
-use super::companion_file_calls::{close, close_range, exit_now, move_descriptor, open_for_write, parent_death_signal, parent_id, set_process_group, unshare_mount_namespace, unshare_user_namespace, write_all};
-use super::companion_mount_calls::{make_mounts_private, mount_tmpfs};
-use super::companion_records::{StepRecord, send};
+use super::companion_child_tree::{
+    Slots,
+    make_the_tree,
+    walk_to_the_slot,
+};
+use super::companion_file_calls::{
+    close,
+    close_range,
+    exit_now,
+    move_descriptor,
+    open_for_write,
+    parent_death_signal,
+    parent_id,
+    set_process_group,
+    unshare_mount_namespace,
+    unshare_user_namespace,
+    write_all,
+};
+use super::companion_mount_calls::{
+    make_mounts_private,
+    mount_tmpfs,
+};
+use super::companion_records::{
+    StepRecord,
+    send,
+};
 use super::companion_steps::CompanionStep;
 use std::os::fd::RawFd;
 
@@ -65,24 +93,77 @@ pub struct ChildStart<'a> {
 ///
 /// Never returns:
 ///  the child ends after its last step or its first failed one.
-pub fn run(start: &ChildStart<'_>, mount_table: &mut [u8]) -> ! {
+pub fn run(
+    start: &ChildStart<'_>,
+    mount_table: &mut [u8],
+) -> ! {
     let status: RawFd = CHILD_STATUS_DESCRIPTOR;
     own_process(start.status);
     let buffers: &CompanionBuffers = start.buffers;
-    check(status, buffers, CompanionStep::UserNamespace, unshare_user_namespace);
-    write_one(status, buffers, CompanionStep::Setgroups, buffers.setgroups.as_c_str(), b"deny", CompanionCall::OpenSetgroups, CompanionCall::WriteSetgroups);
-    write_one(status, buffers, CompanionStep::UidMap, buffers.uid_map.as_c_str(), buffers.uid_line.as_bytes(), CompanionCall::OpenUidMap, CompanionCall::WriteUidMap);
-    write_one(status, buffers, CompanionStep::GidMap, buffers.gid_map.as_c_str(), buffers.gid_line.as_bytes(), CompanionCall::OpenGidMap, CompanionCall::WriteGidMap);
-    check(status, buffers, CompanionStep::MountNamespace, unshare_mount_namespace);
-    check(status, buffers, CompanionStep::PrivatePropagation, || return make_mounts_private(buffers.root.as_c_str()));
-    check(status, buffers, CompanionStep::ScratchTmpfs, || return mount_tmpfs(buffers.tmpfs.as_c_str(), buffers.scratch.as_c_str(), buffers.tmpfs_options.as_c_str()));
-    check(status, buffers, CompanionStep::ScratchTree, || return make_the_tree(buffers));
-    let slots: Slots = guarded(status, buffers, CompanionStep::Walk, || return walk_to_the_slot(buffers));
+    check(
+        status,
+        buffers,
+        CompanionStep::UserNamespace,
+        unshare_user_namespace,
+    );
+    write_one(
+        status,
+        buffers,
+        CompanionStep::Setgroups,
+        buffers.setgroups.as_c_str(),
+        b"deny",
+        CompanionCall::OpenSetgroups,
+        CompanionCall::WriteSetgroups,
+    );
+    write_one(
+        status,
+        buffers,
+        CompanionStep::UidMap,
+        buffers.uid_map.as_c_str(),
+        buffers.uid_line.as_bytes(),
+        CompanionCall::OpenUidMap,
+        CompanionCall::WriteUidMap,
+    );
+    write_one(
+        status,
+        buffers,
+        CompanionStep::GidMap,
+        buffers.gid_map.as_c_str(),
+        buffers.gid_line.as_bytes(),
+        CompanionCall::OpenGidMap,
+        CompanionCall::WriteGidMap,
+    );
+    check(
+        status,
+        buffers,
+        CompanionStep::MountNamespace,
+        unshare_mount_namespace,
+    );
+    check(status, buffers, CompanionStep::PrivatePropagation, || {
+        return make_mounts_private(buffers.root.as_c_str());
+    });
+    check(status, buffers, CompanionStep::ScratchTmpfs, || {
+        return mount_tmpfs(
+            buffers.tmpfs.as_c_str(),
+            buffers.scratch.as_c_str(),
+            buffers.tmpfs_options.as_c_str(),
+        );
+    });
+    check(status, buffers, CompanionStep::ScratchTree, || {
+        return make_the_tree(buffers);
+    });
+    let slots: Slots = guarded(status, buffers, CompanionStep::Walk, || {
+        return walk_to_the_slot(buffers);
+    });
     pass(status, buffers, CompanionStep::Walk);
-    let mount_id: u64 = guarded(status, buffers, CompanionStep::Attach, || return attach(buffers, slots, mount_table));
+    let mount_id: u64 = guarded(status, buffers, CompanionStep::Attach, || {
+        return attach(buffers, slots, mount_table);
+    });
     pass(status, buffers, CompanionStep::Attach);
     pass(status, buffers, CompanionStep::MountFacts);
-    check(status, buffers, CompanionStep::RefusalControls, || return run_the_controls(buffers, slots));
+    check(status, buffers, CompanionStep::RefusalControls, || {
+        return run_the_controls(buffers, slots);
+    });
     match move_and_unmount(buffers, mount_id, mount_table, status) {
         Ok(()) => exit_now(0),
         Err(failure) => end_failed(status, buffers, CompanionStep::MoveUnmount, failure),
@@ -119,7 +200,12 @@ fn own_process(status: RawFd) {
 ///  Each step has one call and one record,
 ///  so the sequence reads as the design's list,
 ///  and the test-only fixture answers before the real call is made.
-fn check(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, call: impl FnOnce() -> Result<(), Failure>) {
+fn check(
+    status: RawFd,
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+    call: impl FnOnce() -> Result<(), Failure>,
+) {
     if let Some(failure) = fixture_at(buffers, step) {
         end_failed(status, buffers, step, failure);
     }
@@ -137,7 +223,12 @@ fn check(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, call: i
 /// Why:
 ///  A step with a value cannot use `check`,
 ///  and ending from inside a match arm keeps one shape for both.
-fn guarded<T>(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, call: impl FnOnce() -> Result<T, Failure>) -> T {
+fn guarded<T>(
+    status: RawFd,
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+    call: impl FnOnce() -> Result<T, Failure>,
+) -> T {
     if let Some(failure) = fixture_at(buffers, step) {
         end_failed(status, buffers, step, failure);
     }
@@ -149,7 +240,11 @@ fn guarded<T>(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, ca
 
 /// Write one step's passing record,
 /// and sleep after it where the deadline arm asked.
-fn pass(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep) {
+fn pass(
+    status: RawFd,
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+) {
     send(status, StepRecord::passed(step));
     if buffers.hold == Some(step) {
         // Twice the shipped bound keeps the step long enough for the deadline to fire, and the wait is a sleep rather than a spin.
@@ -160,7 +255,12 @@ fn pass(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep) {
 
 /// What:
 ///  Write one failed step's record and end the child.
-fn end_failed(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, failure: Failure) -> ! {
+fn end_failed(
+    status: RawFd,
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+    failure: Failure,
+) -> ! {
     let _ = buffers;
     send(status, StepRecord::failed(step, failure));
     exit_now(1);
@@ -173,12 +273,18 @@ fn end_failed(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, fa
 ///  M11's fixtures need a seam no syscall filter can give,
 ///  because a filter names a system call and cannot single out one write of
 ///  three.
-fn fixture_at(buffers: &CompanionBuffers, step: CompanionStep) -> Option<Failure> {
+fn fixture_at(
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+) -> Option<Failure> {
     let fixture = buffers.fixture?;
     if fixture.step != step {
         return None;
     }
-    return Some(Failure { call: first_call_of(step), errno: fixture.errno });
+    return Some(Failure {
+        call: first_call_of(step),
+        errno: fixture.errno,
+    });
 }
 
 /// The call a step's record names when a fixture answers instead of it.
@@ -208,7 +314,15 @@ fn first_call_of(step: CompanionStep) -> CompanionCall {
 /// Why:
 ///  The three setup writes take one shape,
 ///  and each names its own open and write calls so a skip names the right one.
-fn write_one(status: RawFd, buffers: &CompanionBuffers, step: CompanionStep, path: &std::ffi::CStr, line: &[u8], open: CompanionCall, write: CompanionCall) {
+fn write_one(
+    status: RawFd,
+    buffers: &CompanionBuffers,
+    step: CompanionStep,
+    path: &std::ffi::CStr,
+    line: &[u8],
+    open: CompanionCall,
+    write: CompanionCall,
+) {
     if let Some(failure) = fixture_at(buffers, step) {
         end_failed(status, buffers, step, failure);
     }

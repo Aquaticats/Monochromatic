@@ -10,11 +10,20 @@
 //! expect(identity.differences(other)).toEqual(['inode']);
 //! ```
 
-use crate::staged_folder_identity::{StagedFolderField, StagedFolderIdentity};
+use crate::staged_folder_identity::{
+    StagedFolderField,
+    StagedFolderIdentity,
+};
 
 /// One identity every control changes in one field.
 fn identity() -> StagedFolderIdentity {
-    return StagedFolderIdentity { device: 42, inode: 7, birth: Some((1_700_000_000, 12)), owner: 1000, mode: 0o700 };
+    return StagedFolderIdentity {
+        device: 42,
+        inode: 7,
+        birth: Some((1_700_000_000, 12)),
+        owner: 1000,
+        mode: 0o700,
+    };
 }
 
 /// The same identity gives no field.
@@ -27,11 +36,41 @@ fn the_same_identity_differs_in_nothing() {
 #[test]
 fn each_field_is_named_when_it_moves() {
     let cases: [(StagedFolderIdentity, StagedFolderField); 5] = [
-        (StagedFolderIdentity { device: 43, ..identity() }, StagedFolderField::Device),
-        (StagedFolderIdentity { inode: 8, ..identity() }, StagedFolderField::Inode),
-        (StagedFolderIdentity { birth: Some((1_700_000_001, 12)), ..identity() }, StagedFolderField::Birth),
-        (StagedFolderIdentity { owner: 1001, ..identity() }, StagedFolderField::Owner),
-        (StagedFolderIdentity { mode: 0o755, ..identity() }, StagedFolderField::Mode),
+        (
+            StagedFolderIdentity {
+                device: 43,
+                ..identity()
+            },
+            StagedFolderField::Device,
+        ),
+        (
+            StagedFolderIdentity {
+                inode: 8,
+                ..identity()
+            },
+            StagedFolderField::Inode,
+        ),
+        (
+            StagedFolderIdentity {
+                birth: Some((1_700_000_001, 12)),
+                ..identity()
+            },
+            StagedFolderField::Birth,
+        ),
+        (
+            StagedFolderIdentity {
+                owner: 1001,
+                ..identity()
+            },
+            StagedFolderField::Owner,
+        ),
+        (
+            StagedFolderIdentity {
+                mode: 0o755,
+                ..identity()
+            },
+            StagedFolderField::Mode,
+        ),
     ];
     for (changed, field) in cases {
         assert_eq!(identity().differences(&changed), vec![field]);
@@ -41,11 +80,16 @@ fn each_field_is_named_when_it_moves() {
 /// A folder's descriptor gives the identity its metadata holds.
 #[test]
 fn a_folder_descriptor_gives_its_identity() {
-    let root: std::path::PathBuf = crate::testing::test_support::fixture_root().join("staging-folder-identity");
+    let root: std::path::PathBuf =
+        crate::testing::test_support::fixture_root().join("staging-folder-identity");
     std::fs::create_dir_all(root.as_path()).expect("the fixture folder is made");
-    let folder: std::fs::File = std::fs::File::open(root.as_path()).expect("the fixture folder opens");
-    let identity: StagedFolderIdentity = StagedFolderIdentity::of(&folder).expect("the identity is read");
-    let facts: std::fs::Metadata = folder.metadata().expect("the fixture folder's metadata is read");
+    let folder: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("the fixture folder opens");
+    let identity: StagedFolderIdentity =
+        StagedFolderIdentity::of(&folder).expect("the identity is read");
+    let facts: std::fs::Metadata = folder
+        .metadata()
+        .expect("the fixture folder's metadata is read");
     use std::os::unix::fs::MetadataExt;
     assert_eq!(identity.device, facts.dev());
     assert_eq!(identity.inode, facts.ino());
@@ -56,5 +100,8 @@ fn a_folder_descriptor_gives_its_identity() {
 /// More than one moved field is spelled as one phrase.
 #[test]
 fn several_fields_are_spelled_together() {
-    assert_eq!(StagedFolderIdentity::field_names(&[StagedFolderField::Inode, StagedFolderField::Mode]), "inode, mode");
+    assert_eq!(
+        StagedFolderIdentity::field_names(&[StagedFolderField::Inode, StagedFolderField::Mode]),
+        "inode, mode"
+    );
 }

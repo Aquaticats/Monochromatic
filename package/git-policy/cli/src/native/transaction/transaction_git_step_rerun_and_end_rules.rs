@@ -132,11 +132,15 @@ fn is_shadow_creation(words: &[String]) -> bool {
 /// ```ts
 /// reads(words) || (shadow && words.options.length === 0 && words.names.length === 2)
 /// ```
-fn symbolic_ref_may_be_rerun(words: &Words<'_>, shadow: bool) -> bool {
+fn symbolic_ref_may_be_rerun(
+    words: &Words<'_>,
+    shadow: bool,
+) -> bool {
     if words.after.is_some() {
         return false;
     }
-    let read: bool = words.only_options(&["--quiet", "-q", "--short", "--no-recurse"]) && words.before.len() == 1;
+    let read: bool = words.only_options(&["--quiet", "-q", "--short", "--no-recurse"])
+        && words.before.len() == 1;
     let write_in_shadow: bool = shadow && words.options.is_empty() && words.before.len() == 2;
     return read || write_in_shadow;
 }
@@ -152,7 +156,20 @@ fn symbolic_ref_may_be_rerun(words: &Words<'_>, shadow: bool) -> bool {
 ///  `merge_file_reads_only` accepts a `merge-file` only when every option is one of these;
 ///  `--marker-size` is here because it changes the markers and no file,
 ///  and `-L` because its value is a label.
-const MERGE_FILE_READ_OPTIONS: [&str; 12] = ["--stdout", "-p", "--object-id", "--zdiff3", "--diff3", "--ours", "--theirs", "--union", "-q", "--quiet", "-L", "--marker-size"];
+const MERGE_FILE_READ_OPTIONS: [&str; 12] = [
+    "--stdout",
+    "-p",
+    "--object-id",
+    "--zdiff3",
+    "--diff3",
+    "--ours",
+    "--theirs",
+    "--union",
+    "-q",
+    "--quiet",
+    "-L",
+    "--marker-size",
+];
 
 /// What:
 ///  Whether a `merge-file` is the read form the word-level second pass runs:
@@ -205,7 +222,10 @@ fn merge_file_reads_only(words: &Words<'_>) -> bool {
 /// ```ts
 /// request.args.slice(position + 1).map(String)
 /// ```
-fn words_after(request: &GitRequest, position: usize) -> Vec<String> {
+fn words_after(
+    request: &GitRequest,
+    position: usize,
+) -> Vec<String> {
     let mut words: Vec<String> = Vec::new();
     for argument in &request.arguments[position + 1..] {
         words.push(argument.to_string_lossy().into_owned());
@@ -228,7 +248,10 @@ fn words_after(request: &GitRequest, position: usize) -> Vec<String> {
 /// const isReadOption = (option: string) => ['--get', '--get-all', '--get-regexp', '--list', '-l'].includes(option);
 /// ```
 fn is_read_option(option: &str) -> bool {
-    return matches!(option, "--get" | "--get-all" | "--get-regexp" | "--list" | "-l");
+    return matches!(
+        option,
+        "--get" | "--get-all" | "--get-regexp" | "--list" | "-l"
+    );
 }
 
 /// What:
@@ -256,7 +279,9 @@ pub(crate) fn may_be_rerun(request: &GitRequest) -> bool {
         "config" => return rest.iter().map(String::as_str).any(is_read_option),
         "remote" => return rest.first().map(String::as_str) == Some("get-url"),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
-        "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
+        "symbolic-ref" => {
+            return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix);
+        }
         "merge-file" => return merge_file_reads_only(&Words::of(rest.as_slice())),
         other => return RERUNNABLE.contains(&other),
     }
@@ -320,7 +345,11 @@ struct Words<'a> {
 impl<'a> Words<'a> {
     /// Sort `words`.
     fn of(words: &'a [String]) -> Self {
-        let mut sorted: Words<'a> = Words { options: Vec::new(), before: Vec::new(), after: None };
+        let mut sorted: Words<'a> = Words {
+            options: Vec::new(),
+            before: Vec::new(),
+            after: None,
+        };
         for word in words.iter().map(String::as_str) {
             match sorted.after.as_mut() {
                 Some(after) => after.push(word),
@@ -333,7 +362,10 @@ impl<'a> Words<'a> {
     }
 
     /// Whether every option is one of `allowed`.
-    fn only_options(&self, allowed: &[&str]) -> bool {
+    fn only_options(
+        &self,
+        allowed: &[&str],
+    ) -> bool {
         for option in &self.options {
             if !allowed.contains(option) {
                 return false;
@@ -351,7 +383,10 @@ impl<'a> Words<'a> {
     }
 
     /// How many of `wanted` are among the options.
-    fn count_present(&self, wanted: &[&str]) -> usize {
+    fn count_present(
+        &self,
+        wanted: &[&str],
+    ) -> usize {
         let mut present: usize = 0;
         for option in wanted {
             if self.has(option) {
@@ -362,7 +397,10 @@ impl<'a> Words<'a> {
     }
 
     /// Whether the option `wanted` is there.
-    fn has(&self, wanted: &str) -> bool {
+    fn has(
+        &self,
+        wanted: &str,
+    ) -> bool {
         return self.options.contains(&wanted);
     }
 }
@@ -395,7 +433,8 @@ pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
 /// const isRestoreOption = (option: string) => ['--staged', '--worktree', '--quiet', '-q'].includes(option) || option.startsWith('--source=');
 /// ```
 fn is_restore_option(option: &&str) -> bool {
-    return matches!(*option, "--staged" | "--worktree" | "--quiet" | "-q") || option.starts_with("--source=");
+    return matches!(*option, "--staged" | "--worktree" | "--quiet" | "-q")
+        || option.starts_with("--source=");
 }
 
 /// What:
@@ -451,29 +490,64 @@ fn is_restore_option(option: &&str) -> bool {
 /// ```ts
 /// PROVEN_FORMS.some((form) => form.matches(parse(subcommand, words)))
 /// ```
-fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
+fn is_proven_to_run_twice(
+    name: &str,
+    rest: &[String],
+) -> bool {
     let words: Words<'_> = Words::of(rest);
     let no_paths = words.after.is_none();
     return match name {
-        "stash" => rest.first().map(String::as_str) == Some("list") && rest.len() == 2 && rest[1] == "--format=%H",
-        "clean" => no_paths && words.before.is_empty() && words.only_options(&["--force", "-d"]) && words.has("--force") && words.has("-d"),
-        "read-tree" => no_paths && words.before.len() == 1 && words.only_options(&["--reset", "-u"]) && words.has("--reset") && words.has("-u"),
+        "stash" => {
+            rest.first().map(String::as_str) == Some("list")
+                && rest.len() == 2
+                && rest[1] == "--format=%H"
+        }
+        "clean" => {
+            no_paths
+                && words.before.is_empty()
+                && words.only_options(&["--force", "-d"])
+                && words.has("--force")
+                && words.has("-d")
+        }
+        "read-tree" => {
+            no_paths
+                && words.before.len() == 1
+                && words.only_options(&["--reset", "-u"])
+                && words.has("--reset")
+                && words.has("-u")
+        }
         "update-index" => {
-            let refresh: bool = no_paths && words.before.is_empty() && words.options == ["--refresh"];
-            let index_info: bool = no_paths && words.before.is_empty() && words.has("--index-info") && words.only_options(&["--index-info", "-z"]);
-            let cache_info: bool = no_paths && words.before.len() == 1 && words.only_options(&["--add", "--cacheinfo"]) && words.has("--add") && words.has("--cacheinfo");
+            let refresh: bool =
+                no_paths && words.before.is_empty() && words.options == ["--refresh"];
+            let index_info: bool = no_paths
+                && words.before.is_empty()
+                && words.has("--index-info")
+                && words.only_options(&["--index-info", "-z"]);
+            let cache_info: bool = no_paths
+                && words.before.len() == 1
+                && words.only_options(&["--add", "--cacheinfo"])
+                && words.has("--add")
+                && words.has("--cacheinfo");
             refresh || index_info || cache_info
         }
         "add" => {
             let one_of: usize = words.count_present(&["--update", "-u", "--all", "-A"]);
             words.only_options(&["--update", "-u", "--all", "-A"]) && one_of == 1
         }
-        "checkout-index" => no_paths && words.before.is_empty() && words.only_options(&["--all", "-a", "--force", "-f"]) && (words.has("--all") || words.has("-a")) && (words.has("--force") || words.has("-f")),
+        "checkout-index" => {
+            no_paths
+                && words.before.is_empty()
+                && words.only_options(&["--all", "-a", "--force", "-f"])
+                && (words.has("--all") || words.has("-a"))
+                && (words.has("--force") || words.has("-f"))
+        }
         "restore" => {
             let options_known: bool = words.options.iter().all(is_restore_option);
             options_known && words.before.is_empty() && words.names_paths()
         }
-        "reset" => words.only_options(&["--quiet", "-q"]) && words.before.len() == 1 && words.names_paths(),
+        "reset" => {
+            words.only_options(&["--quiet", "-q"]) && words.before.len() == 1 && words.names_paths()
+        }
         "config" => no_paths && words.only_options(&["--local"]) && words.before.len() == 2,
         _ => false,
     };
@@ -531,7 +605,9 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
 /// isBranchWrite(request) // subcommand is update-ref and not isSideRefWrite(request)
 /// ```
 pub(crate) fn is_branch_write(request: &GitRequest) -> bool {
-    let Some((_position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
+    let Some((_position, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
     return name == "update-ref" && !is_side_ref_write(request);
 }
 
@@ -542,7 +618,9 @@ pub(crate) fn is_branch_write(request: &GitRequest) -> bool {
 /// what `keep_unlanded` and the scratch
 ///  deletions of `service_land.rs` run.
 pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
-    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
     if name != "update-ref" || request.input.is_some() {
         return false;
     }
@@ -551,7 +629,9 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
     let Some(first_word) = words.before.first() else {
         return false;
     };
-    return words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && is_side_ref_name(first_word);
+    return words.after.is_none()
+        && words.only_options(&["-d", "--no-deref"])
+        && is_side_ref_name(first_word);
 }
 
 /// What:

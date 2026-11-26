@@ -12,11 +12,22 @@
 //! expect(cleanUpStagingFolder(request).word).toBe('removed'); expect(folder.exists()).toBe(false);
 //! ```
 
-use super::{clean_up_staging_folder, CleanupOutcome, CleanupRequest};
+use super::{
+    CleanupOutcome,
+    CleanupRequest,
+    clean_up_staging_folder,
+};
 use crate::fs_mount_options::MountFacts;
 use crate::staged_folder_identity::StagedFolderIdentity;
-use crate::staging_claim::{write_claim, StagingClaim};
-use crate::staging_folder_name::{staging_claim_name, staging_folder_name, staging_record_name};
+use crate::staging_claim::{
+    StagingClaim,
+    write_claim,
+};
+use crate::staging_folder_name::{
+    staging_claim_name,
+    staging_folder_name,
+    staging_record_name,
+};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::path::PathBuf;
 
@@ -50,19 +61,39 @@ fn fixture(name: &str) -> Fixture {
     std::fs::create_dir_all(folder.as_path()).expect("the fixture staging folder is made");
     let record: PathBuf = cache_path.join(staging_record_name(guid()));
     std::fs::write(record.as_path(), b"record\n").expect("the fixture record is written");
-    let opened: std::fs::File = std::fs::File::open(folder.as_path()).expect("the fixture folder opens");
-    let identity: StagedFolderIdentity = StagedFolderIdentity::of(&opened).expect("the fixture identity is read");
-    let claim: StagingClaim = StagingClaim { guid: guid(), nonce: String::from("0123456789abcdef0123456789abcdef"), owner: String::from("bogus"), identity };
-    let claims: std::fs::File = std::fs::File::open(claim_folder.as_path()).expect("the claim folder opens");
+    let opened: std::fs::File =
+        std::fs::File::open(folder.as_path()).expect("the fixture folder opens");
+    let identity: StagedFolderIdentity =
+        StagedFolderIdentity::of(&opened).expect("the fixture identity is read");
+    let claim: StagingClaim = StagingClaim {
+        guid: guid(),
+        nonce: String::from("0123456789abcdef0123456789abcdef"),
+        owner: String::from("bogus"),
+        identity,
+    };
+    let claims: std::fs::File =
+        std::fs::File::open(claim_folder.as_path()).expect("the claim folder opens");
     write_claim(&claims, &claim).expect("the claim is written");
     let claim_path: PathBuf = claim_folder.join(staging_claim_name(guid()));
-    let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
-    return Fixture { cache_path, cache, claims, claims_path: claim_folder, claim_path, folder, record };
+    let cache: std::fs::File =
+        std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
+    return Fixture {
+        cache_path,
+        cache,
+        claims,
+        claims_path: claim_folder,
+        claim_path,
+        folder,
+        record,
+    };
 }
 
 /// One request over the fixture,
 /// with the mount rows the arm wants.
-fn request<'a>(fixture: &'a Fixture, mounts: &'a dyn Fn() -> Vec<MountFacts>) -> CleanupRequest<'a> {
+fn request<'a>(
+    fixture: &'a Fixture,
+    mounts: &'a dyn Fn() -> Vec<MountFacts>,
+) -> CleanupRequest<'a> {
     return CleanupRequest {
         cache: &fixture.cache,
         cache_path: fixture.cache_path.as_path(),
@@ -81,7 +112,13 @@ fn an_empty_claimed_folder_is_removed() {
     let fixture = fixture("cleanup-allowed");
     let no_mounts = || return Vec::new();
     let outcome: CleanupOutcome = clean_up_staging_folder(&request(&fixture, &no_mounts));
-    assert_eq!(outcome, CleanupOutcome::Removed { record: true, claim: true });
+    assert_eq!(
+        outcome,
+        CleanupOutcome::Removed {
+            record: true,
+            claim: true
+        }
+    );
     assert!(!fixture.folder.exists());
     assert!(!fixture.record.exists());
     assert!(!fixture.claim_path.exists());
@@ -94,7 +131,10 @@ fn a_folder_that_holds_a_file_is_kept() {
     std::fs::write(fixture.folder.join("sentinel"), b"keep me").expect("the sentinel is written");
     let no_mounts = || return Vec::new();
     let outcome: CleanupOutcome = clean_up_staging_folder(&request(&fixture, &no_mounts));
-    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "holds-entries"), "{outcome:?}");
+    assert!(
+        matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "holds-entries"),
+        "{outcome:?}"
+    );
     assert!(fixture.folder.join("sentinel").exists());
     assert!(fixture.record.exists());
     assert!(fixture.claim_path.exists());
@@ -121,7 +161,10 @@ fn a_folder_a_mount_names_is_kept() {
     };
     let mounts = row(fixture.folder.clone());
     let outcome: CleanupOutcome = clean_up_staging_folder(&request(&fixture, &mounts));
-    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "mount"), "{outcome:?}");
+    assert!(
+        matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "mount"),
+        "{outcome:?}"
+    );
     assert!(fixture.folder.exists());
 }
 
@@ -129,13 +172,19 @@ fn a_folder_a_mount_names_is_kept() {
 #[test]
 fn a_folder_whose_identity_moved_is_kept() {
     let fixture = fixture("cleanup-identity");
-    let claims: std::fs::File = std::fs::File::open(fixture.claims_path.as_path()).expect("the claim folder opens again");
-    let mut claim: StagingClaim = crate::staging_claim::read_claim(&claims, guid()).expect("the claim is read").expect("the claim is there");
+    let claims: std::fs::File =
+        std::fs::File::open(fixture.claims_path.as_path()).expect("the claim folder opens again");
+    let mut claim: StagingClaim = crate::staging_claim::read_claim(&claims, guid())
+        .expect("the claim is read")
+        .expect("the claim is there");
     claim.identity.inode += 1;
     crate::staging_claim::write_claim(&claims, &claim).expect("the moved claim is written");
     let no_mounts = || return Vec::new();
     let outcome: CleanupOutcome = clean_up_staging_folder(&request(&fixture, &no_mounts));
-    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "identity"), "{outcome:?}");
+    assert!(
+        matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "identity"),
+        "{outcome:?}"
+    );
     assert!(fixture.folder.exists());
 }
 
@@ -158,7 +207,10 @@ fn a_folder_without_a_claim_is_kept() {
     std::fs::remove_file(fixture.claim_path.as_path()).expect("the fixture claim is removed");
     let no_mounts = || return Vec::new();
     let outcome: CleanupOutcome = clean_up_staging_folder(&request(&fixture, &no_mounts));
-    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "claim"), "{outcome:?}");
+    assert!(
+        matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "claim"),
+        "{outcome:?}"
+    );
     assert!(fixture.folder.exists());
 }
 
@@ -167,12 +219,16 @@ fn a_folder_without_a_claim_is_kept() {
 fn a_folder_whose_owner_lives_is_kept() {
     let fixture = fixture("cleanup-owner-live");
     // The test process owns the claim, so its token names a live owner.
-    let owner = crate::worktree_copy_owner::current_copy_owner().expect("this process's owner token");
+    let owner =
+        crate::worktree_copy_owner::current_copy_owner().expect("this process's owner token");
     let no_mounts = || return Vec::new();
     let mut request = request(&fixture, &no_mounts);
     let token = owner.token();
     request.owner_token = Some(token.as_str());
     let outcome: CleanupOutcome = clean_up_staging_folder(&request);
-    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "owner"), "{outcome:?}");
+    assert!(
+        matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "owner"),
+        "{outcome:?}"
+    );
     assert!(fixture.folder.exists());
 }

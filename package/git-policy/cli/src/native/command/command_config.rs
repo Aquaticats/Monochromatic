@@ -35,16 +35,49 @@
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::command_config_table::{
-    ADD, BLOB, CONFIG_STOP_MODE, DISPLAY_ROWS, EDIT, FILE, GET, GET_FILTER_ROWS, GET_OTHER_ROWS,
-    GLOBAL, LEGACY_ACTION_ROWS, LEGACY_OTHER_ROWS, LIST, LIST_OTHER_ROWS, LOCAL, LOCATION_ROWS,
-    REMOVE_SECTION, RENAME_SECTION, REPLACE_ALL, SET_ROWS, SYSTEM, TYPE_ROWS, UNSET, UNSET_ALL,
-    UNSET_ROWS, WORKTREE,
+    ADD,
+    BLOB,
+    CONFIG_STOP_MODE,
+    DISPLAY_ROWS,
+    EDIT,
+    FILE,
+    GET,
+    GET_FILTER_ROWS,
+    GET_OTHER_ROWS,
+    GLOBAL,
+    LEGACY_ACTION_ROWS,
+    LEGACY_OTHER_ROWS,
+    LIST,
+    LIST_OTHER_ROWS,
+    LOCAL,
+    LOCATION_ROWS,
+    REMOVE_SECTION,
+    RENAME_SECTION,
+    REPLACE_ALL,
+    SET_ROWS,
+    SYSTEM,
+    TYPE_ROWS,
+    UNSET,
+    UNSET_ALL,
+    UNSET_ROWS,
+    WORKTREE,
 };
 use crate::command_options::{
-    DEFAULT_MODE, OptionError, OptionSpec, ParseMode, ParsedOptions, WrapperOccurrence,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParseMode,
+    ParsedOptions,
+    WrapperOccurrence,
     parse_options,
 };
-use crate::command_options_query::{is_enabled, is_stated, last_occurrence, positional_tokens, value_bytes};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    last_occurrence,
+    positional_tokens,
+    value_bytes,
+};
 /// The reader that turns the bytes Git prints or receives into a path,
 ///  whose form differs per platform.
 use crate::git_metadata::path_from_git_bytes;
@@ -351,7 +384,11 @@ fn config_file(parsed: &ParsedOptions) -> ConfigFile {
 /// ```ts
 /// const namedFilePath = (parsed, region, offset) => parsed.file ? valueBytes(region.slice(offset), parsed.file) : undefined;
 /// ```
-fn named_file_path(parsed: &ParsedOptions, region: &[OsString], offset: usize) -> Option<PathBuf> {
+fn named_file_path(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+    offset: usize,
+) -> Option<PathBuf> {
     // A blob is no path: only `--file` names one, and Git refuses both options together.
     if !is_enabled(parsed, FILE) || is_enabled(parsed, BLOB) {
         return None;
@@ -379,7 +416,11 @@ fn named_file_path(parsed: &ParsedOptions, region: &[OsString], offset: usize) -
 /// ```ts
 /// const configWrite = (form, parsed, arguments) => form === 'set' ? 'key' : /* ... */ 'nothing';
 /// ```
-fn config_write(form: ConfigForm, parsed: &ParsedOptions, arguments: usize) -> ConfigWrite {
+fn config_write(
+    form: ConfigForm,
+    parsed: &ParsedOptions,
+    arguments: usize,
+) -> ConfigWrite {
     // `match` picks the one reading each form implies.
     match form {
         ConfigForm::List | ConfigForm::Get => return ConfigWrite::Nothing,
@@ -470,7 +511,10 @@ pub fn parse_config_region(
         if flag == wrapper_flags.len() {
             break;
         }
-        wrapper.push(WrapperOccurrence { flag, token: first });
+        wrapper.push(WrapperOccurrence {
+            flag,
+            token: first,
+        });
         first += 1;
     }
     let mut form: ConfigForm = ConfigForm::Legacy;

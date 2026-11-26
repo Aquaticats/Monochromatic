@@ -28,13 +28,36 @@
 //! expect(wrapped).toEqual(real); expect(head).toBe(headBefore);
 //! ```
 
-use super::commit::{git_text, remove_settled};
-use super::service_commit::{Running, runtime_for, start, through_service, through_service_with};
-use super::support::{Fixture, bounded_for, direct, fixture, git, repository, wrapper_first_path};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
+use super::service_commit::{
+    Running,
+    runtime_for,
+    start,
+    through_service,
+    through_service_with,
+};
+use super::support::{
+    Fixture,
+    bounded_for,
+    direct,
+    fixture,
+    git,
+    repository,
+    wrapper_first_path,
+};
 use super::support_program_names_and_time_bound::REAL_GIT;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// What a refusal must leave as it was:
 ///  the commit `HEAD` names,
@@ -70,7 +93,11 @@ fn names_under(directory: &Path) -> Vec<String> {
     };
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
-        let name: String = path.strip_prefix(directory).unwrap_or(path.as_path()).display().to_string();
+        let name: String = path
+            .strip_prefix(directory)
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
         found.push(name);
         if path.is_dir() {
             for inner in names_under(path.as_path()) {
@@ -83,24 +110,48 @@ fn names_under(directory: &Path) -> Vec<String> {
 }
 
 /// The state of one repository and the fixture's journal.
-fn state(fixture: &Fixture, repo: &Path) -> State {
+fn state(
+    fixture: &Fixture,
+    repo: &Path,
+) -> State {
     return State {
-        head: git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_owned(),
-        commits: git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim().to_owned(),
-        refs: git_text(fixture, repo, &["for-each-ref", "--format=%(refname) %(objectname)"]),
-        timing_record: repo.join(".git/monochromatic-git-policy-cli-commit-timing.jsonl").exists(),
+        head: git_text(fixture, repo, &["rev-parse", "HEAD"])
+            .trim()
+            .to_owned(),
+        commits: git_text(fixture, repo, &["rev-list", "--count", "HEAD"])
+            .trim()
+            .to_owned(),
+        refs: git_text(
+            fixture,
+            repo,
+            &["for-each-ref", "--format=%(refname) %(objectname)"],
+        ),
+        timing_record: repo
+            .join(".git/monochromatic-git-policy-cli-commit-timing.jsonl")
+            .exists(),
         journal: names_under(fixture.root.join("journal").as_path()),
     };
 }
 
 /// A repository with one commit and one tracked file whose edit is staged,
 ///  so every row below has a path to name and a `HEAD` to amend or to fix up.
-fn a_staged_change(fixture: &Fixture, name: &str) -> PathBuf {
+fn a_staged_change(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
-    git(fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
     std::fs::write(repo.join("a.txt"), "one\n").expect("a");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     std::fs::write(repo.join("a.txt"), "one\ntwo\n").expect("edit a");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     return repo;
@@ -115,7 +166,10 @@ fn a_staged_change(fixture: &Fixture, name: &str) -> PathBuf {
 ///   The comparison is what "Git's own message" means:
 ///  a release that rewords a message changes both sides together,
 ///  and a wrapper that answered anything of its own fails here.
-fn refuses_as_git_does(fixture_name: &str, arguments: &[&str]) {
+fn refuses_as_git_does(
+    fixture_name: &str,
+    arguments: &[&str],
+) {
     let fixture: Fixture = fixture(fixture_name);
     let real_repo: PathBuf = a_staged_change(&fixture, "real");
     let wrapped_repo: PathBuf = a_staged_change(&fixture, "wrapped");
@@ -127,7 +181,8 @@ fn refuses_as_git_does(fixture_name: &str, arguments: &[&str]) {
     let mut git_command: std::process::Command = direct(&fixture);
     git_command.current_dir(real_repo.as_path());
     let real: Output = git_command.args(arguments).output().expect("real Git runs");
-    let wrapped: Output = through_service(&fixture, wrapped_repo.as_path(), name.as_str(), arguments);
+    let wrapped: Output =
+        through_service(&fixture, wrapped_repo.as_path(), name.as_str(), arguments);
     assert_eq!(
         wrapped.status.code(),
         real.status.code(),
@@ -140,8 +195,16 @@ fn refuses_as_git_does(fixture_name: &str, arguments: &[&str]) {
         String::from_utf8_lossy(real.stderr.as_slice()),
         "the words of {arguments:?}"
     );
-    assert_ne!(real.status.code(), Some(0), "the row must be one real Git refuses: {arguments:?}");
-    assert_eq!(state(&fixture, wrapped_repo.as_path()), before, "nothing changed: no commit, no reference, no record");
+    assert_ne!(
+        real.status.code(),
+        Some(0),
+        "the row must be one real Git refuses: {arguments:?}"
+    );
+    assert_eq!(
+        state(&fixture, wrapped_repo.as_path()),
+        before,
+        "nothing changed: no commit, no reference, no record"
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
@@ -151,7 +214,10 @@ fn refuses_as_git_does(fixture_name: &str, arguments: &[&str]) {
 /// the row the review of the commit-argument fixes found.
 #[test]
 fn include_with_only_is_refused() {
-    refuses_as_git_does("commit-form-include-only", &["commit", "-i", "-o", "-m", "x", "--", "a.txt"]);
+    refuses_as_git_does(
+        "commit-form-include-only",
+        &["commit", "-i", "-o", "-m", "x", "--", "a.txt"],
+    );
 }
 
 /// The long spellings of the same row,
@@ -160,7 +226,15 @@ fn include_with_only_is_refused() {
 fn include_with_only_is_refused_in_long_spellings() {
     refuses_as_git_does(
         "commit-form-include-only-long",
-        &["commit", "--include", "--only", "--message", "x", "--", "a.txt"],
+        &[
+            "commit",
+            "--include",
+            "--only",
+            "--message",
+            "x",
+            "--",
+            "a.txt",
+        ],
     );
 }
 
@@ -168,7 +242,10 @@ fn include_with_only_is_refused_in_long_spellings() {
 /// one of the rows the audit found.
 #[test]
 fn include_with_all_is_refused() {
-    refuses_as_git_does("commit-form-include-all", &["commit", "-i", "-a", "-m", "x", "--", "a.txt"]);
+    refuses_as_git_does(
+        "commit-form-include-all",
+        &["commit", "-i", "-a", "-m", "x", "--", "a.txt"],
+    );
 }
 
 /// `-i`,
@@ -177,44 +254,65 @@ fn include_with_all_is_refused() {
 ///  so the wrapper must print that whole sentence.
 #[test]
 fn include_with_only_and_all_is_refused() {
-    refuses_as_git_does("commit-form-include-only-all", &["commit", "-i", "-o", "-a", "-m", "x", "--", "a.txt"]);
+    refuses_as_git_does(
+        "commit-form-include-only-all",
+        &["commit", "-i", "-o", "-a", "-m", "x", "--", "a.txt"],
+    );
 }
 
 /// `-a` with `--interactive`:
 ///  the selection count Git makes treats the two interactive spellings as one.
 #[test]
 fn all_with_interactive_is_refused() {
-    refuses_as_git_does("commit-form-all-interactive", &["commit", "-a", "--interactive"]);
+    refuses_as_git_does(
+        "commit-form-all-interactive",
+        &["commit", "-a", "--interactive"],
+    );
 }
 
 /// `--fixup=reword:` with a path.
 #[test]
 fn rewording_with_a_path_is_refused() {
-    refuses_as_git_does("commit-form-reword-path", &["commit", "--fixup=reword:HEAD", "--", "a.txt"]);
+    refuses_as_git_does(
+        "commit-form-reword-path",
+        &["commit", "--fixup=reword:HEAD", "--", "a.txt"],
+    );
 }
 
 /// `--fixup=reword:` with `-a`.
 #[test]
 fn rewording_with_all_is_refused() {
-    refuses_as_git_does("commit-form-reword-all", &["commit", "--fixup=reword:HEAD", "-a"]);
+    refuses_as_git_does(
+        "commit-form-reword-all",
+        &["commit", "--fixup=reword:HEAD", "-a"],
+    );
 }
 
 /// `--fixup=reword:` with `-i`.
 #[test]
 fn rewording_with_include_is_refused() {
-    refuses_as_git_does("commit-form-reword-include", &["commit", "--fixup=reword:HEAD", "-i"]);
+    refuses_as_git_does(
+        "commit-form-reword-include",
+        &["commit", "--fixup=reword:HEAD", "-i"],
+    );
 }
 
 /// `--fixup=reword:` with `--patch`.
 #[test]
 fn rewording_with_patch_is_refused() {
-    refuses_as_git_does("commit-form-reword-patch", &["commit", "--fixup=reword:HEAD", "--patch"]);
+    refuses_as_git_does(
+        "commit-form-reword-patch",
+        &["commit", "--fixup=reword:HEAD", "--patch"],
+    );
 }
 
 /// `--fixup=reword:` with `--interactive`.
 #[test]
 fn rewording_with_interactive_is_refused() {
-    refuses_as_git_does("commit-form-reword-interactive", &["commit", "--fixup=reword:HEAD", "--interactive"]);
+    refuses_as_git_does(
+        "commit-form-reword-interactive",
+        &["commit", "--fixup=reword:HEAD", "--interactive"],
+    );
 }
 
 /// `--pathspec-from-file` with pathspec arguments.
@@ -222,7 +320,14 @@ fn rewording_with_interactive_is_refused() {
 fn a_pathspec_file_with_paths_is_refused() {
     refuses_as_git_does(
         "commit-form-pathspec-file-with-paths",
-        &["commit", "--pathspec-from-file=paths.txt", "-m", "x", "--", "a.txt"],
+        &[
+            "commit",
+            "--pathspec-from-file=paths.txt",
+            "-m",
+            "x",
+            "--",
+            "a.txt",
+        ],
     );
 }
 
@@ -240,21 +345,42 @@ fn a_pathspec_file_with_paths_is_refused() {
 fn a_commit_that_names_an_untracked_path_still_commits() {
     let fixture: Fixture = fixture("commit-form-untracked-path");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
     std::fs::write(repo.join("u.txt"), "untracked\n").expect("u");
     let name: String = format!("commit-form-untracked-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
-    let before: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim().to_owned();
-    let committed: Output = through_service(&fixture, repo.as_path(), name.as_str(), &["commit", "-m", "x", "--", "u.txt"]);
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"])
+        .trim()
+        .to_owned();
+    let committed: Output = through_service(
+        &fixture,
+        repo.as_path(),
+        name.as_str(),
+        &["commit", "-m", "x", "--", "u.txt"],
+    );
     assert_eq!(
         committed.status.code(),
         Some(0),
         "the recorded exception commits: {}",
         String::from_utf8_lossy(committed.stderr.as_slice())
     );
-    let after: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim().to_owned();
+    let after: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"])
+        .trim()
+        .to_owned();
     assert_ne!(after, before, "the commit landed");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "--name-only", "--format=", "HEAD"]).trim(), "u.txt");
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["show", "--name-only", "--format=", "HEAD"]
+        )
+        .trim(),
+        "u.txt"
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
@@ -272,7 +398,11 @@ fn a_commit_that_names_an_untracked_path_still_commits() {
 /// ```ts
 /// const wrappedHere = (fixture, cwd, args) => boundedFor(fixture, join(fixture.root, 'bin/git'), wrapperFirstPath(fixture), COMMIT_BOUND);
 /// ```
-fn wrapped_here(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
+fn wrapped_here(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Command {
     let mut command: Command = bounded_for(
         fixture,
         fixture.root.join("bin/git").as_path(),
@@ -312,7 +442,11 @@ fn everything_under(root: &Path) -> Vec<(String, Vec<u8>)> {
         };
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
-            let name: String = path.strip_prefix(root).unwrap_or(path.as_path()).display().to_string();
+            let name: String = path
+                .strip_prefix(root)
+                .unwrap_or(path.as_path())
+                .display()
+                .to_string();
             if name.ends_with(".git/objects") || name.contains(".git/objects/") {
                 continue;
             }
@@ -320,7 +454,9 @@ fn everything_under(root: &Path) -> Vec<(String, Vec<u8>)> {
             //  (`lock/lock_holder_records.rs`, `HOLDER_FOLDER`): it is written before the first child may take a lock and
             //  removed by the pass that finds every holder it names gone, so it is the wrapper's bookkeeping and not a
             //  change a refusal made to the repository.
-            if name.split('/').any(|part| { return part == "cli-git-lock-holders"; }) {
+            if name.split('/').any(|part| {
+                return part == "cli-git-lock-holders";
+            }) {
                 continue;
             }
             if path.is_dir() {
@@ -367,10 +503,17 @@ fn refuses_as_git_does_arranged(
     for (variable, value) in environment {
         git_command.env(variable, value);
     }
-    let real: Output = git_command.args(real_arguments.as_slice()).output().expect("real Git runs");
+    let real: Output = git_command
+        .args(real_arguments.as_slice())
+        .output()
+        .expect("real Git runs");
     let wrapped_arguments: Vec<String> = arguments(wrapped_root.as_path());
     let wrapped_words: Vec<&str> = wrapped_arguments.iter().map(String::as_str).collect();
-    let mut wrapped_command: Command = wrapped_here(&fixture, cwd(wrapped_root.as_path()).as_path(), wrapped_words.as_slice());
+    let mut wrapped_command: Command = wrapped_here(
+        &fixture,
+        cwd(wrapped_root.as_path()).as_path(),
+        wrapped_words.as_slice(),
+    );
     wrapped_command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
     for (variable, value) in environment {
         wrapped_command.env(variable, value);
@@ -388,7 +531,11 @@ fn refuses_as_git_does_arranged(
         String::from_utf8_lossy(real.stderr.as_slice()),
         "the words of {wrapped_arguments:?}"
     );
-    assert_ne!(real.status.code(), Some(0), "the row is one real Git refuses: {real_arguments:?}");
+    assert_ne!(
+        real.status.code(),
+        Some(0),
+        "the row is one real Git refuses: {real_arguments:?}"
+    );
     assert_eq!(
         everything_under(wrapped_root.as_path()),
         before,
@@ -426,11 +573,18 @@ fn direct_here() -> Command {
 
 /// Real Git with the fixture's environment,
 ///  in a directory a row made for itself.
-fn git_at(directory: &Path, arguments: &[&str]) {
+fn git_at(
+    directory: &Path,
+    arguments: &[&str],
+) {
     let mut command: Command = direct_here();
     command.current_dir(directory).args(arguments);
     let output: Output = command.output().expect("real Git runs");
-    assert!(output.status.success(), "{arguments:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(
+        output.status.success(),
+        "{arguments:?}: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
 }
 
 /// What:
@@ -439,7 +593,10 @@ fn git_at(directory: &Path, arguments: &[&str]) {
 /// Why:
 ///  The shape that once landed a commit had a staged file named `-i`,
 ///  which the mangled question turned into a pathspec.
-fn a_staged_change_and_a_staged_file_named(path: &Path, name: &str) {
+fn a_staged_change_and_a_staged_file_named(
+    path: &Path,
+    name: &str,
+) {
     a_repository_at(path);
     std::fs::write(path.join("a.txt"), "one\ntwo\n").expect("edit");
     git_at(path, &["add", "--", "a.txt"]);
@@ -455,9 +612,20 @@ fn a_staged_change_and_a_staged_file_named(path: &Path, name: &str) {
 fn a_message_named_separator_is_refused_with_gits_words_and_lands_nothing() {
     refuses_as_git_does_arranged(
         "commit-form-message-separator",
-        |_fixture, root| { a_staged_change_and_a_staged_file_named(root, "-i"); },
-        |_root| { return vec!["commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
-        |root| { return root.to_path_buf(); },
+        |_fixture, root| {
+            a_staged_change_and_a_staged_file_named(root, "-i");
+        },
+        |_root| {
+            return vec![
+                "commit".to_owned(),
+                "-m".to_owned(),
+                "--".to_owned(),
+                "-i".to_owned(),
+            ];
+        },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -473,8 +641,17 @@ fn a_message_file_named_separator_is_refused_with_gits_words() {
             a_staged_change_and_a_staged_file_named(root, "-i");
             std::fs::write(root.join("--"), "a message\n").expect("the message file");
         },
-        |_root| { return vec!["commit".to_owned(), "-F".to_owned(), "--".to_owned(), "-i".to_owned()] },
-        |root| { return root.to_path_buf(); },
+        |_root| {
+            return vec![
+                "commit".to_owned(),
+                "-F".to_owned(),
+                "--".to_owned(),
+                "-i".to_owned(),
+            ];
+        },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -492,8 +669,17 @@ fn a_pathspec_file_named_separator_is_refused_with_gits_words() {
             git_at(root, &["add", "--", "a.txt"]);
             std::fs::write(root.join("--"), "a.txt\n").expect("the pathspec file");
         },
-        |_root| { return vec!["commit".to_owned(), "--pathspec-from-file".to_owned(), "--".to_owned(), "-a".to_owned()] },
-        |root| { return root.to_path_buf(); },
+        |_root| {
+            return vec![
+                "commit".to_owned(),
+                "--pathspec-from-file".to_owned(),
+                "--".to_owned(),
+                "-a".to_owned(),
+            ];
+        },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -505,9 +691,23 @@ fn a_pathspec_file_named_separator_is_refused_with_gits_words() {
 fn a_relative_directory_option_is_applied_once() {
     refuses_as_git_does_arranged(
         "commit-form-relative-c",
-        |_fixture, root| { a_repository_at(&root.join("sub")); },
-        |_root| { return vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
-        |root| { return root.to_path_buf(); },
+        |_fixture, root| {
+            a_repository_at(&root.join("sub"));
+        },
+        |_root| {
+            return vec![
+                "-C".to_owned(),
+                "sub".to_owned(),
+                "commit".to_owned(),
+                "-i".to_owned(),
+                "-o".to_owned(),
+                "-m".to_owned(),
+                "x".to_owned(),
+            ];
+        },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -519,7 +719,9 @@ fn a_relative_directory_option_is_applied_once() {
 fn a_chain_of_directory_options_is_applied_once() {
     refuses_as_git_does_arranged(
         "commit-form-chain-of-c",
-        |_fixture, root| { a_repository_at(&root.join("one").join("two")); },
+        |_fixture, root| {
+            a_repository_at(&root.join("one").join("two"));
+        },
         |_root| {
             return vec![
                 "-C".to_owned(),
@@ -531,9 +733,11 @@ fn a_chain_of_directory_options_is_applied_once() {
                 "-o".to_owned(),
                 "-m".to_owned(),
                 "x".to_owned(),
-            ]
+            ];
         },
-        |root| { return root.to_path_buf(); },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -552,8 +756,19 @@ fn a_commit_under_a_relative_directory_option_never_lands_in_a_nested_repository
             a_repository_at(&root.join("sub"));
             a_staged_change_and_a_staged_file_named(&root.join("sub").join("sub"), "-i");
         },
-        |_root| { return vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
-        |root| { return root.to_path_buf(); },
+        |_root| {
+            return vec![
+                "-C".to_owned(),
+                "sub".to_owned(),
+                "commit".to_owned(),
+                "-m".to_owned(),
+                "--".to_owned(),
+                "-i".to_owned(),
+            ];
+        },
+        |root| {
+            return root.to_path_buf();
+        },
         &[],
     );
 }
@@ -567,7 +782,8 @@ fn a_named_git_directory_is_asked_once() {
         "commit-form-named-git-dir",
         |_fixture, root| {
             a_repository_at(&root.join("work"));
-            std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git")).expect("a Git directory beside its work tree");
+            std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git"))
+                .expect("a Git directory beside its work tree");
         },
         |root| {
             return vec![
@@ -580,9 +796,11 @@ fn a_named_git_directory_is_asked_once() {
                 "-o".to_owned(),
                 "-m".to_owned(),
                 "x".to_owned(),
-            ]
+            ];
         },
-        |root| { return root.join("work"); },
+        |root| {
+            return root.join("work");
+        },
         &[],
     );
 }
@@ -595,10 +813,21 @@ fn a_git_dir_in_the_environment_is_asked_once() {
         "commit-form-git-dir-variable",
         |_fixture, root| {
             a_repository_at(&root.join("work"));
-            std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git")).expect("a Git directory beside its work tree");
+            std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git"))
+                .expect("a Git directory beside its work tree");
         },
-        |_root| { return vec!["commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
-        |root| { return root.join("work"); },
+        |_root| {
+            return vec![
+                "commit".to_owned(),
+                "-i".to_owned(),
+                "-o".to_owned(),
+                "-m".to_owned(),
+                "x".to_owned(),
+            ];
+        },
+        |root| {
+            return root.join("work");
+        },
         &[],
     );
 }
@@ -617,14 +846,31 @@ fn a_pathless_only_beside_an_amending_fixup_commits() {
     let wrapped_repo: PathBuf = a_staged_change(&fixture, "wrapped");
     let name: String = format!("commit-form-amending-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
-    let real_before: String = git_text(&fixture, real_repo.as_path(), &["rev-list", "--count", "HEAD"]).trim().to_owned();
-    let wrapped_before: String = git_text(&fixture, wrapped_repo.as_path(), &["rev-list", "--count", "HEAD"]).trim().to_owned();
+    let real_before: String = git_text(
+        &fixture,
+        real_repo.as_path(),
+        &["rev-list", "--count", "HEAD"],
+    )
+    .trim()
+    .to_owned();
+    let wrapped_before: String = git_text(
+        &fixture,
+        wrapped_repo.as_path(),
+        &["rev-list", "--count", "HEAD"],
+    )
+    .trim()
+    .to_owned();
     // `--fixup=amend:` opens the editor with the message Git built, so both arms are given one that keeps it. The policy
     //  escape hatch is the wrapper's own word, so only the wrapped arm is given it: with it, the commit-only policy stands
     //  aside and this control measures the form rule alone.
     let mut git_command: Command = direct(&fixture);
-    git_command.current_dir(real_repo.as_path()).env("GIT_EDITOR", "/bin/true");
-    let real: Output = git_command.args(["commit", "-o", "--fixup=amend:HEAD"]).output().expect("real Git runs");
+    git_command
+        .current_dir(real_repo.as_path())
+        .env("GIT_EDITOR", "/bin/true");
+    let real: Output = git_command
+        .args(["commit", "-o", "--fixup=amend:HEAD"])
+        .output()
+        .expect("real Git runs");
     let wrapped: Output = through_service_with(
         &fixture,
         wrapped_repo.as_path(),
@@ -639,15 +885,38 @@ fn a_pathless_only_beside_an_amending_fixup_commits() {
         String::from_utf8_lossy(real.stderr.as_slice()),
         String::from_utf8_lossy(wrapped.stderr.as_slice())
     );
-    assert_eq!(real.status.code(), Some(0), "real Git makes this commit: {}", String::from_utf8_lossy(real.stderr.as_slice()));
     assert_eq!(
-        git_text(&fixture, wrapped_repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(),
+        real.status.code(),
+        Some(0),
+        "real Git makes this commit: {}",
+        String::from_utf8_lossy(real.stderr.as_slice())
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            wrapped_repo.as_path(),
+            &["rev-list", "--count", "HEAD"]
+        )
+        .trim(),
         (wrapped_before.parse::<u32>().expect("a count") + 1).to_string(),
         "the wrapper made the same one commit"
     );
-    assert_eq!(git_text(&fixture, real_repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), (real_before.parse::<u32>().expect("a count") + 1).to_string());
     assert_eq!(
-        git_text(&fixture, wrapped_repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+        git_text(
+            &fixture,
+            real_repo.as_path(),
+            &["rev-list", "--count", "HEAD"]
+        )
+        .trim(),
+        (real_before.parse::<u32>().expect("a count") + 1).to_string()
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            wrapped_repo.as_path(),
+            &["log", "-1", "--format=%s"]
+        )
+        .trim(),
         git_text(&fixture, real_repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
         "the same subject as Git's"
     );

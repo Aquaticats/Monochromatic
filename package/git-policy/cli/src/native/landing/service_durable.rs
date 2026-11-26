@@ -44,18 +44,37 @@
 //! landing.settle(published); // true: hand the queue to the background task; false: sync it now
 //! ```
 
-use crate::scoped_start::{Started, start_or_run_with};
-use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use std::fs::File;
-use std::thread::Scope;
-use std::sync::OnceLock;
-use std::time::{Duration, Instant};
 use crate::blocking_job::run_blocking_job;
-use crate::service_durable_syncs::SyncFigure;
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
 use crate::lazy_runtime::spawn_on_runtime;
-use std::sync::mpsc::{Sender, channel};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use crate::scoped_start::{
+    Started,
+    start_or_run_with,
+};
+use crate::service_durable_syncs::SyncFigure;
+use crate::side_by_side_threads::{
+    ScopeBody,
+    in_thread_scope,
+};
+use std::fs::File;
+use std::sync::OnceLock;
+use std::sync::mpsc::{
+    Sender,
+    channel,
+};
+use std::thread::Scope;
+use std::time::{
+    Duration,
+    Instant,
+};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// One sync waiting for its turn:
 /// a handle on the file or directory,
@@ -100,7 +119,11 @@ fn sync_batch(batch: Vec<Pending>) {
         total += *took;
     }
     // One line per batch, so a landing whose records were flushed after its answer still says what that cost the device.
-    crate::service_log!("the background sync of {} records of a landing took {} ms", figures.len(), total.as_millis());
+    crate::service_log!(
+        "the background sync of {} records of a landing took {} ms",
+        figures.len(),
+        total.as_millis()
+    );
 }
 
 /// What:
@@ -116,8 +139,14 @@ fn sync_batch(batch: Vec<Pending>) {
 /// ```ts
 /// await Promise.all(batch.map(async (pending) => { try { await pending.handle.sync(); } catch (e) { warn(e); } if (background) synced++; }));
 /// ```
-fn sync_all_at_once(batch: &[Pending], background: bool) -> Vec<(&'static str, Duration)> {
-    return in_thread_scope(SyncAll { batch, background });
+fn sync_all_at_once(
+    batch: &[Pending],
+    background: bool,
+) -> Vec<(&'static str, Duration)> {
+    return in_thread_scope(SyncAll {
+        batch,
+        background,
+    });
 }
 
 /// The syncs of one batch,
@@ -137,10 +166,17 @@ impl<'batch> ScopeBody<'batch> for SyncAll<'batch> {
     /// Start one sync per pending handle,
     /// then say once when any of them had to run here,
     /// and answer how long each took.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'batch>) -> Vec<(&'static str, Duration)> {
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'batch>,
+    ) -> Vec<(&'static str, Duration)> {
         let mut started: Vec<Started<'scope, (&'static str, Duration)>> = Vec::new();
         for pending in self.batch {
-            started.push(start_or_run_with(scope, (pending, self.background), sync_one_pending));
+            started.push(start_or_run_with(
+                scope,
+                (pending, self.background),
+                sync_one_pending,
+            ));
         }
         say_once_if_inline(started.as_slice());
         let mut figures: Vec<(&'static str, Duration)> = Vec::new();
@@ -161,7 +197,10 @@ fn sync_one_pending((pending, background): (&Pending, bool)) -> (&'static str, D
     let began: Instant = Instant::now();
     if let Err(error) = pending.handle.sync_all() {
         if background {
-            crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
+            crate::service_warn!(
+                "the background sync of the {} failed: {error}",
+                pending.what
+            );
         } else {
             crate::service_warn!("the sync of the {} failed: {error}", pending.what);
         }
@@ -178,7 +217,9 @@ fn sync_one_pending((pending, background): (&Pending, bool)) -> (&'static str, D
 /// that a sync was made on the calling thread because the system could not start a thread for it.
 fn say_once_if_inline<T>(started: &[Started<'_, T>]) {
     if started.iter().any(Started::ran_inline) {
-        crate::service_warn!("the system could not start a thread for a sync of the landing's records; it was made where it was asked for");
+        crate::service_warn!(
+            "the system could not start a thread for a sync of the landing's records; it was made where it was asked for"
+        );
     }
 }
 
@@ -191,9 +232,15 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
     while let Some(job) = jobs.recv().await {
         match job {
             Job::Batch(batch) => {
-                if let Err(error) = run_blocking_job(move || { sync_batch(batch); }).await {
+                if let Err(error) = run_blocking_job(move || {
+                    sync_batch(batch);
+                })
+                .await
+                {
                     // Nobody waits for this: the records are as a power cut leaves them, which the next landing or restart handles.
-                    crate::service_warn!("the background sync of a landing's records could not run: {error}");
+                    crate::service_warn!(
+                        "the background sync of a landing's records could not run: {error}"
+                    );
                 }
             }
             Job::Barrier(done) => {
@@ -227,7 +274,9 @@ fn start_background() -> UnboundedSender<Job> {
     // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which leaves each flush to the
     //  operating system rather than making it on the thread that asked for it.
     if spawn_on_runtime(background(jobs)).is_none() {
-        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; each flush is left to the operating system's write-back");
+        crate::service_warn!(
+            "the runtime has no worker for the task that makes the landing's syncs; each flush is left to the operating system's write-back"
+        );
     }
     return sender;
 }
@@ -255,12 +304,17 @@ pub struct Deferral {
 ///  `hardens_index` says whether the index file the landing installs is flushed before the rename (`core.fsync` names it).
 pub fn begin(hardens_index: bool) -> Deferral {
     on_the_landing_state(hardens_index, start_deferring);
-    return Deferral { settled: false };
+    return Deferral {
+        settled: false,
+    };
 }
 
 /// Begins queueing the syncs of the landing in `state`,
 /// with the index hardened or not.
-fn start_deferring(state: &LandingState, hardens_index: bool) {
+fn start_deferring(
+    state: &LandingState,
+    hardens_index: bool,
+) {
     state.deferring_syncs.set(true);
     state.index_hardened.set(hardens_index);
     state.queued_syncs.borrow_mut().clear();
@@ -284,7 +338,10 @@ fn note_a_sync(figure: SyncFigure) {
 }
 
 /// Pushes one sync into the landing's state.
-fn record_a_sync(state: &LandingState, figure: SyncFigure) {
+fn record_a_sync(
+    state: &LandingState,
+    figure: SyncFigure,
+) {
     state.syncs.borrow_mut().push(figure);
 }
 
@@ -304,7 +361,10 @@ pub fn take_syncs() -> Vec<SyncFigure> {
 }
 
 /// Takes the recorded syncs out of the landing's state.
-fn drain_syncs(state: &LandingState, (): ()) -> Vec<SyncFigure> {
+fn drain_syncs(
+    state: &LandingState,
+    (): (),
+) -> Vec<SyncFigure> {
     return state.syncs.take();
 }
 
@@ -314,7 +374,10 @@ fn end() -> Vec<Pending> {
 }
 
 /// Ends the deferral in `state` and takes what it queued.
-fn stop_deferring(state: &LandingState, (): ()) -> Vec<Pending> {
+fn stop_deferring(
+    state: &LandingState,
+    (): (),
+) -> Vec<Pending> {
     state.deferring_syncs.set(false);
     state.index_hardened.set(true);
     return state.queued_syncs.take();
@@ -329,7 +392,11 @@ fn force(batch: Vec<Pending>) {
     }
     let figures: Vec<(&'static str, Duration)> = sync_all_at_once(batch.as_slice(), false);
     for (what, took) in figures {
-        note_a_sync(SyncFigure { what, waited: true, took });
+        note_a_sync(SyncFigure {
+            what,
+            waited: true,
+            took,
+        });
     }
 }
 
@@ -340,7 +407,10 @@ impl Deferral {
     ///  landing that published nothing (a withdrawal,
     /// an error,
     /// a commit sent back) syncs its records before it returns.
-    pub fn settle(self, published: bool) {
+    pub fn settle(
+        self,
+        published: bool,
+    ) {
         return self.settle_with(published, &hand_to_the_background);
     }
 
@@ -355,7 +425,11 @@ impl Deferral {
     /// ```ts
     /// deferral.settleWith(published, hand)
     /// ```
-    fn settle_with(mut self, published: bool, hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>) {
+    fn settle_with(
+        mut self,
+        published: bool,
+        hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>,
+    ) {
         self.settled = true;
         let batch: Vec<Pending> = end();
         if batch.is_empty() {
@@ -365,7 +439,9 @@ impl Deferral {
             if hand(batch).is_some() {
                 // No task takes the queue, and the decision for a landing that published is "Force at leaving, else background":
                 //  the records reach the disk with the operating system's own write-back rather than on the commit's thread.
-                crate::service_warn!("the runtime has no task for the syncs of a landing that published, so none waits for them here and the records reach the disk with the operating system's own write-back");
+                crate::service_warn!(
+                    "the runtime has no task for the syncs of a landing that published, so none waits for them here and the records reach the disk with the operating system's own write-back"
+                );
             }
         } else {
             force(batch);
@@ -382,17 +458,26 @@ impl Drop for Deferral {
 }
 
 /// Whether the landing in `state` queues its syncs.
-fn is_deferring(state: &LandingState, (): ()) -> bool {
+fn is_deferring(
+    state: &LandingState,
+    (): (),
+) -> bool {
     return state.deferring_syncs.get();
 }
 
 /// Queues one sync in the landing's state.
-fn queue_a_sync(state: &LandingState, pending: Pending) {
+fn queue_a_sync(
+    state: &LandingState,
+    pending: Pending,
+) {
     state.queued_syncs.borrow_mut().push(pending);
 }
 
 /// Whether the index the landing in `state` writes is flushed before it is installed.
-fn index_hardened_in(state: &LandingState, (): ()) -> bool {
+fn index_hardened_in(
+    state: &LandingState,
+    (): (),
+) -> bool {
     return state.index_hardened.get();
 }
 
@@ -402,7 +487,10 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 ///
 /// The error of duplicating the handle;
 /// a queue that the background task no longer takes is left to the operating system's write-back.
-pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
+pub fn defer_file(
+    file: &File,
+    what: &'static str,
+) -> std::io::Result<()> {
     return defer_file_with(&hand_to_the_background, file, what);
 }
 
@@ -418,14 +506,29 @@ pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
 /// ```ts
 /// deferFileWith(hand, file, what)
 /// ```
-fn defer_file_with(hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>, file: &File, what: &'static str) -> std::io::Result<()> {
+fn defer_file_with(
+    hand: &dyn Fn(Vec<Pending>) -> Option<Vec<Pending>>,
+    file: &File,
+    what: &'static str,
+) -> std::io::Result<()> {
     let handle: File = file.try_clone()?;
-    note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
+    note_a_sync(SyncFigure {
+        what,
+        waited: false,
+        took: Duration::ZERO,
+    });
     crate::service_fault::note(format!("sync-queued:{what}").as_str());
-    if hand(vec![Pending { handle, what }]).is_some() {
+    if hand(vec![Pending {
+        handle,
+        what,
+    }])
+    .is_some()
+    {
         // No task takes the flush, so it is the operating system's: the marker names the holder and nothing else, which a power
         //  cut loses as it loses any write the page cache held, and the step before a landing removes such a marker at once.
-        crate::service_warn!("the runtime has no task for the flush of the {what}, so nothing waits for it here and the write reaches the disk with the operating system's own write-back");
+        crate::service_warn!(
+            "the runtime has no task for the flush of the {what}, so nothing waits for it here and the write reaches the disk with the operating system's own write-back"
+        );
     }
     return Ok(());
 }
@@ -460,17 +563,34 @@ fn hand_to_the_background(batch: Vec<Pending>) -> Option<Vec<Pending>> {
 /// # Errors
 ///
 /// The error of the flush when it is made now.
-pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
+pub fn flush_file(
+    file: &File,
+    what: &'static str,
+) -> std::io::Result<()> {
     if on_the_landing_state((), is_deferring) {
         crate::service_fault::note(format!("sync-queued:{what}").as_str());
-        note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });
+        note_a_sync(SyncFigure {
+            what,
+            waited: false,
+            took: Duration::ZERO,
+        });
         let handle: File = file.try_clone()?;
-        on_the_landing_state(Pending { handle, what }, queue_a_sync);
+        on_the_landing_state(
+            Pending {
+                handle,
+                what,
+            },
+            queue_a_sync,
+        );
         return Ok(());
     }
     let began: Instant = Instant::now();
     let synced: std::io::Result<()> = file.sync_all();
-    note_a_sync(SyncFigure { what, waited: true, took: began.elapsed() });
+    note_a_sync(SyncFigure {
+        what,
+        waited: true,
+        took: began.elapsed(),
+    });
     crate::service_fault::note(format!("sync-waited:{what}").as_str());
     return synced;
 }
@@ -482,7 +602,10 @@ pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
 ///
 /// The error of opening the directory,
 /// or of the flush when it is made now.
-pub fn flush_directory(directory: &std::path::Path, what: &'static str) -> std::io::Result<()> {
+pub fn flush_directory(
+    directory: &std::path::Path,
+    what: &'static str,
+) -> std::io::Result<()> {
     return flush_file(&File::open(directory)?, what);
 }
 
@@ -500,11 +623,18 @@ pub fn flush_directory(directory: &std::path::Path, what: &'static str) -> std::
 /// # Errors
 ///
 /// The error of the flush.
-pub fn flush_index(file: &File, what: &'static str) -> std::io::Result<()> {
+pub fn flush_index(
+    file: &File,
+    what: &'static str,
+) -> std::io::Result<()> {
     if index_is_hardened() {
         let began: Instant = Instant::now();
         let synced: std::io::Result<()> = file.sync_all();
-        note_a_sync(SyncFigure { what, waited: true, took: began.elapsed() });
+        note_a_sync(SyncFigure {
+            what,
+            waited: true,
+            took: began.elapsed(),
+        });
         crate::service_fault::note(format!("sync-waited:{what}").as_str());
         return synced;
     }

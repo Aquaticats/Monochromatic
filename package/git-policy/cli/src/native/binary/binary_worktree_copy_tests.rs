@@ -17,16 +17,39 @@
 
 /// Import the shared fixtures and the bounded process helpers.
 use super::support::{
-    Fixture, Observed, dead_copy_owner, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped,
+    Fixture,
+    Observed,
+    dead_copy_owner,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    run_wrapped,
+    stderr_of,
+    wrapped,
 };
-use git_policy_cli::worktree_copy_journal::{create_journal_for, read_pending_journals};
-use git_policy_cli::worktree_copy_selection::CopySelection;
-use git_policy_cli::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
-use git_policy_cli::worktree_copy_stage_claim::{claim_stage_for, stage_claims_exist};
 use git_policy_cli::transaction_git::GitContext;
+use git_policy_cli::worktree_copy_journal::{
+    create_journal_for,
+    read_pending_journals,
+};
+use git_policy_cli::worktree_copy_selection::CopySelection;
+use git_policy_cli::worktree_copy_stage::{
+    StagedSnapshot,
+    new_stage_container,
+    stage_ignored_snapshot,
+};
+use git_policy_cli::worktree_copy_stage_claim::{
+    claim_stage_for,
+    stage_claims_exist,
+};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the generated rules file lives,
 /// as the configuration's `rulesFile` names it.
@@ -40,7 +63,10 @@ pub(super) fn needle() -> String {
 /// A repository whose committed configuration names the rules file,
 /// with `a.txt` holding the forbidden text.
 /// The rules file and a second ignored directory exist only when `with_rules` is set.
-pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> PathBuf {
+pub(super) fn repository_with_rules(
+    fixture: &Fixture,
+    with_rules: bool,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(
         repo.join("monochromatic-git-policy-cli.config.jsonc"),
@@ -54,7 +80,13 @@ pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> Path
     git(
         fixture,
         repo.as_path(),
-        &["add", "--", "monochromatic-git-policy-cli.config.jsonc", ".gitignore", "a.txt"],
+        &[
+            "add",
+            "--",
+            "monochromatic-git-policy-cli.config.jsonc",
+            ".gitignore",
+            "a.txt",
+        ],
     );
     git(
         fixture,
@@ -72,11 +104,20 @@ pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> Path
 }
 
 /// Run the forbidden-strings check over every file of a worktree.
-fn check_all(fixture: &Fixture, worktree: &Path) -> Observed {
+fn check_all(
+    fixture: &Fixture,
+    worktree: &Path,
+) -> Observed {
     return run_wrapped(
         fixture,
         worktree,
-        &["monochromatic-git-policy-cli", "check", "--policy", "security/forbidden-strings", "--all"],
+        &[
+            "monochromatic-git-policy-cli",
+            "check",
+            "--policy",
+            "security/forbidden-strings",
+            "--all",
+        ],
     );
 }
 
@@ -92,10 +133,16 @@ fn assert_scanner_has_rules(observed: &Observed) {
 
 /// The check could not load rules and scanned nothing;
 /// the message names the missing path.
-fn assert_scanner_failed_closed(observed: &Observed, worktree: &Path) {
+fn assert_scanner_failed_closed(
+    observed: &Observed,
+    worktree: &Path,
+) {
     let stdout: String = String::from_utf8_lossy(&observed.stdout).into_owned();
     assert_eq!(observed.code, Some(2), "{stdout}");
-    assert!(stdout.contains("\"code\":\"policy-incomplete\""), "{stdout}");
+    assert!(
+        stdout.contains("\"code\":\"policy-incomplete\""),
+        "{stdout}"
+    );
     assert!(
         stdout.contains(worktree.join(RULES_FILE).to_string_lossy().as_ref()),
         "{stdout}"
@@ -120,7 +167,13 @@ fn worktree_added_from_the_main_checkout_receives_its_ignored_state() {
     let summary: String = stderr_of(&created);
     assert!(
         summary.starts_with("monochromatic-git-policy-cli: copied ")
-            && summary.contains(format!(" ignored filesystem entries from \"{}\" into 1 new worktree.\n", repo.display()).as_str()),
+            && summary.contains(
+                format!(
+                    " ignored filesystem entries from \"{}\" into 1 new worktree.\n",
+                    repo.display()
+                )
+                .as_str()
+            ),
         "{summary}"
     );
     let one: PathBuf = fixture.root.join("one");
@@ -128,14 +181,29 @@ fn worktree_added_from_the_main_checkout_receives_its_ignored_state() {
         std::fs::read(one.join(RULES_FILE)).expect("copied rules"),
         format!("{}\n", needle()).into_bytes()
     );
-    assert_eq!(std::fs::read(one.join(".cache/other.txt")).expect("sibling"), b"other\n", "the whole ignored state arrives");
-    assert_eq!(std::fs::read(one.join("heavy/data")).expect("heavy tree"), b"payload\n");
+    assert_eq!(
+        std::fs::read(one.join(".cache/other.txt")).expect("sibling"),
+        b"other\n",
+        "the whole ignored state arrives"
+    );
+    assert_eq!(
+        std::fs::read(one.join("heavy/data")).expect("heavy tree"),
+        b"payload\n"
+    );
     assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
     // Control: the opt-out copies nothing, and then the scanner has no rules and fails closed.
     let opted_out: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "two", "../two"],
+        &[
+            "worktree",
+            "add",
+            "--no-worktree-copy",
+            "--quiet",
+            "-b",
+            "two",
+            "../two",
+        ],
     );
     assert_eq!(opted_out.code, Some(0), "{}", stderr_of(&opted_out));
     assert!(opted_out.stderr.is_empty(), "{}", stderr_of(&opted_out));
@@ -162,17 +230,34 @@ fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
     )
     .expect("configuration");
     std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
-    std::fs::write(repo.join("a.txt"), format!("first\n{}\n", needle())).expect("shared needle file");
-    std::fs::write(repo.join("b.txt"), b"first\nLISTED_LOCAL_COPY_NEEDLE\n").expect("local needle file");
+    std::fs::write(repo.join("a.txt"), format!("first\n{}\n", needle()))
+        .expect("shared needle file");
+    std::fs::write(repo.join("b.txt"), b"first\nLISTED_LOCAL_COPY_NEEDLE\n")
+        .expect("local needle file");
     git(
         &fixture,
         repo.as_path(),
-        &["add", "--", "monochromatic-git-policy-cli.config.jsonc", ".gitignore", "a.txt", "b.txt"],
+        &[
+            "add",
+            "--",
+            "monochromatic-git-policy-cli.config.jsonc",
+            ".gitignore",
+            "a.txt",
+            "b.txt",
+        ],
     );
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=configuration"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=configuration"],
+    );
     std::fs::create_dir_all(repo.join(".cache")).expect("cache directory");
     std::fs::write(repo.join(RULES_FILE), format!("{}\n", needle())).expect("shared rules");
-    std::fs::write(repo.join(".cache/local-rules.txt"), b"LISTED_LOCAL_COPY_NEEDLE\n").expect("local rules");
+    std::fs::write(
+        repo.join(".cache/local-rules.txt"),
+        b"LISTED_LOCAL_COPY_NEEDLE\n",
+    )
+    .expect("local rules");
     let created: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
@@ -181,12 +266,21 @@ fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let one: PathBuf = fixture.root.join("one");
     assert!(one.join(RULES_FILE).exists(), "the required file is copied");
-    assert!(one.join(".cache/local-rules.txt").exists(), "the present optional file is copied");
-    assert!(!one.join(".cache/never.txt").exists(), "an absent optional file is not invented");
+    assert!(
+        one.join(".cache/local-rules.txt").exists(),
+        "the present optional file is copied"
+    );
+    assert!(
+        !one.join(".cache/never.txt").exists(),
+        "an absent optional file is not invented"
+    );
     let checked: Observed = check_all(&fixture, one.as_path());
     let stdout: String = String::from_utf8_lossy(&checked.stdout).into_owned();
     assert_eq!(checked.code, Some(1), "{stdout} {}", stderr_of(&checked));
-    assert!(stdout.contains("a.txt") && stdout.contains("b.txt"), "both rules files apply: {stdout}");
+    assert!(
+        stdout.contains("a.txt") && stdout.contains("b.txt"),
+        "both rules files apply: {stdout}"
+    );
     remove(&fixture);
 }
 
@@ -265,8 +359,15 @@ fn a_main_checkout_without_a_configured_rules_file_still_copies_its_ignored_stat
         &["worktree", "add", "--quiet", "-b", "one", "../one"],
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert!(stderr_of(&created).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&created));
-    assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), b"rules\n");
+    assert!(
+        stderr_of(&created).starts_with("monochromatic-git-policy-cli: copied "),
+        "{}",
+        stderr_of(&created)
+    );
+    assert_eq!(
+        std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"),
+        b"rules\n"
+    );
     remove(&fixture);
 }
 
@@ -280,19 +381,50 @@ fn a_worktree_registered_with_relative_paths_is_copied_into() {
     let option: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["worktree", "add", "--quiet", "--relative-paths", "-b", "one", "../one"],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--relative-paths",
+            "-b",
+            "one",
+            "../one",
+        ],
     );
     assert_eq!(option.code, Some(0), "{}", stderr_of(&option));
-    assert!(stderr_of(&option).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&option));
-    assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
+    assert!(
+        stderr_of(&option).starts_with("monochromatic-git-policy-cli: copied "),
+        "{}",
+        stderr_of(&option)
+    );
+    assert_eq!(
+        std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"),
+        format!("{}\n", needle()).into_bytes()
+    );
     let configured: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["-c", "worktree.useRelativePaths=true", "worktree", "add", "--quiet", "-b", "two", "../two"],
+        &[
+            "-c",
+            "worktree.useRelativePaths=true",
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "two",
+            "../two",
+        ],
     );
     assert_eq!(configured.code, Some(0), "{}", stderr_of(&configured));
-    assert!(stderr_of(&configured).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&configured));
-    assert_eq!(std::fs::read(fixture.root.join("two").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
+    assert!(
+        stderr_of(&configured).starts_with("monochromatic-git-policy-cli: copied "),
+        "{}",
+        stderr_of(&configured)
+    );
+    assert_eq!(
+        std::fs::read(fixture.root.join("two").join(RULES_FILE)).expect("copied"),
+        format!("{}\n", needle()).into_bytes()
+    );
     remove(&fixture);
 }
 
@@ -305,7 +437,15 @@ fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
     let aliased: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["-c", "alias.wta=worktree add", "wta", "--quiet", "-b", "one", "../one"],
+        &[
+            "-c",
+            "alias.wta=worktree add",
+            "wta",
+            "--quiet",
+            "-b",
+            "one",
+            "../one",
+        ],
     );
     assert_eq!(aliased.code, Some(0), "{}", stderr_of(&aliased));
     assert!(fixture.root.join("one").join(RULES_FILE).exists());
@@ -322,8 +462,16 @@ fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
     //  Git fills when the same add is asked for again.
     let again: PathBuf = fixture.root.join("again");
     match std::fs::read_dir(&again) {
-        Ok(listing) => assert_eq!(listing.count(), 0, "the destination holds nothing but the wrapper's empty reservation"),
-        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "the destination is absent or empty: {error}"),
+        Ok(listing) => assert_eq!(
+            listing.count(),
+            0,
+            "the destination holds nothing but the wrapper's empty reservation"
+        ),
+        Err(error) => assert_eq!(
+            error.kind(),
+            std::io::ErrorKind::NotFound,
+            "the destination is absent or empty: {error}"
+        ),
     }
     remove(&fixture);
 }
@@ -339,7 +487,15 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
     let opted_out: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "one", "../one"],
+        &[
+            "worktree",
+            "add",
+            "--no-worktree-copy",
+            "--quiet",
+            "-b",
+            "one",
+            "../one",
+        ],
     );
     assert_eq!(opted_out.code, Some(0));
     let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
@@ -354,27 +510,54 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,
-        std::fs::canonicalize(repo.as_path()).expect("canonical source").as_path(),
-        new_stage_container(one.as_path()).expect("container").as_path(),
+        std::fs::canonicalize(repo.as_path())
+            .expect("canonical source")
+            .as_path(),
+        new_stage_container(one.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    create_journal_for(common.as_path(), one.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
+    create_journal_for(
+        common.as_path(),
+        one.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1
+    );
     // A read-only command from the linked worktree recovers it before Git runs.
-    let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let status: Observed = run_wrapped(
+        &fixture,
+        one.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
     assert_eq!(status.stdout, b"true\n");
     assert_eq!(
         stderr_of(&status),
         "monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"
     );
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     assert!(one.join(RULES_FILE).exists());
     assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
     // Recovery is not repeated.
-    let again: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let again: Observed = run_wrapped(
+        &fixture,
+        one.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     assert!(again.stderr.is_empty(), "{}", stderr_of(&again));
     remove(&fixture);
 }
@@ -392,26 +575,48 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
     let opted_out: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "one", "../one"],
+        &[
+            "worktree",
+            "add",
+            "--no-worktree-copy",
+            "--quiet",
+            "-b",
+            "one",
+            "../one",
+        ],
     );
     assert_eq!(opted_out.code, Some(0));
     let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     // The state a killed copy leaves: the claim, and a half-filled private stage that no journal names.
-    let claim = claim_stage_for(common.as_path(), one.as_path(), &dead_copy_owner()).expect("claim");
+    let claim =
+        claim_stage_for(common.as_path(), one.as_path(), &dead_copy_owner()).expect("claim");
     let stage: PathBuf = claim.container().to_path_buf();
     std::fs::create_dir(stage.as_path()).expect("stage");
-    std::fs::set_permissions(stage.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    std::fs::set_permissions(stage.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("private");
     std::fs::create_dir(stage.join("payload")).expect("payload");
     std::fs::write(stage.join("payload/partial"), b"copied so far").expect("partial copy");
-    let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let status: Observed = run_wrapped(
+        &fixture,
+        one.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
     assert_eq!(status.stdout, b"true\n");
-    assert!(stderr_of(&status).starts_with("monochromatic-git-policy-cli: removed the stage "), "{}", stderr_of(&status));
+    assert!(
+        stderr_of(&status).starts_with("monochromatic-git-policy-cli: removed the stage "),
+        "{}",
+        stderr_of(&status)
+    );
     assert!(!stage.exists());
     assert!(!stage_claims_exist(common.as_path()).expect("claims"));
     // Removal is not repeated.
-    let again: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let again: Observed = run_wrapped(
+        &fixture,
+        one.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     assert!(again.stderr.is_empty(), "{}", stderr_of(&again));
     remove(&fixture);
 }
@@ -440,9 +645,25 @@ fn a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself() {
     );
     std::fs::write(repo.join(".gitattributes"), b"*.probe filter=probe\n").expect("attributes");
     std::fs::write(repo.join("x.probe"), b"probe\n").expect("probe file");
-    super::support::git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "x.probe"]);
-    super::support::git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=probe"]);
-    super::support::git(&fixture, repo.as_path(), &["config", "filter.probe.smudge", filter.to_str().expect("UTF-8")]);
+    super::support::git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", ".gitattributes", "x.probe"],
+    );
+    super::support::git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=probe"],
+    );
+    super::support::git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "config",
+            "filter.probe.smudge",
+            filter.to_str().expect("UTF-8"),
+        ],
+    );
     // A source whose tracked files are all older than its index is cloned or snapshotted by the worktree ladder, and then
     //  Git checks nothing out and runs no filter. Whether the files are older depends on whether a second boundary fell
     //  between writing them and committing, so an untracked file that no ignore rule covers makes the source dirty on
@@ -457,14 +678,27 @@ fn a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself() {
         b"",
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert_eq!(std::fs::read(fixture.root.join("filter-ran")).expect("the filter ran"), b"ran");
-    assert!(fixture.root.join("nested/.git").exists(), "the nested creation ran");
-    assert!(fixture.root.join("one").join(RULES_FILE).exists(), "the outer copy finished");
+    assert_eq!(
+        std::fs::read(fixture.root.join("filter-ran")).expect("the filter ran"),
+        b"ran"
+    );
+    assert!(
+        fixture.root.join("nested/.git").exists(),
+        "the nested creation ran"
+    );
+    assert!(
+        fixture.root.join("one").join(RULES_FILE).exists(),
+        "the outer copy finished"
+    );
     // The outer add copies into its own worktree only; the nested add's source is the half-made `one`, which the outer add
     //  is still filling, so the nested add copies nothing, says why, and writes no summary, while the outer add wrote one.
     assert!(!fixture.root.join("nested").join(RULES_FILE).exists());
     let said: String = stderr_of(&created);
-    assert!(said.contains("was made, but it received no ignored-state copy") && said.contains("is itself being filled by another `git worktree add`"), "the nested add says why it copied nothing: {said}");
+    assert!(
+        said.contains("was made, but it received no ignored-state copy")
+            && said.contains("is itself being filled by another `git worktree add`"),
+        "the nested add says why it copied nothing: {said}"
+    );
     assert_eq!(said.matches(" into 1 new worktree.\n").count(), 1, "{said}");
     remove(&fixture);
 }
@@ -489,7 +723,15 @@ fn an_interrupted_main_checkout_copy_is_made_by_the_first_command_in_its_worktre
         run_wrapped(
             &fixture,
             repo.as_path(),
-            &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "one", "../one"],
+            &[
+                "worktree",
+                "add",
+                "--no-worktree-copy",
+                "--quiet",
+                "-b",
+                "one",
+                "../one"
+            ],
         )
         .code,
         Some(0)
@@ -504,13 +746,23 @@ fn an_interrupted_main_checkout_copy_is_made_by_the_first_command_in_its_worktre
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,
-        std::fs::canonicalize(repo.as_path()).expect("canonical source").as_path(),
-        new_stage_container(one.as_path()).expect("container").as_path(),
+        std::fs::canonicalize(repo.as_path())
+            .expect("canonical source")
+            .as_path(),
+        new_stage_container(one.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    create_journal_for(common.as_path(), one.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    create_journal_for(
+        common.as_path(),
+        one.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
     // A creation in the main checkout is a command in another worktree: it names the worktree whose files are missing,
     // writes nothing there, and copies the main checkout's state into its own new worktree only.
     let elsewhere: Observed = run_wrapped(
@@ -519,22 +771,41 @@ fn an_interrupted_main_checkout_copy_is_made_by_the_first_command_in_its_worktre
         &["worktree", "add", "--quiet", "-b", "two", "../two"],
     );
     assert_eq!(elsewhere.code, Some(0), "{}", stderr_of(&elsewhere));
-    assert!(!one.join(RULES_FILE).exists(), "no command in another worktree fills it: {}", stderr_of(&elsewhere));
-    assert!(!one.join("heavy/data").exists(), "{}", stderr_of(&elsewhere));
     assert!(
-        stderr_of(&elsewhere).contains("the first command run in that worktree makes it, and this command does not wait for it"),
+        !one.join(RULES_FILE).exists(),
+        "no command in another worktree fills it: {}",
+        stderr_of(&elsewhere)
+    );
+    assert!(
+        !one.join("heavy/data").exists(),
+        "{}",
+        stderr_of(&elsewhere)
+    );
+    assert!(
+        stderr_of(&elsewhere).contains(
+            "the first command run in that worktree makes it, and this command does not wait for it"
+        ),
         "the line says which worktree makes it and that nothing waits here: {}",
         stderr_of(&elsewhere)
     );
     assert_eq!(
-        read_pending_journals(common.as_path()).expect("pending").len(),
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
         1,
         "the journal stays for the worktree whose command makes the copy"
     );
-    assert!(fixture.root.join("two").join(RULES_FILE).exists(), "the creating command still copies into its own worktree");
+    assert!(
+        fixture.root.join("two").join(RULES_FILE).exists(),
+        "the creating command still copies into its own worktree"
+    );
     assert!(fixture.root.join("two").join("heavy/data").exists());
     // The first command run in `one` makes the copy that worktree owes, before it does anything of its own.
-    let made: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let made: Observed = run_wrapped(
+        &fixture,
+        one.as_path(),
+        &["rev-parse", "--is-inside-work-tree"],
+    );
     assert_eq!(made.code, Some(0), "{}", stderr_of(&made));
     assert!(
         stderr_of(&made).starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
@@ -545,8 +816,16 @@ fn an_interrupted_main_checkout_copy_is_made_by_the_first_command_in_its_worktre
         std::fs::read(one.join(RULES_FILE)).expect("the recovered copy carries the rules file"),
         format!("{}\n", needle()).into_bytes()
     );
-    assert!(one.join("heavy/data").exists(), "the recovered copy carries the whole ignored state of the main checkout");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty(), "a finished copy takes its journal with it");
+    assert!(
+        one.join("heavy/data").exists(),
+        "the recovered copy carries the whole ignored state of the main checkout"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty(),
+        "a finished copy takes its journal with it"
+    );
     remove(&fixture);
 }
 
@@ -565,7 +844,11 @@ fn moving_a_worktree_is_forwarded_and_prints_no_summary() {
         .code,
         Some(0)
     );
-    let moved: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "move", "../one", "../moved"]);
+    let moved: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "move", "../one", "../moved"],
+    );
     assert_eq!(moved.code, Some(0), "{}", stderr_of(&moved));
     assert!(moved.stderr.is_empty(), "{}", stderr_of(&moved));
     assert!(fixture.root.join("moved").join(RULES_FILE).exists());
@@ -589,7 +872,8 @@ fn a_fifo_in_the_ignored_state_is_left_out_and_the_rest_is_copied() {
     let repo: PathBuf = repository_with_rules(&fixture, true);
     // The rules file becomes a named pipe; every other ignored entry of the source must reach the new worktree.
     std::fs::remove_file(repo.join(RULES_FILE)).expect("rules file goes away");
-    let pipe = std::ffi::CString::new(repo.join(RULES_FILE).as_os_str().as_encoded_bytes()).expect("pipe path");
+    let pipe = std::ffi::CString::new(repo.join(RULES_FILE).as_os_str().as_encoded_bytes())
+        .expect("pipe path");
     // SAFETY: `pipe` is a NUL-terminated path that outlives the call.
     assert_eq!(unsafe { libc::mkfifo(pipe.as_ptr(), 0o600) }, 0, "mkfifo");
     let created: Observed = run_wrapped(
@@ -599,16 +883,34 @@ fn a_fifo_in_the_ignored_state_is_left_out_and_the_rest_is_copied() {
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     assert!(
-        stderr_of(&created).contains("left out 1 ignored entry that cannot be copied into a worktree from "),
+        stderr_of(&created)
+            .contains("left out 1 ignored entry that cannot be copied into a worktree from "),
         "{}",
         stderr_of(&created)
     );
-    assert!(stderr_of(&created).contains(RULES_FILE), "the notice names the entry: {}", stderr_of(&created));
+    assert!(
+        stderr_of(&created).contains(RULES_FILE),
+        "the notice names the entry: {}",
+        stderr_of(&created)
+    );
     let one: PathBuf = fixture.root.join("one");
-    assert!(one.join(".cache/other.txt").exists(), "the rest of the cache arrived");
-    assert!(one.join("heavy/data").exists(), "the other ignored directory arrived");
-    assert!(!one.join(RULES_FILE).exists(), "the pipe is no file of the new worktree");
+    assert!(
+        one.join(".cache/other.txt").exists(),
+        "the rest of the cache arrived"
+    );
+    assert!(
+        one.join("heavy/data").exists(),
+        "the other ignored directory arrived"
+    );
+    assert!(
+        !one.join(RULES_FILE).exists(),
+        "the pipe is no file of the new worktree"
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     remove(&fixture);
 }

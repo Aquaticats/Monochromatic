@@ -28,14 +28,30 @@
 //! ```
 
 use crate::fs_beneath::ObjectId;
-use crate::path_bytes_in_records::{bytes_of_hex, hex_of_bytes, hex_of_path, path_of_hex};
+use crate::path_bytes_in_records::{
+    bytes_of_hex,
+    hex_of_bytes,
+    hex_of_path,
+    path_of_hex,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic_unsynced};
+use crate::worktree_copy_journal::{
+    ensure_journal_root,
+    journal_root,
+    write_atomic_unsynced,
+};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// What:
 ///  The suffix of a stage's record of the object its creation made.
@@ -131,14 +147,23 @@ pub fn made_record_beside_claim(claim: &Path) -> PathBuf {
 /// ```ts
 /// `${STAGE_LINE}${hex(container)}\n${object === undefined ? '' : `${OBJECT_LINE}${object}\n`}${snapshot === undefined ? '' : `${SNAPSHOT_PARENT_LINE}${hex(snapshot.parent)}\n${AFTER_LINE}${snapshot.after}\n`}${WRITTEN_LINE}${seconds}.${nanos}\n`
 /// ```
-fn made_text(container: &Path, object: Option<ObjectId>, snapshot: Option<&SnapshotOrigin>, written: SystemTime) -> String {
+fn made_text(
+    container: &Path,
+    object: Option<ObjectId>,
+    snapshot: Option<&SnapshotOrigin>,
+    written: SystemTime,
+) -> String {
     let since: Duration = written.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
     let identity: String = match object {
         Some(named) => format!("{OBJECT_LINE_PREFIX}{}\n", named.encode()),
         None => String::new(),
     };
     let origin: String = match snapshot {
-        Some(known) => format!("{SNAPSHOT_PARENT_LINE_PREFIX}{}\n{AFTER_LINE_PREFIX}{}\n", hex_of_bytes(known.parent.as_slice()), known.after),
+        Some(known) => format!(
+            "{SNAPSHOT_PARENT_LINE_PREFIX}{}\n{AFTER_LINE_PREFIX}{}\n",
+            hex_of_bytes(known.parent.as_slice()),
+            known.after
+        ),
         None => String::new(),
     };
     return format!(
@@ -215,13 +240,21 @@ fn read_made_text(text: &str) -> Option<MadeObject> {
         return None;
     }
     let snapshot: Option<SnapshotOrigin> = match (parent, after) {
-        (Some(known_parent), Some(known_after)) => Some(SnapshotOrigin { parent: known_parent, after: known_after }),
+        (Some(known_parent), Some(known_after)) => Some(SnapshotOrigin {
+            parent: known_parent,
+            after: known_after,
+        }),
         (None, None) => None,
         // One of the two alone says nothing about when the snapshot was made, and an absent one is not a default: a
         // record that lost half of its origin must keep the folder rather than take it as a proven one.
         _half_an_origin => return None,
     };
-    return Some(MadeObject { container: container?, object, snapshot, written: written? });
+    return Some(MadeObject {
+        container: container?,
+        object,
+        snapshot,
+        written: written?,
+    });
 }
 
 /// What:
@@ -264,7 +297,11 @@ pub fn read_made(claim: &Path) -> Option<MadeObject> {
 /// ```ts
 /// await recordStageMadeObject({ commonDir, container, object }); // rename only, no flush
 /// ```
-pub fn record_made(common_dir: &Path, container: &Path, object: ObjectId) -> Result<(), WorktreeCopyError> {
+pub fn record_made(
+    common_dir: &Path,
+    container: &Path,
+    object: ObjectId,
+) -> Result<(), WorktreeCopyError> {
     return record_made_at(common_dir, container, object, SystemTime::now());
 }
 
@@ -280,7 +317,12 @@ pub fn record_made(common_dir: &Path, container: &Path, object: ObjectId) -> Res
 /// ```ts
 /// await recordStageMadeObjectAt({ commonDir, container, object, written });
 /// ```
-pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, written: SystemTime) -> Result<(), WorktreeCopyError> {
+pub fn record_made_at(
+    common_dir: &Path,
+    container: &Path,
+    object: ObjectId,
+    written: SystemTime,
+) -> Result<(), WorktreeCopyError> {
     return record_at(common_dir, container, Some(object), None, written);
 }
 
@@ -310,7 +352,12 @@ pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, wri
 /// ```ts
 /// await recordCreatingAt({ commonDir, container, written }); // no identity: the container does not exist yet
 /// ```
-pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTime, snapshot: Option<&SnapshotOrigin>) -> Result<(), WorktreeCopyError> {
+pub fn record_creating_at(
+    common_dir: &Path,
+    container: &Path,
+    written: SystemTime,
+    snapshot: Option<&SnapshotOrigin>,
+) -> Result<(), WorktreeCopyError> {
     return record_at(common_dir, container, None, snapshot, written);
 }
 
@@ -326,13 +373,23 @@ pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTi
 /// ```ts
 /// await recordAt({ commonDir, container, object, written });
 /// ```
-fn record_at(common_dir: &Path, container: &Path, object: Option<ObjectId>, snapshot: Option<&SnapshotOrigin>, written: SystemTime) -> Result<(), WorktreeCopyError> {
+fn record_at(
+    common_dir: &Path,
+    container: &Path,
+    object: Option<ObjectId>,
+    snapshot: Option<&SnapshotOrigin>,
+    written: SystemTime,
+) -> Result<(), WorktreeCopyError> {
     let Some(path) = made_record_path(common_dir, container) else {
         // A stage name is reserved by the claim naming rule; a name outside it has no claim to record for.
         return Ok(());
     };
     ensure_journal_root(common_dir)?;
-    return write_atomic_unsynced(path.as_path(), made_text(container, object, snapshot, written).as_bytes(), "stage object record");
+    return write_atomic_unsynced(
+        path.as_path(),
+        made_text(container, object, snapshot, written).as_bytes(),
+        "stage object record",
+    );
 }
 
 /// What:
@@ -347,7 +404,10 @@ fn record_at(common_dir: &Path, container: &Path, object: Option<ObjectId>, snap
 /// ```ts
 /// const path = madeRecordPath(commonDir, container); // join(root, `${stem}${MADE_SUFFIX}`)
 /// ```
-fn made_record_path(common_dir: &Path, container: &Path) -> Option<PathBuf> {
+fn made_record_path(
+    common_dir: &Path,
+    container: &Path,
+) -> Option<PathBuf> {
     let name: &str = container.file_name()?.to_str()?;
     let identifier: &str = name.strip_prefix(STAGE_PREFIX)?;
     if identifier.is_empty() {
@@ -390,8 +450,13 @@ pub fn remove_made(claim: &Path) -> Result<(), WorktreeCopyError> {
 /// ```ts
 /// const placed = readMade(claim)?.object === identityOf(path) && made.container !== path;
 /// ```
-pub fn the_made_object_stands_at(claim: &Path, path: &Path) -> bool {
-    let Some(made) = read_made(claim) else { return false };
+pub fn the_made_object_stands_at(
+    claim: &Path,
+    path: &Path,
+) -> bool {
+    let Some(made) = read_made(claim) else {
+        return false;
+    };
     if made.container.as_path() == path {
         return false;
     }
@@ -413,7 +478,12 @@ pub fn the_made_object_stands_at(claim: &Path, path: &Path) -> bool {
 /// ```ts
 /// identityOfName(container) === made.object
 /// ```
-pub fn is_the_recorded_object(container: &Path, made: &MadeObject) -> bool {
-    let Some(recorded) = made.object else { return false };
+pub fn is_the_recorded_object(
+    container: &Path,
+    made: &MadeObject,
+) -> bool {
+    let Some(recorded) = made.object else {
+        return false;
+    };
     return crate::worktree_add_binding::path_identity(container) == Some(recorded);
 }

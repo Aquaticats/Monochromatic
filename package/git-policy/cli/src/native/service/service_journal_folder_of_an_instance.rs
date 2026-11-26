@@ -16,7 +16,10 @@
 //! ```
 
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder below the wrapper's state folder that holds the journals of every instance.
 pub const JOURNAL_FOLDER: &str = "service";
@@ -34,7 +37,10 @@ pub const JOURNAL_FOLDER: &str = "service";
 /// ```ts
 /// journalOf('/s/monochromatic-git-policy-cli', '3f9a') // '/s/monochromatic-git-policy-cli/service/3f9a'
 /// ```
-pub fn journal_of(wrapper_state: &Path, instance: &str) -> PathBuf {
+pub fn journal_of(
+    wrapper_state: &Path,
+    instance: &str,
+) -> PathBuf {
     return wrapper_state.join(JOURNAL_FOLDER).join(instance);
 }
 
@@ -52,7 +58,10 @@ pub fn journal_of(wrapper_state: &Path, instance: &str) -> PathBuf {
 /// ```ts
 /// stateDirOfJournal('/s/monochromatic-git-policy-cli/service/3f9a', '3f9a') // '/s'
 /// ```
-pub fn state_dir_of_journal(journal: &Path, instance: &str) -> Option<PathBuf> {
+pub fn state_dir_of_journal(
+    journal: &Path,
+    instance: &str,
+) -> Option<PathBuf> {
     let state: &Path = journal.parent()?.parent()?.parent()?;
     let expected: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
     if journal != expected {

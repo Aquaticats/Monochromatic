@@ -19,7 +19,12 @@
 //! const refused = inventsDoubledWord(...) || inventsLine(...); // one line region of a three-way merge
 //! ```
 
-use crate::merge::word_merge::{LINE_END, Level, is_line_end, token_ranges};
+use crate::merge::word_merge::{
+    LINE_END,
+    Level,
+    is_line_end,
+    token_ranges,
+};
 /// A byte range of a text.
 use std::ops::Range;
 
@@ -34,7 +39,10 @@ use std::ops::Range;
 /// ```ts
 /// function repeatsWord(text: Uint8Array, word: Uint8Array): boolean;
 /// ```
-fn repeats_word(text: &[u8], word: &[u8]) -> bool {
+fn repeats_word(
+    text: &[u8],
+    word: &[u8],
+) -> bool {
     let ranges: Vec<Range<usize>> = token_ranges(text, Level::Word);
     for pair in ranges.windows(2) {
         if text[pair[0].clone()] != *word || text[pair[1].clone()] != *word {
@@ -69,7 +77,10 @@ fn doubled_words(text: &[u8]) -> Vec<&[u8]> {
             continue;
         }
         let between: &[u8] = &text[pair[0].end..pair[1].start];
-        if between.is_empty() || !between.iter().all(u8::is_ascii_whitespace) || found.contains(&first) {
+        if between.is_empty()
+            || !between.iter().all(u8::is_ascii_whitespace)
+            || found.contains(&first)
+        {
             continue;
         }
         found.push(first);
@@ -92,7 +103,12 @@ fn doubled_words(text: &[u8]) -> Vec<&[u8]> {
 /// ```ts
 /// function inventsDoubledWord(base, ours, theirs, merged: Uint8Array): boolean;
 /// ```
-fn invents_a_doubled_word(base: &[u8], ours: &[u8], theirs: &[u8], merged: &[u8]) -> bool {
+fn invents_a_doubled_word(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    merged: &[u8],
+) -> bool {
     for word in doubled_words(merged) {
         if repeats_word(base, word) || repeats_word(ours, word) || repeats_word(theirs, word) {
             continue;
@@ -141,7 +157,12 @@ fn lines_without_line_end(text: &[u8]) -> Vec<&[u8]> {
 /// ```ts
 /// function inventsLine(base, ours, theirs, merged: Uint8Array): boolean;
 /// ```
-fn invents_a_line(base: &[u8], ours: &[u8], theirs: &[u8], merged: &[u8]) -> bool {
+fn invents_a_line(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    merged: &[u8],
+) -> bool {
     let sides: [&[u8]; 3] = [base, ours, theirs];
     let mut widest: usize = 0;
     for text in sides {
@@ -176,6 +197,12 @@ fn invents_a_line(base: &[u8], ours: &[u8], theirs: &[u8], merged: &[u8]) -> boo
 /// ```ts
 /// const refused = inventsDoubledWord(...) || inventsLine(...);
 /// ```
-pub(super) fn refuses_word_merge(base: &[u8], ours: &[u8], theirs: &[u8], merged: &[u8]) -> bool {
-    return invents_a_doubled_word(base, ours, theirs, merged) || invents_a_line(base, ours, theirs, merged);
+pub(super) fn refuses_word_merge(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    merged: &[u8],
+) -> bool {
+    return invents_a_doubled_word(base, ours, theirs, merged)
+        || invents_a_line(base, ours, theirs, merged);
 }

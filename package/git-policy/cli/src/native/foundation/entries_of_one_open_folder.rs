@@ -18,7 +18,10 @@
 //! ```
 
 use crate::private_storage::ReadRefusal;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::OpenOptionsExt;
@@ -43,7 +46,9 @@ use std::path::Path;
 /// `ENOTDIR` when it holds another file.
 pub fn open_folder(path: &Path) -> std::io::Result<std::fs::File> {
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
-    options.read(true).custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    options
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC);
     return options.open(path);
 }
 
@@ -69,8 +74,19 @@ pub fn open_folder(path: &Path) -> std::io::Result<std::fs::File> {
 /// `NotRegular` when it holds a link,
 /// a folder or another non-regular file,
 /// and the system's own answer for any other refusal.
-pub fn open_entry_for_reading(folder: &std::fs::File, name: &OsStr) -> Result<std::fs::File, ReadRefusal> {
-    let file: std::fs::File = match rustix::fs::openat(folder, name, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty()) {
+pub fn open_entry_for_reading(
+    folder: &std::fs::File,
+    name: &OsStr,
+) -> Result<std::fs::File, ReadRefusal> {
+    let file: std::fs::File = match rustix::fs::openat(
+        folder,
+        name,
+        rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::NONBLOCK
+            | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    ) {
         Ok(opened) => std::fs::File::from(opened),
         Err(error) => return Err(open_refusal(error)),
     };
@@ -106,9 +122,14 @@ fn open_refusal(error: rustix::io::Errno) -> ReadRefusal {
 /// # Errors
 /// `TooLarge` when the file holds more than `limit` bytes,
 /// and the system's own answer for a read that failed.
-pub fn read_entry_bytes(file: &mut std::fs::File, limit: u64) -> Result<Vec<u8>, ReadRefusal> {
+pub fn read_entry_bytes(
+    file: &mut std::fs::File,
+    limit: u64,
+) -> Result<Vec<u8>, ReadRefusal> {
     let mut bytes: Vec<u8> = Vec::new();
-    file.take(limit + 1).read_to_end(&mut bytes).map_err(ReadRefusal::Io)?;
+    file.take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(ReadRefusal::Io)?;
     if bytes.len() as u64 > limit {
         return Err(ReadRefusal::TooLarge);
     }

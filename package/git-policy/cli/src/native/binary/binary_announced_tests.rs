@@ -15,9 +15,23 @@
 #![cfg(unix)]
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, REAL_GIT, bounded, direct, executable, fixture, observe, remove, wrapped};
+use super::support::{
+    Fixture,
+    Observed,
+    REAL_GIT,
+    bounded,
+    direct,
+    executable,
+    fixture,
+    observe,
+    remove,
+    wrapped,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The crate version,
 /// read where the test is compiled.
@@ -25,7 +39,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The banner of `--version` and `-v` for this Git path.
 fn banner(real_git: &Path) -> String {
-    return format!("monochromatic-git-policy-cli {VERSION}, shadowing git at {}\n", real_git.display());
+    return format!(
+        "monochromatic-git-policy-cli {VERSION}, shadowing git at {}\n",
+        real_git.display()
+    );
 }
 
 /// The section of `--help` and `-h` for this Git path.
@@ -42,9 +59,18 @@ fn help_section(real_git: &Path) -> String {
 
 /// Real Git's answer to these arguments and the wrapper's answer,
 /// run in the fixture root.
-fn answers(fixture: &Fixture, arguments: &[&str]) -> (Observed, Observed) {
-    let through_wrapper: Observed = observe(wrapped(fixture).current_dir(&fixture.root).args(arguments), b"");
-    let through_git: Observed = observe(direct(fixture).current_dir(&fixture.root).args(arguments), b"");
+fn answers(
+    fixture: &Fixture,
+    arguments: &[&str],
+) -> (Observed, Observed) {
+    let through_wrapper: Observed = observe(
+        wrapped(fixture).current_dir(&fixture.root).args(arguments),
+        b"",
+    );
+    let through_git: Observed = observe(
+        direct(fixture).current_dir(&fixture.root).args(arguments),
+        b"",
+    );
     return (through_wrapper, through_git);
 }
 
@@ -91,7 +117,11 @@ fn help_spellings_add_the_section() {
 }
 
 /// Run the wrapper with a stand-in for real Git that prints one line on each stream and exits with `status`.
-fn through_stand_in(fixture: &Fixture, arguments: &[&str], status: u8) -> (Observed, PathBuf) {
+fn through_stand_in(
+    fixture: &Fixture,
+    arguments: &[&str],
+    status: u8,
+) -> (Observed, PathBuf) {
     std::fs::create_dir(fixture.root.join("probe")).expect("probe directory");
     let probe: PathBuf = fixture.root.join("probe/git");
     executable(
@@ -101,8 +131,15 @@ fn through_stand_in(fixture: &Fixture, arguments: &[&str], status: u8) -> (Obser
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(fixture.root.join("probe"));
-    let observed: Observed =
-        observe(bounded(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).args(arguments), b"");
+    let observed: Observed = observe(
+        bounded(
+            fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .args(arguments),
+        b"",
+    );
     return (observed, probe);
 }
 
@@ -116,7 +153,8 @@ fn a_failing_git_prints_nothing_extra() {
         ("announce-failing-short-help", vec!["-h"]),
     ] {
         let fixture: Fixture = fixture(name);
-        let (observed, _probe): (Observed, PathBuf) = through_stand_in(&fixture, arguments.as_slice(), 3);
+        let (observed, _probe): (Observed, PathBuf) =
+            through_stand_in(&fixture, arguments.as_slice(), 3);
         assert_eq!(observed.stdout, b"probe-out\n", "{arguments:?}");
         assert_eq!(observed.stderr, b"probe-err\n", "{arguments:?}");
         assert_eq!(observed.code, Some(3), "{arguments:?}");
@@ -134,12 +172,22 @@ fn a_succeeding_stand_in_gets_the_text_naming_its_path() {
         ("announce-stand-in-help", vec!["-h"], false),
     ] {
         let fixture: Fixture = fixture(name);
-        let (observed, probe): (Observed, PathBuf) = through_stand_in(&fixture, arguments.as_slice(), 0);
+        let (observed, probe): (Observed, PathBuf) =
+            through_stand_in(&fixture, arguments.as_slice(), 0);
         let mut expected: String = String::from("probe-out\n");
         expected.push_str(
-            if version { banner(probe.as_path()) } else { help_section(probe.as_path()) }.as_str(),
+            if version {
+                banner(probe.as_path())
+            } else {
+                help_section(probe.as_path())
+            }
+            .as_str(),
         );
-        assert_eq!(String::from_utf8_lossy(&observed.stdout), expected, "{arguments:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&observed.stdout),
+            expected,
+            "{arguments:?}"
+        );
         assert_eq!(observed.stderr, b"probe-err\n", "{arguments:?}");
         assert_eq!(observed.code, Some(0), "{arguments:?}");
         remove(&fixture);

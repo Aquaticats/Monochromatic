@@ -65,22 +65,51 @@
 //! import { reportOf } from '@monochromatic-dev/git-policy-cli/worktree-clone-slot-state';
 //! ```
 
-pub mod slot_state_mounts;
-pub mod slot_state_readings;
 pub mod slot_state_classification;
 pub mod slot_state_evidence;
-pub mod slot_state_next_actions;
-pub mod slot_state_report;
 pub mod slot_state_live_read;
+pub mod slot_state_mounts;
+pub mod slot_state_next_actions;
+pub mod slot_state_readings;
+pub mod slot_state_report;
 
-pub use slot_state_classification::{SlotRouteState, classify_slot, slot_name_of};
-pub use slot_state_live_read::{CloneIntentReads, GatedCloneIntentReads, SlotReadingSources, read_slot};
-pub use slot_state_mounts::{CloneMount, MountRows, SlotMount, clone_mount_of, read_mount_rows, slot_mount_of};
+pub use slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+    slot_name_of,
+};
 pub use slot_state_evidence::evidence;
-pub use slot_state_next_actions::{next_safe_action, registration_sentence};
-pub use slot_state_report::{NO_DATASET, SlotStateReport, report_of};
+pub use slot_state_live_read::{
+    CloneIntentReads,
+    GatedCloneIntentReads,
+    SlotReadingSources,
+    read_slot,
+};
+pub use slot_state_mounts::{
+    CloneMount,
+    MountRows,
+    SlotMount,
+    clone_mount_of,
+    read_mount_rows,
+    slot_mount_of,
+};
+pub use slot_state_next_actions::{
+    next_safe_action,
+    registration_sentence,
+};
 pub use slot_state_readings::{
-    BindingReading, IntentFacts, PlanReading, SlotReadings, intent_facts_of, read_binding_reading, read_plan,
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+    intent_facts_of,
+    read_binding_reading,
+    read_plan,
+};
+pub use slot_state_report::{
+    NO_DATASET,
+    SlotStateReport,
+    report_of,
 };
 
 /// The binding record's own fixture,

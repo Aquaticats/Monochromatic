@@ -37,9 +37,20 @@
 //! recorder.record(claim, { kind: 'attached', mountId, flags, slot, clone, guid });
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
-use crate::start_probe::first_attach_record::{FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace, outcome_record};
-use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
+use crate::start_probe::first_attach_record::{
+    FirstAttachClaim,
+    FirstAttachOutcome,
+    FirstAttachPlace,
+    outcome_record,
+};
+use crate::start_probe::probe_fingerprint::{
+    FingerprintPaths,
+    ProbeFingerprint,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "sweepFirstAttach";
@@ -62,7 +73,11 @@ pub trait FirstAttachRecorder {
     fn claim(&self) -> Option<FirstAttachClaim>;
 
     /// Publish the attach's outcome over the claimed name.
-    fn record(&self, claim: &FirstAttachClaim, outcome: &FirstAttachOutcome);
+    fn record(
+        &self,
+        claim: &FirstAttachClaim,
+        outcome: &FirstAttachOutcome,
+    );
 }
 
 /// What:
@@ -86,13 +101,17 @@ pub struct LiveFirstAttach {
 impl LiveFirstAttach {
     /// The place the handler writes at boot.
     pub fn live() -> Self {
-        return LiveFirstAttach { place: FirstAttachPlace::live() };
+        return LiveFirstAttach {
+            place: FirstAttachPlace::live(),
+        };
     }
 
     /// The place a control names,
     /// so the claim and the rename are proved without `/run`.
     pub fn at(place: FirstAttachPlace) -> Self {
-        return LiveFirstAttach { place };
+        return LiveFirstAttach {
+            place,
+        };
     }
 }
 
@@ -101,7 +120,8 @@ impl FirstAttachRecorder for LiveFirstAttach {
         // A fingerprint this process cannot read is a machine fact no record can pin, and the probe's own read already
         // refuses the route then; a first attach that writes nothing is the smaller loss, and the handler's journal says
         // which fact was missing.
-        let fingerprint: ProbeFingerprint = match ProbeFingerprint::read(&FingerprintPaths::live()) {
+        let fingerprint: ProbeFingerprint = match ProbeFingerprint::read(&FingerprintPaths::live())
+        {
             Ok(fingerprint) => fingerprint,
             Err(refusal) => {
                 warn(TAG, refusal.message().as_str());
@@ -111,7 +131,14 @@ impl FirstAttachRecorder for LiveFirstAttach {
         let time: String = crate::iso_time::now_iso();
         return match self.place.claim(&fingerprint, time.as_str()) {
             Ok(claim) => {
-                debug(TAG, format!("this process claimed this boot's first attach at {}", claim.path().display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "this process claimed this boot's first attach at {}",
+                        claim.path().display()
+                    )
+                    .as_str(),
+                );
                 Some(claim)
             }
             Err(refusal) => {
@@ -122,7 +149,11 @@ impl FirstAttachRecorder for LiveFirstAttach {
         };
     }
 
-    fn record(&self, claim: &FirstAttachClaim, outcome: &FirstAttachOutcome) {
+    fn record(
+        &self,
+        claim: &FirstAttachClaim,
+        outcome: &FirstAttachOutcome,
+    ) {
         let time: String = crate::iso_time::now_iso();
         let text: String = outcome_record(claim.fingerprint(), time.as_str(), outcome);
         if let Err(refusal) = self.place.record(claim, text.as_str()) {

@@ -23,7 +23,11 @@
 /// ```ts
 /// import { Arity, OptionErrorKind, OptionSpec } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionErrorKind, OptionSpec};
+use crate::command_options::{
+    Arity,
+    OptionErrorKind,
+    OptionSpec,
+};
 
 /// What:
 ///  The row an abbreviation resolved to,
@@ -158,7 +162,10 @@ pub(crate) fn resolve_long_option(
             if rest.is_empty() {
                 // `Ok(x)` is the success case of `Result`.
                 return Ok(Resolution::Known {
-                    row: Candidate { spec: *spec, unset },
+                    row: Candidate {
+                        spec: *spec,
+                        unset,
+                    },
                     attached: None,
                 });
             }
@@ -166,7 +173,10 @@ pub(crate) fn resolve_long_option(
                 // Two dashes, the name, then `=`.
                 let offset: usize = token.len() - rest.len() + 1;
                 return Ok(Resolution::Known {
-                    row: Candidate { spec: *spec, unset },
+                    row: Candidate {
+                        spec: *spec,
+                        unset,
+                    },
                     attached: Some(offset),
                 });
             }
@@ -179,7 +189,10 @@ pub(crate) fn resolve_long_option(
         }
         if long_name.starts_with(stem_name) {
             ambiguous = ambiguous || candidate.is_some();
-            candidate = Some(Candidate { spec: *spec, unset });
+            candidate = Some(Candidate {
+                spec: *spec,
+                unset,
+            });
         }
         // "Negated and abbreviated very much": `--n`, `--no` and `--no-` (568-571).
         if spec.negatable && b"no-".starts_with(argument) {
@@ -200,7 +213,10 @@ pub(crate) fn resolve_long_option(
         } else {
             None
         };
-        return Ok(Resolution::Known { row: chosen, attached });
+        return Ok(Resolution::Known {
+            row: chosen,
+            attached,
+        });
     }
     if keep_unknown {
         return Ok(Resolution::KeptUnknown);
@@ -221,12 +237,19 @@ pub(crate) fn resolve_long_option(
 /// ```ts
 /// longOptionTakesNextToken(Buffer.from('--mess'), COMMIT_TABLE) // true
 /// ```
-pub(crate) fn long_option_takes_next_token(token: &[u8], table: &[OptionSpec]) -> bool {
+pub(crate) fn long_option_takes_next_token(
+    token: &[u8],
+    table: &[OptionSpec],
+) -> bool {
     if !token.starts_with(b"--") || token.len() < 3 {
         return false;
     }
     // `let Ok(x) = ... else` leaves an unknown or ambiguous token with its answer "takes none".
-    let Ok(Resolution::Known { row, attached }) = resolve_long_option(token, table, false) else {
+    let Ok(Resolution::Known {
+        row,
+        attached,
+    }) = resolve_long_option(token, table, false)
+    else {
         return false;
     };
     // An unset form never reads a value (201,

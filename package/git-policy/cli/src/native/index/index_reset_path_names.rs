@@ -33,12 +33,18 @@ fn only_spaces_and_dots(rest: &[u8]) -> bool {
 /// The byte of `name` at `index`;
 /// a position past the end reads as the terminating NUL,
 /// as Git's string would.
-fn byte_at(name: &[u8], index: usize) -> u8 {
+fn byte_at(
+    name: &[u8],
+    index: usize,
+) -> u8 {
     return name.get(index).copied().unwrap_or(0);
 }
 
 /// Whether `name` from `start` on is only spaces and periods up to its end or a `:` that opens a stream.
-fn spaces_and_periods(name: &[u8], start: usize) -> bool {
+fn spaces_and_periods(
+    name: &[u8],
+    start: usize,
+) -> bool {
     for index in start.. {
         let byte: u8 = byte_at(name, index);
         if byte == 0 || byte == b':' {
@@ -79,10 +85,17 @@ fn is_ignorable_triple(triple: &[u8]) -> bool {
 /// const refused: boolean = isNtfsDotGitmodules(component);
 /// ```
 fn is_ntfs_dotgitmodules(name: &[u8]) -> bool {
-    if byte_at(name, 0) == b'.' && name.len() > 10 && name[1..11].eq_ignore_ascii_case(b"gitmodules") {
+    if byte_at(name, 0) == b'.'
+        && name.len() > 10
+        && name[1..11].eq_ignore_ascii_case(b"gitmodules")
+    {
         return spaces_and_periods(name, 11);
     }
-    if name.len() > 5 && name[..6].eq_ignore_ascii_case(b"gitmod") && byte_at(name, 6) == b'~' && (b'1'..=b'4').contains(&byte_at(name, 7)) {
+    if name.len() > 5
+        && name[..6].eq_ignore_ascii_case(b"gitmod")
+        && byte_at(name, 6) == b'~'
+        && (b'1'..=b'4').contains(&byte_at(name, 7))
+    {
         return spaces_and_periods(name, 8);
     }
     let (mut index, mut saw_tilde): (usize, bool) = (0, false);
@@ -137,19 +150,40 @@ fn is_ntfs_dotgitmodules(name: &[u8]) -> bool {
 /// ```ts
 /// const plain = (component, isLink) => !/[\\:]/.test(component) && !aliasesDotGit(component) && !(isLink && aliasesDotGitmodules(component));
 /// ```
-fn component_is_plain(component: &[u8], is_link: bool) -> bool {
+fn component_is_plain(
+    component: &[u8],
+    is_link: bool,
+) -> bool {
     let lowered: Vec<u8> = component.to_ascii_lowercase();
-    let dot_git_like: bool = lowered.strip_prefix(b".git").is_some_and(only_spaces_and_dots);
-    let dot_gitmodules_like: bool = is_link && (is_ntfs_dotgitmodules(component) || lowered.strip_prefix(b".gitmodules").is_some_and(only_spaces_and_dots) || lowered.starts_with(b"gitmod~"));
+    let dot_git_like: bool = lowered
+        .strip_prefix(b".git")
+        .is_some_and(only_spaces_and_dots);
+    let dot_gitmodules_like: bool = is_link
+        && (is_ntfs_dotgitmodules(component)
+            || lowered
+                .strip_prefix(b".gitmodules")
+                .is_some_and(only_spaces_and_dots)
+            || lowered.starts_with(b"gitmod~"));
     // The ignorable characters of a case-folding disk: U+2000 to U+206F begin with E2 80 or E2 81, and U+FEFF is EF BB BF.
-    let ignorable: bool = component.windows(2).any(is_ignorable_pair) || component.windows(3).any(is_ignorable_triple);
+    let ignorable: bool = component.windows(2).any(is_ignorable_pair)
+        || component.windows(3).any(is_ignorable_triple);
     let separators: bool = component.contains(&b'\\') || component.contains(&b':');
-    return !component.is_empty() && component != b"." && component != b".." && !separators && !dot_git_like && !dot_gitmodules_like && !lowered.starts_with(b"git~") && !ignorable;
+    return !component.is_empty()
+        && component != b"."
+        && component != b".."
+        && !separators
+        && !dot_git_like
+        && !dot_gitmodules_like
+        && !lowered.starts_with(b"git~")
+        && !ignorable;
 }
 
 /// Whether Git could refuse the path or treat it specially on a file system that folds names;
 /// those paths are left to Git.
-pub fn path_is_plain(path: &[u8], mode: u32) -> bool {
+pub fn path_is_plain(
+    path: &[u8],
+    mode: u32,
+) -> bool {
     if path.is_empty() {
         return false;
     }

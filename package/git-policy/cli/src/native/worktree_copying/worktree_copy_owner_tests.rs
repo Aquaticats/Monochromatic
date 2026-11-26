@@ -14,14 +14,34 @@ const UNUSED_PID: i64 = 4_000_000_000;
 /// and stays short.
 #[test]
 fn a_token_round_trips_and_is_safe_in_a_file_name() {
-    let owner: CopyOwner = CopyOwner { pid: 77, birth_identity: String::from("linux:123"), pid_namespace: Some(String::from("pid:[4026531836]")) };
+    let owner: CopyOwner = CopyOwner {
+        pid: 77,
+        birth_identity: String::from("linux:123"),
+        pid_namespace: Some(String::from("pid:[4026531836]")),
+    };
     let token: String = owner.token();
-    assert!(token.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || b":-[]~%".contains(&byte); }), "{token}");
+    assert!(
+        token.bytes().all(|byte| {
+            return byte.is_ascii_alphanumeric() || b":-[]~%".contains(&byte);
+        }),
+        "{token}"
+    );
     assert_eq!(CopyOwner::from_token(token.as_str()), Some(owner));
-    let without_namespace: CopyOwner = CopyOwner { pid: 78, birth_identity: String::from("linux:9"), pid_namespace: None };
-    assert_eq!(CopyOwner::from_token(without_namespace.token().as_str()), Some(without_namespace));
+    let without_namespace: CopyOwner = CopyOwner {
+        pid: 78,
+        birth_identity: String::from("linux:9"),
+        pid_namespace: None,
+    };
+    assert_eq!(
+        CopyOwner::from_token(without_namespace.token().as_str()),
+        Some(without_namespace)
+    );
     // An identity with spaces, dots, slashes and the separator itself survives, as the identity of another platform may hold them.
-    let awkward: CopyOwner = CopyOwner { pid: 79, birth_identity: String::from("darwin:Mon Nov  3 02:00:00.5 2026/~%"), pid_namespace: None };
+    let awkward: CopyOwner = CopyOwner {
+        pid: 79,
+        birth_identity: String::from("darwin:Mon Nov  3 02:00:00.5 2026/~%"),
+        pid_namespace: None,
+    };
     let awkward_token: String = awkward.token();
     assert!(!awkward_token.contains(['.', '/', ' ']), "{awkward_token}");
     assert_eq!(CopyOwner::from_token(awkward_token.as_str()), Some(awkward));
@@ -36,10 +56,26 @@ fn text_that_is_not_a_token_names_nobody() {
     assert_eq!(CopyOwner::from_token("json"), None);
     assert_eq!(CopyOwner::from_token(""), None);
     assert_eq!(CopyOwner::from_token("0~linux:1~"), None, "a pid below one");
-    assert_eq!(CopyOwner::from_token("5~~"), None, "an empty birth identity");
-    assert_eq!(CopyOwner::from_token("5~linux:1~ns~extra"), None, "a fourth field");
-    assert_eq!(CopyOwner::from_token("5~linux:%zz~"), None, "an escape that is not hexadecimal");
-    assert_eq!(CopyOwner::from_token("5~linux:%4~"), None, "an escape cut short");
+    assert_eq!(
+        CopyOwner::from_token("5~~"),
+        None,
+        "an empty birth identity"
+    );
+    assert_eq!(
+        CopyOwner::from_token("5~linux:1~ns~extra"),
+        None,
+        "a fourth field"
+    );
+    assert_eq!(
+        CopyOwner::from_token("5~linux:%zz~"),
+        None,
+        "an escape that is not hexadecimal"
+    );
+    assert_eq!(
+        CopyOwner::from_token("5~linux:%4~"),
+        None,
+        "an escape cut short"
+    );
 }
 
 /// The running process is alive;
@@ -50,15 +86,29 @@ fn the_running_process_is_alive_and_a_killed_one_is_dead() {
     let here: CopyOwner = current_copy_owner().expect("current owner");
     let anchor: &Path = Path::new("/");
     assert!(here.is_alive(anchor).expect("answer"));
-    assert!(!crate::test_support::dead_copy_owner().is_alive(anchor).expect("answer"));
-    let reused: CopyOwner = CopyOwner { birth_identity: String::from("linux:not-this-process"), ..here };
-    assert!(!reused.is_alive(anchor).expect("answer"), "a reused process id is not the owner");
+    assert!(
+        !crate::test_support::dead_copy_owner()
+            .is_alive(anchor)
+            .expect("answer")
+    );
+    let reused: CopyOwner = CopyOwner {
+        birth_identity: String::from("linux:not-this-process"),
+        ..here
+    };
+    assert!(
+        !reused.is_alive(anchor).expect("answer"),
+        "a reused process id is not the owner"
+    );
 }
 
 /// An id no process has is dead.
 #[test]
 fn a_process_id_nobody_has_is_dead() {
-    let owner: CopyOwner = CopyOwner { pid: UNUSED_PID, birth_identity: String::from("linux:1"), pid_namespace: current_pid_namespace() };
+    let owner: CopyOwner = CopyOwner {
+        pid: UNUSED_PID,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: current_pid_namespace(),
+    };
     assert!(!owner.is_alive(Path::new("/")).expect("answer"));
 }
 
@@ -68,7 +118,13 @@ fn only_a_proven_dead_or_nameless_owner_is_dead() {
     let here: CopyOwner = current_copy_owner().expect("current owner");
     let anchor: &Path = Path::new("/");
     assert!(!token_owner_is_dead(Some(here.token().as_str()), anchor).expect("judged"));
-    assert!(token_owner_is_dead(Some(crate::test_support::dead_copy_owner().token().as_str()), anchor).expect("judged"));
+    assert!(
+        token_owner_is_dead(
+            Some(crate::test_support::dead_copy_owner().token().as_str()),
+            anchor
+        )
+        .expect("judged")
+    );
     assert!(token_owner_is_dead(None, anchor).expect("judged"));
     assert!(token_owner_is_dead(Some("json"), anchor).expect("judged"));
 }
@@ -80,7 +136,11 @@ fn an_owner_of_another_namespace_stays_while_its_item_is_recent() {
     let root: PathBuf = crate::test_support::fixture("owner-foreign");
     let item: PathBuf = root.join("item");
     std::fs::write(item.as_path(), b"x").expect("item");
-    let foreign: CopyOwner = CopyOwner { pid: UNUSED_PID, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let foreign: CopyOwner = CopyOwner {
+        pid: UNUSED_PID,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
     let judged: Result<bool, WorktreeCopyError> = foreign.is_alive(item.as_path());
     crate::test_support::remove(root.as_path());
     assert!(judged.expect("answer"));
@@ -102,13 +162,37 @@ fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
     let root: PathBuf = crate::test_support::fixture("owner-foreign-expired");
     let item: PathBuf = root.join("item");
     std::fs::write(item.as_path(), b"x").expect("item");
-    std::fs::File::options().write(true).open(item.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
-    let foreign: CopyOwner = CopyOwner { pid: UNUSED_PID, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    std::fs::File::options()
+        .write(true)
+        .open(item.as_path())
+        .expect("open")
+        .set_modified(
+            std::time::SystemTime::now()
+                - crate::pid_namespace::FOREIGN_OWNER_PATIENCE
+                - std::time::Duration::from_secs(300),
+        )
+        .expect("age");
+    let foreign: CopyOwner = CopyOwner {
+        pid: UNUSED_PID,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
     let judged: Result<bool, WorktreeCopyError> = foreign.is_alive(item.as_path());
     let refused: WorktreeCopyError = judged.expect_err("an expired foreign item is refused");
     let text: String = refused.0;
-    assert!(text.contains(item.to_string_lossy().as_ref()) && text.contains("pid:[1]") && text.contains(UNUSED_PID.to_string().as_str()), "{text}");
-    assert!(text.contains("minutes old") && text.contains("another container") && text.contains("rm -- ") && text.contains("left running"), "{text}");
+    assert!(
+        text.contains(item.to_string_lossy().as_ref())
+            && text.contains("pid:[1]")
+            && text.contains(UNUSED_PID.to_string().as_str()),
+        "{text}"
+    );
+    assert!(
+        text.contains("minutes old")
+            && text.contains("another container")
+            && text.contains("rm -- ")
+            && text.contains("left running"),
+        "{text}"
+    );
     assert!(item.exists(), "the item is untouched");
     crate::test_support::remove(root.as_path());
 }
@@ -122,9 +206,20 @@ fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
 fn an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item() {
     let item: PathBuf = crate::test_support::fixture("copy-owner-one-reading").join("item");
     std::fs::write(item.as_path(), b"x").expect("item");
-    let foreign = CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
-    crate::pid_namespace::STANDING_LOOKUPS.with(|count| { count.set(0); });
-    let dead: bool = token_owner_is_dead(Some(foreign.token().as_str()), item.as_path()).expect("a young foreign item");
+    let foreign = CopyOwner {
+        pid: 31337,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
+    crate::pid_namespace::STANDING_LOOKUPS.with(|count| {
+        count.set(0);
+    });
+    let dead: bool = token_owner_is_dead(Some(foreign.token().as_str()), item.as_path())
+        .expect("a young foreign item");
     assert!(!dead, "a young item of another namespace is alive");
-    assert_eq!(crate::pid_namespace::STANDING_LOOKUPS.with(std::cell::Cell::get), 1, "the age was read once for the decision");
+    assert_eq!(
+        crate::pid_namespace::STANDING_LOOKUPS.with(std::cell::Cell::get),
+        1,
+        "the age was read once for the decision"
+    );
 }

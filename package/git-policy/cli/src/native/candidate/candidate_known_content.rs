@@ -25,13 +25,19 @@
 /// Import the layer's failure type.
 use crate::candidate_error::CandidateError;
 /// Import the candidate modes and the validated object name.
-use crate::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+};
 /// Import what a lifecycle asks for.
 use crate::candidate_prediction::CandidateRequest;
 /// Import the store that lists commits and trees.
 use crate::candidate_store::CandidateStore;
 /// Import the candidate and the immutable version type.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the change a converged fix installs,
 ///  which marks a candidate whose bytes are no longer its object's.
 use crate::direct_fix_install::InstallChange;
@@ -49,7 +55,10 @@ use crate::scanner_selection::is_scannable;
 /// ```ts
 /// // Map<number, KnownEntry> iterated in key order; Set<ObjectId>.
 /// ```
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// What:
 ///  The commits whose trees count as already holding content for one lifecycle.
@@ -117,7 +126,9 @@ impl ContentBasis {
             CandidateRequest::Direct(_) => return ContentBasis::Nothing,
             CandidateRequest::Add(_)
             | CandidateRequest::Staged(_)
-            | CandidateRequest::StagedAtBase { .. } => return ContentBasis::Baseline,
+            | CandidateRequest::StagedAtBase {
+                ..
+            } => return ContentBasis::Baseline,
             CandidateRequest::Landed(commit) => {
                 return ContentBasis::ParentsOutside(vec![commit.clone()]);
             }
@@ -175,7 +186,10 @@ impl KnownEntry {
     /// ```ts
     /// describe(displayPath: string): string
     /// ```
-    pub fn describe(&self, display_path: &str) -> String {
+    pub fn describe(
+        &self,
+        display_path: &str,
+    ) -> String {
         return format!(
             "skipped the content of {display_path}: blob {} is already in the tree of commit {}; only the pathname was checked.",
             self.object.as_str(),
@@ -225,7 +239,10 @@ impl KnownContent {
     /// ```ts
     /// entry(index: number): KnownEntry | undefined
     /// ```
-    pub fn entry(&self, index: usize) -> Option<&KnownEntry> {
+    pub fn entry(
+        &self,
+        index: usize,
+    ) -> Option<&KnownEntry> {
         return self.entries.get(&index);
     }
 
@@ -311,7 +328,9 @@ pub fn find_known_content(
     }
     let mut entries: BTreeMap<usize, KnownEntry> = BTreeMap::new();
     if pending.is_empty() {
-        return Ok(KnownContent { entries });
+        return Ok(KnownContent {
+            entries,
+        });
     }
     let parents: Vec<ObjectId> = match basis {
         ContentBasis::Nothing => Vec::new(),
@@ -346,7 +365,9 @@ pub fn find_known_content(
         }
         pending = unplaced;
     }
-    return Ok(KnownContent { entries });
+    return Ok(KnownContent {
+        entries,
+    });
 }
 
 /// Basis choice,

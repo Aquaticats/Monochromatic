@@ -37,7 +37,10 @@
 use crate::diagnostic_log::debug;
 use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 
 /// Module tag for diagnostics.
@@ -92,7 +95,10 @@ pub struct LogRetention {
 }
 
 /// A log whose generations explain nothing beyond their own lines.
-pub const UNPINNED_LOG: LogRetention = LogRetention { budget: LOG_HISTORY_BYTES, pins: pins_nothing };
+pub const UNPINNED_LOG: LogRetention = LogRetention {
+    budget: LOG_HISTORY_BYTES,
+    pins: pins_nothing,
+};
 
 /// The `pins` of a log whose generations name no saved copy.
 fn pins_nothing(_generation: &Path) -> std::io::Result<bool> {
@@ -101,7 +107,10 @@ fn pins_nothing(_generation: &Path) -> std::io::Result<bool> {
 
 /// The path of generation `number` of the log at `target`:
 /// the name with `.` and the number after it.
-fn numbered(target: &Path, number: u64) -> PathBuf {
+fn numbered(
+    target: &Path,
+    number: u64,
+) -> PathBuf {
     let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
     name.push(format!(".{number}"));
     return PathBuf::from(name);
@@ -156,18 +165,34 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
     for listed in std::fs::read_dir(directory)? {
         let entry: std::fs::DirEntry = listed?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(after_stem) = name.strip_prefix(stem.as_str()) else { continue };
-        let Some(rest) = after_stem.strip_prefix('.') else { continue };
-        let number: Option<u64> = if !rest.is_empty() && rest.as_bytes().iter().all(u8::is_ascii_digit) { rest.parse::<u64>().ok() } else { None };
+        let Some(after_stem) = name.strip_prefix(stem.as_str()) else {
+            continue;
+        };
+        let Some(rest) = after_stem.strip_prefix('.') else {
+            continue;
+        };
+        let number: Option<u64> =
+            if !rest.is_empty() && rest.as_bytes().iter().all(u8::is_ascii_digit) {
+                rest.parse::<u64>().ok()
+            } else {
+                None
+            };
         if number.is_none() && !rest.starts_with("moving-") {
             continue;
         }
         // A file that vanished since the listing was another pass's removal.
-        let Ok(found) = std::fs::symlink_metadata(entry.path()) else { continue };
+        let Ok(found) = std::fs::symlink_metadata(entry.path()) else {
+            continue;
+        };
         if !found.is_file() {
             continue;
         }
-        pieces.push(Piece { path: entry.path(), number, length: found.len(), identity: (found.dev(), found.ino()) });
+        pieces.push(Piece {
+            path: entry.path(),
+            number,
+            length: found.len(),
+            identity: (found.dev(), found.ino()),
+        });
     }
     return Ok(pieces);
 }
@@ -199,7 +224,10 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
 ///
 /// # Errors
 /// The system's error when the directory cannot be read or a link cannot be made for a reason other than a taken name.
-pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
+pub fn install_generation(
+    taken: &Path,
+    target: &Path,
+) -> std::io::Result<()> {
     let mut highest: u64 = 0;
     for piece in list_pieces(target)? {
         if let Some(number) = piece.number {
@@ -211,14 +239,24 @@ pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
         let candidate: PathBuf = numbered(target, number);
         match std::fs::hard_link(taken, &candidate) {
             Ok(()) => break,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && std::fs::symlink_metadata(&candidate).is_ok_and(is_a_regular_file) => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AlreadyExists
+                    && std::fs::symlink_metadata(&candidate).is_ok_and(is_a_regular_file) =>
+            {
                 number = number.saturating_add(1);
             }
             Err(error) => return Err(error),
         }
     }
     if let Err(error) = std::fs::remove_file(taken) {
-        debug(TAG, &format!("generation {number} of {} is in place but its private name {} stays: {error}", target.display(), taken.display()));
+        debug(
+            TAG,
+            &format!(
+                "generation {number} of {} is in place but its private name {} stays: {error}",
+                target.display(),
+                taken.display()
+            ),
+        );
     }
     return Ok(());
 }
@@ -275,20 +313,37 @@ fn is_a_regular_file(found: std::fs::Metadata) -> bool {
 /// ```ts
 /// function scheduleTrim(log: string, retention: LogRetention) { if (!claimAPass(log)) return; setTimeout(() => { trimGenerations(log, retention); passEnded(log); }, 0); }
 /// ```
-pub fn schedule_trim(target: &Path, retention: &LogRetention) {
+pub fn schedule_trim(
+    target: &Path,
+    retention: &LogRetention,
+) {
     if !claim_a_pass(target) {
         return;
     }
     let owned: PathBuf = target.to_path_buf();
     let kept: LogRetention = *retention;
-    let spawned = std::thread::Builder::new().name(String::from("log-trim")).spawn(move || {
-        if let Err(error) = trim_generations(owned.as_path(), &kept) {
-            debug(TAG, &format!("the generations of {} could not be trimmed: {error}", owned.display()));
-        }
-        pass_ended(owned.as_path());
-    });
+    let spawned = std::thread::Builder::new()
+        .name(String::from("log-trim"))
+        .spawn(move || {
+            if let Err(error) = trim_generations(owned.as_path(), &kept) {
+                debug(
+                    TAG,
+                    &format!(
+                        "the generations of {} could not be trimmed: {error}",
+                        owned.display()
+                    ),
+                );
+            }
+            pass_ended(owned.as_path());
+        });
     if let Err(error) = spawned {
-        debug(TAG, &format!("the generations of {} wait for a later command: no thread could be started: {error}", target.display()));
+        debug(
+            TAG,
+            &format!(
+                "the generations of {} wait for a later command: no thread could be started: {error}",
+                target.display()
+            ),
+        );
         pass_ended(target);
     }
 }
@@ -379,7 +434,10 @@ pub fn a_pass_is_running(target: &Path) -> bool {
 ///
 /// # Errors
 /// The system's error when the directory cannot be read.
-pub fn trim_generations(target: &Path, retention: &LogRetention) -> std::io::Result<()> {
+pub fn trim_generations(
+    target: &Path,
+    retention: &LogRetention,
+) -> std::io::Result<()> {
     let mut pieces: Vec<Piece> = list_pieces(target)?;
     if settle_names(target, pieces.as_slice()) {
         pieces = list_pieces(target)?;
@@ -420,7 +478,11 @@ pub fn trim_generations(target: &Path, retention: &LogRetention) -> std::io::Res
 /// ```ts
 /// generations.sort((a, b) => a.number - b.number); for (const g of generations.slice(0, -1)) { if (total <= budget) return; if (retention.pins(g.path)) continue; await unlink(g.path); total -= g.length; }
 /// ```
-fn drop_oldest_generations(generations: &mut [&Piece], mut total: u64, retention: &LogRetention) {
+fn drop_oldest_generations(
+    generations: &mut [&Piece],
+    mut total: u64,
+    retention: &LogRetention,
+) {
     generations.sort_by_key(piece_number);
     let removable: usize = generations.len().saturating_sub(1);
     for generation in generations.iter().take(removable) {
@@ -431,15 +493,29 @@ fn drop_oldest_generations(generations: &mut [&Piece], mut total: u64, retention
             Ok(false) => {}
             Ok(true) => continue,
             Err(error) => {
-                debug(TAG, &format!("{} was kept: it could not be read to see which copies it names: {error}", generation.path.display()));
+                debug(
+                    TAG,
+                    &format!(
+                        "{} was kept: it could not be read to see which copies it names: {error}",
+                        generation.path.display()
+                    ),
+                );
                 continue;
             }
         }
         match std::fs::remove_file(&generation.path) {
             Ok(()) => total = total.saturating_sub(generation.length),
             // Another pass removed it first.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => total = total.saturating_sub(generation.length),
-            Err(error) => debug(TAG, &format!("{} was kept: it could not be removed: {error}", generation.path.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                total = total.saturating_sub(generation.length)
+            }
+            Err(error) => debug(
+                TAG,
+                &format!(
+                    "{} was kept: it could not be removed: {error}",
+                    generation.path.display()
+                ),
+            ),
         }
     }
 }
@@ -460,9 +536,14 @@ fn drop_oldest_generations(generations: &mut [&Piece], mut total: u64, retention
 /// ```ts
 /// const isSecondName = (file, pieces) => pieces.some((p) => sameFile(p, file) && p.number !== undefined && (file.number === undefined || p.number < file.number));
 /// ```
-fn is_second_name(file: &Piece, pieces: &[Piece]) -> bool {
+fn is_second_name(
+    file: &Piece,
+    pieces: &[Piece],
+) -> bool {
     for other in pieces {
-        let Some(other_number) = other.number else { continue };
+        let Some(other_number) = other.number else {
+            continue;
+        };
         if other.identity != file.identity {
             continue;
         }
@@ -494,7 +575,10 @@ fn is_second_name(file: &Piece, pieces: &[Piece]) -> bool {
 /// ```ts
 /// for (const p of pieces) if (isSecondName(p)) await unlink(p.path); else if (p.number === undefined) await installGeneration(p.path, target);
 /// ```
-fn settle_names(target: &Path, pieces: &[Piece]) -> bool {
+fn settle_names(
+    target: &Path,
+    pieces: &[Piece],
+) -> bool {
     let mut changed: bool = false;
     for piece in pieces {
         if is_second_name(piece, pieces) {
@@ -502,13 +586,25 @@ fn settle_names(target: &Path, pieces: &[Piece]) -> bool {
             // gave one file two numbers.
             match std::fs::remove_file(&piece.path) {
                 Ok(()) => changed = true,
-                Err(error) => debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display())),
+                Err(error) => debug(
+                    TAG,
+                    &format!(
+                        "the second name {} of a generation could not be removed: {error}",
+                        piece.path.display()
+                    ),
+                ),
             }
         } else if piece.number.is_none() {
             // A file a rotation took off the name and never placed: its lines are in no reader's sight until it has a number.
             match install_generation(piece.path.as_path(), target) {
                 Ok(()) => changed = true,
-                Err(error) => debug(TAG, &format!("{} could not be given a generation number: {error}", piece.path.display())),
+                Err(error) => debug(
+                    TAG,
+                    &format!(
+                        "{} could not be given a generation number: {error}",
+                        piece.path.display()
+                    ),
+                ),
             }
         }
     }

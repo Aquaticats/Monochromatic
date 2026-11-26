@@ -16,7 +16,10 @@ fn fixture_directory(name: &str) -> PathBuf {
 
 /// The selection that names one pathspec file,
 /// as the preparation hands it over.
-fn selection_naming_file<'selection>(file: &'selection Path, nul: bool) -> IndexSelection<'selection> {
+fn selection_naming_file<'selection>(
+    file: &'selection Path,
+    nul: bool,
+) -> IndexSelection<'selection> {
     return IndexSelection {
         mode: TransactionMode::ExplicitPath,
         pathspecs: &[],
@@ -42,9 +45,22 @@ fn the_subtracting_magic_of_a_pathspec_is_read_as_git_reads_it() {
         ":!!a.txt",
         ":/!a.txt",
     ] {
-        assert!(excludes_paths(OsStr::new(subtracting)), "{subtracting} subtracts paths");
+        assert!(
+            excludes_paths(OsStr::new(subtracting)),
+            "{subtracting} subtracts paths"
+        );
     }
-    for naming in [":(EXCLUDE)a.txt", ":(!)a.txt", ":(exclude-)a.txt", ":(-exclude)a.txt", ":(top)a.txt", ":(attr:foo)a.txt", ":foo", "a.txt", "x:!y.txt"] {
+    for naming in [
+        ":(EXCLUDE)a.txt",
+        ":(!)a.txt",
+        ":(exclude-)a.txt",
+        ":(-exclude)a.txt",
+        ":(top)a.txt",
+        ":(attr:foo)a.txt",
+        ":foo",
+        "a.txt",
+        "x:!y.txt",
+    ] {
         assert!(!excludes_paths(OsStr::new(naming)), "{naming} names paths");
     }
 }
@@ -74,7 +90,10 @@ fn a_selection_that_names_a_pathspec_file_names_the_elements_of_that_file() {
     std::fs::write(&newline, "a.txt\n:(exclude)b.txt\n").expect("newline records");
     assert_eq!(
         selection_elements(&selection_naming_file(newline.as_path(), false)),
-        Some(vec![OsString::from("a.txt"), OsString::from(":(exclude)b.txt")])
+        Some(vec![
+            OsString::from("a.txt"),
+            OsString::from(":(exclude)b.txt")
+        ])
     );
     let nul: PathBuf = directory.join("nul.txt");
     std::fs::write(&nul, b"a b.txt\0c.txt\0").expect("NUL records");
@@ -90,15 +109,31 @@ fn a_selection_that_names_a_pathspec_file_names_the_elements_of_that_file() {
 #[test]
 fn a_pathspec_file_this_reader_cannot_take_names_nothing() {
     let directory: PathBuf = fixture_directory("selection-elements-unreadable");
-    assert_eq!(selection_elements(&selection_naming_file(directory.join("missing.txt").as_path(), false)), None);
-    assert_eq!(selection_elements(&selection_naming_file(directory.as_path(), false)), None);
+    assert_eq!(
+        selection_elements(&selection_naming_file(
+            directory.join("missing.txt").as_path(),
+            false
+        )),
+        None
+    );
+    assert_eq!(
+        selection_elements(&selection_naming_file(directory.as_path(), false)),
+        None
+    );
     let empty_record: PathBuf = directory.join("empty-record.txt");
     std::fs::write(&empty_record, b"a.txt\n\nb.txt\n").expect("an empty record");
-    assert_eq!(selection_elements(&selection_naming_file(empty_record.as_path(), false)), None);
+    assert_eq!(
+        selection_elements(&selection_naming_file(empty_record.as_path(), false)),
+        None
+    );
     let too_large: PathBuf = directory.join("too-large.txt");
     let held: std::fs::File = std::fs::File::create(&too_large).expect("a sparse file");
-    held.set_len(PATHSPEC_FILE_LIMIT + 1).expect("a file past the bound");
-    assert_eq!(selection_elements(&selection_naming_file(too_large.as_path(), false)), None);
+    held.set_len(PATHSPEC_FILE_LIMIT + 1)
+        .expect("a file past the bound");
+    assert_eq!(
+        selection_elements(&selection_naming_file(too_large.as_path(), false)),
+        None
+    );
     crate::test_support::remove(directory.parent().expect("the fixture root"));
 }
 
@@ -112,9 +147,16 @@ fn a_pathspec_file_that_is_a_named_pipe_names_nothing_at_once() {
     let pipe: PathBuf = directory.join("pathspec.fifo");
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     let over: PathBuf = pipe.clone();
-    let answered = crate::test_support::finished_within(move || return selection_elements(&selection_naming_file(over.as_path(), false)));
-    let Some(elements) = answered else { panic!("a pathspec file that is a named pipe held the commit") };
-    assert_eq!(elements, None, "a pipe names no element, so the staging hands the file to Git");
+    let answered = crate::test_support::finished_within(move || {
+        return selection_elements(&selection_naming_file(over.as_path(), false));
+    });
+    let Some(elements) = answered else {
+        panic!("a pathspec file that is a named pipe held the commit")
+    };
+    assert_eq!(
+        elements, None,
+        "a pipe names no element, so the staging hands the file to Git"
+    );
     crate::test_support::remove(directory.parent().expect("the fixture root"));
 }
 
@@ -127,8 +169,15 @@ fn a_pathspec_file_that_is_a_named_pipe_is_unreadable_at_once() {
     let pipe: PathBuf = directory.join("pathspec.fifo");
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     let over: PathBuf = pipe.clone();
-    let answered = crate::test_support::finished_within(move || return matches!(selection_items(&selection_naming_file(over.as_path(), false)), Selected::Unreadable));
-    let Some(unreadable) = answered else { panic!("a pathspec file that is a named pipe held the commit") };
+    let answered = crate::test_support::finished_within(move || {
+        return matches!(
+            selection_items(&selection_naming_file(over.as_path(), false)),
+            Selected::Unreadable
+        );
+    });
+    let Some(unreadable) = answered else {
+        panic!("a pathspec file that is a named pipe held the commit")
+    };
     assert!(unreadable, "a pipe is a selection this reader cannot take");
     crate::test_support::remove(directory.parent().expect("the fixture root"));
 }

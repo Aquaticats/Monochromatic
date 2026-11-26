@@ -65,9 +65,18 @@
 use crate::path_bytes::path_bytes_of;
 use crate::subvolume_sync_attrs::carried_attributes_equal;
 use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
-use crate::worktree_copy_prune::{holds_nothing_a_copy_carries, names_a_private_stage};
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_prune::{
+    holds_nothing_a_copy_carries,
+    names_a_private_stage,
+};
+use std::os::unix::fs::{
+    FileTypeExt,
+    MetadataExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether either side changed at or after the instant `synced_ms`,
 /// with the change time the comparison reads.
@@ -84,16 +93,26 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function changedAfterTheProof(before: Metadata, after: Metadata, syncedMs: number | undefined): boolean;
 /// ```
-fn changed_after_the_proof(before: &std::fs::Metadata, after: &std::fs::Metadata, synced_ms: Option<i64>) -> bool {
-    let Some(proved_at) = synced_ms else { return false };
+fn changed_after_the_proof(
+    before: &std::fs::Metadata,
+    after: &std::fs::Metadata,
+    synced_ms: Option<i64>,
+) -> bool {
+    let Some(proved_at) = synced_ms else {
+        return false;
+    };
     return changed_since(before, proved_at) || changed_since(after, proved_at);
 }
 
 /// Whether the entry at `before` changed at or after the instant `proved_at`,
 /// in milliseconds after the epoch,
 /// with the change time the comparison reads.
-fn changed_since(before: &std::fs::Metadata, proved_at: i64) -> bool {
-    let changed: i128 = i128::from(before.ctime()) * 1_000_000_000 + i128::from(before.ctime_nsec());
+fn changed_since(
+    before: &std::fs::Metadata,
+    proved_at: i64,
+) -> bool {
+    let changed: i128 =
+        i128::from(before.ctime()) * 1_000_000_000 + i128::from(before.ctime_nsec());
     return changed >= i128::from(proved_at) * 1_000_000;
 }
 
@@ -114,7 +133,10 @@ fn changed_since(before: &std::fs::Metadata, proved_at: i64) -> bool {
 /// ```ts
 /// function contentsDiffer(old: string, installed: string): boolean; // throws when a file cannot be read
 /// ```
-fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
+fn contents_differ(
+    old: &Path,
+    installed: &Path,
+) -> std::io::Result<bool> {
     // Both sides go through the plain-file open: a name swapped for a link or a named pipe after the walk read its metadata
     // must not make this read follow it or wait for a writer, while the conversion holds its claim.
     let mut left: std::fs::File = crate::plain_file::open_plain_file(old)?;
@@ -138,9 +160,16 @@ fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
         let right_chunk: &mut [u8] = &mut right_buffer[..length];
         // `read_exact` reports a file that ended before the length it had when it was opened as `UnexpectedEof`, which is a
         // difference: something is writing to one of the two trees.
-        match (std::io::Read::read_exact(&mut left, left_chunk), std::io::Read::read_exact(&mut right, right_chunk)) {
+        match (
+            std::io::Read::read_exact(&mut left, left_chunk),
+            std::io::Read::read_exact(&mut right, right_chunk),
+        ) {
             (Ok(()), Ok(())) => {}
-            (Err(error), _) | (_, Err(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(true),
+            (Err(error), _) | (_, Err(error))
+                if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                return Ok(true);
+            }
             (Err(error), _) | (_, Err(error)) => return Err(error),
         }
         if left_chunk != right_chunk {
@@ -179,7 +208,12 @@ fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
 /// ```ts
 /// function attributeDifference(before, after, oldPath, installedPath): string | undefined;
 /// ```
-fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, old: &Path, installed: &Path) -> Option<&'static str> {
+fn attribute_difference(
+    before: &std::fs::Metadata,
+    after: &std::fs::Metadata,
+    old: &Path,
+    installed: &Path,
+) -> Option<&'static str> {
     if before.mode() & 0o7777 != after.mode() & 0o7777 {
         return Some("the permission bits");
     }
@@ -208,7 +242,11 @@ fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, o
 /// ```ts
 /// function missingEntry(kind, inside, oldPath): string;
 /// ```
-fn missing_entry(kind: std::fs::FileType, inside: &Path, old: &Path) -> String {
+fn missing_entry(
+    kind: std::fs::FileType,
+    inside: &Path,
+    old: &Path,
+) -> String {
     if kind.is_socket() || kind.is_block_device() || kind.is_char_device() {
         return format!(
             "{} is a socket or a device node, which this copy never recreates, and the installed worktree does not hold it; delete it from {} and run the command again",
@@ -216,7 +254,10 @@ fn missing_entry(kind: std::fs::FileType, inside: &Path, old: &Path) -> String {
             old.display()
         );
     }
-    return format!("{} is missing from the installed worktree", inside.display());
+    return format!(
+        "{} is missing from the installed worktree",
+        inside.display()
+    );
 }
 
 /// What:
@@ -240,7 +281,10 @@ fn missing_entry(kind: std::fs::FileType, inside: &Path, old: &Path) -> String {
 /// ```ts
 /// firstDifference(old, installed);
 /// ```
-pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<String>> {
+pub fn first_difference(
+    old: &Path,
+    installed: &Path,
+) -> std::io::Result<Option<String>> {
     return first_difference_after(old, installed, None);
 }
 
@@ -258,15 +302,23 @@ pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<
 /// ```ts
 /// firstDifferenceAfter(old, installed, syncedMs);
 /// ```
-pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i64>) -> std::io::Result<Option<String>> {
+pub fn first_difference_after(
+    old: &Path,
+    installed: &Path,
+    synced_ms: Option<i64>,
+) -> std::io::Result<Option<String>> {
     // The root may be named through a descriptor's own path, a link that is followed to the directory it holds.
     let before_root: std::fs::Metadata = std::fs::metadata(old)?;
     let after_root: std::fs::Metadata = std::fs::metadata(installed)?;
     if before_root.file_type() != after_root.file_type() {
-        return Ok(Some(String::from("the old tree itself is not the same kind of entry as the installed worktree")));
+        return Ok(Some(String::from(
+            "the old tree itself is not the same kind of entry as the installed worktree",
+        )));
     }
     if let Some(why) = attribute_difference(&before_root, &after_root, old, installed) {
-        return Ok(Some(format!("the old tree itself differs from the installed worktree ({why})")));
+        return Ok(Some(format!(
+            "the old tree itself differs from the installed worktree ({why})"
+        )));
     }
     let device: u64 = before_root.dev();
     let mut pending: Vec<PathBuf> = vec![PathBuf::new()];
@@ -279,43 +331,76 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
             //  need not hold it, and its own content is that command's work rather than this tree's. A container is a
             //  directory, so an entry of another kind whose name merely begins the prefix is the old tree's own and is
             //  compared like any other: skipping it would approve deleting the only copy of it.
-            if before.file_type().is_dir() && names_a_private_stage(path_bytes_of(inside.as_path())) {
+            if before.file_type().is_dir() && names_a_private_stage(path_bytes_of(inside.as_path()))
+            {
                 continue;
             }
             if before.dev() != device {
-                return Ok(Some(format!("{} is a subvolume or a mount point inside the old tree, which this command does not delete", inside.display())));
+                return Ok(Some(format!(
+                    "{} is a subvolume or a mount point inside the old tree, which this command does not delete",
+                    inside.display()
+                )));
             }
-            let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside)) {
+            let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside))
+            {
                 Ok(found) => found,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     // The folder that held nothing but a container was left out of the copy for the same reason, so its
                     //  absence is what this comparison asked for;
                     // a folder another command emptied by removing only its container holds nothing a copy would have
                     //  carried either, so its absence asks for nothing.
-                    if before.file_type().is_dir() && holds_nothing_a_copy_carries(old.join(&inside).as_path()) {
+                    if before.file_type().is_dir()
+                        && holds_nothing_a_copy_carries(old.join(&inside).as_path())
+                    {
                         continue;
                     }
-                    return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside))));
+                    return Ok(Some(missing_entry(
+                        before.file_type(),
+                        &inside,
+                        &old.join(&inside),
+                    )));
                 }
                 Err(error) => return Err(error),
             };
             if before.file_type() != after.file_type() {
-                return Ok(Some(format!("{} is not the same kind of entry in the installed worktree", inside.display())));
+                return Ok(Some(format!(
+                    "{} is not the same kind of entry in the installed worktree",
+                    inside.display()
+                )));
             }
             // Every kind of entry is compared by its attributes, a named pipe and a socket included; the kind decides only
             // what else is compared.
-            if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
-                return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
+            if let Some(why) = attribute_difference(
+                &before,
+                &after,
+                &old.join(&inside),
+                &installed.join(&inside),
+            ) {
+                return Ok(Some(format!(
+                    "{} differs from the installed worktree ({why})",
+                    inside.display()
+                )));
             }
             if before.file_type().is_dir() {
                 pending.push(inside);
             } else if before.file_type().is_symlink() {
-                if std::fs::read_link(old.join(&inside))? != std::fs::read_link(installed.join(&inside))? {
-                    return Ok(Some(format!("the link {} points elsewhere in the installed worktree", inside.display())));
+                if std::fs::read_link(old.join(&inside))?
+                    != std::fs::read_link(installed.join(&inside))?
+                {
+                    return Ok(Some(format!(
+                        "the link {} points elsewhere in the installed worktree",
+                        inside.display()
+                    )));
                 }
             } else if before.file_type().is_file() {
-                if before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() {
-                    return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
+                if before.size() != after.size()
+                    || before.mtime() != after.mtime()
+                    || before.mtime_nsec() != after.mtime_nsec()
+                {
+                    return Ok(Some(format!(
+                        "{} differs from the installed worktree (size or modification time)",
+                        inside.display()
+                    )));
                 }
                 // Either side can hold bytes the other does not: the old tree a late edit, the installed worktree one made
                 // after the exchange, and neither side's change time sees the other's. Every regular file is compared by its
@@ -324,8 +409,16 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
                 #[cfg(test)]
                 note_contents_open(old.join(&inside).as_path());
                 if contents_differ(&old.join(&inside), &installed.join(&inside))? {
-                    let after_the_proof: &str = if changed_after_the_proof(&before, &after, synced_ms) { ", and it changed after the copy was proved" } else { "" };
-                    return Ok(Some(format!("{} differs from the installed worktree (contents{after_the_proof})", inside.display())));
+                    let after_the_proof: &str =
+                        if changed_after_the_proof(&before, &after, synced_ms) {
+                            ", and it changed after the copy was proved"
+                        } else {
+                            ""
+                        };
+                    return Ok(Some(format!(
+                        "{} differs from the installed worktree (contents{after_the_proof})",
+                        inside.display()
+                    )));
                 }
             }
         }

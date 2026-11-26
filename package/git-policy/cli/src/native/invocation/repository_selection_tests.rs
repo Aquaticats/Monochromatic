@@ -6,19 +6,37 @@
 //!  and a value Git reads as a value (the directory of a `-C`,
 //!  the setting of a `-c`) must never be read as an option.
 
-use super::{from_global_options, of_identity, of_paths, without_repository_selection};
+use super::{
+    from_global_options,
+    of_identity,
+    of_paths,
+    without_repository_selection,
+};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Own a fixture vector of arguments.
 fn arguments(values: &[&str]) -> Vec<OsString> {
-    return values.iter().map(|value| { return OsString::from(*value); }).collect();
+    return values
+        .iter()
+        .map(|value| {
+            return OsString::from(*value);
+        })
+        .collect();
 }
 
 /// The selection as readable text.
 fn text(values: &[OsString]) -> Vec<String> {
-    return values.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    return values
+        .iter()
+        .map(|token| {
+            return token.to_string_lossy().into_owned();
+        })
+        .collect();
 }
 
 /// What:
@@ -27,9 +45,15 @@ fn text(values: &[OsString]) -> Vec<String> {
 ///  The commit path must cost no extra Git start for the ordinary layout.
 #[test]
 fn a_prefix_that_names_no_repository_selects_nothing() {
-    assert_eq!(from_global_options(Path::new("/work"), &[]), Vec::<OsString>::new());
     assert_eq!(
-        from_global_options(Path::new("/work"), arguments(&["-c", "user.name=X", "--no-pager", "-C", "sub"]).as_slice()),
+        from_global_options(Path::new("/work"), &[]),
+        Vec::<OsString>::new()
+    );
+    assert_eq!(
+        from_global_options(
+            Path::new("/work"),
+            arguments(&["-c", "user.name=X", "--no-pager", "-C", "sub"]).as_slice()
+        ),
         Vec::<OsString>::new(),
         "a configuration option and a directory change name no repository"
     );
@@ -43,12 +67,21 @@ fn a_prefix_that_names_no_repository_selects_nothing() {
 fn the_options_come_out_as_absolute_paths() {
     let work: &Path = Path::new("/work");
     assert_eq!(
-        text(from_global_options(work, arguments(&["--git-dir", "/abs/cfg.git"]).as_slice()).as_slice()),
+        text(
+            from_global_options(work, arguments(&["--git-dir", "/abs/cfg.git"]).as_slice())
+                .as_slice()
+        ),
         vec!["--git-dir", "/abs/cfg.git"],
         "an absolute Git directory stays as written"
     );
     assert_eq!(
-        text(from_global_options(work, arguments(&["--git-dir=/abs/cfg.git", "--work-tree", "/abs/wt"]).as_slice()).as_slice()),
+        text(
+            from_global_options(
+                work,
+                arguments(&["--git-dir=/abs/cfg.git", "--work-tree", "/abs/wt"]).as_slice()
+            )
+            .as_slice()
+        ),
         vec!["--git-dir", "/abs/cfg.git", "--work-tree", "/abs/wt"],
         "both spellings are read"
     );
@@ -68,17 +101,36 @@ fn the_options_come_out_as_absolute_paths() {
 #[test]
 fn a_relative_value_is_read_from_the_directory_the_chain_reached() {
     let work: &Path = Path::new("/work");
-    let selection: Vec<OsString> = from_global_options(work, arguments(&["-C", "sub", "--git-dir=../cfg.git", "--work-tree", ".."]).as_slice());
-    assert_eq!(text(selection.as_slice()), vec!["--git-dir", "/work/sub/../cfg.git", "--work-tree", "/work/sub/.."]);
+    let selection: Vec<OsString> = from_global_options(
+        work,
+        arguments(&["-C", "sub", "--git-dir=../cfg.git", "--work-tree", ".."]).as_slice(),
+    );
+    assert_eq!(
+        text(selection.as_slice()),
+        vec![
+            "--git-dir",
+            "/work/sub/../cfg.git",
+            "--work-tree",
+            "/work/sub/.."
+        ]
+    );
 
-    let after: Vec<OsString> = from_global_options(work, arguments(&["--git-dir=../cfg.git", "-C", "sub"]).as_slice());
+    let after: Vec<OsString> = from_global_options(
+        work,
+        arguments(&["--git-dir=../cfg.git", "-C", "sub"]).as_slice(),
+    );
     assert_eq!(
         text(after.as_slice()),
         vec!["--git-dir", "/work/sub/../cfg.git"],
         "even when the option is written before the directory it is read from"
     );
-    let empty: Vec<OsString> = from_global_options(work, arguments(&["-C", "", "--git-dir=cfg.git"]).as_slice());
-    assert_eq!(text(empty.as_slice()), vec!["--git-dir", "/work/cfg.git"], "an empty directory moves Git nowhere");
+    let empty: Vec<OsString> =
+        from_global_options(work, arguments(&["-C", "", "--git-dir=cfg.git"]).as_slice());
+    assert_eq!(
+        text(empty.as_slice()),
+        vec!["--git-dir", "/work/cfg.git"],
+        "an empty directory moves Git nowhere"
+    );
 }
 
 /// What:
@@ -92,7 +144,13 @@ fn a_relative_value_is_read_from_the_directory_the_chain_reached() {
 fn the_last_naming_option_wins_and_a_value_is_never_an_option() {
     let work: &Path = Path::new("/work");
     assert_eq!(
-        text(from_global_options(work, arguments(&["--git-dir=first.git", "--git-dir", "second.git"]).as_slice()).as_slice()),
+        text(
+            from_global_options(
+                work,
+                arguments(&["--git-dir=first.git", "--git-dir", "second.git"]).as_slice()
+            )
+            .as_slice()
+        ),
         vec!["--git-dir", "/work/second.git"]
     );
     assert_eq!(
@@ -106,7 +164,10 @@ fn the_last_naming_option_wins_and_a_value_is_never_an_option() {
         "a bare repository is the directory the chain ended in, as the caller spelled it"
     );
     assert_eq!(
-        from_global_options(work, arguments(&["-c", "--git-dir=not-an-option"]).as_slice()),
+        from_global_options(
+            work,
+            arguments(&["-c", "--git-dir=not-an-option"]).as_slice()
+        ),
         Vec::<OsString>::new(),
         "the value of -c is a configuration, not a Git directory"
     );
@@ -125,7 +186,10 @@ fn the_last_naming_option_wins_and_a_value_is_never_an_option() {
 ///  and naming it would make every in-process read of a landing start Git instead of answering.
 #[test]
 fn a_plain_layout_is_named_by_nothing() {
-    assert_eq!(of_paths(Path::new("/repo/.git"), Path::new("/repo")), Vec::<OsString>::new());
+    assert_eq!(
+        of_paths(Path::new("/repo/.git"), Path::new("/repo")),
+        Vec::<OsString>::new()
+    );
     let bare: PathBuf = PathBuf::from("/work/cfg.git");
     assert_eq!(
         text(of_paths(bare.as_path(), Path::new("/work/wt")).as_slice()),
@@ -134,7 +198,12 @@ fn a_plain_layout_is_named_by_nothing() {
     );
     assert_eq!(
         text(of_paths(Path::new("/main/.git/worktrees/one"), Path::new("/work")).as_slice()),
-        vec!["--git-dir", "/main/.git/worktrees/one", "--work-tree", "/work"],
+        vec![
+            "--git-dir",
+            "/main/.git/worktrees/one",
+            "--work-tree",
+            "/work"
+        ],
         "a linked worktree's own Git directory is named"
     );
     assert_eq!(
@@ -152,14 +221,38 @@ fn a_plain_layout_is_named_by_nothing() {
 ///  and a `-C` would move Git after the wrapper placed it.
 #[test]
 fn the_shadows_start_keeps_every_option_but_the_repository_selection() {
-    let kept = |values: &[&str]| -> Vec<String> { return text(without_repository_selection(arguments(values).as_slice()).as_slice()); };
+    let kept = |values: &[&str]| -> Vec<String> {
+        return text(without_repository_selection(arguments(values).as_slice()).as_slice());
+    };
     assert_eq!(kept(&[]), Vec::<String>::new());
     assert_eq!(
-        kept(&["-C", "..", "--git-dir", "/abs/cfg.git", "--work-tree=/abs/wt", "--bare", "-c", "user.name=X", "--no-pager"]),
-        vec![String::from("-c"), String::from("user.name=X"), String::from("--no-pager")]
+        kept(&[
+            "-C",
+            "..",
+            "--git-dir",
+            "/abs/cfg.git",
+            "--work-tree=/abs/wt",
+            "--bare",
+            "-c",
+            "user.name=X",
+            "--no-pager"
+        ]),
+        vec![
+            String::from("-c"),
+            String::from("user.name=X"),
+            String::from("--no-pager")
+        ]
     );
-    assert_eq!(kept(&["-C", ".."]), Vec::<String>::new(), "the directory of -C goes with it");
-    assert_eq!(kept(&["-c", "--git-dir=x"]), vec![String::from("-c"), String::from("--git-dir=x")], "a configuration value is not an option");
+    assert_eq!(
+        kept(&["-C", ".."]),
+        Vec::<String>::new(),
+        "the directory of -C goes with it"
+    );
+    assert_eq!(
+        kept(&["-c", "--git-dir=x"]),
+        vec![String::from("-c"), String::from("--git-dir=x")],
+        "a configuration value is not an option"
+    );
 }
 
 /// What:
@@ -176,7 +269,11 @@ fn a_location_names_the_repository_git_resolved() {
         git_dir: PathBuf::from("/repo/.git"),
         worktree_root: PathBuf::from("/repo"),
     };
-    assert_eq!(of_identity(&plain), Vec::<OsString>::new(), "a plain layout is found from its work tree");
+    assert_eq!(
+        of_identity(&plain),
+        Vec::<OsString>::new(),
+        "a plain layout is found from its work tree"
+    );
     let beside: WorktreeIdentity = WorktreeIdentity::MainWorktree {
         common_dir: PathBuf::from("/holder/cfg.git"),
         git_dir: PathBuf::from("/holder/cfg.git"),
@@ -194,13 +291,25 @@ fn a_location_names_the_repository_git_resolved() {
     };
     assert_eq!(
         text(of_identity(&linked).as_slice()),
-        vec!["--git-dir", "/main/.git/worktrees/linked", "--work-tree", "/linked"],
+        vec![
+            "--git-dir",
+            "/main/.git/worktrees/linked",
+            "--work-tree",
+            "/linked"
+        ],
         "a linked worktree's own Git directory is named"
     );
     let bare: WorktreeIdentity = WorktreeIdentity::BareRepository {
         common_dir: PathBuf::from("/bare.git"),
         git_dir: PathBuf::from("/bare.git"),
     };
-    assert_eq!(of_identity(&bare), Vec::<OsString>::new(), "a bare repository has no work tree to name");
-    assert_eq!(of_identity(&WorktreeIdentity::OutsideWorktree), Vec::<OsString>::new());
+    assert_eq!(
+        of_identity(&bare),
+        Vec::<OsString>::new(),
+        "a bare repository has no work tree to name"
+    );
+    assert_eq!(
+        of_identity(&WorktreeIdentity::OutsideWorktree),
+        Vec::<OsString>::new()
+    );
 }

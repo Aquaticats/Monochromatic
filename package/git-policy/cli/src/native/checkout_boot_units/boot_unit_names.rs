@@ -25,7 +25,10 @@
 //! const mount = systemdEscapeMountUnit('/home/user/Monochromatic'); // 'home-user-Monochromatic.mount'
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder every unit of this route is written into.
 pub const SYSTEM_UNIT_DIRECTORY: &str = "/etc/systemd/system";
@@ -36,7 +39,8 @@ pub const BOOT_GATE_UNIT_NAME: &str = "reconcile-git-worktree-clone-mounts.servi
 
 /// The gate's own file,
 /// under the folder every unit of this route is written into.
-pub const BOOT_GATE_UNIT_PATH: &str = "/etc/systemd/system/reconcile-git-worktree-clone-mounts.service";
+pub const BOOT_GATE_UNIT_PATH: &str =
+    "/etc/systemd/system/reconcile-git-worktree-clone-mounts.service";
 
 /// The unit that runs `zfs mount -a` on this route's machines,
 /// and the unit the gate wants and orders after (V1 and V2).
@@ -130,8 +134,13 @@ pub fn unit_path(name: &str) -> PathBuf {
 ///  a drop-in is read only from `<unit>.d/<name>`,
 /// so the folder and the name
 ///  travel together.
-pub fn drop_in_path(unit: &str, name: &str) -> PathBuf {
-    return Path::new(SYSTEM_UNIT_DIRECTORY).join(format!("{unit}.d")).join(name);
+pub fn drop_in_path(
+    unit: &str,
+    name: &str,
+) -> PathBuf {
+    return Path::new(SYSTEM_UNIT_DIRECTORY)
+        .join(format!("{unit}.d"))
+        .join(name);
 }
 
 /// The propagation service's own path.
@@ -214,9 +223,14 @@ pub fn mount_unit_name(path: &Path) -> String {
 ///  one byte rule serves every path component,
 /// so a second spelling of it cannot
 ///  disagree with the first.
-fn push_one_escaped(escaped: &mut String, byte: u8) {
+fn push_one_escaped(
+    escaped: &mut String,
+    byte: u8,
+) {
     match byte {
-        b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z' | b':' | b'_' | b'.' => escaped.push(char::from(byte)),
+        b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z' | b':' | b'_' | b'.' => {
+            escaped.push(char::from(byte))
+        }
         other => escaped.push_str(format!("\\x{other:02x}").as_str()),
     }
 }
@@ -242,7 +256,9 @@ pub fn is_one_word(text: &str) -> bool {
         return false;
     }
     let forbidden: [char; 6] = [' ', '\t', '\n', '"', '\'', '\\'];
-    return !text.chars().any(|letter| return forbidden.contains(&letter));
+    return !text
+        .chars()
+        .any(|letter| return forbidden.contains(&letter));
 }
 
 /// What:
@@ -262,7 +278,9 @@ pub fn is_one_unit_name(text: &str) -> bool {
     if text.is_empty() {
         return false;
     }
-    return !text.chars().any(|letter| return letter == ' ' || letter == '\t' || letter == '\n' || letter == '\r');
+    return !text
+        .chars()
+        .any(|letter| return letter == ' ' || letter == '\t' || letter == '\n' || letter == '\r');
 }
 
 /// A path as text a unit line can carry,

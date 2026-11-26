@@ -20,9 +20,15 @@
 //! ```
 
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The value `started_child` holds once its owner abandoned the run before a child was published.
 /// Why:
@@ -172,7 +178,10 @@ impl GitRequest {
     /// ```ts
     /// { cwd, args }
     /// ```
-    pub fn new<S: AsRef<OsStr>>(cwd: &Path, arguments: &[S]) -> Self {
+    pub fn new<S: AsRef<OsStr>>(
+        cwd: &Path,
+        arguments: &[S],
+    ) -> Self {
         // `mut` allows collecting the arguments one at a time.
         let mut owned: Vec<OsString> = Vec::with_capacity(arguments.len());
         for argument in arguments {
@@ -227,7 +236,10 @@ impl GitRequest {
     /// ```ts
     /// request.publishingItsChild(cell)
     /// ```
-    pub fn publishing_its_child(mut self, cell: std::sync::Arc<std::sync::atomic::AtomicI32>) -> Self {
+    pub fn publishing_its_child(
+        mut self,
+        cell: std::sync::Arc<std::sync::atomic::AtomicI32>,
+    ) -> Self {
         self.started_child = Some(cell);
         return self;
     }
@@ -282,7 +294,10 @@ impl GitRequest {
     /// ```ts
     /// request.inTheCallersRepository(repositorySelection({ cwd, globalPrefix }))
     /// ```
-    pub fn in_the_callers_repository(mut self, selection: Vec<OsString>) -> Self {
+    pub fn in_the_callers_repository(
+        mut self,
+        selection: Vec<OsString>,
+    ) -> Self {
         self.repository_selection = selection;
         return self;
     }
@@ -299,11 +314,18 @@ impl GitRequest {
     /// ```ts
     /// const fullArguments = (request: GitRequest, prefix: string[]) => [...(request.withoutPrefix ? [] : request.ownPathspecs ? withoutPathspecModeOptions(prefix) : prefix), ...request.arguments];
     /// ```
-    pub fn full_arguments(&self, global_prefix: &[OsString]) -> Vec<OsString> {
+    pub fn full_arguments(
+        &self,
+        global_prefix: &[OsString],
+    ) -> Vec<OsString> {
         let mut arguments: Vec<OsString> = Vec::new();
         if !self.without_prefix {
             if self.own_pathspecs {
-                arguments.extend(crate::global_arguments_pathspec_modes::without_pathspec_mode_options(global_prefix));
+                arguments.extend(
+                    crate::global_arguments_pathspec_modes::without_pathspec_mode_options(
+                        global_prefix,
+                    ),
+                );
             } else {
                 arguments.extend(global_prefix.iter().cloned());
             }
@@ -312,7 +334,6 @@ impl GitRequest {
         arguments.extend(self.arguments.iter().cloned());
         return arguments;
     }
-
 }
 
 /// What:
@@ -392,7 +413,10 @@ pub struct GitFailure(pub String);
 /// ```
 impl std::fmt::Display for GitFailure {
     /// Writes the message.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.0.as_str());
     }
 }

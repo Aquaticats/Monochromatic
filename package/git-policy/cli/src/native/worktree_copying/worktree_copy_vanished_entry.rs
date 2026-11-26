@@ -24,7 +24,11 @@
 //! ```
 
 use crate::path_bytes::path_bytes_of;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
 use std::path::Path;
 
 /// What:

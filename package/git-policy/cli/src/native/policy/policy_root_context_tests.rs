@@ -13,20 +13,44 @@
 #![cfg(unix)]
 
 /// Import the module under test.
-use super::{ROOT_CONTEXT_CODE, ROOT_CONTEXT_MESSAGE, check_root_context};
+use super::{
+    ROOT_CONTEXT_CODE,
+    ROOT_CONTEXT_MESSAGE,
+    check_root_context,
+};
 use crate::candidate_prediction::CandidateRequest;
 use crate::diagnostics::EngineFailureCode;
 /// The event form of a pathname.
 use crate::event_path::EventPath;
-use crate::policy_content::{ContentState, LifecycleContent};
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
-use crate::test_support::{fixture, git, remove, repository};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The check's outcome for `git add` with these arguments in `repo`.
-fn add_outcome(repo: &Path, values: &[&str]) -> PolicyOutcome {
+fn add_outcome(
+    repo: &Path,
+    values: &[&str],
+) -> PolicyOutcome {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
     let mut region: Vec<OsString> = Vec::new();

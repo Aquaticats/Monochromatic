@@ -37,27 +37,38 @@
 //! because a job of the pool is inside the runtime and would refuse the same start
 //! (`doc/planning/git-policy-cli-full-tokio.md`).
 
+/// The reconcile loop that is the only body of these decisions,
+/// and the seam a task publishes its merge through.
+use crate::auto_push_reconcile_awaiting::{
+    MergePusherAwaiting,
+    integrate_and_push_awaiting,
+};
+/// What one reconcile run integrates,
+/// how it words itself and how it ended,
+/// shared with the loop.
+pub use crate::auto_push_reconcile_plan::{
+    Integrated,
+    Reconcile,
+};
+/// The plan an automatic push's reconcile is run with,
+/// and the attempt it answers with,
+/// which both faces build and answer with.
+use crate::auto_push_reconcile_plan::{
+    attempt_of,
+    auto_push_plan,
+};
 /// The coordinator's Git,
 /// its command builder,
 /// queries and error type.
 use crate::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError,
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
 };
-/// The auto-push's bounded `git push` with the Git LFS upload.
-use crate::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
-/// The reconcile loop that is the only body of these decisions,
-/// and the seam a task publishes its merge through.
-use crate::auto_push_reconcile_awaiting::{MergePusherAwaiting, integrate_and_push_awaiting};
-/// What one reconcile run integrates,
-/// how it words itself and how it ended,
-/// shared with the loop.
-pub use crate::auto_push_reconcile_plan::{Integrated, Reconcile};
-/// The plan an automatic push's reconcile is run with,
-/// and the attempt it answers with,
-/// which both faces build and answer with.
-use crate::auto_push_reconcile_plan::{attempt_of, auto_push_plan};
+/// The auto-push's bounded `git push` with the Git LFS upload.
+use crate::lfs_bounded_push::run_push;
 
 /// Where the plain push goes,
 /// as `auto_push_destination` decides it.
@@ -69,16 +80,29 @@ use crate::auto_push_destination::read_destination;
 /// The failed-attempt value a control of the loop still builds.
 #[cfg(test)]
 use crate::auto_push_reconcile_basics_and_limits::unpublished;
-/// The synchronous merge commit the control that compares the two faces still asks.
-#[cfg(test)]
-use crate::auto_push_reconcile_merge_commit::commit_merge;
+pub use crate::auto_push_reconcile_basics_and_limits::{
+    MAX_RECONCILE_ATTEMPTS,
+    RECONCILE_FAILED_PREFIX,
+    RECONCILE_LINE_PREFIX,
+    journal_identifier,
+    run_line_prefix,
+    was_rejected_as_stale,
+};
+use crate::auto_push_reconcile_basics_and_limits::{
+    TAG,
+    argv,
+};
 /// The synchronous branch move the control that compares the two faces still asks.
 #[cfg(test)]
 use crate::auto_push_reconcile_branch_advance::advance_local_branch;
-use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
-pub use crate::auto_push_reconcile_basics_and_limits::{
-    MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, run_line_prefix,
-    was_rejected_as_stale,
+/// The synchronous merge commit the control that compares the two faces still asks.
+#[cfg(test)]
+use crate::auto_push_reconcile_merge_commit::commit_merge;
+/// The one place that makes the callable `std::thread::scope` accepts,
+/// and the body it runs.
+use crate::side_by_side_threads::{
+    ScopeBody,
+    in_thread_scope,
 };
 /// A future the loop awaits,
 /// and the box it travels in.
@@ -86,10 +110,10 @@ use std::future::Future;
 use std::pin::Pin;
 /// The scope the bridge runs in,
 /// and the handle of the thread it starts.
-use std::thread::{Scope, ScopedJoinHandle};
-/// The one place that makes the callable `std::thread::scope` accepts,
-/// and the body it runs.
-use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
+use std::thread::{
+    Scope,
+    ScopedJoinHandle,
+};
 
 /// What:
 ///  What publishes one merge commit to a destination.
@@ -110,7 +134,11 @@ use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
 /// ```
 pub trait MergePusher: Send {
     /// Push the merge commit `merge_oid` to `destination`.
-    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError>;
+    fn push_merge(
+        &mut self,
+        destination: &Destination,
+        merge_oid: &str,
+    ) -> Result<PushAttempt, SingleFlightError>;
 }
 
 /// What:
@@ -130,7 +158,11 @@ struct PushMergeThroughGit<'a> {
 }
 
 impl MergePusher for PushMergeThroughGit<'_> {
-    fn push_merge(&mut self, target: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+    fn push_merge(
+        &mut self,
+        target: &Destination,
+        merge_oid: &str,
+    ) -> Result<PushAttempt, SingleFlightError> {
         let arguments = argv(&[
             "push",
             &target.remote,
@@ -226,9 +258,13 @@ impl MergePusherAwaiting for MergePushedByAPlainThread {
 /// ```ts
 /// for await (const asked of asks) asked.answer(pushMerge(asked));
 /// ```
-fn push_what_the_loop_asks(asked: std::sync::mpsc::Receiver<MergePushAsked>, push_merge: &mut dyn MergePusher) {
+fn push_what_the_loop_asks(
+    asked: std::sync::mpsc::Receiver<MergePushAsked>,
+    push_merge: &mut dyn MergePusher,
+) {
     for ask in asked {
-        let pushed: Result<PushAttempt, SingleFlightError> = push_merge.push_merge(&ask.destination, ask.merge_oid.as_str());
+        let pushed: Result<PushAttempt, SingleFlightError> =
+            push_merge.push_merge(&ask.destination, ask.merge_oid.as_str());
         // A loop that stopped waiting has nowhere to put the answer, and the push itself is done either way.
         let _told = ask.answer.send(pushed);
     }
@@ -280,8 +316,16 @@ impl<'env> ScopeBody<'env> for BridgedReconcile<'env> {
 
     /// Start the merge push's thread,
     /// then run the loop on the runtime and wait for it.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) -> Self::Output {
-        let BridgedReconcile { git, plan, rejected, push_merge } = self;
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'env>,
+    ) -> Self::Output {
+        let BridgedReconcile {
+            git,
+            plan,
+            rejected,
+            push_merge,
+        } = self;
         let (asks, asked) = std::sync::mpsc::channel::<MergePushAsked>();
         #[cfg_attr(
             dylint_lib = "monochromatic_lint_closure",
@@ -290,30 +334,43 @@ impl<'env> ScopeBody<'env> for BridgedReconcile<'env> {
                 reason = "`Builder::spawn_scoped` accepts only a callable, and it must carry the channel and the pusher of the caller; see package/git-policy/cli/doc/closure-lint-suppressions.md"
             )
         )]
-        let started: std::io::Result<ScopedJoinHandle<'scope, ()>> = if a_control_refuses_the_merge_push_thread() {
-            Err(std::io::Error::from_raw_os_error(libc::EAGAIN))
-        } else {
-            std::thread::Builder::new()
-                .name(String::from("git-policy-merge-push"))
-                .spawn_scoped(scope, move || push_what_the_loop_asks(asked, push_merge))
-        };
+        let started: std::io::Result<ScopedJoinHandle<'scope, ()>> =
+            if a_control_refuses_the_merge_push_thread() {
+                Err(std::io::Error::from_raw_os_error(libc::EAGAIN))
+            } else {
+                std::thread::Builder::new()
+                    .name(String::from("git-policy-merge-push"))
+                    .spawn_scoped(scope, move || push_what_the_loop_asks(asked, push_merge))
+            };
         if let Err(refused) = started {
             debug(
                 TAG,
                 &format!(
                     "{}; nothing was pushed or changed, and the push's own report stands",
-                    crate::scoped_start::refused_thread_sentence("push the merge of a reconcile", &refused)
+                    crate::scoped_start::refused_thread_sentence(
+                        "push the merge of a reconcile",
+                        &refused
+                    )
                 ),
             );
             return Ok(Integrated::NotDivergent(rejected));
         }
-        let mut awaited: MergePushedByAPlainThread = MergePushedByAPlainThread { asks };
-        let answered = crate::lazy_runtime::run_on_runtime(integrate_and_push_awaiting(git, plan, rejected, &mut awaited));
+        let mut awaited: MergePushedByAPlainThread = MergePushedByAPlainThread {
+            asks,
+        };
+        let answered = crate::lazy_runtime::run_on_runtime(integrate_and_push_awaiting(
+            git,
+            plan,
+            rejected,
+            &mut awaited,
+        ));
         // The thread ends as soon as this side's end of the channel goes, and the scope waits for it here.
         drop(awaited);
         return match answered {
             Ok(integrated) => integrated,
-            Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+            Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+                refusal.to_string(),
+            ))),
         };
     }
 }
@@ -347,7 +404,12 @@ pub fn integrate_and_push(
     rejected: PushAttempt,
     push_merge: &mut dyn MergePusher,
 ) -> Result<Integrated, SingleFlightError> {
-    return in_thread_scope(BridgedReconcile { git, plan, rejected, push_merge });
+    return in_thread_scope(BridgedReconcile {
+        git,
+        plan,
+        rejected,
+        push_merge,
+    });
 }
 
 /// What:
@@ -402,7 +464,9 @@ pub fn reconcile_divergent_push(
     };
     let plan: Reconcile<'_> = auto_push_plan(destination, local, branch_ref);
     // The loop takes its push as a value so controls can stand in for it; this one carries the Git context.
-    let mut push_merge: PushMergeThroughGit<'_> = PushMergeThroughGit { git };
+    let mut push_merge: PushMergeThroughGit<'_> = PushMergeThroughGit {
+        git,
+    };
     return attempt_of(integrate_and_push(git, &plan, rejected, &mut push_merge));
 }
 

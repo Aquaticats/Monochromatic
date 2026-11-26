@@ -15,11 +15,22 @@
 //! expect(holdingIn(withHolding(record, holding))).toEqual(holding); expect(provenGone(deadChildHolder())).toBe(true);
 //! ```
 
-use super::{Holding, Verdict, holding_in, pid_of, proven_gone, this_command, with_holding};
+use super::{
+    Holding,
+    Verdict,
+    holding_in,
+    pid_of,
+    proven_gone,
+    this_command,
+    with_holding,
+};
 use crate::claim_time::current_boot_id;
 use crate::process_identity::current_birth_identity;
 use crate::test_support::spawn_owned;
-use crate::work_item::{WorkItem, WorkKind};
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+};
 use std::path::PathBuf;
 
 /// One held push record's text,
@@ -44,7 +55,10 @@ fn record_text() -> String {
 /// as `this_command` would have spelled it for a process that has ended.
 /// Why:
 ///   A born-and-ended process is the one holder a control can make without a race.
-fn holder_of_an_ended_process(pid: u32, birth: &str) -> String {
+fn holder_of_an_ended_process(
+    pid: u32,
+    birth: &str,
+) -> String {
     return format!("{}/{pid}/{birth}", current_boot_id());
 }
 
@@ -58,11 +72,19 @@ fn holder_of_an_ended_process(pid: u32, birth: &str) -> String {
 fn a_record_keeps_its_item_and_gains_the_holding() {
     let text: String = record_text();
     let before: WorkItem = WorkItem::decode(text.as_str()).expect("the record the queue writes");
-    let holding: Holding = Holding { holder: String::from("boot/42/linux:99"), verdict: Verdict::Blocked, reason: String::from("a secret was found") };
+    let holding: Holding = Holding {
+        holder: String::from("boot/42/linux:99"),
+        verdict: Verdict::Blocked,
+        reason: String::from("a secret was found"),
+    };
     let written: String = with_holding(text.as_str(), &holding).expect("one JSON object");
     let after: WorkItem = WorkItem::decode(written.as_str()).expect("the record with its holding");
     assert_eq!(after, before, "the item is the one the queue wrote");
-    assert_eq!(holding_in(written.as_str()), holding, "the holding is what was written");
+    assert_eq!(
+        holding_in(written.as_str()),
+        holding,
+        "the holding is what was written"
+    );
 }
 
 /// What:
@@ -75,7 +97,10 @@ fn a_record_keeps_its_item_and_gains_the_holding() {
 fn a_record_without_a_holding_reads_as_undecided() {
     let text: String = record_text();
     assert_eq!(holding_in(text.as_str()), Holding::undecided());
-    assert!(!proven_gone(""), "no command is named, so none is proven gone");
+    assert!(
+        !proven_gone(""),
+        "no command is named, so none is proven gone"
+    );
 }
 
 /// What:
@@ -84,7 +109,11 @@ fn a_record_without_a_holding_reads_as_undecided() {
 ///   A record the queue can still read by name must never be replaced by words this module guessed at.
 #[test]
 fn a_text_that_is_not_a_record_gains_no_holding() {
-    let holding: Holding = Holding { holder: String::from("boot/42/linux:99"), verdict: Verdict::Passed, reason: String::new() };
+    let holding: Holding = Holding {
+        holder: String::from("boot/42/linux:99"),
+        verdict: Verdict::Passed,
+        reason: String::new(),
+    };
     assert_eq!(with_holding("not a record", &holding), None);
     assert_eq!(with_holding("[1, 2]", &holding), None);
     assert_eq!(holding_in("not a record"), Holding::undecided());
@@ -101,12 +130,18 @@ fn a_command_that_ended_is_proven_gone() {
     // Only a child that outlives the read of its identity has one: a child that has already ended, or a zombie the
     // parent has not reaped yet, answers "gone" (`process_identity.rs`), and a `true` raced this read in about one
     // run in ten.
-    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
+    let mut child: std::process::Child =
+        spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
     let pid: u32 = child.id();
-    let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
+    let birth: String = crate::process_identity::process_birth_identity(i64::from(pid))
+        .expect("the table is readable")
+        .expect("the child runs");
     let _ended = child.kill();
     let _reaped = child.wait();
-    assert!(proven_gone(holder_of_an_ended_process(pid, birth.as_str()).as_str()), "a process that ended is gone");
+    assert!(
+        proven_gone(holder_of_an_ended_process(pid, birth.as_str()).as_str()),
+        "a process that ended is gone"
+    );
 }
 
 /// What:
@@ -119,10 +154,23 @@ fn a_command_that_ended_is_proven_gone() {
 fn a_command_that_runs_is_not_proven_gone() {
     let birth: String = current_birth_identity().expect("this process has an identity");
     let holder: String = this_command();
-    assert_eq!(pid_of(holder.as_str()), Some(i64::from(std::process::id())), "the holder names this command: {holder}");
-    assert!(holder.ends_with(birth.as_str()), "and its birth identity: {holder}");
-    assert!(!proven_gone(holder.as_str()), "this process runs, so it is not gone");
-    assert!(pid_of(birth.as_str()).is_none(), "a birth identity alone is no holder text");
+    assert_eq!(
+        pid_of(holder.as_str()),
+        Some(i64::from(std::process::id())),
+        "the holder names this command: {holder}"
+    );
+    assert!(
+        holder.ends_with(birth.as_str()),
+        "and its birth identity: {holder}"
+    );
+    assert!(
+        !proven_gone(holder.as_str()),
+        "this process runs, so it is not gone"
+    );
+    assert!(
+        pid_of(birth.as_str()).is_none(),
+        "a birth identity alone is no holder text"
+    );
 }
 
 /// What:
@@ -138,9 +186,18 @@ fn a_command_that_runs_is_not_proven_gone() {
 fn another_boot_and_a_reused_number_are_both_gone() {
     let birth: String = current_birth_identity().expect("this process has an identity");
     let own: i64 = i64::from(std::process::id());
-    assert!(proven_gone(format!("an-earlier-boot/{own}/{birth}").as_str()), "a process of an earlier boot cannot run");
-    assert!(proven_gone(format!("{}/{own}/{birth}9", current_boot_id()).as_str()), "another birth identity is another process");
-    assert!(!proven_gone(format!("{}/{own}/{birth}", current_boot_id()).as_str()), "the live command of this process is not gone");
+    assert!(
+        proven_gone(format!("an-earlier-boot/{own}/{birth}").as_str()),
+        "a process of an earlier boot cannot run"
+    );
+    assert!(
+        proven_gone(format!("{}/{own}/{birth}9", current_boot_id()).as_str()),
+        "another birth identity is another process"
+    );
+    assert!(
+        !proven_gone(format!("{}/{own}/{birth}", current_boot_id()).as_str()),
+        "the live command of this process is not gone"
+    );
 }
 
 /// What:

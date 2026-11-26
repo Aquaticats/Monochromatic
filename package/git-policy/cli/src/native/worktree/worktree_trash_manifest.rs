@@ -91,22 +91,33 @@ impl TrashManifest {
 
     /// The manifest of the trash directory `name` from its encoded text;
     /// the reason is the error.
-    pub fn decode(name: &str, text: &str) -> Result<TrashManifest, String> {
+    pub fn decode(
+        name: &str,
+        text: &str,
+    ) -> Result<TrashManifest, String> {
         if !is_trash_name(name) {
             return Err(format!("{name} is not the name of a trash directory"));
         }
         let mut parts = text.split(SEPARATOR);
         let Some(trash) = parts.next().and_then(ObjectId::decode) else {
-            return Err(format!("the record of the trash {name} does not say which directory it is"));
+            return Err(format!(
+                "the record of the trash {name} does not say which directory it is"
+            ));
         };
         let mut entries: Vec<ObjectId> = Vec::new();
         for part in parts {
             let Some(identity) = ObjectId::decode(part) else {
-                return Err(format!("the record of the trash {name} holds an identity that cannot be read: {part}"));
+                return Err(format!(
+                    "the record of the trash {name} holds an identity that cannot be read: {part}"
+                ));
             };
             entries.push(identity);
         }
-        return Ok(TrashManifest { name: name.to_string(), trash, entries });
+        return Ok(TrashManifest {
+            name: name.to_string(),
+            trash,
+            entries,
+        });
     }
 }
 

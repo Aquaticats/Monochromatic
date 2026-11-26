@@ -4,14 +4,20 @@
 //! private storage and removal on disk.
 
 use super::*;
+use crate::path_bytes_in_records::hex_of_bytes;
 use crate::path_bytes_in_records::hex_of_path;
+use crate::private_storage::{
+    take_directory_syncs,
+    take_file_syncs,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal_encoding_and_validation::*;
-use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
-use crate::private_storage::{take_directory_syncs, take_file_syncs};
-use crate::test_support::{fixture, remove};
-use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// A valid staged journal whose paths live under one fixture root.
@@ -80,7 +86,8 @@ fn encoded_journal_parses_back_to_itself() {
 /// as the release installed before them wrote it.
 fn strip_bytes_fields(text: &str) -> String {
     let value: serde_json::Value = serde_json::from_str(text).expect("a journal");
-    let object: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+    let object: serde_json::Map<String, serde_json::Value> =
+        value.as_object().expect("an object").clone();
     let mut earlier: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     for (key, field) in object {
         if !key.ends_with("Hex") {
@@ -150,9 +157,7 @@ fn validation_refuses_each_malformed_shape() {
             base.replace(
                 &format!(
                     "\"stageContainerHex\":{}",
-                    quote(
-                        hex_of_path(root.join(".cli-git-worktree-copy-abc").as_path()).as_str()
-                    )
+                    quote(hex_of_path(root.join(".cli-git-worktree-copy-abc").as_path()).as_str())
                 ),
                 &format!(
                     "\"stageContainerHex\":{}",
@@ -172,7 +177,9 @@ fn validation_refuses_each_malformed_shape() {
                 "\"intendedEntries\":[\"cache\"]",
                 "\"intendedEntries\":[\"../escape\"]",
             ),
-            String::from("monochromatic-git-policy-cli: Git returned unsafe ignored path \"../escape\"."),
+            String::from(
+                "monochromatic-git-policy-cli: Git returned unsafe ignored path \"../escape\".",
+            ),
         ),
         (
             base.replace(
@@ -238,8 +245,21 @@ fn identities_are_canonical_decimals() {
     assert_eq!(decimal_identity(&text("0")), Some(0));
     assert_eq!(decimal_identity(&text("7")), Some(7));
     assert_eq!(decimal_identity(&text("10")), Some(10));
-    assert_eq!(decimal_identity(&text("18446744073709551615")), Some(u64::MAX));
-    for refused in ["", "00", "01", "-1", "+1", "1.0", "a", "1 ", "18446744073709551616"] {
+    assert_eq!(
+        decimal_identity(&text("18446744073709551615")),
+        Some(u64::MAX)
+    );
+    for refused in [
+        "",
+        "00",
+        "01",
+        "-1",
+        "+1",
+        "1.0",
+        "a",
+        "1 ",
+        "18446744073709551616",
+    ] {
         assert_eq!(decimal_identity(&text(refused)), None, "{refused:?}");
     }
     assert_eq!(decimal_identity(&serde_json::Value::from(7_u64)), None);
@@ -277,7 +297,10 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     place(&mut unprefixed, root.join("plain-stage"));
     refuse(&unprefixed, relation.clone());
     let mut elsewhere: Journal = sample(root.as_path());
-    place(&mut elsewhere, root.join("elsewhere/.cli-git-worktree-copy-abc"));
+    place(
+        &mut elsewhere,
+        root.join("elsewhere/.cli-git-worktree-copy-abc"),
+    );
     refuse(&elsewhere, relation.clone());
     let mut misplaced_payload: Journal = sample(root.as_path());
     misplaced_payload.stage_root = root.join(".cli-git-worktree-copy-abc/other");
@@ -303,7 +326,9 @@ fn journal_is_written_privately_and_read_back() {
     let journal_root: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     assert_eq!(
         journal_root,
-        common.join("monochromatic-git-policy-cli-worktree-copy").join("v1")
+        common
+            .join("monochromatic-git-policy-cli-worktree-copy")
+            .join("v1")
     );
     assert_eq!(
         std::fs::metadata(journal_root.as_path())
@@ -496,7 +521,9 @@ fn removals_report_what_they_cannot_inspect() {
 #[test]
 fn a_refused_creation_names_the_refusal() {
     let root: PathBuf = fixture("journal-create-refused");
-    let common: PathBuf = std::fs::canonicalize(&root).expect("canonical").join("common");
+    let common: PathBuf = std::fs::canonicalize(&root)
+        .expect("canonical")
+        .join("common");
     std::fs::create_dir(&common).expect("common");
     std::fs::set_permissions(&common, std::fs::Permissions::from_mode(0o500)).expect("lock");
     let outcome = ensure_journal_root(common.as_path());
@@ -569,9 +596,13 @@ fn only_a_journals_own_temporaries_are_removed() {
 /// which work on a thread of its own never does.
 #[test]
 fn the_removal_workers_take_places_of_the_processs_bound() {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{
+        AtomicBool,
+        Ordering,
+    };
     use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
     let root: PathBuf = fixture("journal-split-removal-places");
     let stage: PathBuf = root.join("stage");
     for subtree in 0..9 {
@@ -585,11 +616,20 @@ fn the_removal_workers_take_places_of_the_processs_bound() {
     //  removals reached the process's bound instead of starting at once.
     match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
         Ok(true) => {}
-        Ok(false) => panic!("the job that holds the only place saw no ask, so no worker of the split removal took a place of the process's bound"),
-        Err(RecvTimeoutError::Timeout) => panic!("no worker of the split removal asked for a place of the process's bound within the patience, so the subtrees were not removed by jobs of the blocking pool"),
-        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+        Ok(false) => panic!(
+            "the job that holds the only place saw no ask, so no worker of the split removal took a place of the process's bound"
+        ),
+        Err(RecvTimeoutError::Timeout) => panic!(
+            "no worker of the split removal asked for a place of the process's bound within the patience, so the subtrees were not removed by jobs of the blocking pool"
+        ),
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("the job that holds the only place ended without answering")
+        }
     }
-    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a worker of the removal");
+    assert!(
+        given_back.load(Ordering::SeqCst),
+        "the place of the process's bound was never given back to a worker of the removal"
+    );
     remove(root.as_path());
 }
 
@@ -603,7 +643,11 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
         let directory: PathBuf = stage.join(format!("payload/root/group/subtree{subtree}/deeper"));
         std::fs::create_dir_all(directory.as_path()).expect("directories");
         std::fs::write(directory.join("file"), b"x").expect("file");
-        std::fs::write(stage.join(format!("payload/root/group/subtree{subtree}/near")), b"y").expect("near file");
+        std::fs::write(
+            stage.join(format!("payload/root/group/subtree{subtree}/near")),
+            b"y",
+        )
+        .expect("near file");
     }
     std::fs::write(stage.join("payload/top"), b"z").expect("shallow file");
     remove_tree_if_present(stage.as_path()).expect("removed");
@@ -623,10 +667,24 @@ fn a_vanished_journal_is_skipped_and_a_corrupt_one_reads_as_unreadable() {
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
-    assert!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped").is_none());
-    crate::private_storage::write_private_file(journals.join("corrupt.json").as_path(), b"not json").expect("corrupt journal");
-    let reading: JournalFile = read_listed_journal(journals.as_path(), "corrupt.json").expect("read").expect("present");
-    let JournalFile::Unreadable { path, reason } = reading else {
+    assert!(
+        read_listed_journal(journals.as_path(), "gone.json")
+            .expect("skipped")
+            .is_none()
+    );
+    crate::private_storage::write_private_file(
+        journals.join("corrupt.json").as_path(),
+        b"not json",
+    )
+    .expect("corrupt journal");
+    let reading: JournalFile = read_listed_journal(journals.as_path(), "corrupt.json")
+        .expect("read")
+        .expect("present");
+    let JournalFile::Unreadable {
+        path,
+        reason,
+    } = reading
+    else {
         panic!("a corrupt journal is not a pending one");
     };
     assert_eq!(path, journals.join("corrupt.json"));
@@ -642,9 +700,21 @@ fn a_journal_names_its_owner() {
     let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
     let path: PathBuf = PathBuf::from(format!("/journals/abc.{}.json", owner.token()));
     assert_eq!(owner_token_of(path.as_path()), Some(owner.token()));
-    assert_eq!(owner_token_of(Path::new("/journals/abc.json")), None, "a name an earlier release wrote names no owner");
-    assert_eq!(owner_token_of(Path::new("/journals/abc.def.stage")), None, "a file that is no journal");
-    assert_eq!(owner_token_of(Path::new("/journals/abc..json")), None, "a name without a token field names no owner");
+    assert_eq!(
+        owner_token_of(Path::new("/journals/abc.json")),
+        None,
+        "a name an earlier release wrote names no owner"
+    );
+    assert_eq!(
+        owner_token_of(Path::new("/journals/abc.def.stage")),
+        None,
+        "a file that is no journal"
+    );
+    assert_eq!(
+        owner_token_of(Path::new("/journals/abc..json")),
+        None,
+        "a name without a token field names no owner"
+    );
 }
 
 /// A temporary file names the process that writes it,
@@ -654,12 +724,31 @@ fn a_journal_names_its_owner() {
 fn a_temporary_names_its_writer() {
     let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
     let temporary: PathBuf = temporary_path(Path::new("/journals/abc.stage"), &owner, "0f1e");
-    let name: String = temporary.file_name().expect("name").to_string_lossy().into_owned();
-    assert_eq!(temporary_writer_token(name.as_str()), Some(owner.token().as_str()));
-    assert_eq!(temporary_writer_token("abc.stage.0f1e.tmp"), Some("stage"), "an older release's name reads as a token that names nobody");
-    assert_eq!(temporary_writer_token("abc..0f1e.tmp"), None, "a name without a token field names no writer");
+    let name: String = temporary
+        .file_name()
+        .expect("name")
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(
+        temporary_writer_token(name.as_str()),
+        Some(owner.token().as_str())
+    );
+    assert_eq!(
+        temporary_writer_token("abc.stage.0f1e.tmp"),
+        Some("stage"),
+        "an older release's name reads as a token that names nobody"
+    );
+    assert_eq!(
+        temporary_writer_token("abc..0f1e.tmp"),
+        None,
+        "a name without a token field names no writer"
+    );
     assert_eq!(temporary_writer_token("abc.tmp"), None);
-    assert_eq!(temporary_writer_token("abc.json"), None, "only temporaries have writers");
+    assert_eq!(
+        temporary_writer_token("abc.json"),
+        None,
+        "only temporaries have writers"
+    );
     assert!(crate::worktree_copy_owner::CopyOwner::from_token("stage").is_none());
 }
 
@@ -670,7 +759,16 @@ fn a_failed_write_removes_its_temporary() {
     let target: PathBuf = root.join("item.stage");
     std::fs::create_dir(target.as_path()).expect("a directory where the file belongs");
     write_atomic(target.as_path(), b"x", "item").expect_err("the rename onto a directory fails");
-    let leftovers: Vec<String> = std::fs::read_dir(root.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name| { return name.ends_with(".tmp"); }).collect();
+    let leftovers: Vec<String> = std::fs::read_dir(root.as_path())
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name.ends_with(".tmp");
+        })
+        .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
     remove(root.as_path());
 }
@@ -679,7 +777,11 @@ fn a_failed_write_removes_its_temporary() {
 /// whatever the platform's identity is.
 #[test]
 fn the_longest_names_fit_a_file_name() {
-    let owner = crate::worktree_copy_owner::CopyOwner { pid: 4_194_304, birth_identity: String::from("linux:123456789012"), pid_namespace: Some(String::from("pid:[4026531836]")) };
+    let owner = crate::worktree_copy_owner::CopyOwner {
+        pid: 4_194_304,
+        birth_identity: String::from("linux:123456789012"),
+        pid_namespace: Some(String::from("pid:[4026531836]")),
+    };
     let identifier: String = "0".repeat(36);
     let journal: String = format!("{identifier}.{}{JOURNAL_SUFFIX}", owner.token());
     let temporary: String = format!("{journal}.{}.{identifier}{TEMPORARY_SUFFIX}", owner.token());
@@ -691,7 +793,10 @@ fn the_longest_names_fit_a_file_name() {
 /// every thread.
 #[test]
 fn a_split_removal_where_no_thread_can_start_removes_the_whole_tree() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_split_removal_where_no_thread_can_start_removes_the_whole_tree") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_split_removal_where_no_thread_can_start_removes_the_whole_tree",
+    ) {
         return;
     }
     let root: std::path::PathBuf = crate::test_support::fixture("journal-removal-no-threads");
@@ -708,10 +813,20 @@ fn a_split_removal_where_no_thread_can_start_removes_the_whole_tree() {
 
 /// A source repository with one ignored `cache` file,
 /// and a destination registered by real Git whose parent holds `parent_bytes`.
-fn staged_for_destination(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf, StagedSnapshot) {
-    use crate::test_support::{git, git_context, repository};
+fn staged_for_destination(
+    name: &str,
+    parent_bytes: &[u8],
+) -> (PathBuf, PathBuf, PathBuf, StagedSnapshot) {
+    use crate::test_support::{
+        git,
+        git_context,
+        repository,
+    };
     use crate::worktree_copy_selection::CopySelection;
-    use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+    use crate::worktree_copy_stage::{
+        new_stage_container,
+        stage_ignored_snapshot,
+    };
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture(name);
@@ -734,7 +849,9 @@ fn staged_for_destination(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf,
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         canonical_source.as_path(),
-        new_stage_container(canonical.as_path()).expect("container").as_path(),
+        new_stage_container(canonical.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::Ignored,
     )
@@ -754,7 +871,12 @@ fn earlier_release_roots(text: &str) -> Option<Vec<String>> {
         return None;
     }
     let mut roots: Vec<String> = Vec::new();
-    for field in ["destinationRoot", "sourceRoot", "stageContainer", "stageRoot"] {
+    for field in [
+        "destinationRoot",
+        "sourceRoot",
+        "stageContainer",
+        "stageRoot",
+    ] {
         roots.push(String::from(object.get(field)?.as_str()?));
     }
     return Some(roots);
@@ -768,13 +890,23 @@ fn a_temporary_beside_a_path_that_is_not_text_keeps_its_bytes() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("journal-temporary-bytes");
-    let path: PathBuf = root.join(OsStr::from_bytes(b"journals\xff")).join("id.json");
+    let path: PathBuf = root
+        .join(OsStr::from_bytes(b"journals\xff"))
+        .join("id.json");
     let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
     let temporary: PathBuf = temporary_path(path.as_path(), &owner, "unique");
     let mut expected: std::ffi::OsString = path.clone().into_os_string();
     expected.push(format!(".{}.unique.tmp", owner.token()));
-    assert_eq!(temporary, PathBuf::from(expected), "the suffix follows the path's own bytes");
-    assert_eq!(temporary.parent(), path.parent(), "the temporary stands beside the journal");
+    assert_eq!(
+        temporary,
+        PathBuf::from(expected),
+        "the suffix follows the path's own bytes"
+    );
+    assert_eq!(
+        temporary.parent(),
+        path.parent(),
+        "the temporary stands beside the journal"
+    );
     remove(root.as_path());
 }
 
@@ -788,13 +920,26 @@ fn recovery_installs_into_a_destination_whose_path_is_not_text() {
     ) {
         return;
     }
-    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::test_support::dead_copy_owner;
-    let (root, common, destination, snapshot) = staged_for_destination("journal-recovery-bytes", b"par\xffnt");
-    let pending: PendingJournal = create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    let (root, common, destination, snapshot) =
+        staged_for_destination("journal-recovery-bytes", b"par\xffnt");
+    let pending: PendingJournal = create_journal_for(
+        common.as_path(),
+        destination.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
     let text: String = std::fs::read_to_string(pending.path.as_path()).expect("journal file");
     assert!(
-        text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destination.as_path()).as_str())).as_str()),
+        text.contains(
+            format!(
+                "\"destinationRootHex\":{}",
+                quote(hex_of_path(destination.as_path()).as_str())
+            )
+            .as_str()
+        ),
         "the record keeps the destination's bytes: {text}"
     );
     assert!(
@@ -803,9 +948,15 @@ fn recovery_installs_into_a_destination_whose_path_is_not_text() {
     );
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1, "{report:?}");
-    assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload");
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).expect("copied"),
+        b"payload"
+    );
     let replacement: PathBuf = PathBuf::from(destination.to_string_lossy().into_owned());
-    assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
+    assert!(
+        !replacement.exists(),
+        "nothing is installed at the replacement spelling"
+    );
     remove(root.as_path());
 }
 
@@ -813,13 +964,18 @@ fn recovery_installs_into_a_destination_whose_path_is_not_text() {
 /// recovery fills each destination with its own copy and neither takes the other's.
 #[test]
 fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_journal::tests::two_journals_whose_roots_differ_only_in_bytes_are_two_records") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_journal::tests::two_journals_whose_roots_differ_only_in_bytes_are_two_records",
+    ) {
         return;
     }
     use crate::test_support::dead_copy_owner;
     use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::worktree_copy_selection::CopySelection;
-    use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+    use crate::worktree_copy_stage::{
+        new_stage_container,
+        stage_ignored_snapshot,
+    };
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("journal-two-byte-names");
@@ -830,7 +986,10 @@ fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     // Two destinations of one repository, under parents that are the same text and differ in one byte.
     let mut destinations: Vec<PathBuf> = Vec::new();
-    for (bytes, branch) in [(b"one\xff".as_slice(), "first"), (b"one\xfe".as_slice(), "second")] {
+    for (bytes, branch) in [
+        (b"one\xff".as_slice(), "first"),
+        (b"one\xfe".as_slice(), "second"),
+    ] {
         let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
         std::fs::create_dir_all(parent.as_path()).expect("parent");
         let destination: PathBuf = parent.join("topic");
@@ -848,30 +1007,65 @@ fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
         let snapshot: StagedSnapshot = stage_ignored_snapshot(
             &crate::test_support::git_context(),
             source.as_path(),
-            new_stage_container(destination.as_path()).expect("container").as_path(),
+            new_stage_container(destination.as_path())
+                .expect("container")
+                .as_path(),
             &[],
             &CopySelection::Ignored,
         )
         .expect("staged");
-        journals.push(create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal"));
+        journals.push(
+            create_journal_for(
+                common.as_path(),
+                destination.as_path(),
+                &snapshot,
+                &dead_copy_owner(),
+            )
+            .expect("journal"),
+        );
     }
-    let first_text: String = std::fs::read_to_string(journals[0].path.as_path()).expect("first file");
-    let second_text: String = std::fs::read_to_string(journals[1].path.as_path()).expect("second file");
-    assert_ne!(first_text, second_text, "the two destinations are two records");
+    let first_text: String =
+        std::fs::read_to_string(journals[0].path.as_path()).expect("first file");
+    let second_text: String =
+        std::fs::read_to_string(journals[1].path.as_path()).expect("second file");
+    assert_ne!(
+        first_text, second_text,
+        "the two destinations are two records"
+    );
     assert!(
-        first_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[0].as_path()).as_str())).as_str()),
+        first_text.contains(
+            format!(
+                "\"destinationRootHex\":{}",
+                quote(hex_of_path(destinations[0].as_path()).as_str())
+            )
+            .as_str()
+        ),
         "the first names its own bytes: {first_text}"
     );
     assert!(
-        second_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[1].as_path()).as_str())).as_str()),
+        second_text.contains(
+            format!(
+                "\"destinationRootHex\":{}",
+                quote(hex_of_path(destinations[1].as_path()).as_str())
+            )
+            .as_str()
+        ),
         "the second names its own bytes: {second_text}"
     );
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 2, "{report:?}");
     for destination in &destinations {
-        assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload", "{}", destination.display());
+        assert_eq!(
+            std::fs::read(destination.join("cache/data")).expect("copied"),
+            b"payload",
+            "{}",
+            destination.display()
+        );
         let replacement: PathBuf = PathBuf::from(destination.to_string_lossy().into_owned());
-        assert!(!replacement.exists(), "nothing is written at the replacement spelling");
+        assert!(
+            !replacement.exists(),
+            "nothing is written at the replacement spelling"
+        );
     }
     remove(root.as_path());
 }
@@ -886,16 +1080,40 @@ fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_byte
         return;
     }
     use crate::test_support::dead_copy_owner;
-    let (text_root, text_common, text_destination, text_snapshot) = staged_for_destination("journal-earlier-text", b"parent");
-    let text_journal: PendingJournal = create_journal_for(text_common.as_path(), text_destination.as_path(), &text_snapshot, &dead_copy_owner()).expect("journal");
+    let (text_root, text_common, text_destination, text_snapshot) =
+        staged_for_destination("journal-earlier-text", b"parent");
+    let text_journal: PendingJournal = create_journal_for(
+        text_common.as_path(),
+        text_destination.as_path(),
+        &text_snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
     let text: String = std::fs::read_to_string(text_journal.path.as_path()).expect("journal file");
-    let roots: Vec<String> = earlier_release_roots(text.as_str()).expect("the installed release reads a text journal");
-    assert_eq!(roots[0], text_destination.to_string_lossy(), "the destination is the one this build named");
-    assert_eq!(roots[2], text_snapshot.stage_container.to_string_lossy(), "the stage is the one this build named");
+    let roots: Vec<String> =
+        earlier_release_roots(text.as_str()).expect("the installed release reads a text journal");
+    assert_eq!(
+        roots[0],
+        text_destination.to_string_lossy(),
+        "the destination is the one this build named"
+    );
+    assert_eq!(
+        roots[2],
+        text_snapshot.stage_container.to_string_lossy(),
+        "the stage is the one this build named"
+    );
     remove(text_root.as_path());
-    let (bytes_root, bytes_common, bytes_destination, bytes_snapshot) = staged_for_destination("journal-earlier-bytes", b"par\xffnt");
-    let bytes_journal: PendingJournal = create_journal_for(bytes_common.as_path(), bytes_destination.as_path(), &bytes_snapshot, &dead_copy_owner()).expect("journal");
-    let bytes_text: String = std::fs::read_to_string(bytes_journal.path.as_path()).expect("journal file");
+    let (bytes_root, bytes_common, bytes_destination, bytes_snapshot) =
+        staged_for_destination("journal-earlier-bytes", b"par\xffnt");
+    let bytes_journal: PendingJournal = create_journal_for(
+        bytes_common.as_path(),
+        bytes_destination.as_path(),
+        &bytes_snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
+    let bytes_text: String =
+        std::fs::read_to_string(bytes_journal.path.as_path()).expect("journal file");
     assert_eq!(
         earlier_release_roots(bytes_text.as_str()),
         None,
@@ -921,13 +1139,25 @@ fn a_journal_file_that_is_not_text_reads_as_a_record_nothing_can_read() {
     // found it moves it aside; it never fails a command and it is never deleted by a reader.
     let listed: Vec<JournalFile> = read_listed_journals(common.as_path()).expect("listed");
     assert_eq!(listed.len(), 1, "the record is listed");
-    let JournalFile::Unreadable { path: named, reason } = &listed[0] else {
+    let JournalFile::Unreadable {
+        path: named,
+        reason,
+    } = &listed[0]
+    else {
         panic!("a journal that is not text is not a pending one");
     };
     assert_eq!(named, &path);
     assert_eq!(reason, "its bytes are not text");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty(), "no reader acts on it");
-    assert!(path.exists(), "a journal this release cannot read is still there for the command that settles it");
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty(),
+        "no reader acts on it"
+    );
+    assert!(
+        path.exists(),
+        "a journal this release cannot read is still there for the command that settles it"
+    );
     remove(root.as_path());
 }
 
@@ -937,11 +1167,13 @@ fn a_journal_file_that_is_not_text_reads_as_a_record_nothing_can_read() {
 #[cfg(unix)]
 #[test]
 fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_journal::tests::recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_journal::tests::recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name",
+    ) {
         return;
     }
-    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::test_support::dead_copy_owner;
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::worktree_copy_selection::CopySelection;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("journal-ignored-name-bytes");
@@ -955,31 +1187,59 @@ fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
     let parent: PathBuf = root.join("destinations");
     std::fs::create_dir_all(parent.as_path()).expect("parent");
     let named: PathBuf = parent.join("topic");
-    crate::test_support::git(source.as_path(), &["worktree", "add", "--quiet", "-b", "one", named.to_str().expect("utf8")]);
+    crate::test_support::git(
+        source.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "one",
+            named.to_str().expect("utf8"),
+        ],
+    );
     let destination: PathBuf = std::fs::canonicalize(named).expect("canonical destination");
-    let canonical_source: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
+    let canonical_source: PathBuf =
+        std::fs::canonicalize(source.as_path()).expect("canonical source");
     let snapshot: StagedSnapshot = crate::worktree_copy_stage::stage_ignored_snapshot(
         &crate::test_support::git_context(),
         canonical_source.as_path(),
-        crate::worktree_copy_stage::new_stage_container(destination.as_path()).expect("container").as_path(),
+        crate::worktree_copy_stage::new_stage_container(destination.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::Ignored,
     )
     .expect("staged");
-    let pending: PendingJournal = create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    let pending: PendingJournal = create_journal_for(
+        common.as_path(),
+        destination.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
     let text: String = std::fs::read_to_string(pending.path.as_path()).expect("journal file");
     assert!(
         text.contains("\"selectedRoots\":[\"cache\"]"),
         "a root whose name is text keeps the text form the earlier release reads: {text}"
     );
-    assert!(!text.contains("\"selectedRootsHex\""), "the bytes form is written only where the text is not exact: {text}");
+    assert!(
+        !text.contains("\"selectedRootsHex\""),
+        "the bytes form is written only where the text is not exact: {text}"
+    );
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1, "{report:?}");
     let mut installed: PathBuf = destination.join("cache");
     installed.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
-    assert_eq!(std::fs::read(installed.as_path()).expect("copied under its own name"), b"payload");
+    assert_eq!(
+        std::fs::read(installed.as_path()).expect("copied under its own name"),
+        b"payload"
+    );
     let replacement: PathBuf = destination.join("cache/bad\u{FFFD}.bin");
-    assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
+    assert!(
+        !replacement.exists(),
+        "nothing is installed at the replacement spelling"
+    );
     remove(root.as_path());
 }
 
@@ -1001,17 +1261,29 @@ fn a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_tha
     journal.intended_entries = vec![awkward.clone()];
     let text: String = encode_journal(&journal);
     assert!(
-        text.contains(&format!("\"selectedRootsHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        text.contains(&format!(
+            "\"selectedRootsHex\":[{}]",
+            quote(hex_of_bytes(awkward.as_slice()).as_str())
+        )),
         "the root's bytes are in the record: {text}"
     );
     assert!(
-        text.contains(&format!("\"intendedEntriesHex\":[{}]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        text.contains(&format!(
+            "\"intendedEntriesHex\":[{}]",
+            quote(hex_of_bytes(awkward.as_slice()).as_str())
+        )),
         "the claim's bytes are in the record: {text}"
     );
-    assert!(!text.contains("\"selectedRoots\":["), "a root that is not text has no plain spelling: {text}");
-    assert!(!text.contains("\"intendedEntries\":["), "a claim that is not text has no plain spelling: {text}");
-    let read_back: Journal =
-        parse_journal(text.as_str(), path.as_path(), journal_root.as_path()).expect("a journal whose lists are bytes reads");
+    assert!(
+        !text.contains("\"selectedRoots\":["),
+        "a root that is not text has no plain spelling: {text}"
+    );
+    assert!(
+        !text.contains("\"intendedEntries\":["),
+        "a claim that is not text has no plain spelling: {text}"
+    );
+    let read_back: Journal = parse_journal(text.as_str(), path.as_path(), journal_root.as_path())
+        .expect("a journal whose lists are bytes reads");
     assert_eq!(read_back.selected_roots, vec![awkward.clone()]);
     assert_eq!(read_back.intended_entries, vec![awkward.clone()]);
     let earlier: String = strip_bytes_fields(text.as_str());
@@ -1054,14 +1326,35 @@ fn the_journal_and_its_removal_flush_nothing() {
     take_directory_syncs();
     write_journal(path.as_path(), &journal).expect("write");
     let written: String = std::fs::read_to_string(path.as_path()).expect("the journal is there");
-    assert!(written.contains("\"phase\":\"installing\""), "the journal is published whole: {written}");
-    remove_pending_journal(&PendingJournal { path: path.clone(), journal }).expect("removed");
-    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "a journal flushes no file");
-    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "a journal flushes no directory");
-    assert!(!stage.exists() && !path.exists(), "the journal and its stage are gone");
+    assert!(
+        written.contains("\"phase\":\"installing\""),
+        "the journal is published whole: {written}"
+    );
+    remove_pending_journal(&PendingJournal {
+        path: path.clone(),
+        journal,
+    })
+    .expect("removed");
+    assert_eq!(
+        take_file_syncs(),
+        Vec::<PathBuf>::new(),
+        "a journal flushes no file"
+    );
+    assert_eq!(
+        take_directory_syncs(),
+        Vec::<PathBuf>::new(),
+        "a journal flushes no directory"
+    );
+    assert!(
+        !stage.exists() && !path.exists(),
+        "the journal and its stage are gone"
+    );
     let control: PathBuf = root.join("durable-control");
     crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
     crate::private_storage::sync_directory(root.as_path()).expect("control directory");
-    assert!(!take_file_syncs().is_empty() && !take_directory_syncs().is_empty(), "the recorders see a durable write");
+    assert!(
+        !take_file_syncs().is_empty() && !take_directory_syncs().is_empty(),
+        "the recorders see a durable write"
+    );
     remove(root.as_path());
 }

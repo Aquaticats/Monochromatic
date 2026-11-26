@@ -35,9 +35,19 @@
 //! const read = readOneNamespace(group, readersRoot); // { namespace, attempts: [{ thread, mounts? , ended?, reason? }] }
 //! ```
 
-use crate::fs_mount_options::{MountFacts, parse_mount_table};
-use crate::mount_namespace_scan::mount_namespace_tasks::{MountNamespaceTasks, RootIdentity, is_a_thread_that_ended};
-use std::path::{Path, PathBuf};
+use crate::fs_mount_options::{
+    MountFacts,
+    parse_mount_table,
+};
+use crate::mount_namespace_scan::mount_namespace_tasks::{
+    MountNamespaceTasks,
+    RootIdentity,
+    is_a_thread_that_ended,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The bound one representative mount table is read within,
 /// the wrapper's own bound for a table another namespace holds.
@@ -94,9 +104,18 @@ impl TaskTableAttempt {
     /// The thread this attempt belongs to.
     pub fn thread(&self) -> &Path {
         return match self {
-            TaskTableAttempt::Read { thread, .. } => thread.as_path(),
-            TaskTableAttempt::Ended { thread, .. } => thread.as_path(),
-            TaskTableAttempt::Unreadable { thread, .. } => thread.as_path(),
+            TaskTableAttempt::Read {
+                thread,
+                ..
+            } => thread.as_path(),
+            TaskTableAttempt::Ended {
+                thread,
+                ..
+            } => thread.as_path(),
+            TaskTableAttempt::Unreadable {
+                thread,
+                ..
+            } => thread.as_path(),
         };
     }
 
@@ -104,9 +123,17 @@ impl TaskTableAttempt {
     /// or nothing when it answered a table.
     pub fn reason(&self) -> Option<&str> {
         return match self {
-            TaskTableAttempt::Read { .. } => None,
-            TaskTableAttempt::Ended { reason, .. } => Some(reason.as_str()),
-            TaskTableAttempt::Unreadable { reason, .. } => Some(reason.as_str()),
+            TaskTableAttempt::Read {
+                ..
+            } => None,
+            TaskTableAttempt::Ended {
+                reason,
+                ..
+            } => Some(reason.as_str()),
+            TaskTableAttempt::Unreadable {
+                reason,
+                ..
+            } => Some(reason.as_str()),
         };
     }
 }
@@ -137,7 +164,11 @@ impl NamespaceTableRead {
     /// or nothing when no thread of the namespace answered.
     pub fn table(&self) -> Option<(&Path, &[MountFacts])> {
         for attempt in &self.attempts {
-            if let TaskTableAttempt::Read { thread, mounts } = attempt {
+            if let TaskTableAttempt::Read {
+                thread,
+                mounts,
+            } = attempt
+            {
                 return Some((thread.as_path(), mounts.as_slice()));
             }
         }
@@ -166,26 +197,41 @@ impl NamespaceTableRead {
 /// ```ts
 /// const read = readOneNamespace(group, readersRoot);
 /// ```
-pub fn read_one_namespace(group: &MountNamespaceTasks, readers_root: Option<RootIdentity>) -> NamespaceTableRead {
+pub fn read_one_namespace(
+    group: &MountNamespaceTasks,
+    readers_root: Option<RootIdentity>,
+) -> NamespaceTableRead {
     let mut attempts: Vec<TaskTableAttempt> = Vec::with_capacity(1);
     for thread in group.threads_in_reading_order(readers_root) {
         let table_path: PathBuf = thread.thread.join(MOUNT_TABLE_FILE);
         match crate::plain_file::read_plain_file(table_path.as_path(), MOUNT_TABLE_LIMIT) {
             Ok(bytes) => {
-                attempts.push(TaskTableAttempt::Read { thread: thread.thread.clone(), mounts: parse_mount_table(bytes.as_slice()) });
+                attempts.push(TaskTableAttempt::Read {
+                    thread: thread.thread.clone(),
+                    mounts: parse_mount_table(bytes.as_slice()),
+                });
                 break;
             }
             Err(error) => {
                 let reason: String = error.to_string();
                 attempts.push(if is_a_thread_that_ended(&error) {
-                    TaskTableAttempt::Ended { thread: thread.thread.clone(), reason }
+                    TaskTableAttempt::Ended {
+                        thread: thread.thread.clone(),
+                        reason,
+                    }
                 } else {
-                    TaskTableAttempt::Unreadable { thread: thread.thread.clone(), reason }
+                    TaskTableAttempt::Unreadable {
+                        thread: thread.thread.clone(),
+                        reason,
+                    }
                 });
             }
         }
     }
-    return NamespaceTableRead { namespace: group.namespace.clone(), attempts };
+    return NamespaceTableRead {
+        namespace: group.namespace.clone(),
+        attempts,
+    };
 }
 
 /// Controls stay out of the release executable.

@@ -43,32 +43,36 @@
 //!  Elsewhere a signal that arrives in the instant between the child's exit and its reaping
 //!  could reach a recycled PID.
 
-/// `c_int` is the C integer type signal numbers and status codes use.
-#[cfg(unix)]
-use std::ffi::c_int;
-/// `io` is the input and output error type the spawn and wait calls return.
-use std::io;
-/// The start of the child,
-/// pausing on the runtime's timer when the system refuses a process.
-use crate::start_retry::spawn_retrying_without_blocking;
+/// A child owned until it is reaped,
+/// awaited through its pidfd.
+use crate::child_awaited_through_a_pidfd::adopt;
 /// The process's runtime,
 /// which the synchronous face enters.
 use crate::lazy_runtime::run_on_runtime;
 /// The descriptor the handler sends through,
 /// and the pidfd that names the child it points at.
-use crate::signal_relay_descriptor::{ensure_relay_descriptor, pidfd_of, point_relay_at};
-/// A child owned until it is reaped,
-/// awaited through its pidfd.
-use crate::child_awaited_through_a_pidfd::adopt;
+use crate::signal_relay_descriptor::{
+    ensure_relay_descriptor,
+    pidfd_of,
+    point_relay_at,
+};
+/// The start of the child,
+/// pausing on the runtime's timer when the system refuses a process.
+use crate::start_retry::spawn_retrying_without_blocking;
+/// `c_int` is the C integer type signal numbers and status codes use.
+#[cfg(unix)]
+use std::ffi::c_int;
+/// `io` is the input and output error type the spawn and wait calls return.
+use std::io;
 /// `Command` builds the child,
 /// and `ExitStatus` is how it ended.
 use std::process::Command;
 
+/// The record of a step the wait had to end itself at its ceiling.
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
 /// The Git child's end,
 /// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
-/// The record of a step the wait had to end itself at its ceiling.
-use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
 /// What the kernel's own report of a signal says:
 /// whether a process sent it,
 /// and which one.
@@ -185,7 +189,8 @@ pub(crate) static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync:
 /// 2026-11-07):
 /// it must not be taken for the signal of a commit.
 #[cfg(unix)]
-static SERVICE_OWNS_SIGNALS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static SERVICE_OWNS_SIGNALS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// What:
 ///  One slot per relayed signal,
@@ -206,7 +211,6 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
 ///  and a guard made meanwhile relays nothing.
 #[cfg(unix)]
 static RELAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
 
 /// What:
 ///  The handler for each relayed signal.
@@ -302,7 +306,8 @@ fn send_to_published_child(signal: c_int) {
         return;
     };
     // SAFETY: the descriptor number is never closed (see `RELAY_FD`), so it stays open for the whole process.
-    let borrowed: std::os::fd::BorrowedFd<'_> = unsafe { std::os::fd::BorrowedFd::borrow_raw(*descriptor) };
+    let borrowed: std::os::fd::BorrowedFd<'_> =
+        unsafe { std::os::fd::BorrowedFd::borrow_raw(*descriptor) };
     let _failed_harmlessly = rustix::process::pidfd_send_signal(borrowed, named);
 }
 
@@ -468,7 +473,10 @@ impl SignalGuard {
     /// ```
     pub fn install() -> io::Result<Self> {
         if SERVICE_OWNS_SIGNALS.load(std::sync::atomic::Ordering::SeqCst) {
-            return Ok(Self { saved: Vec::new(), relaying: false });
+            return Ok(Self {
+                saved: Vec::new(),
+                relaying: false,
+            });
         }
         if RELAYING
             .compare_exchange(
@@ -479,7 +487,10 @@ impl SignalGuard {
             )
             .is_err()
         {
-            return Ok(Self { saved: Vec::new(), relaying: false });
+            return Ok(Self {
+                saved: Vec::new(),
+                relaying: false,
+            });
         }
         // `mut` lets each installed disposition be recorded as it is replaced.
         let mut saved: Vec<(c_int, libc::sigaction)> = Vec::with_capacity(RELAYED_SIGNALS.len());
@@ -494,7 +505,10 @@ impl SignalGuard {
                 }
             }
         }
-        return Ok(Self { saved, relaying: true });
+        return Ok(Self {
+            saved,
+            relaying: true,
+        });
     }
 
     /// What:
@@ -514,7 +528,10 @@ impl SignalGuard {
     /// ```ts
     /// runChild(command: SpawnOptions): ChildOutcome // only until every caller is async
     /// ```
-    pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
+    pub fn run_child(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<ChildOutcome> {
         return match run_on_runtime(self.run_child_awaiting(command)) {
             Ok(outcome) => outcome,
             Err(refusal) => Err(io::Error::other(refusal.to_string())),
@@ -534,10 +551,20 @@ impl SignalGuard {
     /// ```ts
     /// await guard.runChildAwaiting(command): Promise<ChildOutcome>
     /// ```
-    pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, while_held: None, stall: None };
-        let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
+    pub async fn run_child_awaiting(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<ChildOutcome> {
+        let unheeded: crate::child_number_told_at_start::ChildNumber =
+            crate::child_number_told_at_start::ChildNumber::not_started();
+        let duty: CeilingDuty<'_> = CeilingDuty {
+            told: &unheeded,
+            bound: None,
+            while_held: None,
+            stall: None,
+        };
+        let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) =
+            run_relayed(command, self.relaying, duty).await?;
         return Ok(outcome);
     }
 
@@ -659,9 +686,16 @@ pub(crate) fn retire_child(_published: bool) {}
 /// so that signal is relayed here,
 /// not lost.
 #[cfg(unix)]
-async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_>) -> io::Result<(ChildOutcome, Option<CeilingStop>)> {
+async fn run_relayed(
+    command: &mut Command,
+    relaying: bool,
+    duty: CeilingDuty<'_>,
+) -> io::Result<(ChildOutcome, Option<CeilingStop>)> {
     // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
-    let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
+    let (_unfinished, stop) =
+        crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child(
+            "a Git step of a commit",
+        )?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
     duty.told.publish(i32::try_from(started.id()).unwrap_or(0));
     let owned = adopt(started);
@@ -707,11 +741,20 @@ fn publish(child_id: u32) -> bool {
         .and_then(pidfd_of);
     if let Err(error) = ensure_relay_descriptor() {
         // The commit must go on: without the descriptor the child is not relayed to, and the log says so.
-        crate::diagnostic_log::warn("signalRelay", format!("no descriptor for the relay ({error}), so signals will not be relayed to the child").as_str());
+        crate::diagnostic_log::warn(
+            "signalRelay",
+            format!(
+                "no descriptor for the relay ({error}), so signals will not be relayed to the child"
+            )
+            .as_str(),
+        );
         return false;
     }
     let Some(pidfd) = opened else {
-        crate::diagnostic_log::warn("signalRelay", "the child could not be given a pidfd, so signals sent to this process will not be relayed to it");
+        crate::diagnostic_log::warn(
+            "signalRelay",
+            "the child could not be given a pidfd, so signals sent to this process will not be relayed to it",
+        );
         return false;
     };
     if let Err(error) = point_relay_at(Some(&pidfd)) {
@@ -744,7 +787,10 @@ fn retire(published: bool) {
     }
     CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
     if let Err(error) = point_relay_at(None) {
-        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed away from the ended child: {error}").as_str());
+        crate::diagnostic_log::warn(
+            "signalRelay",
+            format!("the relay could not be pointed away from the ended child: {error}").as_str(),
+        );
     }
 }
 

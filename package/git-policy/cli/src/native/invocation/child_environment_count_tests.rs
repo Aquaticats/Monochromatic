@@ -14,8 +14,15 @@
 /// Import the functions under test,
 ///  the shared environment builder and native string types.
 use super::tests::environment;
-use super::{COUNT_VARIABLE, environment_value, parse_config_count};
-use std::ffi::{OsStr, OsString};
+use super::{
+    COUNT_VARIABLE,
+    environment_value,
+    parse_config_count,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::process::Command;
 
 /// Lookup follows `getenv`:

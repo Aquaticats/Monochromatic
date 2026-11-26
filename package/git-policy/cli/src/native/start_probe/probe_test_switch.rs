@@ -83,7 +83,9 @@ pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
         return TestSwitch::None;
     };
     return match ProbeStep::from_name(step_name) {
-        Some(step) => TestSwitch::Hold { step },
+        Some(step) => TestSwitch::Hold {
+            step,
+        },
         None => TestSwitch::None,
     };
 }

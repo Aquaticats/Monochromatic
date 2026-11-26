@@ -39,61 +39,106 @@
 //! ```
 
 /// The attempt record a finished or stopped push produces.
-use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    SingleFlightError,
+};
+use crate::child_awaited_through_a_pidfd::{
+    OwnedChild,
+    adopt,
+};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
+use crate::lazy_runtime::run_on_runtime;
 /// How to allow a push longer,
 /// in the words of the program that runs it.
 use crate::push_deadline_advice::extend_clause;
+/// The window a run whose connection is open may stay silent for,
+/// which `lfs_upload` reads for the upload it waits on itself.
+pub use crate::push_deadline_and_patience_settings::connected_window;
+pub use crate::push_deadline_and_patience_settings::{
+    DEFAULT_PUSH_DEADLINE,
+    PUSH_DEADLINE_VARIABLE,
+    Patience,
+    positive_seconds,
+    push_deadline,
+    push_patience,
+    strip_one_line_break,
+};
+/// The least traffic a push's connection must carry in one window to count as progress,
+/// which the push,
+/// the fetch it runs and the upload are judged on.
+pub use crate::push_minimum_rate::{
+    DEFAULT_PUSH_MINIMUM_RATE_BYTES,
+    PUSH_MINIMUM_RATE_VARIABLE,
+    push_minimum_rate_bytes,
+};
 /// The clock that stops a push on a stall,
 /// and the wait it lets pass instead.
 use crate::push_progress::WaitReport;
-/// The lock files a stopped push leaves,
-/// and the ledger that finds them.
-use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
-use crate::stopped_git_locks::LockLedger;
+/// The server a wait and a stop name,
+/// and the word a command gave as its destination.
+pub use crate::push_server_naming::{
+    ServerNaming,
+    first_word,
+};
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output file of the push,
 /// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
-use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
-use crate::lazy_runtime::run_on_runtime;
-/// The stop of a push and the sweep of the locks it leaves.
-pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
+/// The stop of a push and the sweep of the locks it leaves.
+pub use crate::stop_of_a_push_and_sweep_of_its_locks::{
+    settle_locks,
+    stop_push,
+    sweep_after_exit,
+};
+/// The lock files a stopped push leaves,
+/// and the ledger that finds them.
+use crate::stop_of_the_service_noticed_by_its_children::{
+    StopArm,
+    Unfinished,
+    begin_unfinished_work,
+};
+use crate::stopped_git_locks::LockLedger;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// `File` is the shared anonymous output file;
 /// `Read`,
 /// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+};
 /// `Child` is a push handed to the sweeper;
 /// `Command` describes it;
 /// `Stdio` connects its streams.
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Stdio,
+};
 /// Time spans and the monotonic clock.
 use std::time::Duration;
-pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
-/// The window a run whose connection is open may stay silent for,
-/// which `lfs_upload` reads for the upload it waits on itself.
-pub use crate::push_deadline_and_patience_settings::connected_window;
-/// The least traffic a push's connection must carry in one window to count as progress,
-/// which the push,
-/// the fetch it runs and the upload are judged on.
-pub use crate::push_minimum_rate::{DEFAULT_PUSH_MINIMUM_RATE_BYTES, PUSH_MINIMUM_RATE_VARIABLE, push_minimum_rate_bytes};
-/// The server a wait and a stop name,
-/// and the word a command gave as its destination.
-pub use crate::push_server_naming::{ServerNaming, first_word};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
+use crate::stop_cause_and_words::stalled_reason;
 /// The causes and reports of a stop,
 /// and the line a stalled one prints,
 /// which `stop_cause_and_words.rs` owns.
-pub use crate::stop_cause_and_words::{PUSH_QUEUED_LINE, STOPPED_DELIVERY_IS_NOT_KNOWN, STOPPED_EXIT_CODE, StopCause, StopReport, StopWindow};
-use crate::stop_cause_and_words::stalled_reason;
+pub use crate::stop_cause_and_words::{
+    PUSH_QUEUED_LINE,
+    STOPPED_DELIVERY_IS_NOT_KNOWN,
+    STOPPED_EXIT_CODE,
+    StopCause,
+    StopReport,
+    StopWindow,
+};
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation:
@@ -110,19 +155,26 @@ use crate::stop_cause_and_words::stalled_reason;
 /// An open question for the owner.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
-/// The cap of a push's kept output and the words its wait line adds,
-/// which the module that waits owns.
-pub use crate::push_wait_until_done::{MAX_PUSH_OUTPUT, WAIT_NOTE_PHRASE};
-/// The wait of a bounded run,
-/// which ends when the run does or when it stalls,
-/// floods or is stopped.
-pub use crate::push_wait_until_done::{wait_until_done, wait_until_done_noting, wait_until_done_up_to};
-/// The words of a wait without the program's name,
-/// which the attempt's own line adds once.
-use crate::push_wait_until_done::wait_line_words;
 /// The flood look,
 /// which a bounded query reads for the output it watches too.
 pub(crate) use crate::push_wait_until_done::flooded;
+/// The words of a wait without the program's name,
+/// which the attempt's own line adds once.
+use crate::push_wait_until_done::wait_line_words;
+/// The cap of a push's kept output and the words its wait line adds,
+/// which the module that waits owns.
+pub use crate::push_wait_until_done::{
+    MAX_PUSH_OUTPUT,
+    WAIT_NOTE_PHRASE,
+};
+/// The wait of a bounded run,
+/// which ends when the run does or when it stalls,
+/// floods or is stopped.
+pub use crate::push_wait_until_done::{
+    wait_until_done,
+    wait_until_done_noting,
+    wait_until_done_up_to,
+};
 
 /// What:
 ///  The name a run goes by in the lines about it:
@@ -141,7 +193,13 @@ pub(crate) use crate::push_wait_until_done::flooded;
 /// const [program, ...args] = command; return [basename(program), args.find((word) => !word.startsWith('-'))].join(' ');
 /// ```
 pub fn command_label(command: &Command) -> String {
-    let program: String = command.get_program().to_string_lossy().rsplit('/').next().unwrap_or_default().to_owned();
+    let program: String = command
+        .get_program()
+        .to_string_lossy()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_owned();
     let mut arguments = command.get_args();
     return match first_word(&mut arguments) {
         Some(word) => format!("{program} {word}"),
@@ -179,9 +237,16 @@ fn read_output(file: &mut File) -> Result<(String, bool), SingleFlightError> {
     }
     let kept: usize = bytes
         .get(..limit)
-        .and_then(|head| { return head.iter().rposition(is_line_feed); })
-        .map_or(0, |at| { return at + 1; });
-    return Ok((String::from_utf8_lossy(bytes.get(..kept).unwrap_or_default()).into_owned(), true));
+        .and_then(|head| {
+            return head.iter().rposition(is_line_feed);
+        })
+        .map_or(0, |at| {
+            return at + 1;
+        });
+    return Ok((
+        String::from_utf8_lossy(bytes.get(..kept).unwrap_or_default()).into_owned(),
+        true,
+    ));
 }
 
 /// Whether a byte ends a line.
@@ -205,7 +270,11 @@ fn is_line_feed(byte: &u8) -> bool {
 /// ```ts
 /// const head = stripOneTrailingBreak(captured); const text = shortened ? `${head}\n${cutLine(label)}` : head
 /// ```
-fn kept_output_text(captured: &str, shortened: bool, label: &str) -> String {
+fn kept_output_text(
+    captured: &str,
+    shortened: bool,
+    label: &str,
+) -> String {
     let mut text: String = strip_one_line_break(captured).to_owned();
     if !shortened {
         return text;
@@ -233,7 +302,10 @@ fn kept_output_text(captured: &str, shortened: bool, label: &str) -> String {
 /// ```ts
 /// endedAttempt(status, kept) => ({ exitCode: codeOf(status), signal: signalOf(status), output: kept })
 /// ```
-fn ended_attempt(status: ExitStatus, kept: String) -> PushAttempt {
+fn ended_attempt(
+    status: ExitStatus,
+    kept: String,
+) -> PushAttempt {
     let outcome: crate::forwarding::ChildOutcome = crate::forwarding::outcome_of(status);
     return PushAttempt {
         exit_code: i64::from(crate::forwarding::exit_code(outcome)),
@@ -277,7 +349,10 @@ fn shortened_output_line(label: &str) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${waitLineWords(label, report)}`
 /// ```
-fn wait_line(label: &str, report: &WaitReport) -> String {
+fn wait_line(
+    label: &str,
+    report: &WaitReport,
+) -> String {
     return format!("{TAG}: {}", wait_line_words(label, report));
 }
 
@@ -374,9 +449,17 @@ pub fn run_bounded_push_once_naming(
     environment: &[(OsString, OsString)],
     server: Option<&str>,
 ) -> Result<PushAttempt, SingleFlightError> {
-    return match run_on_runtime(run_bounded_push_awaiting_naming(command, patience, grace, environment, server)) {
+    return match run_on_runtime(run_bounded_push_awaiting_naming(
+        command,
+        patience,
+        grace,
+        environment,
+        server,
+    )) {
         Ok(attempt) => attempt,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -429,7 +512,11 @@ pub async fn run_bounded_push_awaiting_naming(
     let mut unfinished: Unfinished = match begin_unfinished_work(false, "git push") {
         Ok(counted) => counted,
         Err(refusal) => {
-            return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, signal: None, output: format!("monochromatic-git-policy-cli: {refusal}. {PUSH_QUEUED_LINE}") });
+            return Ok(PushAttempt {
+                exit_code: STOPPED_EXIT_CODE,
+                signal: None,
+                output: format!("monochromatic-git-policy-cli: {refusal}. {PUSH_QUEUED_LINE}"),
+            });
         }
     };
     let stop: Option<StopArm> = unfinished.take_arm();
@@ -447,7 +534,9 @@ pub async fn run_bounded_push_awaiting_naming(
     naming.named_by_the_caller(server);
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
-    let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
+    let started: Child = spawn_retrying_without_blocking(&mut command)
+        .await
+        .map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
@@ -490,7 +579,9 @@ pub async fn run_bounded_push_awaiting_naming(
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
                         Patience::Fixed(limit) => limit.as_secs(),
-                        Patience::Progress { stall } => stall.as_secs(),
+                        Patience::Progress {
+                            stall,
+                        } => stall.as_secs(),
                     },
                     extend_clause()
                 ),

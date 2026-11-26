@@ -18,13 +18,16 @@
 //! const stop = takeRelayedStop();
 //! ```
 
-/// `c_int` is the C integer type signal numbers use.
-#[cfg(unix)]
-use std::ffi::c_int;
 /// A stop's signal and its sender as one word,
 /// kept in the one place that encodes them.
 #[cfg(unix)]
-use crate::stop_word::{packed, unpacked};
+use crate::stop_word::{
+    packed,
+    unpacked,
+};
+/// `c_int` is the C integer type signal numbers use.
+#[cfg(unix)]
+use std::ffi::c_int;
 
 /// The stop signal last relayed to a child and the process the kernel named as its sender,
 /// in one word:
@@ -54,13 +57,20 @@ static RELAYED_STOP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64
 /// noteRelayedStop(signal, sender)
 /// ```
 #[cfg(unix)]
-pub(crate) fn note(signal: c_int, sender: Option<i32>) {
+pub(crate) fn note(
+    signal: c_int,
+    sender: Option<i32>,
+) {
     RELAYED_STOP.store(packed(signal, sender), std::sync::atomic::Ordering::SeqCst);
 }
 
 /// The recorder of a system that relays no signal.
 #[cfg(not(unix))]
-pub(crate) fn note(_signal: std::os::raw::c_int, _sender: Option<i32>) {}
+pub(crate) fn note(
+    _signal: std::os::raw::c_int,
+    _sender: Option<i32>,
+) {
+}
 
 /// What:
 ///  The stop signal this process relayed to a child and the sender the kernel named,

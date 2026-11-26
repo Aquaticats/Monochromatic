@@ -28,19 +28,47 @@
 use crate::diagnostic_log::debug;
 use crate::worktree_clone_binding_record::registration_home::slot_of;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_finish_pass::pass_done_lines::{the_plan_was_removed_after_a_reuse, the_plan_was_removed_beside_a_new_binding, the_removal_was_finished, the_settlement_of};
+use crate::worktree_clone_removal_finish_pass::pass_done_lines::{
+    the_plan_was_removed_after_a_reuse,
+    the_plan_was_removed_beside_a_new_binding,
+    the_removal_was_finished,
+    the_settlement_of,
+};
 use crate::worktree_clone_removal_finish_pass::pass_refusal_lines::{
-    the_binding_could_not_be_read, the_binding_disagrees, the_claim_could_not_be_taken, the_clone_stands, the_gate_refused, the_name_was_reused_with_a_registration, the_plan_could_not_be_removed,
-    the_pool_could_not_prove, the_registration_could_not_be_read, the_registration_could_not_be_settled, the_slot_is_not_a_name,
+    the_binding_could_not_be_read,
+    the_binding_disagrees,
+    the_claim_could_not_be_taken,
+    the_clone_stands,
+    the_gate_refused,
+    the_name_was_reused_with_a_registration,
+    the_plan_could_not_be_removed,
+    the_pool_could_not_prove,
+    the_registration_could_not_be_read,
+    the_registration_could_not_be_settled,
+    the_slot_is_not_a_name,
 };
 use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass;
-use crate::worktree_clone_removal_finish_pass::the_plans_binding::{TheBindingEnd, finish_the_plans_binding};
+use crate::worktree_clone_removal_finish_pass::the_plans_binding::{
+    TheBindingEnd,
+    finish_the_plans_binding,
+};
 use crate::worktree_clone_removal_finish_pass::the_plans_file::remove_the_plan;
-use crate::worktree_clone_removal_finish_pass::the_plans_registration::{RegistrationStanding, settle_the_plans_registration, the_registration_standing_for};
-use crate::worktree_clone_removal_finish_pass::the_slots_claim::{TheClaim, give_the_claim_back, take_the_slots_claim};
+use crate::worktree_clone_removal_finish_pass::the_plans_registration::{
+    RegistrationStanding,
+    settle_the_plans_registration,
+    the_registration_standing_for,
+};
+use crate::worktree_clone_removal_finish_pass::the_slots_claim::{
+    TheClaim,
+    give_the_claim_back,
+    take_the_slots_claim,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, the_clone_absence};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    the_clone_absence,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::zfs_compatibility_gate::Verdict;
 use std::path::Path;
@@ -60,15 +88,32 @@ const TAG: &str = "removalFinishPass";
 /// ```ts
 /// finishOnePlan(pass, plan, planPath, lines);
 /// ```
-pub fn finish_one_plan(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_path: &Path, lines: &mut Vec<String>) {
+pub fn finish_one_plan(
+    pass: &FinishPass<'_>,
+    plan: &DestructionPlan,
+    plan_path: &Path,
+    lines: &mut Vec<String>,
+) {
     if plan.head != HeadWord::Gone {
-        debug(TAG, format!("the plan {} keeps its head as `{}`, so a removal or the settling command takes it", plan_path.display(), plan.head.word()).as_str());
+        debug(
+            TAG,
+            format!(
+                "the plan {} keeps its head as `{}`, so a removal or the settling command takes it",
+                plan_path.display(),
+                plan.head.word()
+            )
+            .as_str(),
+        );
         return;
     }
     let slot: String = match slot_of(plan.facts.target.as_path()) {
         Ok(found) => found,
         Err(said) => {
-            lines.push(the_slot_is_not_a_name(plan_path, plan.facts.target.display().to_string().as_str(), said.as_str()));
+            lines.push(the_slot_is_not_a_name(
+                plan_path,
+                plan.facts.target.display().to_string().as_str(),
+                said.as_str(),
+            ));
             return;
         }
     };
@@ -78,7 +123,9 @@ pub fn finish_one_plan(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_path:
             debug(TAG, format!("the plan {} names the slot `{slot}`, whose claim {} holds with the process {}, so that removal finishes it", plan_path.display(), owner.path.display(), owner.pid).as_str());
             return;
         }
-        TheClaim::Refused { said } => {
+        TheClaim::Refused {
+            said,
+        } => {
             lines.push(the_claim_could_not_be_taken(plan_path, said.as_str()));
             return;
         }
@@ -87,7 +134,10 @@ pub fn finish_one_plan(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_path:
     // The claim is the list's step 14 and is given back after the plan's own step; a release that
     // failed leaves a claim naming this process, which stops counting as alive when it ends.
     if let Err(said) = give_the_claim_back(&mut claim) {
-        debug(TAG, format!("the claim for the slot `{slot}` could not be released ({said})").as_str());
+        debug(
+            TAG,
+            format!("the claim for the slot `{slot}` could not be released ({said})").as_str(),
+        );
     }
 }
 
@@ -105,59 +155,117 @@ pub fn finish_one_plan(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_path:
 /// ```ts
 /// finishUnderTheClaim(pass, plan, planPath, slot, lines);
 /// ```
-fn finish_under_the_claim(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_path: &Path, slot: &str, lines: &mut Vec<String>) {
+fn finish_under_the_claim(
+    pass: &FinishPass<'_>,
+    plan: &DestructionPlan,
+    plan_path: &Path,
+    slot: &str,
+    lines: &mut Vec<String>,
+) {
     if let Verdict::Refused(refusal) = pass.gate.verdict() {
         lines.push(the_gate_refused(plan_path, format!("{refusal}").as_str()));
         return;
     }
-    let reused: Option<DatasetGuid> = match the_clone_absence(pass.probe, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid) {
+    let reused: Option<DatasetGuid> = match the_clone_absence(
+        pass.probe,
+        plan.facts.clone_dataset.as_str(),
+        plan.facts.clone_guid,
+    ) {
         Ok(CloneAbsence::Gone) => None,
-        Ok(CloneAbsence::There { name, guid }) => {
-            lines.push(the_clone_stands(plan_path, name.as_str(), guid.file_name().as_str()));
+        Ok(CloneAbsence::There {
+            name,
+            guid,
+        }) => {
+            lines.push(the_clone_stands(
+                plan_path,
+                name.as_str(),
+                guid.file_name().as_str(),
+            ));
             return;
         }
-        Ok(CloneAbsence::Reused { guid }) => Some(guid),
+        Ok(CloneAbsence::Reused {
+            guid,
+        }) => Some(guid),
         Err(stop) => {
             lines.push(the_pool_could_not_prove(plan_path, stop.message().as_str()));
             return;
         }
     };
     let standing: RegistrationStanding = the_registration_standing_for(pass.common_dir, plan);
-    if let RegistrationStanding::Unreadable { path, said } = &standing {
-        lines.push(the_registration_could_not_be_read(plan_path, path, said.as_str()));
+    if let RegistrationStanding::Unreadable {
+        path,
+        said,
+    } = &standing
+    {
+        lines.push(the_registration_could_not_be_read(
+            plan_path,
+            path,
+            said.as_str(),
+        ));
         return;
     }
     if let (Some(live), RegistrationStanding::ThisPlans) = (&reused, &standing) {
-        lines.push(the_name_was_reused_with_a_registration(plan_path, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid.file_name().as_str(), live.file_name().as_str()));
+        lines.push(the_name_was_reused_with_a_registration(
+            plan_path,
+            plan.facts.clone_dataset.as_str(),
+            plan.facts.clone_guid.file_name().as_str(),
+            live.file_name().as_str(),
+        ));
         return;
     }
     let settlement: String = match &standing {
-        RegistrationStanding::ThisPlans => match settle_the_plans_registration(pass.common_dir, slot, plan, pass.settle) {
-            Ok(answer) => {
-                // A settle that wrote the managed lock again says so in its own line, and a person
-                // reading this command's output needs that line as much as the pass's summary.
-                for said in &answer.lines {
-                    lines.push(said.clone());
+        RegistrationStanding::ThisPlans => {
+            match settle_the_plans_registration(pass.common_dir, slot, plan, pass.settle) {
+                Ok(answer) => {
+                    // A settle that wrote the managed lock again says so in its own line, and a person
+                    // reading this command's output needs that line as much as the pass's summary.
+                    for said in &answer.lines {
+                        lines.push(said.clone());
+                    }
+                    the_settlement_of(&answer)
                 }
-                the_settlement_of(&answer)
+                Err(stop) => {
+                    let (step, said) = the_settles_words(&stop);
+                    lines.push(the_registration_could_not_be_settled(
+                        plan_path,
+                        step.as_str(),
+                        said.as_str(),
+                    ));
+                    return;
+                }
             }
-            Err(stop) => {
-                let (step, said) = the_settles_words(&stop);
-                lines.push(the_registration_could_not_be_settled(plan_path, step.as_str(), said.as_str()));
-                return;
-            }
-        },
-        RegistrationStanding::Anothers => String::from("a registration of another identity stands at the plan's registration name, so nothing of this plan's was settled"),
+        }
+        RegistrationStanding::Anothers => String::from(
+            "a registration of another identity stands at the plan's registration name, so nothing of this plan's was settled",
+        ),
         _ => String::from("no registration of this plan stood"),
     };
     let end: TheBindingEnd = finish_the_plans_binding(pass.common_dir, slot, plan);
     match &end {
-        TheBindingEnd::Unreadable { path, said } => {
-            lines.push(the_binding_could_not_be_read(plan_path, path, said.as_str()));
+        TheBindingEnd::Unreadable {
+            path,
+            said,
+        } => {
+            lines.push(the_binding_could_not_be_read(
+                plan_path,
+                path,
+                said.as_str(),
+            ));
             return;
         }
-        TheBindingEnd::Differs { path, field, binding, plan: plan_value } => {
-            lines.push(the_binding_disagrees(plan_path, path, field, binding.as_str(), plan_value.as_str()));
+        TheBindingEnd::Differs {
+            path,
+            field,
+            binding,
+            plan: plan_value,
+        } => {
+            lines.push(the_binding_disagrees(
+                plan_path,
+                path,
+                field,
+                binding.as_str(),
+                plan_value.as_str(),
+            ));
             return;
         }
         _ => {}
@@ -167,10 +275,47 @@ fn finish_under_the_claim(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_pa
         return;
     }
     match (&end, &reused) {
-        (TheBindingEnd::AnotherClones, Some(live)) => lines.push(the_plan_was_removed_after_a_reuse(plan_path, slot, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid.file_name().as_str(), live.file_name().as_str())),
-        (TheBindingEnd::AnotherClones, None) => lines.push(the_plan_was_removed_beside_a_new_binding(plan_path, slot)),
-        (TheBindingEnd::Removed { files }, _) | (TheBindingEnd::Missing { files }, _) => lines.push(the_removal_was_finished(plan_path, slot, files.as_slice(), settlement.as_str())),
-        (TheBindingEnd::Unreadable { .. }, _) | (TheBindingEnd::Differs { .. }, _) => {}
+        (TheBindingEnd::AnotherClones, Some(live)) => {
+            lines.push(the_plan_was_removed_after_a_reuse(
+                plan_path,
+                slot,
+                plan.facts.clone_dataset.as_str(),
+                plan.facts.clone_guid.file_name().as_str(),
+                live.file_name().as_str(),
+            ))
+        }
+        (TheBindingEnd::AnotherClones, None) => {
+            lines.push(the_plan_was_removed_beside_a_new_binding(plan_path, slot))
+        }
+        (
+            TheBindingEnd::Removed {
+                files,
+            },
+            _,
+        )
+        | (
+            TheBindingEnd::Missing {
+                files,
+            },
+            _,
+        ) => lines.push(the_removal_was_finished(
+            plan_path,
+            slot,
+            files.as_slice(),
+            settlement.as_str(),
+        )),
+        (
+            TheBindingEnd::Unreadable {
+                ..
+            },
+            _,
+        )
+        | (
+            TheBindingEnd::Differs {
+                ..
+            },
+            _,
+        ) => {}
     }
 }
 
@@ -187,7 +332,10 @@ fn finish_under_the_claim(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_pa
 /// ```
 fn the_settles_words(stop: &RemovalStop) -> (String, String) {
     return match stop {
-        RemovalStop::TheSettleRefused { step, said } => (step.clone(), said.clone()),
+        RemovalStop::TheSettleRefused {
+            step,
+            said,
+        } => (step.clone(), said.clone()),
         other => (String::from("the settle"), other.message()),
     };
 }

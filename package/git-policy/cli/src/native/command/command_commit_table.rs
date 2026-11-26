@@ -24,7 +24,12 @@
 /// ```ts
 /// import { Arity, type OptionSpec, row, UNREAD } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionSpec, UNREAD, row};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+    UNREAD,
+    row,
+};
 
 /// `-a`,
 ///  `--all`:

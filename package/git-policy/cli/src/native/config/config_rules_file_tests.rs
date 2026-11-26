@@ -14,7 +14,11 @@
 //! ```
 
 /// Import the module under test.
-use super::{RulesFileRefusal, check_rules_file, rules_file_refusal_reason};
+use super::{
+    RulesFileRefusal,
+    check_rules_file,
+    rules_file_refusal_reason,
+};
 
 /// Relative names of non-empty,
 ///  non-dot components are accepted.

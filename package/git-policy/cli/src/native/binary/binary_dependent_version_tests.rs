@@ -17,29 +17,53 @@
 //! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'fix', '--all']).stdout).toContain('fix-summary');
 //! ```
 
+/// Import the shared fixtures and bounded process helpers.
+use super::commit::{
+    git_text,
+    run_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    wrapped,
+};
 /// The deepest indentation the generated configuration writes,
 /// which the chain below must pass.
 use git_policy_cli::dependent_version_yaml_lines::GENERATED_MAX_INDENT;
-/// Import the shared fixtures and bounded process helpers.
-use super::commit::{git_text, run_commit};
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
 /// Operating-system text for the repository name.
 use std::ffi::OsStr;
 /// Borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The captured result of a finished process.
 use std::process::Output;
 
 /// The configuration that turns the policy on.
-pub(super) const CONFIGURATION: &str = "{ \"policies\": { \"mono/dependent-version-bump\": \"error\" } }\n";
+pub(super) const CONFIGURATION: &str =
+    "{ \"policies\": { \"mono/dependent-version-bump\": \"error\" } }\n";
 
 /// Run a wrapped command in a repository and return what the caller saw.
-fn run_wrapped(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
+fn run_wrapped(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(wrapped(fixture).current_dir(repo).args(arguments), b"");
 }
 
 /// A manifest as two-space JSON with a final newline.
-pub(super) fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
+pub(super) fn manifest(
+    name: &str,
+    version: &str,
+    dependency: Option<&str>,
+) -> String {
     let dependencies: String = dependency.map_or_else(String::new, |depended: &str| {
         return format!(",\n  \"dependencies\": {{\n    \"{depended}\": \"workspace:*\"\n  }}");
     });
@@ -50,7 +74,11 @@ pub(super) fn manifest(name: &str, version: &str, dependency: Option<&str>) -> S
 
 /// Write a file below the repository,
 /// creating its directory.
-pub(super) fn write(repo: &Path, path: &str, text: &str) {
+pub(super) fn write(
+    repo: &Path,
+    path: &str,
+    text: &str,
+) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(file, text).expect("file");
@@ -96,7 +124,11 @@ fn workspace(fixture: &Fixture) -> PathBuf {
         "package/config/pnpr/config.yaml",
         &publish_set(&["@s/a", "@s/b", "@s/c"]),
     );
-    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    write(
+        repo.as_path(),
+        "monochromatic-git-policy-cli.config.jsonc",
+        CONFIGURATION,
+    );
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(
         fixture,
@@ -138,7 +170,11 @@ fn chain_workspace(fixture: &Fixture) -> PathBuf {
         "package/config/pnpr/config.yaml",
         &publish_set(&["@s/a", "@s/b", "@s/c"]),
     );
-    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    write(
+        repo.as_path(),
+        "monochromatic-git-policy-cli.config.jsonc",
+        CONFIGURATION,
+    );
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(
         fixture,
@@ -154,7 +190,12 @@ fn chain_workspace(fixture: &Fixture) -> PathBuf {
 }
 
 /// The stale finding event about dependent `name` at `sequence`.
-fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
+fn stale(
+    sequence: u64,
+    name: &str,
+    from: &str,
+    to: &str,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\
          \"policyId\":\"mono/dependent-version-bump\",\"severity\":\"error\",\
@@ -165,7 +206,10 @@ fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
 }
 
 /// The worktree text of dependent `name`.
-pub(super) fn read(repo: &Path, name: &str) -> String {
+pub(super) fn read(
+    repo: &Path,
+    name: &str,
+) -> String {
     return std::fs::read_to_string(repo.join(format!("package/module/{name}/package.json")))
         .expect("manifest");
 }
@@ -185,7 +229,11 @@ fn app_workspace(fixture: &Fixture) -> PathBuf {
         "package/module/app/package.json",
         &manifest("app", "2.0.0", Some("@s/base")),
     );
-    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    write(
+        repo.as_path(),
+        "monochromatic-git-policy-cli.config.jsonc",
+        CONFIGURATION,
+    );
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(
         fixture,
@@ -228,9 +276,17 @@ fn a_tagged_key_stops_the_check_by_line() {
         repo.as_path(),
         &["monochromatic-git-policy-cli", "check", "--all"],
     );
-    assert_eq!(refused.code, Some(2), "{}", String::from_utf8_lossy(&refused.stdout));
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
     let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
-    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains("\"code\":\"policy-incomplete\""),
+        "{events}"
+    );
     assert!(
         events.contains("begins with '!', which opens a key this reader does not read on line 9"),
         "{events}"
@@ -271,7 +327,10 @@ fn a_hash_on_a_list_item_stops_the_check() {
         String::from_utf8_lossy(&refused.stdout)
     );
     let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
-    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains("\"code\":\"policy-incomplete\""),
+        "{events}"
+    );
     assert!(
         events.contains(
             format!(
@@ -300,7 +359,11 @@ fn a_version_raising_commit_lands_without_a_publish_set() {
             "package/module/base/package.json",
             &manifest("@s/base", "1.0.0", None),
         );
-        write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+        write(
+            repo.as_path(),
+            "monochromatic-git-policy-cli.config.jsonc",
+            CONFIGURATION,
+        );
         if let Some(text) = configuration {
             write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
         }
@@ -359,7 +422,11 @@ fn check_reports_and_fix_bumps_every_dependent() {
     let fixture: Fixture = fixture("dependent-version-all");
     let repo: PathBuf = workspace(&fixture);
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
+        run_wrapped(
+            &fixture,
+            repo.as_path(),
+            &["monochromatic-git-policy-cli", "check", "--all"]
+        ),
         Observed {
             code: Some(1),
             stdout: format!(
@@ -393,7 +460,11 @@ fn check_reports_and_fix_bumps_every_dependent() {
         manifest("@s/c", "3.0.1", Some("@s/a"))
     );
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
+        run_wrapped(
+            &fixture,
+            repo.as_path(),
+            &["monochromatic-git-policy-cli", "check", "--all"]
+        ),
         Observed {
             code: Some(0),
             stdout: Vec::new(),
@@ -411,7 +482,12 @@ fn check_reports_and_fix_bumps_every_dependent() {
 fn a_narrow_fix_changes_unselected_dependents_only_when_they_match_head() {
     let fixture: Fixture = fixture("dependent-version-narrow");
     let repo: PathBuf = workspace(&fixture);
-    let narrow: [&str; 4] = ["monochromatic-git-policy-cli", "fix", "--", "package/module/a/package.json"];
+    let narrow: [&str; 4] = [
+        "monochromatic-git-policy-cli",
+        "fix",
+        "--",
+        "package/module/a/package.json",
+    ];
     let edited: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
     write(repo.as_path(), "package/module/b/package.json", &edited);
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &narrow);
@@ -520,7 +596,11 @@ fn a_staged_deletion_does_not_block_the_check() {
         &["rm", "--quiet", "--", "package/module/old/notes.txt"],
     );
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
+        run_wrapped(
+            &fixture,
+            repo.as_path(),
+            &["monochromatic-git-policy-cli", "check", "--all"]
+        ),
         Observed {
             code: Some(1),
             stdout: format!(
@@ -543,9 +623,16 @@ fn a_staged_deletion_does_not_block_the_check() {
 fn literal_pathspecs_check_a_named_manifest_like_plain_mode() {
     let fixture: Fixture = fixture("dependent-version-literal-named");
     let repo: PathBuf = workspace(&fixture);
-    let arguments: [&str; 4] = ["monochromatic-git-policy-cli", "check", "--", "package/module/a/package.json"];
+    let arguments: [&str; 4] = [
+        "monochromatic-git-policy-cli",
+        "check",
+        "--",
+        "package/module/a/package.json",
+    ];
     let plain: Observed = observe(
-        wrapped(&fixture).current_dir(repo.as_path()).args(arguments),
+        wrapped(&fixture)
+            .current_dir(repo.as_path())
+            .args(arguments),
         b"",
     );
     let literal: Observed = observe(
@@ -569,7 +656,9 @@ fn literal_pathspecs_check_all_like_plain_mode() {
     let repo: PathBuf = workspace(&fixture);
     let arguments: [&str; 3] = ["monochromatic-git-policy-cli", "check", "--all"];
     let plain: Observed = observe(
-        wrapped(&fixture).current_dir(repo.as_path()).args(arguments),
+        wrapped(&fixture)
+            .current_dir(repo.as_path())
+            .args(arguments),
         b"",
     );
     let literal: Observed = observe(
@@ -614,7 +703,10 @@ fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
         String::from_utf8_lossy(&refused.stdout)
     );
     let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
-    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains("\"code\":\"policy-incomplete\""),
+        "{events}"
+    );
     assert!(
         events.contains(
             format!(
@@ -628,7 +720,11 @@ fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
 }
 
 /// The manifest the commit at `HEAD` holds for dependent `name`.
-fn committed_manifest(fixture: &Fixture, repo: &Path, name: &str) -> String {
+fn committed_manifest(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+) -> String {
     return git_text(
         fixture,
         repo,
@@ -781,7 +877,11 @@ fn a_commit_leaves_behind_a_dependent_the_real_index_already_changes() {
     let fixture: Fixture = fixture("dependent-version-commit-staged");
     let repo: PathBuf = chain_workspace(&fixture);
     let staged_on_top: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
-    write(repo.as_path(), "package/module/b/package.json", &staged_on_top);
+    write(
+        repo.as_path(),
+        "package/module/b/package.json",
+        &staged_on_top,
+    );
     git(
         &fixture,
         repo.as_path(),

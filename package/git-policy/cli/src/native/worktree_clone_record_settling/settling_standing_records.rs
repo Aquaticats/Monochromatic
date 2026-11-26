@@ -22,14 +22,23 @@
 //! const plan = aStandingPlan(commonDir, recorded);
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{an_existing_cleanup_record, origin_cleanups_folder};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
+    an_existing_cleanup_record,
+    origin_cleanups_folder,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The five origin-side facts both a plan and a cleanup record carry,
 /// named as the records name them.
@@ -40,11 +49,23 @@ use std::path::{Path, PathBuf};
 pub fn the_five_origin_fields(recorded: &RecordedBinding) -> [(String, String); 5] {
     let own_name: String = the_own_snapshot_name(recorded.origin_snapshot.as_str());
     return [
-        (String::from("originDataset"), recorded.origin_dataset.clone()),
-        (String::from("originDatasetGuid"), recorded.origin_dataset_guid.file_name()),
+        (
+            String::from("originDataset"),
+            recorded.origin_dataset.clone(),
+        ),
+        (
+            String::from("originDatasetGuid"),
+            recorded.origin_dataset_guid.file_name(),
+        ),
         (String::from("originSnapshot"), own_name),
-        (String::from("originSnapshotGuid"), recorded.origin_snapshot_guid.file_name()),
-        (String::from("originSnapshotCreatetxg"), recorded.origin_snapshot_createtxg.to_string()),
+        (
+            String::from("originSnapshotGuid"),
+            recorded.origin_snapshot_guid.file_name(),
+        ),
+        (
+            String::from("originSnapshotCreatetxg"),
+            recorded.origin_snapshot_createtxg.to_string(),
+        ),
     ];
 }
 
@@ -74,28 +95,55 @@ fn the_own_snapshot_name(full: &str) -> String {
 /// ```ts
 /// const cleanup = aStandingOriginCleanup(commonDir, recorded); // undefined when none stands
 /// ```
-pub fn a_standing_origin_cleanup(common_dir: &Path, recorded: &RecordedBinding) -> Result<Option<OriginCleanupRecord>, SettlingStop> {
+pub fn a_standing_origin_cleanup(
+    common_dir: &Path,
+    recorded: &RecordedBinding,
+) -> Result<Option<OriginCleanupRecord>, SettlingStop> {
     let own_name: String = the_own_snapshot_name(recorded.origin_snapshot.as_str());
     let folder: PathBuf = origin_cleanups_folder(common_dir);
     let path: PathBuf = folder.join(own_name.as_str());
-    let record: OriginCleanupRecord = match an_existing_cleanup_record(common_dir, own_name.as_str()) {
-        Ok(Some(found)) => found,
-        Ok(None) => return Ok(None),
-        Err(refusal) => {
-            let said: String = refusal.message(path.as_path());
-            return Err(SettlingStop::TheOriginCleanupCouldNotBeRead { path, said });
-        }
-    };
+    let record: OriginCleanupRecord =
+        match an_existing_cleanup_record(common_dir, own_name.as_str()) {
+            Ok(Some(found)) => found,
+            Ok(None) => return Ok(None),
+            Err(refusal) => {
+                let said: String = refusal.message(path.as_path());
+                return Err(SettlingStop::TheOriginCleanupCouldNotBeRead {
+                    path,
+                    said,
+                });
+            }
+        };
     let standing: [(String, String); 5] = [
         (String::from("originDataset"), record.origin_dataset.clone()),
-        (String::from("originDatasetGuid"), record.origin_dataset_guid.file_name()),
-        (String::from("originSnapshot"), record.origin_snapshot.clone()),
-        (String::from("originSnapshotGuid"), record.origin_snapshot_guid.file_name()),
-        (String::from("originSnapshotCreatetxg"), record.origin_snapshot_createtxg.to_string()),
+        (
+            String::from("originDatasetGuid"),
+            record.origin_dataset_guid.file_name(),
+        ),
+        (
+            String::from("originSnapshot"),
+            record.origin_snapshot.clone(),
+        ),
+        (
+            String::from("originSnapshotGuid"),
+            record.origin_snapshot_guid.file_name(),
+        ),
+        (
+            String::from("originSnapshotCreatetxg"),
+            record.origin_snapshot_createtxg.to_string(),
+        ),
     ];
-    refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, binding_value, standing_value| {
-        return SettlingStop::TheOriginCleanupDisagrees { field, recorded: binding_value, standing: standing_value };
-    })?;
+    refuse_a_disagreement(
+        the_five_origin_fields(recorded),
+        standing,
+        |field, binding_value, standing_value| {
+            return SettlingStop::TheOriginCleanupDisagrees {
+                field,
+                recorded: binding_value,
+                standing: standing_value,
+            };
+        },
+    )?;
     return Ok(Some(record));
 }
 
@@ -121,15 +169,27 @@ pub fn a_standing_origin_cleanup(common_dir: &Path, recorded: &RecordedBinding) 
 /// ```ts
 /// const plan = aStandingPlan(commonDir, recorded); // undefined when none stands
 /// ```
-pub fn a_standing_plan(common_dir: &Path, recorded: &RecordedBinding) -> Result<Option<DestructionPlan>, SettlingStop> {
-    let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(common_dir).join(recorded.clone_guid.file_name());
+pub fn a_standing_plan(
+    common_dir: &Path,
+    recorded: &RecordedBinding,
+) -> Result<Option<DestructionPlan>, SettlingStop> {
+    let path: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::plans_folder(common_dir)
+            .join(recorded.clone_guid.file_name());
     let plan: DestructionPlan = match read_an_existing_plan(common_dir, recorded.clone_guid) {
         Ok(Some(found)) => found,
         Ok(None) => return Ok(None),
-        Err(refusal) => return Err(SettlingStop::ThePlanCouldNotBeRead { path: path.clone(), said: refusal.message(path.as_path()) }),
+        Err(refusal) => {
+            return Err(SettlingStop::ThePlanCouldNotBeRead {
+                path: path.clone(),
+                said: refusal.message(path.as_path()),
+            });
+        }
     };
     if plan.head == HeadWord::Gone {
-        return Err(SettlingStop::ThePlanIsTheFinishPasss { path });
+        return Err(SettlingStop::ThePlanIsTheFinishPasss {
+            path,
+        });
     }
     refuse_the_plans_identities(recorded, &plan)?;
     return Ok(Some(plan));
@@ -150,27 +210,69 @@ pub fn a_standing_plan(common_dir: &Path, recorded: &RecordedBinding) -> Result<
 /// ```ts
 /// refuseThePlansIdentities(recorded, plan);
 /// ```
-fn refuse_the_plans_identities(recorded: &RecordedBinding, plan: &DestructionPlan) -> Result<(), SettlingStop> {
+fn refuse_the_plans_identities(
+    recorded: &RecordedBinding,
+    plan: &DestructionPlan,
+) -> Result<(), SettlingStop> {
     let pairs: [(String, String, String); 3] = [
-        (String::from("cloneGuid"), recorded.clone_guid.file_name(), plan.facts.clone_guid.file_name()),
-        (String::from("target"), recorded.slot_path.display().to_string(), plan.facts.target.display().to_string()),
-        (String::from("registrationId"), String::from_utf8_lossy(recorded.registration_id.as_slice()).into_owned(), String::from_utf8_lossy(plan.facts.registration_id.as_slice()).into_owned()),
+        (
+            String::from("cloneGuid"),
+            recorded.clone_guid.file_name(),
+            plan.facts.clone_guid.file_name(),
+        ),
+        (
+            String::from("target"),
+            recorded.slot_path.display().to_string(),
+            plan.facts.target.display().to_string(),
+        ),
+        (
+            String::from("registrationId"),
+            String::from_utf8_lossy(recorded.registration_id.as_slice()).into_owned(),
+            String::from_utf8_lossy(plan.facts.registration_id.as_slice()).into_owned(),
+        ),
     ];
     for (field, binding, plan_value) in pairs {
         if binding != plan_value {
-            return Err(SettlingStop::ThePlanDisagrees { field, binding, plan: plan_value });
+            return Err(SettlingStop::ThePlanDisagrees {
+                field,
+                binding,
+                plan: plan_value,
+            });
         }
     }
     let standing: [(String, String); 5] = [
-        (String::from("originDataset"), plan.facts.origin_dataset.clone()),
-        (String::from("originDatasetGuid"), plan.facts.origin_dataset_guid.file_name()),
-        (String::from("originSnapshot"), the_own_snapshot_name(plan.facts.origin_snapshot.as_str())),
-        (String::from("originSnapshotGuid"), plan.facts.origin_snapshot_guid.file_name()),
-        (String::from("originSnapshotCreatetxg"), plan.facts.origin_snapshot_createtxg.to_string()),
+        (
+            String::from("originDataset"),
+            plan.facts.origin_dataset.clone(),
+        ),
+        (
+            String::from("originDatasetGuid"),
+            plan.facts.origin_dataset_guid.file_name(),
+        ),
+        (
+            String::from("originSnapshot"),
+            the_own_snapshot_name(plan.facts.origin_snapshot.as_str()),
+        ),
+        (
+            String::from("originSnapshotGuid"),
+            plan.facts.origin_snapshot_guid.file_name(),
+        ),
+        (
+            String::from("originSnapshotCreatetxg"),
+            plan.facts.origin_snapshot_createtxg.to_string(),
+        ),
     ];
-    return refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, binding_value, plan_value| {
-        return SettlingStop::ThePlanDisagrees { field, binding: binding_value, plan: plan_value };
-    });
+    return refuse_a_disagreement(
+        the_five_origin_fields(recorded),
+        standing,
+        |field, binding_value, plan_value| {
+            return SettlingStop::ThePlanDisagrees {
+                field,
+                binding: binding_value,
+                plan: plan_value,
+            };
+        },
+    );
 }
 
 /// The first of five fields in which a standing record and the binding disagree.
@@ -205,7 +307,8 @@ fn refuse_a_disagreement(
 pub fn the_names_the_plan_lost(plan: &DestructionPlan) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for attempt in &plan.attempts {
-        if attempt.outcome == SnapshotOutcome::Destroyed && !names.contains(&attempt.snapshot.name) {
+        if attempt.outcome == SnapshotOutcome::Destroyed && !names.contains(&attempt.snapshot.name)
+        {
             names.push(attempt.snapshot.name.clone());
         }
     }

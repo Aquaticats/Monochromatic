@@ -30,7 +30,11 @@ use std::path::Path;
 ///   try { return outcome(); } catch (error) { throw `${path} ${what} (${error})`; }
 /// }
 /// ```
-pub fn path_failure<T, E: Display>(outcome: Result<T, E>, path: &Path, what: &str) -> Result<T, String> {
+pub fn path_failure<T, E: Display>(
+    outcome: Result<T, E>,
+    path: &Path,
+    what: &str,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(format!("{} {what} ({error})", path.display())),
@@ -53,7 +57,11 @@ pub fn path_failure<T, E: Display>(outcome: Result<T, E>, path: &Path, what: &st
 ///   try { return outcome(); } catch (error) { throw `${subject} ${what} (${error})`; }
 /// }
 /// ```
-pub fn subject_failure<T, E: Display>(outcome: Result<T, E>, subject: &dyn Display, what: &str) -> Result<T, String> {
+pub fn subject_failure<T, E: Display>(
+    outcome: Result<T, E>,
+    subject: &dyn Display,
+    what: &str,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(format!("{subject} {what} ({error})")),

@@ -12,11 +12,20 @@
 //! const retained = await rollbackCreated({ snapshot, destinationRoot, created });
 //! ```
 
-use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
+use crate::worktree_copy_compare::{
+    entry_matches,
+    lstat_or_absent,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_install_entry::InstalledPath;
-use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    WorktreeCopyEntry,
+};
+use crate::worktree_copy_selection::{
+    filesystem_path,
+    shown_repository_path,
+};
 use std::collections::BTreeMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -81,7 +90,10 @@ fn identity_state(
 /// ```ts
 /// await ((expected?.kind === 'directory') || (!installed.selected) ? rmdir(path) : unlink(path));
 /// ```
-fn remove_proven(path: &Path, is_directory: bool) -> std::io::Result<()> {
+fn remove_proven(
+    path: &Path,
+    is_directory: bool,
+) -> std::io::Result<()> {
     if is_directory {
         return std::fs::remove_dir(path);
     }
@@ -125,7 +137,11 @@ pub fn rollback_created(
         match outcome {
             Ok(None) => {}
             Ok(Some(reason)) => retained.push(reason),
-            Err(error) => retained.push(format!("{}: {}", shown_repository_path(installed.relative_path.as_slice()), error.0)),
+            Err(error) => retained.push(format!(
+                "{}: {}",
+                shown_repository_path(installed.relative_path.as_slice()),
+                error.0
+            )),
         }
     }
     return Ok(retained);
@@ -169,7 +185,9 @@ fn rollback_one(
         _ => false,
     };
     if content_differs {
-        return Ok(Some(shown_repository_path(installed.relative_path.as_slice())));
+        return Ok(Some(shown_repository_path(
+            installed.relative_path.as_slice(),
+        )));
     }
     // The identity is read again immediately before removal, to close the race with a replacement.
     let final_state: IdentityState = identity_state(destination_path, installed)?;

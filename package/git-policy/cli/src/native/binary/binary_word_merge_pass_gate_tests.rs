@@ -16,7 +16,12 @@
 //! expect(await control).toBe(false);  // woken by the command's end, not by the pass
 //! ```
 
-use super::support::{Fixture, fixture, remove, repository};
+use super::support::{
+    Fixture,
+    fixture,
+    remove,
+    repository,
+};
 use super::word_merge_pass_gate::PassGate;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -39,13 +44,34 @@ fn a_command_that_never_asks_for_the_attribute_wakes_the_control() {
     let fixture: Fixture = fixture("word-merge-gate-never-asked");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let gate: PassGate = PassGate::prepare(&fixture);
-    let (observed, control) = gate.held_run(&fixture, repo.as_path(), &["rev-parse", "--git-dir"], || {
-        panic!("the command never asks for the merge attribute, so the control must not act");
-    });
-    assert_eq!(observed.code, Some(0), "the command itself ran: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
+    let (observed, control) = gate.held_run(
+        &fixture,
+        repo.as_path(),
+        &["rev-parse", "--git-dir"],
+        || {
+            panic!("the command never asks for the merge attribute, so the control must not act");
+        },
+    );
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the command itself ran: {}",
+        String::from_utf8_lossy(observed.stderr.as_slice())
+    );
     let starts: Vec<String> = gate.starts();
-    assert!(starts.iter().any(|line| { return line.contains("rev-parse"); }), "the stand-in Git was the run's Git, so the query could have come to it: {starts:?}");
-    assert!(!gate.reached_marker(), "the command asked for no merge attribute, so the gate never opened");
-    assert!(!control.join().expect("the control thread"), "the control was woken by the command's own end, not left waiting for a pass that never came");
+    assert!(
+        starts.iter().any(|line| {
+            return line.contains("rev-parse");
+        }),
+        "the stand-in Git was the run's Git, so the query could have come to it: {starts:?}"
+    );
+    assert!(
+        !gate.reached_marker(),
+        "the command asked for no merge attribute, so the gate never opened"
+    );
+    assert!(
+        !control.join().expect("the control thread"),
+        "the control was woken by the command's own end, not left waiting for a pass that never came"
+    );
     remove(&fixture);
 }

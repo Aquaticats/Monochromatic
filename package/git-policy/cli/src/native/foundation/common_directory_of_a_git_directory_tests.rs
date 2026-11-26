@@ -13,9 +13,19 @@
 //! ```
 
 /// The rule under test.
-use super::{bytes_named, common_directory_named_by, common_directory_of};
-use crate::command_test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
+use super::{
+    bytes_named,
+    common_directory_named_by,
+    common_directory_of,
+};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A Git directory with no `commondir` file is its own common directory.
 #[test]
@@ -37,7 +47,11 @@ fn a_linked_worktrees_commondir_names_the_repositorys_directory() {
     std::fs::create_dir_all(&own).expect("worktree git directory");
     for ending in ["../..\n", "../..\r\n", "../..\r\n\r\n"] {
         std::fs::write(own.join("commondir"), ending).expect("commondir");
-        assert_eq!(common_directory_of(own.as_path()), std::fs::canonicalize(&common).expect("canonical"), "{ending:?}");
+        assert_eq!(
+            common_directory_of(own.as_path()),
+            std::fs::canonicalize(&common).expect("canonical"),
+            "{ending:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -70,7 +84,11 @@ fn a_relative_commondir_is_resolved_against_the_git_directory() {
     std::fs::write(own.join("commondir"), b"../..\n").expect("commondir");
     let answered: PathBuf = common_directory_of(own.as_path());
     assert!(answered.ends_with(".git"), "{}", answered.display());
-    assert!(!answered.ends_with(Path::new("worktrees/w")), "{}", answered.display());
+    assert!(
+        !answered.ends_with(Path::new("worktrees/w")),
+        "{}",
+        answered.display()
+    );
     remove(root.as_path());
 }
 
@@ -83,18 +101,38 @@ fn a_commondir_that_is_a_named_pipe_names_nothing_at_once() {
     let root: PathBuf = fixture("common-dir-named-pipe");
     let own: PathBuf = root.join("w");
     std::fs::create_dir_all(&own).expect("git directory");
-    crate::subvolume_sync_attrs::make_fifo(own.join("commondir").as_path(), 0o600).expect("a named pipe where a commondir goes");
+    crate::subvolume_sync_attrs::make_fifo(own.join("commondir").as_path(), 0o600)
+        .expect("a named pipe where a commondir goes");
     let inside: PathBuf = own.clone();
     let answered = crate::test_support::finished_within(move || {
-        return (common_directory_of(inside.as_path()), common_directory_named_by(inside.as_path()), bytes_named(inside.as_path()).is_err());
+        return (
+            common_directory_of(inside.as_path()),
+            common_directory_named_by(inside.as_path()),
+            bytes_named(inside.as_path()).is_err(),
+        );
     });
-    let Some((own_answer, named, refused)) = answered else { panic!("a `commondir` that is a named pipe held the read") };
-    assert_eq!(own_answer, own, "a Git directory whose `commondir` is a pipe is its own common directory");
-    assert!(named.is_none(), "a pipe names no common directory a caller can use");
-    assert!(refused, "the reader reports the refusal rather than a missing file");
+    let Some((own_answer, named, refused)) = answered else {
+        panic!("a `commondir` that is a named pipe held the read")
+    };
+    assert_eq!(
+        own_answer, own,
+        "a Git directory whose `commondir` is a pipe is its own common directory"
+    );
+    assert!(
+        named.is_none(),
+        "a pipe names no common directory a caller can use"
+    );
+    assert!(
+        refused,
+        "the reader reports the refusal rather than a missing file"
+    );
     // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
     let pointer: PathBuf = own.join("commondir");
-    let waited = crate::test_support::finished_within(move || return std::fs::read_to_string(pointer).ok());
-    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    let waited =
+        crate::test_support::finished_within(move || return std::fs::read_to_string(pointer).ok());
+    assert!(
+        waited.is_none(),
+        "a plain read of the same name waits, so the bound above can see a wait"
+    );
     remove(root.as_path());
 }

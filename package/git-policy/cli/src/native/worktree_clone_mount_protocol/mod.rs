@@ -165,50 +165,114 @@ pub mod mount_request_wait;
 #[path = "mount_protocol_arm_tests.rs"]
 mod mount_protocol_arm_tests;
 
-/// The property names,
-/// the version and operation words and the intent's byte bound.
-pub use clone_mount_property_names::{
-    DESIRED_STATE_PROPERTY, MAXIMUM_INTENT_BYTES, MOUNT_WORD, NONCE_HEX_DIGITS, SWEEP_NONCE_PROPERTY, UNMOUNT_WORD, VALUE_VERSION,
-};
-/// The nonce and its refusal.
-pub use request_nonce::{NonceRefusal, RequestNonce};
-/// The property reading and its refusal.
-pub use local_user_property::{PropertyReading, PropertyRefusal};
 /// The intent,
 /// its reading and the text one request is written as.
 pub use clone_mount_intent::{
-    IntentReading, IntentRefusal, MountIntent, MountOperation, intent_text, parse_mount_intent, read_intent,
+    IntentReading,
+    IntentRefusal,
+    MountIntent,
+    MountOperation,
+    intent_text,
+    parse_mount_intent,
+    read_intent,
+};
+/// The wrapper's payloads and its gated writer.
+pub use clone_mount_intent_write::{
+    CloneIntentWriter,
+    IntentWriteRefusal,
+    intent_property,
+    nudge_property,
+};
+/// The property names,
+/// the version and operation words and the intent's byte bound.
+pub use clone_mount_property_names::{
+    DESIRED_STATE_PROPERTY,
+    MAXIMUM_INTENT_BYTES,
+    MOUNT_WORD,
+    NONCE_HEX_DIGITS,
+    SWEEP_NONCE_PROPERTY,
+    UNMOUNT_WORD,
+    VALUE_VERSION,
+};
+/// The readiness record and its four fields.
+pub use clone_mount_readiness::{
+    MAXIMUM_READINESS_BYTES,
+    READINESS_DIRECTORY,
+    READINESS_KEYS,
+    READINESS_NAME,
+    ReadinessExpectation,
+    ReadinessRecord,
+    ReadyState,
+    SweepState,
+};
+/// The admission decision and its refusal.
+pub use clone_mount_readiness_admission::{
+    AdmissionRefusal,
+    admit_attach,
+};
+/// The root-owned readiness directory and its file.
+pub use clone_mount_readiness_file::{
+    ReadinessFile,
+    ReadinessFileRefusal,
+};
+/// The readiness record's parse and its refusal.
+pub use clone_mount_readiness_parse::{
+    ReadinessParseRefusal,
+    parse_readiness,
+};
+/// The receipt's shape,
+/// text and outcome.
+pub use clone_mount_receipt::{
+    CloneMountReceipt,
+    ReceiptMountIdentity,
+    ReceiptOutcome,
+};
+/// The receipt's parse.
+pub use clone_mount_receipt_parse::parse_receipt;
+/// Why a file is not a receipt.
+pub use clone_mount_receipt_refusals::ReceiptRefusal;
+/// The results directory and why it or a receipt was refused.
+pub use clone_mount_receipts_folder::ReceiptsFolder;
+pub use clone_mount_receipts_folder_refusals::{
+    DIRECTORY_MODE,
+    RECEIPT_MODE,
+    RESULTS_DIRECTORY,
+    ReceiptsRefusal,
 };
 /// The nudge,
 /// its reading and the text it is written as.
-pub use clone_mount_sweep_nonce::{NudgeReading, NudgeRefusal, parse_sweep_nonce, read_sweep_nonce, sweep_nonce_text};
-/// The dataset GUID and its refusal.
-pub use dataset_guid::{DatasetGuid, DatasetGuidRefusal};
-/// The receipt's shape,
-/// text and outcome.
-pub use clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
-/// Why a file is not a receipt.
-pub use clone_mount_receipt_refusals::ReceiptRefusal;
-/// The receipt's parse.
-pub use clone_mount_receipt_parse::parse_receipt;
-/// The results directory and why it or a receipt was refused.
-pub use clone_mount_receipts_folder::ReceiptsFolder;
-pub use clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
-/// The readiness record and its four fields.
-pub use clone_mount_readiness::{
-    MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_KEYS, READINESS_NAME, ReadinessExpectation, ReadinessRecord, ReadyState, SweepState,
+pub use clone_mount_sweep_nonce::{
+    NudgeReading,
+    NudgeRefusal,
+    parse_sweep_nonce,
+    read_sweep_nonce,
+    sweep_nonce_text,
 };
-/// The admission decision and its refusal.
-pub use clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
-/// The readiness record's parse and its refusal.
-pub use clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
-/// The root-owned readiness directory and its file.
-pub use clone_mount_readiness_file::{ReadinessFile, ReadinessFileRefusal};
-/// The wrapper's payloads and its gated writer.
-pub use clone_mount_intent_write::{CloneIntentWriter, IntentWriteRefusal, intent_property, nudge_property};
+/// The dataset GUID and its refusal.
+pub use dataset_guid::{
+    DatasetGuid,
+    DatasetGuidRefusal,
+};
+/// The property reading and its refusal.
+pub use local_user_property::{
+    PropertyReading,
+    PropertyRefusal,
+};
 /// The wrapper's wait,
 /// its stale-result rule and its provisional deadline.
 pub use mount_request_wait::{
-    LastObservation, MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitRefusal,
-    standing_of, wait_for_answer,
+    LastObservation,
+    MOUNT_REQUEST_POLL_INTERVAL,
+    MountRequest,
+    PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+    ReceiptStanding,
+    StaleReason,
+    WaitRefusal,
+    standing_of,
+    wait_for_answer,
+};
+/// The nonce and its refusal.
+pub use request_nonce::{
+    NonceRefusal,
+    RequestNonce,
 };

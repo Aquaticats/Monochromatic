@@ -154,8 +154,14 @@ pub struct ReceiverSet {
 /// ```ts
 /// const parent = acting.rows.find(row => row.mountId === copy.parentId);
 /// ```
-pub fn parent_of<'a>(acting: &'a NamespaceTable, copy: &MountRow) -> Option<&'a MountRow> {
-    return acting.rows.iter().find(|row| return row.mount_id == copy.parent_id);
+pub fn parent_of<'a>(
+    acting: &'a NamespaceTable,
+    copy: &MountRow,
+) -> Option<&'a MountRow> {
+    return acting
+        .rows
+        .iter()
+        .find(|row| return row.mount_id == copy.parent_id);
 }
 
 /// What:
@@ -182,13 +188,23 @@ pub fn plan_the_receivers(
     handled: &[String],
 ) -> ReceiverSet {
     let Some(parent) = parent_of(acting, copy) else {
-        return ReceiverSet { seed: Vec::new(), receivers: Vec::new(), outside: Vec::new(), way_eight: false };
+        return ReceiverSet {
+            seed: Vec::new(),
+            receivers: Vec::new(),
+            outside: Vec::new(),
+            way_eight: false,
+        };
     };
     let seed: Vec<u32> = parent.shared.clone();
     if seed.is_empty() {
         // A parent that shares with no group of its own takes way 7, and its receivers are not seeded from a
         // `master:` the design found over-read.
-        return ReceiverSet { seed, receivers: Vec::new(), outside: Vec::new(), way_eight: false };
+        return ReceiverSet {
+            seed,
+            receivers: Vec::new(),
+            outside: Vec::new(),
+            way_eight: false,
+        };
     }
     let mut groups: Vec<u32> = seed.clone();
     let mut members: Vec<(String, u32)> = Vec::new();
@@ -198,11 +214,15 @@ pub fn plan_the_receivers(
         for table in tables {
             for row in &table.rows {
                 let joined: bool = row.shared.iter().any(|group| return groups.contains(group))
-                    || row.master.is_some_and(|master| return groups.contains(&master));
+                    || row
+                        .master
+                        .is_some_and(|master| return groups.contains(&master));
                 if !joined {
                     continue;
                 }
-                if !members.iter().any(|(namespace, mount)| return *namespace == table.namespace && *mount == row.mount_id) {
+                if !members.iter().any(|(namespace, mount)| {
+                    return *namespace == table.namespace && *mount == row.mount_id;
+                }) {
                     members.push((table.namespace.clone(), row.mount_id));
                 }
                 for group in &row.shared {
@@ -217,7 +237,10 @@ pub fn plan_the_receivers(
     let mut receivers: Vec<Receiver> = Vec::new();
     let mut outside: Vec<String> = Vec::new();
     for table in tables {
-        if !members.iter().any(|(namespace, _mount)| return *namespace == table.namespace) {
+        if !members
+            .iter()
+            .any(|(namespace, _mount)| return *namespace == table.namespace)
+        {
             continue;
         }
         let Some(slot) = table.at_the_slot.as_ref() else {
@@ -239,7 +262,12 @@ pub fn plan_the_receivers(
         }
     }
     let way_eight: bool = outside.is_empty();
-    return ReceiverSet { seed, receivers, outside, way_eight };
+    return ReceiverSet {
+        seed,
+        receivers,
+        outside,
+        way_eight,
+    };
 }
 
 /// Controls stay out of the release executable.

@@ -24,9 +24,15 @@
 //! new NothingNewWouldGoWithIt({ commonDir, registration }).ask();
 //! ```
 
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{
+    Registration,
+    registrations_of,
+};
 use crate::worktree_removal_rescue::snapshot_one;
-use crate::worktree_removal_second_look::{nested_worktree_reason, worktrees_inside};
+use crate::worktree_removal_second_look::{
+    nested_worktree_reason,
+    worktrees_inside,
+};
 use crate::worktree_remove::LastLook;
 use std::path::Path;
 
@@ -42,7 +48,10 @@ use std::path::Path;
 /// ```ts
 /// unsavedRecordsReason(admin, unsaved) // the sentence a kept worktree prints
 /// ```
-pub(super) fn unsaved_records_reason(admin: &Path, unsaved: &[String]) -> String {
+pub(super) fn unsaved_records_reason(
+    admin: &Path,
+    unsaved: &[String],
+) -> String {
     return format!(
         "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
         admin.display(),
@@ -97,16 +106,27 @@ impl LastLook for NothingNewWouldGoWithIt<'_> {
 /// ```ts
 /// nothingNewWouldGoWithIt(place, registration) // throws the sentence a person reads
 /// ```
-pub(super) fn nothing_new_would_go_with_it(common_dir: &Path, one: &Registration) -> Result<(), String> {
+pub(super) fn nothing_new_would_go_with_it(
+    common_dir: &Path,
+    one: &Registration,
+) -> Result<(), String> {
     let unsaved: Vec<String> = snapshot_one(common_dir, one.admin.as_path());
     if !unsaved.is_empty() {
-        return Err(unsaved_records_reason(one.admin.as_path(), unsaved.as_slice()));
+        return Err(unsaved_records_reason(
+            one.admin.as_path(),
+            unsaved.as_slice(),
+        ));
     }
     let registered_now: Vec<Registration> = match registrations_of(common_dir) {
         Ok(found) => found,
-        Err(reason) => return Err(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
+        Err(reason) => {
+            return Err(format!(
+                "nothing proves no other worktree lies inside this one, so nothing is removed: {reason}"
+            ));
+        }
     };
-    let inside_now: Vec<&Registration> = worktrees_inside(one.worktree.as_path(), registered_now.as_slice());
+    let inside_now: Vec<&Registration> =
+        worktrees_inside(one.worktree.as_path(), registered_now.as_slice());
     if !inside_now.is_empty() {
         return Err(nested_worktree_reason(inside_now.as_slice()));
     }

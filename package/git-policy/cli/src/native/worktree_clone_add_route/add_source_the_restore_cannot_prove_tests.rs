@@ -19,10 +19,22 @@
 //!  a question that declined it would send an add to the ladder for no reason.
 
 use super::reasons_the_restore_cannot_prove;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_snapshot_source::{SnapshotSource, source_or_dirty};
-use std::path::{Path, PathBuf};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    source_or_dirty,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A main checkout with one committed file and one uncommitted edit,
@@ -37,7 +49,8 @@ use std::path::{Path, PathBuf};
 /// ```
 fn a_dirty_checkout(name: &str) -> PathBuf {
     let root: PathBuf = fixture(name);
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "main")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "main")).expect("the checkout's path");
     std::fs::write(repo.join("tracked.txt"), b"first\n").expect("the tracked file");
     git(repo.as_path(), &["add", "--", "tracked.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
@@ -56,8 +69,13 @@ fn a_dirty_checkout(name: &str) -> PathBuf {
 /// const source = sourceOrDirty(context, mainIdentity(repo));
 /// ```
 fn the_source(repo: &Path) -> SnapshotSource {
-    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git"), worktree_root: repo.to_path_buf() };
-    return source_or_dirty(&git_context(), &identity).expect("a checkout with an ordinary change is a source the route reads");
+    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
+        worktree_root: repo.to_path_buf(),
+    };
+    return source_or_dirty(&git_context(), &identity)
+        .expect("a checkout with an ordinary change is a source the route reads");
 }
 
 /// A repository of the source's own at `path`, with one committed file inside it.
@@ -85,9 +103,18 @@ fn a_repository_at(path: &Path) {
 fn an_untracked_repository_is_a_reason() {
     let repo: PathBuf = a_dirty_checkout("shapes-untracked-repository");
     a_repository_at(repo.join("nested").as_path());
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
-    assert_eq!(reasons.len(), 1, "one repository is one reason: {reasons:?}");
-    assert!(reasons[0].contains("nested/") && reasons[0].contains("clean"), "the reason names the directory and the clean that keeps it: {reasons:?}");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
+    assert_eq!(
+        reasons.len(),
+        1,
+        "one repository is one reason: {reasons:?}"
+    );
+    assert!(
+        reasons[0].contains("nested/") && reasons[0].contains("clean"),
+        "the reason names the directory and the clean that keeps it: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }
 
@@ -107,9 +134,18 @@ fn an_untracked_repository_is_a_reason() {
 fn a_repository_below_an_untracked_directory_is_a_reason() {
     let repo: PathBuf = a_dirty_checkout("shapes-repository-below");
     a_repository_at(repo.join("pkg").join("nested").as_path());
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
-    assert_eq!(reasons.len(), 1, "one repository is one reason: {reasons:?}");
-    assert!(reasons[0].contains("pkg/"), "the reason names the untracked directory the proof lists: {reasons:?}");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
+    assert_eq!(
+        reasons.len(),
+        1,
+        "one repository is one reason: {reasons:?}"
+    );
+    assert!(
+        reasons[0].contains("pkg/"),
+        "the reason names the untracked directory the proof lists: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }
 
@@ -134,8 +170,14 @@ fn an_ignored_repository_is_no_reason() {
     git(repo.as_path(), &["add", "--", ".gitignore"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
     a_repository_at(repo.join("cache").join("nested").as_path());
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
-    assert_eq!(reasons, Vec::<String>::new(), "an ignored repository is carried, not refused: {reasons:?}");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
+    assert_eq!(
+        reasons,
+        Vec::<String>::new(),
+        "an ignored repository is carried, not refused: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }
 
@@ -156,10 +198,16 @@ fn a_directory_where_the_index_records_a_file_is_a_reason() {
     let repo: PathBuf = a_dirty_checkout("shapes-directory-at-a-file");
     std::fs::remove_file(repo.join("tracked.txt")).expect("the file goes");
     std::fs::create_dir(repo.join("tracked.txt")).expect("the directory takes its name");
-    std::fs::write(repo.join("tracked.txt").join("inside.txt"), b"inside\n").expect("a file inside it");
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
+    std::fs::write(repo.join("tracked.txt").join("inside.txt"), b"inside\n")
+        .expect("a file inside it");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
     assert_eq!(reasons.len(), 1, "one directory is one reason: {reasons:?}");
-    assert!(reasons[0].contains("tracked.txt") && reasons[0].contains("directory"), "the reason names the path and what stands there: {reasons:?}");
+    assert!(
+        reasons[0].contains("tracked.txt") && reasons[0].contains("directory"),
+        "the reason names the path and what stands there: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }
 
@@ -177,8 +225,14 @@ fn a_directory_where_the_index_records_a_file_is_a_reason() {
 #[test]
 fn an_ordinary_change_is_no_reason() {
     let repo: PathBuf = a_dirty_checkout("shapes-ordinary-change");
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
-    assert_eq!(reasons, Vec::<String>::new(), "an ordinary change is what the restore is for: {reasons:?}");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
+    assert_eq!(
+        reasons,
+        Vec::<String>::new(),
+        "an ordinary change is what the restore is for: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }
 
@@ -199,16 +253,23 @@ fn an_ordinary_change_is_no_reason() {
 #[test]
 fn a_clean_checkout_is_asked_nothing() {
     let root: PathBuf = fixture("shapes-clean-checkout");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "main")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "main")).expect("the checkout's path");
     std::fs::write(repo.join("tracked.txt"), b"first\n").expect("the tracked file");
     crate::test_support::age(repo.join("tracked.txt").as_path());
     git(repo.as_path(), &["add", "--", "tracked.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
     git(repo.as_path(), &["update-index", "--refresh"]);
-    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git"), worktree_root: repo.clone() };
-    let source: SnapshotSource = source_or_dirty(&git_context(), &identity).expect("a clean checkout is a source");
+    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
+        worktree_root: repo.clone(),
+    };
+    let source: SnapshotSource =
+        source_or_dirty(&git_context(), &identity).expect("a clean checkout is a source");
     assert!(source.dirty.is_none(), "the fixture's checkout is clean");
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &source)).expect("a clean source is not asked");
+    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &source))
+        .expect("a clean source is not asked");
     assert_eq!(reasons, Vec::<String>::new());
     remove(root.as_path());
 }
@@ -236,9 +297,23 @@ fn a_path_the_clean_cannot_remove_is_no_reason() {
     let held: PathBuf = repo.join("d");
     std::fs::create_dir(held.as_path()).expect("the untracked directory");
     std::fs::write(held.join("held.txt"), b"held\n").expect("a file inside it");
-    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the directory loses its write permission");
-    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
-    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the fixture gives the permission back");
-    assert_eq!(reasons, Vec::<String>::new(), "a step failure is the settle's, not this question's: {reasons:?}");
+    std::fs::set_permissions(
+        held.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o500),
+    )
+    .expect("the directory loses its write permission");
+    let reasons: Vec<String> =
+        reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path())))
+            .expect("Git answers");
+    std::fs::set_permissions(
+        held.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("the fixture gives the permission back");
+    assert_eq!(
+        reasons,
+        Vec::<String>::new(),
+        "a step failure is the settle's, not this question's: {reasons:?}"
+    );
     remove(repo.parent().expect("the fixture root"));
 }

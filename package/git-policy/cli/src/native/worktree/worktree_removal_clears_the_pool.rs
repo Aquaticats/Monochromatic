@@ -46,11 +46,17 @@
 //! clearThePoolOfARemovedWorktree({ commonDir, gitDir }); // never throws
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::private_storage::remove_tree;
 use crate::service_units_of_removed_worktrees::worktree_is_gone;
 use crate::shadow_pool::pool_root_for;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalClearsThePool";
@@ -95,7 +101,10 @@ pub(crate) type RemoveAPool<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a;
 /// ```ts
 /// clearThePoolOfARemovedWorktree({ commonDir, gitDir });
 /// ```
-pub fn clear_the_pool_of_a_removed_worktree(common_dir: &Path, git_dir: &Path) {
+pub fn clear_the_pool_of_a_removed_worktree(
+    common_dir: &Path,
+    git_dir: &Path,
+) {
     clear_the_pool_of_a_removed_worktree_with(common_dir, git_dir, &remove_tree);
 }
 
@@ -120,13 +129,31 @@ pub fn clear_the_pool_of_a_removed_worktree(common_dir: &Path, git_dir: &Path) {
 /// ```ts
 /// clearThePoolOfARemovedWorktreeWith({ commonDir, gitDir, remove });
 /// ```
-pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_dir: &Path, remove: &RemoveAPool<'_>) {
+pub(crate) fn clear_the_pool_of_a_removed_worktree_with(
+    common_dir: &Path,
+    git_dir: &Path,
+    remove: &RemoveAPool<'_>,
+) {
     if git_dir == common_dir {
-        debug(TAG, format!("{} is the main checkout, whose pool no removal takes", git_dir.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} is the main checkout, whose pool no removal takes",
+                git_dir.display()
+            )
+            .as_str(),
+        );
         return;
     }
     if !worktree_is_gone(git_dir) {
-        debug(TAG, format!("{} is still there, so its shadow pool stays", git_dir.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} is still there, so its shadow pool stays",
+                git_dir.display()
+            )
+            .as_str(),
+        );
         return;
     }
     let pool: PathBuf = pool_root_for(common_dir, git_dir);
@@ -136,7 +163,11 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
     if !crate::shadow_pool::the_pool_path_is_the_wrappers_own(pool.as_path()) {
         debug(
             TAG,
-            format!("{} is not a folder this wrapper's pool can be, so nothing of it is removed", pool.display()).as_str(),
+            format!(
+                "{} is not a folder this wrapper's pool can be, so nothing of it is removed",
+                pool.display()
+            )
+            .as_str(),
         );
         return;
     }
@@ -145,7 +176,14 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
         // The pool is not there any more, so nothing of it is left to remove.
         Ok(None) => return,
         Err(reason) => {
-            warn(TAG, format!("{reason}; the shadow pool {} stays and keeps its disk", pool.display()).as_str());
+            warn(
+                TAG,
+                format!(
+                    "{reason}; the shadow pool {} stays and keeps its disk",
+                    pool.display()
+                )
+                .as_str(),
+            );
             return;
         }
     };
@@ -156,9 +194,18 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
     // The drawn folder of the same worktree is swept entry by entry and never taken out of its name: a tree a commit is
     //  running in is used where it stands, and the removal of the worktree must leave it for that commit's own Git.
     //  Nothing renews a tree whose command stopped, so the age rule is what collects those.
-    let drawn: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(common_dir, git_dir, std::time::SystemTime::now());
+    let drawn: Vec<PathBuf> =
+        crate::shadow_drawn::sweep_drawn_of(common_dir, git_dir, std::time::SystemTime::now());
     if !drawn.is_empty() {
-        debug(TAG, format!("removed {} drawn shadows of the removed worktree {}", drawn.len(), git_dir.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "removed {} drawn shadows of the removed worktree {}",
+                drawn.len(),
+                git_dir.display()
+            )
+            .as_str(),
+        );
     }
 }
 
@@ -191,8 +238,13 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
 /// ```ts
 /// const taken = takeThePoolOutOfItsName(pool, 'removing-'); // string | undefined
 /// ```
-pub(crate) fn take_the_pool_out_of_its_name(pool: &Path, prefix: &str) -> Result<Option<PathBuf>, String> {
-    let Some(folder) = pool.parent() else { return Err(format!("{} names no folder", pool.display())) };
+pub(crate) fn take_the_pool_out_of_its_name(
+    pool: &Path,
+    prefix: &str,
+) -> Result<Option<PathBuf>, String> {
+    let Some(folder) = pool.parent() else {
+        return Err(format!("{} names no folder", pool.display()));
+    };
     // The name is the folder's and the tree's: a tree with no name of its own was never a pool.
     if pool.file_name().is_none() {
         return Err(format!("{} names no pool", pool.display()));
@@ -201,17 +253,35 @@ pub(crate) fn take_the_pool_out_of_its_name(pool: &Path, prefix: &str) -> Result
     match std::fs::symlink_metadata(pool) {
         Ok(found) if found.is_dir() => {}
         Ok(_not_a_directory) => {
-            debug(TAG, format!("{} is no directory this program made, so nothing takes it", pool.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} is no directory this program made, so nothing takes it",
+                    pool.display()
+                )
+                .as_str(),
+            );
             return Ok(None);
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("the pool {} cannot be looked at ({error})", pool.display())),
+        Err(error) => {
+            return Err(format!(
+                "the pool {} cannot be looked at ({error})",
+                pool.display()
+            ));
+        }
     }
-    let taken: PathBuf = folder.join(format!("{prefix}{}", crate::random_id::random_uuid().unwrap_or_default()));
+    let taken: PathBuf = folder.join(format!(
+        "{prefix}{}",
+        crate::random_id::random_uuid().unwrap_or_default()
+    ));
     return match std::fs::rename(pool, taken.as_path()) {
         Ok(()) => Ok(Some(taken)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("the pool {} cannot be taken out of its name ({error})", pool.display())),
+        Err(error) => Err(format!(
+            "the pool {} cannot be taken out of its name ({error})",
+            pool.display()
+        )),
     };
 }
 

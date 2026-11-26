@@ -132,8 +132,14 @@ fn is_within_the_time_a_client_looks(modified: std::io::Result<SystemTime>) -> b
 /// ```ts
 /// aClientMayStillRead(stamp, modified, now) // true: keep the record for a client that may still look
 /// ```
-pub fn a_client_may_still_read(stamp: Option<&ClaimTime>, modified: std::io::Result<SystemTime>, now: &ClaimTime) -> bool {
-    let Some(written) = stamp else { return is_within_the_time_a_client_looks(modified) };
+pub fn a_client_may_still_read(
+    stamp: Option<&ClaimTime>,
+    modified: std::io::Result<SystemTime>,
+    now: &ClaimTime,
+) -> bool {
+    let Some(written) = stamp else {
+        return is_within_the_time_a_client_looks(modified);
+    };
     // A restart ended every client of the boot the record was written in, so no client of it is left to read it.
     if now.is_past_the_boot_of(written) {
         return false;
@@ -189,11 +195,18 @@ fn reading_of_a_finished_record(path: &Path) -> Option<ClaimTime> {
 /// ```ts
 /// aClientMayStillRead(finishedRecordReading(path), modifiedTimeOf(path), now)
 /// ```
-pub fn a_client_may_still_read_finished_batch(path: &Path, now: &ClaimTime) -> bool {
+pub fn a_client_may_still_read_finished_batch(
+    path: &Path,
+    now: &ClaimTime,
+) -> bool {
     if a_client_may_still_read(None, modified_time_of(path), now) {
         return true;
     }
-    return a_client_may_still_read(reading_of_a_finished_record(path).as_ref(), modified_time_of(path), now);
+    return a_client_may_still_read(
+        reading_of_a_finished_record(path).as_ref(),
+        modified_time_of(path),
+        now,
+    );
 }
 
 /// Controls stay out of the release executable.

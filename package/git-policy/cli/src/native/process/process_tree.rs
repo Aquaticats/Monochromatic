@@ -111,7 +111,10 @@ pub fn descendants_of_read(root: i32) -> Option<Vec<TreeMember>> {
         if let Some((parent, started, zombie)) = parse_stat(text.as_str())
             && !zombie
         {
-            children.entry(parent).or_default().push(TreeMember { pid, started });
+            children.entry(parent).or_default().push(TreeMember {
+                pid,
+                started,
+            });
         }
     }
     // A listing that numbers processes and lets none of them be read is a look that failed, never a tree with nothing in it.
@@ -212,7 +215,10 @@ fn child_numbers_of(pid: i32) -> Option<Vec<i32>> {
     let mut found: Vec<i32> = Vec::new();
     let mut read_one: bool = false;
     for task in tasks.flatten() {
-        let Ok(text) = crate::plain_file::read_plain_text_at(task.path().join("children").as_path(), CHILDREN_BYTES_AT_MOST) else {
+        let Ok(text) = crate::plain_file::read_plain_text_at(
+            task.path().join("children").as_path(),
+            CHILDREN_BYTES_AT_MOST,
+        ) else {
             continue;
         };
         read_one = true;
@@ -310,7 +316,12 @@ fn parse_use(text: &str) -> Option<ProcessUse> {
     let started: u64 = fields.get(19)?.parse().ok()?;
     let ticks: u64 = utime.saturating_add(stime);
     let cpu: Duration = Duration::from_millis(ticks.saturating_mul(1_000) / ticks_per_second());
-    return Some(ProcessUse { name, started, state, cpu });
+    return Some(ProcessUse {
+        name,
+        started,
+        state,
+        cpu,
+    });
 }
 
 /// Only Linux reads a process's state and processor time;
@@ -342,7 +353,10 @@ pub fn member_of(pid: i32) -> Option<TreeMember> {
     if zombie {
         return None;
     }
-    return Some(TreeMember { pid, started });
+    return Some(TreeMember {
+        pid,
+        started,
+    });
 }
 
 /// Only Linux reads a process's start time;
@@ -405,7 +419,13 @@ pub fn member_read(pid: i32) -> MemberRead {
     if zombie {
         return MemberRead::Gone;
     }
-    return MemberRead::Found { member: TreeMember { pid, started }, parent };
+    return MemberRead::Found {
+        member: TreeMember {
+            pid,
+            started,
+        },
+        parent,
+    };
 }
 
 /// Only Linux reads a process's record;
@@ -464,8 +484,13 @@ thread_local! {
 /// the read answers `started`,
 /// and every read after it finds whatever the number names then.
 #[cfg(all(test, target_os = "linux"))]
-pub(crate) fn reused_after_the_next_read(pid: i32, started: u64) {
-    REUSED_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, started))); });
+pub(crate) fn reused_after_the_next_read(
+    pid: i32,
+    started: u64,
+) {
+    REUSED_AFTER_THE_NEXT_READ.with(|slot| {
+        slot.set(Some((pid, started)));
+    });
 }
 
 // What:
@@ -489,8 +514,13 @@ thread_local! {
 /// past the one the caller makes before it,
 /// says how many reads are answered first.
 #[cfg(all(test, target_os = "linux"))]
-pub(crate) fn unreadable_after_the_next_reads(pid: i32, answered_first: usize) {
-    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, answered_first))); });
+pub(crate) fn unreadable_after_the_next_reads(
+    pid: i32,
+    answered_first: usize,
+) {
+    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| {
+        slot.set(Some((pid, answered_first)));
+    });
 }
 
 /// Take the control's refusal for `pid`,
@@ -505,10 +535,14 @@ fn claim_an_unreadable_for(pid: i32) -> bool {
         return false;
     }
     if answered_first > 0 {
-        UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((armed_pid, answered_first.saturating_sub(1)))); });
+        UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| {
+            slot.set(Some((armed_pid, answered_first.saturating_sub(1))));
+        });
         return false;
     }
-    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(None); });
+    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| {
+        slot.set(None);
+    });
     return true;
 }
 
@@ -521,7 +555,9 @@ fn claim_a_reuse_for(pid: i32) -> Option<u64> {
     if armed_pid != pid {
         return None;
     }
-    REUSED_AFTER_THE_NEXT_READ.with(|slot| { slot.set(None); });
+    REUSED_AFTER_THE_NEXT_READ.with(|slot| {
+        slot.set(None);
+    });
     return Some(started);
 }
 

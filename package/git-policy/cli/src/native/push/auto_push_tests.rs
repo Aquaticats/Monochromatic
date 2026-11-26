@@ -4,9 +4,17 @@
 //! each case below reproduces one of its cases.
 
 use super::*;
-use crate::test_support::{fixture, git, git_text, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+};
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// Marker the bare remote's post-receive hook prints,
@@ -56,14 +64,24 @@ fn init_repo_with_commit(path: &Path) {
     std::fs::create_dir_all(path).expect("repo directory");
     git(path, &["init", "--quiet"]);
     git(path, &["config", "user.email", "cli-git@example.invalid"]);
-    git(path, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
+    git(
+        path,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli auto-push test",
+        ],
+    );
     std::fs::write(path.join("tracked.txt"), "initial\n").expect("tracked file");
     git(path, &["add", "tracked.txt"]);
     git(path, &["commit", "--quiet", "-m", "initial", "tracked.txt"]);
 }
 
 /// Change `tracked.txt` and commit the change.
-fn commit_change(path: &Path, text: &str) {
+fn commit_change(
+    path: &Path,
+    text: &str,
+) {
     std::fs::write(path.join("tracked.txt"), text).expect("tracked file");
     git(
         path,
@@ -83,7 +101,10 @@ fn bare_remote_with_hook(remote: &Path) {
 }
 
 /// Create a repository whose origin is a fresh bare remote and whose pre-push hook logs and exits with `code`.
-fn repo_with_remote_and_pre_push(root: &Path, code: i32) -> (PathBuf, PathBuf) {
+fn repo_with_remote_and_pre_push(
+    root: &Path,
+    code: i32,
+) -> (PathBuf, PathBuf) {
     let repo = root.join("repo");
     let remote = root.join("remote.git");
     let hooks = root.join("hooks");
@@ -107,7 +128,14 @@ fn repo_with_remote_and_pre_push(root: &Path, code: i32) -> (PathBuf, PathBuf) {
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
     // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
     git(&repo, &["config", "hook.control.event", "pre-push"]);
-    git(&repo, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &[
+            "config",
+            "hook.control.command",
+            hook.to_str().expect("utf-8"),
+        ],
+    );
     return (repo, log);
 }
 
@@ -119,11 +147,16 @@ fn read_log(log: &Path) -> String {
 
 /// The full ref name of the branch a fixture repository has checked out.
 fn head_ref(repo: &Path) -> String {
-    return String::from_utf8_lossy(&git(repo, &["symbolic-ref", "HEAD"]).stdout).trim().to_owned();
+    return String::from_utf8_lossy(&git(repo, &["symbolic-ref", "HEAD"]).stdout)
+        .trim()
+        .to_owned();
 }
 
 /// Push the checked-out branch the way the service does and capture the terminal text it prints to `err`.
-fn run(repo: &Path, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
+fn run(
+    repo: &Path,
+    landed: &str,
+) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
     let result = push_once(&push_git(repo), &head_ref(repo), landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
@@ -312,7 +345,8 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     ));
     let mut err: Vec<u8> = Vec::new();
     let started = std::time::Instant::now();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
+    let result =
+        push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     let elapsed = started.elapsed();
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
@@ -325,7 +359,10 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
         result.shown
     );
     assert!(shown.contains(PUSH_FAILED_NOTE), "{shown}");
-    assert!(shown.contains(crate::bounded_push::PUSH_QUEUED_LINE), "the command's output says the push is queued: {shown}");
+    assert!(
+        shown.contains(crate::bounded_push::PUSH_QUEUED_LINE),
+        "the command's output says the push is queued: {shown}"
+    );
     assert_eq!(read_log(&log), "", "the replaced hook logs nothing");
     remove(&root);
 }
@@ -353,7 +390,10 @@ fn a_push_runs_without_a_low_speed_abort_of_the_wrappers_own() {
     .expect("hook");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
     let (attempted, _err) = run(&repo, &head_oid(&repo));
-    assert_eq!(attempted.expect("auto-push").outcome, AutoPushOutcome::Pushed);
+    assert_eq!(
+        attempted.expect("auto-push").outcome,
+        AutoPushOutcome::Pushed
+    );
     assert_eq!(read_log(&seen), " \n");
     remove(&root);
 }
@@ -381,7 +421,8 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
         OsString::from("5"),
     ));
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
+    let result =
+        push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed);
     assert_eq!(read_log(&seen), "5 \n");
     remove(&root);
@@ -404,7 +445,14 @@ fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {
     git(&repo, &["push", "--quiet", "origin", "HEAD"]);
     git(&root, &["clone", "--quiet", remote_text, "other"]);
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
+    git(
+        &other,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli auto-push test",
+        ],
+    );
     commit_change(&other, "remote side\n");
     git(&other, &["push", "--quiet", "origin", "HEAD"]);
     let branch = String::from_utf8_lossy(&git(&repo, &["branch", "--show-current"]).stdout)
@@ -413,7 +461,10 @@ fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {
     let remote_tip = head_oid(&other);
     std::fs::write(repo.join("local.txt"), "local side\n").expect("local file");
     git(&repo, &["add", "local.txt"]);
-    git(&repo, &["commit", "--quiet", "-m", "local side", "local.txt"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "-m", "local side", "local.txt"],
+    );
     git(&repo, &["config", "remote.pushDefault", "origin"]);
     git(&repo, &["config", "push.default", "current"]);
     let (attempted, err) = run(&repo, &head_oid(&repo));
@@ -447,10 +498,20 @@ fn repo_with_differently_named_upstream(root: &Path) -> (PathBuf, PathBuf, Strin
         &["remote", "add", "origin", remote.to_str().expect("utf-8")],
     );
     let default = current_branch(&repo);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
     git(
         &repo,
-        &["checkout", "--quiet", "-b", "feature", "--track", &format!("origin/{default}")],
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
+    git(
+        &repo,
+        &[
+            "checkout",
+            "--quiet",
+            "-b",
+            "feature",
+            "--track",
+            &format!("origin/{default}"),
+        ],
     );
     return (repo, remote, default);
 }
@@ -470,10 +531,9 @@ fn a_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() 
         String::from_utf8_lossy(&git(&remote, &["rev-parse", &default]).stdout).trim(),
         landed
     );
-    let remote_refs = String::from_utf8_lossy(
-        &git(&remote, &["for-each-ref", "--format=%(refname)"]).stdout,
-    )
-    .into_owned();
+    let remote_refs =
+        String::from_utf8_lossy(&git(&remote, &["for-each-ref", "--format=%(refname)"]).stdout)
+            .into_owned();
     assert!(
         !remote_refs.contains("refs/heads/feature"),
         "no branch named after the local one is created on the remote: {remote_refs}"
@@ -494,11 +554,31 @@ fn a_named_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_bra
     commit_change(&repo, "feature work\n");
     let landed = head_oid(&repo);
     let (attempted, err) = run_for_branch(&repo, "refs/heads/feature", &landed);
-    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch received the commit: {err}");
-    assert_eq!(remote_tip(&remote, "feature"), None, "no branch named after the local one is created on the remote");
-    let tracked = String::from_utf8_lossy(&git(&repo, &["rev-parse", "--abbrev-ref", "feature@{upstream}"]).stdout).trim().to_owned();
-    assert_eq!(tracked, format!("origin/{default}"), "the upstream is unchanged");
+    assert_eq!(
+        attempted.expect("push").outcome,
+        AutoPushOutcome::Pushed,
+        "{err}"
+    );
+    assert_eq!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(landed.as_str()),
+        "the tracked branch received the commit: {err}"
+    );
+    assert_eq!(
+        remote_tip(&remote, "feature"),
+        None,
+        "no branch named after the local one is created on the remote"
+    );
+    let tracked = String::from_utf8_lossy(
+        &git(&repo, &["rev-parse", "--abbrev-ref", "feature@{upstream}"]).stdout,
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(
+        tracked,
+        format!("origin/{default}"),
+        "the upstream is unchanged"
+    );
     remove(&root);
 }
 
@@ -508,12 +588,25 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     let root = fixture("ap-renamed-upstream-moved");
     let (repo, remote, default) = repo_with_differently_named_upstream(&root);
     let other = root.join("other");
-    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(
+        &root,
+        &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"],
+    );
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
+    git(
+        &other,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli auto-push test",
+        ],
+    );
     std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
     git(&other, &["add", "remote.txt"]);
-    git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
+    git(
+        &other,
+        &["commit", "--quiet", "-m", "remote side", "remote.txt"],
+    );
     git(&other, &["push", "--quiet", "origin", "HEAD"]);
     let remote_tip = head_oid(&other);
     commit_change(&repo, "feature work\n");
@@ -526,7 +619,10 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
         .to_owned();
     // `merge-base --is-ancestor` exits non-zero for an unreachable commit, and `git` requires success.
     for ancestor in [&landed, &remote_tip] {
-        git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
+        git(
+            &remote,
+            &["merge-base", "--is-ancestor", ancestor, &published],
+        );
     }
     remove(&root);
 }
@@ -540,27 +636,51 @@ fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
     let root = fixture("ap-named-moved");
     let (repo, remote, default) = repo_with_differently_named_upstream(&root);
     let other = root.join("other");
-    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(
+        &root,
+        &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"],
+    );
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
+    git(
+        &other,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli auto-push test",
+        ],
+    );
     std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
     git(&other, &["add", "remote.txt"]);
-    git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
+    git(
+        &other,
+        &["commit", "--quiet", "-m", "remote side", "remote.txt"],
+    );
     git(&other, &["push", "--quiet", "origin", "HEAD"]);
     let remote_tip_before = head_oid(&other);
     commit_change(&repo, "feature work\n");
     let landed = head_oid(&repo);
     let (attempted, err) = run_for_branch(&repo, "refs/heads/feature", &landed);
-    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(
+        attempted.expect("push").outcome,
+        AutoPushOutcome::Pushed,
+        "{err}"
+    );
     let published = remote_tip(&remote, &default).expect("the tracked branch exists");
     for ancestor in [&landed, &remote_tip_before] {
-        git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
+        git(
+            &remote,
+            &["merge-base", "--is-ancestor", ancestor, &published],
+        );
     }
     remove(&root);
 }
 
 /// Run the service's push of a named branch and capture the text it prints.
-fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
+fn run_for_branch(
+    repo: &Path,
+    branch_ref: &str,
+    landed: &str,
+) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
     let result = push_once(&push_git(repo), branch_ref, landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
@@ -568,9 +688,22 @@ fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPu
 
 /// What a bare remote holds under a branch name,
 /// nothing when the branch is absent.
-fn remote_tip(remote: &Path, branch: &str) -> Option<String> {
-    let output = crate::test_support::git_output(remote, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]);
-    return output.status.success().then(|| { return String::from_utf8_lossy(&output.stdout).trim().to_owned(); });
+fn remote_tip(
+    remote: &Path,
+    branch: &str,
+) -> Option<String> {
+    let output = crate::test_support::git_output(
+        remote,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ],
+    );
+    return output.status.success().then(|| {
+        return String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    });
 }
 
 /// The service pushes the branch its record names,
@@ -585,11 +718,20 @@ fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
     git(&repo, &["checkout", "--quiet", "-b", "topic"]);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "topic"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "topic"],
+    );
     commit_change(&repo, "topic work\n");
     let landed = head_oid(&repo);
     git(&repo, &["checkout", "--quiet", &default]);
@@ -598,9 +740,21 @@ fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
     let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
     let result = attempted.expect("push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()), "the named branch reached the remote");
-    assert_ne!(remote_tip(&remote, &default).as_deref(), Some(default_tip.as_str()), "the checked-out branch was not pushed");
-    assert_eq!(current_branch(&repo), default, "the worktree stayed where it was");
+    assert_eq!(
+        remote_tip(&remote, "topic").as_deref(),
+        Some(landed.as_str()),
+        "the named branch reached the remote"
+    );
+    assert_ne!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(default_tip.as_str()),
+        "the checked-out branch was not pushed"
+    );
+    assert_eq!(
+        current_branch(&repo),
+        default,
+        "the worktree stayed where it was"
+    );
     remove(&root);
 }
 
@@ -613,17 +767,35 @@ fn a_first_push_of_a_named_branch_creates_it_on_origin() {
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
     git(&repo, &["checkout", "--quiet", "-b", "topic"]);
     commit_change(&repo, "topic work\n");
     let landed = head_oid(&repo);
     git(&repo, &["checkout", "--quiet", &default]);
     let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
-    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()));
-    assert_eq!(remote_tip(&remote, &default), None, "the checked-out branch was not published");
-    let tracked = String::from_utf8_lossy(&git(&repo, &["rev-parse", "--abbrev-ref", "topic@{upstream}"]).stdout).trim().to_owned();
+    assert_eq!(
+        attempted.expect("push").outcome,
+        AutoPushOutcome::Pushed,
+        "{err}"
+    );
+    assert_eq!(
+        remote_tip(&remote, "topic").as_deref(),
+        Some(landed.as_str())
+    );
+    assert_eq!(
+        remote_tip(&remote, &default),
+        None,
+        "the checked-out branch was not published"
+    );
+    let tracked = String::from_utf8_lossy(
+        &git(&repo, &["rev-parse", "--abbrev-ref", "topic@{upstream}"]).stdout,
+    )
+    .trim()
+    .to_owned();
     assert_eq!(tracked, "origin/topic");
     remove(&root);
 }
@@ -636,14 +808,24 @@ fn a_named_branch_is_pushed_from_a_detached_worktree() {
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
     commit_change(&repo, "default work\n");
     let landed = head_oid(&repo);
     git(&repo, &["checkout", "--quiet", "--detach"]);
     let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
-    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
+    assert_eq!(
+        attempted.expect("push").outcome,
+        AutoPushOutcome::Pushed,
+        "{err}"
+    );
+    assert_eq!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(landed.as_str())
+    );
     remove(&root);
 }
 
@@ -662,9 +844,15 @@ fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
     commit_change(&repo, "work\n");
     let landed = head_oid(&repo);
     let lock = repo.join(format!(".git/refs/remotes/origin/{default}.lock"));
@@ -676,17 +864,33 @@ fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
     });
     let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
     holder.join().expect("holder");
-    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
-    let tracking = String::from_utf8_lossy(&git(&repo, &["rev-parse", &format!("origin/{default}")]).stdout).trim().to_owned();
-    assert_eq!(tracking, landed, "the remote-tracking reference agrees with the remote");
+    assert_eq!(
+        attempted.expect("push").outcome,
+        AutoPushOutcome::Pushed,
+        "{err}"
+    );
+    assert_eq!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(landed.as_str())
+    );
+    let tracking =
+        String::from_utf8_lossy(&git(&repo, &["rev-parse", &format!("origin/{default}")]).stdout)
+            .trim()
+            .to_owned();
+    assert_eq!(
+        tracking, landed,
+        "the remote-tracking reference agrees with the remote"
+    );
     remove(&root);
 }
 
 /// A Git that switches the worktree to `other` right after the first time the service starts it,
 /// as a person
 ///  switching branches while the service is between its decision and its push.
-fn switching_git(root: &Path, other: &str) -> PathBuf {
+fn switching_git(
+    root: &Path,
+    other: &str,
+) -> PathBuf {
     let program = root.join("switching-git");
     let mark = root.join("switched");
     let text = format!(
@@ -708,11 +912,20 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
     git(&repo, &["checkout", "--quiet", "-b", "other"]);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "other"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "other"],
+    );
     commit_change(&repo, "other work\n");
     let other_tip = head_oid(&repo);
     git(&repo, &["checkout", "--quiet", &default]);
@@ -721,12 +934,31 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
     let mut pushing = push_git(&repo);
     pushing.real_git = switching_git(&root, "other");
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
+    let result = push_once(
+        &pushing,
+        &format!("refs/heads/{default}"),
+        &landed,
+        &[],
+        &[],
+        &mut err,
+    )
+    .expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
-    assert!(root.join("switched").exists(), "the switch happened inside the window");
+    assert!(
+        root.join("switched").exists(),
+        "the switch happened inside the window"
+    );
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
-    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the recorded branch reached the remote: {shown}");
-    assert_ne!(remote_tip(&remote, "other").as_deref(), Some(other_tip.as_str()), "the branch switched to was not published");
+    assert_eq!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(landed.as_str()),
+        "the recorded branch reached the remote: {shown}"
+    );
+    assert_ne!(
+        remote_tip(&remote, "other").as_deref(),
+        Some(other_tip.as_str()),
+        "the branch switched to was not published"
+    );
     remove(&root);
 }
 
@@ -741,17 +973,35 @@ fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch
     let repo = root.join("repo");
     bare_remote_with_hook(&remote);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     let default = current_branch(&repo);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
     git(&repo, &["config", "push.default", "matching"]);
     commit_change(&repo, "default work\n");
     let landed = head_oid(&repo);
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
+    let result = push_once(
+        &push_git(&repo),
+        &format!("refs/heads/{default}"),
+        &landed,
+        &[],
+        &[],
+        &mut err,
+    )
+    .expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
-    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
+    assert_eq!(
+        remote_tip(&remote, &default).as_deref(),
+        Some(landed.as_str()),
+        "the tracked branch reached the remote: {shown}"
+    );
     remove(&root);
 }
 
@@ -772,12 +1022,48 @@ fn triangular_repo(root: &Path) -> (PathBuf, PathBuf, PathBuf, String) {
     bare_remote_with_hook(&origin);
     bare_remote_with_hook(&upstream);
     init_repo_with_commit(&repo);
-    git(&repo, &["remote", "add", "origin", origin.to_str().expect("utf-8")]);
-    git(&repo, &["remote", "add", "upstream", upstream.to_str().expect("utf-8")]);
-    git(&repo, &["push", "--quiet", "upstream", &format!("HEAD:refs/heads/{TRIANGULAR_TRACKED}")]);
+    git(
+        &repo,
+        &["remote", "add", "origin", origin.to_str().expect("utf-8")],
+    );
+    git(
+        &repo,
+        &[
+            "remote",
+            "add",
+            "upstream",
+            upstream.to_str().expect("utf-8"),
+        ],
+    );
+    git(
+        &repo,
+        &[
+            "push",
+            "--quiet",
+            "upstream",
+            &format!("HEAD:refs/heads/{TRIANGULAR_TRACKED}"),
+        ],
+    );
     git(&repo, &["fetch", "--quiet", "upstream"]);
-    git(&repo, &["checkout", "--quiet", "-b", TRIANGULAR_BRANCH, "--track", &format!("upstream/{TRIANGULAR_TRACKED}")]);
-    git(&repo, &["config", &format!("branch.{TRIANGULAR_BRANCH}.pushRemote"), "origin"]);
+    git(
+        &repo,
+        &[
+            "checkout",
+            "--quiet",
+            "-b",
+            TRIANGULAR_BRANCH,
+            "--track",
+            &format!("upstream/{TRIANGULAR_TRACKED}"),
+        ],
+    );
+    git(
+        &repo,
+        &[
+            "config",
+            &format!("branch.{TRIANGULAR_BRANCH}.pushRemote"),
+            "origin",
+        ],
+    );
     commit_change(&repo, "feature work\n");
     let landed = head_oid(&repo);
     return (repo, origin, upstream, landed);
@@ -787,11 +1073,25 @@ fn triangular_repo(root: &Path) -> (PathBuf, PathBuf, PathBuf, String) {
 /// as `name=oid` lines,
 /// so a test can show that nothing was published there.
 fn remote_branches(remote: &Path) -> String {
-    return String::from_utf8_lossy(&git(remote, &["for-each-ref", "--format=%(refname)=%(objectname)", "refs/heads"]).stdout).into_owned();
+    return String::from_utf8_lossy(
+        &git(
+            remote,
+            &[
+                "for-each-ref",
+                "--format=%(refname)=%(objectname)",
+                "refs/heads",
+            ],
+        )
+        .stdout,
+    )
+    .into_owned();
 }
 
 /// Push the triangular fixture's `feature` branch the way the service does.
-fn push_triangular(repo: &Path, landed: &str) -> (AutoPushResult, String) {
+fn push_triangular(
+    repo: &Path,
+    landed: &str,
+) -> (AutoPushResult, String) {
     let (attempted, err) = run_for_branch(repo, &format!("refs/heads/{TRIANGULAR_BRANCH}"), landed);
     return (attempted.expect("push"), err);
 }
@@ -805,12 +1105,31 @@ fn a_configured_push_refspec_decides_where_a_named_branch_goes() {
     let root = fixture("ap-refspec-destination");
     let (repo, origin, upstream, landed) = triangular_repo(&root);
     let upstream_before = remote_branches(&upstream);
-    git(&repo, &["config", "remote.origin.push", &format!("refs/heads/{TRIANGULAR_BRANCH}:refs/heads/review/{TRIANGULAR_BRANCH}")]);
+    git(
+        &repo,
+        &[
+            "config",
+            "remote.origin.push",
+            &format!("refs/heads/{TRIANGULAR_BRANCH}:refs/heads/review/{TRIANGULAR_BRANCH}"),
+        ],
+    );
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&origin, &format!("review/{TRIANGULAR_BRANCH}")).as_deref(), Some(landed.as_str()), "{err}");
-    assert_eq!(remote_branches(&origin), format!("refs/heads/review/{TRIANGULAR_BRANCH}={landed}\n"), "nothing else was published");
-    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    assert_eq!(
+        remote_tip(&origin, &format!("review/{TRIANGULAR_BRANCH}")).as_deref(),
+        Some(landed.as_str()),
+        "{err}"
+    );
+    assert_eq!(
+        remote_branches(&origin),
+        format!("refs/heads/review/{TRIANGULAR_BRANCH}={landed}\n"),
+        "nothing else was published"
+    );
+    assert_eq!(
+        remote_branches(&upstream),
+        upstream_before,
+        "the tracked remote is untouched"
+    );
     remove(&root);
 }
 
@@ -819,10 +1138,21 @@ fn a_configured_push_refspec_decides_where_a_named_branch_goes() {
 fn a_glob_push_refspec_maps_a_named_branch_the_way_git_does() {
     let root = fixture("ap-refspec-glob");
     let (repo, origin, _upstream, landed) = triangular_repo(&root);
-    git(&repo, &["config", "remote.origin.push", "refs/heads/*:refs/heads/mirror/*"]);
+    git(
+        &repo,
+        &[
+            "config",
+            "remote.origin.push",
+            "refs/heads/*:refs/heads/mirror/*",
+        ],
+    );
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_tip(&origin, &format!("mirror/{TRIANGULAR_BRANCH}")).as_deref(), Some(landed.as_str()), "{err}");
+    assert_eq!(
+        remote_tip(&origin, &format!("mirror/{TRIANGULAR_BRANCH}")).as_deref(),
+        Some(landed.as_str()),
+        "{err}"
+    );
     remove(&root);
 }
 
@@ -838,9 +1168,20 @@ fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
     git(&repo, &["config", "remote.origin.push", "HEAD"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains("`remote.origin.push` has `HEAD`"), "the note names the refspec it does not interpret: {err}");
-    assert_eq!(remote_branches(&origin), "", "nothing was published on the push remote");
-    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    assert!(
+        err.contains("`remote.origin.push` has `HEAD`"),
+        "the note names the refspec it does not interpret: {err}"
+    );
+    assert_eq!(
+        remote_branches(&origin),
+        "",
+        "nothing was published on the push remote"
+    );
+    assert_eq!(
+        remote_branches(&upstream),
+        upstream_before,
+        "the tracked remote is untouched"
+    );
     remove(&root);
 }
 
@@ -858,8 +1199,16 @@ fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
     assert!(err.contains("No refs in common"), "{err}");
-    assert_eq!(remote_branches(&origin), "", "the push remote gained no branch, least of all one named after the tracked branch");
-    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    assert_eq!(
+        remote_branches(&origin),
+        "",
+        "the push remote gained no branch, least of all one named after the tracked branch"
+    );
+    assert_eq!(
+        remote_branches(&upstream),
+        upstream_before,
+        "the tracked remote is untouched"
+    );
     remove(&root);
 }
 
@@ -870,13 +1219,29 @@ fn a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name() {
     let root = fixture("ap-matching-present");
     let (repo, origin, upstream, landed) = triangular_repo(&root);
     let upstream_before = remote_branches(&upstream);
-    git(&repo, &["push", "--quiet", "origin", &format!("HEAD~1:refs/heads/{TRIANGULAR_BRANCH}")]);
+    git(
+        &repo,
+        &[
+            "push",
+            "--quiet",
+            "origin",
+            &format!("HEAD~1:refs/heads/{TRIANGULAR_BRANCH}"),
+        ],
+    );
     git(&repo, &["fetch", "--quiet", "origin"]);
     git(&repo, &["config", "push.default", "matching"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(remote_branches(&origin), format!("refs/heads/{TRIANGULAR_BRANCH}={landed}\n"), "{err}");
-    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    assert_eq!(
+        remote_branches(&origin),
+        format!("refs/heads/{TRIANGULAR_BRANCH}={landed}\n"),
+        "{err}"
+    );
+    assert_eq!(
+        remote_branches(&upstream),
+        upstream_before,
+        "the tracked remote is untouched"
+    );
     remove(&root);
 }
 
@@ -892,9 +1257,20 @@ fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
         git(&repo, &["config", "push.default", mode]);
         let (result, err) = push_triangular(&repo, &landed);
         assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{mode}: {err}");
-        assert!(err.contains(&format!("`push.default` is `{mode}`")), "{mode}: {err}");
-        assert_eq!(remote_branches(&origin), "", "{mode}: the push remote gained no branch");
-        assert_eq!(remote_branches(&upstream), upstream_before, "{mode}: the tracked remote is untouched");
+        assert!(
+            err.contains(&format!("`push.default` is `{mode}`")),
+            "{mode}: {err}"
+        );
+        assert_eq!(
+            remote_branches(&origin),
+            "",
+            "{mode}: the push remote gained no branch"
+        );
+        assert_eq!(
+            remote_branches(&upstream),
+            upstream_before,
+            "{mode}: the tracked remote is untouched"
+        );
         remove(&root);
     }
 }
@@ -907,8 +1283,14 @@ fn a_clean_push_whose_reference_lock_was_refused_surfaces_the_refusal() {
     let output = "To origin\nremote: hello\nerror: cannot lock ref 'refs/remotes/origin/main': Unable to create '/repo/.git/refs/remotes/origin/main.lock': File exists.\n";
     let shown: String = filter_push_output(output, 0);
     assert!(shown.contains("cannot lock ref"), "{shown}");
-    assert!(shown.contains("remote: hello"), "the remote's own lines stay: {shown}");
-    assert!(!shown.contains("To origin"), "the other lines of a clean push stay out: {shown}");
+    assert!(
+        shown.contains("remote: hello"),
+        "the remote's own lines stay: {shown}"
+    );
+    assert!(
+        !shown.contains("To origin"),
+        "the other lines of a clean push stay out: {shown}"
+    );
 }
 
 /// The awaited push answers what the synchronous push answers:
@@ -922,37 +1304,57 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
     std::fs::create_dir_all(root.join("sync")).expect("the synchronous fixture's folder");
     std::fs::create_dir_all(root.join("awaited")).expect("the awaited fixture's folder");
     let (sync_repo, sync_log) = repo_with_remote_and_pre_push(root.join("sync").as_path(), 0);
-    let (awaited_repo, awaited_log) = repo_with_remote_and_pre_push(root.join("awaited").as_path(), 0);
+    let (awaited_repo, awaited_log) =
+        repo_with_remote_and_pre_push(root.join("awaited").as_path(), 0);
     let sync_landed: String = head_oid(sync_repo.as_path());
     let awaited_landed: String = head_oid(awaited_repo.as_path());
-    let (sync_result, sync_shown): (Result<AutoPushResult, SingleFlightError>, String) = run(sync_repo.as_path(), sync_landed.as_str());
+    let (sync_result, sync_shown): (Result<AutoPushResult, SingleFlightError>, String) =
+        run(sync_repo.as_path(), sync_landed.as_str());
     let mut awaited_err: Vec<u8> = Vec::new();
-    let awaited_result: Result<AutoPushResult, SingleFlightError> = crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
-        &push_git(awaited_repo.as_path()),
-        &head_ref(awaited_repo.as_path()),
-        awaited_landed.as_str(),
-        &[],
-        &[],
-        &mut awaited_err,
-    ))
-    .expect("the runtime runs the work");
+    let awaited_result: Result<AutoPushResult, SingleFlightError> =
+        crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
+            &push_git(awaited_repo.as_path()),
+            &head_ref(awaited_repo.as_path()),
+            awaited_landed.as_str(),
+            &[],
+            &[],
+            &mut awaited_err,
+        ))
+        .expect("the runtime runs the work");
     assert_eq!(
         format!("{awaited_result:?}"),
         format!("{sync_result:?}"),
         "the two faces answer the same push the same way"
     );
-    assert_eq!(String::from_utf8_lossy(awaited_err.as_slice()).into_owned(), sync_shown);
+    assert_eq!(
+        String::from_utf8_lossy(awaited_err.as_slice()).into_owned(),
+        sync_shown
+    );
     // Each face delivered the tip of its own repository, and its push created that repository's tracking ref.
     // The two repositories commit one after the other,
     // so their commit names differ whenever the clock passes a second between them:
     // comparing the two names compared a clock and not a push.
     for repo in [sync_repo.as_path(), awaited_repo.as_path()] {
-        let delivered: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "@{upstream}"]).stdout).trim().to_owned();
-        let tip: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
-        assert_eq!(delivered, tip, "the push delivered {}'s own tip", repo.display());
+        let delivered: String =
+            String::from_utf8_lossy(&git(repo, &["rev-parse", "@{upstream}"]).stdout)
+                .trim()
+                .to_owned();
+        let tip: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout)
+            .trim()
+            .to_owned();
+        assert_eq!(
+            delivered,
+            tip,
+            "the push delivered {}'s own tip",
+            repo.display()
+        );
         assert!(!tip.is_empty(), "{} has a tip", repo.display());
     }
-    assert_eq!(read_log(sync_log.as_path()), read_log(awaited_log.as_path()), "both ran the same hook");
+    assert_eq!(
+        read_log(sync_log.as_path()),
+        read_log(awaited_log.as_path()),
+        "both ran the same hook"
+    );
     // The positive control: the synchronous face inside the runtime is refused, not silently run.
     let mut refused_err: Vec<u8> = Vec::new();
     let refused = crate::lazy_runtime::run_on_runtime(async {
@@ -968,9 +1370,14 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
     .expect("the runtime runs the work");
     let refusal: String = match refused {
         Err(error) => format!("{error}"),
-        Ok(result) => panic!("the synchronous push cannot start Git inside the runtime, and it answered {result:?}"),
+        Ok(result) => panic!(
+            "the synchronous push cannot start Git inside the runtime, and it answered {result:?}"
+        ),
     };
-    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
+    assert!(
+        refusal.contains("was asked for from inside itself"),
+        "{refusal}"
+    );
     remove(root.as_path());
 }
 
@@ -991,27 +1398,67 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
 /// the remote took the commit and the reference names the commit before it.
 #[test]
 fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
-    let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-locked", true);
-    let mut held: crate::stale_ref_lock_killed_git::Held = crate::stale_ref_lock_killed_git::hold_push(&stage);
-    assert!(stage.lock_of("refs/remotes/origin/main").exists(), "the killed push holds the tracking reference");
+    let stage: crate::stale_ref_lock_killed_git::Stage =
+        crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-locked", true);
+    let mut held: crate::stale_ref_lock_killed_git::Held =
+        crate::stale_ref_lock_killed_git::hold_push(&stage);
+    assert!(
+        stage.lock_of("refs/remotes/origin/main").exists(),
+        "the killed push holds the tracking reference"
+    );
     held.kill();
     // The branch tracks the remote, which is what makes the reference a push's own to write.
-    git(stage.repo.as_path(), &["branch", "--set-upstream-to=origin/main", "main"]);
+    git(
+        stage.repo.as_path(),
+        &["branch", "--set-upstream-to=origin/main", "main"],
+    );
     // The fixture's own state: the branch tracks the reference the push updates, and that reference is behind the branch.
     //  The question Git answers for a branch's upstream abbreviates the reference to `origin/main`, which is the name the push
     //  plan carries and the name the repair resolves to its full ref before writing it.
-    let upstream: String = git_text(stage.repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"]);
-    assert_eq!(upstream, "origin/main", "the branch tracks the reference a push of it writes");
+    let upstream: String = git_text(
+        stage.repo.as_path(),
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "main@{upstream}",
+        ],
+    );
+    assert_eq!(
+        upstream, "origin/main",
+        "the branch tracks the reference a push of it writes"
+    );
     let tip: String = head_oid(stage.repo.as_path());
-    let tracked: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
-    assert_ne!(tracked, tip, "the fixture starts with the reference behind the branch, as the refused update left it");
+    let tracked: String = git_text(
+        stage.repo.as_path(),
+        &["rev-parse", "refs/remotes/origin/main"],
+    );
+    assert_ne!(
+        tracked, tip,
+        "the fixture starts with the reference behind the branch, as the refused update left it"
+    );
     // The lock the killed push left still stands, so nothing may write the reference, and the push says where it stands.
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut err).expect("auto-push");
+    let result = push_once(
+        &push_git(stage.repo.as_path()),
+        "refs/heads/main",
+        tip.as_str(),
+        &[],
+        &[],
+        &mut err,
+    )
+    .expect("auto-push");
     let shown: String = String::from_utf8_lossy(err.as_slice()).into_owned();
-    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "the commits were delivered, so the push itself is a success: {shown}");
     assert_eq!(
-        git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]),
+        result.outcome,
+        AutoPushOutcome::Pushed,
+        "the commits were delivered, so the push itself is a success: {shown}"
+    );
+    assert_eq!(
+        git_text(
+            stage.repo.as_path(),
+            &["rev-parse", "refs/remotes/origin/main"]
+        ),
         tracked,
         "nothing writes a reference another Git holds"
     );
@@ -1022,9 +1469,29 @@ fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
     // The person clears the lock the notice names, and the next push of the branch writes the reference.
     std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
     let mut again: Vec<u8> = Vec::new();
-    let second = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut again).expect("auto-push");
-    assert_eq!(second.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(again.as_slice()));
-    assert_eq!(git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]), tip, "the next push leaves the reference naming its own commit");
+    let second = push_once(
+        &push_git(stage.repo.as_path()),
+        "refs/heads/main",
+        tip.as_str(),
+        &[],
+        &[],
+        &mut again,
+    )
+    .expect("auto-push");
+    assert_eq!(
+        second.outcome,
+        AutoPushOutcome::Pushed,
+        "{}",
+        String::from_utf8_lossy(again.as_slice())
+    );
+    assert_eq!(
+        git_text(
+            stage.repo.as_path(),
+            &["rev-parse", "refs/remotes/origin/main"]
+        ),
+        tip,
+        "the next push leaves the reference naming its own commit"
+    );
     stage.finish();
 }
 
@@ -1037,17 +1504,61 @@ fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
 /// The two shapes that write nothing are a push that matches the branches itself and a push to another remote.
 #[test]
 fn only_a_push_to_the_branchs_own_tracked_remote_names_a_reference_to_write() {
-    let own: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/heads/main")] };
+    let own: Sent = Sent {
+        remote: String::from("origin"),
+        targets: vec![String::from("refs/heads/main")],
+    };
     // The push plan keeps the name Git answers the upstream question with, which is abbreviated; both spellings name one reference.
-    assert_eq!(pushed_tracking_ref(Some("origin/main"), &own, "refs/heads/main"), Some("origin/main"), "the abbreviated name the plan carries");
-    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"), Some("refs/remotes/origin/main"), "the full name");
-    let elsewhere: Sent = Sent { remote: String::from("mirror"), targets: vec![String::from("refs/heads/main")] };
-    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &elsewhere, "refs/heads/main"), None, "the tracked remote is not the one this push wrote");
-    let matching: Sent = Sent { remote: String::from("origin"), targets: Vec::new() };
-    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &matching, "refs/heads/main"), None, "a push that matches branches itself names no one reference");
-    let tagged: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/tags/v1")] };
-    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &tagged, "refs/heads/main"), None, "a push to another ref writes no branch reference");
-    assert_eq!(pushed_tracking_ref(None, &own, "refs/heads/main"), None, "a branch with no upstream has no reference to write");
+    assert_eq!(
+        pushed_tracking_ref(Some("origin/main"), &own, "refs/heads/main"),
+        Some("origin/main"),
+        "the abbreviated name the plan carries"
+    );
+    assert_eq!(
+        pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"),
+        Some("refs/remotes/origin/main"),
+        "the full name"
+    );
+    let elsewhere: Sent = Sent {
+        remote: String::from("mirror"),
+        targets: vec![String::from("refs/heads/main")],
+    };
+    assert_eq!(
+        pushed_tracking_ref(
+            Some("refs/remotes/origin/main"),
+            &elsewhere,
+            "refs/heads/main"
+        ),
+        None,
+        "the tracked remote is not the one this push wrote"
+    );
+    let matching: Sent = Sent {
+        remote: String::from("origin"),
+        targets: Vec::new(),
+    };
+    assert_eq!(
+        pushed_tracking_ref(
+            Some("refs/remotes/origin/main"),
+            &matching,
+            "refs/heads/main"
+        ),
+        None,
+        "a push that matches branches itself names no one reference"
+    );
+    let tagged: Sent = Sent {
+        remote: String::from("origin"),
+        targets: vec![String::from("refs/tags/v1")],
+    };
+    assert_eq!(
+        pushed_tracking_ref(Some("refs/remotes/origin/main"), &tagged, "refs/heads/main"),
+        None,
+        "a push to another ref writes no branch reference"
+    );
+    assert_eq!(
+        pushed_tracking_ref(None, &own, "refs/heads/main"),
+        None,
+        "a branch with no upstream has no reference to write"
+    );
 }
 
 /// What:
@@ -1068,21 +1579,94 @@ fn a_push_that_failed_without_a_word_names_its_status_and_its_signal() {
     let branch: &str = "refs/heads/main";
     let mut sink: Vec<u8> = Vec::new();
     // A push a signal ended: `128 + N` is also a status a program can choose, so the signal beside the code is what says which.
-    let killed: PushAttempt = PushAttempt { exit_code: 137, signal: Some(9), output: String::new() };
-    let reported_killed: AutoPushResult = reported(killed, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
-    assert_eq!(reported_killed.outcome, AutoPushOutcome::Failed, "a push a signal ended did not deliver: {}", String::from_utf8_lossy(sink.as_slice()));
-    assert!(reported_killed.shown.contains("was ended by signal 9"), "the record names the signal: {}", reported_killed.shown);
-    assert!(reported_killed.shown.contains("status 137"), "and the status beside it: {}", reported_killed.shown);
-    assert!(reported_killed.shown.contains("printed nothing"), "and says that the push itself said nothing: {}", reported_killed.shown);
+    let killed: PushAttempt = PushAttempt {
+        exit_code: 137,
+        signal: Some(9),
+        output: String::new(),
+    };
+    let reported_killed: AutoPushResult = reported(
+        killed,
+        false,
+        &WhereThePushStops::Nothing,
+        branch,
+        "",
+        &mut sink,
+    )
+    .expect("a failed push is reported");
+    assert_eq!(
+        reported_killed.outcome,
+        AutoPushOutcome::Failed,
+        "a push a signal ended did not deliver: {}",
+        String::from_utf8_lossy(sink.as_slice())
+    );
+    assert!(
+        reported_killed.shown.contains("was ended by signal 9"),
+        "the record names the signal: {}",
+        reported_killed.shown
+    );
+    assert!(
+        reported_killed.shown.contains("status 137"),
+        "and the status beside it: {}",
+        reported_killed.shown
+    );
+    assert!(
+        reported_killed.shown.contains("printed nothing"),
+        "and says that the push itself said nothing: {}",
+        reported_killed.shown
+    );
     // The first line is what the retry's journal line names as the cause, so the record must not start with a blank one.
-    assert_eq!(reported_killed.shown.lines().next().unwrap_or_default().trim(), reported_killed.shown.trim(), "the record's first line is its whole sentence");
+    assert_eq!(
+        reported_killed
+            .shown
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .trim(),
+        reported_killed.shown.trim(),
+        "the record's first line is its whole sentence"
+    );
     // A push that exited by itself, with no signal and no words.
-    let exited: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::new() };
-    let reported_exited: AutoPushResult = reported(exited, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
-    assert!(reported_exited.shown.contains("exited with status 1"), "the record names the status: {}", reported_exited.shown);
-    assert!(!reported_exited.shown.contains("signal"), "and claims no signal where none ended it: {}", reported_exited.shown);
+    let exited: PushAttempt = PushAttempt {
+        exit_code: 1,
+        signal: None,
+        output: String::new(),
+    };
+    let reported_exited: AutoPushResult = reported(
+        exited,
+        false,
+        &WhereThePushStops::Nothing,
+        branch,
+        "",
+        &mut sink,
+    )
+    .expect("a failed push is reported");
+    assert!(
+        reported_exited.shown.contains("exited with status 1"),
+        "the record names the status: {}",
+        reported_exited.shown
+    );
+    assert!(
+        !reported_exited.shown.contains("signal"),
+        "and claims no signal where none ended it: {}",
+        reported_exited.shown
+    );
     // The control of both: a failure with words of its own keeps exactly them.
-    let spoke: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::from("fatal: the network is down") };
-    let reported_spoke: AutoPushResult = reported(spoke, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
-    assert_eq!(reported_spoke.shown, "fatal: the network is down", "the program's own lines are the whole record");
+    let spoke: PushAttempt = PushAttempt {
+        exit_code: 1,
+        signal: None,
+        output: String::from("fatal: the network is down"),
+    };
+    let reported_spoke: AutoPushResult = reported(
+        spoke,
+        false,
+        &WhereThePushStops::Nothing,
+        branch,
+        "",
+        &mut sink,
+    )
+    .expect("a failed push is reported");
+    assert_eq!(
+        reported_spoke.shown, "fatal: the network is down",
+        "the program's own lines are the whole record"
+    );
 }

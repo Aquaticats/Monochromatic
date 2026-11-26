@@ -1,25 +1,57 @@
 //! Controls for the service's after-commit work consumer,
 //! with handlers that record what they are asked.
 
-use crate::work_item_recovery::requeue_expired;
-use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
-use crate::work_item_state_directories_and_claim_names::take_listings;
-use crate::push_retry::{Due, PushRetries};
+use super::*;
+use crate::merge_second_pass::tests::await_it;
+use crate::push_failure_notice::{
+    PushOutcome,
+    notice_directory,
+    push_failure_text,
+    push_failures,
+};
+use crate::push_retry::FIRST_PAUSE;
+use crate::push_retry::{
+    Due,
+    PushRetries,
+};
+use crate::service_claim_renewal::{
+    RENEWALS_PER_LEASE,
+    renewal_interval,
+};
+use crate::service_claim_renewal_running::{
+    DrivenRenewal,
+    Renewal,
+};
 use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
-use super::*;
-use crate::push_failure_notice::{PushOutcome, notice_directory, push_failure_text, push_failures};
-use crate::push_retry::FIRST_PAUSE;
-use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
-use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
-use crate::merge_second_pass::tests::await_it;
-use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::work_item::{
+    CLAIMED,
+    PENDING,
+    enqueue,
+    find_claim,
+    id_of_entry,
+    state_directory,
+};
+use crate::work_item::{
+    DONE,
+    FAILED,
+    WorkKind,
+    claim_next_of,
+};
+use crate::work_item_recovery::requeue_expired;
+use crate::work_item_state_directories_and_claim_names::take_listings;
 use std::ffi::OsString;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -68,37 +100,77 @@ impl Recorder {
 }
 
 impl WorkHandlers for Recorder {
-    fn push(&self, items: &[WorkItem]) -> Verdict {
-        self.pushes.lock().expect("the control's own list").push(items.iter().map(|item| { return item.oid.clone(); }).collect());
+    fn push(
+        &self,
+        items: &[WorkItem],
+    ) -> Verdict {
+        self.pushes.lock().expect("the control's own list").push(
+            items
+                .iter()
+                .map(|item| {
+                    return item.oid.clone();
+                })
+                .collect(),
+        );
         return self.verdict.clone();
     }
 
-    fn maintenance(&self, item: &WorkItem) -> Verdict {
-        self.upkeeps.lock().expect("the control's own list").push(item.repository.clone());
+    fn maintenance(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
+        self.upkeeps
+            .lock()
+            .expect("the control's own list")
+            .push(item.repository.clone());
         return self.verdict.clone();
     }
 
-    fn review(&self, item: &WorkItem) -> Verdict {
-        self.reviews.lock().expect("the control's own list").push(item.oid.clone());
+    fn review(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
+        self.reviews
+            .lock()
+            .expect("the control's own list")
+            .push(item.oid.clone());
         return self.verdict.clone();
     }
 
-    fn trash(&self, item: &WorkItem) -> Verdict {
-        self.trashes.lock().expect("the control's own list").push(item.oid.clone());
+    fn trash(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
+        self.trashes
+            .lock()
+            .expect("the control's own list")
+            .push(item.oid.clone());
         return self.verdict.clone();
     }
 
     /// A removal hands the path it renamed out of the person's way,
     /// so the record is that path rather than a commit id.
-    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
-        self.deletions.lock().expect("the control's own list").push(item.parent.clone());
+    fn subvolume_delete(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
+        self.deletions
+            .lock()
+            .expect("the control's own list")
+            .push(item.parent.clone());
         return self.verdict.clone();
     }
 
     /// A snapshot ahead names the worktree root to copy,
     /// so the record is that root rather than a commit id.
-    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
-        self.aheads.lock().expect("the control's own list").push(item.repository.display().to_string());
+    fn snapshot_ahead(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
+        self.aheads
+            .lock()
+            .expect("the control's own list")
+            .push(item.repository.display().to_string());
         return self.verdict.clone();
     }
 }
@@ -117,10 +189,19 @@ fn repo(name: &str) -> Repo {
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir_all(&common).expect("common directory");
     std::fs::create_dir_all(&worktree).expect("worktree directory");
-    return Repo { root, common, worktree };
+    return Repo {
+        root,
+        common,
+        worktree,
+    };
 }
 
-fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
+fn item(
+    repo: &Repo,
+    kind: WorkKind,
+    oid: &str,
+    branch: &str,
+) -> WorkItem {
     return WorkItem {
         kind,
         repository: repo.worktree.to_path_buf(),
@@ -134,16 +215,32 @@ fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
     };
 }
 
-fn enqueue_all(repo: &Repo, items: &[WorkItem]) {
+fn enqueue_all(
+    repo: &Repo,
+    items: &[WorkItem],
+) {
     for entry in items {
         enqueue(work_directory(repo.common.as_path()).as_path(), entry).expect("enqueue");
     }
 }
 
-fn names(repo: &Repo, state: &str) -> Vec<String> {
-    let mut found: Vec<String> = std::fs::read_dir(state_directory(work_directory(repo.common.as_path()).as_path(), state))
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
-        .unwrap_or_default();
+fn names(
+    repo: &Repo,
+    state: &str,
+) -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(state_directory(
+        work_directory(repo.common.as_path()).as_path(),
+        state,
+    ))
+    .map(|listing| {
+        return listing
+            .flatten()
+            .map(|entry| {
+                return entry.file_name().to_string_lossy().into_owned();
+            })
+            .collect();
+    })
+    .unwrap_or_default();
     found.sort();
     return found;
 }
@@ -152,7 +249,12 @@ fn names(repo: &Repo, state: &str) -> Vec<String> {
 /// a claim's file name has the id,
 /// a generation and a clock reading.
 fn claimed_ids(repo: &Repo) -> Vec<String> {
-    return names(repo, CLAIMED).iter().map(|name| { return id_of_entry(name.as_str()).to_owned(); }).collect();
+    return names(repo, CLAIMED)
+        .iter()
+        .map(|name| {
+            return id_of_entry(name.as_str()).to_owned();
+        })
+        .collect();
 }
 
 /// Several pending pushes of one branch are one push of the newest commit,
@@ -160,13 +262,20 @@ fn claimed_ids(repo: &Repo) -> Vec<String> {
 #[test]
 fn pending_pushes_of_one_branch_become_one_push() {
     let repo: Repo = repo("work-coalesce");
-    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, BRANCH)];
+    let items: Vec<WorkItem> = vec![
+        item(&repo, WorkKind::Push, OID, BRANCH),
+        item(&repo, WorkKind::Push, OTHER_OID, BRANCH),
+    ];
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
     let pushes = recorder.pushes.lock().expect("the control's own list");
     assert_eq!(pushes.len(), 1, "one push for the branch");
-    assert_eq!(pushes[0].len(), items.len(), "the push covers every pending item");
+    assert_eq!(
+        pushes[0].len(),
+        items.len(),
+        "the push covers every pending item"
+    );
     assert_eq!(names(&repo, DONE).len(), items.len());
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
@@ -187,8 +296,22 @@ fn different_branches_push_separately_and_upkeep_runs_once() {
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 2);
-    assert_eq!(recorder.upkeeps.lock().expect("the control's own list").len(), 1);
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        2
+    );
+    assert_eq!(
+        recorder
+            .upkeeps
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1
+    );
     assert_eq!(names(&repo, DONE).len(), items.len());
     remove(repo.root.as_path());
 }
@@ -201,11 +324,21 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     let repo: Repo = repo("work-notice");
     let said: &str = "remote: permission denied";
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Failed(said.to_string())),
+        &ClaimTime::read(),
+    );
     assert_eq!(names(&repo, FAILED).len(), 1);
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]);
-    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a notice is shown once");
+    assert_eq!(
+        shown,
+        vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]
+    );
+    assert!(
+        take_push_failures(repo.common.as_path()).is_empty(),
+        "a notice is shown once"
+    );
     remove(repo.root.as_path());
 }
 
@@ -216,13 +349,36 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
 fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
     let repo: Repo = repo("work-notice-cleared");
     let other_branch: &str = "refs/heads/other";
-    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, other_branch)]);
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(String::from("remote: rejected"))), &ClaimTime::read());
+    enqueue_all(
+        &repo,
+        &[
+            item(&repo, WorkKind::Push, OID, BRANCH),
+            item(&repo, WorkKind::Push, OTHER_OID, other_branch),
+        ],
+    );
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Failed(String::from("remote: rejected"))),
+        &ClaimTime::read(),
+    );
     let third: &str = "fedcba9876543210fedcba9876543210fedcba98";
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, third, BRANCH)]);
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Done),
+        &ClaimTime::read(),
+    );
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
-    assert_eq!(shown, vec![push_failure_text(other_branch, OTHER_OID, PushOutcome::Refused, "remote: rejected")], "only the branch that went through is cleared");
+    assert_eq!(
+        shown,
+        vec![push_failure_text(
+            other_branch,
+            OTHER_OID,
+            PushOutcome::Refused,
+            "remote: rejected"
+        )],
+        "only the branch that went through is cleared"
+    );
     remove(repo.root.as_path());
 }
 
@@ -237,17 +393,39 @@ fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
     let repo: Repo = repo("work-notice-skipped");
     let said: &str = "remote: rejected";
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Failed(said.to_string())),
+        &ClaimTime::read(),
+    );
     let reason: &str = "monochromatic-git-policy-cli: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
     let skipped: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(reason.to_string())), &ClaimTime::read());
-    assert_eq!(names(&repo, DONE), vec![skipped.id()], "nothing is left to retry");
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Skipped(reason.to_string())),
+        &ClaimTime::read(),
+    );
+    assert_eq!(
+        names(&repo, DONE),
+        vec![skipped.id()],
+        "nothing is left to retry"
+    );
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 2, "the failure and the skip: {shown:?}");
-    assert!(shown.contains(&push_failure_text(BRANCH, OID, PushOutcome::Refused, said)), "{shown:?}");
-    assert!(shown.iter().any(|text| { return text.contains(reason) && text.contains(OTHER_OID) && text.contains("was not made"); }), "{shown:?}");
+    assert!(
+        shown.contains(&push_failure_text(BRANCH, OID, PushOutcome::Refused, said)),
+        "{shown:?}"
+    );
+    assert!(
+        shown.iter().any(|text| {
+            return text.contains(reason)
+                && text.contains(OTHER_OID)
+                && text.contains("was not made");
+        }),
+        "{shown:?}"
+    );
     remove(repo.root.as_path());
 }
 
@@ -265,12 +443,23 @@ fn every_review_item_is_reviewed_once_after_the_pushes() {
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
-    let mut reviewed: Vec<String> = recorder.reviews.lock().expect("the control's own list").clone();
+    let mut reviewed: Vec<String> = recorder
+        .reviews
+        .lock()
+        .expect("the control's own list")
+        .clone();
     reviewed.sort();
     let mut expected: Vec<String> = vec![OID.to_string(), OTHER_OID.to_string()];
     expected.sort();
     assert_eq!(reviewed, expected);
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1);
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1
+    );
     assert_eq!(names(&repo, DONE).len(), items.len());
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
@@ -284,13 +473,25 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
     let repo: Repo = repo("work-review-failed");
     let review: WorkItem = item(&repo, WorkKind::Review, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&review));
-    let recorder: Recorder = Recorder::answering(Verdict::Failed("the log could not be written".to_string()));
+    let recorder: Recorder =
+        Recorder::answering(Verdict::Failed("the log could not be written".to_string()));
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
     assert_eq!(names(&repo, FAILED), vec![review.id()]);
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
-    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
+    assert!(
+        take_push_failures(repo.common.as_path()).is_empty(),
+        "a shadow review never nags the person"
+    );
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
-    assert_eq!(recorder.reviews.lock().expect("the control's own list").len(), 1, "a failed review is not retried");
+    assert_eq!(
+        recorder
+            .reviews
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "a failed review is not retried"
+    );
     remove(repo.root.as_path());
 }
 
@@ -298,16 +499,32 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem {
+        git_dir: repo.root.join("elsewhere"),
+        transport: false,
+        ..item(&repo, WorkKind::Push, OID, BRANCH)
+    };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
-        assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
+        assert!(
+            !is_acceptable(refused, repo.common.as_path()),
+            "{refused:?}"
+        );
     }
-    assert!(is_acceptable(&item(&repo, WorkKind::Push, OID, BRANCH), repo.common.as_path()));
+    assert!(is_acceptable(
+        &item(&repo, WorkKind::Push, OID, BRANCH),
+        repo.common.as_path()
+    ));
     enqueue_all(&repo, &[elsewhere, bad_reference]);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, &ClaimTime::read());
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty());
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty()
+    );
     assert_eq!(names(&repo, FAILED).len(), 2);
     remove(repo.root.as_path());
 }
@@ -326,15 +543,38 @@ fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let started: ClaimTime = ClaimTime::read();
     // The earlier service claims it and dies.
-    assert!(claim_next_of(work_dir.as_path(), &started, &SERVICE_KINDS).expect("claim").is_some());
+    assert!(
+        claim_next_of(work_dir.as_path(), &started, &SERVICE_KINDS)
+            .expect("claim")
+            .is_some()
+    );
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     let asked: Option<Duration> = drain(repo.common.as_path(), &recorder, &started);
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty(), "the holder may be alive, so its claim is left to it");
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "the holder may be alive, so its claim is left to it"
+    );
     assert_eq!(names(&repo, CLAIMED).len(), 1);
     let wait: Duration = asked.expect("the drain says when to look again");
     assert!(wait > Duration::ZERO && wait <= CLAIM_LEASE, "{wait:?}");
-    let after: Option<Duration> = drain(repo.common.as_path(), &recorder, &started.advanced(CLAIM_LEASE + Duration::from_secs(1)));
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1, "a claim whose lease is over runs again");
+    let after: Option<Duration> = drain(
+        repo.common.as_path(),
+        &recorder,
+        &started.advanced(CLAIM_LEASE + Duration::from_secs(1)),
+    );
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "a claim whose lease is over runs again"
+    );
     assert_eq!(names(&repo, DONE), vec![stuck.id()]);
     assert!(names(&repo, CLAIMED).is_empty());
     assert_eq!(after, None, "nothing is left to wait for");
@@ -372,19 +612,33 @@ struct Gate {
 }
 
 impl WorkHandlers for Gate {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
-        self.pushes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
+        self.pushes
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.began.send(()).expect("the test is listening");
         // The bound only ends a failing run.
-        let _released = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).recv_timeout(GATE_CEILING);
+        let _released = self
+            .release
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .recv_timeout(GATE_CEILING);
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 }
@@ -405,28 +659,60 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     let lease: Duration = CLAIM_LEASE;
     let (began, began_receiver) = std::sync::mpsc::channel();
     let (release, release_receiver) = std::sync::mpsc::channel();
-    let dying: Gate = Gate { began, release: std::sync::Mutex::new(release_receiver), pushes: std::sync::atomic::AtomicUsize::new(0) };
+    let dying: Gate = Gate {
+        began,
+        release: std::sync::Mutex::new(release_receiver),
+        pushes: std::sync::atomic::AtomicUsize::new(0),
+    };
     let restarted: Recorder = Recorder::answering(Verdict::Done);
     let driver: DrivenRenewal = DrivenRenewal::default();
     let wait: Option<Duration> = std::thread::scope(|scope| {
-        let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
+        let holder = scope.spawn(|| {
+            drain_with_renewal(
+                repo.common.as_path(),
+                &dying,
+                &ClaimTime::read(),
+                lease,
+                Renewal::Driven(&driver),
+            );
+        });
         let letting_go: LetGo<'_> = LetGo(&release);
-        began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
+        began_receiver
+            .recv_timeout(Duration::from_secs(60))
+            .expect("the push began");
         // Four leases pass while the push runs; only a renewing holder keeps its claim through them.
         for third in 1..=(4 * RENEWALS_PER_LEASE) {
-            assert!(driver.renew(&ClaimTime::read().advanced(lease / RENEWALS_PER_LEASE * third)), "the drain registered its claims");
+            assert!(
+                driver.renew(&ClaimTime::read().advanced(lease / RENEWALS_PER_LEASE * third)),
+                "the drain registered its claims"
+            );
         }
         let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
-        let wait: Option<Duration> = drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
+        let wait: Option<Duration> =
+            drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
         release.send(()).expect("the push is waiting");
         drop(letting_go);
         holder.join().expect("the first instance finished");
         return wait;
     });
-    assert!(restarted.pushes.lock().expect("the control's own list").is_empty(), "the second instance did not run the item the first is running");
-    assert!(wait.is_some(), "it was told to look again when the claim's lease would be over");
+    assert!(
+        restarted
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "the second instance did not run the item the first is running"
+    );
+    assert!(
+        wait.is_some(),
+        "it was told to look again when the claim's lease would be over"
+    );
     assert_eq!(dying.pushes.load(std::sync::atomic::Ordering::SeqCst), 1);
-    assert_eq!(names(&repo, DONE), vec![slow.id()], "the holder settled its own claim");
+    assert_eq!(
+        names(&repo, DONE),
+        vec![slow.id()],
+        "the holder settled its own claim"
+    );
     assert!(names(&repo, CLAIMED).is_empty() && names(&repo, PENDING).is_empty());
     remove(repo.root.as_path());
 }
@@ -443,18 +729,40 @@ fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
     let lease: Duration = CLAIM_LEASE;
     let (began, began_receiver) = std::sync::mpsc::channel();
     let (release, release_receiver) = std::sync::mpsc::channel();
-    let dying: Gate = Gate { began, release: std::sync::Mutex::new(release_receiver), pushes: std::sync::atomic::AtomicUsize::new(0) };
+    let dying: Gate = Gate {
+        began,
+        release: std::sync::Mutex::new(release_receiver),
+        pushes: std::sync::atomic::AtomicUsize::new(0),
+    };
     let restarted: Recorder = Recorder::answering(Verdict::Done);
     let driver: DrivenRenewal = DrivenRenewal::default();
     std::thread::scope(|scope| {
-        let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
-        began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
+        let holder = scope.spawn(|| {
+            drain_with_renewal(
+                repo.common.as_path(),
+                &dying,
+                &ClaimTime::read(),
+                lease,
+                Renewal::Driven(&driver),
+            );
+        });
+        began_receiver
+            .recv_timeout(Duration::from_secs(60))
+            .expect("the push began");
         let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
         drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
         release.send(()).expect("the push is waiting");
         holder.join().expect("the first instance finished");
     });
-    assert_eq!(restarted.pushes.lock().expect("the control's own list").len(), 1, "the lease ran out, so the second instance ran the item");
+    assert_eq!(
+        restarted
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "the lease ran out, so the second instance ran the item"
+    );
     remove(repo.root.as_path());
 }
 
@@ -465,17 +773,43 @@ fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
 #[test]
 fn a_push_given_up_by_recovery_leaves_a_notice() {
     let repo: Repo = repo("work-given-up");
-    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let abandoned: WorkItem = WorkItem {
+        tries: MAX_TRIES - 1,
+        transport: false,
+        ..item(&repo, WorkKind::Push, OID, BRANCH)
+    };
     enqueue_all(&repo, std::slice::from_ref(&abandoned));
     let started: ClaimTime = ClaimTime::read();
-    assert!(claim_next_of(work_directory(repo.common.as_path()).as_path(), &started, &SERVICE_KINDS).expect("claim").is_some());
+    assert!(
+        claim_next_of(
+            work_directory(repo.common.as_path()).as_path(),
+            &started,
+            &SERVICE_KINDS
+        )
+        .expect("claim")
+        .is_some()
+    );
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    drain(repo.common.as_path(), &recorder, &started.advanced(CLAIM_LEASE + Duration::from_secs(1)));
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty(), "the push is not run again");
+    drain(
+        repo.common.as_path(),
+        &recorder,
+        &started.advanced(CLAIM_LEASE + Duration::from_secs(1)),
+    );
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "the push is not run again"
+    );
     assert_eq!(names(&repo, FAILED), vec![abandoned.id()]);
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 1, "{shown:?}");
-    assert!(shown[0].contains(OID) && shown[0].contains("gave up") && shown[0].contains("branch main"), "{shown:?}");
+    assert!(
+        shown[0].contains(OID) && shown[0].contains("gave up") && shown[0].contains("branch main"),
+        "{shown:?}"
+    );
     remove(repo.root.as_path());
 }
 
@@ -488,12 +822,23 @@ fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
     let repo: Repo = repo("work-silent-skip");
     let said: &str = "remote: rejected";
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Failed(said.to_string())),
+        &ClaimTime::read(),
+    );
     let skipped: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::new())), &ClaimTime::read());
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Skipped(String::new())),
+        &ClaimTime::read(),
+    );
     assert_eq!(names(&repo, DONE), vec![skipped.id()]);
-    assert_eq!(take_push_failures(repo.common.as_path()), vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]);
+    assert_eq!(
+        take_push_failures(repo.common.as_path()),
+        vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]
+    );
     remove(repo.root.as_path());
 }
 
@@ -512,12 +857,35 @@ fn a_skip_whose_notice_cannot_be_written_leaves_its_item_to_its_lease() {
     let skipped: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
     // A file where the notice directory must be makes writing any notice fail.
-    std::fs::write(repo.common.join("monochromatic-git-policy-cli").join("notices"), "in the way").expect("blocker");
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::from("monochromatic-git-policy-cli: nothing to push to."))), &ClaimTime::read());
-    assert!(names(&repo, DONE).is_empty(), "a skip nothing recorded is settled as done");
-    assert!(names(&repo, FAILED).is_empty(), "a skip nothing recorded is settled as failed, and nothing tries it again");
+    std::fs::write(
+        repo.common
+            .join("monochromatic-git-policy-cli")
+            .join("notices"),
+        "in the way",
+    )
+    .expect("blocker");
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Skipped(String::from(
+            "monochromatic-git-policy-cli: nothing to push to.",
+        ))),
+        &ClaimTime::read(),
+    );
+    assert!(
+        names(&repo, DONE).is_empty(),
+        "a skip nothing recorded is settled as done"
+    );
+    assert!(
+        names(&repo, FAILED).is_empty(),
+        "a skip nothing recorded is settled as failed, and nothing tries it again"
+    );
     let claimed: Vec<String> = names(&repo, CLAIMED);
-    assert!(claimed.iter().any(|name| { return name.contains(skipped.id().as_str()); }), "no claim is left, so nothing works the skip out again: {claimed:?}");
+    assert!(
+        claimed.iter().any(|name| {
+            return name.contains(skipped.id().as_str());
+        }),
+        "no claim is left, so nothing works the skip out again: {claimed:?}"
+    );
     remove(repo.root.as_path());
 }
 
@@ -546,8 +914,20 @@ fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory_of_a_
     let legacy: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&legacy));
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, &ClaimTime::read());
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1, "the legacy push ran");
+    drain_common_records(
+        linked_git_dir(&repo).as_path(),
+        &recorder,
+        &ClaimTime::read(),
+    );
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "the legacy push ran"
+    );
     assert_eq!(names(&repo, DONE), vec![legacy.id()]);
     remove(repo.root.as_path());
 }
@@ -563,13 +943,36 @@ fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
     enqueue_all(&repo, std::slice::from_ref(&held));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
-    assert!(claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS).expect("claim").is_some());
+    assert!(
+        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+            .expect("claim")
+            .is_some()
+    );
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain_common_records(linked_git_dir(&repo).as_path(), &recorder, &now);
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty(), "a live claim is left to its holder");
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "a live claim is left to its holder"
+    );
     assert_eq!(claimed_ids(&repo), vec![held.id()]);
-    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, &now.advanced(CLAIM_LEASE + Duration::from_secs(1)));
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1, "an expired claim runs again");
+    drain_common_records(
+        linked_git_dir(&repo).as_path(),
+        &recorder,
+        &now.advanced(CLAIM_LEASE + Duration::from_secs(1)),
+    );
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "an expired claim runs again"
+    );
     assert_eq!(names(&repo, DONE), vec![held.id()]);
     remove(repo.root.as_path());
 }
@@ -582,7 +985,13 @@ fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain_common_records(repo.common.as_path(), &recorder, &ClaimTime::read());
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty());
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty()
+    );
     assert_eq!(names(&repo, PENDING).len(), 1);
     remove(repo.root.as_path());
 }
@@ -593,19 +1002,32 @@ fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
 /// a linked worktree's instance neither runs them nor takes back a claim the main instance holds,
 /// however old.
 #[test]
-fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_main_worktree_alone() {
+fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_main_worktree_alone()
+{
     let repo: Repo = repo("work-common-main-owned");
     let pending: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let held: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
     enqueue_all(&repo, std::slice::from_ref(&held));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
-    assert!(claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS).expect("claim").is_some(), "the main instance holds one item");
+    assert!(
+        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+            .expect("claim")
+            .is_some(),
+        "the main instance holds one item"
+    );
     enqueue_all(&repo, std::slice::from_ref(&pending));
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     let after_the_lease: ClaimTime = now.advanced(CLAIM_LEASE + Duration::from_secs(1));
     drain_common_records(linked_git_dir(&repo).as_path(), &recorder, &after_the_lease);
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty(), "the main worktree's records are not run by a linked instance");
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "the main worktree's records are not run by a linked instance"
+    );
     assert_eq!(names(&repo, PENDING), vec![pending.id()]);
     assert_eq!(claimed_ids(&repo), vec![held.id()]);
     remove(repo.root.as_path());
@@ -616,20 +1038,44 @@ fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_ma
 ///  at once either;
 /// only the lease does.
 #[test]
-fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_instance_taken_back() {
+fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_instance_taken_back()
+ {
     let repo: Repo = repo("work-bare-own");
     make_bare(&repo);
     let held: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&held));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
-    assert!(claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS).expect("claim").is_some());
+    assert!(
+        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+            .expect("claim")
+            .is_some()
+    );
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, &now);
-    assert!(recorder.pushes.lock().expect("the control's own list").is_empty(), "a live claim is left to its holder");
+    assert!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .is_empty(),
+        "a live claim is left to its holder"
+    );
     assert_eq!(claimed_ids(&repo), vec![held.id()]);
-    drain(repo.common.as_path(), &recorder, &now.advanced(CLAIM_LEASE + Duration::from_secs(1)));
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1, "an expired claim runs again");
+    drain(
+        repo.common.as_path(),
+        &recorder,
+        &now.advanced(CLAIM_LEASE + Duration::from_secs(1)),
+    );
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "an expired claim runs again"
+    );
     remove(repo.root.as_path());
 }
 
@@ -638,7 +1084,10 @@ fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_
 #[test]
 fn a_common_directory_is_bare_only_when_its_config_says_so() {
     let repo: Repo = repo("work-bare-spellings");
-    assert!(!is_bare_common_directory(repo.common.as_path()), "no config file");
+    assert!(
+        !is_bare_common_directory(repo.common.as_path()),
+        "no config file"
+    );
     for (text, expected) in [
         ("[core]\n\tbare = true\n", true),
         ("[Core]\n\tBare = yes\n", true),
@@ -649,7 +1098,11 @@ fn a_common_directory_is_bare_only_when_its_config_says_so() {
         ("not a config file", false),
     ] {
         std::fs::write(repo.common.join("config"), text).expect("config");
-        assert_eq!(is_bare_common_directory(repo.common.as_path()), expected, "{text:?}");
+        assert_eq!(
+            is_bare_common_directory(repo.common.as_path()),
+            expected,
+            "{text:?}"
+        );
     }
     remove(repo.root.as_path());
 }
@@ -667,35 +1120,81 @@ fn a_common_directory_is_bare_only_when_its_config_says_so() {
 #[test]
 fn a_common_directory_is_bare_when_config_worktree_says_so_and_the_extension_is_on() {
     let repo: Repo = repo("work-bare-worktree-config");
-    let enabled: &str = "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n";
+    let enabled: &str =
+        "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n";
     for (config, worktree, expected) in [
         (enabled, "[core]\n\tbare = true\n", true),
         (enabled, "[core]\n\tbare = false\n", false),
-        ("[core]\n\trepositoryformatversion = 0\n\tbare = true\n[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = false\n", false),
-        ("[core]\n\trepositoryformatversion = 0\n\tbare = false\n[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = true\n", true),
-        ("[core]\n\trepositoryformatversion = 0\n", "[core]\n\tbare = true\n", false),
-        ("[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = false\n", "[core]\n\tbare = true\n", false),
-        ("[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = true\n", false),
+        (
+            "[core]\n\trepositoryformatversion = 0\n\tbare = true\n[extensions]\n\tworktreeConfig = true\n",
+            "[core]\n\tbare = false\n",
+            false,
+        ),
+        (
+            "[core]\n\trepositoryformatversion = 0\n\tbare = false\n[extensions]\n\tworktreeConfig = true\n",
+            "[core]\n\tbare = true\n",
+            true,
+        ),
+        (
+            "[core]\n\trepositoryformatversion = 0\n",
+            "[core]\n\tbare = true\n",
+            false,
+        ),
+        (
+            "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = false\n",
+            "[core]\n\tbare = true\n",
+            false,
+        ),
+        (
+            "[extensions]\n\tworktreeConfig = true\n",
+            "[core]\n\tbare = true\n",
+            false,
+        ),
         (enabled, "not a config file", false),
     ] {
         std::fs::write(repo.common.join("config"), config).expect("config");
         std::fs::write(repo.common.join("config.worktree"), worktree).expect("config.worktree");
-        assert_eq!(is_bare_common_directory(repo.common.as_path()), expected, "{config:?} then {worktree:?}");
+        assert_eq!(
+            is_bare_common_directory(repo.common.as_path()),
+            expected,
+            "{config:?} then {worktree:?}"
+        );
     }
     remove(repo.root.as_path());
 }
 
 /// The records a bare repository's earlier releases left are run by a linked instance when only `config.worktree` says bare.
 #[test]
-fn a_linked_worktrees_wake_drains_the_records_of_a_bare_repository_that_says_bare_in_config_worktree() {
+fn a_linked_worktrees_wake_drains_the_records_of_a_bare_repository_that_says_bare_in_config_worktree()
+ {
     let repo: Repo = repo("work-common-legacy-worktree-config");
-    std::fs::write(repo.common.join("config"), "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n").expect("config");
-    std::fs::write(repo.common.join("config.worktree"), "[core]\n\tbare = true\n").expect("config.worktree");
+    std::fs::write(
+        repo.common.join("config"),
+        "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n",
+    )
+    .expect("config");
+    std::fs::write(
+        repo.common.join("config.worktree"),
+        "[core]\n\tbare = true\n",
+    )
+    .expect("config.worktree");
     let legacy: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&legacy));
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, &ClaimTime::read());
-    assert_eq!(recorder.pushes.lock().expect("the control's own list").len(), 1, "the legacy push ran");
+    drain_common_records(
+        linked_git_dir(&repo).as_path(),
+        &recorder,
+        &ClaimTime::read(),
+    );
+    assert_eq!(
+        recorder
+            .pushes
+            .lock()
+            .expect("the control's own list")
+            .len(),
+        1,
+        "the legacy push ran"
+    );
     assert_eq!(names(&repo, DONE), vec![legacy.id()]);
     remove(repo.root.as_path());
 }
@@ -715,31 +1214,55 @@ impl RenewalProbe {
         return self
             .ids
             .iter()
-            .map(|id| { return find_claim(self.work_dir.as_path(), id.as_str()).map(|path| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }); })
+            .map(|id| {
+                return find_claim(self.work_dir.as_path(), id.as_str()).map(|path| {
+                    return path
+                        .file_name()
+                        .map(|name| {
+                            return name.to_string_lossy().into_owned();
+                        })
+                        .unwrap_or_default();
+                });
+            })
             .collect();
     }
 }
 
 impl WorkHandlers for RenewalProbe {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         let first: Vec<Option<String>> = self.names_now();
         // The bound only ends a failing run: a passing run leaves this loop as soon as the renewal has renamed every claim.
-        let bound: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let bound: std::time::Instant =
+            std::time::Instant::now() + std::time::Duration::from_secs(20);
         let all_renewed = || -> bool {
-            return self.names_now().iter().zip(&first).all(|(now, before)| { return now.is_none() || now != before; });
+            return self.names_now().iter().zip(&first).all(|(now, before)| {
+                return now.is_none() || now != before;
+            });
         };
         while !all_renewed() && std::time::Instant::now() < bound {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        self.renewed.lock().expect("the control's own list").push(all_renewed());
+        self.renewed
+            .lock()
+            .expect("the control's own list")
+            .push(all_renewed());
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 }
@@ -752,13 +1275,33 @@ impl WorkHandlers for RenewalProbe {
 fn a_drain_renews_the_claims_it_holds_while_it_works() {
     let repo: Repo = repo("work-renewal");
     make_bare(&repo);
-    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other")];
+    let items: Vec<WorkItem> = vec![
+        item(&repo, WorkKind::Push, OID, BRANCH),
+        item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other"),
+    ];
     enqueue_all(&repo, &items);
     let lease: Duration = Duration::from_millis(300);
-    let probe: RenewalProbe = RenewalProbe { work_dir: work_directory(repo.common.as_path()), ids: items.iter().map(WorkItem::id).collect(), renewed: Mutex::new(Vec::new()) };
-    drain_common_records_with_lease(linked_git_dir(&repo).as_path(), &probe, &ClaimTime::read(), lease);
-    let renewed: Vec<bool> = probe.renewed.lock().expect("the control's own list").clone();
-    assert_eq!(renewed, vec![true; renewed.len()], "every claim was renewed during the first push");
+    let probe: RenewalProbe = RenewalProbe {
+        work_dir: work_directory(repo.common.as_path()),
+        ids: items.iter().map(WorkItem::id).collect(),
+        renewed: Mutex::new(Vec::new()),
+    };
+    drain_common_records_with_lease(
+        linked_git_dir(&repo).as_path(),
+        &probe,
+        &ClaimTime::read(),
+        lease,
+    );
+    let renewed: Vec<bool> = probe
+        .renewed
+        .lock()
+        .expect("the control's own list")
+        .clone();
+    assert_eq!(
+        renewed,
+        vec![true; renewed.len()],
+        "every claim was renewed during the first push"
+    );
     assert_eq!(renewed.len(), items.len(), "one push per branch ran");
     assert_eq!(names(&repo, DONE).len(), items.len());
     remove(repo.root.as_path());
@@ -778,26 +1321,51 @@ struct TakenOver<'a> {
 }
 
 impl WorkHandlers for TakenOver<'_> {
-    fn push(&self, items: &[WorkItem]) -> Verdict {
-        let first: bool = self.pushed.lock().expect("the control's own list").is_empty();
-        self.pushed.lock().expect("the control's own list").extend(items.iter().map(|item| { return item.oid.clone(); }));
+    fn push(
+        &self,
+        items: &[WorkItem],
+    ) -> Verdict {
+        let first: bool = self
+            .pushed
+            .lock()
+            .expect("the control's own list")
+            .is_empty();
+        self.pushed
+            .lock()
+            .expect("the control's own list")
+            .extend(items.iter().map(|item| {
+                return item.oid.clone();
+            }));
         if first {
             // The other instance reads the clocks a long time on, so every claim of this one is over its lease; this instance
             //  renews every third of the lease, and one renewal is all it takes to find its claims gone.
             let far_on: ClaimTime = ClaimTime::read().advanced(Duration::from_secs(3600));
-            assert_eq!(requeue_expired(self.work_dir.as_path(), &far_on, self.lease, MAX_TRIES), 2, "both claims were taken over");
+            assert_eq!(
+                requeue_expired(self.work_dir.as_path(), &far_on, self.lease, MAX_TRIES),
+                2,
+                "both claims were taken over"
+            );
             if let Some(driver) = self.renewal {
-                assert!(driver.renew(&ClaimTime::read()), "the drain registered its claims");
+                assert!(
+                    driver.renew(&ClaimTime::read()),
+                    "the drain registered its claims"
+                );
             }
         }
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 }
@@ -819,16 +1387,34 @@ fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
     enqueue_all(&repo, &[first.clone(), second.clone()]);
     let lease: Duration = Duration::from_millis(300);
     let driver: DrivenRenewal = DrivenRenewal::default();
-    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: Mutex::new(Vec::new()), renewal: Some(&driver) };
-    drain_with_renewal(repo.common.as_path(), &handlers, &ClaimTime::read(), lease, Renewal::Driven(&driver));
+    let handlers: TakenOver = TakenOver {
+        work_dir: work_directory(repo.common.as_path()),
+        lease,
+        pushed: Mutex::new(Vec::new()),
+        renewal: Some(&driver),
+    };
+    drain_with_renewal(
+        repo.common.as_path(),
+        &handlers,
+        &ClaimTime::read(),
+        lease,
+        Renewal::Driven(&driver),
+    );
     // Run from the old claims, the round pushes both branches, then both again from the claims it took back.
-    let mut pushed: Vec<String> = handlers.pushed.lock().expect("the control's own list").clone();
+    let mut pushed: Vec<String> = handlers
+        .pushed
+        .lock()
+        .expect("the control's own list")
+        .clone();
     pushed.sort();
     let mut once_each: Vec<String> = vec![OID.to_string(), OTHER_OID.to_string()];
     once_each.sort();
     let mut twice_each: Vec<String> = once_each.iter().chain(once_each.iter()).cloned().collect();
     twice_each.sort();
-    assert_eq!(pushed, twice_each, "each branch was pushed from its old claim and again from the claim this instance took back");
+    assert_eq!(
+        pushed, twice_each,
+        "each branch was pushed from its old claim and again from the claim this instance took back"
+    );
     let mut done: Vec<String> = names(&repo, DONE);
     done.sort();
     let mut expected: Vec<String> = vec![first.id(), second.id()];
@@ -852,17 +1438,35 @@ fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
     enqueue_all(&repo, &[first.clone(), second.clone()]);
     let lease: Duration = Duration::from_millis(300);
     let driver: DrivenRenewal = DrivenRenewal::default();
-    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: Mutex::new(Vec::new()), renewal: None };
-    drain_with_renewal(repo.common.as_path(), &handlers, &ClaimTime::read(), lease, Renewal::Driven(&driver));
+    let handlers: TakenOver = TakenOver {
+        work_dir: work_directory(repo.common.as_path()),
+        lease,
+        pushed: Mutex::new(Vec::new()),
+        renewal: None,
+    };
+    drain_with_renewal(
+        repo.common.as_path(),
+        &handlers,
+        &ClaimTime::read(),
+        lease,
+        Renewal::Driven(&driver),
+    );
     // The pushes of different branches run beside each other, so what is asserted is how often each branch was pushed:
     //  once from its old claim and once from the claim this instance took back.
-    let mut pushed: Vec<String> = handlers.pushed.lock().expect("the control's own list").clone();
+    let mut pushed: Vec<String> = handlers
+        .pushed
+        .lock()
+        .expect("the control's own list")
+        .clone();
     pushed.sort();
     let mut once_each: Vec<String> = vec![OID.to_string(), OTHER_OID.to_string()];
     once_each.sort();
     let mut twice_each: Vec<String> = once_each.iter().chain(once_each.iter()).cloned().collect();
     twice_each.sort();
-    assert_eq!(pushed, twice_each, "each branch was pushed from its old claim and again from the claim this instance took back");
+    assert_eq!(
+        pushed, twice_each,
+        "each branch was pushed from its old claim and again from the claim this instance took back"
+    );
     let mut done: Vec<String> = names(&repo, DONE);
     done.sort();
     let mut expected: Vec<String> = vec![first.id(), second.id()];
@@ -882,10 +1486,21 @@ fn the_review_key_is_held_per_repository_in_the_round_copy_only() {
     let second: PathBuf = PathBuf::from("/srv/two/.git");
     let key: ReviewKey = ReviewKey::new("test-key-not-a-secret").expect("a key");
     assert_eq!(handlers.review_key_of(first.as_path()), None);
-    let round: GitHandlers = handlers.for_round(std::collections::HashMap::from([(first.clone(), key.clone())]));
+    let round: GitHandlers = handlers.for_round(std::collections::HashMap::from([(
+        first.clone(),
+        key.clone(),
+    )]));
     assert_eq!(round.review_key_of(first.as_path()), Some(key));
-    assert_eq!(round.review_key_of(second.as_path()), None, "another repository does not see it");
-    assert_eq!(handlers.review_key_of(first.as_path()), None, "the handlers the service keeps hold none");
+    assert_eq!(
+        round.review_key_of(second.as_path()),
+        None,
+        "another repository does not see it"
+    );
+    assert_eq!(
+        handlers.review_key_of(first.as_path()),
+        None,
+        "the handlers the service keeps hold none"
+    );
 }
 
 /// A round keeps a wake's credential only for itself:
@@ -904,7 +1519,12 @@ fn a_round_leaves_no_credential_in_the_handlers() {
         (first.common.clone(), None),
         (second.common.clone(), Some(key)),
     ];
-    run_round(wakes, &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
+    run_round(
+        wakes,
+        &handlers,
+        &mut PushRetries::with_first_pause(FIRST_PAUSE),
+        &ClaimTime::read(),
+    );
     assert_eq!(handlers.review_key_of(first.common.as_path()), None);
     assert_eq!(handlers.review_key_of(second.common.as_path()), None);
     remove(first.root.as_path());
@@ -926,11 +1546,24 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
-    use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
-    use crate::standards_review_mock::{Answer, Mock, http_reply};
-    use crate::test_support::{git, git_context, git_text, repository};
+    use crate::standards_review_input::{
+        TRACKED_LOG_RELATIVE,
+        shared_log_path,
+    };
+    use crate::standards_review_mock::{
+        Answer,
+        Mock,
+        http_reply,
+    };
+    use crate::test_support::{
+        git,
+        git_context,
+        git_text,
+        repository,
+    };
     const SECRET: &str = "test-key-not-a-secret";
-    const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
+    const ANSWER: &str =
+        r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
     let parent: PathBuf = fixture("work-real-review");
     let root: PathBuf = repository(parent.as_path(), "repo");
     let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
@@ -938,8 +1571,14 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     std::fs::write(log.as_path(), "# Log\n").expect("log");
     std::fs::create_dir_all(root.join("src")).expect("source directory");
     std::fs::write(root.join("src/a.ts"), "export const a = 1\n").expect("code");
-    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"]);
-    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
+    git(
+        root.as_path(),
+        &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"],
+    );
+    git(
+        root.as_path(),
+        &["commit", "--quiet", "--message=feat(a): add a"],
+    );
     let common: PathBuf = root.join(".git");
     let review: WorkItem = WorkItem {
         kind: WorkKind::Review,
@@ -955,35 +1594,80 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     enqueue(work_directory(common.as_path()).as_path(), &review).expect("enqueue");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     // The service's own context: no repository is named, because one service serves many.
-    let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
-    let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
-    let _left: Option<Duration> = crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
-        common.as_path(),
-        &lane_handlers,
-        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-        crate::service_work::CLAIM_LEASE,
-    ));
+    let service_context: GitContext = GitContext {
+        common_dir: None,
+        ..git_context()
+    };
+    let handlers: GitHandlers =
+        GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
+    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(
+        common.clone(),
+        ReviewKey::new(SECRET).expect("the key this control serves with"),
+    )]));
+    let _left: Option<Duration> = crate::merge_second_pass::tests::await_it(
+        crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+            common.as_path(),
+            &lane_handlers,
+            crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+            crate::service_work::CLAIM_LEASE,
+        ),
+    );
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
-        return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
-            .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
-            .unwrap_or_default();
+        return std::fs::read_dir(state_directory(
+            work_directory(common.as_path()).as_path(),
+            state,
+        ))
+        .map(|listing| {
+            return listing
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
+        .unwrap_or_default();
     };
-    assert_eq!(settled(FAILED), Vec::<String>::new(), "the review must not fail");
+    assert_eq!(
+        settled(FAILED),
+        Vec::<String>::new(),
+        "the review must not fail"
+    );
     assert_eq!(settled(DONE), vec![review.id()]);
-    assert!(seen.contains(&format!("authorization: bearer {SECRET}\r\n")), "{seen}");
-    assert!(seen.contains("src/a.ts"), "the request carries the changed file");
-    let written: String = std::fs::read_to_string(shared_log_path(common.as_path())).expect("the live log");
-    assert!(written.starts_with("\n- Date:\n") && written.contains("cost_verdict: no"), "{written}");
+    assert!(
+        seen.contains(&format!("authorization: bearer {SECRET}\r\n")),
+        "{seen}"
+    );
+    assert!(
+        seen.contains("src/a.ts"),
+        "the request carries the changed file"
+    );
+    let written: String =
+        std::fs::read_to_string(shared_log_path(common.as_path())).expect("the live log");
+    assert!(
+        written.starts_with("\n- Date:\n") && written.contains("cost_verdict: no"),
+        "{written}"
+    );
     assert!(!written.contains(SECRET));
-    assert_eq!(std::fs::read_to_string(log.as_path()).expect("tracked log"), "# Log\n", "the tracked log is never written");
+    assert_eq!(
+        std::fs::read_to_string(log.as_path()).expect("tracked log"),
+        "# Log\n",
+        "the tracked log is never written"
+    );
     remove(parent.as_path());
 }
 
 /// The `message` of the first captured entry that starts with `start`.
-fn entry_starting<'a>(entries: &'a [crate::service_timing::capture::Captured], start: &str) -> &'a crate::service_timing::capture::Captured {
-    return entries.iter().find(|entry| { return entry.message.starts_with(start); }).unwrap_or_else(|| { panic!("no entry starting {start:?} in {entries:?}") });
+fn entry_starting<'a>(
+    entries: &'a [crate::service_timing::capture::Captured],
+    start: &str,
+) -> &'a crate::service_timing::capture::Captured {
+    return entries
+        .iter()
+        .find(|entry| {
+            return entry.message.starts_with(start);
+        })
+        .unwrap_or_else(|| panic!("no entry starting {start:?} in {entries:?}"));
 }
 
 /// Every push the service runs leaves one entry with the branch,
@@ -997,19 +1681,55 @@ fn entry_starting<'a>(entries: &'a [crate::service_timing::capture::Captured], s
 fn every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended() {
     use crate::journald_native::Priority;
     let repo: Repo = repo("work-push-entry");
-    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, BRANCH)]);
-    let done = crate::service_timing::capture::entries_of(|| { drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read()); });
+    enqueue_all(
+        &repo,
+        &[
+            item(&repo, WorkKind::Push, OID, BRANCH),
+            item(&repo, WorkKind::Push, OTHER_OID, BRANCH),
+        ],
+    );
+    let done = crate::service_timing::capture::entries_of(|| {
+        drain(
+            repo.common.as_path(),
+            &Recorder::answering(Verdict::Done),
+            &ClaimTime::read(),
+        );
+    });
     let pushed = entry_starting(done.as_slice(), "pushed ");
     assert_eq!(pushed.priority, Priority::Info);
-    assert!(pushed.message.contains(format!("branch={BRANCH:?} oid={OTHER_OID} items=2 outcome=done push_ms=").as_str()), "{}", pushed.message);
-    assert!(pushed.fields.contains(&(String::from("CLI_GIT_BRANCH"), String::from(BRANCH))) && pushed.fields.contains(&(String::from("CLI_GIT_OUTCOME"), String::from("done"))), "{:?}", pushed.fields);
+    assert!(
+        pushed.message.contains(
+            format!("branch={BRANCH:?} oid={OTHER_OID} items=2 outcome=done push_ms=").as_str()
+        ),
+        "{}",
+        pushed.message
+    );
+    assert!(
+        pushed
+            .fields
+            .contains(&(String::from("CLI_GIT_BRANCH"), String::from(BRANCH)))
+            && pushed
+                .fields
+                .contains(&(String::from("CLI_GIT_OUTCOME"), String::from("done"))),
+        "{:?}",
+        pushed.fields
+    );
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, THIRD_OID, BRANCH)]);
     let failed = crate::service_timing::capture::entries_of(|| {
-        drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(String::from("remote: permission denied"))), &ClaimTime::read());
+        drain(
+            repo.common.as_path(),
+            &Recorder::answering(Verdict::Failed(String::from("remote: permission denied"))),
+            &ClaimTime::read(),
+        );
     });
     let entry = entry_starting(failed.as_slice(), "pushed ");
     assert_eq!(entry.priority, Priority::Warning);
-    assert!(entry.message.contains("outcome=failed") && entry.message.contains(": remote: permission denied"), "{}", entry.message);
+    assert!(
+        entry.message.contains("outcome=failed")
+            && entry.message.contains(": remote: permission denied"),
+        "{}",
+        entry.message
+    );
     remove(repo.root.as_path());
 }
 
@@ -1019,10 +1739,36 @@ fn every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended() {
 #[test]
 fn upkeep_and_review_that_ran_leave_entries() {
     let repo: Repo = repo("work-upkeep-entry");
-    enqueue_all(&repo, &[item(&repo, WorkKind::Maintenance, OID, BRANCH), item(&repo, WorkKind::Review, OTHER_OID, BRANCH)]);
-    let entries = crate::service_timing::capture::entries_of(|| { drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read()); });
-    assert!(entry_starting(entries.as_slice(), "automatic maintenance ran maintenance_ms=").message.contains(" at_ms="));
-    assert!(entry_starting(entries.as_slice(), format!("the review of {OTHER_OID} is done review_ms=").as_str()).message.contains(" at_ms="));
+    enqueue_all(
+        &repo,
+        &[
+            item(&repo, WorkKind::Maintenance, OID, BRANCH),
+            item(&repo, WorkKind::Review, OTHER_OID, BRANCH),
+        ],
+    );
+    let entries = crate::service_timing::capture::entries_of(|| {
+        drain(
+            repo.common.as_path(),
+            &Recorder::answering(Verdict::Done),
+            &ClaimTime::read(),
+        );
+    });
+    assert!(
+        entry_starting(
+            entries.as_slice(),
+            "automatic maintenance ran maintenance_ms="
+        )
+        .message
+        .contains(" at_ms=")
+    );
+    assert!(
+        entry_starting(
+            entries.as_slice(),
+            format!("the review of {OTHER_OID} is done review_ms=").as_str()
+        )
+        .message
+        .contains(" at_ms=")
+    );
     remove(repo.root.as_path());
 }
 
@@ -1037,22 +1783,44 @@ fn upkeep_and_review_that_ran_leave_entries() {
 #[test]
 fn the_production_lease_leaves_a_starved_holder_two_intervals_of_margin() {
     assert_eq!(CLAIM_LEASE, Duration::from_secs(120));
-    assert_eq!(renewal_interval(CLAIM_LEASE), CLAIM_LEASE / RENEWALS_PER_LEASE);
+    assert_eq!(
+        renewal_interval(CLAIM_LEASE),
+        CLAIM_LEASE / RENEWALS_PER_LEASE
+    );
     let margin: Duration = CLAIM_LEASE - renewal_interval(CLAIM_LEASE);
     assert_eq!(margin, Duration::from_secs(80));
-    assert!(margin >= renewal_interval(CLAIM_LEASE) * 2, "a renewal late by two intervals still beats the lease");
+    assert!(
+        margin >= renewal_interval(CLAIM_LEASE) * 2,
+        "a renewal late by two intervals still beats the lease"
+    );
 }
 
 /// Whether the last `core.lockfilePid` entry of a numbered `GIT_CONFIG_*` environment reads as true.
 fn lock_pid_files_enabled(environment: &[(OsString, OsString)]) -> bool {
     let value_of = |name: &str| -> Option<String> {
-        return environment.iter().rev().find(|(key, _)| { return key.to_str() == Some(name); }).map(|(_, value)| { return value.to_string_lossy().into_owned(); });
+        return environment
+            .iter()
+            .rev()
+            .find(|(key, _)| {
+                return key.to_str() == Some(name);
+            })
+            .map(|(_, value)| {
+                return value.to_string_lossy().into_owned();
+            });
     };
-    let count: usize = value_of("GIT_CONFIG_COUNT").and_then(|text| { return text.parse::<usize>().ok(); }).unwrap_or(0);
+    let count: usize = value_of("GIT_CONFIG_COUNT")
+        .and_then(|text| {
+            return text.parse::<usize>().ok();
+        })
+        .unwrap_or(0);
     let mut enabled: bool = false;
     for index in 0..count {
-        if value_of(format!("GIT_CONFIG_KEY_{index}").as_str()).is_some_and(|key| { return key.eq_ignore_ascii_case("core.lockfilePid"); }) {
-            enabled = value_of(format!("GIT_CONFIG_VALUE_{index}").as_str()).is_some_and(|value| { return value == "true"; });
+        if value_of(format!("GIT_CONFIG_KEY_{index}").as_str()).is_some_and(|key| {
+            return key.eq_ignore_ascii_case("core.lockfilePid");
+        }) {
+            enabled = value_of(format!("GIT_CONFIG_VALUE_{index}").as_str()).is_some_and(|value| {
+                return value == "true";
+            });
         }
     }
     return enabled;
@@ -1067,7 +1835,10 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     let repo: Repo = repo("service-push-lock-pid");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
     let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
-    assert!(lock_pid_files_enabled(started.environment.as_slice()), "the push's Git environment turns on core.lockfilePid");
+    assert!(
+        lock_pid_files_enabled(started.environment.as_slice()),
+        "the push's Git environment turns on core.lockfilePid"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1088,21 +1859,38 @@ fn the_service_push_searches_the_list_the_command_that_asked_gave() {
     // Nothing was held for this record: the service's own list is the one searched, and the marker says so.
     let without: PushGit = handlers.push_git(&item);
     assert_eq!(
-        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_SERVICE),
+        crate::child_environment::environment_value(
+            without.environment.as_slice(),
+            crate::service_push_programs_held_in_memory::FROM_THE_SERVICE
+        ),
         Some(OsString::from("1")),
         "a push whose values are gone says the list it searched is the service's own"
     );
     assert_eq!(
-        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
+        crate::child_environment::environment_value(
+            without.environment.as_slice(),
+            crate::service_push_programs_held_in_memory::FROM_THE_REQUEST
+        ),
         None,
         "and the manager's `PATH` is the one it kept"
     );
 
     // The command that asked for this record gave its list: that list is searched, and the marker names it.
     let shell_path: OsString = OsString::from("/opt/git-lfs/bin:/usr/bin");
-    let shell: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), shell_path.clone()), (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /fake/key"))];
-    let programs: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(shell.as_slice());
-    crate::service_push_programs_held_in_memory::remember(item.git_dir.as_path(), item.id().as_str(), programs.clone());
+    let shell: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), shell_path.clone()),
+        (
+            OsString::from("GIT_SSH_COMMAND"),
+            OsString::from("ssh -i /fake/key"),
+        ),
+    ];
+    let programs: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(shell.as_slice());
+    crate::service_push_programs_held_in_memory::remember(
+        item.git_dir.as_path(),
+        item.id().as_str(),
+        programs.clone(),
+    );
     let with: PushGit = handlers.push_git(&item);
     assert_eq!(
         crate::child_environment::environment_value(with.environment.as_slice(), "PATH"),
@@ -1115,7 +1903,10 @@ fn the_service_push_searches_the_list_the_command_that_asked_gave() {
         "and reaches the remote the way that command does"
     );
     assert_eq!(
-        crate::child_environment::environment_value(with.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
+        crate::child_environment::environment_value(
+            with.environment.as_slice(),
+            crate::service_push_programs_held_in_memory::FROM_THE_REQUEST
+        ),
         Some(OsString::from("1")),
         "and the marker says the list came with the request"
     );
@@ -1127,12 +1918,24 @@ fn the_service_push_searches_the_list_the_command_that_asked_gave() {
 /// with every item settled.
 fn listings_of_a_drain(count: usize) -> usize {
     let repo: Repo = repo(format!("work-linear-{count}").as_str());
-    let items: Vec<WorkItem> = (0..count).map(|n| { return item(&repo, WorkKind::Push, format!("{n:040x}").as_str(), BRANCH); }).collect();
+    let items: Vec<WorkItem> = (0..count)
+        .map(|n| {
+            return item(&repo, WorkKind::Push, format!("{n:040x}").as_str(), BRANCH);
+        })
+        .collect();
     enqueue_all(&repo, items.as_slice());
     // The looks the producers themselves made are no part of the drain.
     let _producers_looks: usize = take_listings();
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
-    assert_eq!(names(&repo, DONE).len(), items.len(), "the drain of {count} items settled every one of them");
+    drain(
+        repo.common.as_path(),
+        &Recorder::answering(Verdict::Done),
+        &ClaimTime::read(),
+    );
+    assert_eq!(
+        names(&repo, DONE).len(),
+        items.len(),
+        "the drain of {count} items settled every one of them"
+    );
     let listings: usize = take_listings();
     remove(repo.root.as_path());
     return listings;
@@ -1142,10 +1945,18 @@ fn listings_of_a_drain(count: usize) -> usize {
 /// the number of directory listings it costs does not grow with the number of claims it holds.
 #[test]
 fn a_drain_of_many_claims_lists_the_state_directories_once() {
-    let measured: Vec<(usize, usize)> = [4, 24, 96].iter().map(|count| { return (*count, listings_of_a_drain(*count)); }).collect();
+    let measured: Vec<(usize, usize)> = [4, 24, 96]
+        .iter()
+        .map(|count| {
+            return (*count, listings_of_a_drain(*count));
+        })
+        .collect();
     let first: usize = measured[0].1;
     for (_count, listings) in &measured {
-        assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
+        assert_eq!(
+            *listings, first,
+            "the listings of a drain do not grow with its claims: {measured:?}"
+        );
     }
 }
 
@@ -1157,17 +1968,35 @@ fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
     let repo: Repo = repo("work-retry-plan-first");
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let recorder: Recorder =
+        Recorder::answering(Verdict::Retry(String::from("the network is down")));
     // The worker's changes are never applied, as a kill before the loop applies them leaves them.
-    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
-    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    let retrying: Retrying = Retrying {
+        first: Some(FIRST_PAUSE),
+        due: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    let drained: Drained = drain_planned(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        &retrying,
+    );
     assert_eq!(drained.changes.len(), 1, "the worker asked for one plan");
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 1, "the person is told about the push");
-    assert!(shown[0].contains("tries this push again by itself"), "{shown:?}");
+    assert!(
+        shown[0].contains("tries this push again by itself"),
+        "{shown:?}"
+    );
     // A service started in its place knows the branch by itself: the promise the notice made is the plan's.
     let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
-    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the retry the notice promised is on disk before the notice was written");
+    assert!(
+        restored
+            .next_wait(repo.common.as_path(), Instant::now())
+            .is_some(),
+        "the retry the notice promised is on disk before the notice was written"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1182,23 +2011,42 @@ fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
 #[test]
 fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
     let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
-        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+        return crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from(path),
+        )]);
     };
-    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let retrying: Recorder =
+        Recorder::answering(Verdict::Retry(String::from("the network is down")));
     // A drain that keeps no plan reports the retryable push as failed, and nothing runs its records again.
     let unplanned: Repo = repo("work-retry-programs-unplanned");
     let unplanned_item: WorkItem = item(&unplanned, WorkKind::Push, OID, BRANCH);
     enqueue_all(&unplanned, std::slice::from_ref(&unplanned_item));
-    crate::service_push_programs_held_in_memory::remember(unplanned_item.git_dir.as_path(), unplanned_item.id().as_str(), programs("/opt/git-lfs/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(
+        unplanned_item.git_dir.as_path(),
+        unplanned_item.id().as_str(),
+        programs("/opt/git-lfs/bin:/usr/bin"),
+    );
     let _drained: Drained = drain_planned(
         unplanned.common.as_path(),
         &retrying,
         &ClaimTime::read(),
-        &Retrying { first: None, due: Vec::new(), plans: None },
+        &Retrying {
+            first: None,
+            due: Vec::new(),
+            plans: None,
+        },
     );
-    assert_eq!(names(&unplanned, FAILED), vec![unplanned_item.id()], "the record failed for good");
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(unplanned_item.git_dir.as_path(), unplanned_item.id().as_str()),
+        names(&unplanned, FAILED),
+        vec![unplanned_item.id()],
+        "the record failed for good"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(
+            unplanned_item.git_dir.as_path(),
+            unplanned_item.id().as_str()
+        ),
         None,
         "a record that can no longer run keeps no value of the command that asked for it"
     );
@@ -1206,21 +2054,36 @@ fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
     let planned: Repo = repo("work-retry-programs-planned");
     let planned_item: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
     enqueue_all(&planned, std::slice::from_ref(&planned_item));
-    let kept: crate::service_push_programs_held_in_memory::PushPrograms = programs("/opt/git-lfs/bin:/usr/bin");
-    crate::service_push_programs_held_in_memory::remember(planned_item.git_dir.as_path(), planned_item.id().as_str(), kept.clone());
+    let kept: crate::service_push_programs_held_in_memory::PushPrograms =
+        programs("/opt/git-lfs/bin:/usr/bin");
+    crate::service_push_programs_held_in_memory::remember(
+        planned_item.git_dir.as_path(),
+        planned_item.id().as_str(),
+        kept.clone(),
+    );
     let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
     let _planned_drain: Drained = drain_planned(
         planned.common.as_path(),
         &retrying,
         &ClaimTime::read(),
-        &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) },
+        &Retrying {
+            first: Some(FIRST_PAUSE),
+            due: Vec::new(),
+            plans: Some(plans),
+        },
     );
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(planned_item.git_dir.as_path(), planned_item.id().as_str()),
+        crate::service_push_programs_held_in_memory::held(
+            planned_item.git_dir.as_path(),
+            planned_item.id().as_str()
+        ),
         Some(kept),
         "the plan queues this push again, so its next try keeps the list the command that asked for it gave"
     );
-    crate::service_push_programs_held_in_memory::forget(planned_item.git_dir.as_path(), planned_item.id().as_str());
+    crate::service_push_programs_held_in_memory::forget(
+        planned_item.git_dir.as_path(),
+        planned_item.id().as_str(),
+    );
     remove(unplanned.root.as_path());
     remove(planned.root.as_path());
 }
@@ -1245,7 +2108,10 @@ fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
 #[test]
 fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
     let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
-        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+        return crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from(path),
+        )]);
     };
     let planned: Repo = repo("work-retry-plan-cancelled-values");
     let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
@@ -1253,28 +2119,79 @@ fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
     // The first push cannot finish: a plan carries it, so the values of the command that asked for it wait for that plan's next try.
     let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
     enqueue_all(&planned, std::slice::from_ref(&first));
-    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(
+        first.git_dir.as_path(),
+        first.id().as_str(),
+        programs("/first/bin:/usr/bin"),
+    );
     let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
-    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
-    assert!(retries.next_wait(planned.common.as_path(), Instant::now()).is_some(), "the plan carries the first push");
+    retries.apply(
+        drain_planned(
+            planned.common.as_path(),
+            &unable,
+            &ClaimTime::read(),
+            &Retrying {
+                first: Some(FIRST_PAUSE),
+                due: Vec::new(),
+                plans: Some(plans.clone()),
+            },
+        )
+        .changes,
+    );
     assert!(
-        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        retries
+            .next_wait(planned.common.as_path(), Instant::now())
+            .is_some(),
+        "the plan carries the first push"
+    );
+    assert!(
+        crate::service_push_programs_held_in_memory::held(
+            first.git_dir.as_path(),
+            first.id().as_str()
+        )
+        .is_some(),
         "the positive control: the plan's next try needs the values of the command that asked for it"
     );
     // The person commits again while the network is down, and that push lands: it carries the first commit too, so the plan ends.
     let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
     enqueue_all(&planned, std::slice::from_ref(&later));
-    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(
+        later.git_dir.as_path(),
+        later.id().as_str(),
+        programs("/later/bin:/usr/bin"),
+    );
     let landed: Recorder = Recorder::answering(Verdict::Done);
-    retries.apply(drain_planned(planned.common.as_path(), &landed, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
-    assert_eq!(retries.next_wait(planned.common.as_path(), Instant::now()), None, "the push that landed cancels the plan of its branch");
+    retries.apply(
+        drain_planned(
+            planned.common.as_path(),
+            &landed,
+            &ClaimTime::read(),
+            &Retrying {
+                first: Some(FIRST_PAUSE),
+                due: Vec::new(),
+                plans: Some(plans.clone()),
+            },
+        )
+        .changes,
+    );
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        retries.next_wait(planned.common.as_path(), Instant::now()),
+        None,
+        "the push that landed cancels the plan of its branch"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(
+            first.git_dir.as_path(),
+            first.id().as_str()
+        ),
         None,
         "the plan that carried the first push is gone, so its record can never run again and keeps no value of the command that asked for it"
     );
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(later.git_dir.as_path(), later.id().as_str()),
+        crate::service_push_programs_held_in_memory::held(
+            later.git_dir.as_path(),
+            later.id().as_str()
+        ),
         None,
         "and the push that landed keeps no value either"
     );
@@ -1300,31 +2217,83 @@ fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
 #[test]
 fn a_plan_replaced_by_a_later_pushs_plan_gives_up_the_values_of_the_record_it_carried() {
     let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
-        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+        return crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from(path),
+        )]);
     };
     let planned: Repo = repo("work-retry-plan-replaced-values");
     let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
     let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
     let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
     enqueue_all(&planned, std::slice::from_ref(&first));
-    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(
+        first.git_dir.as_path(),
+        first.id().as_str(),
+        programs("/first/bin:/usr/bin"),
+    );
     let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
-    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    retries.apply(
+        drain_planned(
+            planned.common.as_path(),
+            &unable,
+            &ClaimTime::read(),
+            &Retrying {
+                first: Some(FIRST_PAUSE),
+                due: Vec::new(),
+                plans: Some(plans.clone()),
+            },
+        )
+        .changes,
+    );
     assert!(
-        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        crate::service_push_programs_held_in_memory::held(
+            first.git_dir.as_path(),
+            first.id().as_str()
+        )
+        .is_some(),
         "the positive control: the plan carries the first push, so its next try needs these values"
     );
     // A later commit of the branch cannot pass either, and its own plan replaces the first one's.
     let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
     enqueue_all(&planned, std::slice::from_ref(&later));
-    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
-    let unable_again: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
-    retries.apply(drain_planned(planned.common.as_path(), &unable_again, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
-    let planned_now: Vec<Due> = retries.take_due(planned.common.as_path(), Instant::now() + FIRST_PAUSE);
-    assert_eq!(planned_now.len(), 1, "one plan is left for the branch: {planned_now:?}");
-    assert_eq!(planned_now[0].item.id(), later.id(), "and it is the later push's");
+    crate::service_push_programs_held_in_memory::remember(
+        later.git_dir.as_path(),
+        later.id().as_str(),
+        programs("/later/bin:/usr/bin"),
+    );
+    let unable_again: Recorder =
+        Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(
+        drain_planned(
+            planned.common.as_path(),
+            &unable_again,
+            &ClaimTime::read(),
+            &Retrying {
+                first: Some(FIRST_PAUSE),
+                due: Vec::new(),
+                plans: Some(plans.clone()),
+            },
+        )
+        .changes,
+    );
+    let planned_now: Vec<Due> =
+        retries.take_due(planned.common.as_path(), Instant::now() + FIRST_PAUSE);
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        planned_now.len(),
+        1,
+        "one plan is left for the branch: {planned_now:?}"
+    );
+    assert_eq!(
+        planned_now[0].item.id(),
+        later.id(),
+        "and it is the later push's"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(
+            first.git_dir.as_path(),
+            first.id().as_str()
+        ),
         None,
         "the replaced plan was the only thing that would run the first record again, so it keeps no value of the command that asked for it"
     );
@@ -1354,18 +2323,47 @@ fn a_plan_kept_after_an_older_forget_survives_its_replay() {
     let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     // The round asks, in this order, for the branch to be forgotten (the earlier push landed) and for the next try to be planned;
     //  the plan reaches the disk at once, as the worker's keeps do.
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
-    let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down"));
-    let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1 }));
-    let kept_inode: u64 = std::fs::metadata(published.as_path()).expect("the plan the notice promises is on disk before the loop applies anything").ino();
+    let _said: PlannedRetry = await_it(planned_retry(
+        repo.common.as_path(),
+        &mut replanning,
+        FIRST_PAUSE,
+        &newest,
+        1,
+        "the network is down",
+    ));
+    let published: PathBuf = plans.join(crate::push_retry_store::name_of(
+        &crate::push_retry_store::StoredPlan {
+            git_dir: repo.common.clone(),
+            item: newest.clone(),
+            attempt: 1,
+        },
+    ));
+    let kept_inode: u64 = std::fs::metadata(published.as_path())
+        .expect("the plan the notice promises is on disk before the loop applies anything")
+        .ino();
     let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
     retries.apply(replanning.changes);
-    let still: u64 = std::fs::metadata(published.as_path()).expect("the plan is still there after the replay").ino();
-    assert_eq!(still, kept_inode, "the file the worker published was never taken away");
+    let still: u64 = std::fs::metadata(published.as_path())
+        .expect("the plan is still there after the replay")
+        .ino();
+    assert_eq!(
+        still, kept_inode,
+        "the file the worker published was never taken away"
+    );
     // A service started in the place of one that stopped right after the forget finds it.
     let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
-    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the plan the worker kept is still there after the replay");
+    assert!(
+        restored
+            .next_wait(repo.common.as_path(), Instant::now())
+            .is_some(),
+        "the plan the worker kept is still there after the replay"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1385,27 +2383,53 @@ fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes()
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let older: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let newer: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    let _first: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &older, 1, "the network is down"));
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    let _first: PlannedRetry = await_it(planned_retry(
+        repo.common.as_path(),
+        &mut replanning,
+        FIRST_PAUSE,
+        &older,
+        1,
+        "the network is down",
+    ));
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
-    let _second: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newer, 1, "the network is down"));
+    let _second: PlannedRetry = await_it(planned_retry(
+        repo.common.as_path(),
+        &mut replanning,
+        FIRST_PAUSE,
+        &newer,
+        1,
+        "the network is down",
+    ));
     assert_eq!(replanning.changes.len(), 3, "a plan, a forget and a plan");
-    let newest_name: String = crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan {
-        git_dir: repo.common.clone(),
-        item: newer.clone(),
-        attempt: 1,
-    });
-    for stopped_after in 0..replanning.changes.len() {
-        // The state the workers left: the plan they published,
-        // and the earlier one their own saves took away.
-        for entry in std::fs::read_dir(plans.as_path()).into_iter().flatten().flatten() {
-            std::fs::remove_file(entry.path()).expect("the plans of the round before");
-        }
-        crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan {
+    let newest_name: String =
+        crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan {
             git_dir: repo.common.clone(),
             item: newer.clone(),
             attempt: 1,
-        })
+        });
+    for stopped_after in 0..replanning.changes.len() {
+        // The state the workers left: the plan they published,
+        // and the earlier one their own saves took away.
+        for entry in std::fs::read_dir(plans.as_path())
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            std::fs::remove_file(entry.path()).expect("the plans of the round before");
+        }
+        crate::push_retry_store::save(
+            plans.as_path(),
+            &crate::push_retry_store::StoredPlan {
+                git_dir: repo.common.clone(),
+                item: newer.clone(),
+                attempt: 1,
+            },
+        )
         .expect("the plan the newer push's worker published");
         let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
         {
@@ -1413,7 +2437,8 @@ fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes()
             let _stopped = crate::push_retry::stop_after_in_a_control(stopped_after);
             retries.apply(replanning.changes.clone());
         }
-        let on_disk: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(plans.as_path());
+        let on_disk: Vec<crate::push_retry_store::StoredPlan> =
+            crate::push_retry_store::load(plans.as_path());
         assert_eq!(
             on_disk.len(),
             1,
@@ -1446,14 +2471,34 @@ fn a_retry_the_plan_cannot_keep_is_not_promised() {
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     // A file where the plan directory must be makes saving any plan fail.
     std::fs::write(plans.as_path(), "in the way").expect("blocker");
-    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
-    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
-    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    let recorder: Recorder =
+        Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let retrying: Retrying = Retrying {
+        first: Some(FIRST_PAUSE),
+        due: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    let drained: Drained = drain_planned(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        &retrying,
+    );
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 1, "the person is told about the push");
-    assert!(!shown[0].contains("tries this push again by itself"), "no promise the plan cannot keep: {shown:?}");
-    assert!(shown[0].contains("the network is down"), "Git's own words are kept: {shown:?}");
-    assert_eq!(drained.changes.len(), 1, "the service that is running goes on trying the push");
+    assert!(
+        !shown[0].contains("tries this push again by itself"),
+        "no promise the plan cannot keep: {shown:?}"
+    );
+    assert!(
+        shown[0].contains("the network is down"),
+        "Git's own words are kept: {shown:?}"
+    );
+    assert_eq!(
+        drained.changes.len(),
+        1,
+        "the service that is running goes on trying the push"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1476,7 +2521,11 @@ const BEFORE_THE_PLANS_FILE_ANSWERS: Duration = Duration::from_secs(5);
 fn release_the_plan_pipe(path: &Path) {
     let began: Instant = Instant::now();
     while began.elapsed() < BEFORE_THE_PLANS_FILE_ANSWERS {
-        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)
+        {
             Ok(writer) => {
                 drop(writer);
                 return;
@@ -1489,7 +2538,9 @@ fn release_the_plan_pipe(path: &Path) {
 
 /// How many records of failed pushes a Git directory holds for the person.
 fn notices_of(git_dir: &Path) -> usize {
-    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |entries| { return entries.flatten().count(); });
+    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |entries| {
+        return entries.flatten().count();
+    });
 }
 
 /// What:
@@ -1511,40 +2562,77 @@ fn notices_of(git_dir: &Path) -> usize {
 /// ```
 #[test]
 fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
-    crate::parallel_test_support::room_for("the record of a terminal failure goes before the plan's file", crate::parallel_test_support::ONE_PLACE);
+    crate::parallel_test_support::room_for(
+        "the record of a terminal failure goes before the plan's file",
+        crate::parallel_test_support::ONE_PLACE,
+    );
     let repo: Repo = repo("work-terminal-record-before-the-plan-goes");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let waiting: crate::push_retry_store::StoredPlan =
-        crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 };
-    crate::push_retry_store::save(plans.as_path(), &waiting).expect("the plan of the try that failed");
+    let waiting: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
+        git_dir: repo.common.clone(),
+        item: due.clone(),
+        attempt: 1,
+    };
+    crate::push_retry_store::save(plans.as_path(), &waiting)
+        .expect("the plan of the try that failed");
     // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
     let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
     std::fs::remove_file(reading.as_path()).expect("the plan's file makes way for the pipe");
-    let text: std::ffi::CString = std::ffi::CString::new(reading.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let text: std::ffi::CString =
+        std::ffi::CString::new(reading.as_os_str().as_encoded_bytes()).expect("a path without NUL");
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the pipe stands where the plan's file was: {}", std::io::Error::last_os_error());
-    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from("the server declined the push")));
-    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: vec![Due { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 }], plans: Some(plans.clone()) };
+    assert_eq!(
+        made,
+        0,
+        "the pipe stands where the plan's file was: {}",
+        std::io::Error::last_os_error()
+    );
+    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from(
+        "the server declined the push",
+    )));
+    let retrying: Retrying = Retrying {
+        first: Some(FIRST_PAUSE),
+        due: vec![Due {
+            git_dir: repo.common.clone(),
+            item: due.clone(),
+            attempt: 1,
+        }],
+        plans: Some(plans.clone()),
+    };
     let recorded_first: bool = std::thread::scope(|scope| {
         let pipe: &Path = reading.as_path();
         let watcher = scope.spawn(|| {
             let seen: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor {
                 window: BEFORE_THE_PLANS_FILE_ANSWERS,
-                done: &|| { return notices_of(repo.common.as_path()) > 0; },
+                done: &|| {
+                    return notices_of(repo.common.as_path()) > 0;
+                },
             });
             release_the_plan_pipe(pipe);
             return seen;
         });
-        let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
-        assert_eq!(drained.changes.len(), 1, "the worker still asks the plan to drop the branch");
+        let drained: Drained = drain_planned(
+            repo.common.as_path(),
+            &recorder,
+            &ClaimTime::read(),
+            &retrying,
+        );
+        assert_eq!(
+            drained.changes.len(),
+            1,
+            "the worker still asks the plan to drop the branch"
+        );
         return watcher.join().expect("the watcher ends");
     });
     assert!(
         recorded_first,
         "the refusal was recorded while the plan's file still waited for a writer, so the record goes first and a kill between the two leaves the plan"
     );
-    assert!(reading.exists(), "the plan's file the removal could not read stays, so a later service tries the push the notice promised");
+    assert!(
+        reading.exists(),
+        "the plan's file the removal could not read stays, so a later service tries the push the notice promised"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1571,18 +2659,39 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
 /// ```
 #[test]
 fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
-    let (given_back, finished): (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) =
-        crate::parallel_test_support::hold_the_only_place();
+    let (given_back, finished): (
+        std::sync::Arc<std::sync::atomic::AtomicBool>,
+        std::sync::mpsc::Receiver<bool>,
+    ) = crate::parallel_test_support::hold_the_only_place();
     let repo: Repo = repo("work-plan-kept-in-a-job");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    let replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
     let kept: bool = await_it(replanning.keep_the_plan(repo.common.as_path(), &due, 1));
-    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the job that holds the process's only place never returned");
-    assert!(asked, "no job of the write asked for a place of the process's bound, so the plan was written on the worker the runtime needs");
-    assert!(given_back.load(std::sync::atomic::Ordering::SeqCst), "the place went back on the ask the write made");
-    assert!(kept, "the plan the write kept is promised, so the write answered that it is on disk");
-    assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "the control's own plan is on disk after the write");
+    let asked: bool = finished
+        .recv_timeout(crate::parallel_test_support::PATIENCE)
+        .expect("the job that holds the process's only place never returned");
+    assert!(
+        asked,
+        "no job of the write asked for a place of the process's bound, so the plan was written on the worker the runtime needs"
+    );
+    assert!(
+        given_back.load(std::sync::atomic::Ordering::SeqCst),
+        "the place went back on the ask the write made"
+    );
+    assert!(
+        kept,
+        "the plan the write kept is promised, so the write answered that it is on disk"
+    );
+    assert_eq!(
+        crate::push_retry_store::load(plans.as_path()).len(),
+        1,
+        "the control's own plan is on disk after the write"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1605,26 +2714,64 @@ fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
 /// ```
 #[test]
 fn forgetting_a_branch_takes_its_plan_file_as_a_job_of_the_blocking_pool() {
-    let (given_back, finished): (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) =
-        crate::parallel_test_support::hold_the_only_place();
+    let (given_back, finished): (
+        std::sync::Arc<std::sync::atomic::AtomicBool>,
+        std::sync::mpsc::Receiver<bool>,
+    ) = crate::parallel_test_support::hold_the_only_place();
     let repo: Repo = repo("work-plan-removed-in-a-job");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 })
-        .expect("the plan the branch is done with");
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: repo.common.clone(),
+            item: due.clone(),
+            attempt: 1,
+        },
+    )
+    .expect("the plan the branch is done with");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
-    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the job that holds the process's only place never returned");
-    assert!(asked, "no job of the removal asked for a place of the process's bound, so the file was removed on the worker the runtime needs");
-    assert!(given_back.load(std::sync::atomic::Ordering::SeqCst), "the place went back on the ask the removal made");
-    assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the plan of a branch the service is done with is gone");
-    assert_eq!(replanning.changes.len(), 1, "the loop still drops the branch from the list it owns");
+    let asked: bool = finished
+        .recv_timeout(crate::parallel_test_support::PATIENCE)
+        .expect("the job that holds the process's only place never returned");
+    assert!(
+        asked,
+        "no job of the removal asked for a place of the process's bound, so the file was removed on the worker the runtime needs"
+    );
+    assert!(
+        given_back.load(std::sync::atomic::Ordering::SeqCst),
+        "the place went back on the ask the removal made"
+    );
+    assert!(
+        crate::push_retry_store::load(plans.as_path()).is_empty(),
+        "the plan of a branch the service is done with is gone"
+    );
+    assert_eq!(
+        replanning.changes.len(),
+        1,
+        "the loop still drops the branch from the list it owns"
+    );
     remove(repo.root.as_path());
 }
 
 /// The names in one state directory of the work queue below `common`.
-fn state_names(common: &Path, state: &str) -> Vec<String> {
-    let mut found: Vec<String> = std::fs::read_dir(state_directory(work_directory(common).as_path(), state)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+fn state_names(
+    common: &Path,
+    state: &str,
+) -> Vec<String> {
+    let mut found: Vec<String> =
+        std::fs::read_dir(state_directory(work_directory(common).as_path(), state))
+            .expect("listing")
+            .flatten()
+            .map(|entry| {
+                return entry.file_name().to_string_lossy().into_owned();
+            })
+            .collect();
     found.sort();
     return found;
 }
@@ -1638,10 +2785,16 @@ fn state_names(common: &Path, state: &str) -> Vec<String> {
 /// and the push and the upkeep never run.
 #[test]
 fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
-    if !in_a_fixture_root_taking_any_name("landing::service_work::tests::the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_work::tests::the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs",
+    ) {
         return;
     }
-    use crate::service_handoff::{HANDED_OVER, ServiceHandoff, hand_over};
+    use crate::service_handoff::{
+        HANDED_OVER,
+        ServiceHandoff,
+        hand_over,
+    };
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("work-non-utf8-path");
     // No encoding of "wörktree" and "cömmon" spells these two names: their bytes after 0x77 and 0x63 are not text.
@@ -1652,7 +2805,9 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
     let handoff: ServiceHandoff = ServiceHandoff {
         config: crate::service_client::ClientConfig {
             address: crate::service_server::Bind::Path(root.join("no-service.sock")),
-            activation: crate::service_client::Activation::Unsupported(crate::service_messages::Platform::LinuxWithoutUserServices),
+            activation: crate::service_client::Activation::Unsupported(
+                crate::service_messages::Platform::LinuxWithoutUserServices,
+            ),
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
             start_watch: None,
@@ -1671,26 +2826,59 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
     let mut notices: Vec<u8> = Vec::new();
     // No service can be started here, so the wake fails; the records are written before it and are the subject.
     let _not_woken = hand_over(&handoff, OID, &mut notices);
-    assert_eq!(state_names(common.as_path(), PENDING).len(), HANDED_OVER.len(), "the handoff left one record per kind");
-    drain(common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
-    assert!(state_names(common.as_path(), FAILED).is_empty(), "no work of this repository is refused: {:?}", state_names(common.as_path(), FAILED));
-    assert_eq!(state_names(common.as_path(), DONE).len(), HANDED_OVER.len(), "the push and the upkeep ran");
+    assert_eq!(
+        state_names(common.as_path(), PENDING).len(),
+        HANDED_OVER.len(),
+        "the handoff left one record per kind"
+    );
+    drain(
+        common.as_path(),
+        &Recorder::answering(Verdict::Done),
+        &ClaimTime::read(),
+    );
+    assert!(
+        state_names(common.as_path(), FAILED).is_empty(),
+        "no work of this repository is refused: {:?}",
+        state_names(common.as_path(), FAILED)
+    );
+    assert_eq!(
+        state_names(common.as_path(), DONE).len(),
+        HANDED_OVER.len(),
+        "the push and the upkeep ran"
+    );
     remove(root.as_path());
 }
 
 /// A repository with the tracked shadow log in place and one commit for a review to read,
 /// with the `review` work item of that commit.
-fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkItem) {
+fn a_repository_to_review(
+    parent: &Path,
+    name: &str,
+) -> (PathBuf, PathBuf, WorkItem) {
     use crate::standards_review_input::TRACKED_LOG_RELATIVE;
-    use crate::test_support::{git, git_text, repository};
+    use crate::test_support::{
+        git,
+        git_text,
+        repository,
+    };
     let root: PathBuf = repository(parent, name);
     let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
     std::fs::write(log.as_path(), "# Log\n").expect("log");
     std::fs::create_dir_all(root.join("src")).expect("source directory");
-    std::fs::write(root.join("src/a.ts"), format!("export const a = '{name}'\n").as_str()).expect("code");
-    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"]);
-    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
+    std::fs::write(
+        root.join("src/a.ts"),
+        format!("export const a = '{name}'\n").as_str(),
+    )
+    .expect("code");
+    git(
+        root.as_path(),
+        &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"],
+    );
+    git(
+        root.as_path(),
+        &["commit", "--quiet", "--message=feat(a): add a"],
+    );
     let git_dir: PathBuf = root.join(".git");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Review,
@@ -1714,37 +2902,83 @@ fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkI
 #[test]
 fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers() {
     use crate::standards_review_input::shared_log_path;
-    use crate::standards_review_mock::{Answer, Mock, http_reply};
-    use crate::test_support::{git_context, repository as repository_at};
-    const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
+    use crate::standards_review_mock::{
+        Answer,
+        Mock,
+        http_reply,
+    };
+    use crate::test_support::{
+        git_context,
+        repository as repository_at,
+    };
+    const ANSWER: &str =
+        r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
     let root: PathBuf = fixture("handlers-awaiting-review");
     std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
-    let (thread_root, _thread_common, thread_item) = a_repository_to_review(root.as_path(), "thread");
+    let (thread_root, _thread_common, thread_item) =
+        a_repository_to_review(root.as_path(), "thread");
     let (task_root, _task_common, task_item) = a_repository_to_review(root.as_path(), "task");
     let thread_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     let task_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     // The credential a wake brings is held for the round, as the service holds it: without one the review records that it
     //  had no key and asks nothing.
-    let key = |item: &WorkItem| -> std::collections::HashMap<PathBuf, ReviewKey> { return std::collections::HashMap::from([(item.git_dir.clone(), ReviewKey::new("test-key-not-a-secret").expect("a key"))]); };
-    let thread_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(thread_mock.url.as_str()).for_round(key(&thread_item));
-    let task_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(task_mock.url.as_str()).for_round(key(&task_item));
+    let key = |item: &WorkItem| -> std::collections::HashMap<PathBuf, ReviewKey> {
+        return std::collections::HashMap::from([(
+            item.git_dir.clone(),
+            ReviewKey::new("test-key-not-a-secret").expect("a key"),
+        )]);
+    };
+    let thread_handlers: GitHandlers = GitHandlers::new(git_context())
+        .with_review_endpoint(thread_mock.url.as_str())
+        .for_round(key(&thread_item));
+    let task_handlers: GitHandlers = GitHandlers::new(git_context())
+        .with_review_endpoint(task_mock.url.as_str())
+        .for_round(key(&task_item));
     let from_a_thread: Verdict = thread_handlers.review(&thread_item);
-    let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(task_handlers.review_awaiting(&task_item));
+    let from_a_task: Verdict =
+        crate::merge_second_pass::tests::await_it(task_handlers.review_awaiting(&task_item));
     thread_mock.finish();
     task_mock.finish();
-    assert_eq!(from_a_thread, Verdict::Done, "the review of a plain thread answers");
-    assert_eq!(from_a_task, from_a_thread, "the two faces answer one review the same way");
+    assert_eq!(
+        from_a_thread,
+        Verdict::Done,
+        "the review of a plain thread answers"
+    );
+    assert_eq!(
+        from_a_task, from_a_thread,
+        "the two faces answer one review the same way"
+    );
     for (name, root_of) in [("thread", &thread_root), ("task", &task_root)] {
-        let written: String = std::fs::read_to_string(shared_log_path(root_of.join(".git").as_path())).expect("the live log");
-        assert!(written.contains("cost_verdict: no"), "the review of {name} wrote its entry: {written}");
+        let written: String =
+            std::fs::read_to_string(shared_log_path(root_of.join(".git").as_path()))
+                .expect("the live log");
+        assert!(
+            written.contains("cost_verdict: no"),
+            "the review of {name} wrote its entry: {written}"
+        );
     }
     // The positive control of the two faces: the review of a repository with no shadow log answers Done and reads nothing,
     //  whichever face asks it.
     let plain: PathBuf = repository_at(root.as_path(), "plain");
-    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), transport: false, ..task_item.clone() };
-    let plain_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
-    assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
-    assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");
+    let plain_item: WorkItem = WorkItem {
+        kind: WorkKind::Review,
+        repository: plain.clone(),
+        git_dir: plain.join(".git"),
+        transport: false,
+        ..task_item.clone()
+    };
+    let plain_handlers: GitHandlers =
+        GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
+    assert_eq!(
+        crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)),
+        Verdict::Done,
+        "no shadow log means no review"
+    );
+    assert_eq!(
+        plain_handlers.review(&plain_item),
+        Verdict::Done,
+        "the synchronous face answers the same"
+    );
     remove(root.as_path());
 }
 
@@ -1770,8 +3004,19 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
 #[test]
 fn the_awaited_drain_runs_every_kind_of_item() {
     let repo: Repo = repo("work-awaited-every-kind");
-    let kinds: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
-    let items: Vec<WorkItem> = kinds.iter().enumerate().map(|(index, kind)| { return item(&repo, *kind, format!("{index:040x}").as_str(), BRANCH); }).collect();
+    let kinds: [WorkKind; 4] = [
+        WorkKind::Push,
+        WorkKind::Maintenance,
+        WorkKind::Review,
+        WorkKind::Trash,
+    ];
+    let items: Vec<WorkItem> = kinds
+        .iter()
+        .enumerate()
+        .map(|(index, kind)| {
+            return item(&repo, *kind, format!("{index:040x}").as_str(), BRANCH);
+        })
+        .collect();
     enqueue_all(&repo, items.as_slice());
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     // The drain of a round, awaited inside the runtime, which is where the lanes of a round run.
@@ -1785,28 +3030,70 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         &SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
-    if !recorder.pushes.lock().expect("the control's own list").is_empty() {
+    if !recorder
+        .pushes
+        .lock()
+        .expect("the control's own list")
+        .is_empty()
+    {
         asked.push("push");
     }
-    if !recorder.upkeeps.lock().expect("the control's own list").is_empty() {
+    if !recorder
+        .upkeeps
+        .lock()
+        .expect("the control's own list")
+        .is_empty()
+    {
         asked.push("maintenance");
     }
-    if !recorder.reviews.lock().expect("the control's own list").is_empty() {
+    if !recorder
+        .reviews
+        .lock()
+        .expect("the control's own list")
+        .is_empty()
+    {
         asked.push("review");
     }
-    if !recorder.trashes.lock().expect("the control's own list").is_empty() {
+    if !recorder
+        .trashes
+        .lock()
+        .expect("the control's own list")
+        .is_empty()
+    {
         asked.push("trash");
     }
-    assert_eq!(asked, vec!["push", "maintenance", "review", "trash"], "every kind reached its handler");
+    assert_eq!(
+        asked,
+        vec!["push", "maintenance", "review", "trash"],
+        "every kind reached its handler"
+    );
     let settled: Vec<String> = names(&repo, DONE);
-    let mut expected: Vec<String> = items.iter().map(|entry| { return entry.id(); }).collect();
+    let mut expected: Vec<String> = items
+        .iter()
+        .map(|entry| {
+            return entry.id();
+        })
+        .collect();
     expected.sort();
-    assert_eq!(settled, expected, "every item is settled as done, so none was dropped");
-    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no item was failed");
-    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no item is left claimed");
+    assert_eq!(
+        settled, expected,
+        "every item is settled as done, so none was dropped"
+    );
+    assert_eq!(
+        names(&repo, FAILED),
+        Vec::<String>::new(),
+        "no item was failed"
+    );
+    assert_eq!(
+        claimed_ids(&repo),
+        Vec::<String>::new(),
+        "no item is left claimed"
+    );
     // A push that went through forgets an earlier plan; nothing of this drain keeps a try for later.
     assert!(
-        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        !drained.changes.iter().any(|change| {
+            return matches!(change, crate::push_retry::RetryChange::Plan { .. });
+        }),
         "a drain that runs every kind plans no retry: {:?}",
         drained.changes
     );
@@ -1816,7 +3103,12 @@ fn the_awaited_drain_runs_every_kind_of_item() {
 /// The messages the code under test wrote on this thread while `body` ran,
 /// in the order it wrote them.
 fn journal_of(body: impl FnOnce()) -> Vec<String> {
-    return crate::service_timing::capture::entries_of(body).into_iter().map(|entry| { return entry.message; }).collect();
+    return crate::service_timing::capture::entries_of(body)
+        .into_iter()
+        .map(|entry| {
+            return entry.message;
+        })
+        .collect();
 }
 
 /// What:
@@ -1841,34 +3133,70 @@ fn journal_of(body: impl FnOnce()) -> Vec<String> {
 #[test]
 fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
     let repo: Repo = repo("work-housekeeping-left");
-    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH), item(&repo, WorkKind::Prewarm, OTHER_OID, BRANCH)];
+    let items: Vec<WorkItem> = vec![
+        item(&repo, WorkKind::Prewarm, OID, BRANCH),
+        item(&repo, WorkKind::Prewarm, OTHER_OID, BRANCH),
+    ];
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let mut replanning: Replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
     // A round whose housekeeping share is already over starts none of it beyond the first item, which is the state a long round
     //  reaches.
     let mut looked_again: Option<Duration> = None;
     let said: Vec<String> = journal_of(|| {
-        looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
-            repo.common.as_path(),
-            &recorder,
-            &ClaimTime::read(),
-            CLAIM_LEASE,
-            Renewal::Timed,
-            &mut replanning,
-            &SERVICE_KINDS,
-            Duration::ZERO,
-        ))
+        looked_again = crate::lazy_runtime::run_on_runtime(
+            crate::service_work_drain_pending_claims::drain_pending_awaiting(
+                repo.common.as_path(),
+                &recorder,
+                &ClaimTime::read(),
+                CLAIM_LEASE,
+                Renewal::Timed,
+                &mut replanning,
+                &SERVICE_KINDS,
+                Duration::ZERO,
+            ),
+        )
         .expect("the process runtime runs the drain");
     });
-    assert_eq!(looked_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "a round that left housekeeping for later asks to be woken again");
-    assert_eq!(names(&repo, DONE).len(), 1, "the first housekeeping item of the round is started, whatever its slice had spent");
-    assert!(names(&repo, FAILED).is_empty(), "the housekeeping the round did not start is not settled");
-    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start is pending again");
-    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    assert_eq!(
+        looked_again,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "a round that left housekeeping for later asks to be woken again"
+    );
+    assert_eq!(
+        names(&repo, DONE).len(),
+        1,
+        "the first housekeeping item of the round is started, whatever its slice had spent"
+    );
+    assert!(
+        names(&repo, FAILED).is_empty(),
+        "the housekeeping the round did not start is not settled"
+    );
+    assert_eq!(
+        names(&repo, PENDING).len(),
+        items.len() - 1,
+        "the housekeeping the round did not start is pending again"
+    );
+    assert!(
+        names(&repo, CLAIMED).is_empty(),
+        "nothing the round did not start stays claimed"
+    );
     let waiting: String = names(&repo, PENDING)[0].clone();
-    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(waiting.as_str()); }).collect();
-    assert_eq!(named.len(), 1, "one line names the housekeeping that waits for a later round: {said:?}");
+    let named: Vec<&String> = said
+        .iter()
+        .filter(|line| {
+            return line.contains("housekeeping items") && line.contains(waiting.as_str());
+        })
+        .collect();
+    assert_eq!(
+        named.len(),
+        1,
+        "one line names the housekeeping that waits for a later round: {said:?}"
+    );
     remove(repo.root.as_path());
 }
 
@@ -1891,20 +3219,33 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
     let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH)];
     enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
-        repo.common.as_path(),
-        &recorder,
-        &ClaimTime::read(),
-        CLAIM_LEASE,
-        Renewal::Timed,
-        &mut replanning,
-        &SERVICE_KINDS,
-        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-    ))
+    let mut replanning: Replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
+    let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(
+        crate::service_work_drain_pending_claims::drain_pending_awaiting(
+            repo.common.as_path(),
+            &recorder,
+            &ClaimTime::read(),
+            CLAIM_LEASE,
+            Renewal::Timed,
+            &mut replanning,
+            &SERVICE_KINDS,
+            crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        ),
+    )
     .expect("the process runtime runs the drain");
-    assert_eq!(looked_again, None, "a round that left nothing behind asks for no extra look");
-    assert_eq!(names(&repo, DONE).len(), items.len(), "the housekeeping the round had room for ran");
+    assert_eq!(
+        looked_again, None,
+        "a round that left nothing behind asks for no extra look"
+    );
+    assert_eq!(
+        names(&repo, DONE).len(),
+        items.len(),
+        "the housekeeping the round had room for ran"
+    );
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
 }
@@ -1929,12 +3270,34 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
         &Retrying::none(),
         &SERVICE_KINDS,
     ));
-    assert_eq!(recorder.deletions.lock().expect("the control's own list").as_slice(), [deletion.as_str()], "the step asks its handler for the path the record names");
-    assert_eq!(names(&repo, DONE), vec![entry.id()], "the deletion is settled as done");
-    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no deletion is failed");
-    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no deletion is left claimed");
+    assert_eq!(
+        recorder
+            .deletions
+            .lock()
+            .expect("the control's own list")
+            .as_slice(),
+        [deletion.as_str()],
+        "the step asks its handler for the path the record names"
+    );
+    assert_eq!(
+        names(&repo, DONE),
+        vec![entry.id()],
+        "the deletion is settled as done"
+    );
+    assert_eq!(
+        names(&repo, FAILED),
+        Vec::<String>::new(),
+        "no deletion is failed"
+    );
+    assert_eq!(
+        claimed_ids(&repo),
+        Vec::<String>::new(),
+        "no deletion is left claimed"
+    );
     assert!(
-        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        !drained.changes.iter().any(|change| {
+            return matches!(change, crate::push_retry::RetryChange::Plan { .. });
+        }),
         "a drain that deletes a subvolume plans no retry: {:?}",
         drained.changes
     );
@@ -1971,12 +3334,34 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
         &Retrying::none(),
         &SERVICE_KINDS,
     ));
-    assert_eq!(recorder.aheads.lock().expect("the control's own list").as_slice(), [repo.worktree.display().to_string()], "the step asks its handler for the worktree the record names");
-    assert_eq!(names(&repo, DONE), vec![wanted.id()], "the snapshot ahead is settled as done");
-    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no snapshot ahead is failed");
-    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no snapshot ahead is left claimed");
+    assert_eq!(
+        recorder
+            .aheads
+            .lock()
+            .expect("the control's own list")
+            .as_slice(),
+        [repo.worktree.display().to_string()],
+        "the step asks its handler for the worktree the record names"
+    );
+    assert_eq!(
+        names(&repo, DONE),
+        vec![wanted.id()],
+        "the snapshot ahead is settled as done"
+    );
+    assert_eq!(
+        names(&repo, FAILED),
+        Vec::<String>::new(),
+        "no snapshot ahead is failed"
+    );
+    assert_eq!(
+        claimed_ids(&repo),
+        Vec::<String>::new(),
+        "no snapshot ahead is left claimed"
+    );
     assert!(
-        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        !drained.changes.iter().any(|change| {
+            return matches!(change, crate::push_retry::RetryChange::Plan { .. });
+        }),
         "a drain that makes a snapshot ahead plans no retry: {:?}",
         drained.changes
     );
@@ -2008,11 +3393,26 @@ fn the_worker_that_forgets_a_branch_removes_its_plan_file() {
     let repo: Repo = repo("work-retry-forget-takes-the-file");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let landed: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: landed.clone(), attempt: 3 })
-        .expect("the due plan the round took");
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: repo.common.clone(),
+            item: landed.clone(),
+            attempt: 3,
+        },
+    )
+    .expect("the due plan the round took");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
-    assert_eq!(replanning.changes.len(), 1, "the loop still drops the branch from the list it owns");
+    assert_eq!(
+        replanning.changes.len(),
+        1,
+        "the loop still drops the branch from the list it owns"
+    );
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
         "the plan of the push that landed is out of the journal, so no later service tries it again"
@@ -2041,16 +3441,40 @@ fn a_gone_repository_takes_the_file_of_its_plan() {
     // A Git directory the fixture never made, which is what the proof of a deleted repository leaves.
     let gone: PathBuf = gone_repository.root.join("gone").join(".git");
     let due: WorkItem = item(&gone_repository, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
-        .expect("the plan the proof was asked about");
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: gone.clone(),
+            item: due.clone(),
+            attempt: 3,
+        },
+    )
+    .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    await_it(replanning.forget_when_unreachable(
+        gone.as_path(),
+        &Due {
+            git_dir: gone.clone(),
+            item: due.clone(),
+            attempt: 3,
+        },
+    ));
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
         "a repository the filesystem still proves gone ends its plan's file, so no later service tries it again"
     );
     assert!(
-        matches!(&replanning.changes[0], crate::push_retry::RetryChange::Forget { only_while_unreachable: true, .. }),
+        matches!(
+            &replanning.changes[0],
+            crate::push_retry::RetryChange::Forget {
+                only_while_unreachable: true,
+                ..
+            }
+        ),
         "the change names the proof it rests on, so the loop asks the filesystem once more: {:?}",
         replanning.changes
     );
@@ -2078,18 +3502,42 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
     let back_repository: Repo = repo("work-retry-forget-when-reachable");
     let plans: PathBuf = back_repository.root.join(crate::push_retry::PLAN_DIRECTORY);
     let back: WorkItem = item(&back_repository, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 })
-        .expect("the plan the proof was asked about");
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: back_repository.common.clone(),
+            item: back.clone(),
+            attempt: 3,
+        },
+    )
+    .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
     // The repository is there, so the stale proof ends nothing.
-    await_it(replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 }));
+    await_it(replanning.forget_when_unreachable(
+        back_repository.common.as_path(),
+        &Due {
+            git_dir: back_repository.common.clone(),
+            item: back.clone(),
+            attempt: 3,
+        },
+    ));
     assert_eq!(
         crate::push_retry_store::load(plans.as_path()).len(),
         1,
         "the file of a repository that is back stays, so the next start tries the push the service still holds"
     );
     assert!(
-        matches!(&replanning.changes[0], crate::push_retry::RetryChange::Forget { only_while_unreachable: true, .. }),
+        matches!(
+            &replanning.changes[0],
+            crate::push_retry::RetryChange::Forget {
+                only_while_unreachable: true,
+                ..
+            }
+        ),
         "the change names the proof it rests on, so the loop asks the filesystem once more: {:?}",
         replanning.changes
     );
@@ -2113,23 +3561,62 @@ fn a_repository_that_returns_before_the_forget_lands_keeps_its_retry() {
     let plans: PathBuf = returning.root.join(crate::push_retry::PLAN_DIRECTORY);
     let gone: PathBuf = returning.root.join("gone").join(".git");
     let due: WorkItem = item(&returning, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
-        .expect("the plan the proof was asked about");
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
-    assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the proof of a gone repository ends the file of its plan where it is made");
+    crate::push_retry_store::save(
+        plans.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: gone.clone(),
+            item: due.clone(),
+            attempt: 3,
+        },
+    )
+    .expect("the plan the proof was asked about");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    await_it(replanning.forget_when_unreachable(
+        gone.as_path(),
+        &Due {
+            git_dir: gone.clone(),
+            item: due.clone(),
+            attempt: 3,
+        },
+    ));
+    assert!(
+        crate::push_retry_store::load(plans.as_path()).is_empty(),
+        "the proof of a gone repository ends the file of its plan where it is made"
+    );
     // The repository is renamed back while the round still holds the change.
     std::fs::create_dir_all(gone.as_path()).expect("the repository is back");
     let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
     retries.apply(replanning.changes);
 
     let due_again: Vec<Due> = retries.take_due(gone.as_path(), Instant::now());
-    assert_eq!(due_again.len(), 1, "BUG: the service kept no try for a repository that came back before the forget landed");
-    assert_eq!(due_again[0].item.branch_ref, BRANCH, "the try is for the branch the reading ended");
+    assert_eq!(
+        due_again.len(),
+        1,
+        "BUG: the service kept no try for a repository that came back before the forget landed"
+    );
+    assert_eq!(
+        due_again[0].item.branch_ref, BRANCH,
+        "the try is for the branch the reading ended"
+    );
     // The drain of that try keeps the plan's file again, as every drain that plans a try does.
-    let next: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    assert!(await_it(next.keep_the_plan(gone.as_path(), &due_again[0].item, due_again[0].attempt)), "the try's plan is kept");
-    assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "a service restarted before the try reads the plan of a repository that is there");
+    let next: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: Some(plans.clone()),
+    };
+    assert!(
+        await_it(next.keep_the_plan(gone.as_path(), &due_again[0].item, due_again[0].attempt)),
+        "the try's plan is kept"
+    );
+    assert_eq!(
+        crate::push_retry_store::load(plans.as_path()).len(),
+        1,
+        "a service restarted before the try reads the plan of a repository that is there"
+    );
     remove(returning.root.as_path());
 }
 
@@ -2166,14 +3653,35 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
         let repo: Repo = repo(format!("work-retryable-{}", kind.name()).as_str());
         let wanted: WorkItem = item(&repo, kind, OID, BRANCH);
         enqueue_all(&repo, std::slice::from_ref(&wanted));
-        let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
+        let retrying: Recorder =
+            Recorder::answering(Verdict::Retry(String::from("the volume is busy")));
         // The renewal is driven by this control and driven not at all, so no thread of the round is renaming the claim
         //  the pass below takes: the take of a name a renewal moved is the one race the recovery leaves to the next pass.
         let driver: DrivenRenewal = DrivenRenewal::default();
-        let wait: Option<Duration> = drain_with_renewal(repo.common.as_path(), &retrying, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Driven(&driver));
-        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
-        assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
-        assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
+        let wait: Option<Duration> = drain_with_renewal(
+            repo.common.as_path(),
+            &retrying,
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            Renewal::Driven(&driver),
+        );
+        assert_eq!(
+            claimed_ids(&repo),
+            vec![wanted.id()],
+            "{}: the record keeps its claim",
+            kind.name()
+        );
+        assert_eq!(
+            names(&repo, FAILED),
+            Vec::<String>::new(),
+            "{}: a retryable answer is no failure",
+            kind.name()
+        );
+        assert!(
+            wait.is_some(),
+            "{}: the round asks to be woken when that claim runs out",
+            kind.name()
+        );
         // A reading taken now is a lease short of the claim, so the claim is still the round's and nothing takes it back.
         crate::work_item_recovery::requeue_expired(
             work_directory(repo.common.as_path()).as_path(),
@@ -2181,7 +3689,12 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
             crate::service_work::CLAIM_LEASE,
             crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
         );
-        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: a claim whose lease has not run out is left alone", kind.name());
+        assert_eq!(
+            claimed_ids(&repo),
+            vec![wanted.id()],
+            "{}: a claim whose lease has not run out is left alone",
+            kind.name()
+        );
         // The lease has run out, which is what the wait above asked for: the record is queued again with one more try.
         // The reading is two leases after the claim, not one, because a claim at exactly its lease still holds its record
         //  (`work_item_tests.rs`, "a lease at its limit still holds"), and a claim's age is measured in whole milliseconds:
@@ -2193,9 +3706,23 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
             crate::service_work::CLAIM_LEASE,
             crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
         );
-        assert_eq!(names(&repo, PENDING), vec![wanted.id()], "{}: the record waits for the next round", kind.name());
-        drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
-        assert_eq!(names(&repo, DONE), vec![wanted.id()], "{}: the round after it finishes the work", kind.name());
+        assert_eq!(
+            names(&repo, PENDING),
+            vec![wanted.id()],
+            "{}: the record waits for the next round",
+            kind.name()
+        );
+        drain(
+            repo.common.as_path(),
+            &Recorder::answering(Verdict::Done),
+            &ClaimTime::read(),
+        );
+        assert_eq!(
+            names(&repo, DONE),
+            vec![wanted.id()],
+            "{}: the round after it finishes the work",
+            kind.name()
+        );
         remove(repo.root.as_path());
     }
 }
@@ -2215,26 +3742,66 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
 fn the_line_a_planned_retry_writes_names_its_repository() {
     let repo: Repo = repo("work-retry-names-its-repository");
     let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
-    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
-        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down"));
-    });
-    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
-    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: None,
+    };
+    let entries: Vec<crate::service_timing::capture::Captured> =
+        crate::service_timing::capture::entries_of(|| {
+            let _said: PlannedRetry = await_it(planned_retry(
+                repo.common.as_path(),
+                &mut replanning,
+                FIRST_PAUSE,
+                &newest,
+                1,
+                "the network is down",
+            ));
+        });
+    let said: Vec<String> = entries
+        .iter()
+        .map(|entry| {
+            return entry.message.clone();
+        })
+        .collect();
+    let line: &String = said
+        .iter()
+        .find(|line| {
+            return line.contains("push will be tried again");
+        })
+        .unwrap_or_else(|| panic!("the retry is said: {said:?}"));
     assert!(
         line.contains(&format!("repository={:?}", repo.worktree)),
         "the line names the worktree whose push it plans, quoted so a path with a space stays one field: {line}"
     );
-    assert!(entries.iter().any(|entry| { return entry.fields.iter().any(|(name, value)| { return name == "CLI_GIT_REPOSITORY" && *value == repo.worktree.display().to_string(); }); }), "the journal field names it too: {entries:?}");
+    assert!(
+        entries.iter().any(|entry| {
+            return entry.fields.iter().any(|(name, value)| {
+                return name == "CLI_GIT_REPOSITORY"
+                    && *value == repo.worktree.display().to_string();
+            });
+        }),
+        "the journal field names it too: {entries:?}"
+    );
     remove(repo.root.as_path());
 }
 
 /// The names of the records of the work directory `work` in `state`,
 /// sorted,
 /// so a handler can say what the person's other records looked like while its own work ran.
-fn names_in(work: &Path, state: &str) -> Vec<String> {
+fn names_in(
+    work: &Path,
+    state: &str,
+) -> Vec<String> {
     let mut found: Vec<String> = std::fs::read_dir(state_directory(work, state))
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .map(|listing| {
+            return listing
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
         .unwrap_or_default();
     found.sort();
     return found;
@@ -2285,7 +3852,13 @@ struct Controlled {
 impl Controlled {
     /// A handler of `work` that answers every item at once with done.
     fn answering_at_once(work: &Path) -> Controlled {
-        return Controlled { takes: Vec::new(), refuses: Vec::new(), panics: Vec::new(), seen: Mutex::new(Vec::new()), work: work.to_path_buf() };
+        return Controlled {
+            takes: Vec::new(),
+            refuses: Vec::new(),
+            panics: Vec::new(),
+            seen: Mutex::new(Vec::new()),
+            work: work.to_path_buf(),
+        };
     }
 
     /// The name a record is known by here:
@@ -2296,7 +3869,10 @@ impl Controlled {
     }
 
     /// Be inside one item's work and say what the work directory held at its end.
-    async fn work_an_item(&self, item: &WorkItem) {
+    async fn work_an_item(
+        &self,
+        item: &WorkItem,
+    ) {
         let name: String = Controlled::name_of(item);
         let takes: Duration = self
             .takes
@@ -2311,18 +3887,29 @@ impl Controlled {
             tokio::time::sleep(takes).await;
         }
         let failed: Vec<String> = names_in(self.work.as_path(), FAILED);
-        self.seen.lock().expect("the control's own list").push((name, failed));
+        self.seen
+            .lock()
+            .expect("the control's own list")
+            .push((name, failed));
     }
 }
 
 impl WorkHandlers for Controlled {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn push_awaiting<'a>(
+        &'a self,
+        items: &'a [WorkItem],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-            let Some(newest) = items.last() else { return Verdict::Done };
+            let Some(newest) = items.last() else {
+                return Verdict::Done;
+            };
             self.work_an_item(newest).await;
             let name: String = Controlled::name_of(newest);
             if self.panics.contains(&name) {
@@ -2337,19 +3924,31 @@ impl WorkHandlers for Controlled {
         });
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn trash(&self, _item: &WorkItem) -> Verdict {
+    fn trash(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn trash_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             self.work_an_item(item).await;
             let name: String = Controlled::name_of(item);
@@ -2377,8 +3976,17 @@ struct DrainOfAControl {
 /// Run one drain of `kinds` over `repo` with `handler`,
 /// awaited inside the process's runtime,
 /// as a round of the service reaches it.
-fn drain_with(repo: &Repo, handler: &Controlled, kinds: &'static [WorkKind], slice: Duration) -> DrainOfAControl {
-    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+fn drain_with(
+    repo: &Repo,
+    handler: &Controlled,
+    kinds: &'static [WorkKind],
+    slice: Duration,
+) -> DrainOfAControl {
+    let mut replanning: Replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
     let common: PathBuf = repo.common.clone();
     let look_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(async move {
         return crate::service_work_drain_pending_claims::drain_pending_awaiting(
@@ -2394,8 +4002,12 @@ fn drain_with(repo: &Repo, handler: &Controlled, kinds: &'static [WorkKind], sli
         .await;
     })
     .expect("the process runtime runs the drain");
-    let seen: Vec<(String, Vec<String>)> = std::mem::take(&mut *handler.seen.lock().expect("the control's own list"));
-    return DrainOfAControl { look_again, seen };
+    let seen: Vec<(String, Vec<String>)> =
+        std::mem::take(&mut *handler.seen.lock().expect("the control's own list"));
+    return DrainOfAControl {
+        look_again,
+        seen,
+    };
 }
 
 /// What:
@@ -2418,23 +4030,48 @@ fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
     let repo: Repo = repo("work-housekeeping-batch-slice");
     // One record an item: a trash's id is its kind and its object name, so each one names an object of its own.
     let items: Vec<WorkItem> = (0..A_BATCH)
-        .map(|at| { return item(&repo, WorkKind::Trash, format!("{at:040x}").as_str(), format!("refs/cli-git/trash-{at}").as_str()); })
+        .map(|at| {
+            return item(
+                &repo,
+                WorkKind::Trash,
+                format!("{at:040x}").as_str(),
+                format!("refs/cli-git/trash-{at}").as_str(),
+            );
+        })
         .collect();
     enqueue_all(&repo, items.as_slice());
     let work: PathBuf = work_directory(repo.common.as_path());
     let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
     for entry in &items {
-        handler.takes.push((Controlled::name_of(entry), ONE_ITEM_TAKES));
+        handler
+            .takes
+            .push((Controlled::name_of(entry), ONE_ITEM_TAKES));
     }
     // One item at a time, so each item's own pause is what the slice is read against.
     crate::service_work_items_side_by_side::hold_the_width_to(1);
-    let drained: DrainOfAControl = drain_with(&repo, &handler, &SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
+    let drained: DrainOfAControl =
+        drain_with(&repo, &handler, &SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
     crate::service_work_items_side_by_side::take_the_hosts_width();
-    assert_eq!(names(&repo, DONE).len(), 1, "a 20 ms slice starts one 150 ms trash and no more");
-    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start waits for a later round");
+    assert_eq!(
+        names(&repo, DONE).len(),
+        1,
+        "a 20 ms slice starts one 150 ms trash and no more"
+    );
+    assert_eq!(
+        names(&repo, PENDING).len(),
+        items.len() - 1,
+        "the housekeeping the round did not start waits for a later round"
+    );
     assert!(names(&repo, FAILED).is_empty(), "no item was failed");
-    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
-    assert_eq!(drained.look_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "the round asks to be looked at again for the housekeeping it left");
+    assert!(
+        names(&repo, CLAIMED).is_empty(),
+        "nothing the round did not start stays claimed"
+    );
+    assert_eq!(
+        drained.look_again,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "the round asks to be looked at again for the housekeeping it left"
+    );
     remove(repo.root.as_path());
 }
 
@@ -2459,12 +4096,25 @@ fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
     let repo: Repo = repo("work-push-settled-as-it-ends");
     let fast: String = String::from("refs/heads/fast");
     let slow: String = String::from("refs/heads/slow");
-    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fast.as_str()), item(&repo, WorkKind::Push, OTHER_OID, slow.as_str())]);
+    enqueue_all(
+        &repo,
+        &[
+            item(&repo, WorkKind::Push, OID, fast.as_str()),
+            item(&repo, WorkKind::Push, OTHER_OID, slow.as_str()),
+        ],
+    );
     let work: PathBuf = work_directory(repo.common.as_path());
     let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
     handler.takes.push((slow.clone(), ONE_ITEM_TAKES));
-    handler.refuses.push((fast.clone(), String::from("the server refused the branch")));
-    let drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    handler
+        .refuses
+        .push((fast.clone(), String::from("the server refused the branch")));
+    let drained: DrainOfAControl = drain_with(
+        &repo,
+        &handler,
+        &PUSH_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    );
     let at_the_slow_branch: &Vec<String> = &drained
         .seen
         .iter()
@@ -2474,12 +4124,21 @@ fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
         .unwrap_or_else(|| panic!("the slow branch is pushed: {:?}", drained.seen))
         .1;
     assert!(
-        at_the_slow_branch.iter().any(|name| { return name.starts_with("push-") && name.contains(&OID[..8]); }),
+        at_the_slow_branch.iter().any(|name| {
+            return name.starts_with("push-") && name.contains(&OID[..8]);
+        }),
         "the refusal of the fast branch is on record while the slow branch is still pushing: {at_the_slow_branch:?}"
     );
-    assert_eq!(names(&repo, FAILED).len(), 1, "the refused push is failed and the slow one is done");
+    assert_eq!(
+        names(&repo, FAILED).len(),
+        1,
+        "the refused push is failed and the slow one is done"
+    );
     assert_eq!(names(&repo, DONE).len(), 1, "the slow push is done");
-    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    assert!(
+        names(&repo, CLAIMED).is_empty(),
+        "no record of the wave stays claimed"
+    );
     remove(repo.root.as_path());
 }
 
@@ -2502,17 +4161,41 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
     let repo: Repo = repo("work-push-that-stops");
     let fine: String = String::from("refs/heads/fine");
     let boom: String = String::from("refs/heads/boom");
-    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fine.as_str()), item(&repo, WorkKind::Push, OTHER_OID, boom.as_str())]);
+    enqueue_all(
+        &repo,
+        &[
+            item(&repo, WorkKind::Push, OID, fine.as_str()),
+            item(&repo, WorkKind::Push, OTHER_OID, boom.as_str()),
+        ],
+    );
     let work: PathBuf = work_directory(repo.common.as_path());
     let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
     handler.panics.push(boom.clone());
-    let _drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
-    assert_eq!(names(&repo, DONE).len(), 1, "the sibling whose push finished is settled as done");
-    assert_eq!(names(&repo, FAILED).len(), 1, "the push that stopped is settled as failed");
-    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    let _drained: DrainOfAControl = drain_with(
+        &repo,
+        &handler,
+        &PUSH_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    );
+    assert_eq!(
+        names(&repo, DONE).len(),
+        1,
+        "the sibling whose push finished is settled as done"
+    );
+    assert_eq!(
+        names(&repo, FAILED).len(),
+        1,
+        "the push that stopped is settled as failed"
+    );
+    assert!(
+        names(&repo, CLAIMED).is_empty(),
+        "no record of the wave stays claimed"
+    );
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert!(
-        shown.iter().any(|line| { return line.contains("stopped unexpectedly"); }),
+        shown.iter().any(|line| {
+            return line.contains("stopped unexpectedly");
+        }),
         "the person is told what happened, so the commit is reported and not lost: {shown:?}"
     );
     remove(repo.root.as_path());
@@ -2532,7 +4215,11 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
 fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     use crate::parallel_test_support::ONE_PLACE;
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
-    assert_eq!(crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(), ONE_PLACE, "this control is the only holder of the process's one place");
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+        ONE_PLACE,
+        "this control is the only holder of the process's one place"
+    );
     // The claim step is given a ceiling a control reaches in a moment instead of the shipped sixty seconds.
     crate::service_work_storage_awaited::hold_the_claim_steps_to(A_SLICE_ONE_ITEM_SPENDS);
     let repo: Repo = repo("work-claim-step-with-no-place");
@@ -2540,21 +4227,37 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     // A job of the process's bound holds the only place while the round asks for it.
     let (holding, held) = std::sync::mpsc::channel::<()>();
     let place = crate::lazy_runtime::spawn_on_runtime(async move {
-        let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-            let _told = holding.send(());
-            std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
-        })
-        .await;
+        let _held =
+            crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+                let _told = holding.send(());
+                std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
+            })
+            .await;
     });
-    assert!(place.is_some(), "the runtime starts the job that holds the only place");
-    assert!(held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(), "the job that holds the only place started");
-    let drained: DrainOfAControl = drain_with(&repo, &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()), &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    assert!(
+        place.is_some(),
+        "the runtime starts the job that holds the only place"
+    );
+    assert!(
+        held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(),
+        "the job that holds the only place started"
+    );
+    let drained: DrainOfAControl = drain_with(
+        &repo,
+        &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()),
+        &PUSH_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    );
     assert_eq!(
         drained.look_again,
         Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
         "a round that could not claim this directory's records asks to be looked at again"
     );
-    assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
+    assert_eq!(
+        names(&repo, PENDING).len(),
+        1,
+        "nothing was claimed, so the push still waits"
+    );
     remove(repo.root.as_path());
 }
 
@@ -2573,25 +4276,57 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
 #[test]
 fn a_plan_that_carries_the_newest_push_gives_up_the_older_records_values() {
     let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
-        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+        return crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from(path),
+        )]);
     };
-    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let retrying: Recorder =
+        Recorder::answering(Verdict::Retry(String::from("the network is down")));
     let planned: Repo = repo("work-retry-programs-two-members");
     let older: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
     let newest: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
     enqueue_all(&planned, &[older.clone(), newest.clone()]);
-    crate::service_push_programs_held_in_memory::remember(older.git_dir.as_path(), older.id().as_str(), programs("/older/bin:/usr/bin"));
-    crate::service_push_programs_held_in_memory::remember(newest.git_dir.as_path(), newest.id().as_str(), programs("/newest/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(
+        older.git_dir.as_path(),
+        older.id().as_str(),
+        programs("/older/bin:/usr/bin"),
+    );
+    crate::service_push_programs_held_in_memory::remember(
+        newest.git_dir.as_path(),
+        newest.id().as_str(),
+        programs("/newest/bin:/usr/bin"),
+    );
     let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let _drained: Drained = drain_planned(planned.common.as_path(), &retrying, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) });
-    assert_eq!(names(&planned, FAILED).len(), 2, "both records settled failed together");
+    let _drained: Drained = drain_planned(
+        planned.common.as_path(),
+        &retrying,
+        &ClaimTime::read(),
+        &Retrying {
+            first: Some(FIRST_PAUSE),
+            due: Vec::new(),
+            plans: Some(plans),
+        },
+    );
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(older.git_dir.as_path(), older.id().as_str()),
+        names(&planned, FAILED).len(),
+        2,
+        "both records settled failed together"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(
+            older.git_dir.as_path(),
+            older.id().as_str()
+        ),
         None,
         "the older record is settled failed and no plan carries it, so it keeps no value"
     );
     assert!(
-        crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_some(),
+        crate::service_push_programs_held_in_memory::held(
+            newest.git_dir.as_path(),
+            newest.id().as_str()
+        )
+        .is_some(),
         "the plan queues the newest record again, so its next try keeps the values the command that asked for it gave"
     );
     crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
@@ -2618,20 +4353,38 @@ fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
     let gone_item: WorkItem = item(&gone, WorkKind::Push, OID, BRANCH);
     let kept_item: WorkItem = item(&kept, WorkKind::Push, OID, BRANCH);
     let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
-        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+        return crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from(path),
+        )]);
     };
-    let kept_programs: crate::service_push_programs_held_in_memory::PushPrograms = programs("/kept/bin:/usr/bin");
-    crate::service_push_programs_held_in_memory::remember(gone_item.git_dir.as_path(), gone_item.id().as_str(), programs("/gone/bin:/usr/bin"));
-    crate::service_push_programs_held_in_memory::remember(kept_item.git_dir.as_path(), kept_item.id().as_str(), kept_programs.clone());
-    let unreachable: crate::service_instance::GitDirUnreachable = crate::service_instance::GitDirUnreachable {
-        path: gone.common.clone(),
-        reason: String::from("No such file or directory (os error 2)"),
+    let kept_programs: crate::service_push_programs_held_in_memory::PushPrograms =
+        programs("/kept/bin:/usr/bin");
+    crate::service_push_programs_held_in_memory::remember(
+        gone_item.git_dir.as_path(),
+        gone_item.id().as_str(),
+        programs("/gone/bin:/usr/bin"),
+    );
+    crate::service_push_programs_held_in_memory::remember(
+        kept_item.git_dir.as_path(),
+        kept_item.id().as_str(),
+        kept_programs.clone(),
+    );
+    let unreachable: crate::service_instance::GitDirUnreachable =
+        crate::service_instance::GitDirUnreachable {
+            path: gone.common.clone(),
+            reason: String::from("No such file or directory (os error 2)"),
+        };
+    let proof: crate::unreachable_git_dir_proven_gone::Gone =
+        crate::unreachable_git_dir_proven_gone::Gone {
+            nearest: gone.root.clone(),
+            because: crate::unreachable_git_dir_proven_gone::GoneBecause::OrdinaryDirectory,
+        };
+    let retrying: Retrying = Retrying {
+        first: None,
+        due: Vec::new(),
+        plans: None,
     };
-    let proof: crate::unreachable_git_dir_proven_gone::Gone = crate::unreachable_git_dir_proven_gone::Gone {
-        nearest: gone.root.clone(),
-        because: crate::unreachable_git_dir_proven_gone::GoneBecause::OrdinaryDirectory,
-    };
-    let retrying: Retrying = Retrying { first: None, due: Vec::new(), plans: None };
     let _drained: Drained = await_it(crate::service_work_handlers_replanning_and_acceptance::end_the_plans_of_a_gone_repository_awaiting(
         gone.common.as_path(),
         &retrying,
@@ -2639,12 +4392,18 @@ fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
         &proof,
     ));
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(gone_item.git_dir.as_path(), gone_item.id().as_str()),
+        crate::service_push_programs_held_in_memory::held(
+            gone_item.git_dir.as_path(),
+            gone_item.id().as_str()
+        ),
         None,
         "a repository proved gone has no push that can run, so it keeps no value"
     );
     assert_eq!(
-        crate::service_push_programs_held_in_memory::held(kept_item.git_dir.as_path(), kept_item.id().as_str()),
+        crate::service_push_programs_held_in_memory::held(
+            kept_item.git_dir.as_path(),
+            kept_item.id().as_str()
+        ),
         Some(kept_programs),
         "the repository beside it keeps its own values"
     );
@@ -2675,17 +4434,43 @@ fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
 #[test]
 fn the_five_names_the_service_held_are_removed_from_a_push_that_carries_a_list() {
     let service_held: Vec<(OsString, OsString)> = vec![
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
-        (OsString::from("GIT_SSH"), OsString::from("/nowhere/service-fake-ssh")),
-        (OsString::from("GIT_PROXY_COMMAND"), OsString::from("nc /nowhere/service-fake")),
-        (OsString::from("GIT_EXEC_PATH"), OsString::from("/nowhere/service-fake-exec")),
+        (
+            OsString::from("GIT_SSH_COMMAND"),
+            OsString::from("ssh -i /nowhere/service-fake"),
+        ),
+        (
+            OsString::from("GIT_SSH"),
+            OsString::from("/nowhere/service-fake-ssh"),
+        ),
+        (
+            OsString::from("GIT_PROXY_COMMAND"),
+            OsString::from("nc /nowhere/service-fake"),
+        ),
+        (
+            OsString::from("GIT_EXEC_PATH"),
+            OsString::from("/nowhere/service-fake-exec"),
+        ),
     ];
     let shell: crate::service_push_programs_held_in_memory::PushPrograms =
-        crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from("/shell/bin:/usr/bin"))]);
+        crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from("/shell/bin:/usr/bin"),
+        )]);
     let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
-        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
-    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
-    for name in ["GIT_SSH_COMMAND", "GIT_SSH", "GIT_PROXY_COMMAND", "GIT_EXEC_PATH"] {
+        crate::service_work_push_environment::push_environment_of(
+            service_held.as_slice(),
+            Some(&shell),
+        );
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(
+        inherited.as_slice(),
+        overlay.as_slice(),
+    );
+    for name in [
+        "GIT_SSH_COMMAND",
+        "GIT_SSH",
+        "GIT_PROXY_COMMAND",
+        "GIT_EXEC_PATH",
+    ] {
         assert_eq!(
             crate::child_environment::environment_value(environment.as_slice(), name),
             None,
@@ -2718,18 +4503,44 @@ fn a_path_that_could_not_travel_keeps_the_services_own_list_and_says_so() {
     // Why:  `PATH` is never absent from this process's own environment, so the list the push really searches is read from the
     //  marker and the `GIT_EXEC_PATH` the service held, and the silence of the second name is the state the removal keeps.
     let service_held: Vec<(OsString, OsString)> = vec![
-        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin:/bin")),
-        (OsString::from("GIT_EXEC_PATH"), OsString::from("/usr/lib/git-core")),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+        (
+            OsString::from("PATH"),
+            OsString::from("/usr/local/bin:/usr/bin:/bin"),
+        ),
+        (
+            OsString::from("GIT_EXEC_PATH"),
+            OsString::from("/usr/lib/git-core"),
+        ),
+        (
+            OsString::from("GIT_SSH_COMMAND"),
+            OsString::from("ssh -i /nowhere/service-fake"),
+        ),
     ];
-    let shell: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
-        (OsString::from("PATH"), OsString::from_vec(b"/shell/\xff/bin:/usr/bin".to_vec())),
-        (OsString::from("GIT_EXEC_PATH"), OsString::from_vec(b"/shell/\xff/git-core".to_vec())),
-    ]);
-    assert_eq!(shell.not_text, vec![String::from("PATH"), String::from("GIT_EXEC_PATH")], "the values the control set cannot travel");
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[
+            (
+                OsString::from("PATH"),
+                OsString::from_vec(b"/shell/\xff/bin:/usr/bin".to_vec()),
+            ),
+            (
+                OsString::from("GIT_EXEC_PATH"),
+                OsString::from_vec(b"/shell/\xff/git-core".to_vec()),
+            ),
+        ]);
+    assert_eq!(
+        shell.not_text,
+        vec![String::from("PATH"), String::from("GIT_EXEC_PATH")],
+        "the values the control set cannot travel"
+    );
     let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
-        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
-    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+        crate::service_work_push_environment::push_environment_of(
+            service_held.as_slice(),
+            Some(&shell),
+        );
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(
+        inherited.as_slice(),
+        overlay.as_slice(),
+    );
     assert_eq!(
         crate::child_environment::environment_value(environment.as_slice(), "GIT_EXEC_PATH"),
         Some(OsString::from("/usr/lib/git-core")),
@@ -2743,9 +4554,18 @@ fn a_path_that_could_not_travel_keeps_the_services_own_list_and_says_so() {
     // What: The refusal names the list the push searched, and a push that searched nothing is what the fix removes.
     // Why:  A `PATH` whose value could not travel leaves the service's own list in the environment, so the words must not
     //  claim the request's.
-    let search: crate::lfs_program_search::ProgramSearch = crate::lfs_program_search::ProgramSearch::of(environment.as_slice());
-    assert_eq!(search.source, crate::lfs_program_search::ProgramSearchSource::ServiceEnvironment, "the refusal names the list the push really searched");
-    assert_eq!(search.path, std::env::var_os("PATH").unwrap_or_default(), "the push searches a list rather than none at all");
+    let search: crate::lfs_program_search::ProgramSearch =
+        crate::lfs_program_search::ProgramSearch::of(environment.as_slice());
+    assert_eq!(
+        search.source,
+        crate::lfs_program_search::ProgramSearchSource::ServiceEnvironment,
+        "the refusal names the list the push really searched"
+    );
+    assert_eq!(
+        search.path,
+        std::env::var_os("PATH").unwrap_or_default(),
+        "the push searches a list rather than none at all"
+    );
 }
 
 /// What:
@@ -2760,17 +4580,39 @@ fn a_path_that_could_not_travel_keeps_the_services_own_list_and_says_so() {
 fn a_transport_value_that_could_not_travel_keeps_none_of_the_managers() {
     use std::os::unix::ffi::OsStringExt;
     let service_held: Vec<(OsString, OsString)> = vec![
-        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin:/bin")),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+        (
+            OsString::from("PATH"),
+            OsString::from("/usr/local/bin:/usr/bin:/bin"),
+        ),
+        (
+            OsString::from("GIT_SSH_COMMAND"),
+            OsString::from("ssh -i /nowhere/service-fake"),
+        ),
     ];
-    let shell: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
-        (OsString::from("PATH"), OsString::from("/shell/bin:/usr/bin")),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from_vec(b"ssh -i /nowhere/\xff".to_vec())),
-    ]);
-    assert!(shell.transport, "the command chose a transport, whichever way it spelled the value");
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[
+            (
+                OsString::from("PATH"),
+                OsString::from("/shell/bin:/usr/bin"),
+            ),
+            (
+                OsString::from("GIT_SSH_COMMAND"),
+                OsString::from_vec(b"ssh -i /nowhere/\xff".to_vec()),
+            ),
+        ]);
+    assert!(
+        shell.transport,
+        "the command chose a transport, whichever way it spelled the value"
+    );
     let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
-        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
-    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+        crate::service_work_push_environment::push_environment_of(
+            service_held.as_slice(),
+            Some(&shell),
+        );
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(
+        inherited.as_slice(),
+        overlay.as_slice(),
+    );
     assert_eq!(
         crate::child_environment::environment_value(environment.as_slice(), "GIT_SSH_COMMAND"),
         None,
@@ -2798,22 +4640,75 @@ fn a_transport_value_that_could_not_travel_keeps_none_of_the_managers() {
 fn the_line_a_planned_retry_writes_never_leaves_its_cause_empty() {
     let repo: Repo = repo("work-retry-cause-never-empty");
     let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
-    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
-        // A handler that answered with no words at all leaves the text every line here is built from empty.
-        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, ""));
-    });
-    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
-    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
-    assert!(line.contains("cause: the push said nothing about why it failed"), "a push that said nothing is named as one: {line}");
-    assert!(!line.trim_end().ends_with("cause:"), "the cause is never left empty: {line}");
+    let mut replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: None,
+    };
+    let entries: Vec<crate::service_timing::capture::Captured> =
+        crate::service_timing::capture::entries_of(|| {
+            // A handler that answered with no words at all leaves the text every line here is built from empty.
+            let _said: PlannedRetry = await_it(planned_retry(
+                repo.common.as_path(),
+                &mut replanning,
+                FIRST_PAUSE,
+                &newest,
+                1,
+                "",
+            ));
+        });
+    let said: Vec<String> = entries
+        .iter()
+        .map(|entry| {
+            return entry.message.clone();
+        })
+        .collect();
+    let line: &String = said
+        .iter()
+        .find(|line| {
+            return line.contains("push will be tried again");
+        })
+        .unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    assert!(
+        line.contains("cause: the push said nothing about why it failed"),
+        "a push that said nothing is named as one: {line}"
+    );
+    assert!(
+        !line.trim_end().ends_with("cause:"),
+        "the cause is never left empty: {line}"
+    );
     // The control: a push whose output names its failure keeps those words as the cause.
-    let mut second_replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
-    let second_entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
-        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut second_replanning, FIRST_PAUSE, &newest, 2, "the network is down"));
-    });
-    let second_said: Vec<String> = second_entries.iter().map(|entry| { return entry.message.clone(); }).collect();
-    let second_line: &String = second_said.iter().find(|candidate| { return candidate.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {second_said:?}"));
-    assert!(second_line.contains("cause: the network is down"), "the program's own line is the cause: {second_line}");
+    let mut second_replanning: Replanning = Replanning {
+        first: Some(FIRST_PAUSE),
+        changes: Vec::new(),
+        plans: None,
+    };
+    let second_entries: Vec<crate::service_timing::capture::Captured> =
+        crate::service_timing::capture::entries_of(|| {
+            let _said: PlannedRetry = await_it(planned_retry(
+                repo.common.as_path(),
+                &mut second_replanning,
+                FIRST_PAUSE,
+                &newest,
+                2,
+                "the network is down",
+            ));
+        });
+    let second_said: Vec<String> = second_entries
+        .iter()
+        .map(|entry| {
+            return entry.message.clone();
+        })
+        .collect();
+    let second_line: &String = second_said
+        .iter()
+        .find(|candidate| {
+            return candidate.contains("push will be tried again");
+        })
+        .unwrap_or_else(|| panic!("the retry is said: {second_said:?}"));
+    assert!(
+        second_line.contains("cause: the network is down"),
+        "the program's own line is the cause: {second_line}"
+    );
     remove(repo.root.as_path());
 }

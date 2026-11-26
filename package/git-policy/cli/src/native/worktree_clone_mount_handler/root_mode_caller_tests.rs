@@ -40,12 +40,27 @@ fn the_sentence_names_the_mode_the_user_and_the_way_forward() {
         effective_user: 1000,
     };
     let sentence: String = refusal.sentence();
-    assert!(sentence.starts_with(&format!("{}: ", root_modes_name())), "the sentence opens with the words every root-mode refusal opens with: {sentence}");
-    assert!(sentence.contains("the start-probe mode runs as root"), "{sentence}");
+    assert!(
+        sentence.starts_with(&format!("{}: ", root_modes_name())),
+        "the sentence opens with the words every root-mode refusal opens with: {sentence}"
+    );
+    assert!(
+        sentence.contains("the start-probe mode runs as root"),
+        "{sentence}"
+    );
     assert!(sentence.contains("effective user is 1000"), "{sentence}");
-    assert!(sentence.contains("Nothing was read, mounted or recorded"), "{sentence}");
-    assert!(sentence.contains("because the record it writes decides which clones a boot admits"), "{sentence}");
-    assert!(sentence.contains("Ways forward: run the mode as root."), "{sentence}");
+    assert!(
+        sentence.contains("Nothing was read, mounted or recorded"),
+        "{sentence}"
+    );
+    assert!(
+        sentence.contains("because the record it writes decides which clones a boot admits"),
+        "{sentence}"
+    );
+    assert!(
+        sentence.contains("Ways forward: run the mode as root."),
+        "{sentence}"
+    );
 }
 
 /// A caller that is not root is told the number the kernel reported,
@@ -60,5 +75,9 @@ fn another_effective_user_is_named_as_it_was_read() {
         way: "run the mode as root",
         effective_user: 4242,
     };
-    assert!(refusal.sentence().contains("effective user is 4242"), "{}", refusal.sentence());
+    assert!(
+        refusal.sentence().contains("effective user is 4242"),
+        "{}",
+        refusal.sentence()
+    );
 }

@@ -21,7 +21,10 @@
 
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
 use crate::service_commit_requests_and_landing_report::request_for_embedded;
-use crate::service_prepare::{NativeInputs, Ready};
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
 use crate::service_protocol::commit_request_fits;
 
 /// What:
@@ -41,15 +44,29 @@ use crate::service_protocol::commit_request_fits;
 ///   return fitsTheLine(ready, inputs, id, made, tree) ? made : undefined;
 /// };
 /// ```
-pub(crate) fn embedded_that_fits(embedded: Option<Embedded>, ready: &Ready, native_inputs: &NativeInputs, id: &str, tree: &Option<String>) -> Option<Embedded> {
+pub(crate) fn embedded_that_fits(
+    embedded: Option<Embedded>,
+    ready: &Ready,
+    native_inputs: &NativeInputs,
+    id: &str,
+    tree: &Option<String>,
+) -> Option<Embedded> {
     let made: &Embedded = embedded.as_ref()?;
     if ready.needs_native {
         return None;
     }
-    return fits_the_line(ready, native_inputs, id, made, tree).then_some(embedded).flatten();
+    return fits_the_line(ready, native_inputs, id, made, tree)
+        .then_some(embedded)
+        .flatten();
 }
 
 /// Whether the request the embedded route would send is one the service accepts.
-fn fits_the_line(ready: &Ready, native_inputs: &NativeInputs, id: &str, made: &Embedded, tree: &Option<String>) -> bool {
+fn fits_the_line(
+    ready: &Ready,
+    native_inputs: &NativeInputs,
+    id: &str,
+    made: &Embedded,
+    tree: &Option<String>,
+) -> bool {
     return commit_request_fits(&request_for_embedded(ready, native_inputs, id, made, tree));
 }

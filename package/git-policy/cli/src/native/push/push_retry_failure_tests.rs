@@ -11,7 +11,9 @@ use std::time::Duration;
 /// a stall and a refused connection do not.
 #[test]
 fn only_a_conflict_needs_the_person() {
-    assert!(needs_the_person("monochromatic-git-policy-cli: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"));
+    assert!(needs_the_person(
+        "monochromatic-git-policy-cli: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"
+    ));
     for output in [
         "monochromatic-git-policy-cli: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
         "fatal: unable to access 'https://example.invalid/': Could not resolve host: example.invalid",
@@ -39,7 +41,8 @@ const UPDATE_DECLINED: &str = "remote: update says no        \nremote: error: ho
 /// which names a hook and carries no code of its own.
 /// GitHub writes this reason with its own `GH006` line in front of it,
 /// so a refusal without the code is one nothing says is the protected-branch rule of a hosting service.
-const PROTECTED_BRANCH_DECLINED: &str = " ! [remote rejected] main -> main (protected branch hook declined)\n";
+const PROTECTED_BRANCH_DECLINED: &str =
+    " ! [remote rejected] main -> main (protected branch hook declined)\n";
 
 /// What:
 ///  A hook decline whose own words merely carry the refusal's code,
@@ -72,11 +75,13 @@ const GITHUB_PROTECTED_BRANCH: &str = "remote: error: GH006: Protected branch up
 
 /// `remote-curl.c` `die(_("Authentication failed for '%s'"))`,
 /// for a 401 with a user name and no usable password.
-const AUTHENTICATION_FAILED: &str = "remote: login needed\nfatal: Authentication failed for 'http://127.0.0.1:39197/r.git/'\n";
+const AUTHENTICATION_FAILED: &str =
+    "remote: login needed\nfatal: Authentication failed for 'http://127.0.0.1:39197/r.git/'\n";
 
 /// `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`,
 /// for a 401 with no user name and prompts off.
-const PROMPTS_DISABLED: &str = "fatal: could not read Username for 'http://127.0.0.1:39197': terminal prompts disabled\n";
+const PROMPTS_DISABLED: &str =
+    "fatal: could not read Username for 'http://127.0.0.1:39197': terminal prompts disabled\n";
 
 /// `http.c` `"The requested URL returned error: %ld"`,
 /// for a 403.
@@ -106,7 +111,12 @@ const UNRESOLVED: &str = "fatal: unable to access 'http://nonexistent.invalid/r.
 /// and retrying only asks the remote again.
 #[test]
 fn an_authentication_failure_is_not_tried_again() {
-    for output in [AUTHENTICATION_FAILED, PROMPTS_DISABLED, FORBIDDEN, SSH_REFUSED] {
+    for output in [
+        AUTHENTICATION_FAILED,
+        PROMPTS_DISABLED,
+        FORBIDDEN,
+        SSH_REFUSED,
+    ] {
         assert_eq!(final_failure(output), Some(FinalFailure::Login), "{output}");
         assert!(needs_the_person(output), "{output}");
     }
@@ -126,8 +136,15 @@ fn an_authentication_failure_is_not_tried_again() {
 /// which the service's plan does within a fixed number of tries.
 #[test]
 fn a_github_protected_branch_refusal_is_tried_again() {
-    assert_eq!(final_failure(GITHUB_PROTECTED_BRANCH), None, "{GITHUB_PROTECTED_BRANCH}");
-    assert!(!needs_the_person(GITHUB_PROTECTED_BRANCH), "the person is not sent to push by hand for it: {GITHUB_PROTECTED_BRANCH}");
+    assert_eq!(
+        final_failure(GITHUB_PROTECTED_BRANCH),
+        None,
+        "{GITHUB_PROTECTED_BRANCH}"
+    );
+    assert!(
+        !needs_the_person(GITHUB_PROTECTED_BRANCH),
+        "the person is not sent to push by hand for it: {GITHUB_PROTECTED_BRANCH}"
+    );
     assert_eq!(
         unrecognised_rejection(GITHUB_PROTECTED_BRANCH),
         None,
@@ -152,9 +169,17 @@ fn a_github_protected_branch_refusal_is_tried_again() {
 /// the waiting is the service's.
 ///  Plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
 #[test]
-fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_service_pushes_by_itself() {
-    assert_eq!(final_failure(HOST_KEY_NOT_KNOWN), None, "the retry stays scheduled: {HOST_KEY_NOT_KNOWN}");
-    assert!(!needs_the_person(HOST_KEY_NOT_KNOWN), "nothing stops the retry for it: {HOST_KEY_NOT_KNOWN}");
+fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_service_pushes_by_itself()
+ {
+    assert_eq!(
+        final_failure(HOST_KEY_NOT_KNOWN),
+        None,
+        "the retry stays scheduled: {HOST_KEY_NOT_KNOWN}"
+    );
+    assert!(
+        !needs_the_person(HOST_KEY_NOT_KNOWN),
+        "nothing stops the retry for it: {HOST_KEY_NOT_KNOWN}"
+    );
     let record: String = retried_failure_record(HOST_KEY_NOT_KNOWN);
     for said in [
         "plain `ssh <host>`",
@@ -166,7 +191,10 @@ fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_serv
     ] {
         assert!(record.contains(said), "{said} in {record}");
     }
-    assert!(record.ends_with(HOST_KEY_NOT_KNOWN), "the program's own words stay below ours: {record}");
+    assert!(
+        record.ends_with(HOST_KEY_NOT_KNOWN),
+        "the program's own words stay below ours: {record}"
+    );
     assert_eq!(
         unrecognised_rejection(HOST_KEY_NOT_KNOWN),
         None,
@@ -200,13 +228,32 @@ fn a_record_of_a_push_whose_hook_already_said_the_sentence_keeps_it_once_and_add
         std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git"),
         b"Host key verification failed.\nfatal: Could not read from remote repository.",
     );
-    let pushed: String = format!("Host key verification failed.\nfatal: Could not read from remote repository.\n{explained}error: failed to push some refs\n");
-    assert_eq!(final_failure(pushed.as_str()), None, "the upload's own sentence is no final failure: {pushed}");
+    let pushed: String = format!(
+        "Host key verification failed.\nfatal: Could not read from remote repository.\n{explained}error: failed to push some refs\n"
+    );
+    assert_eq!(
+        final_failure(pushed.as_str()),
+        None,
+        "the upload's own sentence is no final failure: {pushed}"
+    );
     let record: String = retried_failure_record(pushed.as_str());
-    assert_eq!(record.matches("does not know the SSH host key").count(), 1, "one refusal is told once: {record}");
-    assert!(record.contains("`ssh git.example.invalid`"), "the host the upload named is still named: {record}");
-    assert!(record.contains("keeps its usual retry schedule"), "the promise the plan keeps is added: {record}");
-    assert!(record.ends_with(pushed.as_str()), "the program's own words stay below ours: {record}");
+    assert_eq!(
+        record.matches("does not know the SSH host key").count(),
+        1,
+        "one refusal is told once: {record}"
+    );
+    assert!(
+        record.contains("`ssh git.example.invalid`"),
+        "the host the upload named is still named: {record}"
+    );
+    assert!(
+        record.contains("keeps its usual retry schedule"),
+        "the promise the plan keeps is added: {record}"
+    );
+    assert!(
+        record.ends_with(pushed.as_str()),
+        "the program's own words stay below ours: {record}"
+    );
 }
 
 /// What:
@@ -223,11 +270,27 @@ fn a_record_of_a_push_refused_for_an_unknown_key_whose_remote_names_a_certificat
     let pushed: &str = "Host key verification failed.\nfatal: Could not read from remote repository.\n\
                         error: failed to push some refs to 'git@github.com:acme/certificate-manager.git'\n";
     let record: String = retried_failure_record(pushed);
-    assert!(record.contains("does not know the SSH host key"), "{record}");
-    assert!(record.contains("Connect once with plain `ssh <host>`"), "{record}");
-    assert!(record.contains("keeps its usual retry schedule"), "{record}");
-    assert!(record.ends_with(pushed), "the program's own words stay below ours: {record}");
-    assert_eq!(final_failure(pushed), None, "the service keeps retrying this one: {pushed}");
+    assert!(
+        record.contains("does not know the SSH host key"),
+        "{record}"
+    );
+    assert!(
+        record.contains("Connect once with plain `ssh <host>`"),
+        "{record}"
+    );
+    assert!(
+        record.contains("keeps its usual retry schedule"),
+        "{record}"
+    );
+    assert!(
+        record.ends_with(pushed),
+        "the program's own words stay below ours: {record}"
+    );
+    assert_eq!(
+        final_failure(pushed),
+        None,
+        "the service keeps retrying this one: {pushed}"
+    );
 }
 
 /// What:
@@ -242,7 +305,11 @@ fn a_record_of_a_push_refused_for_an_unknown_key_whose_remote_names_a_certificat
 #[test]
 fn a_hook_that_prints_the_unknown_host_key_words_is_still_a_decline() {
     let output: &str = "remote: Host key verification failed.\nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
-    assert_eq!(final_failure(output), Some(FinalFailure::Declined), "the hook's echoed words decide nothing: {output}");
+    assert_eq!(
+        final_failure(output),
+        Some(FinalFailure::Declined),
+        "the hook's echoed words decide nothing: {output}"
+    );
 }
 
 /// A server hook's decline is final,
@@ -257,8 +324,16 @@ fn a_server_hook_decline_is_not_tried_again() {
         A_DECLINE_NAMING_THE_CODE,
         A_DELETION_REFUSED_AS_PROTECTED,
     ] {
-        assert_eq!(final_failure(output), Some(FinalFailure::Declined), "{output}");
-        assert_eq!(protected_branch_refusal(output), None, "nothing here is an update a retry can wait out: {output}");
+        assert_eq!(
+            final_failure(output),
+            Some(FinalFailure::Declined),
+            "{output}"
+        );
+        assert_eq!(
+            protected_branch_refusal(output),
+            None,
+            "nothing here is an update a retry can wait out: {output}"
+        );
     }
 }
 
@@ -288,10 +363,19 @@ fn an_offline_failure_is_still_tried_again() {
 #[test]
 fn an_lfs_server_error_is_tried_again_by_the_plan() {
     for status in ["500", "502", "503", "504"] {
-        let program_words: String = format!("batch response: Fatal error: Server error https://<credentials>@lfs.example.invalid/objects/batch from HTTP {status}");
-        let output: String = format!("{program_words}\n{}", crate::lfs_pre_push::failed_message("exited with status 2"));
+        let program_words: String = format!(
+            "batch response: Fatal error: Server error https://<credentials>@lfs.example.invalid/objects/batch from HTTP {status}"
+        );
+        let output: String = format!(
+            "{program_words}\n{}",
+            crate::lfs_pre_push::failed_message("exited with status 2")
+        );
         assert_eq!(final_failure(output.as_str()), None, "{output}");
-        assert_eq!(unrecognised_rejection(output.as_str()), None, "a failure that is not a rejection names nothing: {output}");
+        assert_eq!(
+            unrecognised_rejection(output.as_str()),
+            None,
+            "a failure that is not a rejection names nothing: {output}"
+        );
     }
 }
 
@@ -310,11 +394,23 @@ fn an_lfs_server_error_is_tried_again_by_the_plan() {
 ///  and that a push by hand may still land.
 #[test]
 fn the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome() {
-    assert_eq!(plain_words(FinalFailure::Conflict), None, "a conflict's report already says what to do");
+    assert_eq!(
+        plain_words(FinalFailure::Conflict),
+        None,
+        "a conflict's report already says what to do"
+    );
     let login: &str = plain_words(FinalFailure::Login).expect("a login failure is worded");
-    assert!(login.contains("wants a login") && login.contains("until your next commit"), "{login}");
+    assert!(
+        login.contains("wants a login") && login.contains("until your next commit"),
+        "{login}"
+    );
     let declined: &str = plain_words(FinalFailure::Declined).expect("a decline is worded");
-    for said in ["a hook on the server", "declined it", "until your next commit", "may succeed"] {
+    for said in [
+        "a hook on the server",
+        "declined it",
+        "until your next commit",
+        "may succeed",
+    ] {
         assert!(declined.contains(said), "{said} in {declined}");
     }
     for absent in ["refused the same way", "would be refused"] {
@@ -336,16 +432,34 @@ fn a_protected_branch_refusal_is_given_a_fixed_number_of_tries() {
     //  make: the figure is checked where it is compiled, not where the control runs.
     const _: () = assert!(PROTECTED_BRANCH_TRIES >= 2);
     for try_number in 1..PROTECTED_BRANCH_TRIES {
-        assert!(!out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is not the last one");
+        assert!(
+            !out_of_tries(GITHUB_PROTECTED_BRANCH, try_number),
+            "try {try_number} is not the last one"
+        );
     }
     for try_number in [PROTECTED_BRANCH_TRIES, PROTECTED_BRANCH_TRIES + 1, 1_000] {
-        assert!(out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is past the bound");
+        assert!(
+            out_of_tries(GITHUB_PROTECTED_BRANCH, try_number),
+            "try {try_number} is past the bound"
+        );
     }
-    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED, A_DECLINE_NAMING_THE_CODE, A_DELETION_REFUSED_AS_PROTECTED] {
-        assert!(!out_of_tries(output, 1_000), "a refusal that is not an update this release reads is final and never counted: {output}");
+    for output in [
+        PRE_RECEIVE_DECLINED,
+        UPDATE_DECLINED,
+        PROTECTED_BRANCH_DECLINED,
+        A_DECLINE_NAMING_THE_CODE,
+        A_DELETION_REFUSED_AS_PROTECTED,
+    ] {
+        assert!(
+            !out_of_tries(output, 1_000),
+            "a refusal that is not an update this release reads is final and never counted: {output}"
+        );
     }
     for output in [CONNECTION_REFUSED, UNRESOLVED] {
-        assert!(!out_of_tries(output, 1_000), "a cause that can pass is retried until it passes and has no count: {output}");
+        assert!(
+            !out_of_tries(output, 1_000),
+            "a cause that can pass is retried until it passes and has no count: {output}"
+        );
     }
 }
 
@@ -361,10 +475,20 @@ fn a_protected_branch_refusal_is_given_a_fixed_number_of_tries() {
 #[test]
 fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time() {
     let first: Duration = Duration::from_secs(10);
-    let span: Duration = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, first); }).fold(Duration::ZERO, |sum, pause| { return sum + pause; });
+    let span: Duration = (1..PROTECTED_BRANCH_TRIES)
+        .map(|try_number| {
+            return pause_before(try_number, first);
+        })
+        .fold(Duration::ZERO, |sum, pause| {
+            return sum + pause;
+        });
     let words: String = out_of_tries_words(first);
     let tries_phrase: String = format!("after {PROTECTED_BRANCH_TRIES} tries over");
-    let span_phrase: String = format!("{} minutes and {} seconds", span.as_secs() / 60, span.as_secs() % 60);
+    let span_phrase: String = format!(
+        "{} minutes and {} seconds",
+        span.as_secs() / 60,
+        span.as_secs() % 60
+    );
     for said in [
         "the server refused the last try of this push as an update to a protected branch",
         "stopped trying this branch",
@@ -382,10 +506,20 @@ fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time()
     }
     // A plan whose pauses add up to less than a minute says seconds, and one that adds up to none says so.
     let short: Duration = Duration::from_secs(1);
-    let short_span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, short).as_secs(); }).sum();
+    let short_span: u64 = (1..PROTECTED_BRANCH_TRIES)
+        .map(|try_number| {
+            return pause_before(try_number, short).as_secs();
+        })
+        .sum();
     let short_words: String = out_of_tries_words(short);
-    assert!(short_words.contains(&format!("{short_span} seconds")), "{short_words}");
-    assert!(!short_words.contains("minutes"), "a span under a minute names no minutes: {short_words}");
+    assert!(
+        short_words.contains(&format!("{short_span} seconds")),
+        "{short_words}"
+    );
+    assert!(
+        !short_words.contains("minutes"),
+        "a span under a minute names no minutes: {short_words}"
+    );
     let tiny_words: String = out_of_tries_words(Duration::from_millis(1));
     assert!(tiny_words.contains("less than a second"), "{tiny_words}");
 }
@@ -396,6 +530,13 @@ fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time()
 fn a_rejection_nobody_knows_is_retried_and_named() {
     let output: &str = "To /srv/remote.git\n ! [remote rejected] main -> main (prohibited by the review system)\nerror: failed to push some refs\n";
     assert_eq!(final_failure(output), None);
-    assert_eq!(unrecognised_rejection(output).as_deref(), Some("! [remote rejected] main -> main (prohibited by the review system)"));
-    assert_eq!(unrecognised_rejection(CONNECTION_REFUSED), None, "a failure that is not a rejection names nothing");
+    assert_eq!(
+        unrecognised_rejection(output).as_deref(),
+        Some("! [remote rejected] main -> main (prohibited by the review system)")
+    );
+    assert_eq!(
+        unrecognised_rejection(CONNECTION_REFUSED),
+        None,
+        "a failure that is not a rejection names nothing"
+    );
 }

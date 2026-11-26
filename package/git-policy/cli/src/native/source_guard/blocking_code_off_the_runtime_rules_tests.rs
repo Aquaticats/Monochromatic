@@ -43,7 +43,10 @@ pub(super) struct Rule {
 }
 
 /// Whether `line` holds any of `needles`.
-fn holds_any(line: &str, needles: &[&str]) -> bool {
+fn holds_any(
+    line: &str,
+    needles: &[&str],
+) -> bool {
     return needles.iter().any(|needle| {
         return line.contains(needle);
     });
@@ -81,7 +84,14 @@ const STORAGE_CALLS: &[&str] = &[
 
 /// The waits that block the thread they run on until something else moves,
 /// which on a worker is the task that would move it.
-const BLOCKING_WAITS: &[&str] = &["recv_timeout(", "thread::sleep(", "park_timeout(", "thread::park(", "futex::wait(", "Condvar"];
+const BLOCKING_WAITS: &[&str] = &[
+    "recv_timeout(",
+    "thread::sleep(",
+    "park_timeout(",
+    "thread::park(",
+    "futex::wait(",
+    "Condvar",
+];
 
 /// The forbidden work.
 pub(super) const RULES: &[Rule] = &[
@@ -90,7 +100,15 @@ pub(super) const RULES: &[Rule] = &[
         reason: "starts a thread; work the runtime can carry is a task, and work it cannot carry is a job of the blocking pool",
         place: Place::Everywhere,
         matches: |line, _joined| {
-            return holds_any(line, &["thread::spawn(", "thread::Builder", "thread::scope(", "spawn_scoped("]);
+            return holds_any(
+                line,
+                &[
+                    "thread::spawn(",
+                    "thread::Builder",
+                    "thread::scope(",
+                    "spawn_scoped(",
+                ],
+            );
         },
     },
     Rule {
@@ -98,7 +116,10 @@ pub(super) const RULES: &[Rule] = &[
         reason: "pauses on a clock that holds the thread it runs on; a wait the runtime can end is `tokio::time::sleep`",
         place: Place::Everywhere,
         matches: |line, _joined| {
-            return holds_any(line, &["thread::sleep(", "park_timeout(", "std::thread::park("]);
+            return holds_any(
+                line,
+                &["thread::sleep(", "park_timeout(", "std::thread::park("],
+            );
         },
     },
     Rule {
@@ -114,7 +135,10 @@ pub(super) const RULES: &[Rule] = &[
             {
                 return false;
             }
-            return holds_any(joined, &[".spawn()", ".output()", ".status()", ".wait_with_output()"]);
+            return holds_any(
+                joined,
+                &[".spawn()", ".output()", ".status()", ".wait_with_output()"],
+            );
         },
     },
     Rule {
@@ -126,7 +150,10 @@ pub(super) const RULES: &[Rule] = &[
             if !joined.contains("git_command(") || joined.contains("_retrying(") {
                 return false;
             }
-            return holds_any(joined, &[".spawn()", ".output()", ".status()", ".wait_with_output()"]);
+            return holds_any(
+                joined,
+                &[".spawn()", ".output()", ".status()", ".wait_with_output()"],
+            );
         },
     },
     Rule {

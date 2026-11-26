@@ -9,7 +9,10 @@ use super::*;
 ///  Shipped code writes a named struct instead,
 /// so no closure is passed through here.
 impl<Say: FnMut(&str)> LineSink for Say {
-    fn say(&mut self, text: &str) {
+    fn say(
+        &mut self,
+        text: &str,
+    ) {
         self(text);
     }
 }
@@ -19,7 +22,9 @@ impl<Say: FnMut(&str)> LineSink for Say {
 #[test]
 fn a_line_said_through_the_trait_reaches_the_sink_in_order() {
     let mut lines: Vec<String> = Vec::new();
-    let mut collect = |text: &str| { lines.push(text.to_string()); };
+    let mut collect = |text: &str| {
+        lines.push(text.to_string());
+    };
     let sink: &mut dyn LineSink = &mut collect;
     sink.say("first");
     sink.say("second");

@@ -51,10 +51,14 @@ impl BytesAfterAFailedMerge<'_> {
     fn where_your_bytes_are(&self) -> String {
         return match (self.the_paths_were_cleared, self.kept_on) {
             (true, Some(kept)) => {
-                format!("The files this merge changes hold the branch's content where your own bytes were; those bytes are kept on {kept}.")
+                format!(
+                    "The files this merge changes hold the branch's content where your own bytes were; those bytes are kept on {kept}."
+                )
             }
             (true, None) => String::from("The files this merge changes hold the branch's content."),
-            (false, Some(kept)) => format!("Every byte the files held before this command is kept on {kept}."),
+            (false, Some(kept)) => {
+                format!("Every byte the files held before this command is kept on {kept}.")
+            }
             (false, None) => String::from("This merge wrote nothing to your files."),
         };
     }
@@ -99,15 +103,23 @@ impl WhyTheMergeIsSaved {
     /// ```
     fn blocked(&self) -> String {
         return match self {
-            WhyTheMergeIsSaved::TheWaitEnded(waited) => format!("did not let go within {} seconds", waited.as_secs()),
-            WhyTheMergeIsSaved::NotTheCommandsToClear => String::from("is not one this command may clear"),
+            WhyTheMergeIsSaved::TheWaitEnded(waited) => {
+                format!("did not let go within {} seconds", waited.as_secs())
+            }
+            WhyTheMergeIsSaved::NotTheCommandsToClear => {
+                String::from("is not one this command may clear")
+            }
             // The merge is not made to wait for another program's command, which is the owner's rule, so the line must not read
             //  as one that waited.
-            WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder) => format!("is held by {holder} and this merge does not wait for it"),
-            WhyTheMergeIsSaved::AnotherProgramTookIt => String::from("was taken by another program in the instant before this merge wrote"),
-            WhyTheMergeIsSaved::TheLockStoppedTheSettle => {
-                String::from("was taken by another program after this merge looked, and it stopped both Git's own update of the checkout and the putting back of your own bytes")
+            WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder) => {
+                format!("is held by {holder} and this merge does not wait for it")
             }
+            WhyTheMergeIsSaved::AnotherProgramTookIt => {
+                String::from("was taken by another program in the instant before this merge wrote")
+            }
+            WhyTheMergeIsSaved::TheLockStoppedTheSettle => String::from(
+                "was taken by another program after this merge looked, and it stopped both Git's own update of the checkout and the putting back of your own bytes",
+            ),
         };
     }
 }
@@ -127,7 +139,13 @@ impl WhyTheMergeIsSaved {
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, why: &WhyTheMergeIsSaved, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_deferred_save_finding(
+    reference: &str,
+    lock: &Path,
+    side_ref: &str,
+    why: &WhyTheMergeIsSaved,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}) and {blocked}, so the \
          merge is saved on {side_ref} and this command exits 0. The branch has not moved and nothing of the merge is in the checkout. \
@@ -154,7 +172,11 @@ pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &s
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-pub(crate) fn a_merge_that_could_not_be_kept(reference: &str, lock: &Path, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_merge_that_could_not_be_kept(
+    reference: &str,
+    lock: &Path,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}), and this merge is \
          not saved for a later command because its commit could not be kept on a side reference. The branch has not moved and nothing \
@@ -210,7 +232,11 @@ pub(crate) fn a_merge_whose_save_could_not_be_recorded(
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-pub(crate) fn a_merge_the_branch_moved_under(reference: &str, lock: &Path, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_merge_the_branch_moved_under(
+    reference: &str,
+    lock: &Path,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}), and the branch moved \
          while this merge was prepared, so this merge does not land. Nothing of the merge is in the checkout. {where} The next git \
@@ -235,7 +261,10 @@ pub(crate) fn a_merge_the_branch_moved_under(reference: &str, lock: &Path, bytes
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${branch} moved while this merge was prepared, ...`
 /// ```
-pub(crate) fn a_merge_the_branch_moved_before_its_save(reference: &str, branch: &str) -> String {
+pub(crate) fn a_merge_the_branch_moved_before_its_save(
+    reference: &str,
+    branch: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {branch} moved while this merge was prepared, so this merge does not \
          land and nothing of the merge is in the checkout. Nothing of yours was changed, and running the merge again is safe: it \
@@ -256,7 +285,11 @@ pub(crate) fn a_merge_the_branch_moved_before_its_save(reference: &str, branch: 
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${branch} moved while this merge was prepared, ...`
 /// ```
-pub(crate) fn a_merge_the_branch_moved_before_its_save_behind_the_lock(reference: &str, branch: &str, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_merge_the_branch_moved_before_its_save_behind_the_lock(
+    reference: &str,
+    branch: &str,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {branch} moved while this merge was prepared, so this merge does not \
          land. Nothing of the merge is in the checkout. {where} The record of this merge was kept, and the next git command in this \
@@ -277,7 +310,11 @@ pub(crate) fn a_merge_the_branch_moved_before_its_save_behind_the_lock(reference
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: the merge is in the branch ...`
 /// ```
-pub(crate) fn a_merge_in_the_branch_whose_carry_waits(reference: &str, lock: &Path, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_merge_in_the_branch_whose_carry_waits(
+    reference: &str,
+    lock: &Path,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch, and another program holds this repository's \
          index ({lock}), so your own changes could not be carried into the files yet. {where} The next git command in this worktree \
@@ -298,7 +335,11 @@ pub(crate) fn a_merge_in_the_branch_whose_carry_waits(reference: &str, lock: &Pa
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: part of the merge is in the checkout ...`
 /// ```
-pub(crate) fn a_merge_partly_installed_behind_the_lock(reference: &str, lock: &Path, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+pub(crate) fn a_merge_partly_installed_behind_the_lock(
+    reference: &str,
+    lock: &Path,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: part of the merge is in the index and the worktree, and another program \
          holds this repository's index ({lock}) so the rest waits. {where} The next git command in this worktree finishes it once that \
@@ -322,15 +363,27 @@ pub(crate) fn a_merge_partly_installed_behind_the_lock(reference: &str, lock: &P
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: the merge is made, and your changes could not be carried back (${detail}) ...`
 /// ```
-pub(crate) fn a_carry_that_stopped(reference: &str, failure: &CarryFailure, capture: &Capture) -> String {
+pub(crate) fn a_carry_that_stopped(
+    reference: &str,
+    failure: &CarryFailure,
+    capture: &Capture,
+) -> String {
     let detail: String = match failure {
-        CarryFailure::IndexHeld(lock) => format!("another program holds this repository's index ({lock})"),
+        CarryFailure::IndexHeld(lock) => {
+            format!("another program holds this repository's index ({lock})")
+        }
         CarryFailure::Failed(text) => String::from(text.as_str()),
         CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
-            format!("{} holds something else now", String::from_utf8_lossy(path.as_slice()))
+            format!(
+                "{} holds something else now",
+                String::from_utf8_lossy(path.as_slice())
+            )
         }
     };
-    let kept: &str = capture.reference.as_deref().unwrap_or("the record this merge wrote");
+    let kept: &str = capture
+        .reference
+        .as_deref()
+        .unwrap_or("the record this merge wrote");
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: the merge is made, and your own changes could not be carried back yet because \
          {detail}. They are kept in {kept}, and the next git command in this worktree carries them into the files. Nothing of yours was \
@@ -350,7 +403,9 @@ pub(crate) fn a_carry_that_stopped(reference: &str, failure: &CarryFailure, capt
 /// ```
 pub(crate) fn failure_text(failure: &CarryFailure) -> String {
     return match failure {
-        CarryFailure::IndexHeld(lock) => format!("another program held {lock} until this merge had waited its longest"),
+        CarryFailure::IndexHeld(lock) => {
+            format!("another program held {lock} until this merge had waited its longest")
+        }
         CarryFailure::Failed(detail) => String::from(detail.as_str()),
         CarryFailure::Foreign(path) | CarryFailure::Changed(path) => format!(
             "{} was written after this merge captured it, so the merge was not written over it",

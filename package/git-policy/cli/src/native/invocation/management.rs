@@ -13,35 +13,66 @@
 //! // const action = planManagement(managementArgs, gitGlobalArgs, controls, environment, inputs);
 //! ```
 
-/// Import the sibling modules the decision combines.
-use crate::management_direct_commands::{direct_config_failure, plan_direct, refusal};
-use crate::management_service_repository_selection::{Selection, status_git_dir};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
-use crate::child_environment::{child_environment_overlay, environment_home, environment_value};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+    failure,
+    with_leading_notice,
+};
+use crate::child_environment::{
+    child_environment_overlay,
+    environment_home,
+    environment_value,
+};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
-use crate::doctor::{CheckoutViewpoint, doctor_action_with_section, doctor_failure};
-/// The process's one runtime,
-/// which the doctor's report is built on.
-use crate::lazy_runtime::run_on_runtime;
-use crate::service_route::service_status;
-use crate::management_service_settle_earlier_batches::{plan_settle_earlier_batches};
-use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
+use crate::doctor::{
+    CheckoutViewpoint,
+    doctor_action_with_section,
+    doctor_failure,
+};
 /// The listing of the references the wrapper keeps commits on,
 /// and one pruning of them.
 use crate::kept_reference_command::plan_kept_references;
+/// The process's one runtime,
+/// which the doctor's report is built on.
+use crate::lazy_runtime::run_on_runtime;
+/// The notes the doctor's action gains on standard error at its end.
+pub use crate::management_action_notes::{
+    with_earlier_batches_note,
+    with_units_note,
+};
 use crate::management_arguments::{
-    MANAGEMENT_HELP, ManagementAction, RetiredCommand,
+    MANAGEMENT_HELP,
+    ManagementAction,
+    RetiredCommand,
     parse_management_arguments,
+};
+/// Import the sibling modules the decision combines.
+use crate::management_direct_commands::{
+    direct_config_failure,
+    plan_direct,
+    refusal,
 };
 /// The refusal of a `--policy` selection that is off.
 use crate::management_selection::selected_policies;
+use crate::management_service_repository_selection::{
+    Selection,
+    status_git_dir,
+};
+use crate::management_service_settle_earlier_batches::plan_settle_earlier_batches;
+use crate::management_service_stop_units_of_removed_worktrees::plan_stop_units_of_removed_worktrees;
 use crate::policy_registry::PolicyId;
-use crate::real_git::{ResolutionInputs, ResolvedGit, resolve_real_git};
-use crate::transaction_git::GitContext;
+use crate::real_git::{
+    ResolutionInputs,
+    ResolvedGit,
+    resolve_real_git,
+};
+use crate::service_route::service_status;
 use crate::subvolume_arguments::MigrateArguments;
-use crate::worktree_convert_arguments::ConvertArguments;
 #[cfg(target_os = "linux")]
 use crate::subvolume_command::migrate_action;
+use crate::transaction_git::GitContext;
+use crate::worktree_convert_arguments::ConvertArguments;
 use crate::wrapper_controls::Controls;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -55,9 +86,10 @@ use crate::wrapper_controls::Controls;
 /// ```
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
-use std::path::{Path, PathBuf};
-/// The notes the doctor's action gains on standard error at its end.
-pub use crate::management_action_notes::{with_earlier_batches_note, with_units_note};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The command word of a retired command.
@@ -117,7 +149,10 @@ pub fn retired_explanation(command: RetiredCommand) -> String {
 /// ```ts
 /// const directPathspecs = all ? [':/'] : pathspecs;
 /// ```
-fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
+fn scope_pathspecs(
+    all: bool,
+    pathspecs: Vec<OsString>,
+) -> Vec<OsString> {
     if all {
         // `vec![...]` builds the one-item list.
         return vec![OsString::from(":/")];
@@ -135,7 +170,11 @@ fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
 /// ```ts
 /// function planService(globalArguments, environment, inputs): Action;
 /// ```
-fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+fn plan_service(
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+) -> Action {
     let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
     let action: Action = plan_service_with(global_arguments, environment, real_git.as_deref());
     return with_leading_notice(action, notice.as_deref());
@@ -153,9 +192,14 @@ fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsStrin
 /// ```ts
 /// function planSettle(globalArguments, environment, inputs): Action;
 /// ```
-fn plan_settle(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+fn plan_settle(
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+) -> Action {
     let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
-    let action: Action = plan_settle_earlier_batches(global_arguments, environment, real_git.as_deref());
+    let action: Action =
+        plan_settle_earlier_batches(global_arguments, environment, real_git.as_deref());
     return with_leading_notice(action, notice.as_deref());
 }
 
@@ -190,7 +234,11 @@ fn optional_real_git(inputs: &ResolutionInputs) -> (Option<PathBuf>, Option<Stri
 /// ```ts
 /// function planServiceWith(globalArguments, environment, realGit?: string): Action;
 /// ```
-fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
+fn plan_service_with(
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    real_git: Option<&Path>,
+) -> Action {
     // An empty runtime directory is no directory.
     let runtime: Option<PathBuf> = match environment_value(environment, "XDG_RUNTIME_DIR") {
         Some(text) if !text.is_empty() => Some(PathBuf::from(text)),
@@ -204,12 +252,18 @@ fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, Os
             return Action::Exit {
                 code: 1,
                 stdout: String::new(),
-                stderr: format!("The commit service cannot be checked: {reason}, so it is not known which repository this invocation selects, and no service was counted.\n"),
+                stderr: format!(
+                    "The commit service cannot be checked: {reason}, so it is not known which repository this invocation selects, and no service was counted.\n"
+                ),
             };
         }
     };
     let report = service_status(runtime.as_deref(), git_dir.as_deref());
-    return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
+    return Action::Exit {
+        code: report.code,
+        stdout: report.stdout,
+        stderr: report.stderr,
+    };
 }
 
 /// What:
@@ -225,20 +279,29 @@ fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, Os
 /// ```ts
 /// function planMigrate(parsed: MigrateArguments | string): Action;
 /// ```
-fn plan_migrate(parsed: Result<MigrateArguments, String>, start: &crate::start_directory::StartDirectory) -> Action {
+fn plan_migrate(
+    parsed: Result<MigrateArguments, String>,
+    start: &crate::start_directory::StartDirectory,
+) -> Action {
     let arguments: MigrateArguments = match parsed {
         Ok(found) => found,
         Err(reason) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 stdout: String::new(),
-                stderr: format!("git monochromatic-git-policy-cli migrate-to-subvolume: {reason}\n"),
+                stderr: format!(
+                    "git monochromatic-git-policy-cli migrate-to-subvolume: {reason}\n"
+                ),
             };
         }
     };
     let Some(cwd) = start.path() else {
         return failure(
-            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+            format!(
+                "cannot determine the current directory: {}",
+                start.reason().unwrap_or("it cannot be read")
+            )
+            .as_str(),
         );
     };
     return run_migrate(&arguments, cwd);
@@ -273,18 +336,29 @@ fn plan_convert(
     start: &crate::start_directory::StartDirectory,
 ) -> Action {
     let arguments: ConvertArguments = match parsed {
-        Ok(found) => ConvertArguments { command_line_attributes: crate::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
+        Ok(found) => ConvertArguments {
+            command_line_attributes: crate::worktree_convert_arguments::selects_attribute_source(
+                global_arguments,
+            ),
+            ..found
+        },
         Err(reason) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 stdout: String::new(),
-                stderr: format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: {reason}\n"),
+                stderr: format!(
+                    "git monochromatic-git-policy-cli convert-worktree-to-subvolume: {reason}\n"
+                ),
             };
         }
     };
     let Some(cwd) = start.path() else {
         return failure(
-            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+            format!(
+                "cannot determine the current directory: {}",
+                start.reason().unwrap_or("it cannot be read")
+            )
+            .as_str(),
         );
     };
     let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
@@ -294,15 +368,27 @@ fn plan_convert(
 
 /// Run the conversion command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
-fn run_convert(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
+fn run_convert(
+    arguments: &ConvertArguments,
+    cwd: &Path,
+    environment: &[(OsString, OsString)],
+    real_git: Option<&Path>,
+) -> Action {
     return crate::worktree_convert_command::convert_action(arguments, cwd, environment, real_git);
 }
 
 /// Other platforms have no btrfs subvolumes,
 /// so the command says so.
 #[cfg(not(target_os = "linux"))]
-fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsString, OsString)], _real_git: Option<&Path>) -> Action {
-    return failure("git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only");
+fn run_convert(
+    _arguments: &ConvertArguments,
+    _cwd: &Path,
+    _environment: &[(OsString, OsString)],
+    _real_git: Option<&Path>,
+) -> Action {
+    return failure(
+        "git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only",
+    );
 }
 
 /// The doctor's filesystem section read from the running system,
@@ -322,7 +408,11 @@ pub fn filesystem_section_with_link_line(viewpoint: &CheckoutViewpoint<'_>) -> S
         Some(checkout) => crate::doctor_filesystem::checkout_section(checkout, viewpoint.layout),
         None => String::new(),
     };
-    return format!("{}{}", facts, crate::repository_link_doctor_line::doctor_link_line(viewpoint.home));
+    return format!(
+        "{}{}",
+        facts,
+        crate::repository_link_doctor_line::doctor_link_line(viewpoint.home)
+    );
 }
 
 /// Other platforms have no btrfs or overlayfs section.
@@ -333,15 +423,23 @@ pub fn host_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
 
 /// Run the migration command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
-fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
+fn run_migrate(
+    arguments: &MigrateArguments,
+    cwd: &Path,
+) -> Action {
     return migrate_action(arguments, cwd);
 }
 
 /// Other platforms have no btrfs subvolumes,
 /// so the command says so.
 #[cfg(not(target_os = "linux"))]
-fn run_migrate(_arguments: &MigrateArguments, _cwd: &Path) -> Action {
-    return failure("git monochromatic-git-policy-cli migrate-to-subvolume works on Linux with btrfs only");
+fn run_migrate(
+    _arguments: &MigrateArguments,
+    _cwd: &Path,
+) -> Action {
+    return failure(
+        "git monochromatic-git-policy-cli migrate-to-subvolume works on Linux with btrfs only",
+    );
 }
 
 fn plan_doctor(
@@ -358,10 +456,15 @@ fn plan_doctor(
     let real_git: PathBuf = resolved.path;
     let Some(cwd) = start.path() else {
         return failure(
-            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+            format!(
+                "cannot determine the current directory: {}",
+                start.reason().unwrap_or("it cannot be read")
+            )
+            .as_str(),
         );
     };
-    let overlay: Vec<(OsString, OsString)> = child_environment_overlay(environment, real_git.as_path());
+    let overlay: Vec<(OsString, OsString)> =
+        child_environment_overlay(environment, real_git.as_path());
     let context: GitContext = GitContext {
         real_git,
         overlay,
@@ -372,11 +475,21 @@ fn plan_doctor(
     let home: Option<PathBuf> = environment_home(environment);
     // The doctor's report is built on the runtime, so every Git question of it is awaited there instead of
     // entering the runtime per step; this command is still synchronous, so the enter happens once, here.
-    let action: Action = match run_on_runtime(doctor_action_with_section(&context, cwd, home.as_deref(), filesystem_section)) {
+    let action: Action = match run_on_runtime(doctor_action_with_section(
+        &context,
+        cwd,
+        home.as_deref(),
+        filesystem_section,
+    )) {
         Ok(report) => report,
         Err(refusal) => doctor_failure(format!("the doctor could not ask Git: {refusal}").as_str()),
     };
-    let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
+    let batches_noted: Action = with_earlier_batches_note(
+        action,
+        git_global_arguments,
+        environment,
+        context.real_git.as_path(),
+    );
     let noted: Action = with_units_note(batches_noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
 }
@@ -410,7 +523,15 @@ pub fn plan_management(
     inputs: &ResolutionInputs,
     start: &crate::start_directory::StartDirectory,
 ) -> Action {
-    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &no_filesystem_section, start);
+    return plan_management_with_section(
+        arguments,
+        git_global_arguments,
+        controls,
+        environment,
+        inputs,
+        &no_filesystem_section,
+        start,
+    );
 }
 
 /// What:
@@ -471,7 +592,10 @@ pub fn plan_management_with_section(
                 stderr: String::new(),
             };
         }
-        ManagementAction::Retired { command, help } => {
+        ManagementAction::Retired {
+            command,
+            help,
+        } => {
             // Help goes to standard output; an attempted action is explained on standard error.
             if help {
                 return Action::Exit {
@@ -486,15 +610,41 @@ pub fn plan_management_with_section(
                 stderr: retired_explanation(command),
             };
         }
-        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section, start),
-        ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
-        ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
-        ManagementAction::StopUnitsOfRemovedWorktrees => return plan_stop_units_of_removed_worktrees(environment),
-        ManagementAction::KeptReferences { prune } => {
+        ManagementAction::Doctor => {
+            return plan_doctor(
+                git_global_arguments,
+                environment,
+                inputs,
+                filesystem_section,
+                start,
+            );
+        }
+        ManagementAction::ServiceStatus => {
+            return plan_service(git_global_arguments, environment, inputs);
+        }
+        ManagementAction::SettleEarlierBatches => {
+            return plan_settle(git_global_arguments, environment, inputs);
+        }
+        ManagementAction::StopUnitsOfRemovedWorktrees => {
+            return plan_stop_units_of_removed_worktrees(environment);
+        }
+        ManagementAction::KeptReferences {
+            prune,
+        } => {
             return plan_kept_references(prune, git_global_arguments, environment, inputs);
         }
-        ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse, start),
-        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs, start),
+        ManagementAction::MigrateToSubvolume(migrate_parse) => {
+            return plan_migrate(migrate_parse, start);
+        }
+        ManagementAction::ConvertWorktree(convert_parse) => {
+            return plan_convert(
+                convert_parse,
+                git_global_arguments,
+                environment,
+                inputs,
+                start,
+            );
+        }
         ManagementAction::Direct {
             fix,
             all,

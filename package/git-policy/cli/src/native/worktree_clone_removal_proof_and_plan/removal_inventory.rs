@@ -98,13 +98,23 @@ impl LiveInventory {
     /// Every snapshot of the list,
     /// in the order the pool listed them.
     pub fn snapshots(&self) -> Vec<LiveObject> {
-        return self.objects.iter().filter(|object| return object.kind == EntryKind::Snapshot).cloned().collect();
+        return self
+            .objects
+            .iter()
+            .filter(|object| return object.kind == EntryKind::Snapshot)
+            .cloned()
+            .collect();
     }
 
     /// Every bookmark of the list,
     /// in the order the pool listed them.
     pub fn bookmarks(&self) -> Vec<LiveObject> {
-        return self.objects.iter().filter(|object| return object.kind == EntryKind::Bookmark).cloned().collect();
+        return self
+            .objects
+            .iter()
+            .filter(|object| return object.kind == EntryKind::Bookmark)
+            .cloned()
+            .collect();
     }
 
     /// What:
@@ -119,13 +129,20 @@ impl LiveInventory {
     /// ```ts
     /// const own = inventory.snapshots().filter(s => s.createtxg > cloneCreatetxg).map(toPlanSnapshot);
     /// ```
-    pub fn own_snapshots(&self, clone_createtxg: u64) -> Vec<PlanSnapshot> {
+    pub fn own_snapshots(
+        &self,
+        clone_createtxg: u64,
+    ) -> Vec<PlanSnapshot> {
         let mut own: Vec<PlanSnapshot> = self
             .snapshots()
             .into_iter()
             .filter(|snapshot| return snapshot.createtxg > clone_createtxg)
             .map(|snapshot| {
-                return PlanSnapshot { name: snapshot.full_name(), guid: snapshot.guid, createtxg: snapshot.createtxg };
+                return PlanSnapshot {
+                    name: snapshot.full_name(),
+                    guid: snapshot.guid,
+                    createtxg: snapshot.createtxg,
+                };
             })
             .collect();
         own.sort_by(|left, right| return left.name.cmp(&right.name));

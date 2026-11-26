@@ -20,22 +20,25 @@
 //! await Promise.race([exited, stopped, flood, stall]);
 //! ```
 
-/// The clock that stops a run on a stall,
-/// and the wait it lets pass instead.
-use crate::push_progress::{Clock, WaitReport};
-/// How long a run may show nothing before it is stopped,
-/// and the window a connected one gets.
-use crate::push_deadline_and_patience_settings::Patience;
 /// The error a run that cannot be started or read reports.
 use crate::auto_push_single_flight::SingleFlightError;
 /// The child a wait awaits through its pidfd.
 use crate::child_awaited_through_a_pidfd::OwnedChild;
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::warn;
-/// The pause between two looks at a running push.
-use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
+/// How long a run may show nothing before it is stopped,
+/// and the window a connected one gets.
+use crate::push_deadline_and_patience_settings::Patience;
+/// The clock that stops a run on a stall,
+/// and the wait it lets pass instead.
+use crate::push_progress::{
+    Clock,
+    WaitReport,
+};
 /// The causes and reports of a stop.
 use crate::stop_cause_and_words::StopCause;
+/// The pause between two looks at a running push.
+use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
 /// The arm that says the service's shutdown told the stop.
 use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 /// `File` is the shared anonymous output file of the run.
@@ -67,7 +70,10 @@ pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 /// ```ts
 /// size > cap
 /// ```
-pub(crate) fn is_flood(size: u64, cap: u64) -> bool {
+pub(crate) fn is_flood(
+    size: u64,
+    cap: u64,
+) -> bool {
     return size > cap;
 }
 
@@ -84,7 +90,10 @@ pub(crate) fn is_flood(size: u64, cap: u64) -> bool {
 /// ```ts
 /// outputs.some((output) => isFlood(statSize(output)))
 /// ```
-pub(crate) fn flooded(outputs: &[&File], cap: u64) -> bool {
+pub(crate) fn flooded(
+    outputs: &[&File],
+    cap: u64,
+) -> bool {
     for output in outputs {
         let size: u64 = match output.metadata() {
             Ok(metadata) => metadata.len(),
@@ -198,9 +207,21 @@ pub async fn wait_until_done_noting(
     window: Duration,
     minimum_rate: u64,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window).with_minimum_rate(minimum_rate);
+    let clock: Clock = Clock::start(child.id(), patience)
+        .with_connected_window(window)
+        .with_minimum_rate(minimum_rate);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
+    return wait_with_clock(
+        child,
+        outputs,
+        clock,
+        MAX_PUSH_OUTPUT,
+        label,
+        waits,
+        &mut unused,
+        stop,
+    )
+    .await;
 }
 
 /// The loop of both waits,
@@ -269,7 +290,10 @@ async fn wait_with_clock(
 /// ```ts
 /// `${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
 /// ```
-pub(crate) fn wait_line_words(label: &str, report: &WaitReport) -> String {
+pub(crate) fn wait_line_words(
+    label: &str,
+    report: &WaitReport,
+) -> String {
     return format!(
         "{label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing the wrapper counts as \
          progress has moved for {} seconds (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited \

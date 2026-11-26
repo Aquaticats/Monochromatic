@@ -22,14 +22,39 @@
 //! const ended = await sh(theLinesCommand(ran.stderr)); expect(ended.code).toBe(0);
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
 use super::held_lock_support::PATIENCE;
-use super::merge_carries_edits::{assert_merged, diverged, run, said, text_at};
-use super::support::{Fixture, Observed, bounded, fixture, git, observe, repository, wrapper_first_path};
+use super::merge_carries_edits::{
+    assert_merged,
+    diverged,
+    run,
+    said,
+    text_at,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    bounded,
+    fixture,
+    git,
+    observe,
+    repository,
+    wrapper_first_path,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// The text of the first command a line puts between backticks,
 /// with the program word the line names,
@@ -40,9 +65,14 @@ use std::process::{Command, Stdio};
 /// const theCommandAsPrinted = (words) => words.slice(words.indexOf('`') + 1).split('`')[0];
 /// ```
 fn the_command_as_printed(words: &str) -> String {
-    let opened: usize = words.find('`').expect("the line names a command between backticks") + 1;
+    let opened: usize = words
+        .find('`')
+        .expect("the line names a command between backticks")
+        + 1;
     let rest: &str = &words[opened..];
-    let closed: usize = rest.find('`').expect("the command's closing backtick is there");
+    let closed: usize = rest
+        .find('`')
+        .expect("the command's closing backtick is there");
     return String::from(&rest[..closed]);
 }
 
@@ -57,9 +87,19 @@ fn the_command_as_printed(words: &str) -> String {
 /// ```ts
 /// const ran = observe(bounded(fixture, 'sh', wrapperFirstPath).args(['-c', theCommandAsPrinted(words)]));
 /// ```
-fn run_as_printed(fixture: &Fixture, repo: &Path, words: &str) -> Observed {
-    let mut command: Command = bounded(fixture, Path::new("sh"), wrapper_first_path(fixture).as_os_str());
-    command.current_dir(repo).args(["-c", the_command_as_printed(words).as_str()]);
+fn run_as_printed(
+    fixture: &Fixture,
+    repo: &Path,
+    words: &str,
+) -> Observed {
+    let mut command: Command = bounded(
+        fixture,
+        Path::new("sh"),
+        wrapper_first_path(fixture).as_os_str(),
+    );
+    command
+        .current_dir(repo)
+        .args(["-c", the_command_as_printed(words).as_str()]);
     return observe(&mut command, b"");
 }
 
@@ -74,18 +114,45 @@ fn run_as_printed(fixture: &Fixture, repo: &Path, words: &str) -> Observed {
 /// ```ts
 /// base({ 'gone with space.txt': 'base\n', 'main.txt': 'base\n' }); branch('feature', delete('gone with space.txt'));
 /// ```
-fn a_repository_that_deletes_a_path_with_a_space(fixture: &Fixture, name: &str) -> PathBuf {
+fn a_repository_that_deletes_a_path_with_a_space(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     std::fs::write(repo.join("gone with space.txt"), b"base\n").expect("the path with a space");
     std::fs::write(repo.join("main.txt"), b"base\n").expect("main.txt");
-    git(fixture, repo.as_path(), &["add", "--", "gone with space.txt", "main.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
-    git(fixture, repo.as_path(), &["rm", "--quiet", "--", "gone with space.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", "gone with space.txt", "main.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["rm", "--quiet", "--", "gone with space.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature"],
+    );
     git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("main.txt"), b"base\nmain\n").expect("main.txt");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
     return repo;
 }
 
@@ -130,13 +197,29 @@ fn a_path_with_a_space_is_one_word_in_the_command_the_line_prints() {
     assert_merged(&fixture, repo.as_path(), "path with a space");
     let words: String = said(&observed);
     let printed: String = the_command_as_printed(words.as_str());
-    assert_eq!(printed, "rm -- 'gone with space.txt'", "the command names the path as one shell word: {words}");
+    assert_eq!(
+        printed, "rm -- 'gone with space.txt'",
+        "the command names the path as one shell word: {words}"
+    );
     let taken: Observed = run_as_printed(&fixture, repo.as_path(), words.as_str());
-    assert_eq!(taken.code, Some(0), "the command the line printed runs: {}", said(&taken));
+    assert_eq!(
+        taken.code,
+        Some(0),
+        "the command the line printed runs: {}",
+        said(&taken)
+    );
     for (name, text) in unrelated {
-        assert_eq!(text_at(repo.as_path(), name).unwrap_or_default(), text, "the command deleted {name}, which the merge never named");
+        assert_eq!(
+            text_at(repo.as_path(), name).unwrap_or_default(),
+            text,
+            "the command deleted {name}, which the merge never named"
+        );
     }
-    assert_eq!(text_at(repo.as_path(), "gone with space.txt"), None, "the command takes the deletion of the path it names");
+    assert_eq!(
+        text_at(repo.as_path(), "gone with space.txt"),
+        None,
+        "the command takes the deletion of the path it names"
+    );
     remove_settled(&fixture);
 }
 
@@ -172,12 +255,29 @@ fn a_staged_version_and_a_later_save_both_stand_when_the_merge_deletes_the_path(
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", said(&observed));
     assert_merged(&fixture, repo.as_path(), "staged layers the merge deletes");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["show", ":gone.txt"]), staged, "the staged version stands in the index");
-    assert_eq!(text_at(repo.as_path(), "gone.txt").unwrap_or_default(), later, "the later save stands in the checkout");
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", ":gone.txt"]),
+        staged,
+        "the staged version stands in the index"
+    );
+    assert_eq!(
+        text_at(repo.as_path(), "gone.txt").unwrap_or_default(),
+        later,
+        "the later save stands in the checkout"
+    );
     let words: String = said(&observed);
-    assert!(words.contains("gone.txt"), "the line names the path: {words}");
-    assert!(!words.contains("keeps your bytes in the index instead"), "no line tells the person to stage over the staged version: {words}");
-    assert!(words.contains("would replace the version the index holds"), "the line says why `git add` is not the command to run: {words}");
+    assert!(
+        words.contains("gone.txt"),
+        "the line names the path: {words}"
+    );
+    assert!(
+        !words.contains("keeps your bytes in the index instead"),
+        "no line tells the person to stage over the staged version: {words}"
+    );
+    assert!(
+        words.contains("would replace the version the index holds"),
+        "the line says why `git add` is not the command to run: {words}"
+    );
     remove_settled(&fixture);
 }
 
@@ -207,12 +307,24 @@ fn a_save_that_fills_a_kept_path_leaves_one_line_about_it() {
     std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion");
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("marker directory");
-    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    command.env(PHASE_SIGNAL_VARIABLE, format!("merge-carry-index:pause:{}", markers.display()));
-    let child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the merge starts");
+    let mut command: Command =
+        wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    command.env(
+        PHASE_SIGNAL_VARIABLE,
+        format!("merge-carry-index:pause:{}", markers.display()),
+    );
+    let child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the merge starts");
     let began = std::time::Instant::now();
     while !markers.join("merge-carry-index.reached").exists() {
-        assert!(began.elapsed() < PATIENCE, "the merge never reached the carry's index write");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the merge never reached the carry's index write"
+        );
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
     let saved: &[u8] = b"a version saved while the carry was writing\n";
@@ -221,11 +333,27 @@ fn a_save_that_fills_a_kept_path_leaves_one_line_about_it() {
     let output = child.wait_with_output().expect("the merge ends");
     let words: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert_eq!(output.status.code(), Some(0), "{words}");
-    assert_eq!(std::fs::read(repo.join("a.txt")).expect("a.txt"), saved, "the save stands");
+    assert_eq!(
+        std::fs::read(repo.join("a.txt")).expect("a.txt"),
+        saved,
+        "the save stands"
+    );
     assert_merged(&fixture, repo.as_path(), "save while the carry writes");
-    assert!(words.contains("a.txt changed while the merge ran"), "the line says the merge wrote nothing to it: {words}");
-    assert!(!words.contains("holds nothing of yours"), "no line says the path is empty: {words}");
-    assert!(!words.contains("a deletion of yours stands"), "no line says a deletion stands at the path: {words}");
-    assert!(!words.contains("git restore --no-enforce-worktree"), "no line sends the person over the save: {words}");
+    assert!(
+        words.contains("a.txt changed while the merge ran"),
+        "the line says the merge wrote nothing to it: {words}"
+    );
+    assert!(
+        !words.contains("holds nothing of yours"),
+        "no line says the path is empty: {words}"
+    );
+    assert!(
+        !words.contains("a deletion of yours stands"),
+        "no line says a deletion stands at the path: {words}"
+    );
+    assert!(
+        !words.contains("git restore --no-enforce-worktree"),
+        "no line sends the person over the save: {words}"
+    );
     remove_settled(&fixture);
 }

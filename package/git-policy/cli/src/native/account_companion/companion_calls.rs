@@ -134,7 +134,10 @@ impl CompanionCall {
     /// The call one number names,
     /// or nothing when the number names no call of this build.
     pub fn from_number(number: u8) -> Option<CompanionCall> {
-        return CALLS_IN_ORDER.iter().copied().find(|call| return *call as u8 == number);
+        return CALLS_IN_ORDER
+            .iter()
+            .copied()
+            .find(|call| return *call as u8 == number);
     }
 
     /// The name the lines print,
@@ -227,5 +230,8 @@ pub struct Failure {
 pub fn failed(call: CompanionCall) -> Failure {
     // SAFETY: `__errno_location` answers this thread's own error number, which the failed call has just set.
     let number: i32 = unsafe { *libc::__errno_location() };
-    return Failure { call, errno: number };
+    return Failure {
+        call,
+        errno: number,
+    };
 }

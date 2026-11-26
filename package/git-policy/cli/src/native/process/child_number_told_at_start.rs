@@ -48,13 +48,19 @@ impl ChildNumber {
     /// A child that has not started yet,
     /// kept by its number alone.
     pub fn not_started() -> Self {
-        return Self { started: std::sync::Arc::default(), pinned: false };
+        return Self {
+            started: std::sync::Arc::default(),
+            pinned: false,
+        };
     }
 
     /// A child that has not started yet,
     /// kept by its number and by the descriptor the kernel makes for it the moment it starts.
     pub fn not_started_pinned() -> Self {
-        return Self { started: std::sync::Arc::default(), pinned: true };
+        return Self {
+            started: std::sync::Arc::default(),
+            pinned: true,
+        };
     }
 
     /// What:
@@ -72,13 +78,19 @@ impl ChildNumber {
     /// ```ts
     /// told.publish(pid);
     /// ```
-    pub fn publish(&self, number: i32) {
+    pub fn publish(
+        &self,
+        number: i32,
+    ) {
         let descriptor: Option<std::os::fd::OwnedFd> = if self.pinned {
             crate::member_signalled_through_its_pidfd::pidfd_of(number)
         } else {
             None
         };
-        let _kept = self.started.set(Started { number, descriptor });
+        let _kept = self.started.set(Started {
+            number,
+            descriptor,
+        });
     }
 
     /// The child's number,

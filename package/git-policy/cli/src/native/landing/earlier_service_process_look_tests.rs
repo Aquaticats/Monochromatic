@@ -7,7 +7,10 @@
 
 use super::*;
 use crate::scan_awaited_under_a_ceiling::scan_under_ceiling;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 
@@ -16,7 +19,13 @@ const SLOW_SCAN: Duration = Duration::from_millis(150);
 
 /// A look with the given ceiling.
 fn look_with(ceiling: Duration) -> ServiceLook {
-    return ServiceLook { instance: String::from("abc"), journals: Vec::new(), own_pid: 1, own_user: effective_user(), ceiling };
+    return ServiceLook {
+        instance: String::from("abc"),
+        journals: Vec::new(),
+        own_pid: 1,
+        own_user: effective_user(),
+        ceiling,
+    };
 }
 
 /// Why a long command line is as long as it is:
@@ -54,10 +63,15 @@ const FAKE_PROGRAM_NAME: &str = "unrelated-tool";
 fn proc_root_with(words: &[String]) -> PathBuf {
     let root: PathBuf = fixture("look-table");
     std::fs::create_dir_all(root.join("net")).expect("a socket table folder");
-    std::fs::write(root.join("net/unix"), "Num       RefCount Protocol Flags    Type St Inode Path\n").expect("an empty socket table");
+    std::fs::write(
+        root.join("net/unix"),
+        "Num       RefCount Protocol Flags    Type St Inode Path\n",
+    )
+    .expect("an empty socket table");
     let process: PathBuf = root.join(FAKE_PID.to_string());
     std::fs::create_dir_all(&process).expect("a process folder");
-    std::fs::write(process.join("comm"), format!("{FAKE_PROGRAM_NAME}\n")).expect("the program's kernel name");
+    std::fs::write(process.join("comm"), format!("{FAKE_PROGRAM_NAME}\n"))
+        .expect("the program's kernel name");
     let mut bytes: Vec<u8> = Vec::new();
     for word in words {
         bytes.extend(word.as_bytes());
@@ -69,9 +83,19 @@ fn proc_root_with(words: &[String]) -> PathBuf {
 
 /// The words of a long command line that is no service of any worktree.
 fn long_command_line() -> Vec<String> {
-    let mut words: Vec<String> = vec![String::from("/usr/bin/git"), String::from("commit"), String::from("-m")];
+    let mut words: Vec<String> = vec![
+        String::from("/usr/bin/git"),
+        String::from("commit"),
+        String::from("-m"),
+    ];
     for at in 0..LONG_LINE_WORDS {
-        words.push(format!("{at:07}").chars().cycle().take(LONG_LINE_WORD_BYTES).collect());
+        words.push(
+            format!("{at:07}")
+                .chars()
+                .cycle()
+                .take(LONG_LINE_WORD_BYTES)
+                .collect(),
+        );
     }
     return words;
 }
@@ -101,13 +125,20 @@ fn long_command_line() -> Vec<String> {
 #[cfg(unix)]
 fn a_command_line_longer_than_a_program_can_carry_is_proved_whole() {
     let root: PathBuf = proc_root_with(long_command_line().as_slice());
-    let held: Option<Holding> = earlier_service_process_hold(look_with(PROCESS_LOOK_CEILING), root.as_path());
-    assert!(held.is_none(), "a command line that is no service holds nothing back: {held:?}");
+    let held: Option<Holding> =
+        earlier_service_process_hold(look_with(PROCESS_LOOK_CEILING), root.as_path());
+    assert!(
+        held.is_none(),
+        "a command line that is no service holds nothing back: {held:?}"
+    );
     remove(root.as_path());
 }
 
 /// A scan that takes `SLOW_SCAN` and finds no service.
-fn slow_scan_that_finds_nothing(_look: &ServiceLook, _proc_root: &Path) -> Option<Holding> {
+fn slow_scan_that_finds_nothing(
+    _look: &ServiceLook,
+    _proc_root: &Path,
+) -> Option<Holding> {
     std::thread::sleep(SLOW_SCAN);
     return None;
 }
@@ -115,7 +146,14 @@ fn slow_scan_that_finds_nothing(_look: &ServiceLook, _proc_root: &Path) -> Optio
 /// The look of a control,
 /// awaited under `ceiling` as the look functions await it.
 async fn look_awaited(ceiling: Duration) -> Option<Holding> {
-    return scan_under_ceiling(look_with(ceiling), ceiling, PathBuf::from("/proc"), slow_scan_that_finds_nothing, cannot_look).await;
+    return scan_under_ceiling(
+        look_with(ceiling),
+        ceiling,
+        PathBuf::from("/proc"),
+        slow_scan_that_finds_nothing,
+        cannot_look,
+    )
+    .await;
 }
 
 /// A look whose scan takes a while is awaited:
@@ -124,8 +162,14 @@ async fn look_awaited(ceiling: Duration) -> Option<Holding> {
 #[test]
 fn a_look_that_takes_a_while_is_awaited_and_leaves_the_other_tasks_their_turns() {
     let (held, ticks) = with_a_ticker_beside(look_awaited(SLOW_SCAN * 100));
-    assert!(held.is_none(), "the scan found no service, so nothing holds");
-    assert!(ticks > 0, "the wait for the scan was awaited on the runtime");
+    assert!(
+        held.is_none(),
+        "the scan found no service, so nothing holds"
+    );
+    assert!(
+        ticks > 0,
+        "the wait for the scan was awaited on the runtime"
+    );
 }
 
 /// How long a held scan waits for its control to let it go,
@@ -189,10 +233,14 @@ impl Halt {
     /// Wait until the scan is let go,
     /// or until `RELEASE_BOUND` has passed.
     fn wait_to_be_let_go(&self) {
-        let Ok(released) = self.released.lock() else { return };
+        let Ok(released) = self.released.lock() else {
+            return;
+        };
         let _waited = self
             .let_go
-            .wait_timeout_while(released, RELEASE_BOUND, |let_go| { return !*let_go; });
+            .wait_timeout_while(released, RELEASE_BOUND, |let_go| {
+                return !*let_go;
+            });
     }
 
     /// Let the held scan go.
@@ -211,17 +259,28 @@ static HALT: std::sync::OnceLock<std::sync::Arc<Halt>> = std::sync::OnceLock::ne
 /// A scan that says it started,
 /// waits to be let go,
 /// and finds no service.
-fn held_scan_that_finds_nothing(_look: &ServiceLook, _proc_root: &Path) -> Option<Holding> {
+fn held_scan_that_finds_nothing(
+    _look: &ServiceLook,
+    _proc_root: &Path,
+) -> Option<Holding> {
     let halt: &std::sync::Arc<Halt> = HALT.get()?;
     let _sent = halt.started.send(());
     halt.wait_to_be_let_go();
-    halt.finished.store(true, std::sync::atomic::Ordering::SeqCst);
+    halt.finished
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     return None;
 }
 
 /// The look of a control under the held scan.
 async fn held_look_awaited(ceiling: Duration) -> Option<Holding> {
-    return scan_under_ceiling(look_with(ceiling), ceiling, PathBuf::from("/proc"), held_scan_that_finds_nothing, cannot_look).await;
+    return scan_under_ceiling(
+        look_with(ceiling),
+        ceiling,
+        PathBuf::from("/proc"),
+        held_scan_that_finds_nothing,
+        cannot_look,
+    )
+    .await;
 }
 
 /// A scan that outlasts the ceiling is "cannot look",
@@ -256,15 +315,29 @@ async fn held_look_awaited(ceiling: Duration) -> Option<Holding> {
 fn a_look_that_outlasts_its_ceiling_counts_as_may_be_running_at_the_ceiling() {
     let halt: std::sync::Arc<Halt> = std::sync::Arc::new(Halt::new());
     let _installed: Result<(), std::sync::Arc<Halt>> = HALT.set(std::sync::Arc::clone(&halt));
-    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     let began: std::time::Instant = std::time::Instant::now();
     let held: Option<Holding> = runtime.block_on(held_look_awaited(CEILING_OF_A_HELD_LOOK));
     assert!(
         !halt.finished.load(std::sync::atomic::Ordering::SeqCst),
         "the scan was still held when the look returned, so the wait was awaited and not blocked on it"
     );
-    assert!(held.is_some(), "a look that could not finish counts as a hold");
+    assert!(
+        held.is_some(),
+        "a look that could not finish counts as a hold"
+    );
     halt.let_go();
-    assert!(began.elapsed() >= CEILING_OF_A_HELD_LOOK, "the wait ran to its ceiling: {:?}", began.elapsed());
-    assert!(began.elapsed() < RELEASE_BOUND, "the wait ended at the ceiling and not when the scan did: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() >= CEILING_OF_A_HELD_LOOK,
+        "the wait ran to its ceiling: {:?}",
+        began.elapsed()
+    );
+    assert!(
+        began.elapsed() < RELEASE_BOUND,
+        "the wait ended at the ceiling and not when the scan did: {:?}",
+        began.elapsed()
+    );
 }

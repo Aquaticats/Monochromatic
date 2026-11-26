@@ -19,7 +19,12 @@
 
 /// The row type and its builder,
 ///  and the arity names.
-use crate::command_options::{Arity, OptionSpec, UNREAD, row};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+    UNREAD,
+    row,
+};
 
 /// What:
 ///  `OPT__VERBOSE` of `builtin/remote.c`:
@@ -34,4 +39,5 @@ use crate::command_options::{Arity, OptionSpec, UNREAD, row};
 /// ```ts
 /// export const REMOTE_TABLE = [row(UNREAD, 'v', 'verbose', 'none', true)] as const;
 /// ```
-pub const REMOTE_TABLE: &[OptionSpec] = &[row(UNREAD, Some(b'v'), Some("verbose"), Arity::None, true)];
+pub const REMOTE_TABLE: &[OptionSpec] =
+    &[row(UNREAD, Some(b'v'), Some("verbose"), Arity::None, true)];

@@ -25,10 +25,23 @@
 /// import { parseOptions, row } from './command_options.ts';
 /// ```
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, WrapperOccurrence,
-    parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    WrapperOccurrence,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{is_enabled, is_stated, last_occurrence, positional_tokens, value_bytes};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    last_occurrence,
+    positional_tokens,
+    value_bytes,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -120,7 +133,13 @@ pub const PUSH_TABLE: &[OptionSpec] = &[
         Arity::Optional,
         true,
     ),
-    row(FORCE_IF_INCLUDES, None, Some("force-if-includes"), Arity::None, true),
+    row(
+        FORCE_IF_INCLUDES,
+        None,
+        Some("force-if-includes"),
+        Arity::None,
+        true,
+    ),
     row(
         RECURSE_SUBMODULES,
         None,
@@ -131,7 +150,13 @@ pub const PUSH_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("thin"), Arity::None, true),
     row(UNREAD, None, Some("receive-pack"), Arity::Required, true),
     row(UNREAD, None, Some("exec"), Arity::Required, true),
-    row(SET_UPSTREAM, Some(b'u'), Some("set-upstream"), Arity::None, true),
+    row(
+        SET_UPSTREAM,
+        Some(b'u'),
+        Some("set-upstream"),
+        Arity::None,
+        true,
+    ),
     row(UNREAD, None, Some("progress"), Arity::None, true),
     row(PRUNE, None, Some("prune"), Arity::None, true),
     row(NO_VERIFY, None, Some("no-verify"), Arity::None, true),
@@ -273,10 +298,16 @@ pub struct PushShape {
 /// ```ts
 /// function optionValue(parsed: ParsedOptions, region: string[], id: number): string | undefined;
 /// ```
-fn option_value(parsed: &ParsedOptions, region: &[OsString], id: u16) -> Option<OsString> {
+fn option_value(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+    id: u16,
+) -> Option<OsString> {
     let occurrence = last_occurrence(parsed, id)?;
     let value = occurrence.value?;
-    return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(value_bytes(region, value).to_vec()));
+    return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(
+        value_bytes(region, value).to_vec(),
+    ));
 }
 
 /// What:
@@ -297,8 +328,11 @@ pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
         positionals.push(region[index].clone());
     }
     // Git takes the first positional as the repository whatever `--repo` says; the option only fills in when none is typed.
-    let repository: Option<OsString> =
-        if positionals.is_empty() { option_value(&parsed, region, REPO) } else { Some(positionals.remove(0)) };
+    let repository: Option<OsString> = if positionals.is_empty() {
+        option_value(&parsed, region, REPO)
+    } else {
+        Some(positionals.remove(0))
+    };
     let mut refspecs: Vec<OsString> = Vec::new();
     let mut words = positionals.into_iter();
     while let Some(word) = words.next() {

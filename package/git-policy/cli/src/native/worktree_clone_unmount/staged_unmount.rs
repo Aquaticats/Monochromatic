@@ -20,10 +20,19 @@
 //! const swept = finishAStagedUnmount({ cache, guid, boot, calls });
 //! ```
 
-use super::staged_record_reading::{read_staged_record, RecordReading};
-use super::staging_calls::{StagingCallRefusal, StagingCalls};
+use super::staged_record_reading::{
+    RecordReading,
+    read_staged_record,
+};
+use super::staging_calls::{
+    StagingCallRefusal,
+    StagingCalls,
+};
 use super::staging_folder_name::staging_record_name;
-use super::user_cache_pin::{check_live_pin, UserCachePin};
+use super::user_cache_pin::{
+    UserCachePin,
+    check_live_pin,
+};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::ffi::OsStr;
@@ -64,7 +73,10 @@ pub struct HeldUnmount<'a> {
 /// type HeldOutcome = { kind: 'unmounted'; clone: boolean; bind: boolean } | { kind: 'retained'; step; said };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(clippy::large_enum_variant, reason = "the retained alternative names the step, words and row a person acts on")]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the retained alternative names the step, words and row a person acts on"
+)]
 pub enum HeldOutcome {
     /// The clone and the bind left.
     Unmounted {
@@ -102,16 +114,20 @@ pub enum HeldOutcome {
 /// const outcome = unmountTheStagedMount(request);
 /// ```
 pub fn unmount_the_staged_mount(request: &HeldUnmount<'_>) -> HeldOutcome {
-    let top: (std::fs::File, u64, MountFacts) = match topmost(request.calls, request.cache, request.name) {
-        Ok(top) => top,
-        Err(refusal) => return retained(refusal, None),
-    };
+    let top: (std::fs::File, u64, MountFacts) =
+        match topmost(request.calls, request.cache, request.name) {
+            Ok(top) => top,
+            Err(refusal) => return retained(refusal, None),
+        };
     let clone_mount: u64 = top.1;
     if top.2.source != request.clone_source {
         return HeldOutcome::Retained {
             step: String::from("pre-call-check"),
             errno: 0,
-            said: format!("the topmost mount at the staging folder is {} with source `{}`, and the clone is `{}`. Nothing was unmounted.", top.1, top.2.source, request.clone_source),
+            said: format!(
+                "the topmost mount at the staging folder is {} with source `{}`, and the clone is `{}`. Nothing was unmounted.",
+                top.1, top.2.source, request.clone_source
+            ),
             mount: Some(top.2),
         };
     }
@@ -119,12 +135,18 @@ pub fn unmount_the_staged_mount(request: &HeldUnmount<'_>) -> HeldOutcome {
     if let Err(refusal) = request.calls.unmount_top(request.folder) {
         return retained(refusal, None);
     }
-    let after: (std::fs::File, u64, MountFacts) = match topmost(request.calls, request.cache, request.name) {
-        Ok(after) => after,
-        Err(refusal) => return retained(refusal, None),
-    };
+    let after: (std::fs::File, u64, MountFacts) =
+        match topmost(request.calls, request.cache, request.name) {
+            Ok(after) => after,
+            Err(refusal) => return retained(refusal, None),
+        };
     if after.1 == clone_mount {
-        return HeldOutcome::Retained { step: String::from("post-call-check"), errno: 0, said: format!("the clone's unmount returned and mount {clone_mount} is still topmost"), mount: Some(after.2) };
+        return HeldOutcome::Retained {
+            step: String::from("post-call-check"),
+            errno: 0,
+            said: format!("the clone's unmount returned and mount {clone_mount} is still topmost"),
+            mount: Some(after.2),
+        };
     }
     let bind_mount: u64 = after.1;
     drop(after.0);
@@ -136,16 +158,30 @@ pub fn unmount_the_staged_mount(request: &HeldUnmount<'_>) -> HeldOutcome {
         Ok((folder, mount_id, facts)) => {
             drop(folder);
             if mount_id == bind_mount {
-                return HeldOutcome::Retained { step: String::from("post-call-check"), errno: 0, said: format!("the bind's unmount returned and mount {bind_mount} is still topmost"), mount: Some(facts) };
+                return HeldOutcome::Retained {
+                    step: String::from("post-call-check"),
+                    errno: 0,
+                    said: format!(
+                        "the bind's unmount returned and mount {bind_mount} is still topmost"
+                    ),
+                    mount: Some(facts),
+                };
             }
-            HeldOutcome::Unmounted { clone_mount, bind_mount }
+            HeldOutcome::Unmounted {
+                clone_mount,
+                bind_mount,
+            }
         }
         Err(refusal) => retained(refusal, None),
     };
 }
 
 /// One topmost mount by name.
-fn topmost(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str) -> Result<(std::fs::File, u64, MountFacts), StagingCallRefusal> {
+fn topmost(
+    calls: &dyn StagingCalls,
+    cache: &std::fs::File,
+    name: &str,
+) -> Result<(std::fs::File, u64, MountFacts), StagingCallRefusal> {
     let folder: std::fs::File = calls.open_by_name(cache, OsStr::new(name))?;
     let mount_id: u64 = calls.mount_id(&folder)?;
     let facts: MountFacts = calls.mount_facts(mount_id)?;
@@ -153,8 +189,16 @@ fn topmost(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str) -> Resul
 }
 
 /// One call's refusal as a retained outcome.
-fn retained(refusal: StagingCallRefusal, mount: Option<MountFacts>) -> HeldOutcome {
-    return HeldOutcome::Retained { step: String::from(refusal.call.word()), errno: refusal.errno, said: refusal.message("the staged unmount refused"), mount };
+fn retained(
+    refusal: StagingCallRefusal,
+    mount: Option<MountFacts>,
+) -> HeldOutcome {
+    return HeldOutcome::Retained {
+        step: String::from(refusal.call.word()),
+        errno: refusal.errno,
+        said: refusal.message("the staged unmount refused"),
+        mount,
+    };
 }
 
 /// What:
@@ -182,7 +226,6 @@ pub struct StagedSweep<'a> {
     /// The mount calls.
     pub calls: &'a dyn StagingCalls,
 }
-
 
 /// What:
 ///  What a later run found when it looked for an interrupted unmount.
@@ -219,8 +262,15 @@ pub enum RecoveryOutcome {
 }
 
 /// One topmost row at the folder path.
-fn topmost_row(table: &[crate::fs_mount_options::MountFacts], path: &Path) -> Option<crate::fs_mount_options::MountFacts> {
-    return table.iter().filter(|facts| return facts.mount_point == path).max_by_key(|facts| return facts.mount_id).cloned();
+fn topmost_row(
+    table: &[crate::fs_mount_options::MountFacts],
+    path: &Path,
+) -> Option<crate::fs_mount_options::MountFacts> {
+    return table
+        .iter()
+        .filter(|facts| return facts.mount_point == path)
+        .max_by_key(|facts| return facts.mount_id)
+        .cloned();
 }
 
 /// What:
@@ -238,45 +288,127 @@ fn topmost_row(table: &[crate::fs_mount_options::MountFacts], path: &Path) -> Op
 /// ```ts
 /// const outcome = recoverAStagedUnmount(sweep, slot);
 /// ```
-pub fn recover_a_staged_unmount(sweep: &StagedSweep<'_>, slot: &Path, clone_mount_id: u64) -> RecoveryOutcome {
-    let folder_path = sweep.cache_path.join(super::staging_folder_name::staging_folder_name(sweep.guid));
-    let reading: RecordReading = read_staged_record(sweep.cache, sweep.guid, sweep.boot, folder_path.as_path(), sweep.calls);
-    let (record, folder): (super::staged_folder_record::StagedFolderRecord, std::fs::File) = match reading {
-        RecordReading::Current { record, folder } => (record, folder),
-        RecordReading::Void { .. } | RecordReading::Unrecorded { .. } | RecordReading::Absent => return RecoveryOutcome::NotStaged,
-        RecordReading::Refused { step, said } => return RecoveryOutcome::Refused { step, said },
+pub fn recover_a_staged_unmount(
+    sweep: &StagedSweep<'_>,
+    slot: &Path,
+    clone_mount_id: u64,
+) -> RecoveryOutcome {
+    let folder_path = sweep
+        .cache_path
+        .join(super::staging_folder_name::staging_folder_name(sweep.guid));
+    let reading: RecordReading = read_staged_record(
+        sweep.cache,
+        sweep.guid,
+        sweep.boot,
+        folder_path.as_path(),
+        sweep.calls,
+    );
+    let (record, folder): (
+        super::staged_folder_record::StagedFolderRecord,
+        std::fs::File,
+    ) = match reading {
+        RecordReading::Current {
+            record,
+            folder,
+        } => (record, folder),
+        RecordReading::Void {
+            ..
+        }
+        | RecordReading::Unrecorded {
+            ..
+        }
+        | RecordReading::Absent => return RecoveryOutcome::NotStaged,
+        RecordReading::Refused {
+            step,
+            said,
+        } => {
+            return RecoveryOutcome::Refused {
+                step,
+                said,
+            };
+        }
     };
     if let Err(pin) = check_live_pin(sweep.cache, sweep.pin) {
-        return RecoveryOutcome::Refused { step: String::from("user-cache-pin"), said: pin.message() };
+        return RecoveryOutcome::Refused {
+            step: String::from("user-cache-pin"),
+            said: pin.message(),
+        };
     }
     let table = match sweep.calls.mount_table() {
         Ok(table) => table,
-        Err(refusal) => return RecoveryOutcome::Refused { step: String::from(refusal.call.word()), said: refusal.message("the recovery could not read the mount table") },
+        Err(refusal) => {
+            return RecoveryOutcome::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the recovery could not read the mount table"),
+            };
+        }
     };
-    let cache_facts = match sweep.calls.mount_facts(sweep.calls.mount_id(sweep.cache).unwrap_or(0)) {
+    let cache_facts = match sweep
+        .calls
+        .mount_facts(sweep.calls.mount_id(sweep.cache).unwrap_or(0))
+    {
         Ok(facts) => facts,
-        Err(refusal) => return RecoveryOutcome::Refused { step: String::from(refusal.call.word()), said: refusal.message("the recovery could not read the cache's row") },
+        Err(refusal) => {
+            return RecoveryOutcome::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the recovery could not read the cache's row"),
+            };
+        }
     };
     let Some(top) = topmost_row(table.as_slice(), folder_path.as_path()) else {
-        return RecoveryOutcome::Finished { mount_id: clone_mount_id };
+        return RecoveryOutcome::Finished {
+            mount_id: clone_mount_id,
+        };
     };
     if top.source == record.dataset && top.root == Path::new("/") {
-        return match unmount_the_staged_mount(&HeldUnmount { cache: sweep.cache, folder: &folder, name: record.component.as_str(), clone_source: record.dataset.as_str(), calls: sweep.calls }) {
-            HeldOutcome::Unmounted { .. } => RecoveryOutcome::Finished { mount_id: top.mount_id },
-            HeldOutcome::Retained { step, said, .. } => RecoveryOutcome::Refused { step, said },
+        return match unmount_the_staged_mount(&HeldUnmount {
+            cache: sweep.cache,
+            folder: &folder,
+            name: record.component.as_str(),
+            clone_source: record.dataset.as_str(),
+            calls: sweep.calls,
+        }) {
+            HeldOutcome::Unmounted {
+                ..
+            } => RecoveryOutcome::Finished {
+                mount_id: top.mount_id,
+            },
+            HeldOutcome::Retained {
+                step,
+                said,
+                ..
+            } => RecoveryOutcome::Refused {
+                step,
+                said,
+            },
         };
     }
     if top.source == cache_facts.source && top.root != Path::new("/") {
-        let slot_source = table.iter().find(|facts| return facts.mount_point == slot).map(|facts| return facts.source.clone());
+        let slot_source = table
+            .iter()
+            .find(|facts| return facts.mount_point == slot)
+            .map(|facts| return facts.source.clone());
         let clone_at_slot: bool = slot_source.as_deref() == Some(record.dataset.as_str());
         if let Err(refusal) = sweep.calls.unmount_top(&folder) {
-            return RecoveryOutcome::Refused { step: String::from(refusal.call.word()), said: refusal.message("the leftover bind could not be unbound") };
+            return RecoveryOutcome::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the leftover bind could not be unbound"),
+            };
         }
-        return if clone_at_slot { RecoveryOutcome::BindRemoved } else { RecoveryOutcome::Finished { mount_id: clone_mount_id } };
+        return if clone_at_slot {
+            RecoveryOutcome::BindRemoved
+        } else {
+            RecoveryOutcome::Finished {
+                mount_id: clone_mount_id,
+            }
+        };
     }
     return RecoveryOutcome::Refused {
         step: String::from("pre-call-check"),
-        said: format!("the topmost mount at the staging folder is {} with source `{}`, which is neither the clone `{}` nor the cache bind `{}`", top.mount_id, top.source, record.dataset, cache_facts.source),
+        said: format!(
+            "the topmost mount at the staging folder is {} with source `{}`, which is neither the clone `{}` nor the cache bind `{}`",
+            top.mount_id, top.source, record.dataset, cache_facts.source
+        ),
     };
 }
 /// What:
@@ -327,10 +459,16 @@ impl SweepOutcome {
     pub fn word(&self) -> &'static str {
         return match self {
             SweepOutcome::FolderGone => "folder-gone",
-            SweepOutcome::NotCurrent { .. } => "not-current",
+            SweepOutcome::NotCurrent {
+                ..
+            } => "not-current",
             SweepOutcome::Empty => "empty",
-            SweepOutcome::Unmounted { .. } => "unmounted",
-            SweepOutcome::Retained { .. } => "retained",
+            SweepOutcome::Unmounted {
+                ..
+            } => "unmounted",
+            SweepOutcome::Retained {
+                ..
+            } => "retained",
         };
     }
 }
@@ -347,42 +485,132 @@ impl SweepOutcome {
 /// const outcome = finishAStagedUnmount(sweep);
 /// ```
 pub fn finish_a_staged_unmount(sweep: &StagedSweep<'_>) -> SweepOutcome {
-    let folder_path = sweep.cache_path.join(super::staging_folder_name::staging_folder_name(sweep.guid));
-    let reading: RecordReading = read_staged_record(sweep.cache, sweep.guid, sweep.boot, folder_path.as_path(), sweep.calls);
-    let (record, folder): (super::staged_folder_record::StagedFolderRecord, std::fs::File) = match reading {
-        RecordReading::Current { record, folder } => (record, folder),
-        RecordReading::Void { why } => return SweepOutcome::NotCurrent { reading: String::from("void"), why },
-        RecordReading::Unrecorded { why } => return SweepOutcome::NotCurrent { reading: String::from("unrecorded"), why },
-        RecordReading::Absent => return SweepOutcome::NotCurrent { reading: String::from("absent"), why: String::from("no staged-folder record stands") },
-        RecordReading::Refused { step, said } => return SweepOutcome::Retained { step, said },
+    let folder_path = sweep
+        .cache_path
+        .join(super::staging_folder_name::staging_folder_name(sweep.guid));
+    let reading: RecordReading = read_staged_record(
+        sweep.cache,
+        sweep.guid,
+        sweep.boot,
+        folder_path.as_path(),
+        sweep.calls,
+    );
+    let (record, folder): (
+        super::staged_folder_record::StagedFolderRecord,
+        std::fs::File,
+    ) = match reading {
+        RecordReading::Current {
+            record,
+            folder,
+        } => (record, folder),
+        RecordReading::Void {
+            why,
+        } => {
+            return SweepOutcome::NotCurrent {
+                reading: String::from("void"),
+                why,
+            };
+        }
+        RecordReading::Unrecorded {
+            why,
+        } => {
+            return SweepOutcome::NotCurrent {
+                reading: String::from("unrecorded"),
+                why,
+            };
+        }
+        RecordReading::Absent => {
+            return SweepOutcome::NotCurrent {
+                reading: String::from("absent"),
+                why: String::from("no staged-folder record stands"),
+            };
+        }
+        RecordReading::Refused {
+            step,
+            said,
+        } => {
+            return SweepOutcome::Retained {
+                step,
+                said,
+            };
+        }
     };
     let cache_mount: u64 = match sweep.calls.mount_id(sweep.cache) {
         Ok(mount) => mount,
-        Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the cache's mount could not be read") },
+        Err(refusal) => {
+            return SweepOutcome::Retained {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the cache's mount could not be read"),
+            };
+        }
     };
     let held_mount: u64 = match sweep.calls.mount_id(&folder) {
         Ok(mount) => mount,
-        Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the record's folder's mount could not be read") },
+        Err(refusal) => {
+            return SweepOutcome::Retained {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the record's folder's mount could not be read"),
+            };
+        }
     };
     if held_mount != cache_mount {
-        return SweepOutcome::Retained { step: String::from("open-handle"), said: format!("the record's handle reopens the folder on mount {held_mount}, and the cache descriptor is on mount {cache_mount}; the handle names no folder on the cache") };
+        return SweepOutcome::Retained {
+            step: String::from("open-handle"),
+            said: format!(
+                "the record's handle reopens the folder on mount {held_mount}, and the cache descriptor is on mount {cache_mount}; the handle names no folder on the cache"
+            ),
+        };
     }
     // The handle names the folder's inode on the cache mount, so it cannot see a mount covering that dentry. The
     // mount table is the read that says whether anything stands there.
     let table = match sweep.calls.mount_table() {
         Ok(table) => table,
-        Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the sweep's mount table could not be read") },
+        Err(refusal) => {
+            return SweepOutcome::Retained {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the sweep's mount table could not be read"),
+            };
+        }
     };
-    if !table.iter().any(|facts| return facts.mount_point == folder_path) {
+    if !table
+        .iter()
+        .any(|facts| return facts.mount_point == folder_path)
+    {
         return SweepOutcome::Empty;
     }
     if let Err(pin) = check_live_pin(sweep.cache, sweep.pin) {
-        return SweepOutcome::Retained { step: String::from("user-cache-pin"), said: pin.message() };
+        return SweepOutcome::Retained {
+            step: String::from("user-cache-pin"),
+            said: pin.message(),
+        };
     }
     let name: String = record.component;
-    match unmount_the_staged_mount(&HeldUnmount { cache: sweep.cache, folder: &folder, name: name.as_str(), clone_source: record.dataset.as_str(), calls: sweep.calls }) {
-        HeldOutcome::Unmounted { clone_mount, bind_mount } => return SweepOutcome::Unmounted { clone_mount, bind_mount },
-        HeldOutcome::Retained { step, said, .. } => return SweepOutcome::Retained { step, said },
+    match unmount_the_staged_mount(&HeldUnmount {
+        cache: sweep.cache,
+        folder: &folder,
+        name: name.as_str(),
+        clone_source: record.dataset.as_str(),
+        calls: sweep.calls,
+    }) {
+        HeldOutcome::Unmounted {
+            clone_mount,
+            bind_mount,
+        } => {
+            return SweepOutcome::Unmounted {
+                clone_mount,
+                bind_mount,
+            };
+        }
+        HeldOutcome::Retained {
+            step,
+            said,
+            ..
+        } => {
+            return SweepOutcome::Retained {
+                step,
+                said,
+            };
+        }
     }
 }
 

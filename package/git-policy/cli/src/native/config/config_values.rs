@@ -32,7 +32,12 @@ use crate::config_error::ConfigError;
 /// ```ts
 /// import { type JsoncEntry, type JsoncValue, unitsToString } from 'jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKind, JsoncValue, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKind,
+    JsoncValue,
+    units_to_string,
+};
 /// The set that makes one object's repeated keys one lookup each.
 use std::collections::HashSet;
 
@@ -70,7 +75,10 @@ pub(crate) const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 /// ```ts
 /// function memberPath(parent: string, key: string): string;
 /// ```
-pub(crate) fn member_path(parent: &str, key: &str) -> String {
+pub(crate) fn member_path(
+    parent: &str,
+    key: &str,
+) -> String {
     if parent.is_empty() {
         // `String::from` copies the borrowed key into an owned string for the caller.
         return String::from(key);
@@ -105,11 +113,21 @@ pub(crate) fn kind_name(value: &JsoncValue) -> &'static str {
     // ```
     match &value.kind {
         JsoncKind::Null => return "null",
-        JsoncKind::Boolean { .. } => return "a boolean",
-        JsoncKind::Number { .. } => return "a number",
-        JsoncKind::Text { .. } => return "a string",
-        JsoncKind::Array { .. } => return "an array",
-        JsoncKind::Record { .. } => return "an object",
+        JsoncKind::Boolean {
+            ..
+        } => return "a boolean",
+        JsoncKind::Number {
+            ..
+        } => return "a number",
+        JsoncKind::Text {
+            ..
+        } => return "a string",
+        JsoncKind::Array {
+            ..
+        } => return "an array",
+        JsoncKind::Record {
+            ..
+        } => return "an object",
     }
 }
 
@@ -125,7 +143,11 @@ pub(crate) fn kind_name(value: &JsoncValue) -> &'static str {
 /// ```ts
 /// function wrongKind(value: JsoncValue, path: string, expected: string): ConfigError;
 /// ```
-pub(crate) fn wrong_kind(value: &JsoncValue, path: &str, expected: &str) -> ConfigError {
+pub(crate) fn wrong_kind(
+    value: &JsoncValue,
+    path: &str,
+    expected: &str,
+) -> ConfigError {
     // The top level has no key name, so it is described instead.
     let subject: String = if path.is_empty() {
         String::from("The configuration document")
@@ -171,7 +193,10 @@ pub(crate) fn wrong_kind(value: &JsoncValue, path: &str, expected: &str) -> Conf
 /// ```ts
 /// function memberKeys(entries: JsoncEntry[], path: string): string[];
 /// ```
-pub(crate) fn member_keys(entries: &[JsoncEntry], path: &str) -> Result<Vec<String>, ConfigError> {
+pub(crate) fn member_keys(
+    entries: &[JsoncEntry],
+    path: &str,
+) -> Result<Vec<String>, ConfigError> {
     // What: `Vec::<String>::with_capacity(n)` makes an empty list with room for `n` items;
     //       `mut` allows pushing to it.
     // Why:  One slot per member avoids regrowing the list.
@@ -256,7 +281,10 @@ fn container_name(path: &str) -> String {
 /// ```ts
 /// function boolean(value: JsoncValue, path: string): boolean;
 /// ```
-pub(crate) fn boolean(value: &JsoncValue, path: &str) -> Result<bool, ConfigError> {
+pub(crate) fn boolean(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<bool, ConfigError> {
     // What: The pattern `{ value: flag }` copies the variant's `value` field into `flag`.
     // Why:  The payload is read only when the kind really is a boolean.
     //
@@ -264,7 +292,10 @@ pub(crate) fn boolean(value: &JsoncValue, path: &str) -> Result<bool, ConfigErro
     // ```ts
     // if (value.kind === 'boolean') return value.value;
     // ```
-    if let JsoncKind::Boolean { value: flag } = value.kind {
+    if let JsoncKind::Boolean {
+        value: flag,
+    } = value.kind
+    {
         return Ok(flag);
     }
     return Err(wrong_kind(value, path, "true or false"));
@@ -281,7 +312,10 @@ pub(crate) fn boolean(value: &JsoncValue, path: &str) -> Result<bool, ConfigErro
 /// ```ts
 /// function text(value: JsoncValue, path: string): string;
 /// ```
-pub(crate) fn text(value: &JsoncValue, path: &str) -> Result<String, ConfigError> {
+pub(crate) fn text(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<String, ConfigError> {
     // What: `let Some(units) = ... else { return ... };` unwraps the present case or exits.
     // Why:  Absence of string units means the value is another JSON type.
     //
@@ -317,7 +351,10 @@ pub(crate) fn text(value: &JsoncValue, path: &str) -> Result<String, ConfigError
 /// ```ts
 /// function strings(value: JsoncValue, path: string): string[];
 /// ```
-pub(crate) fn strings(value: &JsoncValue, path: &str) -> Result<Vec<String>, ConfigError> {
+pub(crate) fn strings(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<Vec<String>, ConfigError> {
     let Some(elements) = value.elements() else {
         return Err(wrong_kind(value, path, "an array of strings"));
     };
@@ -360,7 +397,11 @@ pub(crate) fn safe_integer(
 ) -> Result<u64, ConfigError> {
     let expected: String = format!("a whole number from {minimum} to {MAX_SAFE_INTEGER}");
     // `identity` is the parser's exact value; `..` skips the original spelling.
-    let JsoncKind::Number { identity, .. } = &value.kind else {
+    let JsoncKind::Number {
+        identity,
+        ..
+    } = &value.kind
+    else {
         return Err(wrong_kind(value, path, expected.as_str()));
     };
     let failure: ConfigError = ConfigError::new(

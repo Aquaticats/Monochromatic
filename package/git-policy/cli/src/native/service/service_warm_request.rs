@@ -43,28 +43,43 @@
 //! if (serviceRunsWithin(WARM_SCAN_CEILING, instanceOf(gitDir))) { connectWithinFor(Bind.Path(socketFor(runtime, gitDir)), WARM_REQUEST_CONNECT_CEILING).write(encode({ type: 'warm', gitDir, repository })); }
 //! ```
 
-use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
+#[cfg(unix)]
+use crate::earlier_service_command_line_read::{
+    CommandLine,
+    command_line_of,
+};
+#[cfg(unix)]
+use crate::earlier_service_process_look::effective_user;
+use crate::service_address_of_a_worktree::{
+    socket_address_of,
+    the_address_is_there,
+};
 use crate::service_client_connect_within_a_bound::connect_within_for;
-use crate::service_route::non_empty_path_variable;
 use crate::service_instance::instance_of;
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
+use crate::service_route::non_empty_path_variable;
 use crate::service_server::Bind;
-use crate::wait_ceilings::{WARM_REQUEST_CONNECT_CEILING, WARM_SCAN_CEILING};
+use crate::wait_ceilings::{
+    WARM_REQUEST_CONNECT_CEILING,
+    WARM_SCAN_CEILING,
+};
 use crate::work_awaited_within_a_ceiling::work_within;
-#[cfg(unix)]
-use crate::earlier_service_command_line_read::{CommandLine, command_line_of};
-#[cfg(unix)]
-use crate::earlier_service_process_look::effective_user;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether a process of the table is the commit service of `instance`:
 /// its start arguments hold `service`,
 /// `run`,
 /// and
 ///  `--instance` followed by the instance.
-fn is_service_of(arguments: &[&[u8]], instance: &str) -> bool {
+fn is_service_of(
+    arguments: &[&[u8]],
+    instance: &str,
+) -> bool {
     let mut previous: Option<&[u8]> = None;
     let mut after_run: bool = false;
     let mut has_service: bool = false;
@@ -111,10 +126,16 @@ fn is_nul(byte: &u8) -> bool {
 /// ```ts
 /// const runs = workWithin(WARM_SCAN_CEILING, () => scanProc(instance, procRoot)) ?? false;
 /// ```
-pub fn service_process_runs(instance: &str, proc_root: &Path) -> bool {
+pub fn service_process_runs(
+    instance: &str,
+    proc_root: &Path,
+) -> bool {
     let looked_for: String = instance.to_owned();
     let root: PathBuf = proc_root.to_path_buf();
-    return work_within(WARM_SCAN_CEILING, move || return service_runs_in(looked_for.as_str(), root.as_path())).unwrap_or(false);
+    return work_within(WARM_SCAN_CEILING, move || {
+        return service_runs_in(looked_for.as_str(), root.as_path());
+    })
+    .unwrap_or(false);
 }
 
 /// What:
@@ -129,7 +150,10 @@ pub fn service_process_runs(instance: &str, proc_root: &Path) -> bool {
 /// ```ts
 /// const found = aServiceOfTheInstanceRuns(instance, procRoot); return theAnswerWaitsWhereAControlSays(found);
 /// ```
-fn service_runs_in(instance: &str, proc_root: &Path) -> bool {
+fn service_runs_in(
+    instance: &str,
+    proc_root: &Path,
+) -> bool {
     let found: bool = a_service_of_the_instance_runs(instance, proc_root);
     return the_controls_window::the_answer_waits_where_a_control_says(found);
 }
@@ -148,16 +172,25 @@ fn service_runs_in(instance: &str, proc_root: &Path) -> bool {
 /// for (const entry of readdir(procRoot)) { if (isServiceOf(commandLineOf(entry, ownUser), instance)) return true } return false
 /// ```
 #[cfg(unix)]
-fn a_service_of_the_instance_runs(instance: &str, proc_root: &Path) -> bool {
+fn a_service_of_the_instance_runs(
+    instance: &str,
+    proc_root: &Path,
+) -> bool {
     let own_user: u32 = effective_user();
-    let Ok(listing) = std::fs::read_dir(proc_root) else { return false };
+    let Ok(listing) = std::fs::read_dir(proc_root) else {
+        return false;
+    };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if name.is_empty() || !name.bytes().all(is_digit) {
             continue;
         }
-        let Ok(pid) = name.parse::<u32>() else { continue };
-        let CommandLine::Words(bytes) = command_line_of(&entry, pid, own_user) else { continue };
+        let Ok(pid) = name.parse::<u32>() else {
+            continue;
+        };
+        let CommandLine::Words(bytes) = command_line_of(&entry, pid, own_user) else {
+            continue;
+        };
         let words: Vec<&[u8]> = bytes.split(is_nul).collect();
         if is_service_of(words.as_slice(), instance) {
             return true;
@@ -169,7 +202,10 @@ fn a_service_of_the_instance_runs(instance: &str, proc_root: &Path) -> bool {
 /// A platform whose processes cannot be looked at this way answers that no service runs,
 /// and the command compiles the rules itself.
 #[cfg(not(unix))]
-fn a_service_of_the_instance_runs(_instance: &str, _proc_root: &Path) -> bool {
+fn a_service_of_the_instance_runs(
+    _instance: &str,
+    _proc_root: &Path,
+) -> bool {
     return false;
 }
 
@@ -196,13 +232,20 @@ pub mod the_controls_window;
 /// ```ts
 /// askRunningServiceToWarm(gitDir, repository) // boolean
 /// ```
-pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
-    let Some(runtime) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
+pub fn ask_running_service_to_warm(
+    git_dir: &Path,
+    repository: &Path,
+) -> bool {
+    let Some(runtime) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+        return false;
+    };
     let instance: String = instance_of(git_dir);
     // What the service listens at: a socket file, or an abstract name where the runtime directory's path leaves no room for one
     // (`service_address_of_a_worktree.rs`).
     let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
-    if !the_address_is_there(&address) || !service_process_runs(instance.as_str(), Path::new("/proc")) {
+    if !the_address_is_there(&address)
+        || !service_process_runs(instance.as_str(), Path::new("/proc"))
+    {
         return false;
     }
     return ask_the_service_at(&address, git_dir, repository);
@@ -228,9 +271,18 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
 /// ```ts
 /// askTheServiceAt(address, gitDir, repository) // boolean
 /// ```
-fn ask_the_service_at(address: &Bind, git_dir: &Path, repository: &Path) -> bool {
-    let Ok(mut connection) = connect_within_for(address, WARM_REQUEST_CONNECT_CEILING) else { return false };
-    let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
+fn ask_the_service_at(
+    address: &Bind,
+    git_dir: &Path,
+    repository: &Path,
+) -> bool {
+    let Ok(mut connection) = connect_within_for(address, WARM_REQUEST_CONNECT_CEILING) else {
+        return false;
+    };
+    let mut line: String = encode_client(&ClientMessage::Warm {
+        git_dir: git_dir.to_path_buf(),
+        repository: repository.to_path_buf(),
+    });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();
 }

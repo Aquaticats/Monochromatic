@@ -24,10 +24,10 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
+use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
-use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 
 /// What:
 ///  Settle every tuple of one plan against the clone's live snapshots.
@@ -45,11 +45,16 @@ use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 /// ```ts
 /// settleTheDestroyOutcomes(plan, live);
 /// ```
-pub fn settle_the_destroy_outcomes(plan: &DestructionPlan, live: &[LiveObject]) -> Result<Vec<String>, CancelRefusal> {
+pub fn settle_the_destroy_outcomes(
+    plan: &DestructionPlan,
+    live: &[LiveObject],
+) -> Result<Vec<String>, CancelRefusal> {
     let mut destroyed: Vec<String> = Vec::new();
     for snapshot in plan.named_snapshots() {
         let name: String = snapshot.name.clone();
-        let state: Option<SnapshotOutcome> = plan.current_state(name.as_str()).map(|held| return held.outcome);
+        let state: Option<SnapshotOutcome> = plan
+            .current_state(name.as_str())
+            .map(|held| return held.outcome);
         if state == Some(SnapshotOutcome::Unknown) {
             return Err(CancelRefusal::AnUnknownOutcome {
                 snapshot: name,
@@ -61,18 +66,24 @@ pub fn settle_the_destroy_outcomes(plan: &DestructionPlan, live: &[LiveObject]) 
             destroyed.push(name);
             continue;
         }
-        let by_guid: Option<&LiveObject> = live.iter().find(|object| return object.kind == EntryKind::Snapshot && object.guid == snapshot.guid);
+        let by_guid: Option<&LiveObject> = live.iter().find(|object| {
+            return object.kind == EntryKind::Snapshot && object.guid == snapshot.guid;
+        });
         if let Some(object) = by_guid {
             if object.full_name() != name {
                 return Err(CancelRefusal::TheRecordsDisagree {
-                    what: String::from("the live snapshot carrying the recorded GUID does not carry the recorded name"),
+                    what: String::from(
+                        "the live snapshot carrying the recorded GUID does not carry the recorded name",
+                    ),
                     first: format!("{name} (GUID {})", snapshot.guid.file_name()),
                     second: object.full_name(),
                 });
             }
             continue;
         }
-        let reused: Option<&LiveObject> = live.iter().find(|object| return object.kind == EntryKind::Snapshot && object.full_name() == name);
+        let reused: Option<&LiveObject> = live
+            .iter()
+            .find(|object| return object.kind == EntryKind::Snapshot && object.full_name() == name);
         if let Some(object) = reused {
             return Err(CancelRefusal::ASnapshotNameIsReused {
                 name,

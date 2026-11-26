@@ -24,12 +24,12 @@
 //! const index = await readIndexOnce(realIndex); await index.writeCopy(capturedIndex); await index.writeCopy(commitIndex);
 //! ```
 
-/// The failure a step of the commit reports.
-use crate::transaction_git::GitFailure;
 /// The names a read of an index and a copy of it are stated under.
 use crate::prepare_work_spans::INDEX_COPY;
 use crate::prepare_work_spans::INDEX_READ;
 use crate::prepare_work_spans::note_span;
+/// The failure a step of the commit reports.
+use crate::transaction_git::GitFailure;
 /// `FileTimes` carries the copied access and modification times.
 use std::fs::FileTimes;
 /// `Permissions` carries the copied mode.
@@ -78,7 +78,11 @@ fn read_index_bytes(source: &Path) -> std::io::Result<IndexBytes> {
         .set_modified(metadata.modified()?);
     let mut bytes: Vec<u8> = Vec::new();
     opened.read_to_end(&mut bytes)?;
-    return Ok(IndexBytes { bytes, permissions: metadata.permissions(), times });
+    return Ok(IndexBytes {
+        bytes,
+        permissions: metadata.permissions(),
+        times,
+    });
 }
 
 /// What:
@@ -93,7 +97,10 @@ fn read_index_bytes(source: &Path) -> std::io::Result<IndexBytes> {
 /// ```ts
 /// const copy = await create(destination); await copy.write(bytes); await copy.chmod(mode); await copy.utimes(times);
 /// ```
-fn write_index_bytes(bytes: &IndexBytes, destination: &Path) -> std::io::Result<()> {
+fn write_index_bytes(
+    bytes: &IndexBytes,
+    destination: &Path,
+) -> std::io::Result<()> {
     let mut copy: std::fs::File = std::fs::File::create(destination)?;
     copy.write_all(bytes.bytes.as_slice())?;
     copy.set_permissions(bytes.permissions.clone())?;
@@ -155,7 +162,10 @@ impl IndexBytes {
     /// ```ts
     /// const began = performance.now(); const written = writeIndexBytes(this, destination); noteSpan('index copy', performance.now() - began); return written;
     /// ```
-    pub fn write_copy(&self, destination: &Path) -> std::io::Result<()> {
+    pub fn write_copy(
+        &self,
+        destination: &Path,
+    ) -> std::io::Result<()> {
         let began: std::time::Instant = std::time::Instant::now();
         let written: std::io::Result<()> = write_index_bytes(self, destination);
         note_span(INDEX_COPY, began.elapsed());
@@ -191,6 +201,9 @@ impl IndexBytes {
 /// ```ts
 /// await copyIndexFile({ sourcePath, destinationPath });
 /// ```
-pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<()> {
+pub fn copy_index_with_timestamps(
+    source: &Path,
+    destination: &Path,
+) -> std::io::Result<()> {
     return IndexBytes::read(source)?.write_copy(destination);
 }

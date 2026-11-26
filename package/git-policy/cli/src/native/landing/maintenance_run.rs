@@ -24,17 +24,25 @@
 
 /// The decision and its error type.
 use crate::config_snapshot::ConfigSnapshot;
-use crate::maintenance_decision::{
-    MAINTENANCE_CONFIG_PATTERN, MaintenanceDecision, MaintenanceError, auto_maintenance_arguments,
-    parse_config_records,
-};
 /// Diagnostics on standard error,
 /// switched like the incumbent's console sink.
 use crate::diagnostic_log;
 /// Where Git's words go now that the run carries no `--quiet`.
 use crate::inner_git_words::record_words;
+use crate::maintenance_decision::{
+    MAINTENANCE_CONFIG_PATTERN,
+    MaintenanceDecision,
+    MaintenanceError,
+    auto_maintenance_arguments,
+    parse_config_records,
+};
 /// The real-Git context and the captured output of one start.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// The same start awaited by a task of the runtime.
 use crate::transaction_git_awaiting::run_git_awaiting;
 /// Ordered map of the maintenance keys to their canonical text.
@@ -123,7 +131,10 @@ fn maintenance_start_failure(error: std::io::Error) -> MaintenanceError {
 /// ```ts
 /// throw new CommitTransactionGitError(`${command} could not start`);
 /// ```
-fn start_failure(command: &str, error: std::io::Error) -> MaintenanceError {
+fn start_failure(
+    command: &str,
+    error: std::io::Error,
+) -> MaintenanceError {
     return MaintenanceError::Start(format!("{command} could not start: {error}"));
 }
 
@@ -155,9 +166,13 @@ enum MaintenanceConfig {
 /// ```ts
 /// await git(['config', '--type=bool-or-int', '--null', '--get-regexp', PATTERN]);
 /// ```
-fn read_maintenance_config(context: &GitContext, cwd: &Path) -> Result<MaintenanceConfig, MaintenanceError> {
+fn read_maintenance_config(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<MaintenanceConfig, MaintenanceError> {
     // Config lookup; exit 1 means no key is set.
-    let lookup: GitOutput = run_git(context, &maintenance_config_request(cwd)).map_err(config_start_failure)?;
+    let lookup: GitOutput =
+        run_git(context, &maintenance_config_request(cwd)).map_err(config_start_failure)?;
     return maintenance_config_of(&lookup);
 }
 
@@ -178,8 +193,13 @@ fn read_maintenance_config(context: &GitContext, cwd: &Path) -> Result<Maintenan
 /// ```ts
 /// await git(['config', '--type=bool-or-int', '--null', '--get-regexp', PATTERN]);
 /// ```
-async fn read_maintenance_config_awaiting(context: &GitContext, cwd: &Path) -> Result<MaintenanceConfig, MaintenanceError> {
-    let lookup: GitOutput = run_git_awaiting(context, &maintenance_config_request(cwd)).await.map_err(config_start_failure)?;
+async fn read_maintenance_config_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<MaintenanceConfig, MaintenanceError> {
+    let lookup: GitOutput = run_git_awaiting(context, &maintenance_config_request(cwd))
+        .await
+        .map_err(config_start_failure)?;
     return maintenance_config_of(&lookup);
 }
 
@@ -193,7 +213,16 @@ async fn read_maintenance_config_awaiting(context: &GitContext, cwd: &Path) -> R
 /// gitRequest(cwd, ['config', '--type=bool-or-int', '--null', '--get-regexp', PATTERN]);
 /// ```
 fn maintenance_config_request(cwd: &Path) -> GitRequest {
-    return GitRequest::new(cwd, &["config", "--type=bool-or-int", "--null", "--get-regexp", MAINTENANCE_CONFIG_PATTERN]);
+    return GitRequest::new(
+        cwd,
+        &[
+            "config",
+            "--type=bool-or-int",
+            "--null",
+            "--get-regexp",
+            MAINTENANCE_CONFIG_PATTERN,
+        ],
+    );
 }
 
 /// What:
@@ -221,8 +250,14 @@ fn maintenance_config_of(lookup: &GitOutput) -> Result<MaintenanceConfig, Mainte
         return Ok(MaintenanceConfig::Exited(lookup_code));
     }
     // An unset key prints nothing, so an exit of 1 parses as an empty configuration.
-    let config_bytes: &[u8] = if lookup_code == 0 { lookup.stdout.as_slice() } else { &[] };
-    return Ok(MaintenanceConfig::Records(parse_config_records(config_bytes)?));
+    let config_bytes: &[u8] = if lookup_code == 0 {
+        lookup.stdout.as_slice()
+    } else {
+        &[]
+    };
+    return Ok(MaintenanceConfig::Records(parse_config_records(
+        config_bytes,
+    )?));
 }
 
 /// What:
@@ -271,13 +306,17 @@ pub fn run_auto_maintenance_with(
             MaintenanceConfig::Exited(code) => return Ok(AutoMaintenanceOutcome::Exited(code)),
         },
     };
-    let Some(arguments) = planned_arguments(&config) else { return Ok(AutoMaintenanceOutcome::Disabled) };
-    let result: GitOutput = run_git(context, &maintenance_request(cwd, arguments.as_slice())).map_err(maintenance_start_failure)?;
+    let Some(arguments) = planned_arguments(&config) else {
+        return Ok(AutoMaintenanceOutcome::Disabled);
+    };
+    let result: GitOutput = run_git(context, &maintenance_request(cwd, arguments.as_slice()))
+        .map_err(maintenance_start_failure)?;
     let fallback_arguments: &[&str] = match ended(arguments.as_slice(), &result) {
         Ended::Finished(outcome) => return Ok(outcome),
         Ended::RetryWithoutDetach(fallback_arguments) => fallback_arguments,
     };
-    let fallback: GitOutput = run_git(context, &maintenance_request(cwd, fallback_arguments)).map_err(maintenance_start_failure)?;
+    let fallback: GitOutput = run_git(context, &maintenance_request(cwd, fallback_arguments))
+        .map_err(maintenance_start_failure)?;
     return Ok(reported_fallback(fallback_arguments, &fallback));
 }
 
@@ -311,14 +350,21 @@ pub async fn run_auto_maintenance_with_awaiting(
             MaintenanceConfig::Exited(code) => return Ok(AutoMaintenanceOutcome::Exited(code)),
         },
     };
-    let Some(arguments) = planned_arguments(&config) else { return Ok(AutoMaintenanceOutcome::Disabled) };
-    let result: GitOutput = run_git_awaiting(context, &maintenance_request(cwd, arguments.as_slice())).await.map_err(maintenance_start_failure)?;
+    let Some(arguments) = planned_arguments(&config) else {
+        return Ok(AutoMaintenanceOutcome::Disabled);
+    };
+    let result: GitOutput =
+        run_git_awaiting(context, &maintenance_request(cwd, arguments.as_slice()))
+            .await
+            .map_err(maintenance_start_failure)?;
     let fallback_arguments: &[&str] = match ended(arguments.as_slice(), &result) {
         Ended::Finished(outcome) => return Ok(outcome),
         Ended::RetryWithoutDetach(fallback_arguments) => fallback_arguments,
     };
     let fallback: GitOutput =
-        run_git_awaiting(context, &maintenance_request(cwd, fallback_arguments)).await.map_err(maintenance_start_failure)?;
+        run_git_awaiting(context, &maintenance_request(cwd, fallback_arguments))
+            .await
+            .map_err(maintenance_start_failure)?;
     return Ok(reported_fallback(fallback_arguments, &fallback));
 }
 
@@ -373,7 +419,10 @@ fn planned_arguments(config: &BTreeMap<String, String>) -> Option<Vec<&'static s
 /// ```ts
 /// gitRequest(cwd, arguments);
 /// ```
-fn maintenance_request(cwd: &Path, arguments: &[&'static str]) -> GitRequest {
+fn maintenance_request(
+    cwd: &Path,
+    arguments: &[&'static str],
+) -> GitRequest {
     return GitRequest::new(cwd, arguments);
 }
 
@@ -414,18 +463,28 @@ enum Ended<'a> {
 /// ```ts
 /// if (code !== 129) { recordWords(arguments, result); return { kind: 'finished', outcome: code } } return { kind: 'retry', arguments: arguments.slice(0, -1) };
 /// ```
-fn ended<'a>(arguments: &'a [&'static str], result: &GitOutput) -> Ended<'a> {
+fn ended<'a>(
+    arguments: &'a [&'static str],
+    result: &GitOutput,
+) -> Ended<'a> {
     let result_code: i32 = exit_status(result.code);
     if result_code != USAGE_EXIT_CODE {
         record_words(arguments, result);
-        diagnostic_log::debug(TAG, format!("automatic maintenance exited {result_code}").as_str());
+        diagnostic_log::debug(
+            TAG,
+            format!("automatic maintenance exited {result_code}").as_str(),
+        );
         return Ended::Finished(AutoMaintenanceOutcome::Exited(result_code));
     }
     // Git before 2.47 has no detach option; its native form omits it and gc detaches on its own.
     let flag: &str = arguments.last().copied().unwrap_or("");
     diagnostic_log::debug(
         TAG,
-        format!("git rejected {flag}; retrying in the pre-2.47 form: {}", String::from_utf8_lossy(&result.stderr).trim()).as_str(),
+        format!(
+            "git rejected {flag}; retrying in the pre-2.47 form: {}",
+            String::from_utf8_lossy(&result.stderr).trim()
+        )
+        .as_str(),
     );
     return Ended::RetryWithoutDetach(&arguments[..arguments.len().saturating_sub(1)]);
 }
@@ -441,10 +500,16 @@ fn ended<'a>(arguments: &'a [&'static str], result: &GitOutput) -> Ended<'a> {
 /// ```ts
 /// recordWords(arguments, fallback); return fallback.exitCode;
 /// ```
-fn reported_fallback(arguments: &[&'static str], fallback: &GitOutput) -> AutoMaintenanceOutcome {
+fn reported_fallback(
+    arguments: &[&'static str],
+    fallback: &GitOutput,
+) -> AutoMaintenanceOutcome {
     let fallback_code: i32 = exit_status(fallback.code);
     record_words(arguments, fallback);
-    diagnostic_log::debug(TAG, format!("automatic maintenance exited {fallback_code}").as_str());
+    diagnostic_log::debug(
+        TAG,
+        format!("automatic maintenance exited {fallback_code}").as_str(),
+    );
     return AutoMaintenanceOutcome::Exited(fallback_code);
 }
 

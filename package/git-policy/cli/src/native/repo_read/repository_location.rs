@@ -35,8 +35,15 @@
 /// ```ts
 /// import { parseIdentityOutput } from './worktree_identity.ts';
 /// ```
-use crate::git_metadata::{path_from_git_bytes, strip_git_line};
-use crate::worktree_identity::{IDENTITY_QUERY, WorktreeIdentity, parse_identity_output};
+use crate::git_metadata::{
+    path_from_git_bytes,
+    strip_git_line,
+};
+use crate::worktree_identity::{
+    IDENTITY_QUERY,
+    WorktreeIdentity,
+    parse_identity_output,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -52,7 +59,10 @@ use crate::worktree_identity::{IDENTITY_QUERY, WorktreeIdentity, parse_identity_
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The `rev-parse` option that prints the path from the worktree top level to the
@@ -126,7 +136,10 @@ fn is_line_feed(byte: &u8) -> bool {
 /// ```ts
 /// function parseLocationOutput(success: boolean, stdout: Buffer): RepositoryLocation; // throws
 /// ```
-pub fn parse_location_output(success: bool, stdout: &[u8]) -> std::io::Result<RepositoryLocation> {
+pub fn parse_location_output(
+    success: bool,
+    stdout: &[u8],
+) -> std::io::Result<RepositoryLocation> {
     if !success {
         // A trailing `?` returns the reader's error to our caller, or unwraps the identity.
         let identity: WorktreeIdentity = parse_identity_output(false, stdout)?;
@@ -202,7 +215,10 @@ pub fn location_query_arguments(global_prefix: &[OsString]) -> Vec<OsString> {
 /// ```ts
 /// const effectiveDirectory = prefix === '' ? root : join(root, prefix);
 /// ```
-pub fn effective_directory(worktree_root: &Path, prefix: &[u8]) -> PathBuf {
+pub fn effective_directory(
+    worktree_root: &Path,
+    prefix: &[u8],
+) -> PathBuf {
     // Git ends a prefix with a slash; `.strip_suffix` is `Some(shorter)` when it is there,
     // and `.unwrap_or(prefix)` keeps the bytes as they are otherwise.
     let relative_bytes: &[u8] = prefix.strip_suffix(b"/").unwrap_or(prefix);

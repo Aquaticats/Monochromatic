@@ -24,7 +24,10 @@
 use super::origin_refusal::OriginRefusal;
 use super::origin_refusals::PlanField;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 //region The planned identities
 
@@ -100,9 +103,18 @@ pub struct PlannedOriginFields {
 
 /// One field the check needs,
 /// or the field the plan lacks.
-fn carried<T>(field: PlanField, slot: &str, plan_home: &Path, value: Option<T>) -> Result<T, MissingField> {
+fn carried<T>(
+    field: PlanField,
+    slot: &str,
+    plan_home: &Path,
+    value: Option<T>,
+) -> Result<T, MissingField> {
     let Some(found) = value else {
-        return Err(MissingField { slot: String::from(slot), field, plan_home: plan_home.to_path_buf() });
+        return Err(MissingField {
+            slot: String::from(slot),
+            field,
+            plan_home: plan_home.to_path_buf(),
+        });
     };
     return Ok(found);
 }
@@ -122,18 +134,46 @@ impl PlannedOrigin {
     ///
     /// # Errors
     /// The plan carries no value for one of the fields the check compares.
-    pub fn require(slot: &str, fields: PlannedOriginFields) -> Result<PlannedOrigin, MissingField> {
+    pub fn require(
+        slot: &str,
+        fields: PlannedOriginFields,
+    ) -> Result<PlannedOrigin, MissingField> {
         let plan_home: PathBuf = fields.plan_home;
         let home: &Path = plan_home.as_path();
         return Ok(PlannedOrigin {
             slot: String::from(slot),
             clone_name: carried(PlanField::CloneName, slot, home, fields.clone_name)?,
             clone_guid: carried(PlanField::CloneGuid, slot, home, fields.clone_guid)?,
-            origin_dataset_name: carried(PlanField::OriginDatasetName, slot, home, fields.origin_dataset_name)?,
-            origin_dataset_guid: carried(PlanField::OriginDatasetGuid, slot, home, fields.origin_dataset_guid)?,
-            origin_snapshot_name: carried(PlanField::OriginSnapshotName, slot, home, fields.origin_snapshot_name)?,
-            origin_snapshot_guid: carried(PlanField::OriginSnapshotGuid, slot, home, fields.origin_snapshot_guid)?,
-            origin_snapshot_createtxg: carried(PlanField::OriginSnapshotCreatetxg, slot, home, fields.origin_snapshot_createtxg)?,
+            origin_dataset_name: carried(
+                PlanField::OriginDatasetName,
+                slot,
+                home,
+                fields.origin_dataset_name,
+            )?,
+            origin_dataset_guid: carried(
+                PlanField::OriginDatasetGuid,
+                slot,
+                home,
+                fields.origin_dataset_guid,
+            )?,
+            origin_snapshot_name: carried(
+                PlanField::OriginSnapshotName,
+                slot,
+                home,
+                fields.origin_snapshot_name,
+            )?,
+            origin_snapshot_guid: carried(
+                PlanField::OriginSnapshotGuid,
+                slot,
+                home,
+                fields.origin_snapshot_guid,
+            )?,
+            origin_snapshot_createtxg: carried(
+                PlanField::OriginSnapshotCreatetxg,
+                slot,
+                home,
+                fields.origin_snapshot_createtxg,
+            )?,
         });
     }
 }
@@ -162,10 +202,13 @@ pub struct MissingField {
 impl From<MissingField> for OriginRefusal {
     /// The refusal a person reads for this missing field.
     fn from(missing: MissingField) -> Self {
-        return OriginRefusal::PlanIncomplete { slot: missing.slot, field: missing.field, plan_home: missing.plan_home };
+        return OriginRefusal::PlanIncomplete {
+            slot: missing.slot,
+            field: missing.field,
+            plan_home: missing.plan_home,
+        };
     }
 }
-
 
 //endregion
 

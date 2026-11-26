@@ -55,7 +55,10 @@
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_journal::Journal;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name of every Git index lock.
 const LOCK_NAME: &str = "index.lock";
@@ -72,7 +75,10 @@ const LOCK_NAME: &str = "index.lock";
 /// const token = `monochromatic-git-policy-cli migrate-to-subvolume ${journal.started}\n`;
 /// ```
 pub fn token_of(journal: &Journal) -> String {
-    return format!("monochromatic-git-policy-cli migrate-to-subvolume {}\n", journal.started());
+    return format!(
+        "monochromatic-git-policy-cli migrate-to-subvolume {}\n",
+        journal.started()
+    );
 }
 
 /// What:
@@ -125,7 +131,10 @@ pub fn relative_lock_paths(tree: &Path) -> Vec<PathBuf> {
 
 /// Whether the lock file holds the token:
 /// it is this migration's.
-pub fn is_ours(lock: &Path, token: &str) -> bool {
+pub fn is_ours(
+    lock: &Path,
+    token: &str,
+) -> bool {
     return match std::fs::read(lock) {
         Ok(content) => content == token.as_bytes(),
         Err(_) => false,
@@ -143,10 +152,21 @@ pub fn is_ours(lock: &Path, token: &str) -> bool {
 /// ```ts
 /// await acquire(lockPath, token);
 /// ```
-pub fn acquire(lock: &Path, token: &str) -> Result<(), MigrateError> {
-    match std::fs::OpenOptions::new().write(true).create_new(true).open(lock) {
+pub fn acquire(
+    lock: &Path,
+    token: &str,
+) -> Result<(), MigrateError> {
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock)
+    {
         Ok(mut file) => {
-            return MigrateError::from_io_result(write_all_then_sync(&mut file, token.as_bytes()), "write the lock", lock);
+            return MigrateError::from_io_result(
+                write_all_then_sync(&mut file, token.as_bytes()),
+                "write the lock",
+                lock,
+            );
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             if is_ours(lock, token) {
@@ -172,7 +192,10 @@ pub fn acquire(lock: &Path, token: &str) -> Result<(), MigrateError> {
 /// ```ts
 /// const released = await releaseAll(tree, token);
 /// ```
-pub fn release_all(tree: &Path, token: &str) -> Result<usize, MigrateError> {
+pub fn release_all(
+    tree: &Path,
+    token: &str,
+) -> Result<usize, MigrateError> {
     let mut released: usize = 0;
     for lock in lock_paths(tree) {
         if !is_ours(lock.as_path(), token) {

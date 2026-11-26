@@ -25,11 +25,18 @@
 //! const scan = holders.holdersOf(clone, cloneGuid);
 //! if (scan.holders.length) refuse(scan);
 //! ```
-use crate::clone_holder_scan::holder_scan::{HolderScan, HolderScanRequest, scan_holders};
+use crate::clone_holder_scan::holder_scan::{
+    HolderScan,
+    HolderScanRequest,
+    scan_holders,
+};
 use crate::foundation::iso_time::now_iso;
 use crate::mount_namespace_scan::mount_namespace_tasks::RootIdentity;
 use crate::mount_namespace_scan::namespace_target;
-use crate::worktree_clone_mount_handler::holder_scan_mode::{PROC_ROOT, SELF_TASK};
+use crate::worktree_clone_mount_handler::holder_scan_mode::{
+    PROC_ROOT,
+    SELF_TASK,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
@@ -52,7 +59,11 @@ pub trait FreshHolderScan {
     ///
     /// No nonce could be made,
     /// which would bind the answer to nothing.
-    fn holders_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<HolderScan, RemovalStop>;
+    fn holders_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<HolderScan, RemovalStop>;
 }
 
 /// What:
@@ -71,10 +82,19 @@ pub trait FreshHolderScan {
 pub struct TheLiveHolderScan;
 
 impl FreshHolderScan for TheLiveHolderScan {
-    fn holders_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<HolderScan, RemovalStop> {
-        let nonce: RequestNonce = RequestNonce::fresh().map_err(|refusal| return RemovalStop::NoRunNonce { reason: refusal.message() })?;
+    fn holders_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<HolderScan, RemovalStop> {
+        let nonce: RequestNonce = RequestNonce::fresh().map_err(|refusal| {
+            return RemovalStop::NoRunNonce {
+                reason: refusal.message(),
+            };
+        })?;
         let self_task: &Path = Path::new(SELF_TASK);
-        let own_namespace: Option<String> = namespace_target(self_task.join("ns").join("mnt").as_path());
+        let own_namespace: Option<String> =
+            namespace_target(self_task.join("ns").join("mnt").as_path());
         let readers_root: Option<RootIdentity> = RootIdentity::of(self_task.join("root").as_path());
         return Ok(scan_holders(&HolderScanRequest {
             proc_root: Path::new(PROC_ROOT),
@@ -102,11 +122,18 @@ impl FreshHolderScan for TheLiveHolderScan {
 pub fn the_holder_lines(scan: &HolderScan) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for mount in &scan.own_mounts {
-        lines.push(format!("this process's own namespace holds it at {}", mount.mount_point.display()));
+        lines.push(format!(
+            "this process's own namespace holds it at {}",
+            mount.mount_point.display()
+        ));
     }
     for holder in &scan.holders {
         for mount in &holder.mounts {
-            lines.push(format!("namespace {} holds it at {}", holder.namespace, mount.mount_point.display()));
+            lines.push(format!(
+                "namespace {} holds it at {}",
+                holder.namespace,
+                mount.mount_point.display()
+            ));
         }
     }
     return lines;

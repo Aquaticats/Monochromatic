@@ -13,19 +13,32 @@
 //! // expect(parseBranchCreationRegion({ subcommand: 'branch', postSubcommandArgs: ['topic'] }).createsBranch).toBe(true);
 //! ```
 
-use super::BranchCreationCommand::{Branch, Checkout, Switch};
+use super::BranchCreationCommand::{
+    Branch,
+    Checkout,
+    Switch,
+};
 /// The parser,
 ///  its result types,
 ///  the shared hatch spelling and the argument builders.
 use super::{
-    BranchCreationCommand, BranchCreationRegion, branch_creation_command,
+    BranchCreationCommand,
+    BranchCreationRegion,
+    branch_creation_command,
     parse_branch_creation_region,
 };
 use crate::command_options::OptionErrorKind::{
-    AmbiguousOption, HelpRequested, MissingValue, SingleDashLongOption, UnexpectedValue,
+    AmbiguousOption,
+    HelpRequested,
+    MissingValue,
+    SingleDashLongOption,
+    UnexpectedValue,
     UnknownOption,
 };
-use crate::command_options::{OptionErrorKind, WrapperOccurrence};
+use crate::command_options::{
+    OptionErrorKind,
+    WrapperOccurrence,
+};
 use crate::command_options_query::without_tokens;
 use crate::command_test_support::os_arguments;
 use crate::escape_hatch::BRANCH_WORKTREE_ESCAPE_HATCH as HATCH;
@@ -39,7 +52,10 @@ fn words(line: &str) -> Vec<&str> {
 
 /// Parse a region Git accepts,
 ///  with no other wrapper flags.
-fn region(command: BranchCreationCommand, line: &str) -> BranchCreationRegion {
+fn region(
+    command: BranchCreationCommand,
+    line: &str,
+) -> BranchCreationRegion {
     return parse_branch_creation_region(
         command,
         os_arguments(words(line).as_slice()).as_slice(),
@@ -308,7 +324,10 @@ fn reports_other_wrapper_flags() {
     assert_eq!(found.wrapper.escape, vec![3]);
     assert_eq!(
         found.wrapper.other,
-        vec![WrapperOccurrence { flag: 0, token: 0 }]
+        vec![WrapperOccurrence {
+            flag: 0,
+            token: 0
+        }]
     );
     assert!(found.creates_branch);
 }

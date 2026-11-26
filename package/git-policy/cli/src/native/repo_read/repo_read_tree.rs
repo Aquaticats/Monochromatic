@@ -21,8 +21,11 @@
 #![cfg(unix)]
 
 use crate::index_byte_search::first_index_of_byte;
-use crate::repo_read_object::{ObjectKind, name_length};
 use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::{
+    ObjectKind,
+    name_length,
+};
 use crate::repo_read_odb::ObjectDatabase;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -67,7 +70,10 @@ pub struct FlatEntry {
 
 /// The entries of a tree object's content,
 /// or `None` when any entry is malformed.
-pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
+pub fn parse_tree(
+    bytes: &[u8],
+    hash_length: usize,
+) -> Option<Vec<TreeEntry>> {
     let mut entries: Vec<TreeEntry> = Vec::new();
     let mut cursor: usize = 0;
     while cursor < bytes.len() {
@@ -79,7 +85,10 @@ pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
         }
         let mode: u32 = u32::from_str_radix(mode_text, 8).ok()?;
         // Git canonicalizes other spellings (`100664` reads as `100644`); only the canonical ones are read here.
-        if !matches!(mode, 0o100_644 | 0o100_755 | 0o120_000 | 0o160_000 | MODE_TREE) {
+        if !matches!(
+            mode,
+            0o100_644 | 0o100_755 | 0o120_000 | 0o160_000 | MODE_TREE
+        ) {
             return None;
         }
         let nul: usize = space + 1 + first_index_of_byte(&bytes[space + 1..], 0)?;
@@ -88,7 +97,11 @@ pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
             return None;
         }
         let id: Vec<u8> = bytes.get(nul + 1..nul + 1 + hash_length)?.to_vec();
-        entries.push(TreeEntry { mode, name, id });
+        entries.push(TreeEntry {
+            mode,
+            name,
+            id,
+        });
         cursor = nul + 1 + hash_length;
     }
     return Some(entries);
@@ -113,7 +126,11 @@ pub fn is_tree_mode(mode: u32) -> bool {
 /// ```ts
 /// function flattenTree(odb: ObjectDatabase, tree: Uint8Array, format): FlatEntry[] | undefined;
 /// ```
-pub fn flatten_tree(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
+pub fn flatten_tree(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<FlatEntry>> {
     let mut flat: Vec<FlatEntry> = Vec::new();
     walk(database, tree, format, &mut Vec::new(), 0, &mut flat)?;
     return Some(flat);
@@ -140,9 +157,20 @@ fn walk(
         prefix.extend_from_slice(entry.name.as_slice());
         if is_tree_mode(entry.mode) {
             prefix.push(b'/');
-            walk(database, entry.id.as_slice(), format, prefix, depth + 1, flat)?;
+            walk(
+                database,
+                entry.id.as_slice(),
+                format,
+                prefix,
+                depth + 1,
+                flat,
+            )?;
         } else {
-            flat.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id });
+            flat.push(FlatEntry {
+                path: prefix.clone(),
+                mode: entry.mode,
+                id: entry.id,
+            });
             if flat.len() > FLAT_ENTRY_LIMIT {
                 return None;
             }
@@ -155,7 +183,11 @@ fn walk(
 /// The entries of the tree object `name`,
 /// or nothing when the object is missing,
 /// is not a tree or does not parse.
-fn tree_entries_named(database: &ObjectDatabase, name: &[u8], format: ObjectFormat) -> Option<Vec<TreeEntry>> {
+fn tree_entries_named(
+    database: &ObjectDatabase,
+    name: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<TreeEntry>> {
     let object = database.read(name)?;
     if object.kind != ObjectKind::Tree {
         return None;
@@ -184,7 +216,11 @@ fn is_newline(byte: &u8) -> bool {
 /// ```ts
 /// function flattenTreeShared(odb, tree, format): readonly FlatEntry[] | undefined; // same list, one read per process
 /// ```
-pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Rc<Vec<FlatEntry>>> {
+pub fn flatten_tree_shared(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    format: ObjectFormat,
+) -> Option<Rc<Vec<FlatEntry>>> {
     let key: Vec<u8> = tree.to_vec();
     // The thread's lists are taken out for the look and put back, because a `thread_local` can lend them only to a closure.
     let held: Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)> = SHARED_LISTS.take();
@@ -237,10 +273,22 @@ thread_local! {
 /// ```ts
 /// function flattenPair(odb, oldTree, newTree, format): [FlatEntry[], FlatEntry[]] | undefined;
 /// ```
-pub fn flatten_pair(database: &ObjectDatabase, old: &[u8], new: &[u8], format: ObjectFormat) -> Option<(Vec<FlatEntry>, Vec<FlatEntry>)> {
+pub fn flatten_pair(
+    database: &ObjectDatabase,
+    old: &[u8],
+    new: &[u8],
+    format: ObjectFormat,
+) -> Option<(Vec<FlatEntry>, Vec<FlatEntry>)> {
     let mut before: Vec<FlatEntry> = Vec::new();
     let mut after: Vec<FlatEntry> = Vec::new();
-    walk_pair(database, (old, new), format, &mut Vec::new(), 0, (&mut before, &mut after))?;
+    walk_pair(
+        database,
+        (old, new),
+        format,
+        &mut Vec::new(),
+        0,
+        (&mut before, &mut after),
+    )?;
     return Some((before, after));
 }
 
@@ -257,14 +305,32 @@ fn tree_order_key(entry: &TreeEntry) -> Vec<u8> {
 /// Append one entry of one side whole:
 /// a file as itself,
 /// a directory as every file below it.
-fn push_side(database: &ObjectDatabase, entry: &TreeEntry, format: ObjectFormat, prefix: &mut Vec<u8>, depth: usize, flat: &mut Vec<FlatEntry>) -> Option<()> {
+fn push_side(
+    database: &ObjectDatabase,
+    entry: &TreeEntry,
+    format: ObjectFormat,
+    prefix: &mut Vec<u8>,
+    depth: usize,
+    flat: &mut Vec<FlatEntry>,
+) -> Option<()> {
     let length: usize = prefix.len();
     prefix.extend_from_slice(entry.name.as_slice());
     if is_tree_mode(entry.mode) {
         prefix.push(b'/');
-        walk(database, entry.id.as_slice(), format, prefix, depth + 1, flat)?;
+        walk(
+            database,
+            entry.id.as_slice(),
+            format,
+            prefix,
+            depth + 1,
+            flat,
+        )?;
     } else {
-        flat.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id.clone() });
+        flat.push(FlatEntry {
+            path: prefix.clone(),
+            mode: entry.mode,
+            id: entry.id.clone(),
+        });
     }
     prefix.truncate(length);
     return Some(());
@@ -303,13 +369,21 @@ fn walk_pair(
                 right += 1;
             }
             std::cmp::Ordering::Equal => {
-                let (was, now): (&TreeEntry, &TreeEntry) = (&old_entries[left], &new_entries[right]);
+                let (was, now): (&TreeEntry, &TreeEntry) =
+                    (&old_entries[left], &new_entries[right]);
                 if was.id != now.id || was.mode != now.mode {
                     if is_tree_mode(was.mode) {
                         let length: usize = prefix.len();
                         prefix.extend_from_slice(was.name.as_slice());
                         prefix.push(b'/');
-                        walk_pair(database, (was.id.as_slice(), now.id.as_slice()), format, prefix, depth + 1, (&mut *before, &mut *after))?;
+                        walk_pair(
+                            database,
+                            (was.id.as_slice(), now.id.as_slice()),
+                            format,
+                            prefix,
+                            depth + 1,
+                            (&mut *before, &mut *after),
+                        )?;
                         prefix.truncate(length);
                     } else {
                         push_side(database, was, format, prefix, depth, before)?;
@@ -351,7 +425,10 @@ pub struct CommitFields {
 /// ```ts
 /// function parseCommit(bytes: Uint8Array, format): CommitFields | undefined;
 /// ```
-pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> {
+pub fn parse_commit(
+    bytes: &[u8],
+    format: ObjectFormat,
+) -> Option<CommitFields> {
     let mut blank_line_at: Option<usize> = None;
     for (position, pair) in bytes.windows(2).enumerate() {
         if pair == b"\n\n" {
@@ -375,7 +452,11 @@ pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> 
             return None;
         }
     }
-    return Some(CommitFields { tree: tree?, parents, message: bytes[split + 2..].to_vec() });
+    return Some(CommitFields {
+        tree: tree?,
+        parents,
+        message: bytes[split + 2..].to_vec(),
+    });
 }
 
 /// What:

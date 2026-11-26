@@ -10,22 +10,30 @@ use crate::replay_patch::PatchLine;
 fn base() -> Vec<Vec<u8>> {
     return ["a\n", "b\n", "c\n", "d\n", "e\n"]
         .iter()
-        .map(|line| { return line.as_bytes().to_vec(); })
+        .map(|line| {
+            return line.as_bytes().to_vec();
+        })
         .collect();
 }
 
 /// A zero-context hunk from `(marker, text)` lines,
 /// each text with its newline.
-fn hunk(old_start: i64, new_start: i64, lines: &[(u8, &str)]) -> PatchHunk {
+fn hunk(
+    old_start: i64,
+    new_start: i64,
+    lines: &[(u8, &str)],
+) -> PatchHunk {
     return PatchHunk {
         old_start,
         new_start,
         lines: lines
             .iter()
-            .map(|(op, text)| { return PatchLine {
-                op: *op,
-                text: text.as_bytes().to_vec(),
-            }; })
+            .map(|(op, text)| {
+                return PatchLine {
+                    op: *op,
+                    text: text.as_bytes().to_vec(),
+                };
+            })
             .collect(),
     };
 }
@@ -63,7 +71,11 @@ fn an_own_line_before_the_landed_line_is_contained() {
 /// Own lines on both sides of the landed line are an own edit on both sides and are not subsumed.
 #[test]
 fn own_lines_on_both_sides_are_not_contained() {
-    let prepared: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'+', "X\n"), (b'+', "B\n"), (b'+', "Y\n")])];
+    let prepared: Vec<PatchHunk> = vec![hunk(
+        2,
+        2,
+        &[(b'-', "b\n"), (b'+', "X\n"), (b'+', "B\n"), (b'+', "Y\n")],
+    )];
     assert!(!contains_landed_change(&landed_b(), &prepared, &base()));
 }
 
@@ -86,11 +98,22 @@ fn a_prepared_rewrite_of_a_landed_line_is_not_contained() {
 /// A prepared extension that keeps the landed start and adds lines at its end is a prefix match.
 #[test]
 fn a_prefix_extension_is_contained() {
-    let landed: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")])];
+    let landed: Vec<PatchHunk> = vec![hunk(
+        2,
+        2,
+        &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")],
+    )];
     let prepared: Vec<PatchHunk> = vec![hunk(
         2,
         2,
-        &[(b'-', "b\n"), (b'-', "c\n"), (b'-', "d\n"), (b'+', "B\n"), (b'+', "C\n"), (b'+', "X\n")],
+        &[
+            (b'-', "b\n"),
+            (b'-', "c\n"),
+            (b'-', "d\n"),
+            (b'+', "B\n"),
+            (b'+', "C\n"),
+            (b'+', "X\n"),
+        ],
     )];
     assert!(contains_landed_change(&landed, &prepared, &base()));
 }
@@ -98,11 +121,22 @@ fn a_prefix_extension_is_contained() {
 /// A prepared extension that keeps the landed end and adds lines before it is a suffix match.
 #[test]
 fn a_suffix_extension_is_contained() {
-    let landed: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")])];
+    let landed: Vec<PatchHunk> = vec![hunk(
+        2,
+        2,
+        &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")],
+    )];
     let prepared: Vec<PatchHunk> = vec![hunk(
         1,
         1,
-        &[(b'-', "a\n"), (b'-', "b\n"), (b'-', "c\n"), (b'+', "X\n"), (b'+', "B\n"), (b'+', "C\n")],
+        &[
+            (b'-', "a\n"),
+            (b'-', "b\n"),
+            (b'-', "c\n"),
+            (b'+', "X\n"),
+            (b'+', "B\n"),
+            (b'+', "C\n"),
+        ],
     )];
     assert!(contains_landed_change(&landed, &prepared, &base()));
 }
@@ -117,13 +151,26 @@ fn two_landed_hunks_inside_one_prepared_hunk_are_contained() {
     let prepared: Vec<PatchHunk> = vec![hunk(
         2,
         2,
-        &[(b'-', "b\n"), (b'-', "c\n"), (b'-', "d\n"), (b'+', "B\n"), (b'+', "c\n"), (b'+', "D\n")],
+        &[
+            (b'-', "b\n"),
+            (b'-', "c\n"),
+            (b'-', "d\n"),
+            (b'+', "B\n"),
+            (b'+', "c\n"),
+            (b'+', "D\n"),
+        ],
     )];
     assert!(contains_landed_change(&landed, &prepared, &base()));
     let dropped: Vec<PatchHunk> = vec![hunk(
         2,
         2,
-        &[(b'-', "b\n"), (b'-', "c\n"), (b'-', "d\n"), (b'+', "B\n"), (b'+', "D\n")],
+        &[
+            (b'-', "b\n"),
+            (b'-', "c\n"),
+            (b'-', "d\n"),
+            (b'+', "B\n"),
+            (b'+', "D\n"),
+        ],
     )];
     assert!(!contains_landed_change(&landed, &dropped, &base()));
 }
@@ -175,7 +222,11 @@ fn no_landed_change_is_contained() {
 /// a prepared hunk ending later does not qualify.
 #[test]
 fn a_suffix_match_needs_the_prepared_hunk_to_end_at_the_landed_end() {
-    let landed: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")])];
+    let landed: Vec<PatchHunk> = vec![hunk(
+        2,
+        2,
+        &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")],
+    )];
     let prepared: Vec<PatchHunk> = vec![hunk(
         1,
         1,
@@ -198,7 +249,11 @@ fn a_suffix_match_needs_the_prepared_hunk_to_end_at_the_landed_end() {
 ///  even though the prepared lines are a prefix of the landed lines.
 #[test]
 fn a_prepared_change_shorter_than_the_landed_range_does_not_cover_it() {
-    let landed: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'-', "c\n"), (b'-', "d\n"), (b'+', "B\n")])];
+    let landed: Vec<PatchHunk> = vec![hunk(
+        2,
+        2,
+        &[(b'-', "b\n"), (b'-', "c\n"), (b'-', "d\n"), (b'+', "B\n")],
+    )];
     let prepared: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'+', "B\n")])];
     assert!(!contains_landed_change(&landed, &prepared, &base()));
 }
@@ -212,7 +267,14 @@ fn own_lines_between_landed_lines_need_both_ends_anchored() {
     let prepared: Vec<PatchHunk> = vec![hunk(
         2,
         2,
-        &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B1\n"), (b'+', "X\n"), (b'+', "B2\n"), (b'+', "Y\n")],
+        &[
+            (b'-', "b\n"),
+            (b'-', "c\n"),
+            (b'+', "B1\n"),
+            (b'+', "X\n"),
+            (b'+', "B2\n"),
+            (b'+', "Y\n"),
+        ],
     )];
     assert!(!contains_landed_change(&landed, &prepared, &base()));
 }
@@ -237,7 +299,9 @@ fn a_wide_landed_change_reads_each_hunk_once() {
     let width: usize = 512;
     // The base is `width` distinct lines, so both sides' hunks are far apart.
     let lines: Vec<Vec<u8>> = (0..width)
-        .map(|number| { return format!("line {number}\n").into_bytes(); })
+        .map(|number| {
+            return format!("line {number}\n").into_bytes();
+        })
         .collect();
     let mut landed: Vec<PatchHunk> = Vec::new();
     let mut prepared: Vec<PatchHunk> = Vec::new();
@@ -248,11 +312,24 @@ fn a_wide_landed_change_reads_each_hunk_once() {
         // The prepared commit makes the same edit and adds its own line beside it: a one-sided
         //  extension, so every landed hunk is contained.
         let own: String = format!("own {number}\n");
-        landed.push(hunk(start, start, &[(b'-', old.as_str()), (b'+', new.as_str())]));
-        prepared.push(hunk(start, start, &[(b'-', old.as_str()), (b'+', new.as_str()), (b'+', own.as_str())]));
+        landed.push(hunk(
+            start,
+            start,
+            &[(b'-', old.as_str()), (b'+', new.as_str())],
+        ));
+        prepared.push(hunk(
+            start,
+            start,
+            &[
+                (b'-', old.as_str()),
+                (b'+', new.as_str()),
+                (b'+', own.as_str()),
+            ],
+        ));
     }
     let before: u64 = crate::collected_elements_looked_at::looked_at();
-    let contained: bool = contains_landed_change(landed.as_slice(), prepared.as_slice(), lines.as_slice());
+    let contained: bool =
+        contains_landed_change(landed.as_slice(), prepared.as_slice(), lines.as_slice());
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
     assert!(contained, "every landed hunk is the prepared one's prefix");
     let allowed: u64 = (landed.len() + prepared.len()) as u64;

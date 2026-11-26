@@ -11,9 +11,16 @@
 //! ```
 
 /// The document builder and file writer.
-use super::{MARKDOWN_FILE_PATTERNS, one_rule_configuration};
+use super::{
+    MARKDOWN_FILE_PATTERNS,
+    one_rule_configuration,
+};
 use crate::config_schema::MarkdownRule;
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+    units_to_string,
+};
 
 /// The text of a JSON string value.
 fn text_of(value: &JsoncValue) -> String {
@@ -21,7 +28,10 @@ fn text_of(value: &JsoncValue) -> String {
 }
 
 /// The member `key` of a record value.
-fn member<'a>(value: &'a JsoncValue, key: &str) -> &'a JsoncValue {
+fn member<'a>(
+    value: &'a JsoncValue,
+    key: &str,
+) -> &'a JsoncValue {
     for entry in value.entries().expect("a record") {
         if text_of(&JsoncValue::text_from_units(entry.key.units.clone())) == key {
             return &entry.value;

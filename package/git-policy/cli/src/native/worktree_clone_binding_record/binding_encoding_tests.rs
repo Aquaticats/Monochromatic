@@ -15,7 +15,11 @@ use std::path::PathBuf;
 fn a_path_with_a_newline_round_trips_through_hexadecimal() {
     let path: PathBuf = PathBuf::from("/home/user/a\nb=c");
     let digits: String = path_as_hexadecimal(path.as_path());
-    assert!(digits.bytes().all(|byte| return is_lowercase_hexadecimal(byte)));
+    assert!(
+        digits
+            .bytes()
+            .all(|byte| return is_lowercase_hexadecimal(byte))
+    );
     assert_eq!(path_from_hexadecimal(digits.as_str()), Some(path));
 }
 
@@ -33,10 +37,17 @@ fn hexadecimal_refuses_what_is_not_two_digits_a_byte() {
 /// and the `-:-` form reads as an inode with no birth time.
 #[test]
 fn an_identity_drops_the_device_and_keeps_the_birth_time() {
-    let identity: FolderIdentity = FolderIdentity { inode: 131_074, birth: Some((1_763_750_400, 123_456_789)) };
+    let identity: FolderIdentity = FolderIdentity {
+        inode: 131_074,
+        birth: Some((1_763_750_400, 123_456_789)),
+    };
     assert_eq!(identity.encode(), "131074:1763750400:123456789");
-    assert_eq!(FolderIdentity::decode("131074:1763750400:123456789"), Some(identity));
-    let no_birth: FolderIdentity = FolderIdentity::decode("131074:-:-").expect("the no-birth form reads");
+    assert_eq!(
+        FolderIdentity::decode("131074:1763750400:123456789"),
+        Some(identity)
+    );
+    let no_birth: FolderIdentity =
+        FolderIdentity::decode("131074:-:-").expect("the no-birth form reads");
     assert_eq!(no_birth.inode(), 131_074);
     assert_eq!(no_birth.birth(), None);
     assert_eq!(FolderIdentity::decode("131074:-:1"), None);
@@ -64,10 +75,15 @@ fn a_request_round_trips_and_the_empty_argument_is_detached_only() {
 fn a_folders_identity_names_its_inode_and_no_device() {
     let root: PathBuf = crate::test_support::fixture("identity");
     std::fs::create_dir(root.join("slot")).expect("the slot folder is made");
-    let identity: FolderIdentity = FolderIdentity::of_folder(root.join("slot").as_path()).expect("the folder's identity reads");
+    let identity: FolderIdentity = FolderIdentity::of_folder(root.join("slot").as_path())
+        .expect("the folder's identity reads");
     assert!(identity.inode() > 0);
     let encoded: String = identity.encode();
-    assert_eq!(encoded.matches(':').count(), 2, "the encoding is `inode:seconds:nanoseconds`");
+    assert_eq!(
+        encoded.matches(':').count(),
+        2,
+        "the encoding is `inode:seconds:nanoseconds`"
+    );
     crate::test_support::remove(root.as_path());
 }
 

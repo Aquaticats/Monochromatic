@@ -28,12 +28,26 @@
 //! await writeFile(anchor.child('file'), bytes);
 //! ```
 
-use std::ffi::{CString, OsStr};
+use std::ffi::{
+    CString,
+    OsStr,
+};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::path::{Component, Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::os::unix::io::{
+    AsRawFd,
+    FromRawFd,
+    RawFd,
+};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A directory held open.
@@ -63,10 +77,20 @@ fn c_name(name: &OsStr) -> std::io::Result<CString> {
 /// `openat` for a directory,
 /// with the given extra flags,
 /// returning the descriptor as a file.
-fn open_directory(parent: RawFd, name: &OsStr, flags: libc::c_int) -> std::io::Result<File> {
+fn open_directory(
+    parent: RawFd,
+    name: &OsStr,
+    flags: libc::c_int,
+) -> std::io::Result<File> {
     let text: CString = c_name(name)?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is `AT_FDCWD` or an open descriptor.
-    let descriptor: libc::c_int = unsafe { libc::openat(parent, text.as_ptr(), flags | libc::O_DIRECTORY | libc::O_CLOEXEC) };
+    let descriptor: libc::c_int = unsafe {
+        libc::openat(
+            parent,
+            text.as_ptr(),
+            flags | libc::O_DIRECTORY | libc::O_CLOEXEC,
+        )
+    };
     if descriptor < 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -90,7 +114,11 @@ fn open_directory(parent: RawFd, name: &OsStr, flags: libc::c_int) -> std::io::R
 /// ```ts
 /// const directory = await openDirectoryNoFollow(parent, name);
 /// ```
-fn open_component(parent: RawFd, name: &OsStr, follow: bool) -> std::io::Result<File> {
+fn open_component(
+    parent: RawFd,
+    name: &OsStr,
+    follow: bool,
+) -> std::io::Result<File> {
     let nofollow: libc::c_int = if follow { 0 } else { libc::O_NOFOLLOW };
     // One flag set for the first open and the retry after widening, so the retry cannot follow a link the first open refused.
     // `O_RDONLY` is 0, so `|` and `^` give the same flags here.
@@ -99,8 +127,11 @@ fn open_component(parent: RawFd, name: &OsStr, follow: bool) -> std::io::Result<
         Err(error) if error.raw_os_error() == Some(libc::EACCES) => {
             let handle: File = open_directory(parent, name, libc::O_PATH | nofollow)?;
             let metadata: std::fs::Metadata = handle.metadata()?;
-            let widened: std::fs::Permissions = std::fs::Permissions::from_mode(metadata.mode() | 0o700);
-            if std::fs::set_permissions(Anchor::descriptor_path(handle.as_raw_fd()), widened).is_err() {
+            let widened: std::fs::Permissions =
+                std::fs::Permissions::from_mode(metadata.mode() | 0o700);
+            if std::fs::set_permissions(Anchor::descriptor_path(handle.as_raw_fd()), widened)
+                .is_err()
+            {
                 return Err(error);
             }
             return open_directory(parent, name, reading);
@@ -131,13 +162,20 @@ impl Anchor {
     /// ```ts
     /// const anchor = await Anchor.openBelow(root, relative);
     /// ```
-    pub fn open_below(root: &Path, relative: &Path) -> std::io::Result<Anchor> {
+    pub fn open_below(
+        root: &Path,
+        relative: &Path,
+    ) -> std::io::Result<Anchor> {
         let mut current: File = open_component(libc::AT_FDCWD, root.as_os_str(), true)?;
         for component in relative.components() {
-            let Component::Normal(name) = component else { return Err(std::io::Error::from_raw_os_error(libc::EINVAL)) };
+            let Component::Normal(name) = component else {
+                return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+            };
             current = open_component(current.as_raw_fd(), name, false)?;
         }
-        return Ok(Anchor { directory: current });
+        return Ok(Anchor {
+            directory: current,
+        });
     }
 
     /// The open directory,
@@ -152,7 +190,10 @@ impl Anchor {
     }
 
     /// The path of `name` inside the directory.
-    pub fn child(&self, name: &OsStr) -> PathBuf {
+    pub fn child(
+        &self,
+        name: &OsStr,
+    ) -> PathBuf {
         return Anchor::descriptor_path(self.directory.as_raw_fd()).join(name);
     }
 }

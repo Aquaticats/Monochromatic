@@ -13,7 +13,10 @@
 //! ```
 
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_removal_finish_pass::pass_fixtures::{a_plan_for, write_the_plan};
+use crate::worktree_clone_removal_finish_pass::pass_fixtures::{
+    a_plan_for,
+    write_the_plan,
+};
 use crate::worktree_clone_removal_finish_pass::the_plans_file::remove_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::RemovalFixture;
@@ -45,8 +48,16 @@ fn a_name_that_still_answers_is_a_refusal_and_not_a_finished_removal() {
     std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
     // A directory at the plan's own name answers after any unlink of a file there, so this arm needs
     // no permission bit and reads the same as root.
-    std::fs::create_dir_all(folder.join(plan.facts.clone_guid.file_name()).as_path()).expect("a directory at the plan's name");
-    let said: String = remove_the_plan(fixture.common(), &plan).expect_err("a directory is not a plan's file");
-    assert!(said.contains("the unlink answered"), "the refusal carries what the call answered: {said}");
-    assert!(folder.join(plan.facts.clone_guid.file_name()).exists(), "the directory still answers");
+    std::fs::create_dir_all(folder.join(plan.facts.clone_guid.file_name()).as_path())
+        .expect("a directory at the plan's name");
+    let said: String =
+        remove_the_plan(fixture.common(), &plan).expect_err("a directory is not a plan's file");
+    assert!(
+        said.contains("the unlink answered"),
+        "the refusal carries what the call answered: {said}"
+    );
+    assert!(
+        folder.join(plan.facts.clone_guid.file_name()).exists(),
+        "the directory still answers"
+    );
 }

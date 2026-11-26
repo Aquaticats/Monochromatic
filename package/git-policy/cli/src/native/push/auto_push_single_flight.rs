@@ -17,9 +17,14 @@
 //! ```
 
 use crate::bounded_push::STOP_GRACE;
-use crate::push_deadline_advice::limit_clause;
-use crate::bounded_query::{QueryOutput, query_window, run_bounded_query, run_bounded_query_awaiting};
+use crate::bounded_query::{
+    QueryOutput,
+    query_window,
+    run_bounded_query,
+    run_bounded_query_awaiting,
+};
 use crate::js_text::trim_javascript;
+use crate::push_deadline_advice::limit_clause;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path.
@@ -77,7 +82,10 @@ pub enum SingleFlightError {
 
 impl std::fmt::Display for SingleFlightError {
     /// Writes the diagnostic text of the failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::Start(error) => write!(formatter, "git could not be started: {error}"),
             Self::Git {
@@ -90,12 +98,18 @@ impl std::fmt::Display for SingleFlightError {
                 stderr.trim_end()
             ),
             Self::Io(error) => write!(formatter, "{error}"),
-            Self::TimedOut { arguments, seconds } => write!(
+            Self::TimedOut {
+                arguments,
+                seconds,
+            } => write!(
                 formatter,
                 "git {arguments} showed no sign of work for {seconds} seconds and was stopped; {}",
                 limit_clause()
             ),
-            Self::Ceiling { arguments, seconds } => write!(
+            Self::Ceiling {
+                arguments,
+                seconds,
+            } => write!(
                 formatter,
                 "git {arguments} was still running at its {seconds}-second ceiling and was stopped: one command of a merge step may \
                  not run for ever, so the merge it was computing is not made. Nothing was changed: the commit is kept, no reference \
@@ -175,12 +189,22 @@ pub struct PushGit {
 /// ```ts
 /// nanoSpawn(gitPath, args, { cwd })
 /// ```
-pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
+pub fn git_command(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Command {
     let mut command = Command::new(&git.real_git);
-    crate::hooks_off::add_arguments(&mut command, arguments, crate::hooks_off::StartOwner::Wrapper);
+    crate::hooks_off::add_arguments(
+        &mut command,
+        arguments,
+        crate::hooks_off::StartOwner::Wrapper,
+    );
     let mut in_place = in_push_environment(command, git);
     // The push environment is built from nothing, so the marker is added after it: this start says it is Git's too.
-    crate::started_as_git::mark_real_git_start(&mut in_place, crate::started_as_git::StartMode::Child);
+    crate::started_as_git::mark_real_git_start(
+        &mut in_place,
+        crate::started_as_git::StartMode::Child,
+    );
     return in_place;
 }
 
@@ -193,7 +217,10 @@ pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
 /// ```ts
 /// { ...command, cwd: git.cwd, env: git.environment }
 /// ```
-fn in_push_environment(mut command: Command, git: &PushGit) -> Command {
+fn in_push_environment(
+    mut command: Command,
+    git: &PushGit,
+) -> Command {
     command.current_dir(&git.cwd).env_clear();
     for pair in &git.environment {
         command.env(&pair.0, &pair.1);
@@ -227,7 +254,10 @@ fn describe_arguments(arguments: &[OsString]) -> String {
 /// ```ts
 /// (await nanoSpawn(gitPath, args, { cwd })).stdout.trim();
 /// ```
-pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, SingleFlightError> {
+pub fn git_output(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<String, SingleFlightError> {
     let output = run_query(git, arguments)?;
     return output_text(arguments, &output);
 }
@@ -245,7 +275,10 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 /// ```ts
 /// (await query(args)).stdout.trim();
 /// ```
-pub async fn git_output_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<String, SingleFlightError> {
+pub async fn git_output_awaiting(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<String, SingleFlightError> {
     let output = run_query_awaiting(git, arguments).await?;
     return output_text(arguments, &output);
 }
@@ -263,7 +296,10 @@ pub async fn git_output_awaiting(git: &PushGit, arguments: &[OsString]) -> Resul
 /// ```ts
 /// if (output.code !== 0) throw new GitError(args, output.code, output.stderr); return trimJavascript(output.stdout);
 /// ```
-fn output_text(arguments: &[OsString], output: &QueryOutput) -> Result<String, SingleFlightError> {
+fn output_text(
+    arguments: &[OsString],
+    output: &QueryOutput,
+) -> Result<String, SingleFlightError> {
     if output.code != Some(0) {
         return Err(SingleFlightError::Git {
             arguments: describe_arguments(arguments),
@@ -287,10 +323,22 @@ fn output_text(arguments: &[OsString], output: &QueryOutput) -> Result<String, S
 /// ```ts
 /// await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) })
 /// ```
-pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
+pub fn run_query(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<QueryOutput, SingleFlightError> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(arguments, git.cwd.as_path(), crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
-        return Ok(QueryOutput { code, stdout, stderr });
+    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(
+        arguments,
+        git.cwd.as_path(),
+        crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path())
+            .as_slice(),
+    ) {
+        return Ok(QueryOutput {
+            code,
+            stdout,
+            stderr,
+        });
     }
     return run_bounded_query(
         git_command(git, arguments),
@@ -317,10 +365,22 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
 /// ```ts
 /// await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) })
 /// ```
-pub async fn run_query_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
+pub async fn run_query_awaiting(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<QueryOutput, SingleFlightError> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(arguments, git.cwd.as_path(), crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
-        return Ok(QueryOutput { code, stdout, stderr });
+    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(
+        arguments,
+        git.cwd.as_path(),
+        crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path())
+            .as_slice(),
+    ) {
+        return Ok(QueryOutput {
+            code,
+            stdout,
+            stderr,
+        });
     }
     return run_bounded_query_awaiting(
         git_command(git, arguments),

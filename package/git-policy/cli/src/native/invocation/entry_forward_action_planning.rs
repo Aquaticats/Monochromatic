@@ -15,21 +15,53 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
-use crate::index_writer_forward::CoordinatedForward;
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+    failure,
+};
+use crate::forwarded_command::{
+    ResolvedCommand,
+    Route,
+    creates_worktrees,
+    resolve_forwarded_command,
+};
 use crate::index_writer_commands::is_index_writer;
-use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
-use crate::invocation_config::{config_invalid_event, load_identity_config};
-use crate::repository_location::RepositoryLocation;
-use crate::transaction_git::GitContext;
-use crate::worktree_identity::{WorktreeIdentity, common_directory};
+use crate::index_writer_forward::CoordinatedForward;
+use crate::invocation_config::{
+    config_invalid_event,
+    load_identity_config,
+};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
 use crate::policy_checks::ShippedChecks;
-use crate::repository_facts::{GitFacts, RepositoryFacts};
-use crate::worktree_add_plan::{AddPlan, add_is_quiet, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
-use crate::worktree_remove_plan::{RemovePlan, parse_removal_target, parse_remove_plan};
-use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
+use crate::repository_facts::{
+    GitFacts,
+    RepositoryFacts,
+};
+use crate::repository_location::RepositoryLocation;
+use crate::transaction_git::GitContext;
+use crate::worktree_add_plan::{
+    AddPlan,
+    add_is_quiet,
+    copy_start_directory,
+    parse_add_plan,
+    parse_copy_destination,
+    start_directory,
+};
+use crate::worktree_copy_forward::{
+    CopyFacts,
+    copy_applies_with,
+};
+use crate::worktree_identity::{
+    WorktreeIdentity,
+    common_directory,
+};
+use crate::worktree_remove_plan::{
+    RemovePlan,
+    parse_removal_target,
+    parse_remove_plan,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -42,7 +74,10 @@ use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  Choose how a forwarded command runs:
 ///  plainly,
@@ -74,7 +109,12 @@ pub(crate) fn forward_action(
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice(), checks.start_directory.path());
+    let command: ResolvedCommand = resolve_forwarded_command(
+        &context,
+        environment,
+        arguments.as_slice(),
+        checks.start_directory.path(),
+    );
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
@@ -107,11 +147,24 @@ pub(crate) fn forward_action(
     // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; plan step 12).
     #[cfg(target_os = "linux")]
     {
-        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(&command, common_directory(&location.identity), checks.start_directory.path()) {
+        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(
+            &command,
+            common_directory(&location.identity),
+            checks.start_directory.path(),
+        ) {
             return ending;
         }
-        crate::entry_zfs_slot_commands::before_a_repair(&command, common_directory(&location.identity), &mut stderr, checks.start_directory.path());
-        if let Some(ending) = crate::entry_zfs_slot_commands::before_a_prune(&command, common_directory(&location.identity), &mut stderr) {
+        crate::entry_zfs_slot_commands::before_a_repair(
+            &command,
+            common_directory(&location.identity),
+            &mut stderr,
+            checks.start_directory.path(),
+        );
+        if let Some(ending) = crate::entry_zfs_slot_commands::before_a_prune(
+            &command,
+            common_directory(&location.identity),
+            &mut stderr,
+        ) {
             return ending;
         }
     }
@@ -126,20 +179,37 @@ pub(crate) fn forward_action(
         };
     }
     let creates: bool = creates_worktrees(&command);
-    let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command, checks.start_directory.path()) } else { None };
+    let add_plan: Option<AddPlan> = if creates {
+        plan_worktree_add(&command, checks.start_directory.path())
+    } else {
+        None
+    };
     // The person's `--quiet` comes from the same reading of the words, whether or not the ladder serves
     // the form, so an add it hands to plain Git still prints no line a quiet add would suppress.
-    let quiet: bool = creates && add_is_quiet(command.arguments.as_slice(), command.subcommand_index);
-    let destination: Option<PathBuf> = if creates { plan_copy_destination(&command, checks.start_directory.path()) } else { None };
+    let quiet: bool =
+        creates && add_is_quiet(command.arguments.as_slice(), command.subcommand_index);
+    let destination: Option<PathBuf> = if creates {
+        plan_copy_destination(&command, checks.start_directory.path())
+    } else {
+        None
+    };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
-        plan_worktree_remove(&command, common_directory(&location.identity), checks.start_directory.path())
+        plan_worktree_remove(
+            &command,
+            common_directory(&location.identity),
+            checks.start_directory.path(),
+        )
     } else {
         None
     };
     // The refusal of a removal of a bound slot reads the worktree in every spelling Git accepts, the double force included, and
     // a form it does not serve still has to reach that refusal (`SPEC.md`, "Removal of a ZFS worktree clone").
     let removal_target: Option<PathBuf> = if command.word() == b"worktree" {
-        plan_removal_target(&command, common_directory(&location.identity), checks.start_directory.path())
+        plan_removal_target(
+            &command,
+            common_directory(&location.identity),
+            checks.start_directory.path(),
+        )
     } else {
         None
     };
@@ -203,9 +273,16 @@ pub(crate) fn forward_action(
 /// ```ts
 /// function planWorktreeAdd(command: ResolvedCommand, current?: string): AddPlan | undefined;
 /// ```
-fn plan_worktree_add(command: &ResolvedCommand, current: Option<&Path>) -> Option<AddPlan> {
+fn plan_worktree_add(
+    command: &ResolvedCommand,
+    current: Option<&Path>,
+) -> Option<AddPlan> {
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
-    return parse_add_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
+    return parse_add_plan(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+    );
 }
 
 /// What:
@@ -223,9 +300,17 @@ fn plan_worktree_add(command: &ResolvedCommand, current: Option<&Path>) -> Optio
 /// ```ts
 /// function planCopyDestination(command: ResolvedCommand, current?: string): string | undefined;
 /// ```
-fn plan_copy_destination(command: &ResolvedCommand, current: Option<&Path>) -> Option<PathBuf> {
-    let start: PathBuf = copy_start_directory(&command.arguments[..command.subcommand_index], current?)?;
-    return parse_copy_destination(command.arguments.as_slice(), command.subcommand_index, start.as_path());
+fn plan_copy_destination(
+    command: &ResolvedCommand,
+    current: Option<&Path>,
+) -> Option<PathBuf> {
+    let start: PathBuf =
+        copy_start_directory(&command.arguments[..command.subcommand_index], current?)?;
+    return parse_copy_destination(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+    );
 }
 
 /// What:
@@ -245,9 +330,18 @@ fn plan_copy_destination(command: &ResolvedCommand, current: Option<&Path>) -> O
 /// ```ts
 /// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string, current?: string): RemovePlan | undefined;
 /// ```
-fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<RemovePlan> {
+fn plan_worktree_remove(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+    current: Option<&Path>,
+) -> Option<RemovePlan> {
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
-    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
+    return parse_remove_plan(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+        common_dir,
+    );
 }
 
 /// What:
@@ -264,9 +358,18 @@ fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>, cu
 /// ```ts
 /// function planRemovalTarget(command, commonDir?, current?): string | undefined;
 /// ```
-fn plan_removal_target(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<PathBuf> {
+fn plan_removal_target(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+    current: Option<&Path>,
+) -> Option<PathBuf> {
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
-    return parse_removal_target(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
+    return parse_removal_target(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+        common_dir,
+    );
 }
 
 /// What:

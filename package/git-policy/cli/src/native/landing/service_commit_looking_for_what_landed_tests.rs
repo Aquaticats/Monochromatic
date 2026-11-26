@@ -4,9 +4,19 @@
 //! and a look that finds nothing waits no longer than a look that has nothing to wait for.
 
 use super::*;
-use crate::service_journal::{DONE_EXTENSION, batch_path, intent_text, write_intent};
+use crate::service_journal::{
+    DONE_EXTENSION,
+    batch_path,
+    intent_text,
+    write_intent,
+};
 use crate::service_units_of_removed_worktrees::JOURNAL_FOLDER;
-use crate::test_support::{git, git_text, remove, repository};
+use crate::test_support::{
+    git,
+    git_text,
+    remove,
+    repository,
+};
 
 /// The identity of the request the controls send.
 const ID: &str = "0d1e2f3a-4b5c-6d7e-8f90-a1b2c3d4e5f6";
@@ -20,7 +30,14 @@ fn a_journal(label: &str) -> PathBuf {
 }
 
 /// A record of a batch that named `ids` and the `commits` they became.
-fn a_record(seq: u64, reference: &str, old: &str, new: &str, ids: &[&str], commits: &[&str]) -> Intent {
+fn a_record(
+    seq: u64,
+    reference: &str,
+    old: &str,
+    new: &str,
+    ids: &[&str],
+    commits: &[&str],
+) -> Intent {
     return Intent {
         seq,
         repository: PathBuf::from("/nowhere/repo"),
@@ -28,8 +45,18 @@ fn a_record(seq: u64, reference: &str, old: &str, new: &str, ids: &[&str], commi
         reference: crate::ref_name::RefName::from_text(reference),
         old: String::from(old),
         new: String::from(new),
-        ids: ids.iter().map(|id| { return String::from(*id); }).collect(),
-        commits: commits.iter().map(|commit| { return String::from(*commit); }).collect(),
+        ids: ids
+            .iter()
+            .map(|id| {
+                return String::from(*id);
+            })
+            .collect(),
+        commits: commits
+            .iter()
+            .map(|commit| {
+                return String::from(*commit);
+            })
+            .collect(),
         holders: Vec::new(),
         paths: Vec::new(),
         derived: true,
@@ -50,8 +77,19 @@ fn a_record(seq: u64, reference: &str, old: &str, new: &str, ids: &[&str], commi
 fn a_finished_batch_names_the_commit_the_request_became() {
     let journal: PathBuf = a_journal("looking-finished");
     let commit: String = "1".repeat(40);
-    let record: Intent = a_record(7, "refs/heads/main", &"2".repeat(40), commit.as_str(), &[ID], &[commit.as_str()]);
-    std::fs::write(batch_path(journal.as_path(), 7, DONE_EXTENSION), intent_text(&record)).expect("the finished record");
+    let record: Intent = a_record(
+        7,
+        "refs/heads/main",
+        &"2".repeat(40),
+        commit.as_str(),
+        &[ID],
+        &[commit.as_str()],
+    );
+    std::fs::write(
+        batch_path(journal.as_path(), 7, DONE_EXTENSION),
+        intent_text(&record),
+    )
+    .expect("the finished record");
     let context: GitContext = crate::test_support::git_context();
     let looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
         context: &context,
@@ -61,7 +99,11 @@ fn a_finished_batch_names_the_commit_the_request_became() {
         wait: Duration::from_millis(200),
     });
     remove(journal.parent().expect("the control's root"));
-    assert_eq!(looked, Some(commit), "the record names the commit this request became");
+    assert_eq!(
+        looked,
+        Some(commit),
+        "the record names the commit this request became"
+    );
 }
 
 /// What:
@@ -77,11 +119,21 @@ fn an_open_batch_names_the_commit_the_branch_holds() {
     let root: PathBuf = crate::test_support::fixture("looking-open-on-the-branch");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let before: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=landed"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=landed"],
+    );
     let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    let record: Intent = a_record(9, "refs/heads/main", before.as_str(), landed.as_str(), &[ID], &[landed.as_str()]);
+    let record: Intent = a_record(
+        9,
+        "refs/heads/main",
+        before.as_str(),
+        landed.as_str(),
+        &[ID],
+        &[landed.as_str()],
+    );
     write_intent(journal.as_path(), &record).expect("the open record");
     let context: GitContext = crate::test_support::git_context();
     let looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
@@ -92,7 +144,11 @@ fn an_open_batch_names_the_commit_the_branch_holds() {
         wait: Duration::from_millis(200),
     });
     remove(root.as_path());
-    assert_eq!(looked, Some(landed), "the branch holds the commit the open batch is making");
+    assert_eq!(
+        looked,
+        Some(landed),
+        "the branch holds the commit the open batch is making"
+    );
 }
 
 /// What:
@@ -107,19 +163,35 @@ fn an_open_batch_is_looked_at_until_its_branch_moves() {
     let root: PathBuf = crate::test_support::fixture("looking-open-later");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let before: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=landed"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=landed"],
+    );
     let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     // The branch is put back, so the commit exists and the branch does not hold it yet.
-    git(repo.as_path(), &["reset", "--quiet", "--hard", before.as_str()]);
+    git(
+        repo.as_path(),
+        &["reset", "--quiet", "--hard", before.as_str()],
+    );
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    let record: Intent = a_record(11, "refs/heads/main", before.as_str(), landed.as_str(), &[ID], &[landed.as_str()]);
+    let record: Intent = a_record(
+        11,
+        "refs/heads/main",
+        before.as_str(),
+        landed.as_str(),
+        &[ID],
+        &[landed.as_str()],
+    );
     write_intent(journal.as_path(), &record).expect("the open record");
     let moving_repo: PathBuf = repo.clone();
     let moving_commit: String = landed.clone();
     let moving = std::thread::spawn(move || {
         std::thread::sleep(LOOK_EVERY * 2);
-        git(moving_repo.as_path(), &["update-ref", "refs/heads/main", moving_commit.as_str()]);
+        git(
+            moving_repo.as_path(),
+            &["update-ref", "refs/heads/main", moving_commit.as_str()],
+        );
     });
     let context: GitContext = crate::test_support::git_context();
     let looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
@@ -131,7 +203,11 @@ fn an_open_batch_is_looked_at_until_its_branch_moves() {
     });
     moving.join().expect("the branch moves");
     remove(root.as_path());
-    assert_eq!(looked, Some(landed), "the look waits for the branch the open batch is about to move");
+    assert_eq!(
+        looked,
+        Some(landed),
+        "the look waits for the branch the open batch is about to move"
+    );
 }
 
 /// What:
@@ -157,7 +233,10 @@ fn a_look_that_finds_no_batch_does_not_wait() {
     let waited: Duration = began.elapsed();
     remove(journal.parent().expect("the control's root"));
     assert_eq!(looked, None, "no batch names this request");
-    assert!(waited < Duration::from_secs(2), "a look with nothing to wait for returned after {waited:?}");
+    assert!(
+        waited < Duration::from_secs(2),
+        "a look with nothing to wait for returned after {waited:?}"
+    );
 }
 
 /// What:
@@ -196,8 +275,16 @@ fn the_journal_of_a_request_is_the_folder_the_unit_gives_it() {
     let instance: String = crate::service_instance::instance_of(repo.join(".git").as_path());
     remove(root.as_path());
     let found: PathBuf = journal.expect("this process's environment names a state folder");
-    assert_eq!(found.file_name().and_then(std::ffi::OsStr::to_str), Some(instance.as_str()), "the folder is the instance's");
-    assert_eq!(found.parent().and_then(std::path::Path::file_name), Some(std::ffi::OsStr::new(JOURNAL_FOLDER)), "the folder sits in the journal folder");
+    assert_eq!(
+        found.file_name().and_then(std::ffi::OsStr::to_str),
+        Some(instance.as_str()),
+        "the folder is the instance's"
+    );
+    assert_eq!(
+        found.parent().and_then(std::path::Path::file_name),
+        Some(std::ffi::OsStr::new(JOURNAL_FOLDER)),
+        "the folder sits in the journal folder"
+    );
 }
 
 /// A request of this control's own,
@@ -237,10 +324,20 @@ fn a_request_of(repo: &Path) -> CommitRequest {
 #[test]
 fn the_held_record_of_the_open_batch_of_a_request_is_found() {
     let journal: PathBuf = a_journal("looking-held");
-    let git_dir: PathBuf = journal.parent().expect("the control's root").join("repo/.git");
+    let git_dir: PathBuf = journal
+        .parent()
+        .expect("the control's root")
+        .join("repo/.git");
     std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
     let held_commit: String = "3".repeat(40);
-    let record: Intent = a_record(9, "refs/heads/main", &"4".repeat(40), held_commit.as_str(), &[ID], &[held_commit.as_str()]);
+    let record: Intent = a_record(
+        9,
+        "refs/heads/main",
+        &"4".repeat(40),
+        held_commit.as_str(),
+        &[ID],
+        &[held_commit.as_str()],
+    );
     write_intent(journal.as_path(), &record).expect("the open record");
     let held: crate::held_commit_record::Held = crate::held_commit_record::Held {
         seq: 9,
@@ -258,10 +355,27 @@ fn the_held_record_of_the_open_batch_of_a_request_is_found() {
         created: String::from("2026-01-01T00:00:00+00:00"),
     };
     crate::held_commit_record::write(git_dir.as_path(), &held).expect("the record of the hold");
-    assert_eq!(a_held_batch_of(journal.as_path(), git_dir.as_path(), ID).map(|found| { return found.new; }), Some(held_commit), "the record of this batch is the one found");
-    let elsewhere: PathBuf = journal.parent().expect("the control's root").join("other-journal");
+    assert_eq!(
+        a_held_batch_of(journal.as_path(), git_dir.as_path(), ID).map(|found| {
+            return found.new;
+        }),
+        Some(held_commit),
+        "the record of this batch is the one found"
+    );
+    let elsewhere: PathBuf = journal
+        .parent()
+        .expect("the control's root")
+        .join("other-journal");
     std::fs::create_dir_all(elsewhere.as_path()).expect("another journal");
-    assert_eq!(a_held_batch_of(elsewhere.as_path(), git_dir.as_path(), ID), None, "a record of another journal is not this request's");
-    assert_eq!(a_held_batch_of(journal.as_path(), git_dir.as_path(), "another-request"), None, "a record of another request is not this one's");
+    assert_eq!(
+        a_held_batch_of(elsewhere.as_path(), git_dir.as_path(), ID),
+        None,
+        "a record of another journal is not this request's"
+    );
+    assert_eq!(
+        a_held_batch_of(journal.as_path(), git_dir.as_path(), "another-request"),
+        None,
+        "a record of another request is not this one's"
+    );
     remove(journal.parent().expect("the control's root"));
 }

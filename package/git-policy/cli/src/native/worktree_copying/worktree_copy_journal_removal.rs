@@ -12,13 +12,28 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
-use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::parallel_budget::{
+    HostResources,
+    sliced_workers,
+};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
 use crate::worktree_copy_journal::write_journal;
-use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase, TEMPORARY_SUFFIX};
+use crate::worktree_copy_journal_encoding_and_validation::{
+    Journal,
+    PendingJournal,
+    Phase,
+    TEMPORARY_SUFFIX,
+};
 use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 
 /// What:
@@ -45,7 +60,8 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
             continue;
         }
         // A directory another command removed at the same moment is already as writable as it needs to be.
-        match std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700)) {
+        match std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700))
+        {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(raw_failure(&error)),
@@ -91,7 +107,9 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
 pub fn remove_stage(stage_container: &Path) -> Result<(), WorktreeCopyError> {
     // A stage made by a snapshot is a subvolume; where the mount allows it one call removes the whole tree.
     #[cfg(target_os = "linux")]
-    if crate::fs_kind::is_subvolume_root(stage_container).unwrap_or(false) && crate::fs_btrfs_ioctl::subvolume_destroy_at(stage_container).is_ok() {
+    if crate::fs_kind::is_subvolume_root(stage_container).unwrap_or(false)
+        && crate::fs_btrfs_ioctl::subvolume_destroy_at(stage_container).is_ok()
+    {
         return Ok(());
     }
     prepare_stage_removal(stage_container)?;
@@ -180,7 +198,9 @@ const REMOVAL_SPLIT_DEPTH: usize = 3;
 /// ```ts
 /// for (let i = cursor.next(); subtrees[i] !== undefined; i = cursor.next()) await rm(subtrees[i], { recursive: true });
 /// ```
-fn remove_subtrees_until_none_is_left((cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>)) -> std::io::Result<()> {
+fn remove_subtrees_until_none_is_left(
+    (cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>)
+) -> std::io::Result<()> {
     loop {
         let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let Some(subtree) = subtrees.get(index) else {
@@ -221,11 +241,17 @@ async fn remove_subtrees_awaiting(
         states.push((Arc::clone(&cursor), Arc::clone(&subtrees)));
     }
     let mut outcomes: Vec<std::io::Result<()>> = Vec::new();
-    for answer in run_all_side_by_side_on_the_runtime(states, remove_subtrees_until_none_is_left).await {
+    for answer in
+        run_all_side_by_side_on_the_runtime(states, remove_subtrees_until_none_is_left).await
+    {
         outcomes.push(match answer {
             Ok(outcome) => outcome,
-            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(std::io::Error::other("a removal worker panicked")),
-            Err(refused) => Err(std::io::Error::other(format!("a removal worker did not run ({refused})"))),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => {
+                Err(std::io::Error::other("a removal worker panicked"))
+            }
+            Err(refused) => Err(std::io::Error::other(format!(
+                "a removal worker did not run ({refused})"
+            ))),
         });
     }
     return outcomes;
@@ -258,7 +284,10 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
     return match crate::lazy_runtime::run_on_runtime(remove_tree_split_awaiting(path)) {
         Ok(outcome) => outcome,
         // Nothing was removed, and the reason the runtime could not run the workers is why.
-        Err(refusal) => Err(std::io::Error::other(format!("the subtrees below {} were not removed side by side ({refusal})", path.display()))),
+        Err(refusal) => Err(std::io::Error::other(format!(
+            "the subtrees below {} were not removed side by side ({refusal})",
+            path.display()
+        ))),
     };
 }
 
@@ -274,9 +303,15 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// async function removeTreeSplit(path: string): Promise<void>;
 /// ```
 async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
-    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
-    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
-    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) =
+        walk_to_the_split_depth_on_the_pool(path).await?;
+    let workers: usize = sliced_workers(
+        usize::MAX,
+        PARALLEL_COPY_MAX_WORKERS,
+        &HostResources::read(),
+    );
+    let cursor: Arc<std::sync::atomic::AtomicUsize> =
+        Arc::new(std::sync::atomic::AtomicUsize::new(0));
     for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
         outcome?;
     }
@@ -313,7 +348,9 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
 /// ```ts
 /// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
 /// ```
-async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+async fn walk_to_the_split_depth_on_the_pool(
+    path: &Path
+) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     return match run_a_job_or_in_turn(path.to_path_buf(), walk_to_the_split_depth_of).await {
         Ok(lists) => lists,
         // Another answer leaves the walk on another thread, outlasting its ceiling, or ended with the runtime, so no

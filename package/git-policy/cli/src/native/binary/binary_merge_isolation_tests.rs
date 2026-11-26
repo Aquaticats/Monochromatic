@@ -19,21 +19,50 @@
 //! expect(await commitShape(ours)).toEqual(await commitShape(native));
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{
-    Fixture, Observed, SERVICE_INSIDE_WRITE_NOTICE_PREFIX, SERVICE_STUCK_WRITE_NOTICE_PREFIX, WAIT_NOTICE_PREFIX,
-    direct, executable, fixture, git, is_a_wait_notice, observe, pseudo_terminal_slave_name, repository,
-    without_hint_fields, without_wait_notices, TIMED_OUT_SIGNAL,
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
 };
-use git_policy_cli::merge_isolation_journal::{MergeIntent, write_merge_intent};
+use super::support::{
+    Fixture,
+    Observed,
+    SERVICE_INSIDE_WRITE_NOTICE_PREFIX,
+    SERVICE_STUCK_WRITE_NOTICE_PREFIX,
+    TIMED_OUT_SIGNAL,
+    WAIT_NOTICE_PREFIX,
+    direct,
+    executable,
+    fixture,
+    git,
+    is_a_wait_notice,
+    observe,
+    pseudo_terminal_slave_name,
+    repository,
+    without_hint_fields,
+    without_wait_notices,
+};
+use git_policy_cli::merge_isolation_journal::{
+    MergeIntent,
+    write_merge_intent,
+};
 use git_policy_cli::transaction_owner::TransactionOwner;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use git_policy_cli::wait_ceilings::MERGE_LOCK_CEILING;
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Paths of the fixture repository and what each side of the history does to them:
 ///  `feature` changes `f.txt` and `g.txt`,
@@ -41,9 +70,14 @@ use std::time::{Duration, Instant};
 /// `main` changes `h.txt`;
 ///  `u.txt`,
 /// `v.txt` and `w.txt` are untouched by the merge.
-pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn diverged(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
-    for file in ["u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt"] {
+    for file in [
+        "u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt",
+    ] {
         std::fs::write(repo.join(file), format!("{file} base\n")).expect("file");
     }
     std::fs::create_dir(repo.join("sub")).expect("subdirectory");
@@ -51,28 +85,73 @@ pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
     git(
         fixture,
         repo.as_path(),
-        &["add", "--", "u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt", "sub/s.txt"],
+        &[
+            "add",
+            "--",
+            "u.txt",
+            "v.txt",
+            "w.txt",
+            "f.txt",
+            "g.txt",
+            "h.txt",
+            "gone.txt",
+            "sub/s.txt",
+        ],
     );
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
     std::fs::write(repo.join("g.txt"), b"g.txt feature\n").expect("file");
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir/new.txt"), b"new\n").expect("file");
-    git(fixture, repo.as_path(), &["rm", "--quiet", "--", "gone.txt"]);
-    git(fixture, repo.as_path(), &["add", "--", "f.txt", "g.txt", "dir/new.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["rm", "--quiet", "--", "gone.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", "f.txt", "g.txt", "dir/new.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature work"],
+    );
     git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main work"],
+    );
     return repo;
 }
 
 /// A byte-for-byte copy of a repository,
 /// for the clean checkout the oracle merges in.
-pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
+pub(super) fn copy_of(
+    fixture: &Fixture,
+    from: &Path,
+    name: &str,
+) -> PathBuf {
     let to: PathBuf = fixture.root.join(name);
-    let copied = Command::new("cp").arg("--archive").arg("--").arg(from).arg(&to).status().expect("cp starts");
+    let copied = Command::new("cp")
+        .arg("--archive")
+        .arg("--")
+        .arg(from)
+        .arg(&to)
+        .status()
+        .expect("cp starts");
     assert!(copied.success(), "the copy of {from:?} failed");
     return to;
 }
@@ -80,7 +159,10 @@ pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
 /// Another session's staged work:
 /// a modification,
 /// an addition and a deletion of paths the merge does not touch.
-pub(super) fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
+pub(super) fn stage_unrelated_work(
+    fixture: &Fixture,
+    repo: &Path,
+) {
     std::fs::write(repo.join("u.txt"), b"u.txt staged by another session\n").expect("file");
     std::fs::write(repo.join("new.txt"), b"added by another session\n").expect("file");
     git(fixture, repo, &["add", "--", "u.txt", "new.txt"]);
@@ -102,17 +184,37 @@ pub(super) struct Snapshot {
 }
 
 /// Read the observable state of a checkout without changing it.
-pub(super) fn snapshot(fixture: &Fixture, repo: &Path) -> Snapshot {
+pub(super) fn snapshot(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Snapshot {
     return Snapshot {
         head: git_text(fixture, repo, &["rev-parse", "HEAD"]),
         index: std::fs::read(repo.join(".git/index")).expect("the index"),
-        entries: git_text(fixture, repo, &["--no-optional-locks", "ls-files", "--stage", "--debug"]),
-        status: git_text(fixture, repo, &["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all"]),
+        entries: git_text(
+            fixture,
+            repo,
+            &["--no-optional-locks", "ls-files", "--stage", "--debug"],
+        ),
+        status: git_text(
+            fixture,
+            repo,
+            &[
+                "--no-optional-locks",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+        ),
     };
 }
 
 /// A wrapped command with the merge's bound.
-fn wrapped_in(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Command {
+fn wrapped_in(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> Command {
     return wrapped_commit(fixture, repo, arguments);
 }
 
@@ -120,9 +222,16 @@ fn wrapped_in(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Command {
 /// without the wait notices a slow step may print (`without_wait_notices`):
 ///  these controls compare the merge's diagnostics with native Git's words,
 /// which a loaded host does not change.
-fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
+fn run(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> Observed {
     let observed: Observed = observe(&mut wrapped_in(fixture, repo, arguments), b"");
-    return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
+    return Observed {
+        stderr: without_wait_notices(observed.stderr.as_slice()),
+        ..observed
+    };
 }
 
 /// Wait notices go and nothing else does,
@@ -140,21 +249,31 @@ fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     let mixed: String = format!("{notice}{other}{notice}{inside}{stuck}");
     assert_eq!(without_wait_notices(mixed.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(other.as_bytes()), other.as_bytes());
-    assert_eq!(without_wait_notices(b"no newline at the end"), b"no newline at the end");
+    assert_eq!(
+        without_wait_notices(b"no newline at the end"),
+        b"no newline at the end"
+    );
     let held_to: [(&str, &[u8]); 3] = [
         (notice, WAIT_NOTICE_PREFIX),
         (inside, SERVICE_INSIDE_WRITE_NOTICE_PREFIX),
         (stuck, SERVICE_STUCK_WRITE_NOTICE_PREFIX),
     ];
     for (line, prefix) in held_to {
-        assert!(line.as_bytes().starts_with(prefix), "the prefix is the words the wrapper prints: {line}");
+        assert!(
+            line.as_bytes().starts_with(prefix),
+            "the prefix is the words the wrapper prints: {line}"
+        );
         assert!(is_a_wait_notice(line.as_bytes()), "{line}");
     }
 }
 
 /// Run native Git directly,
 /// whatever its exit status.
-fn native(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
+fn native(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(direct(fixture).current_dir(repo).args(arguments), b"");
 }
 
@@ -170,20 +289,44 @@ fn native(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 /// ```ts
 /// const saved = savedMerge(repo); // records a dead owner, a side ref and the merge commit
 /// ```
-fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
+fn saved_merge_record(
+    fixture: &Fixture,
+    repo: &Path,
+) -> (String, String) {
     let old: String = git_text(fixture, repo, &["rev-parse", "main"]);
     let feature: String = git_text(fixture, repo, &["rev-parse", "feature"]);
-    let printed: String = git_text(fixture, repo, &["merge-tree", "--write-tree", "main", "feature"]);
+    let printed: String = git_text(
+        fixture,
+        repo,
+        &["merge-tree", "--write-tree", "main", "feature"],
+    );
     let tree: String = printed.lines().next().expect("the merged tree").to_owned();
     let merge: String = git_text(
         fixture,
         repo,
-        &["commit-tree", tree.as_str(), "-p", old.trim(), "-p", feature.trim(), "-m", "merge feature"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old.trim(),
+            "-p",
+            feature.trim(),
+            "-m",
+            "merge feature",
+        ],
     )
     .trim()
     .to_owned();
-    git(fixture, repo, &["update-ref", "refs/cli-git/kept/1", merge.as_str()]);
-    let mut ended: Child = Command::new("/bin/sh").arg("-c").arg("exit 0").spawn().expect("a process that ends");
+    git(
+        fixture,
+        repo,
+        &["update-ref", "refs/cli-git/kept/1", merge.as_str()],
+    );
+    let mut ended: Child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("exit 0")
+        .spawn()
+        .expect("a process that ends");
     let gone: i64 = i64::from(ended.id());
     ended.wait().expect("it ends");
     let intent: MergeIntent = MergeIntent {
@@ -240,7 +383,12 @@ fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_
         let observed: Observed = observe(&mut wrapped_in(&fixture, repo.as_path(), arguments), b"");
         let took: Duration = began.elapsed();
         let said: String = text(&observed.stderr);
-        assert_eq!(observed.code, Some(0), "git {}: {said}", arguments.join(" "));
+        assert_eq!(
+            observed.code,
+            Some(0),
+            "git {}: {said}",
+            arguments.join(" ")
+        );
         assert!(
             took < bound,
             "git {} took {took:?}, and the wait for the lock this command used to make lasts {MERGE_LOCK_CEILING:?}: {said}",
@@ -251,22 +399,53 @@ fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_
             "a read-only command must not wait for the lock: git {}: {said}",
             arguments.join(" ")
         );
-        assert!(said.contains("refs/cli-git/kept/1"), "it names the merge saved on its side ref: {said}");
-        assert!(said.contains("nothing of it is in the checkout yet"), "it says why it need not wait: {said}");
-        assert!(said.contains("goes on without waiting for it"), "it says this command goes on: {said}");
+        assert!(
+            said.contains("refs/cli-git/kept/1"),
+            "it names the merge saved on its side ref: {said}"
+        );
+        assert!(
+            said.contains("nothing of it is in the checkout yet"),
+            "it says why it need not wait: {said}"
+        );
+        assert!(
+            said.contains("goes on without waiting for it"),
+            "it says this command goes on: {said}"
+        );
     }
     assert!(lock.exists(), "the lock is not the command's to remove");
-    assert_eq!(records_in(records.as_path()).len(), 1, "the record is kept for the next command");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), old, "the branch did not move");
+    assert_eq!(
+        records_in(records.as_path()).len(),
+        1,
+        "the record is kept for the next command"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(),
+        old,
+        "the branch did not move"
+    );
     // The lock goes, and the next command finishes what the saved merge left undone and says so: the notice the route
     //  prints for a command that lands a merge someone else's process started.
     std::fs::remove_file(lock.as_path()).expect("the other program lets go");
-    let finished: Observed = observe(&mut wrapped_in(&fixture, repo.as_path(), &["status", "--short"]), b"");
+    let finished: Observed = observe(
+        &mut wrapped_in(&fixture, repo.as_path(), &["status", "--short"]),
+        b"",
+    );
     let said: String = text(&finished.stderr);
     assert_eq!(finished.code, Some(0), "{said}");
-    assert!(said.contains("finished an interrupted merge"), "the command that lands the merge says so: {said}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), merge, "the saved merge landed");
-    assert_eq!(records_in(records.as_path()).len(), 0, "the record goes with the merge it named");
+    assert!(
+        said.contains("finished an interrupted merge"),
+        "the command that lands the merge says so: {said}"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(),
+        merge,
+        "the saved merge landed"
+    );
+    assert_eq!(
+        records_in(records.as_path()).len(),
+        0,
+        "the record goes with the merge it named"
+    );
     remove_settled(&fixture);
 }
 
@@ -275,17 +454,27 @@ fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_
 /// both parents,
 /// message,
 /// author and committer names.
-fn commit_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
+fn commit_shape(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["rev-parse", "HEAD^{tree}"]),
         git_text(fixture, repo, &["rev-parse", "HEAD^1"]),
         git_text(fixture, repo, &["rev-parse", "HEAD^2"]),
-        git_text(fixture, repo, &["log", "-1", "--format=%an <%ae>|%cn <%ce>|%B"]),
+        git_text(
+            fixture,
+            repo,
+            &["log", "-1", "--format=%an <%ae>|%cn <%ce>|%B"],
+        ),
     ];
 }
 
 /// The `ls-files --stage --debug` blocks (the entry line and the stat lines under it) of the named paths.
-fn entries_of(listing: &str, names: &[&str]) -> Vec<String> {
+fn entries_of(
+    listing: &str,
+    names: &[&str],
+) -> Vec<String> {
     let mut blocks: Vec<String> = Vec::new();
     let mut keep: bool = false;
     for line in listing.lines() {
@@ -316,7 +505,10 @@ fn the_merge_equals_what_native_git_writes_on_a_clean_checkout() {
         ("default", &["feature"]),
         ("no-edit", &["--no-edit", "feature"]),
         ("message", &["-m", "custom message", "feature"]),
-        ("messages", &["-m", "first paragraph", "-m", "second paragraph", "feature"]),
+        (
+            "messages",
+            &["-m", "first paragraph", "-m", "second paragraph", "feature"],
+        ),
         ("untidy", &["-m", "  spaced   \n\n\n\ntail  ", "feature"]),
         ("log", &["--log", "feature"]),
         ("no-log", &["--no-log", "feature"]),
@@ -332,11 +524,24 @@ fn the_merge_equals_what_native_git_writes_on_a_clean_checkout() {
         merge.extend_from_slice(arguments);
         let ours: Observed = run(&fixture, dirty.as_path(), merge.as_slice());
         let theirs: Observed = native(&fixture, clean.as_path(), merge.as_slice());
-        assert_eq!(theirs.code, Some(0), "{name}: native Git merges the clean copy: {}", text(&theirs.stderr));
+        assert_eq!(
+            theirs.code,
+            Some(0),
+            "{name}: native Git merges the clean copy: {}",
+            text(&theirs.stderr)
+        );
         assert_eq!(ours.code, Some(0), "{name}: {}", text(&ours.stderr));
         assert_eq!(text(&ours.stdout), text(&theirs.stdout), "{name}: output");
-        assert_eq!(text(&ours.stderr), text(&theirs.stderr), "{name}: diagnostics");
-        assert_eq!(commit_shape(&fixture, dirty.as_path()), commit_shape(&fixture, clean.as_path()), "{name}");
+        assert_eq!(
+            text(&ours.stderr),
+            text(&theirs.stderr),
+            "{name}: diagnostics"
+        );
+        assert_eq!(
+            commit_shape(&fixture, dirty.as_path()),
+            commit_shape(&fixture, clean.as_path()),
+            "{name}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -355,17 +560,38 @@ fn every_kind_of_merged_name_is_worded_as_native_git_words_it() {
                 String::from("release-1")
             }
             "remote-tracking" => {
-                git(&fixture, dirty.as_path(), &["update-ref", "refs/remotes/origin/work", tip.trim()]);
+                git(
+                    &fixture,
+                    dirty.as_path(),
+                    &["update-ref", "refs/remotes/origin/work", tip.trim()],
+                );
                 String::from("origin/work")
             }
             _ => String::from(&tip.trim()[..10]),
         };
         let clean: PathBuf = copy_of(&fixture, dirty.as_path(), "clean");
         stage_unrelated_work(&fixture, dirty.as_path());
-        let ours: Observed = run(&fixture, dirty.as_path(), &["merge", "--no-edit", name.as_str()]);
-        let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", name.as_str()]);
-        assert_eq!((ours.code, theirs.code), (Some(0), Some(0)), "{kind}: {}", text(&ours.stderr));
-        assert_eq!(commit_shape(&fixture, dirty.as_path()), commit_shape(&fixture, clean.as_path()), "{kind}");
+        let ours: Observed = run(
+            &fixture,
+            dirty.as_path(),
+            &["merge", "--no-edit", name.as_str()],
+        );
+        let theirs: Observed = native(
+            &fixture,
+            clean.as_path(),
+            &["merge", "--no-edit", name.as_str()],
+        );
+        assert_eq!(
+            (ours.code, theirs.code),
+            (Some(0), Some(0)),
+            "{kind}: {}",
+            text(&ours.stderr)
+        );
+        assert_eq!(
+            commit_shape(&fixture, dirty.as_path()),
+            commit_shape(&fixture, clean.as_path()),
+            "{kind}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -387,22 +613,66 @@ fn other_sessions_work_is_byte_identical_afterwards() {
     let after: Snapshot = snapshot(&fixture, repo.as_path());
     assert_ne!(after.head, before.head, "the branch moved");
     let untouched = |snapshot: &Snapshot| -> Vec<String> {
-        return entries_of(snapshot.entries.as_str(), &["u.txt", "w.txt", "h.txt", "new.txt"]);
+        return entries_of(
+            snapshot.entries.as_str(),
+            &["u.txt", "w.txt", "h.txt", "new.txt"],
+        );
     };
-    assert_eq!(untouched(&after), untouched(&before), "the entries of paths the merge does not change");
-    assert!(untouched(&before).iter().filter(|line| { return !line.starts_with(' '); }).count() == 4);
     assert_eq!(
-        after.status.lines().filter(|line| { return !line.contains("dir/") && !line.contains("f.txt"); }).collect::<Vec<&str>>(),
+        untouched(&after),
+        untouched(&before),
+        "the entries of paths the merge does not change"
+    );
+    assert!(
+        untouched(&before)
+            .iter()
+            .filter(|line| {
+                return !line.starts_with(' ');
+            })
+            .count()
+            == 4
+    );
+    assert_eq!(
+        after
+            .status
+            .lines()
+            .filter(|line| {
+                return !line.contains("dir/") && !line.contains("f.txt");
+            })
+            .collect::<Vec<&str>>(),
         before.status.lines().collect::<Vec<&str>>(),
         "the staged and unstaged work reads as it did"
     );
-    assert_eq!(std::fs::read(repo.join("w.txt")).expect("w"), b"w.txt edited and not staged\n");
-    assert_eq!(std::fs::read(repo.join("u.txt")).expect("u"), b"u.txt staged by another session\n");
-    assert_eq!(std::fs::read(repo.join("untracked.txt")).expect("untracked"), b"untracked\n");
-    assert_eq!(std::fs::read(repo.join("f.txt")).expect("f"), b"f.txt feature\n");
+    assert_eq!(
+        std::fs::read(repo.join("w.txt")).expect("w"),
+        b"w.txt edited and not staged\n"
+    );
+    assert_eq!(
+        std::fs::read(repo.join("u.txt")).expect("u"),
+        b"u.txt staged by another session\n"
+    );
+    assert_eq!(
+        std::fs::read(repo.join("untracked.txt")).expect("untracked"),
+        b"untracked\n"
+    );
+    assert_eq!(
+        std::fs::read(repo.join("f.txt")).expect("f"),
+        b"f.txt feature\n"
+    );
     assert!(!repo.join("gone.txt").exists() && repo.join("dir/new.txt").exists());
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     remove_settled(&fixture);
 }
 
@@ -432,12 +702,24 @@ fn finding_of(observed: &Observed) -> serde_json::Value {
 fn a_merge_over_a_staged_path_carries_it_and_lands() {
     let fixture: Fixture = fixture("merge-carries-staged-overlap");
     let repo: PathBuf = diverged(&fixture, "repo");
-    std::fs::write(repo.join("g.txt"), b"g.txt base\nthe person's staged line\n").expect("file");
+    std::fs::write(
+        repo.join("g.txt"),
+        b"g.txt base\nthe person's staged line\n",
+    )
+    .expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "g.txt"]);
     stage_unrelated_work(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n",
+        "the merge was made"
+    );
     assert!(!repo.join(".git/MERGE_HEAD").exists());
     assert_eq!(
         std::fs::read(repo.join("g.txt")).expect("g"),
@@ -445,15 +727,61 @@ fn a_merge_over_a_staged_path_carries_it_and_lands() {
         "the merge's line and the person's staged line"
     );
     let status = |path: &str| -> String {
-        return git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=no", "--", path]);
+        return git_text(
+            &fixture,
+            repo.as_path(),
+            &[
+                "--no-optional-locks",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=no",
+                "--",
+                path,
+            ],
+        );
     };
-    assert_eq!(status("g.txt"), "M  g.txt\n", "the edit is still staged, with nothing unstaged over it");
-    assert_eq!(status("u.txt"), "M  u.txt\n", "the other session's staged edit is untouched");
-    assert_eq!(status("w.txt"), "", "a path the merge and the other session both leave alone is untouched");
-    assert_eq!(status("v.txt"), "D  v.txt\n", "the other session's staged deletion is untouched");
-    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record went");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git"]), "", "the capture's ref went");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    assert_eq!(
+        status("g.txt"),
+        "M  g.txt\n",
+        "the edit is still staged, with nothing unstaged over it"
+    );
+    assert_eq!(
+        status("u.txt"),
+        "M  u.txt\n",
+        "the other session's staged edit is untouched"
+    );
+    assert_eq!(
+        status("w.txt"),
+        "",
+        "a path the merge and the other session both leave alone is untouched"
+    );
+    assert_eq!(
+        status("v.txt"),
+        "D  v.txt\n",
+        "the other session's staged deletion is untouched"
+    );
+    assert_eq!(
+        records_in(
+            repo.join(".git/monochromatic-git-policy-cli-merges")
+                .as_path()
+        ),
+        Vec::<PathBuf>::new(),
+        "the record went"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", "refs/cli-git"]
+        ),
+        "",
+        "the capture's ref went"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     remove_settled(&fixture);
 }
 
@@ -473,7 +801,8 @@ fn other_kinds_of_overlap_are_carried_the_same_way() {
                 git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "f.txt"]);
             }
             "unstaged-edit" => {
-                std::fs::write(repo.join("f.txt"), b"f.txt feature\nthe person's line\n").expect("file");
+                std::fs::write(repo.join("f.txt"), b"f.txt feature\nthe person's line\n")
+                    .expect("file");
             }
             _ => {
                 git(&fixture, repo.as_path(), &["mv", "g.txt", "g-renamed.txt"]);
@@ -481,15 +810,41 @@ fn other_kinds_of_overlap_are_carried_the_same_way() {
         }
         let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
         assert_eq!(observed.code, Some(0), "{kind}: {}", text(&observed.stderr));
-        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "{kind}: the merge was made");
-        let status: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=no"]);
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &["rev-list", "--count", "--merges", "HEAD"]
+            ),
+            "1\n",
+            "{kind}: the merge was made"
+        );
+        let status: String = git_text(
+            &fixture,
+            repo.as_path(),
+            &[
+                "--no-optional-locks",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=no",
+            ],
+        );
         match kind {
             "staged-deletion" => {
-                assert!(status.contains("D  f.txt"), "{kind}: the staged deletion stays staged: {status}");
-                assert!(!repo.join("f.txt").exists(), "{kind}: the deletion stays in the worktree");
+                assert!(
+                    status.contains("D  f.txt"),
+                    "{kind}: the staged deletion stays staged: {status}"
+                );
+                assert!(
+                    !repo.join("f.txt").exists(),
+                    "{kind}: the deletion stays in the worktree"
+                );
             }
             "unstaged-edit" => {
-                assert_eq!(status, " M f.txt\n", "{kind}: the edit is still unsaved: {status}");
+                assert_eq!(
+                    status, " M f.txt\n",
+                    "{kind}: the edit is still unsaved: {status}"
+                );
                 assert_eq!(
                     std::fs::read(repo.join("f.txt")).expect("f"),
                     b"f.txt feature\nthe person's line\n",
@@ -497,11 +852,24 @@ fn other_kinds_of_overlap_are_carried_the_same_way() {
                 );
             }
             _ => {
-                assert!(status.contains("A  g-renamed.txt") && status.contains("D  g.txt"), "{kind}: both names stay as staged: {status}");
-                assert!(!repo.join("g.txt").exists() && repo.join("g-renamed.txt").exists(), "{kind}");
+                assert!(
+                    status.contains("A  g-renamed.txt") && status.contains("D  g.txt"),
+                    "{kind}: both names stay as staged: {status}"
+                );
+                assert!(
+                    !repo.join("g.txt").exists() && repo.join("g-renamed.txt").exists(),
+                    "{kind}"
+                );
             }
         }
-        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "{kind}: the record went");
+        assert_eq!(
+            records_in(
+                repo.join(".git/monochromatic-git-policy-cli-merges")
+                    .as_path()
+            ),
+            Vec::<PathBuf>::new(),
+            "{kind}: the record went"
+        );
         remove_settled(&fixture);
     }
 }
@@ -512,7 +880,11 @@ fn a_conflicting_merge_changes_nothing_and_names_the_paths() {
     let fixture: Fixture = fixture("merge-refuses-conflict");
     let repo: PathBuf = diverged(&fixture, "repo");
     std::fs::write(repo.join("f.txt"), b"f.txt main edit\n").expect("file");
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main edits f"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main edits f"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
     let before: Snapshot = snapshot(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
@@ -520,14 +892,25 @@ fn a_conflicting_merge_changes_nothing_and_names_the_paths() {
     let finding = finding_of(&observed);
     assert_eq!(finding["code"], "merge-isolation/merge-conflict");
     let message: &str = finding["message"].as_str().expect("message");
-    assert!(message.contains("f.txt") && !message.contains("g.txt"), "{message}");
+    assert!(
+        message.contains("f.txt") && !message.contains("g.txt"),
+        "{message}"
+    );
     for way in ["clean linked worktree", "clean checkout", "rebase"] {
         assert!(message.contains(way), "{way}: {message}");
     }
     assert_eq!(snapshot(&fixture, repo.as_path()), before);
     assert!(!repo.join(".git/MERGE_HEAD").exists());
-    assert_eq!(std::fs::read(repo.join("f.txt")).expect("f"), b"f.txt main edit\n", "no conflict markers");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    assert_eq!(
+        std::fs::read(repo.join("f.txt")).expect("f"),
+        b"f.txt main edit\n",
+        "no conflict markers"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     remove_settled(&fixture);
 }
 
@@ -551,18 +934,52 @@ fn an_untracked_file_where_the_merge_adds_one_keeps_both_sides() {
     std::fs::write(repo.join("dir/new.txt"), b"the person's untracked file\n").expect("file");
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n",
+        "the merge was made"
+    );
     let text_at: String = std::fs::read_to_string(repo.join("dir/new.txt")).expect("the file");
-    assert!(text_at.contains("the person's untracked file"), "the person's bytes are kept: {text_at}");
-    assert!(text_at.contains("<<<<<<<") && text_at.contains(">>>>>>>"), "both sides are in the file: {text_at}");
-    assert!(text(&observed.stderr).contains("dir/new.txt"), "the file is named: {}", text(&observed.stderr));
+    assert!(
+        text_at.contains("the person's untracked file"),
+        "the person's bytes are kept: {text_at}"
+    );
+    assert!(
+        text_at.contains("<<<<<<<") && text_at.contains(">>>>>>>"),
+        "both sides are in the file: {text_at}"
+    );
+    assert!(
+        text(&observed.stderr).contains("dir/new.txt"),
+        "the file is named: {}",
+        text(&observed.stderr)
+    );
     assert_eq!(
         git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD:dir/new.txt"]).trim(),
-        git_text(&fixture, repo.as_path(), &["rev-parse", "feature:dir/new.txt"]).trim(),
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-parse", "feature:dir/new.txt"]
+        )
+        .trim(),
         "the merge's version is in the commit"
     );
-    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record went");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    assert_eq!(
+        records_in(
+            repo.join(".git/monochromatic-git-policy-cli-merges")
+                .as_path()
+        ),
+        Vec::<PathBuf>::new(),
+        "the record went"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     remove_settled(&fixture);
 }
 
@@ -577,12 +994,41 @@ fn a_clean_index_merge_is_completed_and_equals_what_native_git_writes() {
     let fixture: Fixture = fixture("merge-clean-index");
     let wrapped_repo: PathBuf = diverged(&fixture, "wrapped");
     let clean: PathBuf = copy_of(&fixture, wrapped_repo.as_path(), "native");
-    let ours: Observed = run(&fixture, wrapped_repo.as_path(), &["merge", "--no-edit", "feature"]);
-    let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!((ours.code, text(&ours.stdout), text(&ours.stderr)), (theirs.code, text(&theirs.stdout), text(&theirs.stderr)));
-    assert_eq!(commit_shape(&fixture, wrapped_repo.as_path()), commit_shape(&fixture, clean.as_path()));
-    assert_eq!(git_text(&fixture, wrapped_repo.as_path(), &["status", "--porcelain=v1"]), "");
-    assert_eq!(records_in(wrapped_repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "no record is left");
+    let ours: Observed = run(
+        &fixture,
+        wrapped_repo.as_path(),
+        &["merge", "--no-edit", "feature"],
+    );
+    let theirs: Observed = native(
+        &fixture,
+        clean.as_path(),
+        &["merge", "--no-edit", "feature"],
+    );
+    assert_eq!(
+        (ours.code, text(&ours.stdout), text(&ours.stderr)),
+        (theirs.code, text(&theirs.stdout), text(&theirs.stderr))
+    );
+    assert_eq!(
+        commit_shape(&fixture, wrapped_repo.as_path()),
+        commit_shape(&fixture, clean.as_path())
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            wrapped_repo.as_path(),
+            &["status", "--porcelain=v1"]
+        ),
+        ""
+    );
+    assert_eq!(
+        records_in(
+            wrapped_repo
+                .join(".git/monochromatic-git-policy-cli-merges")
+                .as_path()
+        ),
+        Vec::<PathBuf>::new(),
+        "no record is left"
+    );
     remove_settled(&fixture);
 }
 
@@ -593,14 +1039,32 @@ fn a_clean_index_conflict_is_native_gits() {
     let fixture: Fixture = fixture("merge-clean-index-conflict");
     let repo: PathBuf = diverged(&fixture, "wrapped");
     std::fs::write(repo.join("f.txt"), b"f.txt main\n").expect("file");
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main edits f"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main edits f"],
+    );
     let clean: PathBuf = copy_of(&fixture, repo.as_path(), "native");
     let ours: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)));
+    let theirs: Observed = native(
+        &fixture,
+        clean.as_path(),
+        &["merge", "--no-edit", "feature"],
+    );
+    assert_eq!(
+        (ours.code, text(&ours.stdout)),
+        (theirs.code, text(&theirs.stdout))
+    );
     assert_eq!(theirs.code, Some(1));
-    assert!(repo.join(".git/MERGE_HEAD").exists(), "the merge waits for the person's resolution, as in native Git");
-    assert!(std::fs::read_to_string(repo.join("f.txt")).expect("file").contains("<<<<<<<"));
+    assert!(
+        repo.join(".git/MERGE_HEAD").exists(),
+        "the merge waits for the person's resolution, as in native Git"
+    );
+    assert!(
+        std::fs::read_to_string(repo.join("f.txt"))
+            .expect("file")
+            .contains("<<<<<<<")
+    );
     remove_settled(&fixture);
 }
 
@@ -612,19 +1076,41 @@ fn a_fast_forward_over_unrelated_staged_work_is_native_gits() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("u.txt"), b"u\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("f.txt"), b"f\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=feature"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature"],
+    );
     git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("u.txt"), b"u staged\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert!(text(&observed.stdout).contains("Fast-forward"), "{}", text(&observed.stdout));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), git_text(&fixture, repo.as_path(), &["rev-parse", "feature"]));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt\n");
+    assert!(
+        text(&observed.stdout).contains("Fast-forward"),
+        "{}",
+        text(&observed.stdout)
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]),
+        git_text(&fixture, repo.as_path(), &["rev-parse", "feature"])
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]),
+        "M  u.txt\n"
+    );
     remove_settled(&fixture);
 }
 
@@ -637,20 +1123,51 @@ fn no_ff_over_a_fast_forward_is_completed() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("u.txt"), b"u\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("f.txt"), b"f\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=feature"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature"],
+    );
     git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
     let clean: PathBuf = copy_of(&fixture, repo.as_path(), "clean");
     std::fs::write(repo.join("u.txt"), b"u staged\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
-    let ours: Observed = run(&fixture, repo.as_path(), &["merge", "--no-ff", "--no-edit", "feature"]);
-    let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-ff", "--no-edit", "feature"]);
-    assert_eq!((ours.code, theirs.code), (Some(0), Some(0)), "{}", text(&ours.stderr));
-    assert_eq!(commit_shape(&fixture, repo.as_path()), commit_shape(&fixture, clean.as_path()));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt\n");
+    let ours: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["merge", "--no-ff", "--no-edit", "feature"],
+    );
+    let theirs: Observed = native(
+        &fixture,
+        clean.as_path(),
+        &["merge", "--no-ff", "--no-edit", "feature"],
+    );
+    assert_eq!(
+        (ours.code, theirs.code),
+        (Some(0), Some(0)),
+        "{}",
+        text(&ours.stderr)
+    );
+    assert_eq!(
+        commit_shape(&fixture, repo.as_path()),
+        commit_shape(&fixture, clean.as_path())
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]),
+        "M  u.txt\n"
+    );
     remove_settled(&fixture);
 }
 
@@ -677,9 +1194,22 @@ fn shapes_that_cannot_be_made_exact_fall_back_to_native_git() {
         merge.extend_from_slice(arguments);
         let ours: Observed = run(&fixture, repo.as_path(), merge.as_slice());
         let theirs: Observed = native(&fixture, clean.as_path(), merge.as_slice());
-        assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)), "{name}");
-        assert_eq!(text(&ours.stderr), text(&theirs.stderr), "{name}: native Git's words");
-        assert!(!repo.join(".git/monochromatic-git-policy-cli-merges").exists(), "{name}");
+        assert_eq!(
+            (ours.code, text(&ours.stdout)),
+            (theirs.code, text(&theirs.stdout)),
+            "{name}"
+        );
+        assert_eq!(
+            text(&ours.stderr),
+            text(&theirs.stderr),
+            "{name}: native Git's words"
+        );
+        assert!(
+            !repo
+                .join(".git/monochromatic-git-policy-cli-merges")
+                .exists(),
+            "{name}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -694,9 +1224,20 @@ fn an_octopus_merge_falls_back_to_native_git() {
     let clean: PathBuf = copy_of(&fixture, repo.as_path(), "clean");
     stage_unrelated_work(&fixture, repo.as_path());
     stage_unrelated_work(&fixture, clean.as_path());
-    let ours: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature", "second"]);
-    let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", "feature", "second"]);
-    assert_eq!((ours.code, text(&ours.stdout), text(&ours.stderr)), (theirs.code, text(&theirs.stdout), text(&theirs.stderr)));
+    let ours: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["merge", "--no-edit", "feature", "second"],
+    );
+    let theirs: Observed = native(
+        &fixture,
+        clean.as_path(),
+        &["merge", "--no-edit", "feature", "second"],
+    );
+    assert_eq!(
+        (ours.code, text(&ours.stdout), text(&ours.stderr)),
+        (theirs.code, text(&theirs.stdout), text(&theirs.stderr))
+    );
     remove_settled(&fixture);
 }
 
@@ -706,20 +1247,50 @@ fn an_octopus_merge_falls_back_to_native_git() {
 fn an_up_to_date_merge_is_native_gits() {
     let fixture: Fixture = fixture("merge-up-to-date");
     let repo: PathBuf = diverged(&fixture, "repo");
-    git(&fixture, repo.as_path(), &["merge", "--quiet", "--no-edit", "feature"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["merge", "--quiet", "--no-edit", "feature"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!((observed.code, text(&observed.stdout)), (Some(0), String::from("Already up to date.\n")));
+    assert_eq!(
+        (observed.code, text(&observed.stdout)),
+        (Some(0), String::from("Already up to date.\n"))
+    );
     remove_settled(&fixture);
 }
 
 /// Configure a hook that appends its name to a marker file outside the worktree.
-fn marker_hook(fixture: &Fixture, repo: &Path, event: &str) -> PathBuf {
+fn marker_hook(
+    fixture: &Fixture,
+    repo: &Path,
+    event: &str,
+) -> PathBuf {
     let marker: PathBuf = fixture.root.join(format!("{event}.marker"));
     let script: PathBuf = fixture.root.join(format!("{event}-hook"));
-    executable(script.as_path(), format!("#!/bin/sh\necho ran >> '{}'\n", marker.display()).as_bytes());
-    git(fixture, repo, &["config", format!("hook.control-{event}.event").as_str(), event]);
-    git(fixture, repo, &["config", format!("hook.control-{event}.command").as_str(), script.to_str().expect("UTF-8")]);
+    executable(
+        script.as_path(),
+        format!("#!/bin/sh\necho ran >> '{}'\n", marker.display()).as_bytes(),
+    );
+    git(
+        fixture,
+        repo,
+        &[
+            "config",
+            format!("hook.control-{event}.event").as_str(),
+            event,
+        ],
+    );
+    git(
+        fixture,
+        repo,
+        &[
+            "config",
+            format!("hook.control-{event}.command").as_str(),
+            script.to_str().expect("UTF-8"),
+        ],
+    );
     return marker;
 }
 
@@ -757,12 +1328,23 @@ fn a_signing_repository_gets_a_signed_merge() {
         program.as_path(),
         b"#!/bin/sh\ncat > /dev/null\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nplaceholder\\n-----END PGP SIGNATURE-----\\n'\n",
     );
-    git(&fixture, repo.as_path(), &["config", "gpg.program", program.to_str().expect("UTF-8")]);
-    git(&fixture, repo.as_path(), &["config", "commit.gpgsign", "true"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "gpg.program", program.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "commit.gpgsign", "true"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert!(git_text(&fixture, repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "), "signed");
+    assert!(
+        git_text(&fixture, repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "),
+        "signed"
+    );
     remove_settled(&fixture);
 }
 
@@ -775,8 +1357,14 @@ fn a_signing_repository_gets_a_signed_merge() {
 /// whatever
 ///  the host's load,
 /// so a control for the notice depends on no sleep and no schedule.
-fn observe_releasing_on_notice(command: &mut Command, release: &Path) -> Observed {
-    use std::io::{BufRead, Read};
+fn observe_releasing_on_notice(
+    command: &mut Command,
+    release: &Path,
+) -> Observed {
+    use std::io::{
+        BufRead,
+        Read,
+    };
     let mut child = command
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -794,7 +1382,11 @@ fn observe_releasing_on_notice(command: &mut Command, release: &Path) -> Observe
     let mut stderr: Vec<u8> = Vec::new();
     loop {
         let line_start: usize = stderr.len();
-        if errors.read_until(b'\n', &mut stderr).expect("read standard error") == 0 {
+        if errors
+            .read_until(b'\n', &mut stderr)
+            .expect("read standard error")
+            == 0
+        {
             break;
         }
         if stderr[line_start..].starts_with(WAIT_NOTICE_PREFIX) {
@@ -857,8 +1449,16 @@ fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
         )
         .as_bytes(),
     );
-    git(&fixture, repo.as_path(), &["config", "gpg.program", program.to_str().expect("UTF-8")]);
-    git(&fixture, repo.as_path(), &["config", "commit.gpgsign", "true"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "gpg.program", program.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "commit.gpgsign", "true"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
     let raw: Observed = observe_releasing_on_notice(
         wrapped_in(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"])
@@ -867,11 +1467,16 @@ fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
     );
     assert_eq!(raw.code, Some(0), "{}", text(&raw.stderr));
     assert!(
-        text(&raw.stderr).contains("monochromatic-git-policy-cli: still waiting for git commit-tree"),
+        text(&raw.stderr)
+            .contains("monochromatic-git-policy-cli: still waiting for git commit-tree"),
         "the slow step announces itself: {}",
         text(&raw.stderr)
     );
-    assert_eq!(text(&without_wait_notices(raw.stderr.as_slice())), "", "nothing else was said");
+    assert_eq!(
+        text(&without_wait_notices(raw.stderr.as_slice())),
+        "",
+        "nothing else was said"
+    );
     remove_settled(&fixture);
 }
 
@@ -883,16 +1488,56 @@ fn global_options_reach_every_query_of_the_merge() {
     stage_unrelated_work(&fixture, repo.as_path());
     std::fs::write(repo.join("sub/s.txt"), b"s staged by another session\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "sub/s.txt"]);
-    let configured: Observed = run(&fixture, repo.as_path(), &["-c", "merge.stat=false", "merge", "--no-edit", "feature"]);
+    let configured: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["-c", "merge.stat=false", "merge", "--no-edit", "feature"],
+    );
     assert_eq!(configured.code, Some(0), "{}", text(&configured.stderr));
-    assert_eq!(text(&configured.stdout), "Merge made by the 'ort' strategy.\n", "merge.stat=false hides the diffstat");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    git(&fixture, repo.as_path(), &["reset", "--hard", "--quiet", "HEAD^"]);
+    assert_eq!(
+        text(&configured.stdout),
+        "Merge made by the 'ort' strategy.\n",
+        "merge.stat=false hides the diffstat"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["reset", "--hard", "--quiet", "HEAD^"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
-    let elsewhere: Observed = run(&fixture, fixture.root.as_path(), &["-C", repo.to_str().expect("UTF-8"), "merge", "--no-edit", "feature"]);
+    let elsewhere: Observed = run(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "-C",
+            repo.to_str().expect("UTF-8"),
+            "merge",
+            "--no-edit",
+            "feature",
+        ],
+    );
     assert_eq!(elsewhere.code, Some(0), "{}", text(&elsewhere.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    let reflog: String = git_text(&fixture, repo.as_path(), &["reflog", "show", "--format=%gs", "-1", "HEAD"]);
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    let reflog: String = git_text(
+        &fixture,
+        repo.as_path(),
+        &["reflog", "show", "--format=%gs", "-1", "HEAD"],
+    );
     assert_eq!(reflog, "merge feature: Fast-forward\n");
     remove_settled(&fixture);
 }
@@ -903,20 +1548,57 @@ fn a_linked_worktree_with_staged_work_merges_too() {
     let fixture: Fixture = fixture("merge-linked-worktree");
     let repo: PathBuf = diverged(&fixture, "repo");
     let linked: PathBuf = fixture.root.join("linked");
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8"), "main"]);
-    std::fs::write(linked.join("u.txt"), b"u.txt staged in the linked worktree\n").expect("file");
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            linked.to_str().expect("UTF-8"),
+            "main",
+        ],
+    );
+    std::fs::write(
+        linked.join("u.txt"),
+        b"u.txt staged in the linked worktree\n",
+    )
+    .expect("file");
     git(&fixture, linked.as_path(), &["add", "--", "u.txt"]);
-    let observed: Observed = run(&fixture, linked.as_path(), &["merge", "--no-edit", "feature"]);
+    let observed: Observed = run(
+        &fixture,
+        linked.as_path(),
+        &["merge", "--no-edit", "feature"],
+    );
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert_eq!(git_text(&fixture, linked.as_path(), &["status", "--porcelain=v1"]), "M  u.txt\n");
-    assert_eq!(git_text(&fixture, linked.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "main"]), git_text(&fixture, linked.as_path(), &["rev-parse", "main"]));
+    assert_eq!(
+        git_text(&fixture, linked.as_path(), &["status", "--porcelain=v1"]),
+        "M  u.txt\n"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            linked.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "main"]),
+        git_text(&fixture, linked.as_path(), &["rev-parse", "main"])
+    );
     remove_settled(&fixture);
 }
 
 /// Start a merge that a phase marker kills,
 /// and return what the killed process left.
-fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
+fn killed_merge_at(
+    fixture: &Fixture,
+    repo: &Path,
+    phase: &str,
+) -> PathBuf {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}"));
     std::fs::create_dir(&markers).expect("marker directory");
     let signal: String = format!("{phase}:kill:{}", markers.display());
@@ -930,7 +1612,10 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
         output.status,
         text(&output.stderr)
     );
-    assert!(markers.join(format!("{phase}.reached")).exists(), "{phase} was reached");
+    assert!(
+        markers.join(format!("{phase}.reached")).exists(),
+        "{phase} was reached"
+    );
     return repo.join(".git/monochromatic-git-policy-cli-merges");
 }
 
@@ -943,8 +1628,14 @@ pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
         .map(|entries| {
             return entries
                 .flatten()
-                .map(|entry| { return entry.path(); })
-                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "json"; }); })
+                .map(|entry| {
+                    return entry.path();
+                })
+                .filter(|path| {
+                    return path.extension().is_some_and(|extension| {
+                        return extension == "json";
+                    });
+                })
                 .collect();
         })
         .unwrap_or_default();
@@ -958,8 +1649,14 @@ pub(super) fn landed_in(directory: &Path) -> Vec<PathBuf> {
         .map(|entries| {
             return entries
                 .flatten()
-                .map(|entry| { return entry.path(); })
-                .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "landed"; }); })
+                .map(|entry| {
+                    return entry.path();
+                })
+                .filter(|path| {
+                    return path.extension().is_some_and(|extension| {
+                        return extension == "landed";
+                    });
+                })
                 .collect();
         })
         .unwrap_or_default();
@@ -978,16 +1675,33 @@ fn a_kill_before_the_checkout_changes_is_discarded() {
     stage_unrelated_work(&fixture, repo.as_path());
     let before: Snapshot = snapshot(&fixture, repo.as_path());
     let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-intent");
-    assert_eq!(records_in(records.as_path()).len(), 1, "the dead merge left its record");
+    assert_eq!(
+        records_in(records.as_path()).len(),
+        1,
+        "the dead merge left its record"
+    );
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
-    assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new(), "recovery removed the record");
+    assert_eq!(
+        records_in(records.as_path()),
+        Vec::<PathBuf>::new(),
+        "recovery removed the record"
+    );
     assert_eq!(snapshot(&fixture, repo.as_path()).head, before.head);
     assert_eq!(snapshot(&fixture, repo.as_path()).entries, before.entries);
     assert!(!repo.join(".git/index.lock").exists());
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     let again: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!(again.code, Some(0), "the merge can be run again: {}", text(&again.stderr));
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the merge can be run again: {}",
+        text(&again.stderr)
+    );
     remove_settled(&fixture);
 }
 
@@ -1000,15 +1714,49 @@ fn a_kill_after_the_branch_moved_leaves_a_consistent_checkout() {
     stage_unrelated_work(&fixture, repo.as_path());
     let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-applied");
     assert_eq!(records_in(records.as_path()).len(), 1);
-    assert_eq!(landed_in(records.as_path()).len(), 1, "the reading of what Git's update left went beside the record");
+    assert_eq!(
+        landed_in(records.as_path()).len(),
+        1,
+        "the reading of what Git's update left went beside the record"
+    );
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
-    assert_eq!(text(&status.stdout).lines().filter(|line| { return line.starts_with("M  u.txt") || line.starts_with("A  new.txt") || line.starts_with("D  v.txt"); }).count(), 3);
-    assert_eq!(text(&status.stdout).lines().count(), 3, "only the other session's work is staged: {}", text(&status.stdout));
+    assert_eq!(
+        text(&status.stdout)
+            .lines()
+            .filter(|line| {
+                return line.starts_with("M  u.txt")
+                    || line.starts_with("A  new.txt")
+                    || line.starts_with("D  v.txt");
+            })
+            .count(),
+        3
+    );
+    assert_eq!(
+        text(&status.stdout).lines().count(),
+        3,
+        "only the other session's work is staged: {}",
+        text(&status.stdout)
+    );
     assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new());
-    assert_eq!(landed_in(records.as_path()), Vec::<PathBuf>::new(), "the reading goes with the record it belongs to");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    assert_eq!(
+        landed_in(records.as_path()),
+        Vec::<PathBuf>::new(),
+        "the reading goes with the record it belongs to"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["fsck", "--strict", "--no-dangling"],
+    );
     remove_settled(&fixture);
 }
 
@@ -1022,16 +1770,35 @@ fn a_kill_inside_gits_update_is_completed_by_the_next_command() {
         let fixture: Fixture = fixture(format!("merge-kill-inside-{stage}").as_str());
         let repo: PathBuf = diverged(&fixture, "repo");
         stage_unrelated_work(&fixture, repo.as_path());
-        let staged: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]);
+        let staged: String = git_text(
+            &fixture,
+            repo.as_path(),
+            &[
+                "--no-optional-locks",
+                "ls-files",
+                "--stage",
+                "--debug",
+                "--",
+                "u.txt",
+            ],
+        );
         let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-intent");
-        let record: String = std::fs::read_to_string(records_in(records.as_path())[0].as_path()).expect("record");
-        let new_oid: String = serde_json::from_str::<serde_json::Value>(record.as_str()).expect("record JSON")["newOid"]
+        let record: String =
+            std::fs::read_to_string(records_in(records.as_path())[0].as_path()).expect("record");
+        let new_oid: String = serde_json::from_str::<serde_json::Value>(record.as_str())
+            .expect("record JSON")["newOid"]
             .as_str()
             .expect("newOid")
             .to_owned();
-        let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+        let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"])
+            .trim()
+            .to_owned();
         if stage == "checkout-and-index" {
-            git(&fixture, repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.trim()]);
+            git(
+                &fixture,
+                repo.as_path(),
+                &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.trim()],
+            );
         } else {
             std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
             std::fs::write(repo.join("g.txt"), b"g.txt feature\n").expect("file");
@@ -1039,15 +1806,43 @@ fn a_kill_inside_gits_update_is_completed_by_the_next_command() {
         }
         let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
         assert_eq!(status.code, Some(0), "{stage}: {}", text(&status.stderr));
-        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), new_oid.trim(), "{stage}: the branch moved");
-        assert_eq!(text(&status.stdout).lines().count(), 3, "{stage}: only the other session's work is staged: {}", text(&status.stdout));
         assert_eq!(
-            git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]),
+            git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
+            new_oid.trim(),
+            "{stage}: the branch moved"
+        );
+        assert_eq!(
+            text(&status.stdout).lines().count(),
+            3,
+            "{stage}: only the other session's work is staged: {}",
+            text(&status.stdout)
+        );
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &[
+                    "--no-optional-locks",
+                    "ls-files",
+                    "--stage",
+                    "--debug",
+                    "--",
+                    "u.txt"
+                ]
+            ),
             staged,
             "{stage}: the staged entry is byte-identical"
         );
-        assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new(), "{stage}");
-        git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+        assert_eq!(
+            records_in(records.as_path()),
+            Vec::<PathBuf>::new(),
+            "{stage}"
+        );
+        git(
+            &fixture,
+            repo.as_path(),
+            &["fsck", "--strict", "--no-dangling"],
+        );
         remove_settled(&fixture);
     }
 }
@@ -1077,10 +1872,21 @@ fn a_damaged_record_fails_closed_and_a_missing_one_recovers_nothing() {
             assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
         } else {
             assert_eq!(status.code, Some(2), "{damage}: {}", text(&status.stderr));
-            assert!(text(&status.stderr).contains("malformed") && text(&status.stderr).contains(record.to_string_lossy().as_ref()));
+            assert!(
+                text(&status.stderr).contains("malformed")
+                    && text(&status.stderr).contains(record.to_string_lossy().as_ref())
+            );
             assert!(record.exists(), "the damaged record is kept for inspection");
         }
-        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "0\n", "{damage}");
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &["rev-list", "--count", "--merges", "HEAD"]
+            ),
+            "0\n",
+            "{damage}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -1099,7 +1905,9 @@ fn a_live_merges_record_is_left_alone() {
         "2026-10-29T00:00:00.000Z",
     )
     .expect("owner");
-    let tip: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let tip: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let intent = git_policy_cli::merge_isolation_journal::MergeIntent {
         owner,
         repository_root: repo.to_path_buf(),
@@ -1109,7 +1917,11 @@ fn a_live_merges_record_is_left_alone() {
         side_ref: None,
         carried: None,
     };
-    let record: PathBuf = git_policy_cli::merge_isolation_journal::write_merge_intent(repo.join(".git").as_path(), &intent).expect("record");
+    let record: PathBuf = git_policy_cli::merge_isolation_journal::write_merge_intent(
+        repo.join(".git").as_path(),
+        &intent,
+    )
+    .expect("record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(status.code, Some(0), "{}", text(&status.stderr));
     assert!(record.exists(), "a running merge's record is not recovered");
@@ -1124,8 +1936,11 @@ fn a_live_merges_record_is_left_alone() {
 /// clean copy.
 #[test]
 fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
-    let cases: [(&str, &[&str]); 3] =
-        [("default", &["feature"]), ("no-ff", &["--no-ff", "feature"]), ("ff", &["--ff", "feature"])];
+    let cases: [(&str, &[&str]); 3] = [
+        ("default", &["feature"]),
+        ("no-ff", &["--no-ff", "feature"]),
+        ("ff", &["--ff", "feature"]),
+    ];
     for (name, arguments) in cases {
         let fixture: Fixture = fixture(format!("merge-ff-only-{name}").as_str());
         let dirty: PathBuf = diverged(&fixture, "dirty");
@@ -1136,12 +1951,29 @@ fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
         merge.extend_from_slice(arguments);
         let ours: Observed = run(&fixture, dirty.as_path(), merge.as_slice());
         let theirs: Observed = native(&fixture, clean.as_path(), merge.as_slice());
-        assert_eq!(theirs.code == Some(0), name != "default", "{name}: native Git on the clean copy");
-        assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)), "{name}: {}", text(&ours.stderr));
+        assert_eq!(
+            theirs.code == Some(0),
+            name != "default",
+            "{name}: native Git on the clean copy"
+        );
+        assert_eq!(
+            (ours.code, text(&ours.stdout)),
+            (theirs.code, text(&theirs.stdout)),
+            "{name}: {}",
+            text(&ours.stderr)
+        );
         if theirs.code == Some(0) {
-            assert_eq!(commit_shape(&fixture, dirty.as_path()), commit_shape(&fixture, clean.as_path()), "{name}");
+            assert_eq!(
+                commit_shape(&fixture, dirty.as_path()),
+                commit_shape(&fixture, clean.as_path()),
+                "{name}"
+            );
         } else {
-            assert_eq!(text(&ours.stderr), text(&theirs.stderr), "{name}: native Git's words");
+            assert_eq!(
+                text(&ours.stderr),
+                text(&theirs.stderr),
+                "{name}: native Git's words"
+            );
         }
         remove_settled(&fixture);
     }
@@ -1165,12 +1997,34 @@ fn a_relative_directory_option_carries_a_merge_over_an_untracked_file() {
     stage_unrelated_work(&fixture, repo.as_path());
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
-    let observed: Observed = run(&fixture, fixture.root.as_path(), &["-C", "repo", "merge", "--no-edit", "feature"]);
+    let observed: Observed = run(
+        &fixture,
+        fixture.root.as_path(),
+        &["-C", "repo", "merge", "--no-edit", "feature"],
+    );
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n",
+        "the merge was made"
+    );
     let text_at: String = std::fs::read_to_string(repo.join("dir/new.txt")).expect("the file");
-    assert!(text_at.contains("an untracked file in the way") && text_at.contains("<<<<<<<"), "both sides are in the file: {text_at}");
-    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    assert!(
+        text_at.contains("an untracked file in the way") && text_at.contains("<<<<<<<"),
+        "both sides are in the file: {text_at}"
+    );
+    assert_eq!(
+        records_in(
+            repo.join(".git/monochromatic-git-policy-cli-merges")
+                .as_path()
+        ),
+        Vec::<PathBuf>::new(),
+        "the record is removed"
+    );
     remove_settled(&fixture);
 }
 
@@ -1182,25 +2036,71 @@ fn a_merge_recovers_a_dead_merge_before_it_checks_the_staged_work() {
     let fixture: Fixture = fixture("merge-recovers-before-merging");
     let repo: PathBuf = diverged(&fixture, "repo");
     stage_unrelated_work(&fixture, repo.as_path());
-    let staged: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]);
+    let staged: String = git_text(
+        &fixture,
+        repo.as_path(),
+        &[
+            "--no-optional-locks",
+            "ls-files",
+            "--stage",
+            "--debug",
+            "--",
+            "u.txt",
+        ],
+    );
     let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-intent");
-    let record: String = std::fs::read_to_string(records_in(records.as_path())[0].as_path()).expect("record");
-    let new_oid: String = serde_json::from_str::<serde_json::Value>(record.as_str()).expect("record JSON")["newOid"]
+    let record: String =
+        std::fs::read_to_string(records_in(records.as_path())[0].as_path()).expect("record");
+    let new_oid: String = serde_json::from_str::<serde_json::Value>(record.as_str())
+        .expect("record JSON")["newOid"]
         .as_str()
         .expect("newOid")
         .to_owned();
-    let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
-    git(&fixture, repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()]);
+    let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    git(
+        &fixture,
+        repo.as_path(),
+        &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()],
+    );
     let again: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!((again.code, text(&again.stdout)), (Some(0), String::from("Already up to date.\n")), "{}", text(&again.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), new_oid, "the dead merge was finished");
+    assert_eq!(
+        (again.code, text(&again.stdout)),
+        (Some(0), String::from("Already up to date.\n")),
+        "{}",
+        text(&again.stderr)
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
+        new_oid,
+        "the dead merge was finished"
+    );
     assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new());
     assert_eq!(
-        git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]),
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &[
+                "--no-optional-locks",
+                "ls-files",
+                "--stage",
+                "--debug",
+                "--",
+                "u.txt"
+            ]
+        ),
         staged,
         "the staged entry is byte-identical"
     );
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
     remove_settled(&fixture);
 }
 
@@ -1236,7 +2136,10 @@ fn terminal() -> Terminal {
         .custom_flags(libc::O_NOCTTY)
         .open(path)
         .expect("the slave opens");
-    return Terminal { _master: master, slave };
+    return Terminal {
+        _master: master,
+        slave,
+    };
 }
 
 /// Run a wrapped command with the given standard input and output,
@@ -1260,7 +2163,11 @@ fn run_on(
         .expect("process starts")
         .wait_with_output()
         .expect("process finishes");
-    return Observed { code: finished.status.code(), stdout: finished.stdout, stderr: finished.stderr };
+    return Observed {
+        code: finished.status.code(),
+        stdout: finished.stdout,
+        stderr: finished.stderr,
+    };
 }
 
 /// What:
@@ -1292,15 +2199,25 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
         );
     };
     let input_only = || -> (std::process::Stdio, std::process::Stdio) {
-        return (std::process::Stdio::from(one.slave.try_clone().expect("duplicate")), std::process::Stdio::piped());
+        return (
+            std::process::Stdio::from(one.slave.try_clone().expect("duplicate")),
+            std::process::Stdio::piped(),
+        );
     };
     let output_only = || -> (std::process::Stdio, std::process::Stdio) {
-        return (std::process::Stdio::null(), std::process::Stdio::from(one.slave.try_clone().expect("duplicate")));
+        return (
+            std::process::Stdio::null(),
+            std::process::Stdio::from(one.slave.try_clone().expect("duplicate")),
+        );
     };
     let neither = || -> (std::process::Stdio, std::process::Stdio) {
         return (std::process::Stdio::null(), std::process::Stdio::piped());
     };
-    let cases: [(&str, &dyn Fn() -> (std::process::Stdio, std::process::Stdio), bool); 5] = [
+    let cases: [(
+        &str,
+        &dyn Fn() -> (std::process::Stdio, std::process::Stdio),
+        bool,
+    ); 5] = [
         ("one terminal", &same, true),
         ("two terminals", &two, false),
         ("terminal input only", &input_only, false),
@@ -1313,14 +2230,42 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
         stage_unrelated_work(&fixture, repo.as_path());
         let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
         let editor: PathBuf = fixture.root.join("editor");
-        executable(editor.as_path(), b"#!/bin/sh\nprintf 'written in the editor\\n' >> \"$1\"\n");
-        let observed: Observed = run_on(&fixture, repo.as_path(), &["merge", "feature"], streams(), editor.as_path());
-        assert_eq!(observed.code, Some(0), "{name}: the staged work is carried: {}", text(&observed.stderr));
-        assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{name}: merged: {}", text(&observed.stderr));
-        let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
-        assert_eq!(message.contains("written in the editor"), opens_editor, "{name}: {}", text(&observed.stderr));
+        executable(
+            editor.as_path(),
+            b"#!/bin/sh\nprintf 'written in the editor\\n' >> \"$1\"\n",
+        );
+        let observed: Observed = run_on(
+            &fixture,
+            repo.as_path(),
+            &["merge", "feature"],
+            streams(),
+            editor.as_path(),
+        );
         assert_eq!(
-            git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1", "--", "u.txt"]),
+            observed.code,
+            Some(0),
+            "{name}: the staged work is carried: {}",
+            text(&observed.stderr)
+        );
+        assert_ne!(
+            git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]),
+            before,
+            "{name}: merged: {}",
+            text(&observed.stderr)
+        );
+        let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
+        assert_eq!(
+            message.contains("written in the editor"),
+            opens_editor,
+            "{name}: {}",
+            text(&observed.stderr)
+        );
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &["status", "--porcelain=v1", "--", "u.txt"]
+            ),
             "M  u.txt\n",
             "{name}: the staged work is still staged: {}",
             text(&observed.stderr)
@@ -1355,18 +2300,45 @@ fn the_fast_forward_to_the_merge_commit_starts_without_quiet() {
     let log: PathBuf = fixture.root.join("git-starts.log");
     let spy_directory: PathBuf = fixture.root.join("spy");
     std::fs::create_dir(&spy_directory).expect("stand-in directory");
-    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {} \"$@\"\n", log.display(), super::support::REAL_GIT);
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {} \"$@\"\n",
+        log.display(),
+        super::support::REAL_GIT
+    );
     executable(spy_directory.join("git").as_path(), script.as_bytes());
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(spy_directory.as_os_str());
-    let observed: Observed = observe(wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env("PATH", path), b"");
+    let observed: Observed = observe(
+        wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env("PATH", path),
+        b"",
+    );
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    let starts: Vec<String> = std::fs::read_to_string(&log).expect("the stand-in saw the starts").lines().map(String::from).collect();
-    let forwards: Vec<&String> = starts.iter().filter(|start| { return start.split(' ').any(|word| { return word == "--ff-only"; }); }).collect();
-    assert_eq!(forwards.len(), 1, "one fast-forward of the checkout: {starts:?}");
+    let starts: Vec<String> = std::fs::read_to_string(&log)
+        .expect("the stand-in saw the starts")
+        .lines()
+        .map(String::from)
+        .collect();
+    let forwards: Vec<&String> = starts
+        .iter()
+        .filter(|start| {
+            return start.split(' ').any(|word| {
+                return word == "--ff-only";
+            });
+        })
+        .collect();
+    assert_eq!(
+        forwards.len(),
+        1,
+        "one fast-forward of the checkout: {starts:?}"
+    );
     for start in forwards {
-        assert!(!start.split(' ').any(|word| { return word == "--quiet" || word == "-q"; }), "the fast-forward carries neither --quiet nor -q: {start}");
+        assert!(
+            !start.split(' ').any(|word| {
+                return word == "--quiet" || word == "-q";
+            }),
+            "the fast-forward carries neither --quiet nor -q: {start}"
+        );
     }
     remove_settled(&fixture);
 }
@@ -1395,26 +2367,45 @@ fn what_git_says_of_the_fast_forward_reaches_the_journal_and_not_the_person() {
     let dirty: PathBuf = diverged(&fixture, "dirty");
     stage_unrelated_work(&fixture, dirty.as_path());
     let name: String = format!("cli-git-test-journal-merge-{}", std::process::id());
-    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract address");
-    let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
-    receiver.set_read_timeout(Some(std::time::Duration::from_secs(5))).expect("a read timeout");
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+        .expect("an abstract address");
+    let receiver =
+        std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    receiver
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .expect("a read timeout");
     let observed: Observed = observe(
-        wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{name}")),
+        wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env(
+            git_policy_cli::journald_native::TEST_SOCKET_VARIABLE,
+            format!("@{name}"),
+        ),
         b"",
     );
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
-    assert!(!text(&observed.stdout).contains("Fast-forward"), "{}", text(&observed.stdout));
-    assert!(text(&observed.stdout).contains("Merge made by the 'ort' strategy."), "{}", text(&observed.stdout));
+    assert!(
+        !text(&observed.stdout).contains("Fast-forward"),
+        "{}",
+        text(&observed.stdout)
+    );
+    assert!(
+        text(&observed.stdout).contains("Merge made by the 'ort' strategy."),
+        "{}",
+        text(&observed.stdout)
+    );
     let mut said: Option<String> = None;
     let mut buffer: Vec<u8> = vec![0; 65_536];
     while said.is_none() {
-        let length: usize = receiver.recv(buffer.as_mut_slice()).expect("the entry about the fast-forward reached the journal stand-in");
+        let length: usize = receiver
+            .recv(buffer.as_mut_slice())
+            .expect("the entry about the fast-forward reached the journal stand-in");
         let entry: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
         if entry.contains("git merge --ff-only --no-edit") && entry.contains(" said: ") {
             said = Some(entry);
         }
     }
-    assert!(said.is_some_and(|entry| { return entry.contains("Fast-forward"); }));
+    assert!(said.is_some_and(|entry| {
+        return entry.contains("Fast-forward");
+    }));
     remove_settled(&fixture);
 }
 
@@ -1433,20 +2424,47 @@ fn the_summary_switches_decide_the_printed_diffstat() {
     let fixture: Fixture = fixture("merge-summary-switches");
     let repo: PathBuf = diverged(&fixture, "repo");
     stage_unrelated_work(&fixture, repo.as_path());
-    let hidden: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "--no-summary", "feature"]);
+    let hidden: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["merge", "--no-edit", "--no-summary", "feature"],
+    );
     assert_eq!(hidden.code, Some(0), "{}", text(&hidden.stderr));
     assert_eq!(
         text(&hidden.stdout),
         "Merge made by the 'ort' strategy.\n",
         "--no-summary hides the diffstat, as native Git does"
     );
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    git(&fixture, repo.as_path(), &["reset", "--hard", "--quiet", "HEAD^"]);
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["rev-list", "--count", "--merges", "HEAD"]
+        ),
+        "1\n"
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["reset", "--hard", "--quiet", "HEAD^"],
+    );
     stage_unrelated_work(&fixture, repo.as_path());
-    let shown: Observed = run(&fixture, repo.as_path(), &["-c", "merge.stat=false", "merge", "--no-edit", "--summary", "feature"]);
+    let shown: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[
+            "-c",
+            "merge.stat=false",
+            "merge",
+            "--no-edit",
+            "--summary",
+            "feature",
+        ],
+    );
     assert_eq!(shown.code, Some(0), "{}", text(&shown.stderr));
     assert!(
-        text(&shown.stdout).starts_with("Merge made by the 'ort' strategy.\n") && text(&shown.stdout).contains(" | "),
+        text(&shown.stdout).starts_with("Merge made by the 'ort' strategy.\n")
+            && text(&shown.stdout).contains(" | "),
         "--summary prints the diffstat even with merge.stat=false, as native Git does: {}",
         text(&shown.stdout)
     );

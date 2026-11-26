@@ -37,10 +37,26 @@ use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
 use crate::event_path::EventPath;
-use crate::policy_events::{FindingEvent, FindingLocation, PolicyEvent, event_blocks};
-use crate::policy_registry::{PolicyId, Severity, policy_descriptor};
-use crate::policy_trigger::{Trigger, policy_runs_on, trigger_is_ported};
-use crate::wrapper_controls::{Controls, is_escaped};
+use crate::policy_events::{
+    FindingEvent,
+    FindingLocation,
+    PolicyEvent,
+    event_blocks,
+};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+    policy_descriptor,
+};
+use crate::policy_trigger::{
+    Trigger,
+    policy_runs_on,
+    trigger_is_ported,
+};
+use crate::wrapper_controls::{
+    Controls,
+    is_escaped,
+};
 
 /// What:
 ///  Exit code when a pass ends with an error finding or a fixed-transform rejection.
@@ -230,7 +246,11 @@ pub enum PolicyOutcome {
 /// ```
 pub trait PolicyChecks {
     /// Evaluate one policy for one lifecycle point.
-    fn check(&mut self, policy: PolicyId, trigger: Trigger) -> PolicyOutcome;
+    fn check(
+        &mut self,
+        policy: PolicyId,
+        trigger: Trigger,
+    ) -> PolicyOutcome;
 }
 
 /// What:
@@ -341,7 +361,10 @@ pub struct StageResult {
 /// ```ts
 /// const applies = policy.triggers.includes(trigger) && (selected.size === 0 || selected.has(id)) && !escaped.has(id) && severity !== 'off';
 /// ```
-fn policy_applies(request: &StageRequest, policy: PolicyId) -> bool {
+fn policy_applies(
+    request: &StageRequest,
+    policy: PolicyId,
+) -> bool {
     if !policy_runs_on(policy, request.trigger) {
         return false;
     }
@@ -366,7 +389,10 @@ fn policy_applies(request: &StageRequest, policy: PolicyId) -> bool {
 /// ```ts
 /// const any = policies.some(policy => applies(policy));
 /// ```
-pub fn any_policy_applies(request: &StageRequest, policies: &[PolicyId]) -> bool {
+pub fn any_policy_applies(
+    request: &StageRequest,
+    policies: &[PolicyId],
+) -> bool {
     // `for policy in policies` borrows each identity; `*policy` copies it out.
     for policy in policies {
         if policy_applies(request, *policy) {
@@ -417,13 +443,20 @@ pub fn run_policy_stage(
         let began: std::time::Instant = std::time::Instant::now();
         let outcome: PolicyOutcome = checks.check(*policy, request.trigger);
         crate::prepare_work_spans::note_span(
-            crate::prepare_work_spans::policy_span_name(policy_descriptor(*policy).name, request.trigger).as_str(),
+            crate::prepare_work_spans::policy_span_name(
+                policy_descriptor(*policy).name,
+                request.trigger,
+            )
+            .as_str(),
             began.elapsed(),
         );
         // `match` unpacks the outcomes; only the two that found something continue past it.
         let (findings, notes): (Vec<PolicyFinding>, Vec<PolicyNote>) = match outcome {
             PolicyOutcome::Findings(found) => (found, Vec::new()),
-            PolicyOutcome::FindingsWithNotes { findings: found, notes: noted } => (found, noted),
+            PolicyOutcome::FindingsWithNotes {
+                findings: found,
+                notes: noted,
+            } => (found, noted),
             PolicyOutcome::Unavailable(needs) => {
                 return StageResult {
                     events,
@@ -445,7 +478,10 @@ pub fn run_policy_stage(
             // ```ts
             // { kind: 'stopped', message } => { events.push(engineFailure('content-unavailable', CHOSEN_HINT, message)); return { end: 'failed' }; }
             // ```
-            PolicyOutcome::Stopped { message, path } => {
+            PolicyOutcome::Stopped {
+                message,
+                path,
+            } => {
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,
                     hint: crate::policy_events::EngineFailureHint::Chosen(Some(
@@ -461,7 +497,10 @@ pub fn run_policy_stage(
                     end: StageEnd::Failed,
                 };
             }
-            PolicyOutcome::Skipped { message, path } => {
+            PolicyOutcome::Skipped {
+                message,
+                path,
+            } => {
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::PolicyIncomplete,
                     hint: crate::policy_events::EngineFailureHint::OfCode,
@@ -566,7 +605,10 @@ pub fn run_policy_stage(
 /// ```ts
 /// const exitCode = !complete ? 2 : (hasError || patchProposed) ? 1 : 0;
 /// ```
-pub fn pass_exit_code(events: &[PolicyEvent], end: StageEnd) -> i32 {
+pub fn pass_exit_code(
+    events: &[PolicyEvent],
+    end: StageEnd,
+) -> i32 {
     // `Unavailable(_)` matches that variant whatever it carries; `{}` does nothing and goes on.
     match end {
         StageEnd::Failed | StageEnd::Unavailable(_) => return ENGINE_FAILURE_EXIT_CODE,

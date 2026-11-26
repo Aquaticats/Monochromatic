@@ -179,10 +179,19 @@ impl ConversionRules {
     /// ```ts
     /// function actionOf(text, crlf, eol, rules): CrlfAction;
     /// ```
-    pub fn action_of(&self, text: TextAttribute, crlf: TextAttribute, eol: EolAttribute) -> CrlfAction {
+    pub fn action_of(
+        &self,
+        text: TextAttribute,
+        crlf: TextAttribute,
+        eol: EolAttribute,
+    ) -> CrlfAction {
         // Git reads `text`, and only an action that is still undefined falls back to the legacy `crlf` attribute.
         let primary: CrlfAction = crlf_action_of(text);
-        let named: CrlfAction = if primary == CrlfAction::Undefined { crlf_action_of(crlf) } else { primary };
+        let named: CrlfAction = if primary == CrlfAction::Undefined {
+            crlf_action_of(crlf)
+        } else {
+            primary
+        };
         // `eol` refines every action but the binary one, an action nothing named included.
         let with_eol: CrlfAction = match (named, eol) {
             (CrlfAction::Binary, _) => CrlfAction::Binary,
@@ -194,7 +203,13 @@ impl ConversionRules {
         };
         return match with_eol {
             // `text` alone takes the platform's ending from the configuration (`text_eol_is_crlf`).
-            CrlfAction::Text => if self.text_eol_is_crlf() { CrlfAction::TextCrlf } else { CrlfAction::TextInput },
+            CrlfAction::Text => {
+                if self.text_eol_is_crlf() {
+                    CrlfAction::TextCrlf
+                } else {
+                    CrlfAction::TextInput
+                }
+            }
             // An action nothing named is `core.autocrlf`'s to decide.
             CrlfAction::Undefined => match self.auto_crlf {
                 AutoCrlf::False => CrlfAction::Binary,
@@ -211,7 +226,10 @@ impl ConversionRules {
     /// ```ts
     /// function outputEnding(action, rules): OutputEnding;
     /// ```
-    pub fn output_ending(&self, action: CrlfAction) -> OutputEnding {
+    pub fn output_ending(
+        &self,
+        action: CrlfAction,
+    ) -> OutputEnding {
         return match action {
             CrlfAction::Binary => OutputEnding::Unset,
             // Git's own `output_eol` answers the carriage return here, and `action_of` never leaves this action.
@@ -306,29 +324,47 @@ pub enum FenceVerdict {
 /// ```ts
 /// function decide(attributes, rules, facts): FenceVerdict;
 /// ```
-pub fn decide(attributes: &PathAttributes, rules: &ConversionRules, is_link: bool, file_size: u64, blob_size: Option<u64>) -> FenceVerdict {
+pub fn decide(
+    attributes: &PathAttributes,
+    rules: &ConversionRules,
+    is_link: bool,
+    file_size: u64,
+    blob_size: Option<u64>,
+) -> FenceVerdict {
     if is_link {
         return FenceVerdict::Carry;
     }
     if attributes.text == TextAttribute::Other {
-        return FenceVerdict::WriteThroughGit(String::from("its text attribute holds a value whose action Git does not name"));
+        return FenceVerdict::WriteThroughGit(String::from(
+            "its text attribute holds a value whose action Git does not name",
+        ));
     }
     if attributes.filter {
-        return FenceVerdict::WriteThroughGit(String::from("a filter attribute selects a program that may rewrite its bytes"));
+        return FenceVerdict::WriteThroughGit(String::from(
+            "a filter attribute selects a program that may rewrite its bytes",
+        ));
     }
     if attributes.encoding {
-        return FenceVerdict::WriteThroughGit(String::from("a working-tree-encoding attribute changes its bytes in both directions"));
+        return FenceVerdict::WriteThroughGit(String::from(
+            "a working-tree-encoding attribute changes its bytes in both directions",
+        ));
     }
     if attributes.ident {
-        return FenceVerdict::WriteThroughGit(String::from("an ident attribute expands the keyword in the checked-out bytes"));
+        return FenceVerdict::WriteThroughGit(String::from(
+            "an ident attribute expands the keyword in the checked-out bytes",
+        ));
     }
     let action: CrlfAction = rules.action_of(attributes.text, attributes.crlf, attributes.eol);
     if rules.output_ending(action) == OutputEnding::Crlf {
-        return FenceVerdict::WriteThroughGit(String::from("a line-ending rule may add carriage returns to the checked-out bytes"));
+        return FenceVerdict::WriteThroughGit(String::from(
+            "a line-ending rule may add carriage returns to the checked-out bytes",
+        ));
     }
     return match blob_size {
         Some(size) if size == file_size => FenceVerdict::Carry,
-        Some(_) => FenceVerdict::WriteThroughGit(String::from("its recorded size differs from its blob's, so its bytes are not the blob's")),
+        Some(_) => FenceVerdict::WriteThroughGit(String::from(
+            "its recorded size differs from its blob's, so its bytes are not the blob's",
+        )),
         None => FenceVerdict::WriteThroughGit(String::from("the tree lists no blob for it")),
     };
 }
@@ -350,11 +386,19 @@ pub fn decide(attributes: &PathAttributes, rules: &ConversionRules, is_link: boo
 /// ```ts
 /// const needsSize = (attributes, rules) => !converting(attributes) && outputEnding(actionOf(attributes)) !== 'crlf';
 /// ```
-pub fn needs_blob_size(attributes: &PathAttributes, rules: &ConversionRules) -> bool {
-    if attributes.filter || attributes.encoding || attributes.ident || attributes.text == TextAttribute::Other {
+pub fn needs_blob_size(
+    attributes: &PathAttributes,
+    rules: &ConversionRules,
+) -> bool {
+    if attributes.filter
+        || attributes.encoding
+        || attributes.ident
+        || attributes.text == TextAttribute::Other
+    {
         return false;
     }
-    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol)) != OutputEnding::Crlf;
+    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol))
+        != OutputEnding::Crlf;
 }
 
 /// What:
@@ -370,11 +414,19 @@ pub fn needs_blob_size(attributes: &PathAttributes, rules: &ConversionRules) -> 
 /// ```ts
 /// const converts = (attributes, rules) => filter || ident || encoding || otherText || outputEnding(actionOf(attributes)) === 'crlf';
 /// ```
-pub fn checkout_converts(attributes: &PathAttributes, rules: &ConversionRules) -> bool {
-    if attributes.filter || attributes.encoding || attributes.ident || attributes.text == TextAttribute::Other {
+pub fn checkout_converts(
+    attributes: &PathAttributes,
+    rules: &ConversionRules,
+) -> bool {
+    if attributes.filter
+        || attributes.encoding
+        || attributes.ident
+        || attributes.text == TextAttribute::Other
+    {
         return true;
     }
-    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol)) == OutputEnding::Crlf;
+    return rules.output_ending(rules.action_of(attributes.text, attributes.crlf, attributes.eol))
+        == OutputEnding::Crlf;
 }
 
 //endregion
@@ -398,7 +450,10 @@ pub fn checkout_converts(attributes: &PathAttributes, rules: &ConversionRules) -
 /// ```ts
 /// const lastValue = (entries, key) => entries.findLast((entry) => entry.key === key);
 /// ```
-fn last_value<'entries>(entries: &'entries [ConfigEntry], key: &str) -> Option<Option<&'entries [u8]>> {
+fn last_value<'entries>(
+    entries: &'entries [ConfigEntry],
+    key: &str,
+) -> Option<Option<&'entries [u8]>> {
     for entry in entries.iter().rev() {
         if entry.key == key {
             return Some(entry.value.as_deref());
@@ -425,7 +480,9 @@ pub fn conversion_rules_from_config(entries: &[ConfigEntry]) -> ConversionRules 
     // as an absent key and carried the files before the gate re-check's `p01`.
     let auto_crlf: AutoCrlf = match last_value(entries, "core.autocrlf") {
         None => AutoCrlf::False,
-        Some(value) if value.is_some_and(|held| return held.eq_ignore_ascii_case(b"input")) => AutoCrlf::Input,
+        Some(value) if value.is_some_and(|held| return held.eq_ignore_ascii_case(b"input")) => {
+            AutoCrlf::Input
+        }
         Some(value) => match parse_bool(value) {
             Some(true) => AutoCrlf::True,
             Some(false) => AutoCrlf::False,
@@ -437,7 +494,10 @@ pub fn conversion_rules_from_config(entries: &[ConfigEntry]) -> ConversionRules 
         Some(value) if value.eq_ignore_ascii_case(b"crlf") => EolSetting::Crlf,
         _ => EolSetting::Unset,
     };
-    return ConversionRules { auto_crlf, core_eol };
+    return ConversionRules {
+        auto_crlf,
+        core_eol,
+    };
 }
 
 /// The value bytes `git check-attr` gives an unset attribute.
@@ -461,7 +521,11 @@ const SET_VALUE: &[u8] = b"set";
 /// ```ts
 /// function applyTriple(attributes, name, value): void;
 /// ```
-pub fn apply_attribute(attributes: &mut PathAttributes, name: &[u8], value: &[u8]) {
+pub fn apply_attribute(
+    attributes: &mut PathAttributes,
+    name: &[u8],
+    value: &[u8],
+) {
     match name {
         b"text" => {
             attributes.text = match value {

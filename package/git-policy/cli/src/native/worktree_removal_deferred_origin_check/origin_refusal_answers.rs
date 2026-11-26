@@ -19,7 +19,11 @@
 
 use super::origin_refusal::OriginRefusal;
 use super::origin_refusal_words::message;
-use super::origin_refusals::{RefusalForm, RefusalPoint, WhatARefusalLeaves};
+use super::origin_refusals::{
+    RefusalForm,
+    RefusalPoint,
+    WhatARefusalLeaves,
+};
 use super::planned_origin::PlannedOrigin;
 use super::removal_history::RemovalHistory;
 
@@ -39,23 +43,57 @@ impl OriginRefusal {
     /// ```
     pub fn cause_name(&self) -> &'static str {
         return match self {
-            OriginRefusal::PlanIncomplete { .. } => "plan-incomplete",
-            OriginRefusal::OriginMarkedBeforeTheUnmount { .. } => "origin-marked-before-the-unmount",
-            OriginRefusal::OriginMarkedForDeferredDestroy { .. } => "origin-marked-for-deferred-destroy",
-            OriginRefusal::MarkUnreadable { .. } => "mark-unreadable",
-            OriginRefusal::CloneGone { .. } => "clone-gone",
-            OriginRefusal::CloneIsNotAFilesystem { .. } => "clone-is-not-a-filesystem",
-            OriginRefusal::CloneIsNotThePlannedOne { .. } => "clone-is-not-the-planned-one",
-            OriginRefusal::CloneHasNoOrigin { .. } => "clone-has-no-origin",
-            OriginRefusal::CloneOriginDiffers { .. } => "clone-origin-differs",
-            OriginRefusal::OriginDatasetGone { .. } => "origin-dataset-gone",
-            OriginRefusal::OriginDatasetIsNotAFilesystem { .. } => "origin-dataset-is-not-a-filesystem",
-            OriginRefusal::OriginDatasetIsNotThePlannedOne { .. } => "origin-dataset-is-not-the-planned-one",
-            OriginRefusal::OriginSnapshotGone { .. } => "origin-snapshot-gone",
-            OriginRefusal::OriginIsNotASnapshot { .. } => "origin-is-not-a-snapshot",
-            OriginRefusal::OriginSnapshotIsNotThePlannedOne { .. } => "origin-snapshot-is-not-the-planned-one",
-            OriginRefusal::OriginSnapshotCreatetxgDiffers { .. } => "origin-snapshot-createtxg-differs",
-            OriginRefusal::ReadFailed { .. } => "read-failed",
+            OriginRefusal::PlanIncomplete {
+                ..
+            } => "plan-incomplete",
+            OriginRefusal::OriginMarkedBeforeTheUnmount {
+                ..
+            } => "origin-marked-before-the-unmount",
+            OriginRefusal::OriginMarkedForDeferredDestroy {
+                ..
+            } => "origin-marked-for-deferred-destroy",
+            OriginRefusal::MarkUnreadable {
+                ..
+            } => "mark-unreadable",
+            OriginRefusal::CloneGone {
+                ..
+            } => "clone-gone",
+            OriginRefusal::CloneIsNotAFilesystem {
+                ..
+            } => "clone-is-not-a-filesystem",
+            OriginRefusal::CloneIsNotThePlannedOne {
+                ..
+            } => "clone-is-not-the-planned-one",
+            OriginRefusal::CloneHasNoOrigin {
+                ..
+            } => "clone-has-no-origin",
+            OriginRefusal::CloneOriginDiffers {
+                ..
+            } => "clone-origin-differs",
+            OriginRefusal::OriginDatasetGone {
+                ..
+            } => "origin-dataset-gone",
+            OriginRefusal::OriginDatasetIsNotAFilesystem {
+                ..
+            } => "origin-dataset-is-not-a-filesystem",
+            OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                ..
+            } => "origin-dataset-is-not-the-planned-one",
+            OriginRefusal::OriginSnapshotGone {
+                ..
+            } => "origin-snapshot-gone",
+            OriginRefusal::OriginIsNotASnapshot {
+                ..
+            } => "origin-is-not-a-snapshot",
+            OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                ..
+            } => "origin-snapshot-is-not-the-planned-one",
+            OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                ..
+            } => "origin-snapshot-createtxg-differs",
+            OriginRefusal::ReadFailed {
+                ..
+            } => "read-failed",
         };
     }
 
@@ -72,22 +110,57 @@ impl OriginRefusal {
     /// ```
     pub fn step(&self) -> &'static str {
         return match self {
-            OriginRefusal::PlanIncomplete { .. } => "plan",
-            OriginRefusal::OriginMarkedBeforeTheUnmount { .. }
-            | OriginRefusal::OriginMarkedForDeferredDestroy { .. }
-            | OriginRefusal::MarkUnreadable { .. } => "origin-mark",
-            OriginRefusal::CloneGone { .. } => "clone",
-            OriginRefusal::CloneIsNotAFilesystem { .. } => "clone-type",
-            OriginRefusal::CloneIsNotThePlannedOne { .. } => "clone-guid",
-            OriginRefusal::CloneHasNoOrigin { .. } | OriginRefusal::CloneOriginDiffers { .. } => "clone-origin",
-            OriginRefusal::OriginDatasetGone { .. } => "origin-dataset",
-            OriginRefusal::OriginDatasetIsNotAFilesystem { .. } => "origin-dataset-type",
-            OriginRefusal::OriginDatasetIsNotThePlannedOne { .. } => "origin-dataset-guid",
-            OriginRefusal::OriginSnapshotGone { .. } => "origin-snapshot",
-            OriginRefusal::OriginIsNotASnapshot { .. } => "origin-snapshot-type",
-            OriginRefusal::OriginSnapshotIsNotThePlannedOne { .. } => "origin-snapshot-guid",
-            OriginRefusal::OriginSnapshotCreatetxgDiffers { .. } => "origin-snapshot-createtxg",
-            OriginRefusal::ReadFailed { .. } => "read",
+            OriginRefusal::PlanIncomplete {
+                ..
+            } => "plan",
+            OriginRefusal::OriginMarkedBeforeTheUnmount {
+                ..
+            }
+            | OriginRefusal::OriginMarkedForDeferredDestroy {
+                ..
+            }
+            | OriginRefusal::MarkUnreadable {
+                ..
+            } => "origin-mark",
+            OriginRefusal::CloneGone {
+                ..
+            } => "clone",
+            OriginRefusal::CloneIsNotAFilesystem {
+                ..
+            } => "clone-type",
+            OriginRefusal::CloneIsNotThePlannedOne {
+                ..
+            } => "clone-guid",
+            OriginRefusal::CloneHasNoOrigin {
+                ..
+            }
+            | OriginRefusal::CloneOriginDiffers {
+                ..
+            } => "clone-origin",
+            OriginRefusal::OriginDatasetGone {
+                ..
+            } => "origin-dataset",
+            OriginRefusal::OriginDatasetIsNotAFilesystem {
+                ..
+            } => "origin-dataset-type",
+            OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                ..
+            } => "origin-dataset-guid",
+            OriginRefusal::OriginSnapshotGone {
+                ..
+            } => "origin-snapshot",
+            OriginRefusal::OriginIsNotASnapshot {
+                ..
+            } => "origin-snapshot-type",
+            OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                ..
+            } => "origin-snapshot-guid",
+            OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                ..
+            } => "origin-snapshot-createtxg",
+            OriginRefusal::ReadFailed {
+                ..
+            } => "read",
         };
     }
 
@@ -102,26 +175,61 @@ impl OriginRefusal {
     /// ```
     pub fn form(&self) -> RefusalForm {
         return match self {
-            OriginRefusal::OriginMarkedBeforeTheUnmount { .. } => RefusalForm::NothingTakenDown,
-            OriginRefusal::MarkUnreadable { point, .. } => match point {
+            OriginRefusal::OriginMarkedBeforeTheUnmount {
+                ..
+            } => RefusalForm::NothingTakenDown,
+            OriginRefusal::MarkUnreadable {
+                point,
+                ..
+            } => match point {
                 RefusalPoint::BeforeTheUnmount => RefusalForm::NothingTakenDown,
                 RefusalPoint::AtACheck => RefusalForm::PendingAfterTheUnmount,
             },
-            OriginRefusal::OriginMarkedForDeferredDestroy { .. } => RefusalForm::PendingAfterTheUnmount,
-            OriginRefusal::PlanIncomplete { .. }
-            | OriginRefusal::CloneGone { .. }
-            | OriginRefusal::CloneIsNotAFilesystem { .. }
-            | OriginRefusal::CloneIsNotThePlannedOne { .. }
-            | OriginRefusal::CloneHasNoOrigin { .. }
-            | OriginRefusal::CloneOriginDiffers { .. }
-            | OriginRefusal::OriginDatasetGone { .. }
-            | OriginRefusal::OriginDatasetIsNotAFilesystem { .. }
-            | OriginRefusal::OriginDatasetIsNotThePlannedOne { .. }
-            | OriginRefusal::OriginSnapshotGone { .. }
-            | OriginRefusal::OriginIsNotASnapshot { .. }
-            | OriginRefusal::OriginSnapshotIsNotThePlannedOne { .. }
-            | OriginRefusal::OriginSnapshotCreatetxgDiffers { .. }
-            | OriginRefusal::ReadFailed { .. } => RefusalForm::NothingCompared,
+            OriginRefusal::OriginMarkedForDeferredDestroy {
+                ..
+            } => RefusalForm::PendingAfterTheUnmount,
+            OriginRefusal::PlanIncomplete {
+                ..
+            }
+            | OriginRefusal::CloneGone {
+                ..
+            }
+            | OriginRefusal::CloneIsNotAFilesystem {
+                ..
+            }
+            | OriginRefusal::CloneIsNotThePlannedOne {
+                ..
+            }
+            | OriginRefusal::CloneHasNoOrigin {
+                ..
+            }
+            | OriginRefusal::CloneOriginDiffers {
+                ..
+            }
+            | OriginRefusal::OriginDatasetGone {
+                ..
+            }
+            | OriginRefusal::OriginDatasetIsNotAFilesystem {
+                ..
+            }
+            | OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                ..
+            }
+            | OriginRefusal::OriginSnapshotGone {
+                ..
+            }
+            | OriginRefusal::OriginIsNotASnapshot {
+                ..
+            }
+            | OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                ..
+            }
+            | OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                ..
+            }
+            | OriginRefusal::ReadFailed {
+                ..
+            } => RefusalForm::NothingCompared,
         };
     }
 
@@ -139,7 +247,9 @@ impl OriginRefusal {
     pub fn what_it_leaves(&self) -> WhatARefusalLeaves {
         return match self.form() {
             RefusalForm::NothingTakenDown => WhatARefusalLeaves::NothingPending,
-            RefusalForm::PendingAfterTheUnmount | RefusalForm::NothingCompared => WhatARefusalLeaves::PendingWithItsRecord,
+            RefusalForm::PendingAfterTheUnmount | RefusalForm::NothingCompared => {
+                WhatARefusalLeaves::PendingWithItsRecord
+            }
         };
     }
 
@@ -147,44 +257,193 @@ impl OriginRefusal {
     /// where the cause knows it.
     pub fn clone_name(&self) -> Option<&str> {
         return match self {
-            OriginRefusal::PlanIncomplete { .. } => None,
-            OriginRefusal::OriginMarkedBeforeTheUnmount { clone_name, .. }
-            | OriginRefusal::MarkUnreadable { clone_name, .. }
-            | OriginRefusal::CloneGone { planned: PlannedOrigin { clone_name, .. } }
-            | OriginRefusal::CloneIsNotAFilesystem { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::CloneIsNotThePlannedOne { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::CloneHasNoOrigin { planned: PlannedOrigin { clone_name, .. } }
-            | OriginRefusal::CloneOriginDiffers { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::OriginDatasetGone { planned: PlannedOrigin { clone_name, .. } }
-            | OriginRefusal::OriginDatasetIsNotAFilesystem { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::OriginDatasetIsNotThePlannedOne { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::OriginSnapshotGone { planned: PlannedOrigin { clone_name, .. } }
-            | OriginRefusal::OriginIsNotASnapshot { planned: PlannedOrigin { clone_name, .. } }
-            | OriginRefusal::OriginSnapshotIsNotThePlannedOne { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::OriginSnapshotCreatetxgDiffers { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::OriginMarkedForDeferredDestroy { planned: PlannedOrigin { clone_name, .. }, .. }
-            | OriginRefusal::ReadFailed { planned: PlannedOrigin { clone_name, .. }, .. } => Some(clone_name.as_str()),
+            OriginRefusal::PlanIncomplete {
+                ..
+            } => None,
+            OriginRefusal::OriginMarkedBeforeTheUnmount {
+                clone_name,
+                ..
+            }
+            | OriginRefusal::MarkUnreadable {
+                clone_name,
+                ..
+            }
+            | OriginRefusal::CloneGone {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+            }
+            | OriginRefusal::CloneIsNotAFilesystem {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::CloneIsNotThePlannedOne {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::CloneHasNoOrigin {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+            }
+            | OriginRefusal::CloneOriginDiffers {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::OriginDatasetGone {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+            }
+            | OriginRefusal::OriginDatasetIsNotAFilesystem {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::OriginSnapshotGone {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+            }
+            | OriginRefusal::OriginIsNotASnapshot {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+            }
+            | OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::OriginMarkedForDeferredDestroy {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            }
+            | OriginRefusal::ReadFailed {
+                planned:
+                    PlannedOrigin {
+                        clone_name,
+                        ..
+                    },
+                ..
+            } => Some(clone_name.as_str()),
         };
     }
 
     /// The slot the removal was asked for.
     pub fn slot(&self) -> &str {
         return match self {
-            OriginRefusal::PlanIncomplete { slot, .. } | OriginRefusal::OriginMarkedBeforeTheUnmount { slot, .. } | OriginRefusal::MarkUnreadable { slot, .. } => slot.as_str(),
-            OriginRefusal::OriginMarkedForDeferredDestroy { planned, .. }
-            | OriginRefusal::CloneGone { planned }
-            | OriginRefusal::CloneIsNotAFilesystem { planned, .. }
-            | OriginRefusal::CloneIsNotThePlannedOne { planned, .. }
-            | OriginRefusal::CloneHasNoOrigin { planned }
-            | OriginRefusal::CloneOriginDiffers { planned, .. }
-            | OriginRefusal::OriginDatasetGone { planned }
-            | OriginRefusal::OriginDatasetIsNotAFilesystem { planned, .. }
-            | OriginRefusal::OriginDatasetIsNotThePlannedOne { planned, .. }
-            | OriginRefusal::OriginSnapshotGone { planned }
-            | OriginRefusal::OriginIsNotASnapshot { planned }
-            | OriginRefusal::OriginSnapshotIsNotThePlannedOne { planned, .. }
-            | OriginRefusal::OriginSnapshotCreatetxgDiffers { planned, .. }
-            | OriginRefusal::ReadFailed { planned, .. } => planned.slot.as_str(),
+            OriginRefusal::PlanIncomplete {
+                slot,
+                ..
+            }
+            | OriginRefusal::OriginMarkedBeforeTheUnmount {
+                slot,
+                ..
+            }
+            | OriginRefusal::MarkUnreadable {
+                slot,
+                ..
+            } => slot.as_str(),
+            OriginRefusal::OriginMarkedForDeferredDestroy {
+                planned,
+                ..
+            }
+            | OriginRefusal::CloneGone {
+                planned,
+            }
+            | OriginRefusal::CloneIsNotAFilesystem {
+                planned,
+                ..
+            }
+            | OriginRefusal::CloneIsNotThePlannedOne {
+                planned,
+                ..
+            }
+            | OriginRefusal::CloneHasNoOrigin {
+                planned,
+            }
+            | OriginRefusal::CloneOriginDiffers {
+                planned,
+                ..
+            }
+            | OriginRefusal::OriginDatasetGone {
+                planned,
+            }
+            | OriginRefusal::OriginDatasetIsNotAFilesystem {
+                planned,
+                ..
+            }
+            | OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                planned,
+                ..
+            }
+            | OriginRefusal::OriginSnapshotGone {
+                planned,
+            }
+            | OriginRefusal::OriginIsNotASnapshot {
+                planned,
+            }
+            | OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                planned,
+                ..
+            }
+            | OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                planned,
+                ..
+            }
+            | OriginRefusal::ReadFailed {
+                planned,
+                ..
+            } => planned.slot.as_str(),
         };
     }
 
@@ -200,7 +459,10 @@ impl OriginRefusal {
     /// ```ts
     /// console.error(refusal.message(RemovalHistory.ofDestroyed(plan.destroyed)));
     /// ```
-    pub fn message(&self, history: &RemovalHistory) -> String {
+    pub fn message(
+        &self,
+        history: &RemovalHistory,
+    ) -> String {
         return message(self, history);
     }
 }

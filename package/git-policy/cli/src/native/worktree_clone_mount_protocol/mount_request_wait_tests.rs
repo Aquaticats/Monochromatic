@@ -18,12 +18,24 @@
 //! ```
 
 use super::{
-    LastObservation, MOUNT_REQUEST_POLL_INTERVAL, PROVISIONAL_MOUNT_REQUEST_DEADLINE, MountRequest, ReceiptStanding, StaleReason, WaitRefusal,
-    reads_taken, standing_of, wait_for_answer,
+    LastObservation,
+    MOUNT_REQUEST_POLL_INTERVAL,
+    MountRequest,
+    PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+    ReceiptStanding,
+    StaleReason,
+    WaitRefusal,
+    reads_taken,
+    standing_of,
+    wait_for_answer,
 };
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
-use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
+    CloneMountReceipt,
+    ReceiptMountIdentity,
+    ReceiptOutcome,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
@@ -52,7 +64,8 @@ fn this_uid() -> u32 {
 /// The request the controls wait on.
 fn request() -> MountRequest {
     return MountRequest {
-        dataset: DatasetGuid::parse(GUID.to_string().as_str()).expect("the control GUID is canonical"),
+        dataset: DatasetGuid::parse(GUID.to_string().as_str())
+            .expect("the control GUID is canonical"),
         operation: MountOperation::Mount,
         nonce: RequestNonce::parse(NONCE).expect("the control nonce is valid"),
         boot: String::from(BOOT),
@@ -61,9 +74,13 @@ fn request() -> MountRequest {
 
 /// A receipt for the request,
 /// with the nonce and operation the caller chooses.
-fn receipt(nonce: &str, operation: MountOperation) -> CloneMountReceipt {
+fn receipt(
+    nonce: &str,
+    operation: MountOperation,
+) -> CloneMountReceipt {
     return CloneMountReceipt {
-        dataset: DatasetGuid::parse(GUID.to_string().as_str()).expect("the control GUID is canonical"),
+        dataset: DatasetGuid::parse(GUID.to_string().as_str())
+            .expect("the control GUID is canonical"),
         operation,
         nonce: RequestNonce::parse(nonce).expect("the control nonce is valid"),
         outcome: ReceiptOutcome::Done,
@@ -85,14 +102,18 @@ fn receipt(nonce: &str, operation: MountOperation) -> CloneMountReceipt {
 /// owned by this account.
 fn folder(name: &str) -> ReceiptsFolder {
     let root: PathBuf = fixture(name);
-    std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the fixture takes the directory mode");
+    std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the fixture takes the directory mode");
     return ReceiptsFolder::at(root, this_uid());
 }
 
 /// The runtime the async wait runs on,
 /// with time enabled so the deadline check has a monotonic clock.
 fn runtime() -> tokio::runtime::Runtime {
-    return tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the control runtime starts");
+    return tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("the control runtime starts");
 }
 
 /// A matching receipt ends the wait and is the caller's answer.
@@ -114,19 +135,36 @@ fn a_matching_receipt_ends_the_wait() {
 #[test]
 fn a_stale_receipt_is_not_an_answer_and_is_reported() {
     let folder: ReceiptsFolder = folder("wait-stale");
-    folder.publish(&receipt(OTHER_NONCE, MountOperation::Mount)).expect("the stale receipt is filed");
-    let refusal: WaitRefusal =
-        runtime().block_on(wait_for_answer(&folder, &request(), Duration::ZERO)).expect_err("a stale receipt is not this request's answer");
-    let WaitRefusal::TimedOut { request: waited, last, .. } = &refusal else {
+    folder
+        .publish(&receipt(OTHER_NONCE, MountOperation::Mount))
+        .expect("the stale receipt is filed");
+    let refusal: WaitRefusal = runtime()
+        .block_on(wait_for_answer(&folder, &request(), Duration::ZERO))
+        .expect_err("a stale receipt is not this request's answer");
+    let WaitRefusal::TimedOut {
+        request: waited,
+        last,
+        ..
+    } = &refusal
+    else {
         panic!("the wait times out: {refusal:?}");
     };
     assert_eq!(waited.as_ref(), &request());
-    assert!(matches!(last, Some(LastObservation::Stale(StaleReason::Nonce { .. }))), "{last:?}");
+    assert!(
+        matches!(
+            last,
+            Some(LastObservation::Stale(StaleReason::Nonce { .. }))
+        ),
+        "{last:?}"
+    );
     let message: String = refusal.message();
     assert!(message.contains(NONCE), "{message}");
     assert!(message.contains("not this request's answer"), "{message}");
     assert!(message.contains("doctor"), "{message}");
-    assert!(message.contains("A deadline is not cancellation"), "{message}");
+    assert!(
+        message.contains("A deadline is not cancellation"),
+        "{message}"
+    );
 }
 
 /// A receipt for the same nonce but the other operation is stale,
@@ -134,18 +172,33 @@ fn a_stale_receipt_is_not_an_answer_and_is_reported() {
 #[test]
 fn the_other_fields_are_compared_too() {
     let answer: CloneMountReceipt = receipt(NONCE, MountOperation::Mount);
-    assert_eq!(standing_of(&request(), &answer), ReceiptStanding::Answer(answer.clone()));
+    assert_eq!(
+        standing_of(&request(), &answer),
+        ReceiptStanding::Answer(answer.clone())
+    );
     let other_operation: CloneMountReceipt = receipt(NONCE, MountOperation::Unmount);
-    assert!(matches!(standing_of(&request(), &other_operation), ReceiptStanding::Stale(StaleReason::Operation { .. })));
+    assert!(matches!(
+        standing_of(&request(), &other_operation),
+        ReceiptStanding::Stale(StaleReason::Operation { .. })
+    ));
     let mut other_boot: CloneMountReceipt = answer;
     other_boot.boot = String::from("11111111-2222-4333-8444-555555555555");
-    assert!(matches!(standing_of(&request(), &other_boot), ReceiptStanding::Stale(StaleReason::Boot { .. })));
+    assert!(matches!(
+        standing_of(&request(), &other_boot),
+        ReceiptStanding::Stale(StaleReason::Boot { .. })
+    ));
     let mut other_nonce: CloneMountReceipt = other_operation;
     other_nonce.nonce = RequestNonce::parse(OTHER_NONCE).expect("the other nonce is valid");
-    assert!(matches!(standing_of(&request(), &other_nonce), ReceiptStanding::Stale(StaleReason::Nonce { .. })));
+    assert!(matches!(
+        standing_of(&request(), &other_nonce),
+        ReceiptStanding::Stale(StaleReason::Nonce { .. })
+    ));
     let mut other_dataset: CloneMountReceipt = receipt(NONCE, MountOperation::Mount);
     other_dataset.dataset = DatasetGuid::parse("8").expect("8 is canonical");
-    assert!(matches!(standing_of(&request(), &other_dataset), ReceiptStanding::Stale(StaleReason::Dataset { .. })));
+    assert!(matches!(
+        standing_of(&request(), &other_dataset),
+        ReceiptStanding::Stale(StaleReason::Dataset { .. })
+    ));
 }
 
 /// What:
@@ -170,10 +223,23 @@ const SLOWEST_KEPT_ANSWER: Duration = Duration::from_micros(12_149);
 /// and one poll is shorter than the deadline it sleeps inside.
 #[test]
 fn the_deadline_is_provisional_and_generous() {
-    assert_eq!(PROVISIONAL_MOUNT_REQUEST_DEADLINE, PLAN_PROVISIONAL_DEADLINE);
-    assert!(PROVISIONAL_MOUNT_REQUEST_DEADLINE > SLOWEST_KEPT_ANSWER, "the deadline leaves room over the slowest round");
-    assert!(MOUNT_REQUEST_POLL_INTERVAL < PROVISIONAL_MOUNT_REQUEST_DEADLINE, "the wait sleeps whole polls inside its deadline");
-    assert!(PROVISIONAL_MOUNT_REQUEST_DEADLINE.as_micros() % MOUNT_REQUEST_POLL_INTERVAL.as_micros() == 0, "the deadline is a whole number of polls");
+    assert_eq!(
+        PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+        PLAN_PROVISIONAL_DEADLINE
+    );
+    assert!(
+        PROVISIONAL_MOUNT_REQUEST_DEADLINE > SLOWEST_KEPT_ANSWER,
+        "the deadline leaves room over the slowest round"
+    );
+    assert!(
+        MOUNT_REQUEST_POLL_INTERVAL < PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+        "the wait sleeps whole polls inside its deadline"
+    );
+    assert!(
+        PROVISIONAL_MOUNT_REQUEST_DEADLINE.as_micros() % MOUNT_REQUEST_POLL_INTERVAL.as_micros()
+            == 0,
+        "the deadline is a whole number of polls"
+    );
 }
 
 /// What:
@@ -190,18 +256,38 @@ fn the_deadline_is_provisional_and_generous() {
 /// ```
 #[test]
 fn an_absent_results_directory_is_a_last_observation_and_never_the_end() {
-    let absent: ReceiptsFolder = ReceiptsFolder::at(fixture("wait-absent").join("never-made"), this_uid());
+    let absent: ReceiptsFolder =
+        ReceiptsFolder::at(fixture("wait-absent").join("never-made"), this_uid());
     let deadline: Duration = Duration::from_millis(300);
     let started: std::time::Instant = std::time::Instant::now();
-    let refusal: WaitRefusal = runtime().block_on(wait_for_answer(&absent, &request(), deadline)).expect_err("no directory files no answer");
+    let refusal: WaitRefusal = runtime()
+        .block_on(wait_for_answer(&absent, &request(), deadline))
+        .expect_err("no directory files no answer");
     let elapsed: Duration = started.elapsed();
-    assert!(elapsed >= deadline, "the wait looked until its deadline: {elapsed:?}");
-    let WaitRefusal::TimedOut { last: Some(LastObservation::AbsentDirectory { path }), .. } = &refusal else {
+    assert!(
+        elapsed >= deadline,
+        "the wait looked until its deadline: {elapsed:?}"
+    );
+    let WaitRefusal::TimedOut {
+        last: Some(LastObservation::AbsentDirectory {
+            path,
+        }),
+        ..
+    } = &refusal
+    else {
         panic!("the deadline reports the absent directory: {refusal:?}");
     };
     assert_eq!(path, &absent.directory().to_path_buf());
     let message: String = refusal.message();
-    assert!(message.contains(absent.directory().to_str().expect("the fixture path is text")), "{message}");
+    assert!(
+        message.contains(
+            absent
+                .directory()
+                .to_str()
+                .expect("the fixture path is text")
+        ),
+        "{message}"
+    );
 }
 
 /// What:
@@ -228,17 +314,25 @@ fn a_directory_that_appears_empty_is_not_reported_as_absent() {
             async move {
                 tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL / 2).await;
                 std::fs::create_dir_all(path.as_path()).expect("the results directory appears");
-                std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the directory takes its mode");
+                std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o755))
+                    .expect("the directory takes its mode");
             }
         };
         let request: MountRequest = request();
         let waited = wait_for_answer(&absent, &request, deadline);
         let (found, ()) = tokio::join!(waited, make);
         let refusal: WaitRefusal = found.expect_err("an empty directory files no answer");
-        let WaitRefusal::TimedOut { last, .. } = &refusal else {
+        let WaitRefusal::TimedOut {
+            last,
+            ..
+        } = &refusal
+        else {
             panic!("the wait times out: {refusal:?}");
         };
-        assert_eq!(last, &None, "the deadline reports no receipt rather than a directory that is there: {refusal:?}");
+        assert_eq!(
+            last, &None,
+            "the deadline reports no receipt rather than a directory that is there: {refusal:?}"
+        );
     });
 }
 
@@ -281,15 +375,28 @@ const READS_AT_THE_DEADLINES_EDGES: u64 = 2;
 #[test]
 fn a_wait_with_no_answer_sleeps_between_its_reads() {
     let folder: ReceiptsFolder = folder("wait-poll-sleep");
-    folder.publish(&receipt(OTHER_NONCE, MountOperation::Mount)).expect("a stale receipt keeps the wait looking");
+    folder
+        .publish(&receipt(OTHER_NONCE, MountOperation::Mount))
+        .expect("a stale receipt keeps the wait looking");
     let deadline: Duration = MOUNT_REQUEST_POLL_INTERVAL * READS_IN_THE_CONTROL_DEADLINE;
     let allowed: u64 = u64::from(READS_IN_THE_CONTROL_DEADLINE) + READS_AT_THE_DEADLINES_EDGES;
     let before: u64 = reads_taken();
-    let refusal: WaitRefusal = runtime().block_on(wait_for_answer(&folder, &request(), deadline)).expect_err("a stale receipt never answers");
+    let refusal: WaitRefusal = runtime()
+        .block_on(wait_for_answer(&folder, &request(), deadline))
+        .expect_err("a stale receipt never answers");
     let reads: u64 = reads_taken() - before;
-    assert!(matches!(refusal, WaitRefusal::TimedOut { .. }), "the wait looked until its deadline: {refusal:?}");
-    assert!(reads >= READS_AT_THE_DEADLINES_EDGES, "the wait read more than once: {reads} reads");
-    assert!(reads <= allowed, "the wait slept between its reads: {reads} reads in {deadline:?} at {MOUNT_REQUEST_POLL_INTERVAL:?} a read");
+    assert!(
+        matches!(refusal, WaitRefusal::TimedOut { .. }),
+        "the wait looked until its deadline: {refusal:?}"
+    );
+    assert!(
+        reads >= READS_AT_THE_DEADLINES_EDGES,
+        "the wait read more than once: {reads} reads"
+    );
+    assert!(
+        reads <= allowed,
+        "the wait slept between its reads: {reads} reads in {deadline:?} at {MOUNT_REQUEST_POLL_INTERVAL:?} a read"
+    );
 }
 
 /// What:
@@ -315,12 +422,18 @@ fn an_answer_filed_after_the_wait_started_ends_it() {
             let late_answer: CloneMountReceipt = answer.clone();
             async move {
                 tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL / 2).await;
-                late_folder.publish(&late_answer).expect("the late answer is filed");
+                late_folder
+                    .publish(&late_answer)
+                    .expect("the late answer is filed");
             }
         };
         let request: MountRequest = request();
         let waited = wait_for_answer(&folder, &request, Duration::from_secs(5));
         let (found, ()) = tokio::join!(waited, publish);
-        assert_eq!(found.expect("the late answer ends the wait"), answer, "the second poll read the answer");
+        assert_eq!(
+            found.expect("the late answer ends the wait"),
+            answer,
+            "the second poll read the answer"
+        );
     });
 }

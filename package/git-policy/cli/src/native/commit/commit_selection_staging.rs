@@ -19,13 +19,39 @@
 //! await git(['add', '--', ...exactFiles], { index: commitIndex }); await git(['add', '--update', '--', ...patterns], { index: commitIndex });
 //! ```
 
-use crate::commit_index_selection::{IndexSelection, selection_arguments};
-use crate::commit_pathspec_matching_nothing::{WrittenPathspecs, pathspec_matching_nothing};
-use crate::commit_staged_additions::{explain_ignored_refusal, pathspecs_of_file};
-use crate::private_index_request::{CaptureIndexes, caller_pathspec_request};
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, checked_from, run_git, run_git_checked};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::commit_index_selection::{
+    IndexSelection,
+    selection_arguments,
+};
+use crate::commit_pathspec_matching_nothing::{
+    WrittenPathspecs,
+    pathspec_matching_nothing,
+};
+use crate::commit_staged_additions::{
+    explain_ignored_refusal,
+    pathspecs_of_file,
+};
+use crate::private_index_request::{
+    CaptureIndexes,
+    caller_pathspec_request,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    checked_from,
+    run_git,
+    run_git_checked,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why a start of the private staging ended:
@@ -86,14 +112,17 @@ pub(crate) fn add_selected_paths(
     selection: &IndexSelection,
 ) -> Result<(), SelectionStagingFailure> {
     match selection_items(selection) {
-        Selected::Items(items) => return stage_items(context, cwd, worktree_root, indexes, items.as_slice()),
+        Selected::Items(items) => {
+            return stage_items(context, cwd, worktree_root, indexes, items.as_slice());
+        }
         // An empty selection stages nothing, and the scratch commit then refuses as native Git refuses the command.
         Selected::Empty => return Ok(()),
         // A pathspec file too large to name on one command line keeps its own form, and only the tracked paths it matches
         // are staged, so no file nothing staged reaches the commit. Its start ends for the same two reasons the elements'
         // does, and Git's refusal of one of its pathspecs is the caller's input too (issue 6283).
         Selected::File => {
-            let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update")];
+            let mut arguments: Vec<OsString> =
+                vec![OsString::from("add"), OsString::from("--update")];
             arguments.extend(selection_arguments(selection));
             return stage_the_callers_pathspec_file(context, cwd, indexes, arguments.as_slice());
         }
@@ -101,7 +130,8 @@ pub(crate) fn add_selected_paths(
         Selected::Unreadable => {
             let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all")];
             arguments.extend(selection_arguments(selection));
-            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure);
+            return private_git_with_modes(context, cwd, indexes, arguments.as_slice())
+                .map_err(explain_a_git_failure);
         }
     }
 }
@@ -134,8 +164,13 @@ pub(crate) fn add_selected_paths(
 /// ```ts
 /// const pathspecBase = (cwd, worktreeRoot) => realpath(cwd)?.startsWith(realpath(worktreeRoot)) ? cwd : worktreeRoot;
 /// ```
-pub(crate) fn pathspec_base(cwd: &Path, worktree_root: &Path) -> PathBuf {
-    let Some(root) = std::fs::canonicalize(worktree_root).ok() else { return cwd.to_path_buf() };
+pub(crate) fn pathspec_base(
+    cwd: &Path,
+    worktree_root: &Path,
+) -> PathBuf {
+    let Some(root) = std::fs::canonicalize(worktree_root).ok() else {
+        return cwd.to_path_buf();
+    };
     let here: PathBuf = match std::fs::canonicalize(cwd) {
         Ok(resolved) => resolved,
         // A directory that cannot be resolved keeps the name it was given, and a pathspec is then read from it.
@@ -206,7 +241,8 @@ fn stage_items(
         for exclusion in &exclusions {
             arguments.push((*exclusion).clone());
         }
-        private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure)?;
+        private_git_with_modes(context, cwd, indexes, arguments.as_slice())
+            .map_err(explain_a_git_failure)?;
     }
     // A directory or a pattern stages the tracked paths it matches (`--update`), never a file nothing staged. The start is
     //  skipped when the only elements left would read as every path and the caller named the exact files instead: their
@@ -236,8 +272,17 @@ fn stage_items(
 /// ```ts
 /// const outcome = runGit(callerPathspecRequest(['add', '--update', '--', ...patterns])); const refused = outcome.ok ? null : pathspecMatchingNothing(outcome.stderr, patterns); if (refused) throw new InputRefusal(refused); checkedFrom(outcome);
 /// ```
-fn stage_patterns(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, patterns: &[&OsString]) -> Result<(), SelectionStagingFailure> {
-    let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update"), OsString::from("--")];
+fn stage_patterns(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    patterns: &[&OsString],
+) -> Result<(), SelectionStagingFailure> {
+    let mut arguments: Vec<OsString> = vec![
+        OsString::from("add"),
+        OsString::from("--update"),
+        OsString::from("--"),
+    ];
     for pattern in patterns {
         arguments.push((*pattern).clone());
     }
@@ -251,7 +296,10 @@ fn stage_patterns(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, pa
     let outcome: std::io::Result<GitOutput> = run_git(context, &request);
     if let Ok(output) = outcome.as_ref()
         && !output.succeeded()
-        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::Elements(patterns))
+        && let Some(refused) = pathspec_matching_nothing(
+            output.stderr.as_slice(),
+            WrittenPathspecs::Elements(patterns),
+        )
     {
         return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
     }
@@ -290,7 +338,10 @@ fn stage_the_callers_pathspec_file(
     let outcome: std::io::Result<GitOutput> = run_git(context, &request);
     if let Ok(output) = outcome.as_ref()
         && !output.succeeded()
-        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::FromTheCallersFile)
+        && let Some(refused) = pathspec_matching_nothing(
+            output.stderr.as_slice(),
+            WrittenPathspecs::FromTheCallersFile,
+        )
     {
         return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
     }
@@ -383,7 +434,9 @@ pub(crate) const PATHSPEC_FILE_LIMIT: u64 = 1 << 30;
 /// const elements = selection.pathspecFile ? pathspecsOfFile(readPlainFile(selection.pathspecFile, PATHSPEC_FILE_LIMIT), selection.nul) : selection.pathspecs;
 /// ```
 pub(crate) fn selection_elements(selection: &IndexSelection) -> Option<Vec<OsString>> {
-    let Some(file) = selection.pathspec_file else { return Some(selection.pathspecs.to_vec()); };
+    let Some(file) = selection.pathspec_file else {
+        return Some(selection.pathspecs.to_vec());
+    };
     let bytes: Vec<u8> = crate::plain_file::read_plain_file(file, PATHSPEC_FILE_LIMIT).ok()?;
     return pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul);
 }
@@ -415,7 +468,9 @@ pub(crate) fn selection_items(selection: &IndexSelection) -> Selected {
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => return Selected::File,
         Err(_unreadable) => return Selected::Unreadable,
     };
-    let Some(items) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else { return Selected::Unreadable };
+    let Some(items) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else {
+        return Selected::Unreadable;
+    };
     if items.is_empty() {
         return Selected::Empty;
     }
@@ -443,7 +498,11 @@ fn is_pattern_character(byte: &u8) -> bool {
 /// ```
 pub(crate) fn pattern_characters_are_literal(context: &GitContext) -> bool {
     return crate::conflict_side_modes::glob_characters_are_literal(
-        crate::conflict_side_modes::modes_in_effect(context.global_prefix.as_slice(), context.overlay.as_slice()).as_slice(),
+        crate::conflict_side_modes::modes_in_effect(
+            context.global_prefix.as_slice(),
+            context.overlay.as_slice(),
+        )
+        .as_slice(),
     );
 }
 
@@ -460,7 +519,11 @@ pub(crate) fn pattern_characters_are_literal(context: &GitContext) -> bool {
 /// ```ts
 /// const namesOneFile = (cwd, token, literal) => !token.startsWith(':') && (literal || !/[*?[]/.test(token)) && lstat(join(cwd, token)).isFile();
 /// ```
-pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
+pub(crate) fn names_one_file(
+    cwd: &Path,
+    token: &OsStr,
+    literal: bool,
+) -> bool {
     let bytes: &[u8] = token.as_encoded_bytes();
     if bytes.first() == Some(&b':') {
         return false;
@@ -470,7 +533,9 @@ pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
     if !literal && bytes.iter().any(is_pattern_character) {
         return false;
     }
-    let Ok(held) = std::fs::symlink_metadata(cwd.join(token)) else { return false };
+    let Ok(held) = std::fs::symlink_metadata(cwd.join(token)) else {
+        return false;
+    };
     let kind = held.file_type();
     return kind.is_file() || kind.is_symlink();
 }
@@ -498,10 +563,18 @@ pub(crate) fn names_one_file(cwd: &Path, token: &OsStr, literal: bool) -> bool {
 /// ```
 pub(crate) fn excludes_paths(token: &OsStr) -> bool {
     let bytes: &[u8] = token.as_encoded_bytes();
-    let Some(magic) = bytes.strip_prefix(b":") else { return false };
+    let Some(magic) = bytes.strip_prefix(b":") else {
+        return false;
+    };
     if let Some(long) = magic.strip_prefix(b"(") {
-        let Some(close) = long.iter().position(is_close_paren) else { return false };
-        return long.get(..close).unwrap_or(long).split(is_comma).any(is_exclude_word);
+        let Some(close) = long.iter().position(is_close_paren) else {
+            return false;
+        };
+        return long
+            .get(..close)
+            .unwrap_or(long)
+            .split(is_comma)
+            .any(is_exclude_word);
     }
     let mut at: usize = 0;
     while let Some(byte) = magic.get(at) {
@@ -574,7 +647,12 @@ fn is_comma(byte: &u8) -> bool {
 /// ```ts
 /// runGit(callerPathspecRequest(context, cwd, arguments, commitIndex, objectDirectory))
 /// ```
-fn private_git_with_modes(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, arguments: &[OsString]) -> Result<(), GitFailure> {
+fn private_git_with_modes(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    arguments: &[OsString],
+) -> Result<(), GitFailure> {
     let request: GitRequest = caller_pathspec_request(
         context,
         cwd,

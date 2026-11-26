@@ -21,7 +21,11 @@
 //! const admitted = admitAttach(record, { boot, pool, checkout });
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord, ReadyState};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
+    ReadinessExpectation,
+    ReadinessRecord,
+    ReadyState,
+};
 
 /// The log tag of every decision this module takes.
 const TAG: &str = "cloneMountReadinessAdmission";
@@ -82,18 +86,43 @@ impl AdmissionRefusal {
     /// naming the field and the way forward.
     pub fn message(&self) -> String {
         let reason: String = match self {
-            AdmissionRefusal::OtherBoot { recorded, expected } => format!(
+            AdmissionRefusal::OtherBoot {
+                recorded,
+                expected,
+            } => format!(
                 "the readiness record belongs to boot {recorded} and this is boot {expected}, so it says nothing about this boot"
             ),
-            AdmissionRefusal::OtherPool { recorded, expected } => {
-                format!("the readiness record was written for pool `{recorded}` and the caller named pool `{expected}`")
+            AdmissionRefusal::OtherPool {
+                recorded,
+                expected,
+            } => {
+                format!(
+                    "the readiness record was written for pool `{recorded}` and the caller named pool `{expected}`"
+                )
             }
-            AdmissionRefusal::OtherCheckout { recorded, expected } => {
-                format!("the readiness record was written for checkout `{recorded}` and the caller named `{expected}`")
+            AdmissionRefusal::OtherCheckout {
+                recorded,
+                expected,
+            } => {
+                format!(
+                    "the readiness record was written for checkout `{recorded}` and the caller named `{expected}`"
+                )
             }
-            AdmissionRefusal::PoolNotReady { pool, state } => format!("pool `{pool}` is `{}` in the readiness record", state.word()),
-            AdmissionRefusal::CheckoutNotReady { checkout, state } => {
-                format!("checkout `{checkout}` is `{}` in the readiness record", state.word())
+            AdmissionRefusal::PoolNotReady {
+                pool,
+                state,
+            } => format!(
+                "pool `{pool}` is `{}` in the readiness record",
+                state.word()
+            ),
+            AdmissionRefusal::CheckoutNotReady {
+                checkout,
+                state,
+            } => {
+                format!(
+                    "checkout `{checkout}` is `{}` in the readiness record",
+                    state.word()
+                )
             }
         };
         return format!(
@@ -114,10 +143,15 @@ impl AdmissionRefusal {
 /// ```ts
 /// const admission = admitAttach(record, expectation); // { ready } | { refusal }
 /// ```
-pub fn admit_attach(record: &ReadinessRecord, expectation: &ReadinessExpectation<'_>) -> Result<(), AdmissionRefusal> {
+pub fn admit_attach(
+    record: &ReadinessRecord,
+    expectation: &ReadinessExpectation<'_>,
+) -> Result<(), AdmissionRefusal> {
     let admitted: Result<(), AdmissionRefusal> = compare(record, expectation);
     match &admitted {
-        Ok(()) => crate::diagnostic_log::debug(TAG, "admitted an attach on this boot's readiness record"),
+        Ok(()) => {
+            crate::diagnostic_log::debug(TAG, "admitted an attach on this boot's readiness record")
+        }
         Err(refusal) => crate::diagnostic_log::warn(TAG, refusal.message().as_str()),
     }
     return admitted;
@@ -125,15 +159,27 @@ pub fn admit_attach(record: &ReadinessRecord, expectation: &ReadinessExpectation
 
 /// The comparison itself,
 /// which logs nothing and decides everything.
-fn compare(record: &ReadinessRecord, expectation: &ReadinessExpectation<'_>) -> Result<(), AdmissionRefusal> {
+fn compare(
+    record: &ReadinessRecord,
+    expectation: &ReadinessExpectation<'_>,
+) -> Result<(), AdmissionRefusal> {
     if record.boot != expectation.boot {
-        return Err(AdmissionRefusal::OtherBoot { recorded: record.boot.clone(), expected: String::from(expectation.boot) });
+        return Err(AdmissionRefusal::OtherBoot {
+            recorded: record.boot.clone(),
+            expected: String::from(expectation.boot),
+        });
     }
     if record.pool_name != expectation.pool {
-        return Err(AdmissionRefusal::OtherPool { recorded: record.pool_name.clone(), expected: String::from(expectation.pool) });
+        return Err(AdmissionRefusal::OtherPool {
+            recorded: record.pool_name.clone(),
+            expected: String::from(expectation.pool),
+        });
     }
     if record.pool_state != ReadyState::Ready {
-        return Err(AdmissionRefusal::PoolNotReady { pool: record.pool_name.clone(), state: record.pool_state });
+        return Err(AdmissionRefusal::PoolNotReady {
+            pool: record.pool_name.clone(),
+            state: record.pool_state,
+        });
     }
     if record.checkout_path != expectation.checkout {
         return Err(AdmissionRefusal::OtherCheckout {
@@ -142,7 +188,10 @@ fn compare(record: &ReadinessRecord, expectation: &ReadinessExpectation<'_>) -> 
         });
     }
     if record.checkout_state != ReadyState::Ready {
-        return Err(AdmissionRefusal::CheckoutNotReady { checkout: record.checkout_path.clone(), state: record.checkout_state });
+        return Err(AdmissionRefusal::CheckoutNotReady {
+            checkout: record.checkout_path.clone(),
+            state: record.checkout_state,
+        });
     }
     return Ok(());
 }

@@ -21,7 +21,11 @@
 /// ```
 use crate::discarded_prune::Limits;
 use crate::policy_registry::{
-    POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_descriptor,
+    POLICY_REGISTRY,
+    PolicyDescriptor,
+    PolicyId,
+    Severity,
+    policy_descriptor,
 };
 
 /// What:
@@ -436,7 +440,10 @@ impl PolicyConfig {
     /// ```ts
     /// setting(id: PolicyId): PolicySetting;
     /// ```
-    pub fn setting(&self, id: PolicyId) -> PolicySetting {
+    pub fn setting(
+        &self,
+        id: PolicyId,
+    ) -> PolicySetting {
         // `&self.settings` lends the list; `*setting` copies one small row out of it.
         for setting in &self.settings {
             if setting.id == id {

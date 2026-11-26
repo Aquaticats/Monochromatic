@@ -28,10 +28,21 @@
 //! // if (!onZfsOrAcknowledged(fixture, 'the_control')) return;
 //! ```
 
-use super::support::{Fixture, Observed, observe, wrapped};
-use git_policy_cli::fs_kind::{FilesystemKind, filesystem_kind};
+use super::support::{
+    Fixture,
+    Observed,
+    observe,
+    wrapped,
+};
+use git_policy_cli::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use git_policy_cli::fs_mount_options::read_mount_facts;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The hostname of the throwaway guest whose datasets the arms may change.
 /// The guest recipe of `package/zfs/request-to-openzfs-kernel-device` sets it,
@@ -79,13 +90,20 @@ pub const CLONE_SNAPSHOT_VARIABLE: &str = "CLI_GIT_ZFS_CLONE_SNAPSHOT";
 /// ```ts
 /// function onZfsOrAcknowledged(fixture: Fixture, control: string): boolean;
 /// ```
-pub fn on_zfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
+pub fn on_zfs_or_acknowledged(
+    fixture: &Fixture,
+    control: &str,
+) -> bool {
     let kind: Result<FilesystemKind, _> = filesystem_kind(fixture.root.as_path());
     if let Some(named) = std::env::var_os(GUEST_VARIABLE) {
         // The guest recipe sets this, so a ZFS path may be changed: everything ZFS-changing runs in a throwaway guest and
         //  never on this host, whose pool holds the repository. A run against another machine is the one failure a
         //  variable can catch here.
-        assert_eq!(machine_hostname(), named.to_string_lossy(), "the ZFS controls change datasets, so they run only in the guest {GUEST_VARIABLE} names; this machine is another one");
+        assert_eq!(
+            machine_hostname(),
+            named.to_string_lossy(),
+            "the ZFS controls change datasets, so they run only in the guest {GUEST_VARIABLE} names; this machine is another one"
+        );
         assert_eq!(
             kind,
             Ok(FilesystemKind::Zfs),
@@ -94,7 +112,10 @@ pub fn on_zfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
         );
         return true;
     }
-    let acknowledged: bool = std::env::var_os(ZFS_ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    let acknowledged: bool =
+        std::env::var_os(ZFS_ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+            return !value.is_empty();
+        });
     assert!(
         acknowledged,
         "the control {control} needs a ZFS fixture root in a throwaway guest, but {GUEST_VARIABLE} is unset and {} is on \
@@ -102,7 +123,10 @@ pub fn on_zfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
          {ZFS_ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has no ZFS fixture",
         fixture.root.display()
     );
-    eprintln!("ZFS CONTROL NOT RUN: {control} (no guest is named by {GUEST_VARIABLE}, and fixture root {} is on {kind:?}; the guest recipe of package/zfs/request-to-openzfs-kernel-device runs it)", fixture.root.display());
+    eprintln!(
+        "ZFS CONTROL NOT RUN: {control} (no guest is named by {GUEST_VARIABLE}, and fixture root {} is on {kind:?}; the guest recipe of package/zfs/request-to-openzfs-kernel-device runs it)",
+        fixture.root.display()
+    );
     return false;
 }
 
@@ -119,7 +143,8 @@ pub fn on_zfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
 /// const hostname = readFile('/proc/sys/kernel/hostname').trim();
 /// ```
 fn machine_hostname() -> String {
-    let read: String = std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap_or_else(|error| { panic!("this machine's hostname cannot be read: {error}") });
+    let read: String = std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .unwrap_or_else(|error| panic!("this machine's hostname cannot be read: {error}"));
     return read.trim().to_string();
 }
 
@@ -155,7 +180,11 @@ fn fixture_value(variable: &str) -> std::ffi::OsString {
 /// ```
 fn fixture_directory(variable: &str) -> PathBuf {
     let directory: PathBuf = PathBuf::from(fixture_value(variable));
-    assert!(directory.is_dir(), "{variable} names {}, which is not a directory", directory.display());
+    assert!(
+        directory.is_dir(),
+        "{variable} names {}, which is not a directory",
+        directory.display()
+    );
     return directory;
 }
 
@@ -171,7 +200,9 @@ pub fn different_key_dataset() -> PathBuf {
 
 /// The snapshot the controls clone into a mounted dataset of their own.
 pub fn clone_snapshot() -> String {
-    return fixture_value(CLONE_SNAPSHOT_VARIABLE).to_string_lossy().into_owned();
+    return fixture_value(CLONE_SNAPSHOT_VARIABLE)
+        .to_string_lossy()
+        .into_owned();
 }
 
 /// What:
@@ -188,13 +219,21 @@ pub fn clone_snapshot() -> String {
 /// ```ts
 /// function runTool(tool: string, args: string[]): string; // throws with stderr
 /// ```
-pub fn run_tool(tool: &str, arguments: &[String]) -> String {
+pub fn run_tool(
+    tool: &str,
+    arguments: &[String],
+) -> String {
     let directory: PathBuf = fixture_directory(TOOL_DIRECTORY_VARIABLE);
     let program: PathBuf = directory.join(tool);
     let output: std::process::Output = std::process::Command::new(program.as_path())
         .args(arguments)
         .output()
-        .unwrap_or_else(|error| { panic!("{tool} could not be started from {}: {error}", directory.display()) });
+        .unwrap_or_else(|error| {
+            panic!(
+                "{tool} could not be started from {}: {error}",
+                directory.display()
+            )
+        });
     assert!(
         output.status.success(),
         "{tool} {} failed with {:?}: {}{}",
@@ -218,8 +257,19 @@ pub fn run_tool(tool: &str, arguments: &[String]) -> String {
 /// const pool = mountSource(fixtureRoot).split('/')[0];
 /// ```
 pub fn pool_name(fixture: &Fixture) -> String {
-    let named: Option<String> = read_mount_facts(fixture.root.as_path()).ok().flatten().map(|facts| { return facts.source; });
-    let source: String = named.unwrap_or_else(|| { panic!("the mount table names no source for the fixture root {}", fixture.root.display()) });
+    let named: Option<String> =
+        read_mount_facts(fixture.root.as_path())
+            .ok()
+            .flatten()
+            .map(|facts| {
+                return facts.source;
+            });
+    let source: String = named.unwrap_or_else(|| {
+        panic!(
+            "the mount table names no source for the fixture root {}",
+            fixture.root.display()
+        )
+    });
     let pool: &str = source.split('/').next().unwrap_or(source.as_str());
     assert!(!pool.is_empty(), "the mount source {source} names no pool");
     return pool.to_string();
@@ -262,9 +312,25 @@ pub struct BlockCloneCounters {
 /// ```ts
 /// const value = Number(zpool('get', '-H', '-p', '-o', 'value', property, pool));
 /// ```
-fn pool_number(pool: &str, property: &str) -> u64 {
-    let printed: String = run_tool("zpool", &[String::from("get"), String::from("-H"), String::from("-p"), String::from("-o"), String::from("value"), String::from(property), String::from(pool)]);
-    return printed.trim().parse::<u64>().unwrap_or_else(|error| { panic!("the pool {pool} reports {property} as {printed:?}, which is no number: {error}") });
+fn pool_number(
+    pool: &str,
+    property: &str,
+) -> u64 {
+    let printed: String = run_tool(
+        "zpool",
+        &[
+            String::from("get"),
+            String::from("-H"),
+            String::from("-p"),
+            String::from("-o"),
+            String::from("value"),
+            String::from(property),
+            String::from(pool),
+        ],
+    );
+    return printed.trim().parse::<u64>().unwrap_or_else(|error| {
+        panic!("the pool {pool} reports {property} as {printed:?}, which is no number: {error}")
+    });
 }
 
 /// What:
@@ -284,7 +350,17 @@ fn pool_number(pool: &str, property: &str) -> u64 {
 pub fn counters(fixture: &Fixture) -> BlockCloneCounters {
     let pool: String = pool_name(fixture);
     run_tool("zpool", &[String::from("sync"), pool.clone()]);
-    let ratio: String = run_tool("zpool", &[String::from("get"), String::from("-H"), String::from("-o"), String::from("value"), String::from("bcloneratio"), pool.clone()]);
+    let ratio: String = run_tool(
+        "zpool",
+        &[
+            String::from("get"),
+            String::from("-H"),
+            String::from("-o"),
+            String::from("value"),
+            String::from("bcloneratio"),
+            pool.clone(),
+        ],
+    );
     return BlockCloneCounters {
         bcloneused: pool_number(pool.as_str(), "bcloneused"),
         bclonesaved: pool_number(pool.as_str(), "bclonesaved"),
@@ -328,10 +404,21 @@ const BLOCK_CLONING_PARAMETER: &str = "/sys/module/zfs/parameters/zfs_bclone_ena
 /// function blockCloningOff(): BlockCloningSwitch; // throws unless the switch was on
 /// ```
 pub fn block_cloning_off() -> BlockCloningSwitch {
-    let previous: String = std::fs::read_to_string(BLOCK_CLONING_PARAMETER).unwrap_or_else(|error| { panic!("the block-cloning switch {BLOCK_CLONING_PARAMETER} cannot be read: {error}") });
-    assert_eq!(previous.trim(), "1", "the arm needs block cloning on before it turns it off, and {BLOCK_CLONING_PARAMETER} holds {previous:?}");
-    std::fs::write(BLOCK_CLONING_PARAMETER, b"0\n").unwrap_or_else(|error| { panic!("the block-cloning switch {BLOCK_CLONING_PARAMETER} cannot be written: {error}") });
-    return BlockCloningSwitch { previous: previous.trim().to_string() };
+    let previous: String =
+        std::fs::read_to_string(BLOCK_CLONING_PARAMETER).unwrap_or_else(|error| {
+            panic!("the block-cloning switch {BLOCK_CLONING_PARAMETER} cannot be read: {error}")
+        });
+    assert_eq!(
+        previous.trim(),
+        "1",
+        "the arm needs block cloning on before it turns it off, and {BLOCK_CLONING_PARAMETER} holds {previous:?}"
+    );
+    std::fs::write(BLOCK_CLONING_PARAMETER, b"0\n").unwrap_or_else(|error| {
+        panic!("the block-cloning switch {BLOCK_CLONING_PARAMETER} cannot be written: {error}")
+    });
+    return BlockCloningSwitch {
+        previous: previous.trim().to_string(),
+    };
 }
 
 impl Drop for BlockCloningSwitch {
@@ -356,12 +443,22 @@ impl Drop for BlockCloningSwitch {
 /// ```ts
 /// function mount_cloneOver(fixture: Fixture, slot: string, name: string): string;
 /// ```
-pub fn mount_clone_over(fixture: &Fixture, slot: &Path, name: &str) -> String {
+pub fn mount_clone_over(
+    fixture: &Fixture,
+    slot: &Path,
+    name: &str,
+) -> String {
     let dataset: String = format!("{}/{}", pool_name(fixture), name);
     std::fs::create_dir_all(slot).expect("the slot of a mounted clone");
     run_tool(
         "zfs",
-        &[String::from("clone"), String::from("-o"), format!("mountpoint={}", slot.display()), clone_snapshot(), dataset.clone()],
+        &[
+            String::from("clone"),
+            String::from("-o"),
+            format!("mountpoint={}", slot.display()),
+            clone_snapshot(),
+            dataset.clone(),
+        ],
     );
     return dataset;
 }
@@ -380,7 +477,14 @@ pub fn mount_clone_over(fixture: &Fixture, slot: &Path, name: &str) -> String {
 /// ```
 pub fn destroy_dataset(dataset: &str) {
     // `zfs destroy` in OpenZFS 2.4.4 takes no long form of this flag, so the short one is what it meets.
-    run_tool("zfs", &[String::from("destroy"), String::from("-r"), String::from(dataset)]);
+    run_tool(
+        "zfs",
+        &[
+            String::from("destroy"),
+            String::from("-r"),
+            String::from(dataset),
+        ],
+    );
 }
 
 /// What:
@@ -396,6 +500,16 @@ pub fn destroy_dataset(dataset: &str) {
 /// ```ts
 /// // MONOCHROMATIC_VERBOSE=true git worktree add ../topic
 /// ```
-pub fn run_wrapped_verbose(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
-    return observe(wrapped(fixture).env("MONOCHROMATIC_VERBOSE", "true").current_dir(directory).args(arguments), b"");
+pub fn run_wrapped_verbose(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Observed {
+    return observe(
+        wrapped(fixture)
+            .env("MONOCHROMATIC_VERBOSE", "true")
+            .current_dir(directory)
+            .args(arguments),
+        b"",
+    );
 }

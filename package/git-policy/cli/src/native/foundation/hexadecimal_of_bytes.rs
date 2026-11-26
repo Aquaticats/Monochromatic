@@ -32,7 +32,10 @@ const HEXADECIMAL_DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// ```ts
 /// function writeHex(written: string[], byte: number): void; // `${byte >> 4}` then `${byte & 15}`
 /// ```
-pub fn write_hexadecimal(written: &mut String, byte: u8) {
+pub fn write_hexadecimal(
+    written: &mut String,
+    byte: u8,
+) {
     written.push(char::from(HEXADECIMAL_DIGITS[usize::from(byte >> 4)]));
     written.push(char::from(HEXADECIMAL_DIGITS[usize::from(byte & 0x0f)]));
 }

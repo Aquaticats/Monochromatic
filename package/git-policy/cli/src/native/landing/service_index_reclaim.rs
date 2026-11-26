@@ -40,12 +40,32 @@
 //! reclaimIf(platform, lock, isStale) // open; judge; takeClaim ?? busy; sameFile(lock, fd) ? unlink(lock) : changed
 //! ```
 
+use crate::service_index_claim::{
+    Claim,
+    ClaimHold,
+    take_claim,
+};
 use crate::service_index_lock::lock_path_of;
-use crate::service_index_claim::{Claim, ClaimHold, take_claim};
-use crate::service_index_marker::{LOCK_MARKER, MARKER_VERSION, Marked, holder_is_elsewhere, holder_is_gone, marker_of_file};
-use crate::service_index_placement::{Platform, SYSTEM};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use crate::service_index_marker::{
+    LOCK_MARKER,
+    MARKER_VERSION,
+    Marked,
+    holder_is_elsewhere,
+    holder_is_gone,
+    marker_of_file,
+};
+use crate::service_index_placement::{
+    Platform,
+    SYSTEM,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    OpenOptionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What a reclaimer made of the file at a lock's name.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,7 +113,10 @@ pub enum Reclaimed {
     /// and the person is told which file it is.
     /// It carries the marker when one
     ///  could be read.
-    Unjudged { file: PathBuf, marked: Option<Marked> },
+    Unjudged {
+        file: PathBuf,
+        marked: Option<Marked>,
+    },
 }
 
 /// What:
@@ -118,10 +141,15 @@ pub enum StaleMark {
 
 impl StaleMark {
     /// Whether `marked` is stale under this kind.
-    fn judges_stale(self, marked: &Marked) -> bool {
+    fn judges_stale(
+        self,
+        marked: &Marked,
+    ) -> bool {
         return match self {
             StaleMark::HolderIsGone => holder_is_gone(marked.holder.as_ref()),
-            StaleMark::OfBatchWhoseHolderIsGone(seq) => marked.seq == seq && holder_is_gone(marked.holder.as_ref()),
+            StaleMark::OfBatchWhoseHolderIsGone(seq) => {
+                marked.seq == seq && holder_is_gone(marked.holder.as_ref())
+            }
         };
     }
 }
@@ -140,9 +168,16 @@ impl StaleMark {
 /// ```ts
 /// removeStaleLock(index, seq)
 /// ```
-pub fn remove_stale(index: &Path, seq: u64) {
+pub fn remove_stale(
+    index: &Path,
+    seq: u64,
+) {
     let lock: PathBuf = lock_path_of(index);
-    let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), StaleMark::OfBatchWhoseHolderIsGone(seq));
+    let _outcome: Reclaimed = reclaim_if(
+        &SYSTEM,
+        lock.as_path(),
+        StaleMark::OfBatchWhoseHolderIsGone(seq),
+    );
 }
 
 /// What:
@@ -161,7 +196,11 @@ pub fn remove_stale(index: &Path, seq: u64) {
 /// ```ts
 /// const outcome = reclaimIf(platform, lock, isStale) // 'removed' | 'changed' | 'busy' | 'kept' | 'stuck'
 /// ```
-pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Reclaimed {
+pub fn reclaim_if(
+    platform: &Platform,
+    lock: &Path,
+    is_stale: StaleMark,
+) -> Reclaimed {
     let file: std::fs::File = match open_to_judge(lock) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
@@ -176,7 +215,10 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
         // A holder on another machine is not proven gone and not proven running: the person is told, not the lock removed.
         if holder_is_elsewhere(marked.holder.as_ref()) {
             crate::service_error!("{}", foreign_words(lock, &marked));
-            return Reclaimed::Foreign { file: lock.to_path_buf(), marked };
+            return Reclaimed::Foreign {
+                file: lock.to_path_buf(),
+                marked,
+            };
         }
         return Reclaimed::Kept;
     }
@@ -184,23 +226,39 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
     //  of this one: removing it here could be a second removal of the same file. It is left, and the person is told.
     if !marked.current {
         crate::service_error!("{}", foreign_words(lock, &marked));
-        return Reclaimed::Foreign { file: lock.to_path_buf(), marked };
+        return Reclaimed::Foreign {
+            file: lock.to_path_buf(),
+            marked,
+        };
     }
     crate::service_fault::reach("reclaim-judged");
     // The exclusion this reclaimer is under until it is done.
     let claim: ClaimHold = match take_claim(platform, lock, &marked) {
         Claim::Held(held) => held,
         Claim::Busy => return Reclaimed::Busy,
-        Claim::Unjudged { file: in_the_way, marked: theirs } => {
+        Claim::Unjudged {
+            file: in_the_way,
+            marked: theirs,
+        } => {
             crate::service_error!("{}", unjudged_words(in_the_way.as_path(), theirs.as_ref()));
-            return Reclaimed::Unjudged { file: in_the_way, marked: theirs };
+            return Reclaimed::Unjudged {
+                file: in_the_way,
+                marked: theirs,
+            };
         }
-        Claim::Foreign { file: in_the_way, marked: theirs } => {
+        Claim::Foreign {
+            file: in_the_way,
+            marked: theirs,
+        } => {
             crate::service_error!("{}", foreign_words(in_the_way.as_path(), &theirs));
-            return Reclaimed::Foreign { file: in_the_way, marked: theirs };
+            return Reclaimed::Foreign {
+                file: in_the_way,
+                marked: theirs,
+            };
         }
         Claim::Unavailable(why) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: no claim file could be placed beside it to keep two reclaimers apart ({why}), so a removal could take a live lock; \
+            crate::service_error!(
+                "the index lock {} was left by a service that is gone, and it is not removed: no claim file could be placed beside it to keep two reclaimers apart ({why}), so a removal could take a live lock; \
                  remove it by hand once no git command runs in this repository",
                 lock.display()
             );
@@ -211,17 +269,25 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
     match same_file(lock, &file) {
         Ok(true) => {}
         Ok(false) => return cleared(claim, Reclaimed::Changed),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return cleared(claim, Reclaimed::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return cleared(claim, Reclaimed::Removed);
+        }
         Err(error) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be looked at ({error})", lock.display());
+            crate::service_error!(
+                "the index lock {} was left by a service that is gone, and it cannot be looked at ({error})",
+                lock.display()
+            );
             return Reclaimed::Stuck;
         }
     }
     return match (platform.unlink)(lock) {
         Ok(()) => cleared(claim, Reclaimed::Removed),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => cleared(claim, Reclaimed::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            cleared(claim, Reclaimed::Removed)
+        }
         Err(error) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
+            crate::service_error!(
+                "the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
                 lock.display()
             );
@@ -232,7 +298,10 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
 
 /// `answer`,
 /// after the claims of a reclaimer that saw the stale file leave its name are removed.
-fn cleared(claim: ClaimHold, answer: Reclaimed) -> Reclaimed {
+fn cleared(
+    claim: ClaimHold,
+    answer: Reclaimed,
+) -> Reclaimed {
     claim.clear_all();
     return answer;
 }
@@ -240,14 +309,20 @@ fn cleared(claim: ClaimHold, answer: Reclaimed) -> Reclaimed {
 /// Opens `lock` to read its marker without following a link or waiting on a pipe,
 /// and without a descriptor a child could inherit.
 pub(crate) fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
-    return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(lock);
+    return std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+        .open(lock);
 }
 
 /// Whether the name `lock` refers to the very file `file` has open:
 /// the same device and the same inode,
 /// so a replaced file whose
 ///  inode number was reused cannot pass while `file` keeps the old one alive.
-pub(crate) fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
+pub(crate) fn same_file(
+    lock: &Path,
+    file: &std::fs::File,
+) -> std::io::Result<bool> {
     let named = std::fs::symlink_metadata(lock)?;
     let open = file.metadata()?;
     return Ok(named.dev() == open.dev() && named.ino() == open.ino());
@@ -283,13 +358,26 @@ pub fn shell_quote(path: &Path) -> String {
 /// ```ts
 /// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm -- ${quote(lock)}`
 /// ```
-pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
+pub fn stale_lock_words(
+    lock: &Path,
+    marked: &Marked,
+) -> String {
     let (who, first_line): (String, String) = match marked.holder.as_ref() {
         Some((pid, birth)) => (
-            format!("cli-git-service batch {} (process {pid}, which is gone)", marked.seq),
-            format!("{LOCK_MARKER}{}{} {pid} {birth}", if marked.current { MARKER_VERSION } else { "" }, marked.seq),
+            format!(
+                "cli-git-service batch {} (process {pid}, which is gone)",
+                marked.seq
+            ),
+            format!(
+                "{LOCK_MARKER}{}{} {pid} {birth}",
+                if marked.current { MARKER_VERSION } else { "" },
+                marked.seq
+            ),
         ),
-        None => (format!("cli-git-service batch {}", marked.seq), format!("{LOCK_MARKER}{}", marked.seq)),
+        None => (
+            format!("cli-git-service batch {}", marked.seq),
+            format!("{LOCK_MARKER}{}", marked.seq),
+        ),
     };
     return format!(
         "The index lock {} was left by {who} and is not removed here, because no claim file that makes its removal safe could be placed beside it on this file system. \
@@ -326,7 +414,10 @@ pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
 /// ```ts
 /// `The file ${file} was written by cli-git-service batch ${seq} (process ${pid}) ... remove it yourself: rm -- ${quote(file)}`
 /// ```
-pub fn foreign_words(file: &Path, marked: &Marked) -> String {
+pub fn foreign_words(
+    file: &Path,
+    marked: &Marked,
+) -> String {
     let who: String = match marked.holder.as_ref() {
         Some((pid, _)) => format!("cli-git-service batch {} (process {pid})", marked.seq),
         None => format!("cli-git-service batch {}", marked.seq),
@@ -363,9 +454,16 @@ pub fn foreign_words(file: &Path, marked: &Marked) -> String {
 /// ```ts
 /// `The claim ${file} (made by batch ${seq}, process ${pid}) cannot be judged ... remove it yourself: rm -- ${quote(file)}`
 /// ```
-pub fn unjudged_words(file: &Path, marked: Option<&Marked>) -> String {
+pub fn unjudged_words(
+    file: &Path,
+    marked: Option<&Marked>,
+) -> String {
     let who: String = match marked {
-        Some(Marked { seq, holder: Some((pid, _birth)), .. }) => format!("made by cli-git-service batch {seq} (process {pid}) "),
+        Some(Marked {
+            seq,
+            holder: Some((pid, _birth)),
+            ..
+        }) => format!("made by cli-git-service batch {seq} (process {pid}) "),
         _ => String::new(),
     };
     return format!(

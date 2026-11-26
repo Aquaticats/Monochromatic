@@ -9,7 +9,14 @@
 
 use super::*;
 use crate::service_protocol::CommitRequest;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -25,7 +32,12 @@ use std::path::PathBuf;
 /// ```ts
 /// const request = { id, repository, commonDir, gitDir, reference: 'refs/heads/main', base, changes: [{ path, blob: null, mode: 0o100644, ... }], message, author: null, committer, amend: false, tree: null, commit: null, cleanup: null, index, scratch, captured, holder: '' };
 /// ```
-fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> CommitRequest {
+fn a_request(
+    repository: &Path,
+    base: &str,
+    path: &str,
+    captured: u64,
+) -> CommitRequest {
     let common: PathBuf = repository.join(".git");
     return CommitRequest {
         id: format!("request-{captured}-{path}"),
@@ -34,7 +46,11 @@ fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> Commit
         git_dir: common.clone(),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: base.to_string(),
-        changes: vec![crate::service_protocol::Change { path: PathBuf::from(path), blob: None, mode: 0o100644 }],
+        changes: vec![crate::service_protocol::Change {
+            path: PathBuf::from(path),
+            blob: None,
+            mode: 0o100644,
+        }],
         message: String::from("a control\n"),
         author: None,
         committer: String::from("A Control <control@example.invalid> 1793535889 +0000"),
@@ -63,9 +79,18 @@ fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> Commit
 /// ```ts
 /// const [sync, awaited] = bothSteps();
 /// ```
-fn both_run(context: &GitContext, repo: &Path, arguments: &[&str]) -> (Result<GitOutput, FailureCode>, Result<GitOutput, FailureCode>) {
+fn both_run(
+    context: &GitContext,
+    repo: &Path,
+    arguments: &[&str],
+) -> (
+    Result<GitOutput, FailureCode>,
+    Result<GitOutput, FailureCode>,
+) {
     let synchronous: Result<GitOutput, FailureCode> = run(context, repo, arguments, None);
-    let awaited: Result<GitOutput, FailureCode> = crate::lazy_runtime::run_on_runtime(run_awaiting(context, repo, arguments, None)).expect("the runtime");
+    let awaited: Result<GitOutput, FailureCode> =
+        crate::lazy_runtime::run_on_runtime(run_awaiting(context, repo, arguments, None))
+            .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -89,25 +114,55 @@ fn the_awaited_steps_run_what_the_synchronous_ones_run() {
     let root: PathBuf = fixture("land-steps-awaiting-runs");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let (synchronous, awaited) = both_run(&context, repo.as_path(), &["rev-parse", "--verify", "--quiet", "HEAD"]);
+    let (synchronous, awaited) = both_run(
+        &context,
+        repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", "HEAD"],
+    );
     let output: GitOutput = synchronous.clone().expect("the step runs");
-    assert!(output.succeeded(), "the synchronous step asks a question Git answers");
+    assert!(
+        output.succeeded(),
+        "the synchronous step asks a question Git answers"
+    );
     assert_eq!(
         awaited.expect("the awaited step runs").stdout,
         output.stdout,
         "the two faces run one step for one commit"
     );
-    let synchronous_text: String = checked(&context, repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"], None).expect("the branch");
-    let awaited_text: String = crate::lazy_runtime::run_on_runtime(checked_awaiting(&context, repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"], None))
-        .expect("the runtime")
-        .expect("the branch");
-    assert_eq!(awaited_text, synchronous_text, "the two faces read the same text of a step that must succeed");
+    let synchronous_text: String = checked(
+        &context,
+        repo.as_path(),
+        &["symbolic-ref", "--quiet", "HEAD"],
+        None,
+    )
+    .expect("the branch");
+    let awaited_text: String = crate::lazy_runtime::run_on_runtime(checked_awaiting(
+        &context,
+        repo.as_path(),
+        &["symbolic-ref", "--quiet", "HEAD"],
+        None,
+    ))
+    .expect("the runtime")
+    .expect("the branch");
+    assert_eq!(
+        awaited_text, synchronous_text,
+        "the two faces read the same text of a step that must succeed"
+    );
     let listing: Vec<&str> = vec!["log", "-1", "--format=%H"];
-    let synchronous_bytes: Vec<u8> = checked_bytes(&context, repo.as_path(), listing.as_slice(), None).expect("the listing");
-    let awaited_bytes: Vec<u8> = crate::lazy_runtime::run_on_runtime(checked_bytes_awaiting(&context, repo.as_path(), listing.as_slice(), None))
-        .expect("the runtime")
-        .expect("the listing");
-    assert_eq!(awaited_bytes, synchronous_bytes, "the two faces read the same bytes of a listing");
+    let synchronous_bytes: Vec<u8> =
+        checked_bytes(&context, repo.as_path(), listing.as_slice(), None).expect("the listing");
+    let awaited_bytes: Vec<u8> = crate::lazy_runtime::run_on_runtime(checked_bytes_awaiting(
+        &context,
+        repo.as_path(),
+        listing.as_slice(),
+        None,
+    ))
+    .expect("the runtime")
+    .expect("the listing");
+    assert_eq!(
+        awaited_bytes, synchronous_bytes,
+        "the two faces read the same bytes of a listing"
+    );
     remove(root.as_path());
 }
 
@@ -130,11 +185,25 @@ fn a_step_git_cannot_run_is_the_answer_both_faces_give() {
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent-git-for-a-control");
     let (synchronous, awaited) = both_run(&context, repo.as_path(), &["rev-parse", "HEAD"]);
-    assert_eq!(synchronous, Err(FailureCode::Unavailable), "a Git that cannot be run is a step that cannot run");
-    assert_eq!(awaited, synchronous, "both faces answer a step that could not run the same way");
-    let synchronous_checked: Result<String, FailureCode> = checked(&context, repo.as_path(), &["rev-parse", "HEAD"], None);
-    let awaited_checked: Result<String, FailureCode> = crate::lazy_runtime::run_on_runtime(checked_awaiting(&context, repo.as_path(), &["rev-parse", "HEAD"], None)).expect("the runtime");
-    assert_eq!(awaited_checked, synchronous_checked, "both faces answer a step that must succeed the same way");
+    assert_eq!(
+        synchronous,
+        Err(FailureCode::Unavailable),
+        "a Git that cannot be run is a step that cannot run"
+    );
+    assert_eq!(
+        awaited, synchronous,
+        "both faces answer a step that could not run the same way"
+    );
+    let synchronous_checked: Result<String, FailureCode> =
+        checked(&context, repo.as_path(), &["rev-parse", "HEAD"], None);
+    let awaited_checked: Result<String, FailureCode> = crate::lazy_runtime::run_on_runtime(
+        checked_awaiting(&context, repo.as_path(), &["rev-parse", "HEAD"], None),
+    )
+    .expect("the runtime");
+    assert_eq!(
+        awaited_checked, synchronous_checked,
+        "both faces answer a step that must succeed the same way"
+    );
     remove(root.as_path());
 }
 
@@ -160,21 +229,52 @@ fn the_awaited_requests_that_land_are_the_ones_the_synchronous_face_chooses() {
     let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     std::fs::write(repo.join("changed.txt"), "one\n").expect("a file");
     git(repo.as_path(), &["add", "--all"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=the branch moved"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=the branch moved"],
+    );
     // A request prepared on the branch as it was, whose path the branch changed since.
     let behind: CommitRequest = a_request(repo.as_path(), old.as_str(), "changed.txt", 10);
     // Two requests of one path: the later capture holds the earlier one's edit, so both land.
-    let earlier: CommitRequest = a_request(repo.as_path(), git_text(repo.as_path(), &["rev-parse", "HEAD"]).as_str(), "earlier.txt", 20);
-    let later: CommitRequest = a_request(repo.as_path(), git_text(repo.as_path(), &["rev-parse", "HEAD"]).as_str(), "earlier.txt", 30);
+    let earlier: CommitRequest = a_request(
+        repo.as_path(),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]).as_str(),
+        "earlier.txt",
+        20,
+    );
+    let later: CommitRequest = a_request(
+        repo.as_path(),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]).as_str(),
+        "earlier.txt",
+        30,
+    );
     let requests: Vec<CommitRequest> = vec![behind, earlier, later];
     let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let synchronous: Vec<(usize, &CommitRequest)> = requests_that_land(&context, repo.as_path(), requests.as_slice(), tip.as_str()).expect("the landing requests");
-    let awaited: Vec<(usize, &CommitRequest)> =
-        crate::lazy_runtime::run_on_runtime(requests_that_land_awaiting(&context, repo.as_path(), requests.as_slice(), tip.as_str()))
-            .expect("the runtime")
+    let synchronous: Vec<(usize, &CommitRequest)> =
+        requests_that_land(&context, repo.as_path(), requests.as_slice(), tip.as_str())
             .expect("the landing requests");
-    let positions = |landing: &[(usize, &CommitRequest)]| -> Vec<usize> { return landing.iter().map(|(index, _request)| { return *index; }).collect() };
-    assert_eq!(positions(&synchronous), vec![1, 2], "a request whose path the branch changed since is left out, and one that captured later lands");
-    assert_eq!(positions(&awaited), positions(&synchronous), "the two faces choose one set of requests to land");
+    let awaited: Vec<(usize, &CommitRequest)> = crate::lazy_runtime::run_on_runtime(
+        requests_that_land_awaiting(&context, repo.as_path(), requests.as_slice(), tip.as_str()),
+    )
+    .expect("the runtime")
+    .expect("the landing requests");
+    let positions = |landing: &[(usize, &CommitRequest)]| -> Vec<usize> {
+        return landing
+            .iter()
+            .map(|(index, _request)| {
+                return *index;
+            })
+            .collect();
+    };
+    assert_eq!(
+        positions(&synchronous),
+        vec![1, 2],
+        "a request whose path the branch changed since is left out, and one that captured later lands"
+    );
+    assert_eq!(
+        positions(&awaited),
+        positions(&synchronous),
+        "the two faces choose one set of requests to land"
+    );
     remove(root.as_path());
 }

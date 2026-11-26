@@ -57,8 +57,11 @@ pub(crate) fn free_the_answered_map_beside_the_add(answered: Option<BlobSizes>) 
     let Some(sizes) = answered else { return };
     #[cfg(test)]
     THE_ABANDONING_THREAD.with(|held| held.set(Some(std::thread::current().id())));
-    let freeing = move || { drop(TheAnsweredMap(Some(sizes))); };
-    let _started: std::io::Result<std::thread::JoinHandle<()>> = spawn_named(FREEING_THREAD, freeing);
+    let freeing = move || {
+        drop(TheAnsweredMap(Some(sizes)));
+    };
+    let _started: std::io::Result<std::thread::JoinHandle<()>> =
+        spawn_named(FREEING_THREAD, freeing);
     #[cfg(test)]
     THE_ABANDONING_THREAD.with(|held| held.set(None));
 }
@@ -97,13 +100,15 @@ thread_local! {
 }
 
 #[cfg(test)]
-static THE_ANSWER_WAS_SENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_ANSWER_WAS_SENT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
 static ANSWERED_MAPS_FREED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 #[cfg(test)]
-static ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 /// What:
 ///  Note that the read's thread has sent its answer,
@@ -150,9 +155,11 @@ pub(crate) fn the_answer_was_sent_for_a_control() -> bool {
 #[cfg(test)]
 fn note_an_answered_map_was_freed() {
     let _counted = ANSWERED_MAPS_FREED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let abandoning: Option<std::thread::ThreadId> = THE_ABANDONING_THREAD.with(std::cell::Cell::get);
+    let abandoning: Option<std::thread::ThreadId> =
+        THE_ABANDONING_THREAD.with(std::cell::Cell::get);
     if abandoning == Some(std::thread::current().id()) {
-        let _here = ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let _here = ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -170,5 +177,8 @@ fn note_an_answered_map_was_freed() {
 /// ```
 #[cfg(test)]
 pub(crate) fn answered_maps_freed_for_a_control() -> (usize, usize) {
-    return (ANSWERED_MAPS_FREED.load(std::sync::atomic::Ordering::SeqCst), ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD.load(std::sync::atomic::Ordering::SeqCst));
+    return (
+        ANSWERED_MAPS_FREED.load(std::sync::atomic::Ordering::SeqCst),
+        ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD.load(std::sync::atomic::Ordering::SeqCst),
+    );
 }

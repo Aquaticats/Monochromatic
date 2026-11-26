@@ -20,21 +20,30 @@
 /// The folder of saved copies inside a Git directory.
 use crate::conflict_sides::SAVED_DIRECTORY;
 /// The listing of that folder and its limits.
-use crate::discarded_prune::{Limits, list_stamped_below};
+use crate::discarded_prune::{
+    Limits,
+    list_stamped_below,
+};
 /// The listing's shape and what could not be read,
 /// which are the pruning pass's.
-use crate::discarded_prune_problems::{Listing, Problem};
+use crate::discarded_prune_problems::{
+    Listing,
+    Problem,
+};
 /// The relative spelling a reader uses for the folder that exists.
 use crate::kept_names_in_the_git_directories::relative_paths_for_reading;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// `Duration` is how long the survey of the folders may take.
-use std::time::Duration;
 /// The ceiling of a file system read of the report.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
 /// The job of such a read,
 /// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// `Duration` is how long the survey of the folders may take.
+use std::time::Duration;
 
 /// What the folder holds,
 /// for `git monochromatic-git-policy-cli doctor`.
@@ -62,7 +71,13 @@ pub fn report(common_dir: &Path) -> Option<Report> {
     if folders.is_empty() {
         return None;
     }
-    let mut merged: Report = Report { bytes: 0, copies: 0, saves: 0, oldest: String::new(), problems: Vec::new() };
+    let mut merged: Report = Report {
+        bytes: 0,
+        copies: 0,
+        saves: 0,
+        oldest: String::new(),
+        problems: Vec::new(),
+    };
     for (_, found) in folders {
         merged.bytes += found.bytes;
         merged.copies += found.copies;
@@ -86,7 +101,10 @@ pub fn report(common_dir: &Path) -> Option<Report> {
 /// ```ts
 /// reportBelow(commonDir, relative);
 /// ```
-fn report_below(common_dir: &Path, relative: &str) -> Option<Report> {
+fn report_below(
+    common_dir: &Path,
+    relative: &str,
+) -> Option<Report> {
     let listing: Listing = list_stamped_below(common_dir, relative);
     if listing.entries.is_empty() && listing.problems.is_empty() {
         return None;
@@ -187,8 +205,16 @@ fn the_folders_that_exist(common_dir: &Path) -> SavedCopies {
 /// ```ts
 /// const text = doctorSection(commonDir, limits);
 /// ```
-pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
-    return doctor_section_with(the_folders_that_exist, REPORT_SCAN_CEILING, common_dir, limits);
+pub fn doctor_section(
+    common_dir: &Path,
+    limits: Limits,
+) -> String {
+    return doctor_section_with(
+        the_folders_that_exist,
+        REPORT_SCAN_CEILING,
+        common_dir,
+        limits,
+    );
 }
 
 /// What:
@@ -202,9 +228,16 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
 /// ```ts
 /// doctorSectionWith(theFolderThatExists, REPORT_SCAN_CEILING, commonDir, limits);
 /// ```
-pub fn doctor_section_with(read: SavedCopiesRead, ceiling: Duration, common_dir: &Path, limits: Limits) -> String {
+pub fn doctor_section_with(
+    read: SavedCopiesRead,
+    ceiling: Duration,
+    common_dir: &Path,
+    limits: Limits,
+) -> String {
     let named: PathBuf = common_dir.to_path_buf();
-    let surveyed: Option<SavedCopies> = work_within(ceiling, move || { return read(named.as_path()); });
+    let surveyed: Option<SavedCopies> = work_within(ceiling, move || {
+        return read(named.as_path());
+    });
     let Some(folders) = surveyed else {
         return format!(
             "git monochromatic-git-policy-cli doctor: discarded copies: the saved copies of {} could not be read within {ceiling:?}\n",
@@ -231,7 +264,16 @@ pub fn doctor_section_with(read: SavedCopiesRead, ceiling: Duration, common_dir:
             );
         }
         for problem in &found.problems {
-            text.push_str(problem.message().replacen("monochromatic-git-policy-cli: ", "git monochromatic-git-policy-cli doctor: discarded copies: ", 1).as_str());
+            text.push_str(
+                problem
+                    .message()
+                    .replacen(
+                        "monochromatic-git-policy-cli: ",
+                        "git monochromatic-git-policy-cli doctor: discarded copies: ",
+                        1,
+                    )
+                    .as_str(),
+            );
         }
     }
     return text;

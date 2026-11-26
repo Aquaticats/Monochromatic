@@ -19,10 +19,23 @@
 //! // appendLine(full, 'next\n'); expect(exists(`${log}.1`)).toBe(true);
 //! ```
 
-use super::{ROTATE_AT_BYTES, RotationStep, append_entry, append_line, move_aside_between, move_aside_if_still_named};
-use crate::command_test_support::{fixture, remove};
+use super::{
+    ROTATE_AT_BYTES,
+    RotationStep,
+    append_entry,
+    append_line,
+    move_aside_between,
+    move_aside_if_still_named,
+};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A log name that no shipped log uses,
 /// so a control never reads a real log's path.
@@ -45,8 +58,14 @@ fn generations(target: &Path) -> Vec<u64> {
     let mut numbers: Vec<u64> = std::fs::read_dir(directory)
         .expect("directory")
         .filter_map(|entry| {
-            let name: String = entry.expect("entry").file_name().to_string_lossy().into_owned();
-            return name.strip_prefix(prefix.as_str()).and_then(|rest| { return rest.parse::<u64>().ok(); });
+            let name: String = entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+            return name.strip_prefix(prefix.as_str()).and_then(|rest| {
+                return rest.parse::<u64>().ok();
+            });
         })
         .collect();
     numbers.sort_unstable();
@@ -57,8 +76,16 @@ fn generations(target: &Path) -> Vec<u64> {
 fn private_names(root: &Path) -> Vec<String> {
     return std::fs::read_dir(root)
         .expect("directory")
-        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.contains(".moving-"); })
+        .map(|entry| {
+            return entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+        })
+        .filter(|name| {
+            return name.contains(".moving-");
+        })
         .collect();
 }
 
@@ -72,11 +99,22 @@ fn a_full_file_moves_aside() {
     almost_full[ROTATE_AT_BYTES as usize - 2] = b'\n';
     std::fs::write(&target, almost_full).expect("nearly full");
     append_line(target.as_path(), b"next\n", &UNPINNED_LOG).expect("append");
-    assert!(!root.join(format!("{LOG_FILE}.1")).exists(), "a file under the limit takes the line alone");
-    assert_eq!(std::fs::metadata(&target).expect("metadata").len(), ROTATE_AT_BYTES + 4);
+    assert!(
+        !root.join(format!("{LOG_FILE}.1")).exists(),
+        "a file under the limit takes the line alone"
+    );
+    assert_eq!(
+        std::fs::metadata(&target).expect("metadata").len(),
+        ROTATE_AT_BYTES + 4
+    );
     append_line(target.as_path(), b"after\n", &UNPINNED_LOG).expect("append past the limit");
     assert_eq!(std::fs::read(&target).expect("new file"), b"after\n");
-    assert_eq!(std::fs::metadata(root.join(format!("{LOG_FILE}.1"))).expect("aside").len(), ROTATE_AT_BYTES + 4);
+    assert_eq!(
+        std::fs::metadata(root.join(format!("{LOG_FILE}.1")))
+            .expect("aside")
+            .len(),
+        ROTATE_AT_BYTES + 4
+    );
     remove(root.as_path());
 }
 
@@ -99,9 +137,18 @@ fn a_torn_last_line_does_not_swallow_the_next_record() {
     append_line(target.as_path(), b"{\"next\":2}\n", &UNPINNED_LOG).expect("append");
     append_line(target.as_path(), b"{\"last\":3}\n", &UNPINNED_LOG).expect("append");
     let text: String = std::fs::read_to_string(&target).expect("file");
-    let parsed: Vec<bool> = text.lines().map(|line| { return serde_json::from_str::<serde_json::Value>(line).is_ok(); }).collect();
+    let parsed: Vec<bool> = text
+        .lines()
+        .map(|line| {
+            return serde_json::from_str::<serde_json::Value>(line).is_ok();
+        })
+        .collect();
     assert_eq!(parsed, vec![true, false, true, true], "{text}");
-    assert_eq!(text.lines().last(), Some("{\"last\":3}"), "a whole file adds nothing extra");
+    assert_eq!(
+        text.lines().last(),
+        Some("{\"last\":3}"),
+        "a whole file adds nothing extra"
+    );
     remove(root.as_path());
 }
 
@@ -114,20 +161,47 @@ fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
     let target: PathBuf = root.join(LOG_FILE);
     let aside: PathBuf = root.join(format!("{LOG_FILE}.1"));
     std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
     // Another writer rotates first and starts the new file.
     std::fs::rename(&target, &aside).expect("the other writer's rotation");
     std::fs::write(&target, b"{\"new\":1}\n").expect("the new file");
     move_aside_if_still_named(target.as_path(), &seen_full).expect("no error");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still there");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file stays");
+    assert_eq!(
+        std::fs::read(&aside).expect("aside"),
+        b"the full history\n",
+        "the history is still there"
+    );
+    assert_eq!(
+        std::fs::read(&target).expect("target"),
+        b"{\"new\":1}\n",
+        "the new file stays"
+    );
     // The same writer, when the path still names its file, does move it.
-    let current: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let current: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
     move_aside_if_still_named(target.as_path(), &current).expect("moved");
     assert!(!target.exists(), "the file at the name was taken off it");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "and the history is not replaced");
-    assert_eq!(generations(target.as_path()), vec![1, 2], "the small file is a generation of its own");
-    assert_eq!(std::fs::read(root.join(format!("{LOG_FILE}.2"))).expect("second generation"), b"{\"new\":1}\n");
+    assert_eq!(
+        std::fs::read(&aside).expect("aside"),
+        b"the full history\n",
+        "and the history is not replaced"
+    );
+    assert_eq!(
+        generations(target.as_path()),
+        vec![1, 2],
+        "the small file is a generation of its own"
+    );
+    assert_eq!(
+        std::fs::read(root.join(format!("{LOG_FILE}.2"))).expect("second generation"),
+        b"{\"new\":1}\n"
+    );
     remove(root.as_path());
 }
 
@@ -142,7 +216,11 @@ fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new
     let target: PathBuf = root.join(LOG_FILE);
     let aside: PathBuf = root.join(format!("{LOG_FILE}.1"));
     std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
     let mut steps: Vec<RotationStep> = Vec::new();
     move_aside_between(target.as_path(), &seen_full, &mut |step| {
         steps.push(step);
@@ -153,9 +231,21 @@ fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new
         }
     })
     .expect("no error");
-    assert_eq!(steps.first(), Some(&RotationStep::BeforeMove), "the check passed, so the move was reached");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still in its generation");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file is back at its name");
+    assert_eq!(
+        steps.first(),
+        Some(&RotationStep::BeforeMove),
+        "the check passed, so the move was reached"
+    );
+    assert_eq!(
+        std::fs::read(&aside).expect("aside"),
+        b"the full history\n",
+        "the history is still in its generation"
+    );
+    assert_eq!(
+        std::fs::read(&target).expect("target"),
+        b"{\"new\":1}\n",
+        "the new file is back at its name"
+    );
     remove(root.as_path());
 }
 
@@ -169,14 +259,22 @@ fn a_file_that_vanished_after_the_check_is_not_an_error() {
     let target: PathBuf = root.join(LOG_FILE);
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    let outcome: std::io::Result<()> = move_aside_between(target.as_path(), &seen_full, &mut |step| {
-        if step == RotationStep::BeforeMove {
-            std::fs::rename(&target, &elsewhere).expect("the other writer's rotation");
-        }
-    });
+    let seen_full: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
+    let outcome: std::io::Result<()> =
+        move_aside_between(target.as_path(), &seen_full, &mut |step| {
+            if step == RotationStep::BeforeMove {
+                std::fs::rename(&target, &elsewhere).expect("the other writer's rotation");
+            }
+        });
     assert!(outcome.is_ok(), "{outcome:?}");
-    assert_eq!(std::fs::read(&elsewhere).expect("history"), b"the full history\n");
+    assert_eq!(
+        std::fs::read(&elsewhere).expect("history"),
+        b"the full history\n"
+    );
     remove(root.as_path());
 }
 
@@ -190,11 +288,19 @@ fn a_rotation_that_fails_does_not_drop_the_record() {
     let target: PathBuf = root.join(LOG_FILE);
     let filler: Vec<u8> = full_file();
     std::fs::write(&target, &filler).expect("a full file");
-    std::fs::create_dir(root.join(format!("{LOG_FILE}.1"))).expect("an obstacle where a generation belongs");
-    append_line(target.as_path(), b"{\"kept\":1}\n", &UNPINNED_LOG).expect("the record is appended whatever the rotation did");
+    std::fs::create_dir(root.join(format!("{LOG_FILE}.1")))
+        .expect("an obstacle where a generation belongs");
+    append_line(target.as_path(), b"{\"kept\":1}\n", &UNPINNED_LOG)
+        .expect("the record is appended whatever the rotation did");
     let text: Vec<u8> = std::fs::read(&target).expect("target");
-    assert!(text.ends_with(b"{\"kept\":1}\n"), "the record is the last line of the file at the name");
-    assert!(text.starts_with(&filler), "the full history is still in the file at the name");
+    assert!(
+        text.ends_with(b"{\"kept\":1}\n"),
+        "the record is the last line of the file at the name"
+    );
+    assert!(
+        text.starts_with(&filler),
+        "the full history is still in the file at the name"
+    );
     remove(root.as_path());
 }
 
@@ -208,26 +314,47 @@ fn a_newer_file_taken_by_mistake_is_kept_when_the_name_is_already_used_again() {
     let target: PathBuf = root.join(LOG_FILE);
     let aside: PathBuf = root.join(format!("{LOG_FILE}.1"));
     std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
     move_aside_between(target.as_path(), &seen_full, &mut |step| match step {
         RotationStep::BeforeMove => {
             std::fs::rename(&target, &aside).expect("the other writer's rotation");
             std::fs::write(&target, b"{\"second\":1}\n").expect("the newer file");
         }
         RotationStep::AfterMove => {
-            std::fs::write(&target, b"{\"third\":1}\n").expect("a third writer starts a file while the name is free");
+            std::fs::write(&target, b"{\"third\":1}\n")
+                .expect("a third writer starts a file while the name is free");
         }
     })
     .expect("no error");
     assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"third\":1}\n", "the file at the name is not replaced");
+    assert_eq!(
+        std::fs::read(&target).expect("target"),
+        b"{\"third\":1}\n",
+        "the file at the name is not replaced"
+    );
     let kept: Vec<Vec<u8>> = std::fs::read_dir(&root)
         .expect("directory")
-        .map(|entry| { return entry.expect("entry").path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().contains(".moving-"); }); })
-        .map(|path| { return std::fs::read(path).expect("kept file"); })
+        .map(|entry| {
+            return entry.expect("entry").path();
+        })
+        .filter(|path| {
+            return path.file_name().is_some_and(|name| {
+                return name.to_string_lossy().contains(".moving-");
+            });
+        })
+        .map(|path| {
+            return std::fs::read(path).expect("kept file");
+        })
         .collect();
-    assert_eq!(kept, vec![b"{\"second\":1}\n".to_vec()], "the newer file keeps every line");
+    assert_eq!(
+        kept,
+        vec![b"{\"second\":1}\n".to_vec()],
+        "the newer file keeps every line"
+    );
     remove(root.as_path());
 }
 
@@ -237,15 +364,28 @@ fn a_rotation_leaves_only_the_history_in_a_generation() {
     let root: PathBuf = fixture("appender-rotate-clean");
     let target: PathBuf = root.join(LOG_FILE);
     std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(&target)
+        .expect("open");
     move_aside_if_still_named(target.as_path(), &seen_full).expect("moved");
     let mut names: Vec<String> = std::fs::read_dir(&root)
         .expect("directory")
-        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
+        .map(|entry| {
+            return entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+        })
         .collect();
     names.sort();
     assert_eq!(names, vec![format!("{LOG_FILE}.1")]);
-    assert_eq!(std::fs::read(root.join(format!("{LOG_FILE}.1"))).expect("generation"), b"the full history\n");
+    assert_eq!(
+        std::fs::read(root.join(format!("{LOG_FILE}.1"))).expect("generation"),
+        b"the full history\n"
+    );
     remove(root.as_path());
 }
 
@@ -263,7 +403,10 @@ fn concurrent_appenders_lose_no_line_and_tear_none() {
             let path: &Path = target.as_path();
             scope.spawn(move || {
                 for number in 0..each {
-                    let line: String = format!("{{\"writer\":{writer},\"number\":{number},\"pad\":\"{}\"}}\n", "p".repeat(200));
+                    let line: String = format!(
+                        "{{\"writer\":{writer},\"number\":{number},\"pad\":\"{}\"}}\n",
+                        "p".repeat(200)
+                    );
                     append_line(path, line.as_bytes(), &UNPINNED_LOG).expect("append");
                 }
             });
@@ -273,9 +416,15 @@ fn concurrent_appenders_lose_no_line_and_tear_none() {
     let mut seen: std::collections::BTreeSet<(u64, u64)> = std::collections::BTreeSet::new();
     // A writer that reads the last byte while another one is half-way through a page-crossing write sees no newline and
     //  starts its line on a fresh one: the result is an empty line between records, which every reader of the file skips.
-    for line in text.lines().filter(|line| { return !line.is_empty(); }) {
-        let value: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|error| { panic!("a torn line {line:?}: {error}") });
-        seen.insert((value["writer"].as_u64().expect("writer"), value["number"].as_u64().expect("number")));
+    for line in text.lines().filter(|line| {
+        return !line.is_empty();
+    }) {
+        let value: serde_json::Value = serde_json::from_str(line)
+            .unwrap_or_else(|error| panic!("a torn line {line:?}: {error}"));
+        seen.insert((
+            value["writer"].as_u64().expect("writer"),
+            value["number"].as_u64().expect("number"),
+        ));
     }
     assert_eq!(seen.len(), writers * each);
     remove(root.as_path());
@@ -291,9 +440,14 @@ fn a_file_that_cannot_be_read_is_still_appended_to() {
     let target: PathBuf = root.join(LOG_FILE);
     std::fs::write(&target, b"{\"first\":1}\n").expect("file");
     std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o200)).expect("write only");
-    append_line(target.as_path(), b"{\"second\":2}\n", &UNPINNED_LOG).expect("appended without read permission");
-    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("readable again");
-    assert_eq!(std::fs::read_to_string(&target).expect("file"), "{\"first\":1}\n{\"second\":2}\n");
+    append_line(target.as_path(), b"{\"second\":2}\n", &UNPINNED_LOG)
+        .expect("appended without read permission");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600))
+        .expect("readable again");
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("file"),
+        "{\"first\":1}\n{\"second\":2}\n"
+    );
     remove(root.as_path());
 }
 
@@ -302,7 +456,8 @@ fn a_file_that_cannot_be_read_is_still_appended_to() {
 /// with nothing retried.
 #[test]
 fn a_full_disk_is_an_error_not_a_second_write() {
-    let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n", &UNPINNED_LOG).expect_err("the device refuses every write");
+    let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n", &UNPINNED_LOG)
+        .expect_err("the device refuses every write");
     assert_eq!(error.raw_os_error(), Some(libc::ENOSPC), "{error:?}");
 }
 
@@ -317,10 +472,20 @@ fn an_entry_lands_as_composed_in_a_private_folder() {
     let log: PathBuf = root.join("monochromatic-git-policy-cli").join("entry.md");
     append_entry(log.as_path(), b"\nfirst entry", &UNPINNED_LOG).expect("the first entry");
     append_entry(log.as_path(), b"\nsecond entry", &UNPINNED_LOG).expect("the second entry");
-    assert_eq!(std::fs::read_to_string(&log).expect("log"), "\nfirst entry\nsecond entry", "each entry lands as it was composed");
-    let folder_mode: u32 = std::fs::metadata(log.parent().expect("folder")).expect("folder metadata").permissions().mode();
+    assert_eq!(
+        std::fs::read_to_string(&log).expect("log"),
+        "\nfirst entry\nsecond entry",
+        "each entry lands as it was composed"
+    );
+    let folder_mode: u32 = std::fs::metadata(log.parent().expect("folder"))
+        .expect("folder metadata")
+        .permissions()
+        .mode();
     assert_eq!(folder_mode & 0o077, 0, "{folder_mode:o}");
-    let file_mode: u32 = std::fs::metadata(&log).expect("log metadata").permissions().mode();
+    let file_mode: u32 = std::fs::metadata(&log)
+        .expect("log metadata")
+        .permissions()
+        .mode();
     assert_eq!(file_mode & 0o077, 0, "{file_mode:o}");
     remove(root.as_path());
 }
@@ -338,7 +503,11 @@ fn an_entrys_log_is_never_a_final_link() {
     std::os::unix::fs::symlink(&elsewhere, &log).expect("a link where the log belongs");
     let written = append_entry(log.as_path(), b"\nentry", &UNPINNED_LOG);
     assert!(written.is_err(), "the link is refused: {written:?}");
-    assert_eq!(std::fs::read(&elsewhere).expect("the place"), b"the place the link points at", "nothing was written through it");
+    assert_eq!(
+        std::fs::read(&elsewhere).expect("the place"),
+        b"the place the link points at",
+        "nothing was written through it"
+    );
     remove(root.as_path());
 }
 
@@ -352,8 +521,18 @@ fn an_entry_past_the_size_limit_moves_aside() {
     append_entry(log.as_path(), b"\nfirst entry", &UNPINNED_LOG).expect("the first entry");
     std::fs::write(&log, full_file()).expect("a full log");
     append_entry(log.as_path(), b"\nsecond entry", &UNPINNED_LOG).expect("the second entry");
-    assert_eq!(std::fs::read(root.join("monochromatic-git-policy-cli").join("entry.md.1")).expect("generation"), full_file());
-    assert_eq!(std::fs::read_to_string(&log).expect("live log"), "\nsecond entry");
-    assert_eq!(private_names(root.join("monochromatic-git-policy-cli").as_path()), Vec::<String>::new());
+    assert_eq!(
+        std::fs::read(root.join("monochromatic-git-policy-cli").join("entry.md.1"))
+            .expect("generation"),
+        full_file()
+    );
+    assert_eq!(
+        std::fs::read_to_string(&log).expect("live log"),
+        "\nsecond entry"
+    );
+    assert_eq!(
+        private_names(root.join("monochromatic-git-policy-cli").as_path()),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }

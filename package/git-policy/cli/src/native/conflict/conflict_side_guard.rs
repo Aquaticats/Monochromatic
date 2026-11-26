@@ -26,16 +26,29 @@
 //! const verdict = judgeConflictSides({ context, arguments }); // 'not-applicable' | { kind: 'would-replace', paths }
 //! ```
 
-use crate::command_conflict_side::{SideRequest, conflict_side_request};
-use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
+use crate::command_conflict_side::{
+    SideRequest,
+    conflict_side_request,
+};
+use crate::conflict_side_state::{
+    Operation,
+    conflicted_paths,
+    operation_in_progress,
+};
 use crate::diagnostic_log::debug;
 use crate::global_arguments::command_tokens;
 use crate::private_storage::read_regular_file;
 use crate::repo_read_index::parse_index;
-use crate::repo_read_layout::{RepoLayout, read_layout};
+use crate::repo_read_layout::{
+    RepoLayout,
+    read_layout,
+};
 use crate::transaction_git::GitContext;
 use std::collections::BTreeSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
@@ -79,15 +92,25 @@ pub enum SideVerdict {
 fn waiting(layout: &RepoLayout) -> Option<(Operation, BTreeSet<Vec<u8>>)> {
     let operation: Operation = operation_in_progress(layout.git_dir.as_path())?;
     if std::env::var_os("GIT_INDEX_FILE").is_some() {
-        debug(TAG, "declined: GIT_INDEX_FILE names another index, so no path can be shown to be unmerged");
+        debug(
+            TAG,
+            "declined: GIT_INDEX_FILE names another index, so no path can be shown to be unmerged",
+        );
         return None;
     }
-    let Ok(bytes) = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES) else {
-        debug(TAG, "declined: the index cannot be read in process, so no path can be shown to be unmerged");
+    let Ok(bytes) = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES)
+    else {
+        debug(
+            TAG,
+            "declined: the index cannot be read in process, so no path can be shown to be unmerged",
+        );
         return None;
     };
     let Some(entries) = parse_index(bytes.as_slice(), layout.object_format) else {
-        debug(TAG, "declined: the index is split, sparse or carries an extension the reader cannot vouch for");
+        debug(
+            TAG,
+            "declined: the index is split, sparse or carries an extension the reader cannot vouch for",
+        );
         return None;
     };
     return Some((operation, conflicted_paths(entries.as_slice())));
@@ -110,9 +133,17 @@ fn waiting(layout: &RepoLayout) -> Option<(Operation, BTreeSet<Vec<u8>>)> {
 /// ```ts
 /// function literalPath(prefix: string, root: string, token: string): string | undefined;
 /// ```
-fn literal_path(prefix: &[u8], root: &Path, token: &OsStr) -> Option<Vec<u8>> {
+fn literal_path(
+    prefix: &[u8],
+    root: &Path,
+    token: &OsStr,
+) -> Option<Vec<u8>> {
     let bytes: &[u8] = token.as_bytes();
-    if bytes.is_empty() || bytes[0] == b':' || bytes.ends_with(b"/") || bytes.iter().any(is_wildcard) {
+    if bytes.is_empty()
+        || bytes[0] == b':'
+        || bytes.ends_with(b"/")
+        || bytes.iter().any(is_wildcard)
+    {
         return None;
     }
     let joined: Vec<u8> = if bytes[0] == b'/' {
@@ -160,7 +191,12 @@ fn is_slash(byte: &u8) -> bool {
 /// ```ts
 /// function unmergedAmong(tokens, prefix, root, conflicted): string[];
 /// ```
-fn unmerged_among(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted: &BTreeSet<Vec<u8>>) -> Vec<String> {
+fn unmerged_among(
+    tokens: &[OsString],
+    prefix: &[u8],
+    root: &Path,
+    conflicted: &BTreeSet<Vec<u8>>,
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for token in tokens {
         let Some(path) = literal_path(prefix, root, token.as_os_str()) else {
@@ -192,29 +228,54 @@ fn unmerged_among(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted: &
 /// ```ts
 /// function judgeConflictSides(context, arguments): SideVerdict;
 /// ```
-pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString]) -> SideVerdict {
+pub fn judge_conflict_sides(
+    context: &GitContext,
+    arguments: &[OsString],
+) -> SideVerdict {
     let Some((word, region)) = command_tokens(arguments) else {
         return SideVerdict::NotApplicable;
     };
-    let Some(request): Option<SideRequest> = conflict_side_request(word.as_encoded_bytes(), region) else {
+    let Some(request): Option<SideRequest> = conflict_side_request(word.as_encoded_bytes(), region)
+    else {
         return SideVerdict::NotApplicable;
     };
-    let Some(layout) = read_layout(context.global_prefix.as_slice(), context.overlay.as_slice()) else {
+    let Some(layout) = read_layout(context.global_prefix.as_slice(), context.overlay.as_slice())
+    else {
         // A global option other than `-C` or a `GIT_` variable the layout reader does not tolerate lands here:
         //  a pathspec mode such as `--icase-pathspecs` among them, whose paths cannot be read as named.
-        debug(TAG, "declined: the layout reader does not read this invocation, so its paths cannot be named");
+        debug(
+            TAG,
+            "declined: the layout reader does not read this invocation, so its paths cannot be named",
+        );
         return SideVerdict::NotApplicable;
     };
     let Some((operation, conflicted)) = waiting(&layout) else {
         return SideVerdict::NotApplicable;
     };
-    let paths: Vec<String> = unmerged_among(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted);
+    let paths: Vec<String> = unmerged_among(
+        request.paths.as_slice(),
+        layout.prefix.as_slice(),
+        layout.worktree_root.as_path(),
+        &conflicted,
+    );
     if paths.is_empty() {
-        debug(TAG, &format!("{operation:?} waits, but no path this line names is unmerged among {} conflicted", conflicted.len()));
+        debug(
+            TAG,
+            &format!(
+                "{operation:?} waits, but no path this line names is unmerged among {} conflicted",
+                conflicted.len()
+            ),
+        );
         return SideVerdict::NotApplicable;
     }
-    debug(TAG, &format!("{operation:?} waits and this line would replace {paths:?}"));
-    return SideVerdict::WouldReplace { operation, paths };
+    debug(
+        TAG,
+        &format!("{operation:?} waits and this line would replace {paths:?}"),
+    );
+    return SideVerdict::WouldReplace {
+        operation,
+        paths,
+    };
 }
 
 /// The reading and the paths, over a directory of fixtures and a real index.

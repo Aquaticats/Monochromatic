@@ -29,7 +29,12 @@
 //! const reported = gitStatusOf({ context, worktree, admin, volumes }); // 'nothing' | 'only-deletions' | 'something'
 //! ```
 
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -74,7 +79,11 @@ pub enum Reported {
 /// ```ts
 /// const onlyDeletions = gitStatusIsOnlyDeletions({ context, worktree, admin });
 /// ```
-pub(crate) fn only_deletions(context: &GitContext, worktree: &Path, admin: &Path) -> bool {
+pub(crate) fn only_deletions(
+    context: &GitContext,
+    worktree: &Path,
+    admin: &Path,
+) -> bool {
     return reported_outside(context, worktree, admin, &[]) == Reported::OnlyDeletions;
 }
 
@@ -102,27 +111,41 @@ pub(crate) fn only_deletions(context: &GitContext, worktree: &Path, admin: &Path
 /// ```ts
 /// const reported = gitStatusOutside({ context, worktree, admin, volumes: ['snap'] });
 /// ```
-pub(crate) fn reported_outside(context: &GitContext, worktree: &Path, admin: &Path, volumes: &[&Path]) -> Reported {
+pub(crate) fn reported_outside(
+    context: &GitContext,
+    worktree: &Path,
+    admin: &Path,
+    volumes: &[&Path],
+) -> Reported {
     let mut inside: Vec<String> = Vec::with_capacity(volumes.len());
     for volume in volumes {
-        let Ok(relative) = volume.strip_prefix(worktree) else { return reported_outside(context, worktree, admin, &[]) };
+        let Ok(relative) = volume.strip_prefix(worktree) else {
+            return reported_outside(context, worktree, admin, &[]);
+        };
         inside.push(relative.display().to_string());
     }
     let request: GitRequest = GitRequest {
         cwd: worktree.to_path_buf(),
-        arguments: ["status", "--porcelain", "-z", "--untracked-files=normal"].map(OsString::from).to_vec(),
+        arguments: ["status", "--porcelain", "-z", "--untracked-files=normal"]
+            .map(OsString::from)
+            .to_vec(),
         without_prefix: true,
         environment: crate::worktree_ladder_target::checkout_environment(admin, worktree),
         ..GitRequest::default()
     };
     // A Git that cannot answer proves nothing, and nothing is what it then says: a caller may not read it as a shape of the
     // tree.
-    let Ok(output): std::io::Result<GitOutput> = run_git(context, &request) else { return Reported::Nothing };
+    let Ok(output): std::io::Result<GitOutput> = run_git(context, &request) else {
+        return Reported::Nothing;
+    };
     if output.code != Some(0) {
         return Reported::Nothing;
     }
     let mut reported: Reported = Reported::Nothing;
-    let mut entries = output.stdout.split(|byte: &u8| return *byte == 0).filter(|entry: &&[u8]| return !entry.is_empty());
+    let mut entries = output
+        .stdout
+        .split(|byte: &u8| return *byte == 0)
+        .filter(|entry: &&[u8]| return !entry.is_empty());
     while let Some(entry) = entries.next() {
         if entry.len() < 2 {
             return Reported::Something;
@@ -133,11 +156,16 @@ pub(crate) fn reported_outside(context: &GitContext, worktree: &Path, admin: &Pa
             continue;
         }
         // What follows the two status letters and a space is the path; a rename or a copy names two of them.
-        let renamed: bool = entry[0] == b'R' || entry[0] == b'C' || entry[1] == b'R' || entry[1] == b'C';
+        let renamed: bool =
+            entry[0] == b'R' || entry[0] == b'C' || entry[1] == b'R' || entry[1] == b'C';
         if !names_only_volumes(entry, &inside) {
             return Reported::Something;
         }
-        if renamed && !entries.next().is_some_and(|second| return names_only_volumes(second, &inside)) {
+        if renamed
+            && !entries
+                .next()
+                .is_some_and(|second| return names_only_volumes(second, &inside))
+        {
             return Reported::Something;
         }
     }
@@ -156,12 +184,17 @@ pub(crate) fn reported_outside(context: &GitContext, worktree: &Path, admin: &Pa
 /// ```ts
 /// const inside = namesOnlyVolumes('?? snap/', ['snap']);
 /// ```
-fn names_only_volumes(entry: &[u8], volumes: &[String]) -> bool {
+fn names_only_volumes(
+    entry: &[u8],
+    volumes: &[String],
+) -> bool {
     if entry.len() < 4 {
         return false;
     }
     let named: &[u8] = entry.get(3..).unwrap_or_default();
-    let path: String = String::from_utf8_lossy(named).trim_end_matches('/').to_owned();
+    let path: String = String::from_utf8_lossy(named)
+        .trim_end_matches('/')
+        .to_owned();
     for volume in volumes {
         if path == *volume || path.starts_with(format!("{volume}/").as_str()) {
             return true;

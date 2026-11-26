@@ -15,12 +15,16 @@
 //! // exchange(destination, prepared); writeNew(prepared, bytes, kept);
 //! ```
 
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
 /// One extended attribute of the file a replacement stands in for,
 ///  the call that gives it to the replacement,
 ///  and why that could not be done exactly.
-use crate::direct_fix_install_attributes::{self, Attribute, AttributeRefusal};
+use crate::direct_fix_install_attributes::{
+    self,
+    Attribute,
+    AttributeRefusal,
+};
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
 
 /// What:
 ///  Swap the two files `first` and `second` name in one step.
@@ -40,7 +44,10 @@ use crate::direct_fix_install_attributes::{self, Attribute, AttributeRefusal};
 /// ```ts
 /// // renameat2(AT_FDCWD, first, AT_FDCWD, second, RENAME_EXCHANGE)
 /// ```
-pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
+pub fn exchange(
+    first: &Path,
+    second: &Path,
+) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         /// `CString` is a pathname as the operating system wants it:
@@ -114,7 +121,11 @@ pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
 /// ```ts
 /// await writeFile(path, bytes, { mode: kept.mode, flag: 'wx' }); await fchown(fd, kept.uid, kept.gid); await giveTo(fd, kept.attributes); await fchmod(fd, kept.mode);
 /// ```
-pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> Result<(), WriteFailure> {
+pub(crate) fn write_new(
+    path: &Path,
+    bytes: &[u8],
+    kept: &Kept,
+) -> Result<(), WriteFailure> {
     /// `Write` adds `write_all` to the open file.
     use std::io::Write;
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
@@ -200,7 +211,10 @@ impl Kept {
         {
             /// `MetadataExt` adds `uid` and `gid`;
             ///  `PermissionsExt` adds `mode`.
-            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+            use std::os::unix::fs::{
+                MetadataExt,
+                PermissionsExt,
+            };
             return Kept {
                 mode: described.permissions().mode() & 0o7777,
                 uid: described.uid(),
@@ -242,7 +256,10 @@ impl Kept {
     /// ```ts
     /// const sameState = (now, kept) => now.mode === kept.mode && now.uid === kept.uid && now.gid === kept.gid && sameData(now.attributes, kept.attributes);
     /// ```
-    pub(crate) fn same_as(&self, kept: &Kept) -> bool {
+    pub(crate) fn same_as(
+        &self,
+        kept: &Kept,
+    ) -> bool {
         return self.mode == kept.mode
             && self.uid == kept.uid
             && self.gid == kept.gid
@@ -301,7 +318,10 @@ impl Kept {
 /// const actual = fstatSync(fd); if (actual.uid !== kept.uid || actual.gid !== kept.gid) fchownSync(fd, kept.uid, kept.gid); giveTo(fd, kept.attributes); fchmodSync(fd, kept.mode);
 /// ```
 #[cfg(unix)]
-fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), WriteFailure> {
+fn keep_what_the_old_file_had(
+    file: &std::fs::File,
+    kept: &Kept,
+) -> Result<(), WriteFailure> {
     /// `AsRawFd` lends the descriptor the system calls take.
     use std::os::unix::io::AsRawFd;
     let descriptor: libc::c_int = file.as_raw_fd();
@@ -342,15 +362,23 @@ fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), W
     // ```
     if let Err(refusal) = direct_fix_install_attributes::give_to(file, kept.attributes.as_slice()) {
         return Err(match refusal {
-            AttributeRefusal::NotGiven { attribute, reason } => WriteFailure::AttributeKept {
+            AttributeRefusal::NotGiven {
+                attribute,
+                reason,
+            } => WriteFailure::AttributeKept {
                 name: attribute.display_name(),
                 reason,
             },
-            AttributeRefusal::NotRemoved { attribute, reason } => WriteFailure::AttributeAdded {
+            AttributeRefusal::NotRemoved {
+                attribute,
+                reason,
+            } => WriteFailure::AttributeAdded {
                 name: attribute.display_name(),
                 reason,
             },
-            AttributeRefusal::ListFailed { reason } => WriteFailure::Io(reason),
+            AttributeRefusal::ListFailed {
+                reason,
+            } => WriteFailure::Io(reason),
         });
     }
     // SAFETY: `fchmod` takes a descriptor this file owns and plain numbers; it reads no memory of this process.
@@ -431,18 +459,31 @@ pub(crate) enum WriteFailure {
 /// const text = failure.kind === 'owner-kept' ? `its owner (uid ${uid}, gid ${gid}) cannot be preserved, so installing it would give the file to the user running fix` : failure.error.message;
 /// ```
 impl std::fmt::Display for WriteFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::Io(error) => write!(formatter, "{error}"),
-            Self::OwnerKept { uid, gid, reason } => write!(
+            Self::OwnerKept {
+                uid,
+                gid,
+                reason,
+            } => write!(
                 formatter,
                 "the file belongs to uid {uid} and gid {gid}, and this process may not give the replacement that owner ({reason}), so installing it would hand the file to the user running the fix"
             ),
-            Self::AttributeKept { name, reason } => write!(
+            Self::AttributeKept {
+                name,
+                reason,
+            } => write!(
                 formatter,
                 "the file carries the extended attribute {name}, which is data no commit holds, and this process may not give the replacement that attribute ({reason}), so installing it would delete that data"
             ),
-            Self::AttributeAdded { name, reason } => write!(
+            Self::AttributeAdded {
+                name,
+                reason,
+            } => write!(
                 formatter,
                 "the replacement carries the extended attribute {name}, which the file it replaces never had, and this process may not take it off ({reason}), so installing it would grant access the original never granted"
             ),

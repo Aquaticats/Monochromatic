@@ -7,12 +7,28 @@
 //! and what real Git does with them.
 
 use super::*;
-use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    git,
+    isolated_overlay,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The tokens a built command carries.
 fn tokens(command: &Command) -> Vec<String> {
-    return command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    return command
+        .get_args()
+        .map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        })
+        .collect();
 }
 
 /// The options as they are spelled on the command line:
@@ -38,7 +54,10 @@ fn prefix() -> Vec<String> {
 /// every hook is off,
 /// and the monitor stays the person's setting.
 fn person_prefix() -> Vec<String> {
-    let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
+    let mut tokens: Vec<String> = vec![
+        String::from("-c"),
+        format!("core.hooksPath={NO_HOOKS_DIRECTORY}"),
+    ];
     for event in switched_off_events() {
         tokens.push(String::from("-c"));
         tokens.push(format!("hook.{event}.enabled=false"));
@@ -50,21 +69,42 @@ fn person_prefix() -> Vec<String> {
 /// the caller's global options,
 /// then the prefix of `owner`,
 /// then the subcommand and its arguments.
-fn with_prefix_of(globals: &[&str], rest: &[&str], owner: StartOwner) -> Vec<String> {
-    let mut tokens: Vec<String> = globals.iter().map(|token| { return String::from(*token); }).collect();
-    tokens.extend(if owner == StartOwner::Wrapper { prefix() } else { person_prefix() });
-    tokens.extend(rest.iter().map(|token| { return String::from(*token); }));
+fn with_prefix_of(
+    globals: &[&str],
+    rest: &[&str],
+    owner: StartOwner,
+) -> Vec<String> {
+    let mut tokens: Vec<String> = globals
+        .iter()
+        .map(|token| {
+            return String::from(*token);
+        })
+        .collect();
+    tokens.extend(if owner == StartOwner::Wrapper {
+        prefix()
+    } else {
+        person_prefix()
+    });
+    tokens.extend(rest.iter().map(|token| {
+        return String::from(*token);
+    }));
     return tokens;
 }
 
 /// The expected tokens for the wrapper's own Git.
-fn with_prefix(globals: &[&str], rest: &[&str]) -> Vec<String> {
+fn with_prefix(
+    globals: &[&str],
+    rest: &[&str],
+) -> Vec<String> {
     return with_prefix_of(globals, rest, StartOwner::Wrapper);
 }
 
 /// Build the command the wrapper builds for `arguments` once the options are switched on,
 /// for `owner`.
-fn built_as(owner: StartOwner, arguments: &[&str]) -> Command {
+fn built_as(
+    owner: StartOwner,
+    arguments: &[&str],
+) -> Command {
     let owned: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     let mut command: Command = Command::new(REAL_GIT);
     command.args(hooks_off_arguments(owned.as_slice(), owner));
@@ -99,28 +139,62 @@ fn the_option_is_added_only_after_the_process_switched_it_on() {
 fn the_options_follow_the_global_options_of_the_caller() {
     assert_eq!(tokens(&built(&["status"])), with_prefix(&[], &["status"]));
     assert_eq!(
-        tokens(&built(&["-C", "dir", "-c", "core.hooksPath=mine", "--config-env=hook.post-commit.enabled=V", "push"])),
-        with_prefix(&["-C", "dir", "-c", "core.hooksPath=mine", "--config-env=hook.post-commit.enabled=V"], &["push"])
+        tokens(&built(&[
+            "-C",
+            "dir",
+            "-c",
+            "core.hooksPath=mine",
+            "--config-env=hook.post-commit.enabled=V",
+            "push"
+        ])),
+        with_prefix(
+            &[
+                "-C",
+                "dir",
+                "-c",
+                "core.hooksPath=mine",
+                "--config-env=hook.post-commit.enabled=V"
+            ],
+            &["push"]
+        )
     );
     // A start that names no subcommand has no global options to follow: the options come first.
-    assert_eq!(tokens(&built(&["--version"])), with_prefix(&[], &["--version"]));
+    assert_eq!(
+        tokens(&built(&["--version"])),
+        with_prefix(&[], &["--version"])
+    );
 }
 
 /// A configuration query reports what the repository configures,
 /// so it goes without the option.
 #[test]
 fn a_configuration_query_goes_without_the_option() {
-    assert_eq!(tokens(&built(&["config", "--get", "core.hooksPath"])), vec!["config", "--get", "core.hooksPath"]);
+    assert_eq!(
+        tokens(&built(&["config", "--get", "core.hooksPath"])),
+        vec!["config", "--get", "core.hooksPath"]
+    );
     assert_eq!(
         tokens(&built(&["-C", "dir", "-c", "a=b", "config", "--list"])),
         vec!["-C", "dir", "-c", "a=b", "config", "--list"]
     );
     // A word that only looks like the command is not one.
-    assert_eq!(tokens(&built(&["log", "config"])), with_prefix(&[], &["log", "config"]));
+    assert_eq!(
+        tokens(&built(&["log", "config"])),
+        with_prefix(&[], &["log", "config"])
+    );
     // A configuration command that opens an editor starts programs, so it gets the options; `--` ends the options.
-    assert_eq!(tokens(&built(&["config", "--edit"])), with_prefix(&[], &["config", "--edit"]));
-    assert_eq!(tokens(&built(&["config", "--global", "-e"])), with_prefix(&[], &["config", "--global", "-e"]));
-    assert_eq!(tokens(&built(&["config", "--", "-e"])), vec!["config", "--", "-e"]);
+    assert_eq!(
+        tokens(&built(&["config", "--edit"])),
+        with_prefix(&[], &["config", "--edit"])
+    );
+    assert_eq!(
+        tokens(&built(&["config", "--global", "-e"])),
+        with_prefix(&[], &["config", "--global", "-e"])
+    );
+    assert_eq!(
+        tokens(&built(&["config", "--", "-e"])),
+        vec!["config", "--", "-e"]
+    );
 }
 
 /// The directory is below a device,
@@ -132,12 +206,19 @@ fn the_directory_can_never_exist() {
 }
 
 /// Run the built command in `directory` with the isolated overlay.
-fn run(directory: &Path, arguments: &[&str]) -> std::process::Output {
+fn run(
+    directory: &Path,
+    arguments: &[&str],
+) -> std::process::Output {
     return run_as(StartOwner::Wrapper, directory, arguments);
 }
 
 /// Run the command built for `owner` in `directory` with the isolated overlay.
-fn run_as(owner: StartOwner, directory: &Path, arguments: &[&str]) -> std::process::Output {
+fn run_as(
+    owner: StartOwner,
+    directory: &Path,
+    arguments: &[&str],
+) -> std::process::Output {
     let mut command: Command = built_as(owner, arguments);
     for (name, value) in isolated_overlay() {
         command.env(name, value);
@@ -160,8 +241,18 @@ fn hooked_repository(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
         root.join("config-hook").as_path(),
         format!("#!/bin/sh\ntouch '{}'\n", config_marker.display()).as_bytes(),
     );
-    git(repo.as_path(), &["config", "hook.marker.event", "pre-commit"]);
-    git(repo.as_path(), &["config", "hook.marker.command", root.join("config-hook").to_str().expect("UTF-8")]);
+    git(
+        repo.as_path(),
+        &["config", "hook.marker.event", "pre-commit"],
+    );
+    git(
+        repo.as_path(),
+        &[
+            "config",
+            "hook.marker.command",
+            root.join("config-hook").to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     return (repo, file_marker, config_marker);
@@ -174,15 +265,26 @@ fn real_git_runs_no_hook_file_and_no_configured_hook() {
     let root: PathBuf = fixture("hooks-off-real");
     let (repo, file_marker, config_marker) = hooked_repository(root.as_path());
     let committed = run(repo.as_path(), &["commit", "--quiet", "--message=one"]);
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(&committed.stderr));
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&committed.stderr)
+    );
     assert!(!file_marker.exists(), "the hook file must not run");
     assert!(!config_marker.exists(), "the configured hook must not run");
     // Positive control: without the options the same hook file runs and refuses the commit.
     git(repo.as_path(), &["reset", "--quiet", "--soft", "HEAD~1"]);
-    let direct = crate::test_support::git_output(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    let direct =
+        crate::test_support::git_output(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     assert!(!direct.status.success());
-    assert!(file_marker.exists(), "real Git without the options runs the hook file");
-    assert!(config_marker.exists(), "real Git without the options runs the configured hook");
+    assert!(
+        file_marker.exists(),
+        "real Git without the options runs the hook file"
+    );
+    assert!(
+        config_marker.exists(),
+        "real Git without the options runs the configured hook"
+    );
     remove(root.as_path());
 }
 
@@ -192,8 +294,14 @@ fn monitored_repository(root: &Path) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, "monitor-repo");
     let marker: PathBuf = root.join("monitor-ran");
     let program: PathBuf = root.join("fsmonitor");
-    executable(program.as_path(), format!("#!/bin/sh\necho call >> '{}'\nexit 1\n", marker.display()).as_bytes());
-    git(repo.as_path(), &["config", "core.fsmonitor", program.to_str().expect("UTF-8")]);
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\necho call >> '{}'\nexit 1\n", marker.display()).as_bytes(),
+    );
+    git(
+        repo.as_path(),
+        &["config", "core.fsmonitor", program.to_str().expect("UTF-8")],
+    );
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     return (repo, marker);
@@ -209,11 +317,25 @@ fn the_wrappers_own_start_never_runs_the_core_fsmonitor_program() {
     let (repo, marker) = monitored_repository(root.as_path());
     std::fs::remove_file(marker.as_path()).expect("clear the record the setup wrote");
     let switched = run(repo.as_path(), &["status", "--short"]);
-    assert!(switched.status.success(), "{}", String::from_utf8_lossy(&switched.stderr));
-    assert!(!marker.exists(), "the wrapper's own Git must not run the configured monitor program");
+    assert!(
+        switched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&switched.stderr)
+    );
+    assert!(
+        !marker.exists(),
+        "the wrapper's own Git must not run the configured monitor program"
+    );
     let direct = crate::test_support::git_output(repo.as_path(), &["status", "--short"]);
-    assert!(direct.status.success(), "{}", String::from_utf8_lossy(&direct.stderr));
-    assert!(marker.exists(), "real Git without the options must run the configured monitor program");
+    assert!(
+        direct.status.success(),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert!(
+        marker.exists(),
+        "real Git without the options must run the configured monitor program"
+    );
     remove(root.as_path());
 }
 
@@ -229,8 +351,15 @@ fn a_forwarded_start_runs_the_core_fsmonitor_program() {
     assert!(!tokens(&built_person(&["status"])).contains(&String::from(MONITOR_OFF_SETTING)));
     assert!(tokens(&built(&["status"])).contains(&String::from(MONITOR_OFF_SETTING)));
     let forwarded = run_as(StartOwner::Person, repo.as_path(), &["status", "--short"]);
-    assert!(forwarded.status.success(), "{}", String::from_utf8_lossy(&forwarded.stderr));
-    assert!(marker.exists(), "a forwarded start must run the configured monitor program");
+    assert!(
+        forwarded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&forwarded.stderr)
+    );
+    assert!(
+        marker.exists(),
+        "a forwarded start must run the configured monitor program"
+    );
     remove(root.as_path());
 }
 
@@ -244,9 +373,21 @@ fn the_callers_own_options_cannot_switch_a_hook_back_on() {
     let path_of_caller: String = format!("core.hooksPath={hooks}");
     let committed = run(
         repo.as_path(),
-        &["-c", path_of_caller.as_str(), "-c", "hook.pre-commit.enabled=true", "commit", "--quiet", "--message=one"],
+        &[
+            "-c",
+            path_of_caller.as_str(),
+            "-c",
+            "hook.pre-commit.enabled=true",
+            "commit",
+            "--quiet",
+            "--message=one",
+        ],
     );
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(&committed.stderr));
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&committed.stderr)
+    );
     assert!(!file_marker.exists(), "the hook file ran");
     assert!(!config_marker.exists(), "the configured hook ran");
     remove(root.as_path());
@@ -258,9 +399,15 @@ fn the_callers_own_options_cannot_switch_a_hook_back_on() {
 fn a_configuration_query_still_reports_the_repositorys_hooks_path() {
     let root: PathBuf = fixture("hooks-off-query");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["config", "core.hooksPath", "/somewhere/hooks"]);
+    git(
+        repo.as_path(),
+        &["config", "core.hooksPath", "/somewhere/hooks"],
+    );
     let reported = run(repo.as_path(), &["config", "--get", "core.hooksPath"]);
-    assert_eq!(String::from_utf8_lossy(&reported.stdout).trim(), "/somewhere/hooks");
+    assert_eq!(
+        String::from_utf8_lossy(&reported.stdout).trim(),
+        "/somewhere/hooks"
+    );
     let listed = run(repo.as_path(), &["config", "--list"]);
     assert!(!String::from_utf8_lossy(&listed.stdout).contains("cli-git-no-hooks"));
     remove(root.as_path());
@@ -277,7 +424,8 @@ fn every_listed_event_is_a_hook_event_of_real_git() {
         let text: String = String::from_utf8_lossy(&listed.stderr).into_owned();
         assert!(!text.contains("unknown hook event"), "{event}: {text}");
     }
-    let unknown = crate::test_support::git_output(repo.as_path(), &["hook", "list", "not-a-hook-event"]);
+    let unknown =
+        crate::test_support::git_output(repo.as_path(), &["hook", "list", "not-a-hook-event"]);
     assert!(
         String::from_utf8_lossy(&unknown.stderr).contains("unknown hook event"),
         "positive control: Git must refuse a made-up name: {}",
@@ -295,17 +443,37 @@ fn a_configured_hook_for_each_switched_off_event_does_not_run() {
     let root: PathBuf = fixture("hooks-off-each-event");
     let repo: PathBuf = repository(root.as_path(), "repo");
     for (index, event) in switched_off_events().enumerate() {
-        git(repo.as_path(), &["config", format!("hook.named-{index}.event").as_str(), event]);
-        git(repo.as_path(), &["config", format!("hook.named-{index}.command").as_str(), "true"]);
+        git(
+            repo.as_path(),
+            &[
+                "config",
+                format!("hook.named-{index}.event").as_str(),
+                event,
+            ],
+        );
+        git(
+            repo.as_path(),
+            &[
+                "config",
+                format!("hook.named-{index}.command").as_str(),
+                "true",
+            ],
+        );
     }
     for (index, event) in switched_off_events().enumerate() {
         let name: String = format!("named-{index}");
         let switched = run(repo.as_path(), &["hook", "list", event]);
         let shown: String = String::from_utf8_lossy(&switched.stdout).into_owned();
-        assert!(shown.contains("event-disabled") && shown.contains(name.as_str()), "{event}: {shown}");
+        assert!(
+            shown.contains("event-disabled") && shown.contains(name.as_str()),
+            "{event}: {shown}"
+        );
         let plain = crate::test_support::git_output(repo.as_path(), &["hook", "list", event]);
         let plain_shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
-        assert!(plain_shown.contains(name.as_str()) && !plain_shown.contains("event-disabled"), "{event}: {plain_shown}");
+        assert!(
+            plain_shown.contains(name.as_str()) && !plain_shown.contains("event-disabled"),
+            "{event}: {plain_shown}"
+        );
     }
     remove(root.as_path());
 }
@@ -316,7 +484,9 @@ fn a_configured_hook_for_each_switched_off_event_does_not_run() {
 fn is_event_spelling(name: &str) -> bool {
     return !name.is_empty()
         && name.chars().all(|character| {
-            return character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-';
+            return character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || character == '-';
         });
 }
 
@@ -337,8 +507,12 @@ fn events_from_manual() -> Option<Vec<String>> {
     let text: String = String::from_utf8_lossy(&output.stdout).into_owned();
     return Some(
         text.lines()
-            .filter_map(|line| { return line.strip_prefix("   "); })
-            .filter(|name| { return is_event_spelling(name); })
+            .filter_map(|line| {
+                return line.strip_prefix("   ");
+            })
+            .filter(|name| {
+                return is_event_spelling(name);
+            })
             .map(String::from)
             .collect(),
     );
@@ -351,17 +525,23 @@ fn events_from_source() -> Option<Vec<String>> {
     // A host's own documentation source. The gate image installs the distribution's Git, which ships the rendered page
     //  and not this source, so there the rendered page (through `man-db`) answers instead.
     let directories: [&str; 2] = ["/usr/share/doc/git", "/usr/share/doc/git-doc"];
-    let text: String = directories
-        .iter()
-        .find_map(|directory| { return std::fs::read_to_string(Path::new(directory).join("githooks.adoc")).ok(); })?;
+    let text: String = directories.iter().find_map(|directory| {
+        return std::fs::read_to_string(Path::new(directory).join("githooks.adoc")).ok();
+    })?;
     let lines: Vec<&str> = text.lines().collect();
     return Some(
         lines
             .windows(2)
             .filter(|pair| {
-                return is_event_spelling(pair[0]) && !pair[1].is_empty() && pair[1].chars().all(|c| { return c == '~'; });
+                return is_event_spelling(pair[0])
+                    && !pair[1].is_empty()
+                    && pair[1].chars().all(|c| {
+                        return c == '~';
+                    });
             })
-            .map(|pair| { return String::from(pair[0]); })
+            .map(|pair| {
+                return String::from(pair[0]);
+            })
             .collect(),
     );
 }
@@ -391,9 +571,22 @@ fn documented_events() -> Vec<String> {
 #[test]
 fn every_documented_hook_event_is_listed() {
     let documented: Vec<String> = documented_events();
-    assert!(documented.iter().any(|name| { return name == "pre-commit"; }), "the manual was not read: {documented:?}");
-    let missing: Vec<&String> = documented.iter().filter(|name| { return !HOOK_EVENTS.contains(&name.as_str()); }).collect();
-    assert!(missing.is_empty(), "documented by this Git but not switched off: {missing:?}");
+    assert!(
+        documented.iter().any(|name| {
+            return name == "pre-commit";
+        }),
+        "the manual was not read: {documented:?}"
+    );
+    let missing: Vec<&String> = documented
+        .iter()
+        .filter(|name| {
+            return !HOOK_EVENTS.contains(&name.as_str());
+        })
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "documented by this Git but not switched off: {missing:?}"
+    );
 }
 
 /// Both sources agree on the events,

@@ -4,7 +4,10 @@ use super::*;
 
 /// The one JSON object a finding prints.
 fn parsed(line: &str) -> serde_json::Value {
-    assert!(line.ends_with('\n') && line.matches('\n').count() == 1, "{line:?}");
+    assert!(
+        line.ends_with('\n') && line.matches('\n').count() == 1,
+        "{line:?}"
+    );
     return serde_json::from_str(line).expect("a JSON line");
 }
 
@@ -27,5 +30,8 @@ fn the_refused_apply_finding_quotes_gits_reason() {
     let value = parsed(not_applied_finding("feature", "untracked file x").as_str());
     assert_eq!(value["code"], format!("{CORE_ID}/{APPLY_REFUSED_CODE}"));
     let message: &str = value["message"].as_str().expect("message");
-    assert!(message.contains("untracked file x") && message.contains("as they were"), "{message}");
+    assert!(
+        message.contains("untracked file x") && message.contains("as they were"),
+        "{message}"
+    );
 }

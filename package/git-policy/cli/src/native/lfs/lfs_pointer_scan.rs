@@ -31,13 +31,32 @@
 
 #![cfg(unix)]
 
-use crate::lfs_pointer::{Verdict, decode_pointer};
+use crate::lfs_pointer::{
+    Verdict,
+    decode_pointer,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{ObjectKind, name_length};
+use crate::repo_read_object::{
+    ObjectKind,
+    name_length,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{CommitFields, MODE_GITLINK, is_tree_mode, parse_commit, parse_tree};
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::time::{Duration, Instant};
+use crate::repo_read_tree::{
+    CommitFields,
+    MODE_GITLINK,
+    is_tree_mode,
+    parse_commit,
+    parse_tree,
+};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+    HashSet,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The most commits one scan visits before it gives the question to `git-lfs`.
 pub const MAX_COMMITS: usize = 100_000;
@@ -73,7 +92,10 @@ impl Scan<'_> {
     /// `None` when it is missing,
     /// not a commit,
     /// or in a spelling the reader declines.
-    fn commit(&mut self, name: &[u8]) -> Option<CommitFields> {
+    fn commit(
+        &mut self,
+        name: &[u8],
+    ) -> Option<CommitFields> {
         if let Some(known) = self.commits.get(name) {
             return Some(known.clone());
         }
@@ -82,18 +104,25 @@ impl Scan<'_> {
             return None;
         }
         let parsed: CommitFields = parse_commit(object.bytes.as_slice(), self.format)?;
-        self.times.insert(name.to_vec(), committer_time(object.bytes.as_slice())?);
+        self.times
+            .insert(name.to_vec(), committer_time(object.bytes.as_slice())?);
         self.commits.insert(name.to_vec(), parsed.clone());
         return Some(parsed);
     }
 
     /// The committer time of a commit already read.
-    fn time(&self, name: &[u8]) -> i64 {
+    fn time(
+        &self,
+        name: &[u8],
+    ) -> i64 {
         return self.times.get(name).copied().unwrap_or_default();
     }
 
     /// The entries of the tree `name`.
-    fn tree(&self, name: &[u8]) -> Option<Vec<crate::repo_read_tree::TreeEntry>> {
+    fn tree(
+        &self,
+        name: &[u8],
+    ) -> Option<Vec<crate::repo_read_tree::TreeEntry>> {
         let object = self.database.read(name)?;
         if object.kind != ObjectKind::Tree {
             return None;
@@ -102,7 +131,11 @@ impl Scan<'_> {
     }
 
     /// Record the blobs of `tree` that none of the `parents` (trees at the same place) holds under the same name.
-    fn compare(&mut self, tree: &[u8], parents: &[Vec<u8>]) -> Option<()> {
+    fn compare(
+        &mut self,
+        tree: &[u8],
+        parents: &[Vec<u8>],
+    ) -> Option<()> {
         if Instant::now() >= self.deadline {
             return None;
         }
@@ -114,7 +147,11 @@ impl Scan<'_> {
             }
         }
         // The pair is recorded as seen only when no parent is the tree itself, as `||` stopped at the first true side.
-        if parent_is_tree || !self.seen_trees.insert([vec![tree.to_vec()], parents.to_vec()].concat()) {
+        if parent_is_tree
+            || !self
+                .seen_trees
+                .insert([vec![tree.to_vec()], parents.to_vec()].concat())
+        {
             return Some(());
         }
         let entries = self.tree(tree)?;
@@ -225,14 +262,20 @@ impl Walk {
     /// when a commit already
     ///  followed turns out to be known,
     /// marking everything behind it as known too.
-    fn mark(&mut self, scan: &mut Scan<'_>, name: &[u8], known: bool) -> Option<()> {
+    fn mark(
+        &mut self,
+        scan: &mut Scan<'_>,
+        name: &[u8],
+        known: bool,
+    ) -> Option<()> {
         let mut pending: Vec<Vec<u8>> = vec![name.to_vec()];
         while let Some(current) = pending.pop() {
             match self.known.get(current.as_slice()).copied() {
                 None => {
                     scan.commit(current.as_slice())?;
                     self.known.insert(current.clone(), known);
-                    self.queue.push((scan.time(current.as_slice()), current.clone()));
+                    self.queue
+                        .push((scan.time(current.as_slice()), current.clone()));
                     self.queued.insert(current);
                     if !known {
                         self.unknown_queued += 1;
@@ -274,7 +317,11 @@ impl Walk {
 /// ```ts
 /// function newCommits(scan, include, stop): Uint8Array[] | undefined;
 /// ```
-fn new_commits(scan: &mut Scan<'_>, include: &[Vec<u8>], stop: &[Vec<u8>]) -> Option<Vec<Vec<u8>>> {
+fn new_commits(
+    scan: &mut Scan<'_>,
+    include: &[Vec<u8>],
+    stop: &[Vec<u8>],
+) -> Option<Vec<Vec<u8>>> {
     let mut walk: Walk = Walk {
         queue: std::collections::BinaryHeap::new(),
         known: HashMap::new(),

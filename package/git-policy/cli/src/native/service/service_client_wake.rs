@@ -21,15 +21,34 @@
 
 use crate::commit_timing::ReachTrace;
 use crate::diagnostic_log::debug;
-use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, Wrote, listen, reach, read_message, write_within};
+use crate::service_client_listen_and_ask_to_retire::{
+    Heard,
+    Reached,
+    Wrote,
+    listen,
+    reach,
+    read_message,
+    write_within,
+};
 use crate::service_client_reach_service::reach_current;
 use crate::service_client_settings_and_watches::ClientConfig;
 use crate::service_messages::ClientFailure;
-use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, ServiceMessage, encode_client};
+use crate::service_protocol::{
+    ClientMessage,
+    PROTOCOL_VERSION,
+    ServiceMessage,
+    encode_client,
+};
 use crate::service_review_key::ReviewKey;
-use std::io::{BufReader, Write};
+use std::io::{
+    BufReader,
+    Write,
+};
 use std::os::unix::net::UnixStream;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "serviceClientWake";
@@ -71,10 +90,21 @@ pub fn wake(
     config: &ClientConfig,
     git_dir: &std::path::Path,
     review_key: Option<&ReviewKey>,
-    push_programs: &[(String, crate::service_push_programs_held_in_memory::PushPrograms)],
+    push_programs: &[(
+        String,
+        crate::service_push_programs_held_in_memory::PushPrograms,
+    )],
     notices: &mut dyn Write,
 ) -> Result<(), ClientFailure> {
-    return send_one(config, &ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned(), push_programs: push_programs.to_vec() }, notices);
+    return send_one(
+        config,
+        &ClientMessage::Work {
+            git_dir: git_dir.to_path_buf(),
+            review_key: review_key.cloned(),
+            push_programs: push_programs.to_vec(),
+        },
+        notices,
+    );
 }
 
 /// What:
@@ -100,12 +130,22 @@ pub fn wake(
 /// ```ts
 /// if (managerState(unit) === 'active') await tellRunningService({ type: 'forget-programs', gitDir, recordIds });
 /// ```
-pub fn forget_programs(config: &ClientConfig, git_dir: &std::path::Path, records: &[String]) -> Result<(), ClientFailure> {
+pub fn forget_programs(
+    config: &ClientConfig,
+    git_dir: &std::path::Path,
+    records: &[String],
+) -> Result<(), ClientFailure> {
     // Nothing to forget costs no question and no connection, and most commands that look at a repository settle no record at all.
     if records.is_empty() || !a_service_is_running(config) {
         return Ok(());
     }
-    return send_to_a_running_service(config, &ClientMessage::ForgetPrograms { git_dir: git_dir.to_path_buf(), records: records.to_vec() });
+    return send_to_a_running_service(
+        config,
+        &ClientMessage::ForgetPrograms {
+            git_dir: git_dir.to_path_buf(),
+            records: records.to_vec(),
+        },
+    );
 }
 
 /// What:
@@ -127,7 +167,9 @@ pub fn forget_programs(config: &ClientConfig, git_dir: &std::path::Path, records
 /// const serviceIsRunning = (config) => !config.managerWatch || config.managerWatch.state(config.managerWatch.bus, config.managerWatch.unit) === 'active';
 /// ```
 pub(crate) fn a_service_is_running(config: &ClientConfig) -> bool {
-    let Some(watch) = config.start_watch.as_ref() else { return true };
+    let Some(watch) = config.start_watch.as_ref() else {
+        return true;
+    };
     return (watch.state)(watch.bus.as_path(), watch.unit.as_str()).state() == Some(RUNNING);
 }
 
@@ -151,7 +193,10 @@ pub(crate) fn a_service_is_running(config: &ClientConfig) -> bool {
 /// ```ts
 /// const stream = connect(address); if (greeting(stream, silence)?.version !== PROTOCOL_VERSION) return; writeWithin(stream, line); await closed(stream);
 /// ```
-fn send_to_a_running_service(config: &ClientConfig, message: &ClientMessage) -> Result<(), ClientFailure> {
+fn send_to_a_running_service(
+    config: &ClientConfig,
+    message: &ClientMessage,
+) -> Result<(), ClientFailure> {
     let mut line: String = encode_client(message);
     line.push('\n');
     let mut reader: BufReader<UnixStream> = match reach(&config.address) {
@@ -163,12 +208,20 @@ fn send_to_a_running_service(config: &ClientConfig, message: &ClientMessage) -> 
         Reached::Nothing | Reached::OtherAccount => return Ok(()),
     };
     match listen(&mut reader) {
-        Heard::Message(ServiceMessage::Welcome { version, .. }) if version == PROTOCOL_VERSION => {}
+        Heard::Message(ServiceMessage::Welcome {
+            version,
+            ..
+        }) if version == PROTOCOL_VERSION => {}
         Heard::Message(_) | Heard::Closed | Heard::Silent => return Ok(()),
     }
     // The one line the message carries is written under the bounds of any other, so a service that stopped reading costs the
     //  confirmation and never the command.
-    let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
+    let written: Wrote = write_within(
+        reader.get_ref(),
+        line.as_bytes(),
+        crate::wait_ceilings::REQUEST_WRITE_SILENCE,
+        crate::wait_ceilings::REQUEST_WRITE_CEILING,
+    );
     if written == Wrote::Ended {
         return Err(ClientFailure::Unavailable);
     }
@@ -190,14 +243,29 @@ fn send_to_a_running_service(config: &ClientConfig, message: &ClientMessage) -> 
 /// ```ts
 /// const line = encodeClient(message) + '\n'; const reader = await reachCurrent(config); writeWithin(reader, line); await closed(reader);
 /// ```
-fn send_one(config: &ClientConfig, message: &ClientMessage, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+fn send_one(
+    config: &ClientConfig,
+    message: &ClientMessage,
+    notices: &mut dyn Write,
+) -> Result<(), ClientFailure> {
     let mut line: String = encode_client(message);
     line.push('\n');
     let mut announced: bool = false;
-    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
+    let mut reader: BufReader<UnixStream> = reach_current(
+        config,
+        notices,
+        &mut announced,
+        &mut ReachTrace::default(),
+        false,
+    )?;
     // The one line the message carries is written under the bounds of any other, so a service that stopped reading costs the
     //  confirmation and never the command.
-    let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
+    let written: Wrote = write_within(
+        reader.get_ref(),
+        line.as_bytes(),
+        crate::wait_ceilings::REQUEST_WRITE_SILENCE,
+        crate::wait_ceilings::REQUEST_WRITE_CEILING,
+    );
     if written == Wrote::Ended {
         return Err(ClientFailure::Unavailable);
     }
@@ -221,7 +289,10 @@ fn send_one(config: &ClientConfig, message: &ClientMessage, notices: &mut dyn Wr
 /// ```ts
 /// const closedBy = now() + silence; while (now() < closedBy && read(stream) !== undefined) {}
 /// ```
-fn wait_for_the_close(config: &ClientConfig, reader: &mut BufReader<UnixStream>) {
+fn wait_for_the_close(
+    config: &ClientConfig,
+    reader: &mut BufReader<UnixStream>,
+) {
     let closed_by: Instant = Instant::now() + config.heartbeat_silence;
     loop {
         let left: Duration = closed_by.saturating_duration_since(Instant::now());

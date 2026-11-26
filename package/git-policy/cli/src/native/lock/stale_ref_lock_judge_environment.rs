@@ -15,7 +15,10 @@
 
 use crate::stale_ref_lock_identity::Identity;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The kernel's name for the initial PID namespace,
 /// where every process of the machine has the number it is seen by.
@@ -25,7 +28,10 @@ pub const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 pub const PROC_MOUNT_POINT: &str = "/proc";
 
 /// The later of the lock's birth (when known) and its last modification.
-pub fn newest_time(born: Option<SystemTime>, identity: &Identity) -> SystemTime {
+pub fn newest_time(
+    born: Option<SystemTime>,
+    identity: &Identity,
+) -> SystemTime {
     let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
     return match born {
         Some(at) => at.max(modified),
@@ -36,7 +42,11 @@ pub fn newest_time(born: Option<SystemTime>, identity: &Identity) -> SystemTime 
 /// A time given as nanoseconds since the epoch.
 pub fn nanoseconds_to_time(nanoseconds: i128) -> SystemTime {
     let magnitude: u64 = u64::try_from(nanoseconds.unsigned_abs()).unwrap_or(u64::MAX);
-    return if nanoseconds >= 0 { SystemTime::UNIX_EPOCH + Duration::from_nanos(magnitude) } else { SystemTime::UNIX_EPOCH - Duration::from_nanos(magnitude) };
+    return if nanoseconds >= 0 {
+        SystemTime::UNIX_EPOCH + Duration::from_nanos(magnitude)
+    } else {
+        SystemTime::UNIX_EPOCH - Duration::from_nanos(magnitude)
+    };
 }
 
 /// How many bytes of the system's own counters this reads.
@@ -51,7 +61,9 @@ const SYSTEM_STAT_BYTES_AT_MOST: u64 = 4 << 20;
 /// the `btime` line of `/proc/stat`,
 /// in whole seconds since the epoch.
 pub fn boot_time() -> Option<SystemTime> {
-    let text: String = crate::plain_file::read_plain_text_at(Path::new("/proc/stat"), SYSTEM_STAT_BYTES_AT_MOST).ok()?;
+    let text: String =
+        crate::plain_file::read_plain_text_at(Path::new("/proc/stat"), SYSTEM_STAT_BYTES_AT_MOST)
+            .ok()?;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("btime ")
             && let Ok(seconds) = rest.trim().parse::<u64>()

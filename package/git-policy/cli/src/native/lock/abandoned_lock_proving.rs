@@ -103,39 +103,57 @@
 //! clearOne({ lock, commonDir }); // { lock, pid, evidence } | undefined
 //! ```
 
+/// How the file system holding a lock is looked at.
+use crate::fs_mount_options::read_mount_facts;
 /// The lock's metadata and its identity without following a link.
 use crate::index_lock_evidence::read_lock_metadata;
-/// The proof that no program can write into a file,
-/// from the kernel where it offers leases and from the scan elsewhere.
-use crate::merge_isolation_take_asides_proof::{ProofNothingCanWrite, the_proof_that_nothing_can_write_into};
 /// The scan of the processes that hold one file open,
 /// for the platforms that offer no lease.
 #[cfg(not(target_os = "linux"))]
-use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
+use crate::index_lock_holders::{
+    HolderEvidence,
+    scan_platform_holders_bounded,
+};
 /// The one reason a removal may act through:
 /// another account owns the process whose descriptors the kernel refused.
 #[cfg(not(target_os = "linux"))]
 use crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON;
 /// The proof a record of this repository gives about the writer of a PID file.
 use crate::lock_holder_record_reads::proved_gone_writer;
-/// How a lock's PID file is read and judged,
-/// and the file systems a lock of this machine sits on.
-use crate::stale_ref_lock_judge::{Judge, LOCAL_FILE_SYSTEMS};
-/// The name a lock's PID file has.
-use crate::stale_ref_lock_walk::pid_file_beside;
-/// How the file system holding a lock is looked at.
-use crate::fs_mount_options::read_mount_facts;
+/// The proof that no program can write into a file,
+/// from the kernel where it offers leases and from the scan elsewhere.
+use crate::merge_isolation_take_asides_proof::{
+    ProofNothingCanWrite,
+    the_proof_that_nothing_can_write_into,
+};
 /// The commit service's marker,
 /// whose locks belong to the landing's own reclaimer.
 use crate::service_index_marker::marker_of_file;
+/// The platform whose scans and placements this process uses.
+use crate::service_index_placement::SYSTEM;
 /// The open that never waits,
 /// the comparison of one file with the name it was reached by,
 /// and the service's reclaimer.
-use crate::service_index_reclaim::{Reclaimed, StaleMark, open_to_judge, reclaim_if, same_file};
-/// The platform whose scans and placements this process uses.
-use crate::service_index_placement::SYSTEM;
+use crate::service_index_reclaim::{
+    Reclaimed,
+    StaleMark,
+    open_to_judge,
+    reclaim_if,
+    same_file,
+};
+/// How a lock's PID file is read and judged,
+/// and the file systems a lock of this machine sits on.
+use crate::stale_ref_lock_judge::{
+    Judge,
+    LOCAL_FILE_SYSTEMS,
+};
+/// The name a lock's PID file has.
+use crate::stale_ref_lock_walk::pid_file_beside;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The instant after the abandoned lock was unlinked and before its PID file is,
 ///  where a control acts as a Git that takes the freed name.
@@ -209,7 +227,10 @@ pub enum Evidence {
 /// ```ts
 /// function clearOne({ lock, commonDir }): Clearance | undefined;
 /// ```
-pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
+pub fn clear_one(
+    lock: &Path,
+    common_dir: &Path,
+) -> Option<Clearance> {
     // Judged by its metadata alone: this process holds no descriptor on the file while the scan looks for a holder, so a
     //  second command's own look is not mistaken for a live writer holding the lock.
     let judged = read_lock_metadata(lock).ok()??;
@@ -225,7 +246,11 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
                     Some((number, _identity)) => number,
                     None => 0,
                 };
-                Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::ServiceMarker })
+                Some(Clearance {
+                    lock: lock.to_path_buf(),
+                    pid,
+                    evidence: Evidence::ServiceMarker,
+                })
             }
             _ => None,
         };
@@ -248,7 +273,10 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     // The last looks before the removal: the name still refers to the very file that was judged, nothing wrote into it while
     //  the removal claimed it, and the PID file still names the number the record explained.
     let after: crate::index_lock_evidence::LockMetadata = read_lock_metadata(lock).ok()??;
-    if after.device != judged.device || after.inode != judged.inode || after.ctime_ms != judged.ctime_ms {
+    if after.device != judged.device
+        || after.inode != judged.inode
+        || after.ctime_ms != judged.ctime_ms
+    {
         return None;
     }
     if !same_file(lock, &file).unwrap_or(false) || marker_of_file(&file).is_some() {
@@ -258,10 +286,13 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     // The contents the PID file has when it is judged, byte for byte, and the number they name. One read gives both, and
     //  the removal holds it until its last look, where the file is unlinked only if these very bytes are still there.
     let judged_contents: Vec<u8> = crate::stopped_git_locks::pid_file_contents(pid_file.as_path())?;
-    if crate::stopped_git_locks::pid_named_in(judged_contents.as_slice()) != Some(i32::try_from(pid).ok()?) {
+    if crate::stopped_git_locks::pid_named_in(judged_contents.as_slice())
+        != Some(i32::try_from(pid).ok()?)
+    {
         return None;
     }
-    let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = pid_file_metadata(pid_file.as_path());
+    let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> =
+        pid_file_metadata(pid_file.as_path());
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
     crate::service_fault::reach(UNLINKED_THE_LOCK);
@@ -288,7 +319,11 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     }
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
-    return Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::PidFile });
+    return Some(Clearance {
+        lock: lock.to_path_buf(),
+        pid,
+        evidence: Evidence::PidFile,
+    });
 }
 
 /// What:
@@ -306,7 +341,8 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 /// const judged = pidFileMetadata(pidFile); // the arm's term changed on the later read
 /// ```
 fn pid_file_metadata(pid_file: &Path) -> Option<crate::index_lock_evidence::LockMetadata> {
-    let found: Option<crate::index_lock_evidence::LockMetadata> = read_lock_metadata(pid_file).ok().flatten();
+    let found: Option<crate::index_lock_evidence::LockMetadata> =
+        read_lock_metadata(pid_file).ok().flatten();
     #[cfg(test)]
     return crate::lock_metadata_arm::armed(pid_file, found);
     #[cfg(not(test))]
@@ -394,13 +430,15 @@ fn claim_the_removal(file: &std::fs::File) -> bool {
     loop {
         // SAFETY: `flock` takes a descriptor of a file this function was given and a flag word, and touches no memory of this
         //  process. The descriptor stays open for as long as the file value lives, which is past the removal.
-        let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        let taken: libc::c_int =
+            unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
         if taken == 0 {
             return true;
         }
         let error: std::io::Error = std::io::Error::last_os_error();
         // Only a lock another command holds is worth waiting for; a file system without `flock` answers something else.
-        if error.raw_os_error() != Some(libc::EWOULDBLOCK) || began.elapsed() >= REMOVAL_CLAIM_WAIT {
+        if error.raw_os_error() != Some(libc::EWOULDBLOCK) || began.elapsed() >= REMOVAL_CLAIM_WAIT
+        {
             return false;
         }
         std::thread::sleep(REMOVAL_CLAIM_PAUSE);
@@ -451,7 +489,11 @@ pub(crate) fn a_writer_holds_it_open(lock: &Path) -> bool {
 /// ```ts
 /// const proof = leaseOrScan(lock, scanned); // undefined keeps the lock
 /// ```
-fn nothing_can_write_into(lock: &Path, device: u64, inode: u64) -> Option<ProofNothingCanWrite> {
+fn nothing_can_write_into(
+    lock: &Path,
+    device: u64,
+    inode: u64,
+) -> Option<ProofNothingCanWrite> {
     #[cfg(target_os = "linux")]
     {
         let _ = (device, inode);
@@ -485,5 +527,10 @@ fn nothing_can_write_into(lock: &Path, device: u64, inode: u64) -> Option<ProofN
 /// ```
 #[cfg(target_os = "linux")]
 fn empty_evidence() -> crate::index_lock_holders::HolderEvidence {
-    return crate::index_lock_holders::HolderEvidence { method: "lease", holders: Vec::new(), partial: Vec::new(), unresolvable: Vec::new() };
+    return crate::index_lock_holders::HolderEvidence {
+        method: "lease",
+        holders: Vec::new(),
+        partial: Vec::new(),
+        unresolvable: Vec::new(),
+    };
 }

@@ -62,23 +62,43 @@
 //! import { settleTheRecordsOfASlot, parseSettlingArguments } from '@monochromatic-dev/git-policy-cli/worktree-clone-record-settling';
 //! ```
 
-pub mod settling_words;
-pub mod settling_refusal;
-pub mod settling_request;
-pub mod settling_steps;
 pub mod settling_absence;
-pub mod settling_record;
-pub mod settling_standing_records;
-pub mod settling_slot;
-pub mod settling_removals;
-pub mod settling_lines;
 pub mod settling_command;
+pub mod settling_lines;
+pub mod settling_record;
+pub mod settling_refusal;
+pub mod settling_removals;
+pub mod settling_request;
+pub mod settling_slot;
+pub mod settling_standing_records;
+pub mod settling_steps;
+pub mod settling_words;
 
-pub use settling_command::{SettlingDone, SettlingReads, settle_the_records_of_a_slot};
+pub use settling_command::{
+    SettlingDone,
+    SettlingReads,
+    settle_the_records_of_a_slot,
+};
 pub use settling_refusal::SettlingStop;
-pub use settling_request::{SettlingRequest, parse_settling_arguments};
-pub use settling_steps::{SettlingStep, TheOrderFacts, WHEN_A_CHECKOUT_HAS_BEGUN, WHEN_NO_CHECKOUT_HAS_BEGUN, the_steps};
-pub use settling_words::{CONFIRM_GUID_FLAG, CONFIRM_REMOVAL_FLAG, GUID_DIGITS_SHOWN, carries_a_placeholder, the_last_four_digits, the_usage_line};
+pub use settling_request::{
+    SettlingRequest,
+    parse_settling_arguments,
+};
+pub use settling_steps::{
+    SettlingStep,
+    TheOrderFacts,
+    WHEN_A_CHECKOUT_HAS_BEGUN,
+    WHEN_NO_CHECKOUT_HAS_BEGUN,
+    the_steps,
+};
+pub use settling_words::{
+    CONFIRM_GUID_FLAG,
+    CONFIRM_REMOVAL_FLAG,
+    GUID_DIGITS_SHOWN,
+    carries_a_placeholder,
+    the_last_four_digits,
+    the_usage_line,
+};
 
 /// The folder and record fixtures every control of this module starts from,
 /// never part of the release executable.

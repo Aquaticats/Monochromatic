@@ -60,37 +60,86 @@
 //! import { classifyTheManagedLock, writeTheLostLock, proveTheRecordedCloneIsGone, releaseTheManagedLock } from '@monochromatic-dev/git-policy-cli/worktree-clone-managed-lock';
 //! ```
 
-pub mod reading_a_bounded_file;
+pub mod binding_record_fields;
+pub mod clone_destruction_proof;
+pub mod dataset_guid_reads;
 pub mod lexical_path_resolution;
 pub mod lock_and_pointer_readings;
-pub mod binding_record_fields;
-pub mod recorded_lock_facts;
-pub mod dataset_guid_reads;
-pub mod registration_proof_two_facts;
-pub mod registration_entry_reading;
-pub mod registration_finding;
-pub mod lock_state;
-pub mod lock_state_words;
 pub mod lock_classification;
 pub mod lock_installation;
-pub mod clone_destruction_proof;
 pub mod lock_release;
+pub mod lock_state;
+pub mod lock_state_words;
+pub mod reading_a_bounded_file;
+pub mod recorded_lock_facts;
+pub mod registration_entry_reading;
+pub mod registration_finding;
+pub mod registration_proof_two_facts;
 
-pub use clone_destruction_proof::{CloneDestructionProof, DestructionRefusal, TheLiveCloneAnswer, prove_the_recorded_clone_is_gone};
-pub use lexical_path_resolution::the_lexical_path;
-pub use lock_and_pointer_readings::{LOCK_FILE_NAME, SLOT_POINTER_NAME, lock_file_path, read_the_lock, read_the_slot_pointer, slot_pointer_path};
-pub use lock_classification::{classify_the_managed_lock, classify_with_a_known_slot_identity};
-pub use lock_installation::{InstallAnswer, line_of_an_installed_lock, write_the_lost_lock};
-pub use lock_release::{ReleaseOutcome, ReleaseRefusal, release_the_managed_lock};
-pub use lock_state::{Classification, LockOwnership, ManagedLockState, TheWordsCause};
-pub use lock_state_words::{line_of, line_of_an_absent_pointer, the_lines};
-pub use reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
 pub use binding_record_fields::RecordedFactsRefusal;
-pub use recorded_lock_facts::{RecordedClone, RecordedLockFacts, read_the_recorded_facts};
+pub use clone_destruction_proof::{
+    CloneDestructionProof,
+    DestructionRefusal,
+    TheLiveCloneAnswer,
+    prove_the_recorded_clone_is_gone,
+};
 pub use dataset_guid_reads::DatasetGuidReads;
+pub use lexical_path_resolution::the_lexical_path;
+pub use lock_and_pointer_readings::{
+    LOCK_FILE_NAME,
+    SLOT_POINTER_NAME,
+    lock_file_path,
+    read_the_lock,
+    read_the_slot_pointer,
+    slot_pointer_path,
+};
+pub use lock_classification::{
+    classify_the_managed_lock,
+    classify_with_a_known_slot_identity,
+};
+pub use lock_installation::{
+    InstallAnswer,
+    line_of_an_installed_lock,
+    write_the_lost_lock,
+};
+pub use lock_release::{
+    ReleaseOutcome,
+    ReleaseRefusal,
+    release_the_managed_lock,
+};
+pub use lock_state::{
+    Classification,
+    LockOwnership,
+    ManagedLockState,
+    TheWordsCause,
+};
+pub use lock_state_words::{
+    line_of,
+    line_of_an_absent_pointer,
+    the_lines,
+};
+pub use reading_a_bounded_file::{
+    ARefusedReading,
+    Reading,
+    read_a_bounded_file,
+};
+pub use recorded_lock_facts::{
+    RecordedClone,
+    RecordedLockFacts,
+    read_the_recorded_facts,
+};
 pub use registration_entry_reading::read_one_entry;
-pub use registration_finding::{TheRegistration, WhatTheWalkFound, find_the_slot_registration, the_slots_the_home_names};
-pub use registration_proof_two_facts::{GITDIR_FILE_NAME, TwoFactRefusal, prove_the_registration};
+pub use registration_finding::{
+    TheRegistration,
+    WhatTheWalkFound,
+    find_the_slot_registration,
+    the_slots_the_home_names,
+};
+pub use registration_proof_two_facts::{
+    GITDIR_FILE_NAME,
+    TwoFactRefusal,
+    prove_the_registration,
+};
 
 /// The throwaway repository and slot the controls are built in.
 #[cfg(test)]

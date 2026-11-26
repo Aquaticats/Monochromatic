@@ -6,8 +6,14 @@
 
 use crate::repository_link_answer::LinkAnswer;
 use crate::repository_link_check_walk::check_repository_link;
-use crate::repository_link_fixture_probe::{FixtureProbe, World};
-use crate::repository_link_identity::{LinkIdentity, identity_from_text};
+use crate::repository_link_fixture_probe::{
+    FixtureProbe,
+    World,
+};
+use crate::repository_link_identity::{
+    LinkIdentity,
+    identity_from_text,
+};
 use serde_json::Value;
 
 /// The table,
@@ -16,7 +22,10 @@ const TABLE: &str = include_str!("repository_link_shared_table.json");
 
 /// The identity of a row:
 /// the table's base identity with the row's changes.
-fn identity_of(table: &Value, row: &Value) -> LinkIdentity {
+fn identity_of(
+    table: &Value,
+    row: &Value,
+) -> LinkIdentity {
     let mut merged: Value = table["baseIdentity"].clone();
     if let (Some(base), Some(changes)) = (merged.as_object_mut(), row["identity"].as_object()) {
         for (name, value) in changes {
@@ -27,7 +36,10 @@ fn identity_of(table: &Value, row: &Value) -> LinkIdentity {
 }
 
 /// The answer of the Rust check to one row.
-fn answer_of(table: &Value, row: &Value) -> LinkAnswer {
+fn answer_of(
+    table: &Value,
+    row: &Value,
+) -> LinkAnswer {
     if row["found"] == Value::Bool(false) {
         // No identity file was read: nothing is asked of the world.
         return crate::repository_link_check_walk::answer_when_identity_is_missing();
@@ -44,18 +56,35 @@ fn every_row_of_the_shared_table_gets_its_answer() {
     let table: Value = serde_json::from_str(TABLE).expect("the shared table is JSON");
     let rows: &Vec<Value> = table["rows"].as_array().expect("rows");
     let declared: u64 = table["rowCount"].as_u64().expect("rowCount");
-    assert_eq!(rows.len() as u64, declared, "the table declares its own row count");
+    assert_eq!(
+        rows.len() as u64,
+        declared,
+        "the table declares its own row count"
+    );
     assert!(!rows.is_empty(), "an empty table proves nothing");
     for row in rows {
         let name: &str = row["name"].as_str().expect("row name");
         let answer: LinkAnswer = answer_of(&table, row);
-        assert_eq!(answer.kind.name(), row["expect"]["kind"].as_str().expect("kind"), "{name}: {}", answer.message);
-        assert_eq!(answer.ready, row["expect"]["ready"].as_bool().expect("ready"), "{name}");
+        assert_eq!(
+            answer.kind.name(),
+            row["expect"]["kind"].as_str().expect("kind"),
+            "{name}: {}",
+            answer.message
+        );
+        assert_eq!(
+            answer.ready,
+            row["expect"]["ready"].as_bool().expect("ready"),
+            "{name}"
+        );
         if let Some(message) = row["expect"]["message"].as_str() {
             assert_eq!(answer.message, message, "{name}");
         }
         for part in row["expect"]["contains"].as_array().into_iter().flatten() {
-            assert!(answer.message.contains(part.as_str().expect("part")), "{name}: {} lacks {part}", answer.message);
+            assert!(
+                answer.message.contains(part.as_str().expect("part")),
+                "{name}: {} lacks {part}",
+                answer.message
+            );
         }
     }
 }

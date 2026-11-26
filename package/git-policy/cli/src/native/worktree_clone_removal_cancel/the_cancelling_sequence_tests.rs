@@ -15,16 +15,34 @@
 //! expect(steps(order)).toEqual(['request:mount:<nonce>', 'staged']);
 //! ```
 
-use super::{TheReversalRequest, reverse_the_removal};
+use super::{
+    TheReversalRequest,
+    reverse_the_removal,
+};
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
-use crate::worktree_clone_removal_proof_and_plan::fixtures::{guid, sample_facts, sample_snapshots};
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::cancel_stand_ins::{RecordingMountRequest, ScriptedStaged, a_nonce, a_plan_that_stands, a_recorded_binding, an_order, steps};
-use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity};
+use crate::worktree_clone_removal_cancel::cancel_stand_ins::{
+    RecordingMountRequest,
+    ScriptedStaged,
+    a_nonce,
+    a_plan_that_stands,
+    a_recorded_binding,
+    an_order,
+    steps,
+};
+use crate::worktree_clone_removal_cancel::the_reversing_request::{
+    MountAnswer,
+    MountIdentity,
+};
 use crate::worktree_clone_removal_cancel::the_staged_state::StagedSettlement;
+use crate::worktree_clone_removal_proof_and_plan::fixtures::{
+    guid,
+    sample_facts,
+    sample_snapshots,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use std::path::PathBuf;
 
 /// The slot the reversal's record names.
@@ -37,7 +55,11 @@ fn an_answer() -> MountAnswer {
         operation: MountOperation::Mount,
         nonce: a_nonce(),
         outcome: ReceiptOutcome::Done,
-        mount: Some(MountIdentity { mount_id: 7, source: String::from("tank/wt/fix-flaky-test"), canonical_path: String::from(SLOT_PATH) }),
+        mount: Some(MountIdentity {
+            mount_id: 7,
+            source: String::from("tank/wt/fix-flaky-test"),
+            canonical_path: String::from(SLOT_PATH),
+        }),
         failed_step: None,
         errno: None,
     };
@@ -54,8 +76,17 @@ fn the_request_is_written_first_the_folder_settled_on_the_answer_and_the_plan_la
     let plan: DestructionPlan = the_plan();
     let plan_path: PathBuf = a_plan_that_stands(common.as_path(), &plan);
     let order = an_order();
-    let request: RecordingMountRequest = RecordingMountRequest { order: order.clone(), answer: Ok(an_answer()) };
-    let staged: ScriptedStaged = ScriptedStaged { order: order.clone(), settlement: StagedSettlement::Removed { record: true, claim: true } };
+    let request: RecordingMountRequest = RecordingMountRequest {
+        order: order.clone(),
+        answer: Ok(an_answer()),
+    };
+    let staged: ScriptedStaged = ScriptedStaged {
+        order: order.clone(),
+        settlement: StagedSettlement::Removed {
+            record: true,
+            claim: true,
+        },
+    };
     let done = reverse_the_removal(&TheReversalRequest {
         common_dir: common.as_path(),
         recorded: &a_recorded_binding(),
@@ -68,11 +99,23 @@ fn the_request_is_written_first_the_folder_settled_on_the_answer_and_the_plan_la
     .expect("the reversal runs");
     let taken: Vec<String> = steps(&order);
     assert_eq!(taken.len(), 2, "{taken:?}");
-    assert!(taken[0].starts_with("request:mount:"), "the request is the first act: {taken:?}");
-    assert_eq!(taken[1], "staged", "the folder is settled on the answer: {taken:?}");
-    assert_eq!(done.nonce, taken[0].trim_start_matches("request:mount:").to_string());
+    assert!(
+        taken[0].starts_with("request:mount:"),
+        "the request is the first act: {taken:?}"
+    );
+    assert_eq!(
+        taken[1], "staged",
+        "the folder is settled on the answer: {taken:?}"
+    );
+    assert_eq!(
+        done.nonce,
+        taken[0].trim_start_matches("request:mount:").to_string()
+    );
     assert!(done.destroyed.is_empty());
-    assert!(!plan_path.exists(), "the plan that witnessed nothing left after the settlement");
+    assert!(
+        !plan_path.exists(),
+        "the plan that witnessed nothing left after the settlement"
+    );
 }
 
 #[test]
@@ -81,8 +124,14 @@ fn the_answer_carries_the_mount_the_request_and_the_plan_is_kept_when_a_snapshot
     let plan: DestructionPlan = the_plan();
     let plan_path: PathBuf = a_plan_that_stands(common.as_path(), &plan);
     let order = an_order();
-    let request: RecordingMountRequest = RecordingMountRequest { order: order.clone(), answer: Ok(an_answer()) };
-    let staged: ScriptedStaged = ScriptedStaged { order: order.clone(), settlement: StagedSettlement::NoStagedFolder };
+    let request: RecordingMountRequest = RecordingMountRequest {
+        order: order.clone(),
+        answer: Ok(an_answer()),
+    };
+    let staged: ScriptedStaged = ScriptedStaged {
+        order: order.clone(),
+        settlement: StagedSettlement::NoStagedFolder,
+    };
     let destroyed: Vec<String> = vec![String::from("tank/wt/fix-flaky-test@sanoid-hourly")];
     let done = reverse_the_removal(&TheReversalRequest {
         common_dir: common.as_path(),
@@ -95,7 +144,10 @@ fn the_answer_carries_the_mount_the_request_and_the_plan_is_kept_when_a_snapshot
     })
     .expect("the reversal runs");
     assert_eq!(done.destroyed, destroyed);
-    assert!(plan_path.exists(), "a plan that records a destroyed snapshot is the loss record and stays");
+    assert!(
+        plan_path.exists(),
+        "a plan that records a destroyed snapshot is the loss record and stays"
+    );
     assert_eq!(done.mount_id, 7);
 }
 
@@ -107,9 +159,14 @@ fn a_refused_answer_leaves_the_folder_and_the_plan_untouched() {
     let order = an_order();
     let request: RecordingMountRequest = RecordingMountRequest {
         order: order.clone(),
-        answer: Err(CancelRefusal::NoAnswerAtTheDeadline { said: String::from("No receipt was on the file at the deadline.") }),
+        answer: Err(CancelRefusal::NoAnswerAtTheDeadline {
+            said: String::from("No receipt was on the file at the deadline."),
+        }),
     };
-    let staged: ScriptedStaged = ScriptedStaged { order: order.clone(), settlement: StagedSettlement::NoStagedFolder };
+    let staged: ScriptedStaged = ScriptedStaged {
+        order: order.clone(),
+        settlement: StagedSettlement::NoStagedFolder,
+    };
     match reverse_the_removal(&TheReversalRequest {
         common_dir: common.as_path(),
         recorded: &a_recorded_binding(),
@@ -121,9 +178,19 @@ fn a_refused_answer_leaves_the_folder_and_the_plan_untouched() {
     })
     .expect_err("no answer is no reversal")
     {
-        CancelRefusal::NoAnswerAtTheDeadline { .. } => {}
+        CancelRefusal::NoAnswerAtTheDeadline {
+            ..
+        } => {}
         other => panic!("a missing answer refuses as a deadline, not {other:?}"),
     }
-    assert_eq!(steps(&order).len(), 1, "nothing after the request ran: {:?}", steps(&order));
-    assert!(plan_path.exists(), "the plan is untouched by a reversal that did not answer");
+    assert_eq!(
+        steps(&order).len(),
+        1,
+        "nothing after the request ran: {:?}",
+        steps(&order)
+    );
+    assert!(
+        plan_path.exists(),
+        "the plan is untouched by a reversal that did not answer"
+    );
 }

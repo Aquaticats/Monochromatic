@@ -30,7 +30,11 @@
 use super::probe_arms::ProbeStep;
 use super::probe_errno_names::ErrnoWord;
 use super::probe_fingerprint::ProbeFingerprint;
-use super::probe_report::{ArmAnswer, ProbeReport, ProbeVerdict};
+use super::probe_report::{
+    ArmAnswer,
+    ProbeReport,
+    ProbeVerdict,
+};
 use super::probe_status_line::StepAnswer;
 
 /// The record's format version,
@@ -127,34 +131,75 @@ impl ProbeRecord<'_> {
         lines.insert(2, String::from("state finished"));
         lines.push(format!("time {}", self.time));
         lines.push(format!("verdict {}", self.verdict.word()));
-        lines.push(format!("verdict-step {}", self.verdict.named_step().map_or("none", |step| return step.name())));
-        lines.push(format!("last-finished {}", self.report.last_finished().map_or("none", |step| return step.name())));
+        lines.push(format!(
+            "verdict-step {}",
+            self.verdict
+                .named_step()
+                .map_or("none", |step| return step.name())
+        ));
+        lines.push(format!(
+            "last-finished {}",
+            self.report
+                .last_finished()
+                .map_or("none", |step| return step.name())
+        ));
         lines.push(format!("in-flight {}", self.in_flight_word()));
-        lines.push(format!("worker-namespace {}", self.worker_namespace.unwrap_or("none")));
-        lines.push(format!("holder-namespace {}", self.holder_namespace.unwrap_or("none")));
+        lines.push(format!(
+            "worker-namespace {}",
+            self.worker_namespace.unwrap_or("none")
+        ));
+        lines.push(format!(
+            "holder-namespace {}",
+            self.holder_namespace.unwrap_or("none")
+        ));
         lines.push(format!("source {}", self.source.unwrap_or("none")));
-        lines.push(format!("source-refusal {}", self.source_refusal.unwrap_or("none")));
+        lines.push(format!(
+            "source-refusal {}",
+            self.source_refusal.unwrap_or("none")
+        ));
         lines.push(format!("source-existed {}", self.source_presence().word()));
-        lines.push(format!("skip-reason {}", self.skip_reason.unwrap_or("none")));
+        lines.push(format!(
+            "skip-reason {}",
+            self.skip_reason.unwrap_or("none")
+        ));
         for outcome in self.report.arms() {
             let answer: &str = match outcome.answer {
                 ArmAnswer::Passed => "passed",
                 ArmAnswer::Failed => "failed",
                 ArmAnswer::NotExercised => "not-exercised",
             };
-            lines.push(format!("arm {} {answer} errno {}", outcome.arm.name(), outcome.errno.text()));
+            lines.push(format!(
+                "arm {} {answer} errno {}",
+                outcome.arm.name(),
+                outcome.errno.text()
+            ));
         }
         for line in self.report.lines() {
             let errno: String = match &line.answer {
-                StepAnswer::Failed { errno } => errno.text(),
-                StepAnswer::NotExercised { errno, .. } => errno.text(),
+                StepAnswer::Failed {
+                    errno,
+                } => errno.text(),
+                StepAnswer::NotExercised {
+                    errno,
+                    ..
+                } => errno.text(),
                 StepAnswer::Passed => String::from("none"),
             };
             let reason: String = match &line.answer {
-                StepAnswer::NotExercised { reason, .. } => format!(" reason {reason}"),
-                StepAnswer::Passed | StepAnswer::Failed { .. } => String::new(),
+                StepAnswer::NotExercised {
+                    reason,
+                    ..
+                } => format!(" reason {reason}"),
+                StepAnswer::Passed
+                | StepAnswer::Failed {
+                    ..
+                } => String::new(),
             };
-            lines.push(format!("step {} {} errno {errno}{reason}", line.step.name(), line.answer.word()));
+            lines.push(format!(
+                "step {} {} errno {errno}{reason}",
+                line.step.name(),
+                line.answer.word()
+            ));
         }
         return format!("{}\n", lines.join("\n"));
     }
@@ -168,10 +213,22 @@ impl ProbeRecord<'_> {
             format!("kind {RECORD_KIND}"),
             format!("boot {}", fingerprint.boot_id),
             format!("kernel {}", fingerprint.kernel_release),
-            format!("module {}", fingerprint.module_version.as_deref().unwrap_or(ABSENT)),
-            format!("srcversion {}", fingerprint.module_srcversion.as_deref().unwrap_or(ABSENT)),
-            format!("build-id {}", fingerprint.module_build_id.as_deref().unwrap_or(ABSENT)),
-            format!("handler {}", fingerprint.handler.as_deref().unwrap_or(ABSENT)),
+            format!(
+                "module {}",
+                fingerprint.module_version.as_deref().unwrap_or(ABSENT)
+            ),
+            format!(
+                "srcversion {}",
+                fingerprint.module_srcversion.as_deref().unwrap_or(ABSENT)
+            ),
+            format!(
+                "build-id {}",
+                fingerprint.module_build_id.as_deref().unwrap_or(ABSENT)
+            ),
+            format!(
+                "handler {}",
+                fingerprint.handler.as_deref().unwrap_or(ABSENT)
+            ),
         ];
     }
 
@@ -179,37 +236,75 @@ impl ProbeRecord<'_> {
     /// in the record's words.
     fn in_flight_word(&self) -> &'static str {
         return match self.verdict {
-            ProbeVerdict::TimedOut { in_flight, .. } => in_flight.map_or("none", |step| return step.name()),
-            ProbeVerdict::Failed { step } => step.name(),
-            ProbeVerdict::Passed | ProbeVerdict::Blocked { .. } | ProbeVerdict::Skipped { .. } => "none",
+            ProbeVerdict::TimedOut {
+                in_flight,
+                ..
+            } => in_flight.map_or("none", |step| return step.name()),
+            ProbeVerdict::Failed {
+                step,
+            } => step.name(),
+            ProbeVerdict::Passed
+            | ProbeVerdict::Blocked {
+                ..
+            }
+            | ProbeVerdict::Skipped {
+                ..
+            } => "none",
         };
     }
 
     /// Whether the kernel found the source,
     /// as the attach arm answered.
     fn source_presence(&self) -> SourcePresence {
-        let Some(line) = self.report.lines().iter().find(|line| return line.step == ProbeStep::AttachExclusiveCreate) else {
+        let Some(line) = self
+            .report
+            .lines()
+            .iter()
+            .find(|line| return line.step == ProbeStep::AttachExclusiveCreate)
+        else {
             return SourcePresence::Unknown;
         };
         return match &line.answer {
             StepAnswer::Passed => SourcePresence::Yes,
-            StepAnswer::Failed { errno: ErrnoWord::Named("ENOENT") } | StepAnswer::NotExercised { errno: ErrnoWord::Named("ENOENT"), .. } => SourcePresence::No,
-            StepAnswer::Failed { errno: ErrnoWord::Named("EBUSY") } | StepAnswer::NotExercised { errno: ErrnoWord::Named("EBUSY"), .. } => SourcePresence::Yes,
-            StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. } => SourcePresence::Unknown,
+            StepAnswer::Failed {
+                errno: ErrnoWord::Named("ENOENT"),
+            }
+            | StepAnswer::NotExercised {
+                errno: ErrnoWord::Named("ENOENT"),
+                ..
+            } => SourcePresence::No,
+            StepAnswer::Failed {
+                errno: ErrnoWord::Named("EBUSY"),
+            }
+            | StepAnswer::NotExercised {
+                errno: ErrnoWord::Named("EBUSY"),
+                ..
+            } => SourcePresence::Yes,
+            StepAnswer::Failed {
+                ..
+            }
+            | StepAnswer::NotExercised {
+                ..
+            } => SourcePresence::Unknown,
         };
     }
 }
 
 /// The started record's own text,
 /// which needs no report and no verdict.
-pub fn started_text(fingerprint: &ProbeFingerprint, time: &str) -> String {
+pub fn started_text(
+    fingerprint: &ProbeFingerprint,
+    time: &str,
+) -> String {
     let record: ProbeRecord = ProbeRecord {
         fingerprint,
         time,
         source: None,
         source_refusal: None,
         report: &ProbeReport::new(),
-        verdict: ProbeVerdict::Blocked { arm: super::probe_arms::ProbeArm::Namespace },
+        verdict: ProbeVerdict::Blocked {
+            arm: super::probe_arms::ProbeArm::Namespace,
+        },
         worker_namespace: None,
         holder_namespace: None,
         skip_reason: None,

@@ -57,10 +57,32 @@ pub mod zfs_source_mounts;
 /// The thread grouping,
 /// its identity and root reads and its refusal.
 pub use mount_namespace_tasks::{
-    ListingRefusal, ListingRequest, MountNamespaceTasks, NamespaceListing, ROOT_LINK, RootAt, RootIdentity, THREADS_FOLDER, TaskLink, ThreadAt, UnreadableLink, is_a_thread_that_ended, namespace_target,
-    task_link, threads_by_mount_namespace,
+    ListingRefusal,
+    ListingRequest,
+    MountNamespaceTasks,
+    NamespaceListing,
+    ROOT_LINK,
+    RootAt,
+    RootIdentity,
+    THREADS_FOLDER,
+    TaskLink,
+    ThreadAt,
+    UnreadableLink,
+    is_a_thread_that_ended,
+    namespace_target,
+    task_link,
+    threads_by_mount_namespace,
 };
 /// One namespace's table read and what each attempt answered.
-pub use namespace_table_reads::{MOUNT_TABLE_FILE, MOUNT_TABLE_LIMIT, NamespaceTableRead, TaskTableAttempt, read_one_namespace};
+pub use namespace_table_reads::{
+    MOUNT_TABLE_FILE,
+    MOUNT_TABLE_LIMIT,
+    NamespaceTableRead,
+    TaskTableAttempt,
+    read_one_namespace,
+};
 /// The exact source match.
-pub use zfs_source_mounts::{is_of_source, mounts_of_source};
+pub use zfs_source_mounts::{
+    is_of_source,
+    mounts_of_source,
+};

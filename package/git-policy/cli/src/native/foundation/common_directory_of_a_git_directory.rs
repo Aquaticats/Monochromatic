@@ -25,11 +25,17 @@
 //! ```
 
 /// Paths of directories.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The one reader of a Git directory's `commondir` file,
 /// and the bound it reads to.
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 
 /// What:
 ///  `fn bytes_named(git_dir) -> std::io::Result<Option<Vec<u8>>>` is the bytes of the `commondir` file of `git_dir`,

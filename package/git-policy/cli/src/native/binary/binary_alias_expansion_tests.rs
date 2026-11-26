@@ -10,9 +10,29 @@
 //! The audit that found the divergences:
 //!  `doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md`.
 
-use super::support::{Fixture, Observed, bounded, direct, executable, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use super::support::{
+    Fixture,
+    Observed,
+    bounded,
+    direct,
+    executable,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    run_wrapped,
+    stderr_of,
+    wrapped,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// The tracked file content a person has not committed.
@@ -21,11 +41,18 @@ const USER_DATA: &[u8] = b"USER DATA\n";
 /// What a repository looks like before the divergence decides anything:
 ///  one commit holding `tracked.txt`,
 ///  and the same file overwritten in the worktree without being staged.
-fn repository_with_unstaged_work(fixture: &Fixture, name: &str) -> PathBuf {
+fn repository_with_unstaged_work(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     std::fs::write(repo.join("tracked.txt"), b"BASE\n").expect("baseline file");
     git(fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=baseline"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=baseline"],
+    );
     std::fs::write(repo.join("tracked.txt"), USER_DATA).expect("the person's work");
     return repo;
 }
@@ -52,7 +79,10 @@ fn tracked(repo: &Path) -> Vec<u8> {
 fn wrapper_program(fixture: &Fixture) -> Command {
     return bounded(
         fixture,
-        fixture.root.join("wrapper/monochromatic-git-policy-cli").as_path(),
+        fixture
+            .root
+            .join("wrapper/monochromatic-git-policy-cli")
+            .as_path(),
         OsStr::new("/usr/bin:/bin"),
     );
 }
@@ -68,15 +98,46 @@ fn a_directory_changing_alias_is_refused_instead_of_resetting_another_repository
     let alias: String = format!("alias.audit=-C {} reset --hard", victim.display());
     let arguments: [&str; 3] = ["-c", alias.as_str(), "audit"];
     // Git itself refuses this alias, so the same invocation run directly leaves the work alone.
-    let direct_run: Observed = observe(direct(&fixture).current_dir(source.as_path()).args(arguments), b"");
-    assert_ne!(direct_run.code, Some(0), "direct Git accepted the alias: {}", stderr_of(&direct_run));
-    assert_eq!(tracked(victim.as_path()), USER_DATA, "direct Git reset the other repository");
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(source.as_path())
+            .args(arguments),
+        b"",
+    );
+    assert_ne!(
+        direct_run.code,
+        Some(0),
+        "direct Git accepted the alias: {}",
+        stderr_of(&direct_run)
+    );
+    assert_eq!(
+        tracked(victim.as_path()),
+        USER_DATA,
+        "direct Git reset the other repository"
+    );
     let observed: Observed = run_wrapped(&fixture, source.as_path(), arguments.as_slice());
-    assert_eq!(tracked(victim.as_path()), USER_DATA, "the wrapper reset the other repository: {}", stderr_of(&observed));
-    assert_eq!(tracked(source.as_path()), USER_DATA, "the wrapper reset its own repository");
-    assert_ne!(observed.code, Some(0), "the wrapper ran a command Git refuses");
+    assert_eq!(
+        tracked(victim.as_path()),
+        USER_DATA,
+        "the wrapper reset the other repository: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(source.as_path()),
+        USER_DATA,
+        "the wrapper reset its own repository"
+    );
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran a command Git refuses"
+    );
     // The caller reads Git's own words, not a refusal the wrapper invented.
-    assert!(stderr_of(&observed).contains("changes environment variables"), "{}", stderr_of(&observed));
+    assert!(
+        stderr_of(&observed).contains("changes environment variables"),
+        "{}",
+        stderr_of(&observed)
+    );
     remove(&fixture);
 }
 
@@ -103,7 +164,10 @@ fn an_existing_external_command_wins_over_an_alias_of_its_name() {
         b"",
     );
     let direct_stdout: String = String::from_utf8_lossy(&direct_run.stdout).into_owned();
-    assert!(direct_stdout.contains("EXTERNAL: no mutation"), "the positive control did not run: {direct_stdout}");
+    assert!(
+        direct_stdout.contains("EXTERNAL: no mutation"),
+        "the positive control did not run: {direct_stdout}"
+    );
     let observed: Observed = observe(
         wrapped(&fixture)
             .current_dir(repo.as_path())
@@ -116,7 +180,11 @@ fn an_existing_external_command_wins_over_an_alias_of_its_name() {
         "the wrapper ran the alias instead of the external command: {}",
         stderr_of(&observed)
     );
-    assert_eq!(tracked(repo.as_path()), USER_DATA, "the wrapper ran the alias's reset");
+    assert_eq!(
+        tracked(repo.as_path()),
+        USER_DATA,
+        "the wrapper ran the alias's reset"
+    );
     remove(&fixture);
 }
 
@@ -128,12 +196,32 @@ fn an_alias_value_that_starts_with_a_space_fails_instead_of_resetting() {
     let fixture: Fixture = fixture("alias-expansion-trim");
     let repo: PathBuf = repository_with_unstaged_work(&fixture, "repo");
     let arguments: [&str; 3] = ["-c", "alias.audit= reset --hard", "audit"];
-    let direct_run: Observed = observe(direct(&fixture).current_dir(repo.as_path()).args(arguments), b"");
-    assert_ne!(direct_run.code, Some(0), "direct Git accepted the alias: {}", stderr_of(&direct_run));
+    let direct_run: Observed = observe(
+        direct(&fixture).current_dir(repo.as_path()).args(arguments),
+        b"",
+    );
+    assert_ne!(
+        direct_run.code,
+        Some(0),
+        "direct Git accepted the alias: {}",
+        stderr_of(&direct_run)
+    );
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
-    assert_eq!(tracked(repo.as_path()), USER_DATA, "the wrapper trimmed the value into a reset");
-    assert_ne!(observed.code, Some(0), "the wrapper ran a command Git refuses");
-    assert!(stderr_of(&observed).contains("is not a git command"), "{}", stderr_of(&observed));
+    assert_eq!(
+        tracked(repo.as_path()),
+        USER_DATA,
+        "the wrapper trimmed the value into a reset"
+    );
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran a command Git refuses"
+    );
+    assert!(
+        stderr_of(&observed).contains("is not a git command"),
+        "{}",
+        stderr_of(&observed)
+    );
     remove(&fixture);
 }
 
@@ -161,12 +249,35 @@ fn a_shell_alias_that_names_one_git_command_is_refused_like_the_command() {
     let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
     let arguments: [&str; 3] = ["-c", "alias.wipe=!git reset --hard", "wipe"];
     // The positive control proves the alias discards the work when nothing reads it.
-    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
-    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(control.as_path())
+            .args(arguments),
+        b"",
+    );
+    assert_eq!(
+        direct_run.code,
+        Some(0),
+        "direct Git failed: {}",
+        stderr_of(&direct_run)
+    );
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
-    assert_ne!(observed.code, Some(0), "the wrapper ran the shell alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the shell alias discarded the work");
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the shell alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the shell alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -191,12 +302,35 @@ fn a_shell_alias_naming_only_git_runs_the_callers_arguments_under_the_guard() {
     let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
     let arguments: [&str; 5] = ["-c", "alias.wipe=!git", "wipe", "reset", "--hard"];
     // The positive control proves the invocation discards the work when the alias value alone is not read.
-    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
-    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(control.as_path())
+            .args(arguments),
+        b"",
+    );
+    assert_eq!(
+        direct_run.code,
+        Some(0),
+        "direct Git failed: {}",
+        stderr_of(&direct_run)
+    );
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
-    assert_ne!(observed.code, Some(0), "the wrapper ran the shell alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the shell alias discarded the work");
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the shell alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the shell alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -227,12 +361,35 @@ fn a_shell_alias_reads_the_aliases_the_caller_configured() {
         "outer",
     ];
     // The positive control proves the invocation discards the work when the nested alias is not read.
-    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
-    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(control.as_path())
+            .args(arguments),
+        b"",
+    );
+    assert_eq!(
+        direct_run.code,
+        Some(0),
+        "direct Git failed: {}",
+        stderr_of(&direct_run)
+    );
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
-    assert_ne!(observed.code, Some(0), "the wrapper ran the inner alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the inner alias discarded the work");
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the inner alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the inner alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -288,7 +445,11 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
         !direct_stdout.contains("EXTERNAL"),
         "the positive control ran the program instead of the alias: {direct_stdout}"
     );
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = observe(
         wrapper_program(&fixture)
             .current_dir(refused.as_path())
@@ -297,9 +458,21 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
         b"",
     );
     let stdout: String = String::from_utf8_lossy(&observed.stdout).into_owned();
-    assert!(!stdout.contains("EXTERNAL"), "the wrapper ran a program Git does not run: {stdout}");
-    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    assert!(
+        !stdout.contains("EXTERNAL"),
+        "the wrapper ran a program Git does not run: {stdout}"
+    );
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -335,8 +508,17 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
             .env("GIT_EXEC_PATH", exec_path),
         b"",
     );
-    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    assert_eq!(
+        direct_run.code,
+        Some(0),
+        "direct Git failed: {}",
+        stderr_of(&direct_run)
+    );
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = observe(
         wrapper_program(&fixture)
             .current_dir(refused.as_path())
@@ -344,8 +526,17 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
             .env("GIT_EXEC_PATH", exec_path),
         b"",
     );
-    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -394,7 +585,11 @@ fn a_relative_search_entry_is_read_from_the_directory_git_changed_into() {
         !direct_stdout.contains("EXTERNAL"),
         "the positive control ran the program instead of the alias: {direct_stdout}"
     );
-    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    assert_eq!(
+        tracked(control.as_path()),
+        b"BASE\n",
+        "the positive control discarded nothing"
+    );
     let observed: Observed = observe(
         wrapper_program(&fixture)
             .current_dir(caller.as_path())
@@ -403,9 +598,21 @@ fn a_relative_search_entry_is_read_from_the_directory_git_changed_into() {
         b"",
     );
     let stdout: String = String::from_utf8_lossy(&observed.stdout).into_owned();
-    assert!(!stdout.contains("EXTERNAL"), "the wrapper ran a program Git does not run: {stdout}");
-    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
-    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    assert!(
+        !stdout.contains("EXTERNAL"),
+        "the wrapper ran a program Git does not run: {stdout}"
+    );
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the alias's reset: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(refused.as_path()),
+        USER_DATA,
+        "the alias discarded the work"
+    );
     remove(&fixture);
 }
 
@@ -433,20 +640,53 @@ fn a_directory_changing_alias_from_a_linked_worktree_resets_nothing() {
     git(
         &fixture,
         main.as_path(),
-        &["worktree", "add", "--quiet", "-b", "side", linked_argument.as_str()],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            linked_argument.as_str(),
+        ],
     );
     // The linked worktree is clean, so no dirty check is what keeps the other repository.
-    let cleaned: Observed = observe(direct(&fixture).current_dir(linked.as_path()).args(["reset", "--quiet", "--hard"]), b"");
+    let cleaned: Observed = observe(
+        direct(&fixture)
+            .current_dir(linked.as_path())
+            .args(["reset", "--quiet", "--hard"]),
+        b"",
+    );
     assert_eq!(cleaned.code, Some(0), "{}", stderr_of(&cleaned));
     let status: Vec<u8> = super::support::porcelain(&fixture, linked.as_path()).into_bytes();
-    assert!(status.is_empty(), "the linked worktree is clean: {}", String::from_utf8_lossy(&status));
+    assert!(
+        status.is_empty(),
+        "the linked worktree is clean: {}",
+        String::from_utf8_lossy(&status)
+    );
     let alias: String = format!("alias.wipe=-C {} reset --hard", other.display());
     let arguments: [&str; 3] = ["-c", alias.as_str(), "wipe"];
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-    assert_ne!(observed.code, Some(0), "the wrapper ran the alias: {}", stderr_of(&observed));
-    assert!(stderr_of(&observed).contains("changes environment variables"), "{}", stderr_of(&observed));
-    assert_eq!(tracked(other.as_path()), USER_DATA, "the other repository lost its work");
-    assert_eq!(tracked(linked.as_path()), b"BASE\n", "the linked worktree changed");
+    assert_ne!(
+        observed.code,
+        Some(0),
+        "the wrapper ran the alias: {}",
+        stderr_of(&observed)
+    );
+    assert!(
+        stderr_of(&observed).contains("changes environment variables"),
+        "{}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        tracked(other.as_path()),
+        USER_DATA,
+        "the other repository lost its work"
+    );
+    assert_eq!(
+        tracked(linked.as_path()),
+        b"BASE\n",
+        "the linked worktree changed"
+    );
     remove(&fixture);
 }
 
@@ -495,7 +735,11 @@ fn an_alias_value_is_split_into_the_words_git_splits() {
             "{value:?}: the wrapper ran a different command; direct stderr: {}",
             stderr_of(&direct_run)
         );
-        assert_eq!(tracked(repo.as_path()), USER_DATA, "{value:?} changed the worktree");
+        assert_eq!(
+            tracked(repo.as_path()),
+            USER_DATA,
+            "{value:?} changed the worktree"
+        );
     }
     remove(&fixture);
 }
@@ -522,29 +766,54 @@ fn two_alias_spellings_run_the_one_git_selects() {
     git(
         &fixture,
         plain_then_section.as_path(),
-        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+        &[
+            "config",
+            "--local",
+            "alias.audit",
+            "rev-parse --is-inside-work-tree",
+        ],
     );
     git(
         &fixture,
         plain_then_section.as_path(),
-        &["config", "--local", "alias.audit.command", "rev-parse --git-dir"],
+        &[
+            "config",
+            "--local",
+            "alias.audit.command",
+            "rev-parse --git-dir",
+        ],
     );
     let section_then_plain: PathBuf = repository_with_unstaged_work(&fixture, "section-then-plain");
     git(
         &fixture,
         section_then_plain.as_path(),
-        &["config", "--local", "alias.audit.command", "rev-parse --git-dir"],
+        &[
+            "config",
+            "--local",
+            "alias.audit.command",
+            "rev-parse --git-dir",
+        ],
     );
     git(
         &fixture,
         section_then_plain.as_path(),
-        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+        &[
+            "config",
+            "--local",
+            "alias.audit",
+            "rev-parse --is-inside-work-tree",
+        ],
     );
     let command_line_last: PathBuf = repository_with_unstaged_work(&fixture, "command-line-last");
     git(
         &fixture,
         command_line_last.as_path(),
-        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+        &[
+            "config",
+            "--local",
+            "alias.audit",
+            "rev-parse --is-inside-work-tree",
+        ],
     );
     let cases: Vec<(PathBuf, Vec<&str>)> = vec![
         (plain_then_section, vec!["audit"]),
@@ -556,10 +825,17 @@ fn two_alias_spellings_run_the_one_git_selects() {
     ];
     for (repo, arguments) in cases {
         let direct_run: Observed = observe(
-            direct(&fixture).current_dir(repo.as_path()).args(arguments.as_slice()),
+            direct(&fixture)
+                .current_dir(repo.as_path())
+                .args(arguments.as_slice()),
             b"",
         );
-        assert_eq!(direct_run.code, Some(0), "the oracle did not answer: {}", stderr_of(&direct_run));
+        assert_eq!(
+            direct_run.code,
+            Some(0),
+            "the oracle did not answer: {}",
+            stderr_of(&direct_run)
+        );
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert_eq!(
             (observed.code, observed.stdout.clone()),
@@ -592,13 +868,23 @@ fn the_alias_matching_rules_git_applies_keep_their_answers() {
     git(
         &fixture,
         upper_plain.as_path(),
-        &["config", "--local", "alias.AUDIT-CASE", "rev-parse --git-dir"],
+        &[
+            "config",
+            "--local",
+            "alias.AUDIT-CASE",
+            "rev-parse --git-dir",
+        ],
     );
     let upper_section: PathBuf = repository_with_unstaged_work(&fixture, "upper-section");
     git(
         &fixture,
         upper_section.as_path(),
-        &["config", "--local", "alias.UPPER.command", "rev-parse --git-dir"],
+        &[
+            "config",
+            "--local",
+            "alias.UPPER.command",
+            "rev-parse --git-dir",
+        ],
     );
     let valueless: PathBuf = repository_with_unstaged_work(&fixture, "valueless");
     let config: PathBuf = valueless.join(".git/config");
@@ -612,7 +898,9 @@ fn the_alias_matching_rules_git_applies_keep_their_answers() {
     ];
     for (repo, arguments) in cases {
         let direct_run: Observed = observe(
-            direct(&fixture).current_dir(repo.as_path()).args(arguments.as_slice()),
+            direct(&fixture)
+                .current_dir(repo.as_path())
+                .args(arguments.as_slice()),
             b"",
         );
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());

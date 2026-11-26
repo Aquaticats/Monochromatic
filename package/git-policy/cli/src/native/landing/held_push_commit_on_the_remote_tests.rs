@@ -6,8 +6,17 @@
 //! with the remote-tracking ref Git's own push updates.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A bare remote,
 /// the repository that tracks it,
@@ -26,21 +35,46 @@ struct World {
 fn world(name: &str) -> World {
     let root: PathBuf = fixture(name);
     let remote: PathBuf = root.join("remote.git");
-    git(&root, &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &root,
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");
     git(&repo, &["init", "--quiet", "--initial-branch=main"]);
     std::fs::write(repo.join("a.txt"), "base\n").expect("a.txt");
     git(&repo, &["add", "a.txt"]);
     git(&repo, &["commit", "--quiet", "--message=base"]);
-    git(&repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
-    return World { root, remote, repo };
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
+    return World {
+        root,
+        remote,
+        repo,
+    };
 }
 
 /// The proof asked of the world's repository.
-fn proof<'a>(context: &'a crate::transaction_git::GitContext, world: &'a World) -> GitRemoteRecord<'a> {
-    return GitRemoteRecord { context, cwd: world.repo.as_path() };
+fn proof<'a>(
+    context: &'a crate::transaction_git::GitContext,
+    world: &'a World,
+) -> GitRemoteRecord<'a> {
+    return GitRemoteRecord {
+        context,
+        cwd: world.repo.as_path(),
+    };
 }
 
 /// The commit `HEAD` names.
@@ -66,9 +100,18 @@ fn a_commit_a_later_push_carried_is_on_the_remote() {
     git(&world.repo, &["add", "b.txt"]);
     git(&world.repo, &["commit", "--quiet", "--message=later"]);
     git(&world.repo, &["push", "--quiet", "origin", "main"]);
-    assert_eq!(proof(&context, &world).on_the_remote("refs/heads/main", held.as_str()), OnTheRemote::There);
+    assert_eq!(
+        proof(&context, &world).on_the_remote("refs/heads/main", held.as_str()),
+        OnTheRemote::There
+    );
     // Git's own status agrees: nothing of the branch is ahead of the remote.
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--branch"]), "## main...origin/main");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["status", "--porcelain=v1", "--branch"]
+        ),
+        "## main...origin/main"
+    );
     remove(world.root.as_path());
 }
 
@@ -86,7 +129,10 @@ fn a_commit_no_push_carried_is_not_on_the_remote() {
     git(&world.repo, &["add", "b.txt"]);
     git(&world.repo, &["commit", "--quiet", "--message=local"]);
     let held: String = head(world.repo.as_path());
-    assert_eq!(proof(&context, &world).on_the_remote("refs/heads/main", held.as_str()), OnTheRemote::NotThere);
+    assert_eq!(
+        proof(&context, &world).on_the_remote("refs/heads/main", held.as_str()),
+        OnTheRemote::NotThere
+    );
     remove(world.root.as_path());
 }
 
@@ -103,9 +149,17 @@ fn a_branch_with_no_upstream_is_unknown() {
     let world: World = world("proof-no-upstream");
     let context: crate::transaction_git::GitContext = git_context();
     git(&world.repo, &["branch", "--quiet", "solo"]);
-    assert_eq!(proof(&context, &world).on_the_remote("refs/heads/solo", head(world.repo.as_path()).as_str()), OnTheRemote::Unknown);
+    assert_eq!(
+        proof(&context, &world)
+            .on_the_remote("refs/heads/solo", head(world.repo.as_path()).as_str()),
+        OnTheRemote::Unknown
+    );
     // A ref outside `refs/heads` has no upstream either.
-    assert_eq!(proof(&context, &world).on_the_remote("refs/tags/main", head(world.repo.as_path()).as_str()), OnTheRemote::Unknown);
+    assert_eq!(
+        proof(&context, &world)
+            .on_the_remote("refs/tags/main", head(world.repo.as_path()).as_str()),
+        OnTheRemote::Unknown
+    );
     remove(world.root.as_path());
 }
 
@@ -120,7 +174,13 @@ fn a_branch_with_no_upstream_is_unknown() {
 fn a_commit_this_repository_does_not_have_is_unknown() {
     let world: World = world("proof-missing-object");
     let context: crate::transaction_git::GitContext = git_context();
-    assert_eq!(proof(&context, &world).on_the_remote("refs/heads/main", "0123456789abcdef0123456789abcdef01234567"), OnTheRemote::Unknown);
+    assert_eq!(
+        proof(&context, &world).on_the_remote(
+            "refs/heads/main",
+            "0123456789abcdef0123456789abcdef01234567"
+        ),
+        OnTheRemote::Unknown
+    );
     remove(world.root.as_path());
 }
 
@@ -146,7 +206,13 @@ fn a_remote_tracking_ref_that_lags_the_remote_is_the_proof_s_limit() {
     git(&world.repo, &["push", "--quiet", "origin", "main"]);
     // A record that never got the new tip, as a refused reference update leaves it.
     let stale: String = git_text(&world.remote, &["rev-parse", "refs/heads/main~1"]);
-    git(&world.repo, &["update-ref", "refs/remotes/origin/main", stale.as_str()]);
-    assert_eq!(proof(&context, &world).on_the_remote("refs/heads/main", carried.as_str()), OnTheRemote::NotThere);
+    git(
+        &world.repo,
+        &["update-ref", "refs/remotes/origin/main", stale.as_str()],
+    );
+    assert_eq!(
+        proof(&context, &world).on_the_remote("refs/heads/main", carried.as_str()),
+        OnTheRemote::NotThere
+    );
     remove(world.root.as_path());
 }

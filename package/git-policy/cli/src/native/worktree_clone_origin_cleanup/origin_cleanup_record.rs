@@ -26,11 +26,21 @@
 use crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_bounds::field_maximum_bytes;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{CleanupRefusal, CleanupRefusalCause};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_words::{
-    BlockReason, CleanupState, ORIGIN_CLEANUP_HEADER, ORIGIN_CLEANUP_KEYS_IN_ORDER, ORIGIN_SNAPSHOT_PREFIX,
+use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{
+    CleanupRefusal,
+    CleanupRefusalCause,
 };
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_words::{
+    BlockReason,
+    CleanupState,
+    ORIGIN_CLEANUP_HEADER,
+    ORIGIN_CLEANUP_KEYS_IN_ORDER,
+    ORIGIN_SNAPSHOT_PREFIX,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One blocked attempt's reason and the numbers a person acts on.
@@ -59,7 +69,10 @@ impl CleanupBlock {
     /// The detail a printed line reports,
     /// which is what decides whether the reason changed.
     pub fn detail(&self) -> String {
-        return format!("{} clone(s), {} hold(s), errno {}", self.clones, self.holds, self.errno);
+        return format!(
+            "{} clone(s), {} hold(s), errno {}",
+            self.clones, self.holds, self.errno
+        );
     }
 }
 
@@ -157,7 +170,11 @@ impl OriginCleanupRecord {
     /// ```ts
     /// const blocked = record.blocked({ reason, errno, clones, holds }, attemptedAt);
     /// ```
-    pub fn blocked(&self, block: CleanupBlock, attempted_at: &str) -> OriginCleanupRecord {
+    pub fn blocked(
+        &self,
+        block: CleanupBlock,
+        attempted_at: &str,
+    ) -> OriginCleanupRecord {
         let mut next: OriginCleanupRecord = self.clone();
         next.state = CleanupState::Blocked;
         next.attempted_at = Some(String::from(attempted_at));
@@ -179,10 +196,18 @@ impl OriginCleanupRecord {
     /// which no record may carry.
     pub fn pool(&self) -> Result<String, CleanupRefusal> {
         let Some(first) = self.origin_dataset.split('/').next() else {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originDataset", String::from("names no pool")));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotCanonical,
+                "originDataset",
+                String::from("names no pool"),
+            ));
         };
         if first.is_empty() {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originDataset", String::from("names no pool")));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotCanonical,
+                "originDataset",
+                String::from("names no pool"),
+            ));
         }
         return Ok(String::from(first));
     }
@@ -208,7 +233,8 @@ impl OriginCleanupRecord {
             Some(String::from(self.state.word())),
             Some(self.started_at.clone()),
             self.attempted_at.clone(),
-            self.block.map(|held| return String::from(held.reason.word())),
+            self.block
+                .map(|held| return String::from(held.reason.word())),
             self.block.map(|held| return held.errno.to_string()),
             self.block.map(|held| return held.clones.to_string()),
             self.block.map(|held| return held.holds.to_string()),
@@ -224,10 +250,16 @@ impl OriginCleanupRecord {
         let mut text: String = String::from(ORIGIN_CLEANUP_HEADER);
         text.push('\n');
         for (place, key) in ORIGIN_CLEANUP_KEYS_IN_ORDER.iter().enumerate() {
-            let Some(value) = &values[place] else { continue };
+            let Some(value) = &values[place] else {
+                continue;
+            };
             let widest: usize = field_maximum_bytes(key).unwrap_or(0);
             if value.len() > widest {
-                return Err(CleanupRefusal::at(CleanupRefusalCause::FieldTooWide, key, value.clone()));
+                return Err(CleanupRefusal::at(
+                    CleanupRefusalCause::FieldTooWide,
+                    key,
+                    value.clone(),
+                ));
             }
             text.push_str(key);
             text.push('=');
@@ -241,15 +273,26 @@ impl OriginCleanupRecord {
     /// The state lines a record's own state forbids or requires.
     fn refuse_a_state_its_lines_do_not_say(&self) -> Result<(), CleanupRefusal> {
         if self.origin_snapshot.len() != ORIGIN_SNAPSHOT_PREFIX.len() + 32 {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originSnapshot", self.origin_snapshot.clone()));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotCanonical,
+                "originSnapshot",
+                self.origin_snapshot.clone(),
+            ));
         }
-        return match (self.state, self.attempted_at.is_some(), self.block.is_some()) {
+        return match (
+            self.state,
+            self.attempted_at.is_some(),
+            self.block.is_some(),
+        ) {
             (CleanupState::Owed, false, false) => Ok(()),
             (CleanupState::Blocked, true, true) => Ok(()),
             (held_state, attempted, block) => Err(CleanupRefusal::at(
                 CleanupRefusalCause::UnexpectedKey,
                 "state",
-                format!("`{}` with attemptedAt={attempted} and blockedReason={block}", held_state.word()),
+                format!(
+                    "`{}` with attemptedAt={attempted} and blockedReason={block}",
+                    held_state.word()
+                ),
             )),
         };
     }

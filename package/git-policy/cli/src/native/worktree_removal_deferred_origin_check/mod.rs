@@ -87,17 +87,40 @@ pub mod origin_refusal_words;
 pub mod origin_verdict;
 
 /// The mark as a reply carries it, and the one read a caller outside this folder makes.
-pub use origin_mark::{DEFER_DESTROY_PROPERTY, MARK_OFF, MARK_ON, OriginMark, USER_HOLDS_PROPERTY, UserHolds, mark_of_reply, origin_mark};
-/// The identities a removal planned and the fields a plan must carry.
-pub use planned_origin::{MissingField, PlannedOrigin, PlannedOriginFields};
+pub use origin_mark::{
+    DEFER_DESTROY_PROPERTY,
+    MARK_OFF,
+    MARK_ON,
+    OriginMark,
+    USER_HOLDS_PROPERTY,
+    UserHolds,
+    mark_of_reply,
+    origin_mark,
+};
 /// One cause, with the word, the form and the record rule it answers.
 pub use origin_refusal::OriginRefusal;
 /// The fields, objects, forms and record rule a refusal's message rests on.
-pub use origin_refusals::{JudgedObject, PlanField, RefusalForm, RefusalPoint, WhatARefusalLeaves};
+pub use origin_refusals::{
+    JudgedObject,
+    PlanField,
+    RefusalForm,
+    RefusalPoint,
+    WhatARefusalLeaves,
+};
+/// The check, the look and the verdict they answer.
+pub use origin_verdict::{
+    Verdict,
+    check_planned_origin,
+    judge_the_look,
+};
+/// The identities a removal planned and the fields a plan must carry.
+pub use planned_origin::{
+    MissingField,
+    PlannedOrigin,
+    PlannedOriginFields,
+};
 /// The loss a plan records.
 pub use removal_history::RemovalHistory;
-/// The check, the look and the verdict they answer.
-pub use origin_verdict::{Verdict, check_planned_origin, judge_the_look};
 
 /// The scripted pool every control of this folder drives. Never part of the release executable.
 #[cfg(test)]

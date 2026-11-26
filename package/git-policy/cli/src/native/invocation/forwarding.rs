@@ -11,6 +11,23 @@
 //! // spawn(gitPath, args, { stdio: 'inherit', env }) and exit with the child's status.
 //! ```
 
+/// Who a real-Git start runs for:
+/// the wrapper's own work or the command the person typed.
+use crate::hooks_off::StartOwner;
+/// Starts that ride out a short shortage of processes.
+use crate::start_retry::RetryStart;
+/// Starts that ride out a short shortage of processes.
+#[cfg(unix)]
+use crate::start_retry::exec_retrying;
+/// What:
+///  The marker every real-Git start carries,
+/// and the two ways a start can be made.
+/// Why:
+///   A monochromatic-git-policy-cli executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
+use crate::started_as_git::{
+    StartMode,
+    mark_real_git_start,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -25,20 +42,6 @@
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
-/// What:
-///  The marker every real-Git start carries,
-/// and the two ways a start can be made.
-/// Why:
-///   A monochromatic-git-policy-cli executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
-use crate::started_as_git::{StartMode, mark_real_git_start};
-/// Starts that ride out a short shortage of processes.
-#[cfg(unix)]
-use crate::start_retry::exec_retrying;
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
-/// Who a real-Git start runs for:
-/// the wrapper's own work or the command the person typed.
-use crate::hooks_off::StartOwner;
 /// `Command` builds a child process from a program and an argument list,
 ///  with no shell.
 use std::process::Command;
@@ -243,7 +246,10 @@ pub trait ChildStarted {
     /// Why:
     ///   The run calls this once,
     ///  between the start and the wait.
-    fn started(&mut self, pid: u32);
+    fn started(
+        &mut self,
+        pid: u32,
+    );
 }
 
 /// What:
@@ -256,7 +262,11 @@ pub struct NoChildRecorded;
 impl ChildStarted for NoChildRecorded {
     /// Keep nothing:
     /// this caller has no record to name the child in.
-    fn started(&mut self, _pid: u32) {}
+    fn started(
+        &mut self,
+        _pid: u32,
+    ) {
+    }
 }
 
 /// What:
@@ -293,7 +303,8 @@ pub fn run_real_git_naming(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
+    let mut child: std::process::Child =
+        git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
     on_started.started(child.id());
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
     crate::lock_holder_records::note_child_started(child.id());
@@ -439,7 +450,9 @@ pub fn run_real_git_until(
     //  that waits for this command's standard error to close waits for that helper and not for this command.
     let ending: String = match outcome {
         StopOutcome::Collected => String::from("and Git ended"),
-        StopOutcome::Left => format!("and Git was told to stop {STOP_GRACE:?} ago but has not exited, so it is inside a call the kernel cannot interrupt and this command did not wait for it"),
+        StopOutcome::Left => format!(
+            "and Git was told to stop {STOP_GRACE:?} ago but has not exited, so it is inside a call the kernel cannot interrupt and this command did not wait for it"
+        ),
     };
     return Err(std::io::Error::new(
         std::io::ErrorKind::TimedOut,
@@ -539,11 +552,13 @@ pub fn end_as_git_ended(signal: i32) -> i32 {
             let mut blocked: libc::sigset_t = std::mem::zeroed();
             libc::sigemptyset(&mut blocked);
             libc::sigaddset(&mut blocked, signal);
-            let _unblocked = libc::pthread_sigmask(libc::SIG_UNBLOCK, &blocked, std::ptr::null_mut());
+            let _unblocked =
+                libc::pthread_sigmask(libc::SIG_UNBLOCK, &blocked, std::ptr::null_mut());
             libc::raise(signal);
         }
     }
-    return SIGNAL_EXIT_BASE + signal;}
+    return SIGNAL_EXIT_BASE + signal;
+}
 
 /// What:
 ///  Become real Git;

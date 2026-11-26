@@ -17,7 +17,10 @@
 //! ```
 
 /// The captured-query runner's output type and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes};
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

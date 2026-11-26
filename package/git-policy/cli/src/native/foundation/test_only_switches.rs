@@ -104,7 +104,10 @@ pub fn text(variable: &str) -> Option<String> {
 /// function valueIn(environment: [string, string][], variable: string): OsString | undefined
 /// ```
 #[cfg(feature = "test-only-switches")]
-pub fn value_in(environment: &[(OsString, OsString)], variable: &str) -> Option<OsString> {
+pub fn value_in(
+    environment: &[(OsString, OsString)],
+    variable: &str,
+) -> Option<OsString> {
     // The last value the environment holds under this name, as `seconds_variable` also takes it: an environment may
     // carry one name twice, and the later entry is the one the command read last.
     let mut found: Option<OsString> = None;
@@ -128,6 +131,9 @@ pub fn value_in(environment: &[(OsString, OsString)], variable: &str) -> Option<
 /// function valueIn(environment: [string, string][], variable: string): undefined { return undefined; }
 /// ```
 #[cfg(not(feature = "test-only-switches"))]
-pub fn value_in(_environment: &[(OsString, OsString)], _variable: &str) -> Option<OsString> {
+pub fn value_in(
+    _environment: &[(OsString, OsString)],
+    _variable: &str,
+) -> Option<OsString> {
     return None;
 }

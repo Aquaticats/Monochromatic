@@ -25,12 +25,21 @@
 //! const verdict = checkPlannedOrigin(reader, planned); // { kind: 'proceed' } | { kind: 'refused'; cause }
 //! ```
 
-use super::origin_mark::{OriginMark, mark_of_reply};
+use super::origin_mark::{
+    OriginMark,
+    mark_of_reply,
+};
 use super::origin_refusal::OriginRefusal;
-use super::origin_refusals::{JudgedObject, RefusalPoint};
+use super::origin_refusals::{
+    JudgedObject,
+    RefusalPoint,
+};
 use super::planned_origin::PlannedOrigin;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::DMU_OBJECT_SET_FILESYSTEM;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ReadFailure};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ReadFailure,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 
 //region The verdict
@@ -83,7 +92,10 @@ enum ReadAnswer {
 
 /// One of the three reads,
 /// or what a read that gave nothing useful answered.
-fn read(reader: &dyn DatasetReader, name: &str) -> Result<DatasetIdentity, ReadAnswer> {
+fn read(
+    reader: &dyn DatasetReader,
+    name: &str,
+) -> Result<DatasetIdentity, ReadAnswer> {
     let answer: Result<DatasetIdentity, ReadFailure> = reader.identity(name);
     let failure: ReadFailure = match answer {
         Ok(identity) => return Ok(identity),
@@ -97,14 +109,30 @@ fn read(reader: &dyn DatasetReader, name: &str) -> Result<DatasetIdentity, ReadA
 
 /// The refusal one failed read gives,
 /// naming the object and the plan's own tuple.
-fn refused_read(planned: &PlannedOrigin, object: JudgedObject, name: &str, answer: ReadAnswer) -> OriginRefusal {
+fn refused_read(
+    planned: &PlannedOrigin,
+    object: JudgedObject,
+    name: &str,
+    answer: ReadAnswer,
+) -> OriginRefusal {
     return match answer {
         ReadAnswer::Gone => match object {
-            JudgedObject::Clone => OriginRefusal::CloneGone { planned: planned.clone() },
-            JudgedObject::OriginDataset => OriginRefusal::OriginDatasetGone { planned: planned.clone() },
-            JudgedObject::OriginSnapshot => OriginRefusal::OriginSnapshotGone { planned: planned.clone() },
+            JudgedObject::Clone => OriginRefusal::CloneGone {
+                planned: planned.clone(),
+            },
+            JudgedObject::OriginDataset => OriginRefusal::OriginDatasetGone {
+                planned: planned.clone(),
+            },
+            JudgedObject::OriginSnapshot => OriginRefusal::OriginSnapshotGone {
+                planned: planned.clone(),
+            },
         },
-        ReadAnswer::Failed(failure) => OriginRefusal::ReadFailed { planned: planned.clone(), object, name: String::from(name), said: failure.message() },
+        ReadAnswer::Failed(failure) => OriginRefusal::ReadFailed {
+            planned: planned.clone(),
+            object,
+            name: String::from(name),
+            said: failure.message(),
+        },
     };
 }
 
@@ -130,29 +158,60 @@ fn refused_read(planned: &PlannedOrigin, object: JudgedObject, name: &str, answe
 /// checkPlannedOrigin(reader, planned);
 /// ```
 #[must_use]
-pub fn check_planned_origin(reader: &dyn DatasetReader, planned: &PlannedOrigin) -> Verdict {
+pub fn check_planned_origin(
+    reader: &dyn DatasetReader,
+    planned: &PlannedOrigin,
+) -> Verdict {
     let clone: DatasetIdentity = match read(reader, &planned.clone_name) {
         Ok(found) => found,
-        Err(answer) => return Verdict::Refused(refused_read(planned, JudgedObject::Clone, &planned.clone_name, answer)),
+        Err(answer) => {
+            return Verdict::Refused(refused_read(
+                planned,
+                JudgedObject::Clone,
+                &planned.clone_name,
+                answer,
+            ));
+        }
     };
     if clone.stats.dds_type != DMU_OBJECT_SET_FILESYSTEM || clone.stats.dds_is_snapshot != 0 {
-        return Verdict::Refused(OriginRefusal::CloneIsNotAFilesystem { planned: planned.clone(), found: clone.stats.dds_type, snapshot: clone.stats.dds_is_snapshot != 0 });
+        return Verdict::Refused(OriginRefusal::CloneIsNotAFilesystem {
+            planned: planned.clone(),
+            found: clone.stats.dds_type,
+            snapshot: clone.stats.dds_is_snapshot != 0,
+        });
     }
     if clone.stats.dds_guid != planned.clone_guid.value() {
-        return Verdict::Refused(OriginRefusal::CloneIsNotThePlannedOne { planned: planned.clone(), live: clone.stats.dds_guid });
+        return Verdict::Refused(OriginRefusal::CloneIsNotThePlannedOne {
+            planned: planned.clone(),
+            live: clone.stats.dds_guid,
+        });
     }
     let live_origin: String = clone.stats.origin();
     if live_origin.is_empty() {
-        return Verdict::Refused(OriginRefusal::CloneHasNoOrigin { planned: planned.clone() });
+        return Verdict::Refused(OriginRefusal::CloneHasNoOrigin {
+            planned: planned.clone(),
+        });
     }
     if live_origin != planned.origin_snapshot_name {
-        return Verdict::Refused(OriginRefusal::CloneOriginDiffers { planned: planned.clone(), live: live_origin });
+        return Verdict::Refused(OriginRefusal::CloneOriginDiffers {
+            planned: planned.clone(),
+            live: live_origin,
+        });
     }
     let origin_dataset: DatasetIdentity = match read(reader, &planned.origin_dataset_name) {
         Ok(found) => found,
-        Err(answer) => return Verdict::Refused(refused_read(planned, JudgedObject::OriginDataset, &planned.origin_dataset_name, answer)),
+        Err(answer) => {
+            return Verdict::Refused(refused_read(
+                planned,
+                JudgedObject::OriginDataset,
+                &planned.origin_dataset_name,
+                answer,
+            ));
+        }
     };
-    if origin_dataset.stats.dds_type != DMU_OBJECT_SET_FILESYSTEM || origin_dataset.stats.dds_is_snapshot != 0 {
+    if origin_dataset.stats.dds_type != DMU_OBJECT_SET_FILESYSTEM
+        || origin_dataset.stats.dds_is_snapshot != 0
+    {
         return Verdict::Refused(OriginRefusal::OriginDatasetIsNotAFilesystem {
             planned: planned.clone(),
             found: origin_dataset.stats.dds_type,
@@ -160,25 +219,52 @@ pub fn check_planned_origin(reader: &dyn DatasetReader, planned: &PlannedOrigin)
         });
     }
     if origin_dataset.stats.dds_guid != planned.origin_dataset_guid.value() {
-        return Verdict::Refused(OriginRefusal::OriginDatasetIsNotThePlannedOne { planned: planned.clone(), live: origin_dataset.stats.dds_guid });
+        return Verdict::Refused(OriginRefusal::OriginDatasetIsNotThePlannedOne {
+            planned: planned.clone(),
+            live: origin_dataset.stats.dds_guid,
+        });
     }
     let origin_snapshot: DatasetIdentity = match read(reader, &planned.origin_snapshot_name) {
         Ok(found) => found,
-        Err(answer) => return Verdict::Refused(refused_read(planned, JudgedObject::OriginSnapshot, &planned.origin_snapshot_name, answer)),
+        Err(answer) => {
+            return Verdict::Refused(refused_read(
+                planned,
+                JudgedObject::OriginSnapshot,
+                &planned.origin_snapshot_name,
+                answer,
+            ));
+        }
     };
     if origin_snapshot.stats.dds_is_snapshot == 0 {
-        return Verdict::Refused(OriginRefusal::OriginIsNotASnapshot { planned: planned.clone() });
+        return Verdict::Refused(OriginRefusal::OriginIsNotASnapshot {
+            planned: planned.clone(),
+        });
     }
     if origin_snapshot.stats.dds_guid != planned.origin_snapshot_guid.value() {
-        return Verdict::Refused(OriginRefusal::OriginSnapshotIsNotThePlannedOne { planned: planned.clone(), live: origin_snapshot.stats.dds_guid });
+        return Verdict::Refused(OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+            planned: planned.clone(),
+            live: origin_snapshot.stats.dds_guid,
+        });
     }
     if origin_snapshot.stats.dds_creation_txg != planned.origin_snapshot_createtxg {
-        return Verdict::Refused(OriginRefusal::OriginSnapshotCreatetxgDiffers { planned: planned.clone(), live: origin_snapshot.stats.dds_creation_txg });
+        return Verdict::Refused(OriginRefusal::OriginSnapshotCreatetxgDiffers {
+            planned: planned.clone(),
+            live: origin_snapshot.stats.dds_creation_txg,
+        });
     }
     return match mark_of_reply(&origin_snapshot) {
         OriginMark::Unmarked => Verdict::Proceed,
-        OriginMark::Marked { clones, holds } => Verdict::Refused(OriginRefusal::OriginMarkedForDeferredDestroy { planned: planned.clone(), clones, holds }),
-        OriginMark::Unreadable { said } => Verdict::Refused(OriginRefusal::MarkUnreadable {
+        OriginMark::Marked {
+            clones,
+            holds,
+        } => Verdict::Refused(OriginRefusal::OriginMarkedForDeferredDestroy {
+            planned: planned.clone(),
+            clones,
+            holds,
+        }),
+        OriginMark::Unreadable {
+            said,
+        } => Verdict::Refused(OriginRefusal::MarkUnreadable {
             clone_name: planned.clone_name.clone(),
             slot: planned.slot.clone(),
             origin_snapshot: planned.origin_snapshot_name.clone(),
@@ -215,17 +301,27 @@ pub fn check_planned_origin(reader: &dyn DatasetReader, planned: &PlannedOrigin)
 /// judgeTheLook('fix-flaky-test', 'pool/clones/fix-flaky-test', mark); // { kind: 'proceed' } | { kind: 'refused'; cause }
 /// ```
 #[must_use]
-pub fn judge_the_look(clone_name: &str, slot: &str, origin_snapshot: &str, mark: &OriginMark) -> Verdict {
+pub fn judge_the_look(
+    clone_name: &str,
+    slot: &str,
+    origin_snapshot: &str,
+    mark: &OriginMark,
+) -> Verdict {
     return match mark {
         OriginMark::Unmarked => Verdict::Proceed,
-        OriginMark::Marked { clones, holds } => Verdict::Refused(OriginRefusal::OriginMarkedBeforeTheUnmount {
+        OriginMark::Marked {
+            clones,
+            holds,
+        } => Verdict::Refused(OriginRefusal::OriginMarkedBeforeTheUnmount {
             clone_name: String::from(clone_name),
             slot: String::from(slot),
             origin_snapshot: String::from(origin_snapshot),
             clones: *clones,
             holds: holds.clone(),
         }),
-        OriginMark::Unreadable { said } => Verdict::Refused(OriginRefusal::MarkUnreadable {
+        OriginMark::Unreadable {
+            said,
+        } => Verdict::Refused(OriginRefusal::MarkUnreadable {
             clone_name: String::from(clone_name),
             slot: String::from(slot),
             origin_snapshot: String::from(origin_snapshot),

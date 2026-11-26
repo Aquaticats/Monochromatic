@@ -16,20 +16,42 @@
 //! function stopProcess(pid: number, locks: LockLedger, incoming: Receiver<Mark>): Promise<void>; // ask, wait the grace, kill, sweep
 //! ```
 
-use crate::child_class::ChildClass;
-use crate::wait_progress::{Cadence, Ticker};
 use crate::bounded_push::Patience;
+use crate::bounded_push::STOP_GRACE;
+use crate::child_class::ChildClass;
+use crate::member_signalled_through_its_pidfd::{
+    Delivered,
+    Pinned,
+    PinnedMember,
+    kill_members,
+    terminate_members,
+};
+use crate::process_tree::{
+    MemberRead,
+    TreeMember,
+    descendants_of,
+    member_read,
+    still_running,
+};
 use crate::push_progress::Clock;
+use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
+use crate::stopped_git_locks::LockLedger;
+use crate::wait_progress::{
+    Cadence,
+    Ticker,
+};
 use std::io::Write;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 use tokio::sync::mpsc::UnboundedReceiver;
-use crate::stopped_git_locks::LockLedger;
-use crate::bounded_push::STOP_GRACE;
-use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
-use crate::process_tree::{MemberRead, TreeMember, descendants_of, member_read, still_running};
-use crate::member_signalled_through_its_pidfd::{Delivered, Pinned, PinnedMember, kill_members, terminate_members};
-use std::time::{Duration, Instant};
 
 /// The shortest sleep of the watcher,
 /// so a due moment that already passed cannot spin it.
@@ -70,7 +92,10 @@ impl WatchTerms {
         let limit: Duration = class.limit();
         return Self {
             limit,
-            cadence: Cadence { grace: grace_for(class, interval.interval, limit), interval: interval.interval },
+            cadence: Cadence {
+                grace: grace_for(class, interval.interval, limit),
+                interval: interval.interval,
+            },
             notices: Box::new(std::io::stderr()),
         };
     }
@@ -97,7 +122,11 @@ impl WatchTerms {
 /// ```ts
 /// Math.min(class.noticeGrace, interval, limit / 2)
 /// ```
-pub fn grace_for(class: ChildClass, interval: Duration, limit: Duration) -> Duration {
+pub fn grace_for(
+    class: ChildClass,
+    interval: Duration,
+    limit: Duration,
+) -> Duration {
     return class.notice_grace().min(interval).min(limit / 2);
 }
 
@@ -155,13 +184,25 @@ impl Marks {
     /// a wait that begins starts a clock on the child with the window as its
     ///  stall and no wall-clock fallback,
     /// because elapsed time alone never ends a step.
-    pub(crate) fn apply(&mut self, mark: Mark, cadence: Cadence) {
+    pub(crate) fn apply(
+        &mut self,
+        mark: Mark,
+        cadence: Cadence,
+    ) {
         match mark {
             Mark::Begin(at) => {
                 self.since = Some(at);
                 self.ticker = Ticker::new(cadence);
                 self.printed = 0;
-                self.clock = Some(Clock::start(self.pid, Patience::Progress { stall: self.window }).without_wall_fallback());
+                self.clock = Some(
+                    Clock::start(
+                        self.pid,
+                        Patience::Progress {
+                            stall: self.window,
+                        },
+                    )
+                    .without_wall_fallback(),
+                );
             }
             Mark::End => self.end(),
         }
@@ -265,7 +306,11 @@ pub(crate) fn pin_at_start(pid: u32) -> RootPin {
     let Ok(raw) = i32::try_from(pid) else {
         return Pinned::Unproven;
     };
-    let MemberRead::Found { member, .. } = member_read(raw) else {
+    let MemberRead::Found {
+        member,
+        ..
+    } = member_read(raw)
+    else {
         return Pinned::Unproven;
     };
     return PinnedMember::open(&member);
@@ -296,7 +341,11 @@ pub(crate) fn pin_at_start(_pid: u32) -> RootPin {
 /// function sendToTheRoot(pinned: Pinned, pid: number, signal: number): Delivered;
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-pub(crate) fn send_to_the_root(pinned: &RootPin, raw: i32, signal: libc::c_int) -> Delivered {
+pub(crate) fn send_to_the_root(
+    pinned: &RootPin,
+    raw: i32,
+    signal: libc::c_int,
+) -> Delivered {
     let delivered: Delivered = match pinned {
         Pinned::Held(member) => member.signal(signal),
         Pinned::Gone => Delivered::Gone,
@@ -320,7 +369,11 @@ pub(crate) fn send_to_the_root(pinned: &RootPin, raw: i32, signal: libc::c_int) 
 /// the wait it announces is all it has.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(all(unix, not(target_os = "linux")))]
-pub(crate) fn send_to_the_root(_pinned: &RootPin, raw: i32, signal: libc::c_int) -> Delivered {
+pub(crate) fn send_to_the_root(
+    _pinned: &RootPin,
+    raw: i32,
+    signal: libc::c_int,
+) -> Delivered {
     crate::diagnostic_log::warn(
         "childWatch",
         format!(
@@ -403,7 +456,10 @@ pub(crate) fn the_root_is_proven(_pin: &RootPin) -> bool {
 /// const tree = stillThere(pin) ? descendantsOf(pid) : [];
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-pub(crate) fn descendants_of_a_root_that_still_runs(pin: &RootPin, raw: i32) -> Vec<TreeMember> {
+pub(crate) fn descendants_of_a_root_that_still_runs(
+    pin: &RootPin,
+    raw: i32,
+) -> Vec<TreeMember> {
     if !the_root_is_still_there(pin) {
         return Vec::new();
     }
@@ -422,7 +478,10 @@ pub(crate) fn the_root_is_still_there(_pin: &RootPin) -> bool {
 /// so there is no tree to read.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(all(unix, not(target_os = "linux")))]
-pub(crate) fn descendants_of_a_root_that_still_runs(_pin: &RootPin, _raw: i32) -> Vec<TreeMember> {
+pub(crate) fn descendants_of_a_root_that_still_runs(
+    _pin: &RootPin,
+    _raw: i32,
+) -> Vec<TreeMember> {
     return Vec::new();
 }
 
@@ -440,7 +499,10 @@ pub(crate) fn descendants_of_a_root_that_still_runs(_pin: &RootPin, _raw: i32) -
 /// const waitAfterTheKill = (elapsed, tree) => escalationWaits(elapsed, grace, tree) && tree.some(stillRunning);
 /// ```
 #[cfg(unix)]
-pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember]) -> bool {
+pub(crate) fn the_wait_after_the_kill(
+    elapsed: Duration,
+    tree: &[TreeMember],
+) -> bool {
     return escalation_waits(elapsed, STOP_GRACE, tree) && tree.iter().any(still_running);
 }
 
@@ -474,7 +536,12 @@ pub(crate) fn the_wait_after_the_kill(elapsed: Duration, tree: &[TreeMember]) ->
 /// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree.as_slice());
 /// ```
 #[cfg(unix)]
-pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>, root_pin: &RootPin) {
+pub(crate) async fn stop_process(
+    pid: u32,
+    locks: &LockLedger,
+    incoming: &mut UnboundedReceiver<Mark>,
+    root_pin: &RootPin,
+) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
@@ -486,9 +553,16 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     let below: Vec<TreeMember> = descendants_of_a_root_that_still_runs(root_pin, raw);
     // Three answers, not two: a record that could not be read is not a process that has gone, so nothing is signalled for it
     //  and nothing is concluded either.
-    let root: MemberRead = if the_root_is_still_there(root_pin) { member_read(raw) } else { MemberRead::Gone };
+    let root: MemberRead = if the_root_is_still_there(root_pin) {
+        member_read(raw)
+    } else {
+        MemberRead::Gone
+    };
     let mut tree: Vec<TreeMember> = match &root {
-        MemberRead::Found { member, .. } => vec![member.clone()],
+        MemberRead::Found {
+            member,
+            ..
+        } => vec![member.clone()],
         MemberRead::Gone | MemberRead::Unreadable => Vec::new(),
     };
     tree.extend(below.iter().cloned());
@@ -504,7 +578,9 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     let _asked_delivered: Delivered = send_to_the_root(root_pin, raw, libc::SIGTERM);
     let _below_delivered: Vec<Delivered> = terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
-    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice())
+        && tree.iter().any(still_running)
+    {
         tokio::time::sleep(STOP_POLL).await;
     }
     let _killed_delivered: Delivered = send_to_the_root(root_pin, raw, libc::SIGKILL);
@@ -525,8 +601,15 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // thread can start it is not run (the owner, 2026-11-07, "Fail plainly": no inline run of a call that can wait on storage),
     // and the next Git command that meets such a lock names it.
     let sweeping: LockLedger = claiming;
-    if let Err(error) = crate::blocking_job::run_blocking_job(move || { sweeping.sweep(); }).await {
-        crate::diagnostic_log::debug("childWatch", format!("the lock files of the stopped step {pid} were not swept: {error}").as_str());
+    if let Err(error) = crate::blocking_job::run_blocking_job(move || {
+        sweeping.sweep();
+    })
+    .await
+    {
+        crate::diagnostic_log::debug(
+            "childWatch",
+            format!("the lock files of the stopped step {pid} were not swept: {error}").as_str(),
+        );
     }
 }
 
@@ -534,7 +617,13 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
 /// the wait is only announced.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut UnboundedReceiver<Mark>, _root_pin: &RootPin) {}
+pub(crate) async fn stop_process(
+    _pid: u32,
+    _locks: &LockLedger,
+    _incoming: &mut UnboundedReceiver<Mark>,
+    _root_pin: &RootPin,
+) {
+}
 
 /// What:
 ///  The flags the waiting thread and the watcher task share.

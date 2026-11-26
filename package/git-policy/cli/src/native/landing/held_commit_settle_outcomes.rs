@@ -89,21 +89,55 @@ pub enum Settled {
 /// ```ts
 /// settledWords(7, held, settled) // 'batch 7 in the repository at /repo is still held: ...'
 /// ```
-pub fn settled_words(seq: u64, held: &Held, settled: &Settled) -> String {
+pub fn settled_words(
+    seq: u64,
+    held: &Held,
+    settled: &Settled,
+) -> String {
     let repository: String = crate::service_timing::in_the_repository_at(held.repository.as_path());
     let branch: String = held.reference.spoken();
     return match settled {
-        Settled::WaitsForLocks(locks) => format!("batch {seq} {repository} is still held: the commit {} is kept, and the move of {branch} waits for {}. The branch moves as soon as the lock is gone, on this command or the next one in that worktree; nothing is needed from you unless no Git process is using that repository, and then removing the lock with `{}` lets the commit land.", held.new, crate::held_commit_words::locks_named(locks.as_slice()), crate::held_commit_words::removal(locks.as_slice())),
-        Settled::Landed { commit } => format!("batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now"),
-        Settled::LandedTheIndexWaits { commit } => format!("batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now; the index catches up on the next command in that worktree"),
-        Settled::Conflicts { commit, paths } => format!("batch {seq} {repository} is still held: the commit {commit} is kept, and it does not combine with {branch} as it is now on {}", paths_named(paths.as_slice())),
+        Settled::WaitsForLocks(locks) => format!(
+            "batch {seq} {repository} is still held: the commit {} is kept, and the move of {branch} waits for {}. The branch moves as soon as the lock is gone, on this command or the next one in that worktree; nothing is needed from you unless no Git process is using that repository, and then removing the lock with `{}` lets the commit land.",
+            held.new,
+            crate::held_commit_words::locks_named(locks.as_slice()),
+            crate::held_commit_words::removal(locks.as_slice())
+        ),
+        Settled::Landed {
+            commit,
+        } => format!(
+            "batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now"
+        ),
+        Settled::LandedTheIndexWaits {
+            commit,
+        } => format!(
+            "batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now; the index catches up on the next command in that worktree"
+        ),
+        Settled::Conflicts {
+            commit,
+            paths,
+        } => format!(
+            "batch {seq} {repository} is still held: the commit {commit} is kept, and it does not combine with {branch} as it is now on {}",
+            paths_named(paths.as_slice())
+        ),
         // The batch's own commit is on its side reference; a commit this command made is not on any reference until the batch's
         //  record names it and the branch takes it, so it is never called kept.
-        Settled::Cannot { commit, because } => match commit == &held.new {
-            true => format!("batch {seq} {repository} is still held: the commit {commit} is kept, and this command cannot move {branch}, because {because}"),
-            false => format!("batch {seq} {repository} is still held: the commit {commit} this command made is kept by no reference, so the next command makes it again, and this command cannot move {branch}, because {because}"),
+        Settled::Cannot {
+            commit,
+            because,
+        } => match commit == &held.new {
+            true => format!(
+                "batch {seq} {repository} is still held: the commit {commit} is kept, and this command cannot move {branch}, because {because}"
+            ),
+            false => format!(
+                "batch {seq} {repository} is still held: the commit {commit} this command made is kept by no reference, so the next command makes it again, and this command cannot move {branch}, because {because}"
+            ),
         },
-        Settled::AlreadyThere { commit } => format!("batch {seq} {repository} is not held any more: {branch} already names {commit}"),
+        Settled::AlreadyThere {
+            commit,
+        } => format!(
+            "batch {seq} {repository} is not held any more: {branch} already names {commit}"
+        ),
     };
 }
 

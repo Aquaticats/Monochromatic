@@ -18,7 +18,10 @@
 //! export const removals = { note, forget, named };
 //! ```
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 thread_local! {
     static NAMED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
@@ -34,7 +37,9 @@ thread_local! {
 /// named.push(path);
 /// ```
 pub(crate) fn note(path: &Path) {
-    NAMED.with(|named| { named.borrow_mut().push(path.to_path_buf()); });
+    NAMED.with(|named| {
+        named.borrow_mut().push(path.to_path_buf());
+    });
 }
 
 /// What:
@@ -48,7 +53,9 @@ pub(crate) fn note(path: &Path) {
 /// return [...named];
 /// ```
 pub(crate) fn named() -> Vec<PathBuf> {
-    return NAMED.with(|named| { return named.borrow().clone(); });
+    return NAMED.with(|named| {
+        return named.borrow().clone();
+    });
 }
 
 /// What:
@@ -61,5 +68,7 @@ pub(crate) fn named() -> Vec<PathBuf> {
 /// named.length = 0;
 /// ```
 pub(crate) fn forget() {
-    NAMED.with(|named| { named.borrow_mut().clear(); });
+    NAMED.with(|named| {
+        named.borrow_mut().clear();
+    });
 }

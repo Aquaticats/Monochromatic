@@ -31,8 +31,14 @@
 
 use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// How many times a temporary name is tried before the update gives up.
 const NAME_TRIES: usize = 16;
@@ -41,7 +47,10 @@ const NAME_TRIES: usize = 16;
 static NEXT_NAME: AtomicU64 = AtomicU64::new(0);
 
 /// The mode `calc_shared_perm` makes of `mode` for the `core.sharedRepository` value `shared` (`path.c`).
-pub fn shared_mode(shared: i32, mode: u32) -> u32 {
+pub fn shared_mode(
+    shared: i32,
+    mode: u32,
+) -> u32 {
     let mut tweak: u32 = shared.unsigned_abs();
     if mode & 0o200 == 0 {
         tweak &= !0o222;
@@ -49,7 +58,11 @@ pub fn shared_mode(shared: i32, mode: u32) -> u32 {
     if mode & 0o100 != 0 {
         tweak |= (tweak & 0o444) >> 2;
     }
-    return if shared < 0 { (mode & !0o777) | tweak } else { mode | tweak };
+    return if shared < 0 {
+        (mode & !0o777) | tweak
+    } else {
+        mode | tweak
+    };
 }
 
 /// A file name beside `target` that no other run uses:
@@ -57,8 +70,15 @@ pub fn shared_mode(shared: i32, mode: u32) -> u32 {
 /// a count and the clock.
 fn temporary_beside(target: &Path) -> Option<PathBuf> {
     let count: u64 = NEXT_NAME.fetch_add(1, Ordering::Relaxed);
-    let clock: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
-    return Some(target.with_file_name(format!("{}.reset-{}-{count}-{clock:x}", target.file_name()?.to_string_lossy(), std::process::id())));
+    let clock: u128 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    return Some(target.with_file_name(format!(
+        "{}.reset-{}-{count}-{clock:x}",
+        target.file_name()?.to_string_lossy(),
+        std::process::id()
+    )));
 }
 
 /// The steps of a publication that touch the file system,
@@ -85,12 +105,18 @@ fn mode_of_file(file: &std::fs::File) -> std::io::Result<u32> {
 }
 
 /// One write to the file.
-fn write_some(file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<usize> {
+fn write_some(
+    file: &mut std::fs::File,
+    bytes: &[u8],
+) -> std::io::Result<usize> {
     return file.write(bytes);
 }
 
 /// The file's permission bits set with `fchmod`.
-fn set_mode(file: &std::fs::File, mode: u32) -> std::io::Result<()> {
+fn set_mode(
+    file: &std::fs::File,
+    mode: u32,
+) -> std::io::Result<()> {
     return file.set_permissions(std::fs::Permissions::from_mode(mode));
 }
 
@@ -101,12 +127,21 @@ fn sync_all(file: &std::fs::File) -> std::io::Result<()> {
 }
 
 /// The rename of the finished file over the target.
-fn rename_file(from: &Path, to: &Path) -> std::io::Result<()> {
+fn rename_file(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     return std::fs::rename(from, to);
 }
 
 /// The operating system's own calls.
-pub const SYSTEM: Steps<'static> = Steps { write: &write_some, chmod: &set_mode, sync: &sync_all, rename: &rename_file, mode: &mode_of_file };
+pub const SYSTEM: Steps<'static> = Steps {
+    write: &write_some,
+    chmod: &set_mode,
+    sync: &sync_all,
+    rename: &rename_file,
+    mode: &mode_of_file,
+};
 
 /// Create the temporary file as Git creates its index lock file and give it Git's mode before a byte is written to it:
 /// Git
@@ -118,13 +153,22 @@ pub const SYSTEM: Steps<'static> = Steps { write: &write_some, chmod: &set_mode,
 /// Nothing is written before that,
 /// so a `core.sharedRepository` value narrower than the mask or the ACL gives
 /// never lets the bytes be read more widely.
-fn create_beside(steps: &Steps<'_>, target: &Path, shared: i32) -> std::io::Result<(std::fs::File, PathBuf)> {
+fn create_beside(
+    steps: &Steps<'_>,
+    target: &Path,
+    shared: i32,
+) -> std::io::Result<(std::fs::File, PathBuf)> {
     use std::os::unix::fs::OpenOptionsExt as _;
     for _ in 0..NAME_TRIES {
         let Some(temporary) = temporary_beside(target) else {
             break;
         };
-        let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).mode(0o666).open(&temporary) {
+        let file: std::fs::File = match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o666)
+            .open(&temporary)
+        {
             Ok(created) => created,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
@@ -141,12 +185,18 @@ fn create_beside(steps: &Steps<'_>, target: &Path, shared: i32) -> std::io::Resu
         }
         return Ok((file, temporary));
     }
-    return Err(std::io::Error::other("no unused temporary name beside the index"));
+    return Err(std::io::Error::other(
+        "no unused temporary name beside the index",
+    ));
 }
 
 /// Write all of `bytes`,
 /// however the writes are cut.
-fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<()> {
+fn write_all_with(
+    steps: &Steps<'_>,
+    file: &mut std::fs::File,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut rest: &[u8] = bytes;
     while !rest.is_empty() {
         let taken: usize = match (steps.write)(file, rest) {
@@ -190,7 +240,13 @@ fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> 
 /// # Errors
 ///
 /// The input and output error of the step that failed.
-pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
+pub fn publish_with(
+    steps: &Steps<'_>,
+    target: &Path,
+    bytes: &[u8],
+    shared: i32,
+    times: Option<(std::time::SystemTime, std::time::SystemTime)>,
+) -> std::io::Result<()> {
     let (mut file, temporary) = create_beside(steps, target, shared)?;
     // Each step runs only when the one before it succeeded, as `and_then` did.
     let mut written: std::io::Result<()> = write_all_with(steps, &mut file, bytes);
@@ -220,9 +276,18 @@ pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32,
 /// ```ts
 /// const touched = (file, times) => times === undefined ? undefined : file.utimes(times.atime, times.mtime)
 /// ```
-fn set_times(file: &std::fs::File, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
-    let Some((accessed, modified)) = times else { return Ok(()) };
-    return file.set_times(std::fs::FileTimes::new().set_accessed(accessed).set_modified(modified));
+fn set_times(
+    file: &std::fs::File,
+    times: Option<(std::time::SystemTime, std::time::SystemTime)>,
+) -> std::io::Result<()> {
+    let Some((accessed, modified)) = times else {
+        return Ok(());
+    };
+    return file.set_times(
+        std::fs::FileTimes::new()
+            .set_accessed(accessed)
+            .set_modified(modified),
+    );
 }
 
 /// `publish_with` the operating system's calls.
@@ -230,7 +295,12 @@ fn set_times(file: &std::fs::File, times: Option<(std::time::SystemTime, std::ti
 /// # Errors
 ///
 /// As `publish_with`.
-pub fn publish(target: &Path, bytes: &[u8], shared: i32, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
+pub fn publish(
+    target: &Path,
+    bytes: &[u8],
+    shared: i32,
+    times: Option<(std::time::SystemTime, std::time::SystemTime)>,
+) -> std::io::Result<()> {
     return publish_with(&SYSTEM, target, bytes, shared, times);
 }
 

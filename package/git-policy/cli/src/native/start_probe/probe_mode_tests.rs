@@ -17,10 +17,13 @@
 //! ```
 
 use super::super::probe_fingerprint::FingerprintPaths;
-use super::super::probe_record_files::RecordPlace;
 use super::super::probe_mode_words::skip_after_gate_refusal;
+use super::super::probe_record_files::RecordPlace;
 use crate::testing::test_support::fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A fixture set of fingerprint files,
 /// which the mode reads before it writes anything.
@@ -48,7 +51,8 @@ fn a_gate_refusal_is_a_skipped_record() {
     let root: PathBuf = fixture("start-probe-mode-skip");
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     let paths: FingerprintPaths = fingerprint_paths(root.as_path());
-    let line: String = skip_after_gate_refusal(&place, &paths, "member").expect("the skipped record is written");
+    let line: String =
+        skip_after_gate_refusal(&place, &paths, "member").expect("the skipped record is written");
     let text: String = std::fs::read_to_string(place.result()).expect("the record is read");
     assert!(text.contains("state finished"));
     assert!(text.contains("verdict skipped"));
@@ -67,7 +71,9 @@ fn a_mode_without_a_fingerprint_writes_no_record() {
     let configuration: PathBuf = root.join("handler.jsonc");
     std::fs::write(&configuration, "{}").expect("the configuration is written");
     let mode = super::super::probe_mode::ProbeMode::new(&place, configuration.as_path());
-    let refusal: String = mode.run_with(&paths).expect_err("the fingerprint is refused");
+    let refusal: String = mode
+        .run_with(&paths)
+        .expect_err("the fingerprint is refused");
     assert!(refusal.contains("kernel"), "{refusal}");
     assert!(!place.result().exists(), "no record is written");
 }

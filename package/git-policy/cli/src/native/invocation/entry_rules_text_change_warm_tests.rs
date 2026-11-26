@@ -7,11 +7,17 @@
 
 use super::*;
 use crate::config_file::CONFIG_FILE_NAME;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// Writes the repository configuration that names `rules` as the forbidden-strings rules file.
-fn config_naming(root: &Path, rules: &str) {
+fn config_naming(
+    root: &Path,
+    rules: &str,
+) {
     let config: String = format!(
         "{{\"policies\": {{\"security/forbidden-strings\": [\"error\", {{\"builtinRules\": true, \"rulesFile\": \"{rules}\"}}]}}}}\n"
     );
@@ -34,7 +40,11 @@ fn a_plain_rules_file_is_marked() {
     // The same text under another name is another digest, so the file's own bytes reach it.
     std::fs::write(root.join("rules.txt"), b"BBB_RULE_LONG_ENOUGH\n").expect("rules");
     let changed: u64 = digest_of_rules_text(root.as_path()).expect("a plain rules file");
-    assert_ne!(digest.ok(), Some(changed), "the changed text is marked as changed");
+    assert_ne!(
+        digest.ok(),
+        Some(changed),
+        "the changed text is marked as changed"
+    );
     remove(root.as_path());
 }
 
@@ -56,20 +66,36 @@ fn a_rules_file_behind_a_link_is_marked_and_a_link_to_a_named_pipe_is_refused_at
     std::os::unix::fs::symlink(real.as_path(), link.as_path()).expect("the person's link");
     config_naming(root.as_path(), "linked-rules.txt");
     let through_link: Result<u64, NoDigest> = digest_of_rules_text(root.as_path());
-    assert!(through_link.is_ok(), "a link to a plain rules file is the file the configuration means");
+    assert!(
+        through_link.is_ok(),
+        "a link to a plain rules file is the file the configuration means"
+    );
     std::fs::remove_file(link.as_path()).expect("the link goes");
     let pipe: PathBuf = root.join("linked-rules.txt");
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     let bounded: PathBuf = root.clone();
-    let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || { return digest_of_rules_text(bounded.as_path()); });
-    let Some(marked) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
+    let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || {
+        return digest_of_rules_text(bounded.as_path());
+    });
+    let Some(marked) = read else {
+        panic!("marking a rules text whose file is a named pipe did not finish within five seconds")
+    };
     let named: PathBuf = root.clone();
     match marked {
-        Err(NoDigest::Unreadable { path, reason }) => {
-            assert_eq!(path, named.join("linked-rules.txt"), "the refusal names the file the configuration means");
+        Err(NoDigest::Unreadable {
+            path,
+            reason,
+        }) => {
+            assert_eq!(
+                path,
+                named.join("linked-rules.txt"),
+                "the refusal names the file the configuration means"
+            );
             assert!(reason.to_string().contains("not a plain file"), "{reason}");
         }
-        Err(NoDigest::Unselectable) => panic!("the configuration was read, so the rules file is the refusal"),
+        Err(NoDigest::Unselectable) => {
+            panic!("the configuration was read, so the rules file is the refusal")
+        }
         Ok(_) => panic!("a named pipe is not a rules file"),
     }
     remove(root.as_path());
@@ -95,10 +121,23 @@ fn a_rules_file_that_is_a_named_pipe_is_refused_at_once_and_the_line_names_it() 
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     config_naming(root.as_path(), "rules.fifo");
     let bounded: PathBuf = root.clone();
-    let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || { return digest_of_rules_text(bounded.as_path()); });
-    let Some(marked) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
-    let Err(NoDigest::Unreadable { path, reason }) = marked else { panic!("a named pipe is not a rules file") };
-    assert_eq!(path, pipe, "the refusal names the rules file the configuration names");
+    let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || {
+        return digest_of_rules_text(bounded.as_path());
+    });
+    let Some(marked) = read else {
+        panic!("marking a rules text whose file is a named pipe did not finish within five seconds")
+    };
+    let Err(NoDigest::Unreadable {
+        path,
+        reason,
+    }) = marked
+    else {
+        panic!("a named pipe is not a rules file")
+    };
+    assert_eq!(
+        path, pipe,
+        "the refusal names the rules file the configuration names"
+    );
     let line: String = unreadable_rules_line(path.as_path(), &reason);
     assert!(line.contains(pipe.display().to_string().as_str()), "{line}");
     assert!(line.contains("not a plain file"), "{line}");
@@ -122,6 +161,10 @@ fn an_absent_rules_file_is_still_a_mark_of_its_own() {
     std::fs::write(root.join("rules.txt"), b"").expect("an empty rules file");
     let empty: Result<u64, NoDigest> = digest_of_rules_text(root.as_path());
     assert!(empty.is_ok(), "an empty rules file is marked as empty");
-    assert_ne!(absent.ok(), empty.ok(), "an absent file is not the empty one");
+    assert_ne!(
+        absent.ok(),
+        empty.ok(),
+        "an absent file is not the empty one"
+    );
     remove(root.as_path());
 }

@@ -24,7 +24,10 @@
 //! const deadline = start + PROBE_DEADLINE; if (now > deadline) killTheGroup();
 //! ```
 
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The whole run's bound,
@@ -89,7 +92,11 @@ pub const PROBE_DEADLINE_MARGIN: Duration = Duration::from_millis(231);
 /// ```ts
 /// const expired = now.durationSince(started) >= PROBE_DEADLINE;
 /// ```
-pub fn deadline_passed(started: Instant, now: Instant, deadline: Duration) -> bool {
+pub fn deadline_passed(
+    started: Instant,
+    now: Instant,
+    deadline: Duration,
+) -> bool {
     return now.duration_since(started) >= deadline;
 }
 
@@ -105,7 +112,11 @@ pub fn deadline_passed(started: Instant, now: Instant, deadline: Duration) -> bo
 /// ```ts
 /// const left = remaining(started, Instant.now()); // 0 when expired
 /// ```
-pub fn remaining(started: Instant, now: Instant, deadline: Duration) -> Option<Duration> {
+pub fn remaining(
+    started: Instant,
+    now: Instant,
+    deadline: Duration,
+) -> Option<Duration> {
     let elapsed: Duration = now.duration_since(started);
     if elapsed >= deadline {
         return None;

@@ -31,8 +31,15 @@
 //! const outcome = checkManagedLock({ slot, classification }); // pass | finding('lock' | 'registration')
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass};
-use crate::worktree_clone_managed_lock::lock_state::{Classification, ManagedLockState};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+};
+use crate::worktree_clone_managed_lock::lock_state::{
+    Classification,
+    ManagedLockState,
+};
 use crate::worktree_clone_managed_lock::lock_state_words::the_lines;
 
 /// What:
@@ -105,11 +112,30 @@ pub fn check_managed_lock(facts: &ManagedLockFacts) -> CheckOutcome {
     // }
     // ```
     return match &facts.classification.state {
-        ManagedLockState::Managed { .. } => pass(words),
-        ManagedLockState::CutShort { .. } | ManagedLockState::NotTheAddsWords { .. } | ManagedLockState::NoLock { .. } => finding("lock", words),
-        ManagedLockState::NoRegistration { .. } | ManagedLockState::NoBindingExplains { .. } | ManagedLockState::HalfMade { .. } | ManagedLockState::SomebodyElsesWorktree { .. } => {
-            finding("registration", words)
+        ManagedLockState::Managed {
+            ..
+        } => pass(words),
+        ManagedLockState::CutShort {
+            ..
         }
+        | ManagedLockState::NotTheAddsWords {
+            ..
+        }
+        | ManagedLockState::NoLock {
+            ..
+        } => finding("lock", words),
+        ManagedLockState::NoRegistration {
+            ..
+        }
+        | ManagedLockState::NoBindingExplains {
+            ..
+        }
+        | ManagedLockState::HalfMade {
+            ..
+        }
+        | ManagedLockState::SomebodyElsesWorktree {
+            ..
+        } => finding("registration", words),
     };
 }
 

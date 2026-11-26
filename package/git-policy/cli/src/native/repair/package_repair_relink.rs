@@ -28,20 +28,33 @@
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
 use crate::service_client::wake;
-use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::{
+    ClientFailure,
+    render,
+};
 use crate::service_provision::provision;
 use crate::service_route::route_from_environment;
 use crate::service_server::Bind;
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
-use crate::work_item::{Enqueued, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
+use crate::work_item::{
+    Enqueued,
+    PENDING,
+    WorkItem,
+    WorkKind,
+    enqueue,
+    state_directory,
+};
 use crate::worktree_trash_hand_over::Reach;
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairRelink";
@@ -180,7 +193,9 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
         return Err(String::from("a relink of no tool is no work"));
     }
     let Some(root) = entry.root.to_str() else {
-        return Err(String::from("the path of the relink is not valid UTF-8, so no record can name it"));
+        return Err(String::from(
+            "the path of the relink is not valid UTF-8, so no record can name it",
+        ));
     };
     let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     fields.insert(String::from("root"), serde_json::Value::from(root));
@@ -193,7 +208,9 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
         }
         SearchPathOfTheAdd::Set(ref search_path) => {
             let Some(text) = search_path.to_str() else {
-                return Err(String::from("the search path of the relink is not valid UTF-8, so no record can carry it"));
+                return Err(String::from(
+                    "the search path of the relink is not valid UTF-8, so no record can carry it",
+                ));
             };
             fields.insert(String::from("searchPath"), serde_json::Value::from(text));
         }
@@ -249,9 +266,17 @@ pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
         None => SearchPathOfTheAdd::NotRecorded,
         Some(serde_json::Value::Null) => SearchPathOfTheAdd::Unset,
         Some(serde_json::Value::String(text)) => SearchPathOfTheAdd::Set(OsString::from(text)),
-        Some(_) => return Err(String::from("the search path of the relink is neither text nor null")),
+        Some(_) => {
+            return Err(String::from(
+                "the search path of the relink is neither text nor null",
+            ));
+        }
     };
-    return Ok(RelinkEntry { root: PathBuf::from(root), search_path, tools });
+    return Ok(RelinkEntry {
+        root: PathBuf::from(root),
+        search_path,
+        tools,
+    });
 }
 
 /// What:
@@ -274,7 +299,10 @@ pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
 /// ```ts
 /// const objectNameOf = (destination, queuedAt) => sha256(utf8(`${destination}\n${queuedAt}`)).toString('hex').slice(0, 40);
 /// ```
-pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
+pub fn object_name_of(
+    destination: &Path,
+    queued_at: &str,
+) -> String {
     let mut text: Vec<u8> = Vec::new();
     text.extend_from_slice(destination.as_os_str().as_bytes());
     text.push(b'\n');
@@ -306,7 +334,9 @@ fn entry_with_an_absolute_search_path(
     entry: &RelinkEntry,
     start: &crate::start_directory::StartDirectory,
 ) -> Result<RelinkEntry, String> {
-    let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else { return Ok(entry.clone()) };
+    let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else {
+        return Ok(entry.clone());
+    };
     if !names_a_relative_directory(search_path) {
         return Ok(entry.clone());
     }
@@ -322,7 +352,10 @@ fn entry_with_an_absolute_search_path(
         absolute.push(add.join(directory));
     }
     let joined: OsString = std::env::join_paths(absolute).map_err(unrecordable_search_path)?;
-    return Ok(RelinkEntry { search_path: SearchPathOfTheAdd::Set(joined), ..entry.clone() });
+    return Ok(RelinkEntry {
+        search_path: SearchPathOfTheAdd::Set(joined),
+        ..entry.clone()
+    });
 }
 
 /// What:
@@ -415,7 +448,6 @@ pub fn item_of(
     });
 }
 
-
 /// What:
 ///  Write the relink's record and wake the service that runs it,
 /// or take the record back when no service holds it.
@@ -453,7 +485,18 @@ pub fn hand_over_to_the_service(
     entry: &RelinkEntry,
     start: &crate::start_directory::StartDirectory,
 ) -> Result<(), NotTaken> {
-    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT }, start);
+    return hand_over_with(
+        context,
+        common_dir,
+        destination,
+        entry,
+        &Reach {
+            router: &route_from_environment,
+            provisioner: &provision,
+            start_wait: HAND_OVER_GREETING_WAIT,
+        },
+        start,
+    );
 }
 
 /// What:
@@ -488,21 +531,36 @@ pub fn hand_over_with(
             return if pending_record(&work_dir, id.as_str()).exists() {
                 Ok(())
             } else {
-                Err(NotTaken { reason: format!("the record {id} of this relink was already taken by a service, which holds it"), queued: None })
+                Err(NotTaken {
+                    reason: format!(
+                        "the record {id} of this relink was already taken by a service, which holds it"
+                    ),
+                    queued: None,
+                })
             };
         }
         Err(reason) => {
-            debug(TAG, format!("the work item could not be written: {reason}").as_str());
-            return Err(not_written(format!("the work item could not be written: {reason}")));
+            debug(
+                TAG,
+                format!("the work item could not be written: {reason}").as_str(),
+            );
+            return Err(not_written(format!(
+                "the work item could not be written: {reason}"
+            )));
         }
     }
     let reason: String = match (reach.router)(context.real_git.as_path(), common_dir) {
         None => String::from("no commit service can be started from this session"),
         Some(route) => {
-            let crate::service_route::Route { address, provision: host } = route;
+            let crate::service_route::Route {
+                address,
+                provision: host,
+            } = route;
             let reached: Result<(), String> = match host.as_ref() {
                 Some(setup) => match (reach.provisioner)(setup) {
-                    Ok(()) => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
+                    Ok(()) => {
+                        wake_the_service(address, host.as_ref(), common_dir, reach.start_wait)
+                    }
                     Err(failure) => Err(render(&failure)),
                 },
                 None => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
@@ -513,16 +571,32 @@ pub fn hand_over_with(
             }
         }
     };
-    debug(TAG, format!("{}: no service took the relink ({reason})", destination.display()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{}: no service took the relink ({reason})",
+            destination.display()
+        )
+        .as_str(),
+    );
     // The record stays queued until the add's own run has finished: a record taken back first would leave nothing for a
     //  service to recover the repair from after a kill, and a record left queued only names a path the proof above
     //  confines to the worktree the record was written for.
-    return Err(NotTaken { reason, queued: Some(QueuedRelink { work_dir, id }) });
+    return Err(NotTaken {
+        reason,
+        queued: Some(QueuedRelink {
+            work_dir,
+            id,
+        }),
+    });
 }
 
 /// The answer of a hand-over whose record was never written.
 fn not_written(reason: String) -> NotTaken {
-    return NotTaken { reason, queued: None };
+    return NotTaken {
+        reason,
+        queued: None,
+    };
 }
 
 /// What:
@@ -545,8 +619,17 @@ fn not_written(reason: String) -> NotTaken {
 /// ```ts
 /// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
 /// ```
-fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
-    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
+fn wake_the_service(
+    address: Bind,
+    host: Option<&crate::service_provision::ProvisionHost>,
+    common_dir: &Path,
+    start_wait: std::time::Duration,
+) -> Result<(), String> {
+    let config: ClientConfig = ClientConfig {
+        start_wait,
+        start_ceiling: start_wait,
+        ..managed_client_config(address, host)
+    };
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &[], &mut silent).map_err(render_failure);
 }
@@ -621,7 +704,10 @@ impl QueuedRelink {
 }
 
 /// The pending record of one id.
-fn pending_record(work_dir: &Path, id: &str) -> PathBuf {
+fn pending_record(
+    work_dir: &Path,
+    id: &str,
+) -> PathBuf {
     return state_directory(work_dir, PENDING).join(id);
 }
 
@@ -656,7 +742,13 @@ type ClientConfig = crate::service_client::ClientConfig;
 /// ```
 pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
     let (context, common_dir, destination, entry, start): TheHandOver = state;
-    return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), &entry, &start);
+    return hand_over_to_the_service(
+        &context,
+        common_dir.as_path(),
+        destination.as_path(),
+        &entry,
+        &start,
+    );
 }
 
 /// What a hand-over job reads:
@@ -672,7 +764,13 @@ pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
 /// ```ts
 /// type TheHandOver = [GitContext, string, string, RelinkEntry];
 /// ```
-pub(super) type TheHandOver = (GitContext, PathBuf, PathBuf, RelinkEntry, crate::start_directory::StartDirectory);
+pub(super) type TheHandOver = (
+    GitContext,
+    PathBuf,
+    PathBuf,
+    RelinkEntry,
+    crate::start_directory::StartDirectory,
+);
 
 /// Relink controls stay out of the release executable.
 #[cfg(test)]

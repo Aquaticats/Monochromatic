@@ -22,17 +22,31 @@
 //! ```
 
 /// The parsing of a `stat` line and the state letters that count as work.
-use crate::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
+use crate::push_progress::{
+    SAMPLE_INTERVAL,
+    is_working,
+    parse_activity,
+};
 /// The connected sockets of the machine,
 /// and those a process holds.
-use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
+use crate::tcp_sockets::{
+    ESTABLISHED,
+    established_sockets,
+    socket_inodes_of,
+};
 /// What each socket had carried when it was last seen.
 use std::collections::HashMap;
 /// Shared flags between the thread that judges and the one that waits.
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The kernel's number for the calling thread,
@@ -139,8 +153,17 @@ pub struct ThreadSigns {
 impl ThreadSigns {
     /// Signs of the thread `tid`;
     /// `count_sockets` adds the process's connected sockets.
-    pub fn new(tid: i32, count_sockets: bool) -> Self {
-        return Self { tid, before: None, count_sockets, sockets: HashMap::new(), measured: false };
+    pub fn new(
+        tid: i32,
+        count_sockets: bool,
+    ) -> Self {
+        return Self {
+            tid,
+            before: None,
+            count_sockets,
+            sockets: HashMap::new(),
+            measured: false,
+        };
     }
 
     /// Whether the last look could read the thread at all,
@@ -152,7 +175,8 @@ impl ThreadSigns {
     /// The bytes the process's connected sockets carried since the last look,
     /// or zero where they cannot be listed.
     fn socket_bytes_moved(&mut self) -> u64 {
-        let held: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).unwrap_or(i32::MAX));
+        let held: Vec<u64> =
+            socket_inodes_of(i32::try_from(std::process::id()).unwrap_or(i32::MAX));
         let Some(connected) = established_sockets() else {
             return 0;
         };
@@ -224,9 +248,19 @@ pub struct ThreadClock {
 impl ThreadClock {
     /// Start the clock of the thread `tid` now;
     /// `count_sockets` adds the process's connected sockets to its signs.
-    pub fn start(tid: i32, window: Duration, count_sockets: bool) -> Self {
+    pub fn start(
+        tid: i32,
+        window: Duration,
+        count_sockets: bool,
+    ) -> Self {
         let now: Instant = Instant::now();
-        return Self { signs: ThreadSigns::new(tid, count_sockets), window, last_progress: now, next_sample: now, longest_quiet: Duration::ZERO };
+        return Self {
+            signs: ThreadSigns::new(tid, count_sockets),
+            window,
+            last_progress: now,
+            next_sample: now,
+            longest_quiet: Duration::ZERO,
+        };
     }
 
     /// Read the signs when a sample is due,
@@ -236,18 +270,23 @@ impl ThreadClock {
         let now: Instant = Instant::now();
         if now >= self.next_sample {
             if self.signs.look() {
-                self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
+                self.longest_quiet = self
+                    .longest_quiet
+                    .max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
             }
             self.next_sample = now + SAMPLE_INTERVAL;
         }
-        return self.signs.measured() && now.saturating_duration_since(self.last_progress) >= self.window;
+        return self.signs.measured()
+            && now.saturating_duration_since(self.last_progress) >= self.window;
     }
 
     /// The longest stretch with no sign of work so far,
     /// the one still running included.
     pub fn longest_quiet(&self) -> Duration {
-        return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
+        return self
+            .longest_quiet
+            .max(Instant::now().saturating_duration_since(self.last_progress));
     }
 }
 
@@ -286,7 +325,11 @@ impl QuietMeasurement {
     pub fn begin(step: &str) -> Self {
         let done: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let Some(tid) = current_thread_id() else {
-            return Self { step: step.to_string(), done, sampler: None };
+            return Self {
+                step: step.to_string(),
+                done,
+                sampler: None,
+            };
         };
         let finished: Arc<AtomicBool> = Arc::clone(&done);
         let sampler: Option<std::thread::JoinHandle<Duration>> = std::thread::Builder::new()
@@ -301,7 +344,11 @@ impl QuietMeasurement {
                 return clock.longest_quiet();
             })
             .ok();
-        return Self { step: step.to_string(), done, sampler };
+        return Self {
+            step: step.to_string(),
+            done,
+            sampler,
+        };
     }
 
     /// Stop sampling and keep the longest gap in the ledger.

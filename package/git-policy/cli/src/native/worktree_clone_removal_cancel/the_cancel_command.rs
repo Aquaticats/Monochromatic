@@ -39,18 +39,40 @@
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{TheReversalDone, TheReversalRequest, reverse_the_removal};
-use crate::worktree_clone_removal_cancel::the_plan_it_leaves::{ThePlansFate, the_plan_a_cancellation_leaves};
-use crate::worktree_clone_removal_cancel::the_proof::{TheRecordsProof, WhatTheRecordsProve, prove_the_slot_is_a_removals, prove_the_slots_records};
-use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
+use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{
+    TheReversalDone,
+    TheReversalRequest,
+    reverse_the_removal,
+};
+use crate::worktree_clone_removal_cancel::the_plan_it_leaves::{
+    ThePlansFate,
+    the_plan_a_cancellation_leaves,
+};
+use crate::worktree_clone_removal_cancel::the_proof::{
+    TheRecordsProof,
+    WhatTheRecordsProve,
+    prove_the_slot_is_a_removals,
+    prove_the_slots_records,
+};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{
+    HeldClaim,
+    TheRemovalClaim,
+};
 use crate::worktree_clone_removal_cancel::the_reversing_request::TheMountRequest;
-use crate::worktree_clone_removal_cancel::the_slot_mount::{TheSlotMount, counts_as_at_its_slot, word as slot_word};
+use crate::worktree_clone_removal_cancel::the_slot_mount::{
+    TheSlotMount,
+    counts_as_at_its_slot,
+    word as slot_word,
+};
+use crate::worktree_clone_removal_cancel::the_staged_state::{
+    StagedSettlement,
+    TheStagedFolder,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
-use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
 use std::path::Path;
 
 /// The exit code of a reversal,
@@ -253,8 +275,12 @@ impl TheCancellation {
     /// The report either arm prints.
     pub fn report(&self) -> &TheCancelReport {
         return match self {
-            TheCancellation::Reversed { report } => report,
-            TheCancellation::AlreadyCancelled { report } => report,
+            TheCancellation::Reversed {
+                report,
+            } => report,
+            TheCancellation::AlreadyCancelled {
+                report,
+            } => report,
         };
     }
 }
@@ -301,26 +327,48 @@ pub fn cancel_the_removal(input: &TheCancelCommand<'_>) -> Result<TheCancellatio
 
 /// Everything after the claim is held,
 /// which is where every deciding read happens again.
-fn act_under_the_claim(input: &TheCancelCommand<'_>, proof: &TheRecordsProof<'_>, claimed: DatasetGuid) -> Result<TheCancellation, CancelRefusal> {
+fn act_under_the_claim(
+    input: &TheCancelCommand<'_>,
+    proof: &TheRecordsProof<'_>,
+    claimed: DatasetGuid,
+) -> Result<TheCancellation, CancelRefusal> {
     let proved: WhatTheRecordsProve = prove_the_slots_records(proof)?;
     // The claim was taken by the GUID the first proof read, so a record rewritten between the two reads is a
     // disagreement rather than a second removal's act under the first one's claim.
     if proved.recorded.clone_guid != claimed {
         return Err(CancelRefusal::TheRecordsDisagree {
-            what: String::from("the binding was rewritten between the records' proof and the one under the claim"),
+            what: String::from(
+                "the binding was rewritten between the records' proof and the one under the claim",
+            ),
             first: claimed.file_name(),
             second: proved.recorded.clone_guid.file_name(),
         });
     }
     let recorded: &RecordedBinding = &proved.recorded;
-    let where_it_stands = input.mounts.where_the_clone_stands(proved.recorded.clone_dataset.as_str(), proved.slot_path.as_path());
-    let already: bool = proved.intent.operation == MountOperation::Mount && counts_as_at_its_slot(&where_it_stands);
+    let where_it_stands = input.mounts.where_the_clone_stands(
+        proved.recorded.clone_dataset.as_str(),
+        proved.slot_path.as_path(),
+    );
+    let already: bool =
+        proved.intent.operation == MountOperation::Mount && counts_as_at_its_slot(&where_it_stands);
     if already {
         let staged: StagedSettlement = input.staged.settle(proved.recorded.clone_guid);
-        if let StagedSettlement::Retained { step, said } = &staged {
-            return Err(CancelRefusal::TheStagedStateIsKept { step: step.clone(), said: said.clone() });
+        if let StagedSettlement::Retained {
+            step,
+            said,
+        } = &staged
+        {
+            return Err(CancelRefusal::TheStagedStateIsKept {
+                step: step.clone(),
+                said: said.clone(),
+            });
         }
-        let plans: ThePlansFate = the_plan_a_cancellation_leaves(input.common_dir, recorded, proved.plan.as_ref(), proved.destroyed.as_slice())?;
+        let plans: ThePlansFate = the_plan_a_cancellation_leaves(
+            input.common_dir,
+            recorded,
+            proved.plan.as_ref(),
+            proved.destroyed.as_slice(),
+        )?;
         return Ok(TheCancellation::AlreadyCancelled {
             report: TheCancelReport {
                 already_cancelled: true,
@@ -345,13 +393,26 @@ fn act_under_the_claim(input: &TheCancelCommand<'_>, proof: &TheRecordsProof<'_>
         mount_request: input.mount_request,
         staged: input.staged,
     })?;
-    if let StagedSettlement::Retained { step, said } = &reversal.staged {
-        return Err(CancelRefusal::TheStagedStateIsKept { step: step.clone(), said: said.clone() });
+    if let StagedSettlement::Retained {
+        step,
+        said,
+    } = &reversal.staged
+    {
+        return Err(CancelRefusal::TheStagedStateIsKept {
+            step: step.clone(),
+            said: said.clone(),
+        });
     }
-    let after: CloneMount = input.mounts.where_the_clone_stands(proved.recorded.clone_dataset.as_str(), proved.slot_path.as_path());
+    let after: CloneMount = input.mounts.where_the_clone_stands(
+        proved.recorded.clone_dataset.as_str(),
+        proved.slot_path.as_path(),
+    );
     if !counts_as_at_its_slot(&after) {
         return Err(CancelRefusal::TheMountStateIsNotTheAnswers {
-            said: format!("the handler answered `done` and this process's mount table says the clone is {}.", slot_word(&after)),
+            said: format!(
+                "the handler answered `done` and this process's mount table says the clone is {}.",
+                slot_word(&after)
+            ),
         });
     }
     return Ok(TheCancellation::Reversed {

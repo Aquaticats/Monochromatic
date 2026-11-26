@@ -11,14 +11,27 @@
 //! checkUserCacheMount(cache, pin, { source: 'pool/cache', root: '/' });
 //! ```
 
-use crate::user_cache_pin::{check_pin, open_cache, passwd_home_of, pin_from_text, read_pin, UserCachePin, PIN_KIND, PIN_VERSION};
 use crate::fs_mount_options::MountFacts;
+use crate::user_cache_pin::{
+    PIN_KIND,
+    PIN_VERSION,
+    UserCachePin,
+    check_pin,
+    open_cache,
+    passwd_home_of,
+    pin_from_text,
+    read_pin,
+};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 /// The pin a fixture writes.
 fn pin(root_inode: u64) -> UserCachePin {
-    return UserCachePin { source: String::from("pool/cache"), root_inode, device: 9 };
+    return UserCachePin {
+        source: String::from("pool/cache"),
+        root_inode,
+        device: 9,
+    };
 }
 
 /// One mount's facts,
@@ -51,8 +64,12 @@ fn one_pin_survives_its_text() {
 /// not a silent default.
 #[test]
 fn an_absent_pin_is_refused() {
-    let path: PathBuf = crate::testing::test_support::fixture_root().join("user-cache-pin-absent/pin");
-    assert!(matches!(read_pin(path.as_path()), Err(crate::user_cache_pin::PinRefusal::Missing { .. })));
+    let path: PathBuf =
+        crate::testing::test_support::fixture_root().join("user-cache-pin-absent/pin");
+    assert!(matches!(
+        read_pin(path.as_path()),
+        Err(crate::user_cache_pin::PinRefusal::Missing { .. })
+    ));
 }
 
 /// A pin of another shape is refused.
@@ -70,7 +87,10 @@ fn the_cache_descriptor_and_the_pin_agree() {
     let cache_path: PathBuf = home.join(".cache");
     std::fs::create_dir_all(cache_path.as_path()).expect("the fixture's cache is made");
     let cache: std::fs::File = open_cache(home.as_path()).expect("the fixture's cache opens");
-    let inode: u64 = cache.metadata().expect("the cache's metadata is read").ino();
+    let inode: u64 = cache
+        .metadata()
+        .expect("the cache's metadata is read")
+        .ino();
     check_pin(&cache, &pin(inode), &facts("pool/cache")).expect("the fixture's own mount passes");
 }
 
@@ -80,9 +100,16 @@ fn a_pin_of_another_source_is_refused() {
     let home: PathBuf = crate::testing::test_support::fixture_root().join("user-cache-pin-source");
     std::fs::create_dir_all(home.join(".cache").as_path()).expect("the fixture's cache is made");
     let cache: std::fs::File = open_cache(home.as_path()).expect("the fixture's cache opens");
-    let inode: u64 = cache.metadata().expect("the cache's metadata is read").ino();
-    let refusal = check_pin(&cache, &pin(inode), &facts("pool/home")).expect_err("another source is refused");
-    assert!(matches!(refusal, crate::user_cache_pin::PinRefusal::Source { .. }));
+    let inode: u64 = cache
+        .metadata()
+        .expect("the cache's metadata is read")
+        .ino();
+    let refusal =
+        check_pin(&cache, &pin(inode), &facts("pool/home")).expect_err("another source is refused");
+    assert!(matches!(
+        refusal,
+        crate::user_cache_pin::PinRefusal::Source { .. }
+    ));
 }
 
 /// A pin whose root inode is another folder fails on the inode.
@@ -91,9 +118,16 @@ fn a_pin_of_another_inode_is_refused() {
     let home: PathBuf = crate::testing::test_support::fixture_root().join("user-cache-pin-inode");
     std::fs::create_dir_all(home.join(".cache").as_path()).expect("the fixture's cache is made");
     let cache: std::fs::File = open_cache(home.as_path()).expect("the fixture's cache opens");
-    let inode: u64 = cache.metadata().expect("the cache's metadata is read").ino();
-    let refusal = check_pin(&cache, &pin(inode + 1), &facts("pool/cache")).expect_err("another inode is refused");
-    assert!(matches!(refusal, crate::user_cache_pin::PinRefusal::Inode { .. }));
+    let inode: u64 = cache
+        .metadata()
+        .expect("the cache's metadata is read")
+        .ino();
+    let refusal = check_pin(&cache, &pin(inode + 1), &facts("pool/cache"))
+        .expect_err("another inode is refused");
+    assert!(matches!(
+        refusal,
+        crate::user_cache_pin::PinRefusal::Inode { .. }
+    ));
 }
 
 /// The account's passwd home is absolute and exists for this run's own account.

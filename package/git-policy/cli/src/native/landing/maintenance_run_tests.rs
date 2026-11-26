@@ -5,7 +5,14 @@
 //! and the failure paths.
 
 use super::*;
-use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use std::path::PathBuf;
 
@@ -22,10 +29,17 @@ struct Stand {
 }
 
 /// Write a stand-in Git that appends each invocation's arguments to a log and answers as `stand` says.
-fn stand_in(root: &std::path::Path, stand: &Stand) -> (PathBuf, PathBuf) {
+fn stand_in(
+    root: &std::path::Path,
+    stand: &Stand,
+) -> (PathBuf, PathBuf) {
     let log: PathBuf = root.join("calls.log");
     let path: PathBuf = root.join("git");
-    let signal_line: &str = if stand.signal_config { "kill -TERM $$\n" } else { "" };
+    let signal_line: &str = if stand.signal_config {
+        "kill -TERM $$\n"
+    } else {
+        ""
+    };
     let reject_line: &str = if stand.reject_detach {
         "case \" $* \" in *\" --detach \"*) printf '%s\\n' \"error: unknown option 'detach'\" >&2; exit 129;; esac\n"
     } else {
@@ -53,11 +67,17 @@ fn calls(log: &std::path::Path) -> Vec<String> {
 }
 
 /// A context that starts the stand-in with the caller's global options and no overlay.
-fn stand_context(path: PathBuf, global_prefix: &[&str]) -> GitContext {
+fn stand_context(
+    path: PathBuf,
+    global_prefix: &[&str],
+) -> GitContext {
     return GitContext {
         real_git: path,
         overlay: Vec::new(),
-        global_prefix: global_prefix.iter().map(|option| return std::ffi::OsString::from(option)).collect(),
+        global_prefix: global_prefix
+            .iter()
+            .map(|option| return std::ffi::OsString::from(option))
+            .collect(),
         common_dir: None,
     };
 }
@@ -67,12 +87,15 @@ fn stand_context(path: PathBuf, global_prefix: &[&str]) -> GitContext {
 #[test]
 fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
     let root: PathBuf = fixture("maintenance-unset");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 1,
-        config_output: "",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 1,
+            config_output: "",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &["-c", "x.y=z"]), root.as_path())
             .expect("maintenance ran");
@@ -89,17 +112,23 @@ fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
 #[test]
 fn rejected_detach_retries_without_the_flag() {
     let root: PathBuf = fixture("maintenance-retry");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 1,
-        config_output: "",
-        reject_detach: true,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 1,
+            config_output: "",
+            reject_detach: true,
+            signal_config: false,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()).expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
     assert_eq!(
-        calls(log.as_path()).into_iter().skip(1).collect::<Vec<String>>(),
+        calls(log.as_path())
+            .into_iter()
+            .skip(1)
+            .collect::<Vec<String>>(),
         vec![
             String::from("maintenance run --auto --detach"),
             String::from("maintenance run --auto"),
@@ -112,12 +141,15 @@ fn rejected_detach_retries_without_the_flag() {
 #[test]
 fn detach_false_runs_the_foreground_form() {
     let root: PathBuf = fixture("maintenance-foreground");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 0,
-        config_output: "maintenance.autodetach\\nfalse\\0",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 0,
+            config_output: "maintenance.autodetach\\nfalse\\0",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()).expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
@@ -132,12 +164,15 @@ fn detach_false_runs_the_foreground_form() {
 #[test]
 fn failing_config_read_skips_maintenance_and_reports_its_status() {
     let root: PathBuf = fixture("maintenance-config-failure");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 128,
-        config_output: "",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 128,
+            config_output: "",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()).expect("config ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(128));
@@ -151,12 +186,15 @@ fn failing_config_read_skips_maintenance_and_reports_its_status() {
 #[test]
 fn signaled_config_read_counts_as_unset() {
     let root: PathBuf = fixture("maintenance-config-signal");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 0,
-        config_output: "",
-        reject_detach: false,
-        signal_config: true,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 0,
+            config_output: "",
+            reject_detach: false,
+            signal_config: true,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()).expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
@@ -168,12 +206,15 @@ fn signaled_config_read_counts_as_unset() {
 #[test]
 fn config_output_that_is_not_utf8_is_refused_before_maintenance() {
     let root: PathBuf = fixture("maintenance-config-utf8");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 0,
-        config_output: "gc.auto\\n\\377\\0",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 0,
+            config_output: "gc.auto\\n\\377\\0",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     assert_eq!(
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()),
         Err(MaintenanceError::ConfigNotUtf8)
@@ -186,12 +227,15 @@ fn config_output_that_is_not_utf8_is_refused_before_maintenance() {
 #[test]
 fn disabled_configuration_runs_no_maintenance() {
     let root: PathBuf = fixture("maintenance-disabled");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 0,
-        config_output: "maintenance.auto\\nfalse\\0",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 0,
+            config_output: "maintenance.auto\\nfalse\\0",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     let outcome: AutoMaintenanceOutcome =
         run_auto_maintenance(&stand_context(path, &[]), root.as_path()).expect("config ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Disabled);
@@ -242,7 +286,10 @@ fn real_damaged_configuration_skips_maintenance() {
 
 /// A snapshot parsed from `(scope, record)` pairs,
 /// read with or without global options.
-fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> ConfigSnapshot {
+fn listing_snapshot(
+    records: &[(&str, &str)],
+    without_global_options: bool,
+) -> ConfigSnapshot {
     let mut bytes: Vec<u8> = Vec::new();
     for (scope, record) in records {
         bytes.extend_from_slice(scope.as_bytes());
@@ -250,31 +297,47 @@ fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> C
         bytes.extend_from_slice(record.as_bytes());
         bytes.push(0);
     }
-    return ConfigSnapshot::parse(bytes.as_slice(), without_global_options).expect("a well-formed listing");
+    return ConfigSnapshot::parse(bytes.as_slice(), without_global_options)
+        .expect("a well-formed listing");
 }
 
 /// A snapshot that models the maintenance keys decides without any `config` start.
 #[test]
 fn a_snapshot_decides_without_starting_the_config_read() {
     let root: PathBuf = fixture("maintenance-snapshot-decides");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 0,
-        config_output: "maintenance.auto\\nfalse\\0",
-        reject_detach: false,
-        signal_config: false,
-    });
-    let foreground: ConfigSnapshot = listing_snapshot(&[("local", "maintenance.autodetach\nfalse")], true);
-    let outcome: AutoMaintenanceOutcome =
-        run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&foreground))
-            .expect("maintenance ran");
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 0,
+            config_output: "maintenance.auto\\nfalse\\0",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
+    let foreground: ConfigSnapshot =
+        listing_snapshot(&[("local", "maintenance.autodetach\nfalse")], true);
+    let outcome: AutoMaintenanceOutcome = run_auto_maintenance_with(
+        &stand_context(path.clone(), &[]),
+        root.as_path(),
+        Some(&foreground),
+    )
+    .expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
-    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --no-detach")]);
+    assert_eq!(
+        calls(log.as_path()),
+        vec![String::from("maintenance run --auto --no-detach")]
+    );
     let disabled: ConfigSnapshot = listing_snapshot(&[("global", "gc.auto\n0")], true);
     assert_eq!(
-        run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&disabled)).expect("decided"),
+        run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&disabled))
+            .expect("decided"),
         AutoMaintenanceOutcome::Disabled
     );
-    assert_eq!(calls(log.as_path()).len(), 1, "a disabled decision started nothing more");
+    assert_eq!(
+        calls(log.as_path()).len(),
+        1,
+        "a disabled decision started nothing more"
+    );
     remove(root.as_path());
 }
 
@@ -284,20 +347,28 @@ fn a_snapshot_decides_without_starting_the_config_read() {
 #[test]
 fn a_snapshot_that_cannot_decide_starts_the_config_read() {
     let root: PathBuf = fixture("maintenance-snapshot-declines");
-    let (path, log) = stand_in(root.as_path(), &Stand {
-        config_exit: 1,
-        config_output: "",
-        reject_detach: false,
-        signal_config: false,
-    });
+    let (path, log) = stand_in(
+        root.as_path(),
+        &Stand {
+            config_exit: 1,
+            config_output: "",
+            reject_detach: false,
+            signal_config: false,
+        },
+    );
     let suffixed: ConfigSnapshot = listing_snapshot(&[("local", "gc.auto\n1k")], true);
-    run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&suffixed))
-        .expect("maintenance ran");
+    run_auto_maintenance_with(
+        &stand_context(path.clone(), &[]),
+        root.as_path(),
+        Some(&suffixed),
+    )
+    .expect("maintenance ran");
     assert_eq!(calls(log.as_path()).len(), 2);
     assert!(calls(log.as_path())[0].starts_with("config --type=bool-or-int "));
     std::fs::remove_file(log.as_path()).expect("reset the log");
     let optioned: ConfigSnapshot = listing_snapshot(&[("local", "gc.auto\n5")], false);
-    run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&optioned)).expect("maintenance ran");
+    run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&optioned))
+        .expect("maintenance ran");
     assert!(calls(log.as_path())[0].starts_with("config --type=bool-or-int "));
     remove(root.as_path());
 }
@@ -322,16 +393,26 @@ fn real_snapshot_decisions_equal_the_decisions_from_the_config_read() {
         "[gc]\n\tauto = 1k\n",
         "[gc]\n\tauto = bogus\n",
     ] {
-        std::fs::write(repo.join(".git/config"), format!("[core]\n\trepositoryformatversion = 0\n{text}"))
-            .expect("config");
-        let snapshot: Option<ConfigSnapshot> = crate::config_snapshot::read_config_snapshot(&context, repo.as_path());
+        std::fs::write(
+            repo.join(".git/config"),
+            format!("[core]\n\trepositoryformatversion = 0\n{text}"),
+        )
+        .expect("config");
+        let snapshot: Option<ConfigSnapshot> =
+            crate::config_snapshot::read_config_snapshot(&context, repo.as_path());
         let from_git = read_maintenance_config(&context, repo.as_path());
-        let from_snapshot: Option<BTreeMap<String, String>> = snapshot.as_ref().and_then(ConfigSnapshot::maintenance_records);
+        let from_snapshot: Option<BTreeMap<String, String>> = snapshot
+            .as_ref()
+            .and_then(ConfigSnapshot::maintenance_records);
         if let Some(records) = from_snapshot {
             let Ok(MaintenanceConfig::Records(expected)) = from_git else {
                 panic!("{text}: the snapshot decided but Git's read did not produce records");
             };
-            assert_eq!(auto_maintenance_arguments(&records), auto_maintenance_arguments(&expected), "{text}");
+            assert_eq!(
+                auto_maintenance_arguments(&records),
+                auto_maintenance_arguments(&expected),
+                "{text}"
+            );
             assert_eq!(records, expected, "{text}");
         }
     }
@@ -345,14 +426,23 @@ fn what_maintenance_says_is_kept_in_the_journal() {
     let root: PathBuf = fixture("maintenance-words");
     let path: PathBuf = root.join("git");
     let words: &str = "Auto packing the repository for optimum performance.";
-    let script: String = format!("#!/bin/sh\ncase \" $* \" in *\" maintenance \"*) printf '%s\\n' '{words}' >&2;; esac\nexit 0\n");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in *\" maintenance \"*) printf '%s\\n' '{words}' >&2;; esac\nexit 0\n"
+    );
     executable(path.as_path(), script.as_bytes());
     let entries = crate::service_timing::capture::entries_of(|| {
-        let outcome = run_auto_maintenance(&stand_context(path.clone(), &[]), root.as_path()).expect("maintenance ran");
+        let outcome = run_auto_maintenance(&stand_context(path.clone(), &[]), root.as_path())
+            .expect("maintenance ran");
         assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
     });
     assert_eq!(entries.len(), 1, "{entries:?}");
-    assert!(entries[0].message.contains(format!("git maintenance run --auto --detach said: {words}").as_str()), "{:?}", entries[0]);
+    assert!(
+        entries[0]
+            .message
+            .contains(format!("git maintenance run --auto --detach said: {words}").as_str()),
+        "{:?}",
+        entries[0]
+    );
     remove(root.as_path());
 }
 
@@ -371,12 +461,24 @@ fn the_wait_for_maintenance_lets_other_tasks_run() {
     let root: PathBuf = fixture("maintenance-awaiting-wait");
     let path: PathBuf = root.join("git");
     // The config read is answered at once; the run takes a moment, so only the run's wait can be seen.
-    let script: String = String::from("#!/bin/sh\ncase \" $* \" in *\" config \"*) printf 'fatal: none\\n' >&2; exit 1;; esac\nsleep 0.3\nexit 0\n");
+    let script: String = String::from(
+        "#!/bin/sh\ncase \" $* \" in *\" config \"*) printf 'fatal: none\\n' >&2; exit 1;; esac\nsleep 0.3\nexit 0\n",
+    );
     executable(path.as_path(), script.as_bytes());
     let (outcome, ticks): (Result<AutoMaintenanceOutcome, MaintenanceError>, u32) =
-        with_a_ticker_beside(run_auto_maintenance_with_awaiting(&stand_context(path, &[]), root.as_path(), None));
-    assert_eq!(outcome.expect("maintenance ran"), AutoMaintenanceOutcome::Exited(0));
-    assert!(ticks > 0, "the wait for maintenance held the thread: the task beside it never ran");
+        with_a_ticker_beside(run_auto_maintenance_with_awaiting(
+            &stand_context(path, &[]),
+            root.as_path(),
+            None,
+        ));
+    assert_eq!(
+        outcome.expect("maintenance ran"),
+        AutoMaintenanceOutcome::Exited(0)
+    );
+    assert!(
+        ticks > 0,
+        "the wait for maintenance held the thread: the task beside it never ran"
+    );
     remove(root.as_path());
 }
 
@@ -391,10 +493,18 @@ fn the_wait_for_maintenance_lets_other_tasks_run() {
 fn the_awaited_face_answers_what_the_synchronous_face_answers() {
     let root: PathBuf = fixture("maintenance-awaiting-same-answer");
     let context: GitContext = git_context();
-    let answered: AutoMaintenanceOutcome = run_auto_maintenance(&context, root.as_path()).expect("maintenance ran");
+    let answered: AutoMaintenanceOutcome =
+        run_auto_maintenance(&context, root.as_path()).expect("maintenance ran");
     let (awaited, ticks): (Result<AutoMaintenanceOutcome, MaintenanceError>, u32) =
-        with_a_ticker_beside(run_auto_maintenance_with_awaiting(&context, root.as_path(), None));
+        with_a_ticker_beside(run_auto_maintenance_with_awaiting(
+            &context,
+            root.as_path(),
+            None,
+        ));
     assert_eq!(awaited.expect("maintenance ran"), answered);
-    assert!(ticks > 0, "the wait for maintenance held the thread: the task beside it never ran");
+    assert!(
+        ticks > 0,
+        "the wait for maintenance held the thread: the task beside it never ran"
+    );
     remove(root.as_path());
 }

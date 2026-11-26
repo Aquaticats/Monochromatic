@@ -35,7 +35,10 @@
 //! forceEnd(tree);
 //! ```
 
-use crate::process_tree::{TreeMember, in_uninterruptible_sleep};
+use crate::process_tree::{
+    TreeMember,
+    in_uninterruptible_sleep,
+};
 use std::time::Duration;
 
 /// The longest a stop waits after its request for a member that cannot be interrupted,
@@ -65,7 +68,9 @@ thread_local! {
 /// Puts `rules` in force on this thread until the returned guard drops.
 #[cfg(test)]
 pub(crate) fn rules_for_this_thread(rules: ControlRules) -> RulesGuard {
-    CONTROL_RULES.with(|slot| { *slot.borrow_mut() = Some(rules); });
+    CONTROL_RULES.with(|slot| {
+        *slot.borrow_mut() = Some(rules);
+    });
     return RulesGuard;
 }
 
@@ -76,7 +81,9 @@ pub(crate) struct RulesGuard;
 #[cfg(test)]
 impl Drop for RulesGuard {
     fn drop(&mut self) {
-        CONTROL_RULES.with(|slot| { *slot.borrow_mut() = None; });
+        CONTROL_RULES.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
     }
 }
 
@@ -85,7 +92,11 @@ impl Drop for RulesGuard {
 /// or a control's.
 fn ceiling_in_force() -> Duration {
     #[cfg(test)]
-    if let Some(ceiling) = CONTROL_RULES.with(|slot| { return slot.borrow().as_ref().map(|rules| { return rules.ceiling; }); }) {
+    if let Some(ceiling) = CONTROL_RULES.with(|slot| {
+        return slot.borrow().as_ref().map(|rules| {
+            return rules.ceiling;
+        });
+    }) {
         return ceiling;
     }
     return STOP_CEILING;
@@ -96,7 +107,11 @@ fn ceiling_in_force() -> Duration {
 /// or a control's.
 fn member_is_blocked(member: &TreeMember) -> bool {
     #[cfg(test)]
-    if let Some(blocked) = CONTROL_RULES.with(|slot| { return slot.borrow().as_ref().map(|rules| { return rules.blocked; }); }) {
+    if let Some(blocked) = CONTROL_RULES.with(|slot| {
+        return slot.borrow().as_ref().map(|rules| {
+            return rules.blocked;
+        });
+    }) {
         return blocked(member);
     }
     return in_uninterruptible_sleep(member);
@@ -117,7 +132,11 @@ fn member_is_blocked(member: &TreeMember) -> bool {
 /// ```ts
 /// elapsed < grace || (elapsed < ceiling && tree.some(inUninterruptibleSleep))
 /// ```
-pub fn escalation_waits(elapsed: Duration, grace: Duration, tree: &[TreeMember]) -> bool {
+pub fn escalation_waits(
+    elapsed: Duration,
+    grace: Duration,
+    tree: &[TreeMember],
+) -> bool {
     if elapsed < grace {
         return true;
     }

@@ -19,8 +19,14 @@
 //!  Test-only.
 //!  A release build reads no atomic and holds no lock here.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 /// The process a control states the kernel holds,
 /// and the kernel's name of it,
@@ -47,8 +53,12 @@ static WINDOW: Mutex<()> = Mutex::new(());
 /// ```
 pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
     // A poisoned lock means another control panicked while holding it; nothing planted is still nothing planted.
-    let taken: MutexGuard<'static, ()> = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    let taken: MutexGuard<'static, ()> = WINDOW
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     LOOKS_THAT_CANNOT_BE_MADE.store(0, Ordering::SeqCst);
     return taken;
 }
@@ -64,8 +74,13 @@ pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
 /// ```ts
 /// theKernelHolds(4242, 'ssh-keygen'); // a stand-in for a process in state `D`
 /// ```
-pub(crate) fn the_kernel_holds(number: i32, name: &str) {
-    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((number, name.to_string()));
+pub(crate) fn the_kernel_holds(
+    number: i32,
+    name: &str,
+) {
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((number, name.to_string()));
 }
 
 /// What:
@@ -82,13 +97,18 @@ pub(crate) fn the_kernel_holds(number: i32, name: &str) {
 /// theKernelLetsGo(); // the next look finds no process in state `D`
 /// ```
 pub(crate) fn the_kernel_lets_go() {
-    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 }
 
 /// The process a control states the kernel holds,
 /// or nothing when it states none.
 pub(crate) fn a_control_says_the_kernel_holds() -> Option<(i32, String)> {
-    return HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    return HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
 }
 
 /// State that the next `count` looks cannot be made.
@@ -100,6 +120,8 @@ pub(crate) fn plant_looks_that_cannot_be_made(count: usize) {
 /// which uses up one planted look.
 pub(crate) fn a_control_says_this_look_cannot_be_made() -> bool {
     return LOOKS_THAT_CANNOT_BE_MADE
-        .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| { return left.checked_sub(1); })
+        .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+            return left.checked_sub(1);
+        })
         .is_ok();
 }

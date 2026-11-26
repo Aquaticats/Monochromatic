@@ -11,8 +11,15 @@
 //! for every shape whose write Git would make differently.
 
 use super::*;
-use crate::test_support::{fixture, git_text, repository};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    git_text,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The batch every control here writes.
 const THE_BATCH: u64 = 12;
@@ -66,7 +73,9 @@ fn plan_of(records: &[(&str, &str)]) -> SideReferenceWritePlan {
         listing.extend_from_slice(record.as_bytes());
         listing.push(0);
     }
-    let Some(snapshot) = ConfigSnapshot::parse(listing.as_slice(), true) else { panic!("the control's listing is well formed") };
+    let Some(snapshot) = ConfigSnapshot::parse(listing.as_slice(), true) else {
+        panic!("the control's listing is well formed")
+    };
     return the_plan_of(Some(&snapshot));
 }
 
@@ -88,12 +97,35 @@ fn plan_of(records: &[(&str, &str)]) -> SideReferenceWritePlan {
 #[test]
 fn the_landing_writes_the_batchs_reference_where_git_writes_it() {
     let (repo, git_dir, tip) = a_repository("a-side-reference-written-here");
-    let answer: SideReferenceWrite = write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None);
-    assert_eq!(answer, SideReferenceWrite::Written, "the landing writes the batch's own reference");
+    let answer: SideReferenceWrite = write_side_reference(
+        git_dir.as_path(),
+        the_name().as_str(),
+        tip.as_str(),
+        LockMark::None,
+    );
+    assert_eq!(
+        answer,
+        SideReferenceWrite::Written,
+        "the landing writes the batch's own reference"
+    );
     let reference: PathBuf = git_dir.join(the_name());
-    assert_eq!(bytes_of(reference.as_path()), Some(format!("{tip}\n").into_bytes()), "the reference holds the commit Git's own write holds");
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", the_name().as_str()]), tip, "Git reads the reference as it reads its own");
-    assert!(!git_dir.join(format!("{PREFIX}{THE_BATCH}.lock")).exists(), "no lock of this write is left behind");
+    assert_eq!(
+        bytes_of(reference.as_path()),
+        Some(format!("{tip}\n").into_bytes()),
+        "the reference holds the commit Git's own write holds"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", the_name().as_str()]
+        ),
+        tip,
+        "Git reads the reference as it reads its own"
+    );
+    assert!(
+        !git_dir.join(format!("{PREFIX}{THE_BATCH}.lock")).exists(),
+        "no lock of this write is left behind"
+    );
 }
 
 /// What:
@@ -116,15 +148,35 @@ fn the_landing_writes_the_batchs_reference_where_git_writes_it() {
 #[test]
 fn a_reference_that_already_stands_is_left_to_git_and_never_replaced() {
     let (_root, git_dir, tip) = a_repository("a-side-reference-written-twice");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::Written);
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::None
+        ),
+        SideReferenceWrite::Written
+    );
     let other: String = "1".repeat(tip.len());
     assert_eq!(
-        write_side_reference(git_dir.as_path(), the_name().as_str(), other.as_str(), LockMark::None),
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            other.as_str(),
+            LockMark::None
+        ),
         SideReferenceWrite::LeftToGit,
         "a name that already stands is Git's to refuse, and this writer does not replace it"
     );
-    assert_eq!(bytes_of(git_dir.join(the_name()).as_path()), Some(format!("{tip}\n").into_bytes()), "the reference still holds the commit it held");
-    assert!(!git_dir.join(format!("{PREFIX}{THE_BATCH}.lock")).exists(), "no lock of this write is left behind");
+    assert_eq!(
+        bytes_of(git_dir.join(the_name()).as_path()),
+        Some(format!("{tip}\n").into_bytes()),
+        "the reference still holds the commit it held"
+    );
+    assert!(
+        !git_dir.join(format!("{PREFIX}{THE_BATCH}.lock")).exists(),
+        "no lock of this write is left behind"
+    );
 }
 
 /// What:
@@ -141,13 +193,31 @@ fn a_reference_that_already_stands_is_left_to_git_and_never_replaced() {
 #[test]
 fn a_marked_lock_leaves_no_mark_behind() {
     let (_root, git_dir, tip) = a_repository("a-side-reference-marked-lock");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::Pid), SideReferenceWrite::Written);
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::Pid
+        ),
+        SideReferenceWrite::Written
+    );
     let directory: PathBuf = git_dir.join("refs").join("worktree").join(DIRECTORY);
     let left: Vec<String> = std::fs::read_dir(directory.as_path())
         .expect("the reference directory")
-        .map(|entry| return entry.expect("an entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            return entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+        })
         .collect();
-    assert_eq!(left, vec![THE_BATCH.to_string()], "the mark and the lock are given back, and the reference stays");
+    assert_eq!(
+        left,
+        vec![THE_BATCH.to_string()],
+        "the mark and the lock are given back, and the reference stays"
+    );
 }
 
 /// What:
@@ -165,14 +235,26 @@ fn a_marked_lock_leaves_no_mark_behind() {
 #[test]
 fn a_name_the_wrapper_does_not_own_is_left_to_git() {
     let (repo, git_dir, tip) = a_repository("a-side-reference-other-name");
-    for name in ["refs/heads/main", "refs/worktree/cli-git-service/x", "refs/worktree/cli-git-service/", "refs/worktree/cli-git-service/7a"] {
+    for name in [
+        "refs/heads/main",
+        "refs/worktree/cli-git-service/x",
+        "refs/worktree/cli-git-service/",
+        "refs/worktree/cli-git-service/7a",
+    ] {
         assert_eq!(
             write_side_reference(git_dir.as_path(), name, tip.as_str(), LockMark::None),
             SideReferenceWrite::LeftToGit,
             "a name the wrapper does not own is Git's to write: {name}"
         );
     }
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", "refs/heads/main"]), tip, "the branch the control named is untouched");
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["rev-parse", "--verify", "--quiet", "refs/heads/main"]
+        ),
+        tip,
+        "the branch the control named is untouched"
+    );
 }
 
 /// What:
@@ -189,15 +271,37 @@ fn a_name_the_wrapper_does_not_own_is_left_to_git() {
 #[test]
 fn an_object_name_that_is_not_whole_is_left_to_git() {
     let (_root, git_dir, tip) = a_repository("a-side-reference-unwhole-name");
-    for wrong in [String::new(), String::from("abc"), "A".repeat(40), "0".repeat(40), "1".repeat(41)] {
+    for wrong in [
+        String::new(),
+        String::from("abc"),
+        "A".repeat(40),
+        "0".repeat(40),
+        "1".repeat(41),
+    ] {
         assert_eq!(
-            write_side_reference(git_dir.as_path(), the_name().as_str(), wrong.as_str(), LockMark::None),
+            write_side_reference(
+                git_dir.as_path(),
+                the_name().as_str(),
+                wrong.as_str(),
+                LockMark::None
+            ),
             SideReferenceWrite::LeftToGit,
             "an object name Git would refuse is Git's to refuse: {wrong}"
         );
     }
-    assert!(!git_dir.join(the_name()).exists(), "nothing is written for a name Git would refuse");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::Written);
+    assert!(
+        !git_dir.join(the_name()).exists(),
+        "nothing is written for a name Git would refuse"
+    );
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::None
+        ),
+        SideReferenceWrite::Written
+    );
 }
 
 /// What:
@@ -218,9 +322,24 @@ fn a_standing_lock_is_left_to_git() {
     std::fs::create_dir_all(directory.as_path()).expect("the reference directory");
     let lock: PathBuf = directory.join(format!("{THE_BATCH}.lock"));
     std::fs::write(lock.as_path(), "theirs\n").expect("a lock another writer made");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::LeftToGit);
-    assert_eq!(bytes_of(lock.as_path()), Some(b"theirs\n".to_vec()), "the standing lock is untouched");
-    assert!(!directory.join(THE_BATCH.to_string()).exists(), "no reference is written over a standing lock");
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::None
+        ),
+        SideReferenceWrite::LeftToGit
+    );
+    assert_eq!(
+        bytes_of(lock.as_path()),
+        Some(b"theirs\n".to_vec()),
+        "the standing lock is untouched"
+    );
+    assert!(
+        !directory.join(THE_BATCH.to_string()).exists(),
+        "no reference is written over a standing lock"
+    );
 }
 
 /// What:
@@ -241,8 +360,22 @@ fn a_symbolic_reference_at_the_name_is_left_to_git() {
     std::fs::create_dir_all(directory.as_path()).expect("the reference directory");
     let reference: PathBuf = directory.join(THE_BATCH.to_string());
     std::os::unix::fs::symlink("../heads/main", reference.as_path()).expect("a symbolic reference");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::LeftToGit);
-    assert!(std::fs::symlink_metadata(reference.as_path()).expect("still there").file_type().is_symlink(), "the symbolic reference is untouched");
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::None
+        ),
+        SideReferenceWrite::LeftToGit
+    );
+    assert!(
+        std::fs::symlink_metadata(reference.as_path())
+            .expect("still there")
+            .file_type()
+            .is_symlink(),
+        "the symbolic reference is untouched"
+    );
 }
 
 /// What:
@@ -259,9 +392,22 @@ fn a_symbolic_reference_at_the_name_is_left_to_git() {
 #[test]
 fn a_path_that_cannot_be_made_is_left_to_git() {
     let (_root, git_dir, tip) = a_repository("a-side-reference-path-in-the-way");
-    std::fs::write(git_dir.join("refs").join("worktree"), "in the way\n").expect("a file where a directory belongs");
-    assert_eq!(write_side_reference(git_dir.as_path(), the_name().as_str(), tip.as_str(), LockMark::None), SideReferenceWrite::LeftToGit);
-    assert_eq!(bytes_of(git_dir.join("refs").join("worktree").as_path()), Some(b"in the way\n".to_vec()), "the file in the way is untouched");
+    std::fs::write(git_dir.join("refs").join("worktree"), "in the way\n")
+        .expect("a file where a directory belongs");
+    assert_eq!(
+        write_side_reference(
+            git_dir.as_path(),
+            the_name().as_str(),
+            tip.as_str(),
+            LockMark::None
+        ),
+        SideReferenceWrite::LeftToGit
+    );
+    assert_eq!(
+        bytes_of(git_dir.join("refs").join("worktree").as_path()),
+        Some(b"in the way\n".to_vec()),
+        "the file in the way is untouched"
+    );
 }
 
 /// What:
@@ -278,18 +424,60 @@ fn a_path_that_cannot_be_made_is_left_to_git() {
 /// ```
 #[test]
 fn the_settings_that_leave_the_write_to_git() {
-    assert_eq!(the_plan_of(None), SideReferenceWritePlan::LeftToGit, "a configuration that could not be read is Git's");
-    assert_eq!(plan_of(&[]), SideReferenceWritePlan::Here(LockMark::None), "a plain repository with no setting of its own is written here");
-    assert_eq!(plan_of(&[("local", "core.lockfilepid\ntrue")]), SideReferenceWritePlan::Here(LockMark::Pid), "a repository that marks its locks gets the mark");
-    assert_eq!(plan_of(&[("local", "core.lockfilepid\nfalse")]), SideReferenceWritePlan::Here(LockMark::None), "a repository that marks none gets none");
-    assert_eq!(plan_of(&[("local", "core.lockfilepid\nmaybe")]), SideReferenceWritePlan::LeftToGit, "a mark this module cannot read is Git's");
-    assert_eq!(plan_of(&[("local", "core.fsync\nreference")]), SideReferenceWritePlan::LeftToGit, "a reference store that is flushed is Git's");
-    assert_eq!(plan_of(&[("local", "core.fsync\nindex")]), SideReferenceWritePlan::Here(LockMark::None), "a set that names no reference is written here");
-    assert_eq!(plan_of(&[("local", "core.fsync\nall")]), SideReferenceWritePlan::LeftToGit, "a set that names every component names the reference");
-    assert_eq!(plan_of(&[("local", "core.sharedrepository\ngroup")]), SideReferenceWritePlan::LeftToGit, "a shared repository's modes are Git's");
-    assert_eq!(plan_of(&[("local", "extensions.refstorage\nreftable")]), SideReferenceWritePlan::LeftToGit, "a storage that is not plain files is Git's");
     assert_eq!(
-        the_plan_of(Some(&ConfigSnapshot::parse(b"", false).expect("an empty listing"))),
+        the_plan_of(None),
+        SideReferenceWritePlan::LeftToGit,
+        "a configuration that could not be read is Git's"
+    );
+    assert_eq!(
+        plan_of(&[]),
+        SideReferenceWritePlan::Here(LockMark::None),
+        "a plain repository with no setting of its own is written here"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.lockfilepid\ntrue")]),
+        SideReferenceWritePlan::Here(LockMark::Pid),
+        "a repository that marks its locks gets the mark"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.lockfilepid\nfalse")]),
+        SideReferenceWritePlan::Here(LockMark::None),
+        "a repository that marks none gets none"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.lockfilepid\nmaybe")]),
+        SideReferenceWritePlan::LeftToGit,
+        "a mark this module cannot read is Git's"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.fsync\nreference")]),
+        SideReferenceWritePlan::LeftToGit,
+        "a reference store that is flushed is Git's"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.fsync\nindex")]),
+        SideReferenceWritePlan::Here(LockMark::None),
+        "a set that names no reference is written here"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.fsync\nall")]),
+        SideReferenceWritePlan::LeftToGit,
+        "a set that names every component names the reference"
+    );
+    assert_eq!(
+        plan_of(&[("local", "core.sharedrepository\ngroup")]),
+        SideReferenceWritePlan::LeftToGit,
+        "a shared repository's modes are Git's"
+    );
+    assert_eq!(
+        plan_of(&[("local", "extensions.refstorage\nreftable")]),
+        SideReferenceWritePlan::LeftToGit,
+        "a storage that is not plain files is Git's"
+    );
+    assert_eq!(
+        the_plan_of(Some(
+            &ConfigSnapshot::parse(b"", false).expect("an empty listing")
+        )),
         SideReferenceWritePlan::LeftToGit,
         "a configuration read with the caller's own global options proves nothing about the store"
     );

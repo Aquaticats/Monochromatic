@@ -51,23 +51,49 @@
 //! await restoreDirtySnapshot({ source, target, stage, runGit, context }); // throws the reason it cannot be proven
 //! ```
 
-use crate::fs_beneath::{open_root, plain_components, remove_at};
+use crate::fs_beneath::{
+    open_root,
+    plain_components,
+    remove_at,
+};
 use crate::fs_beneath_directory_chain::DirectoryChain;
 use crate::inner_git_words::record_words;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::worktree_clean::{ContentTarget, paths_whose_content_differs, stored_stats};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
+use crate::worktree_clean::{
+    ContentTarget,
+    paths_whose_content_differs,
+    stored_stats,
+};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_copy::GitRunner;
-use crate::worktree_ladder_target::{Target, checkout_environment, checkout_environment_with_index, run_step};
+use crate::worktree_ladder_target::{
+    Target,
+    checkout_environment,
+    checkout_environment_with_index,
+    run_step,
+};
 use crate::worktree_path_failure_message::subject_failure;
-use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
-use std::ffi::{OsStr, OsString};
+use crate::worktree_snapshot_source::{
+    ChangedPaths,
+    SnapshotSource,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeDirtyRestore";
@@ -84,7 +110,10 @@ const TAG: &str = "worktreeDirtyRestore";
 /// ```
 pub fn left_out_note(changed: &ChangedPaths) -> String {
     let paths: &str = if changed.count == 1 { "path" } else { "paths" };
-    return format!("monochromatic-git-policy-cli: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
+    return format!(
+        "monochromatic-git-policy-cli: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n",
+        changed.count
+    );
 }
 
 /// What:
@@ -101,14 +130,27 @@ pub fn left_out_note(changed: &ChangedPaths) -> String {
 /// ```ts
 /// journal.info(note, { CLI_GIT_WORKTREE: destination, CLI_GIT_DIRTY_PATHS: count });
 /// ```
-pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
+pub fn record_left_out(
+    destination: &Path,
+    changed: &ChangedPaths,
+) {
     let note: String = left_out_note(changed);
     let fields: [(&str, String); 3] = [
-        ("CLI_GIT_WORKTREE", destination.to_string_lossy().into_owned()),
+        (
+            "CLI_GIT_WORKTREE",
+            destination.to_string_lossy().into_owned(),
+        ),
         ("CLI_GIT_DIRTY_PATHS", changed.count.to_string()),
-        ("CLI_GIT_DIRTY_FIRST", changed.first.clone().unwrap_or_default()),
+        (
+            "CLI_GIT_DIRTY_FIRST",
+            changed.first.clone().unwrap_or_default(),
+        ),
     ];
-    crate::client_journal::record_entry(crate::journald_native::Priority::Info, note.trim_end(), &fields);
+    crate::client_journal::record_entry(
+        crate::journald_native::Priority::Info,
+        note.trim_end(),
+        &fields,
+    );
 }
 
 /// What:
@@ -139,7 +181,15 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
 /// ```
-const IGNORED_WORDS: [&str; 7] = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory", "-z"];
+const IGNORED_WORDS: [&str; 7] = [
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "--directory",
+    "--no-empty-directory",
+    "-z",
+];
 
 /// What:
 ///  Whether a name split out of `-z` output holds anything.
@@ -166,7 +216,10 @@ fn is_nonempty_name(name: &&[u8]) -> bool {
 /// ```ts
 /// ['-C', stage, ...words]
 /// ```
-fn arguments_in_stage(stage: &Path, words: &[&str]) -> Vec<OsString> {
+fn arguments_in_stage(
+    stage: &Path,
+    words: &[&str],
+) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = vec![OsString::from("-C"), stage.as_os_str().to_os_string()];
     arguments.extend(words.iter().copied().map(OsString::from));
     return arguments;
@@ -182,7 +235,12 @@ fn arguments_in_stage(stage: &Path, words: &[&str]) -> Vec<OsString> {
 /// ```ts
 /// const { code, stdout } = await runIn(stage, admin, ['diff-files', '--quiet']);
 /// ```
-fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
+fn ask(
+    context: &GitContext,
+    target: &Target,
+    work_tree: &Path,
+    arguments: &[&str],
+) -> Result<(Option<i32>, Vec<u8>), String> {
     // The index is named through the request's own field as well as the
     // environment, so the wrapper's in-process readers answer from the same file
     // the started Git reads (`GitRequest::index`), which is what makes the
@@ -197,7 +255,12 @@ fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&st
     };
     let output = match run_git(context, &request) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("`git {}` could not start ({error})", arguments.join(" "))),
+        Err(error) => {
+            return Err(format!(
+                "`git {}` could not start ({error})",
+                arguments.join(" ")
+            ));
+        }
     };
     return Ok((output.code, output.stdout));
 }
@@ -217,7 +280,10 @@ fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&st
 /// ```ts
 /// carried.some((kept) => name.equals(kept) || (kept.endsWith('/') && name.startsWith(kept)))
 /// ```
-fn is_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
+fn is_carried(
+    name: &[u8],
+    carried: &[Vec<u8>],
+) -> bool {
     for kept in carried {
         if name == kept.as_slice() || (kept.ends_with(b"/") && name.starts_with(kept.as_slice())) {
             return true;
@@ -240,7 +306,10 @@ fn is_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
 /// ```ts
 /// name.endsWith('/') && carried.some((kept) => kept.startsWith(name))
 /// ```
-fn holds_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
+fn holds_carried(
+    name: &[u8],
+    carried: &[Vec<u8>],
+) -> bool {
     if !name.ends_with(b"/") {
         return false;
     }
@@ -263,7 +332,10 @@ fn holds_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
 /// ```ts
 /// directories.some((directory) => name.startsWith(directory))
 /// ```
-fn lies_below(name: &[u8], directories: &[Vec<u8>]) -> bool {
+fn lies_below(
+    name: &[u8],
+    directories: &[Vec<u8>],
+) -> bool {
     for directory in directories {
         if name.starts_with(directory.as_slice()) {
             return true;
@@ -294,16 +366,47 @@ fn lies_below(name: &[u8], directories: &[Vec<u8>]) -> bool {
 /// ```ts
 /// await proveRestored({ context, target, workTree, carried }); // throws the first thing that is not as Git's checkout leaves it
 /// ```
-pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, carried: &[Vec<u8>]) -> Result<(), String> {
-    let cached: Option<i32> = ask(context, target, work_tree, &["diff-index", "--cached", "--quiet", target.commit.as_str()])?.0;
+pub fn prove_restored(
+    context: &GitContext,
+    target: &Target,
+    work_tree: &Path,
+    carried: &[Vec<u8>],
+) -> Result<(), String> {
+    let cached: Option<i32> = ask(
+        context,
+        target,
+        work_tree,
+        &["diff-index", "--cached", "--quiet", target.commit.as_str()],
+    )?
+    .0;
     if cached != Some(0) {
-        return Err(String::from("the restored index does not equal the tree of the new HEAD"));
+        return Err(String::from(
+            "the restored index does not equal the tree of the new HEAD",
+        ));
     }
-    let (listed, untracked) = ask(context, target, work_tree, &["ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z"])?;
+    let (listed, untracked) = ask(
+        context,
+        target,
+        work_tree,
+        &[
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--directory",
+            "--no-empty-directory",
+            "-z",
+        ],
+    )?;
     if listed != Some(0) {
-        return Err(String::from("Git could not list the untracked files of the restored worktree"));
+        return Err(String::from(
+            "Git could not list the untracked files of the restored worktree",
+        ));
     }
-    let names: Vec<Vec<u8>> = untracked.split(is_nul_byte).filter(is_nonempty_name).map(<[u8]>::to_vec).collect();
+    let names: Vec<Vec<u8>> = untracked
+        .split(is_nul_byte)
+        .filter(is_nonempty_name)
+        .map(<[u8]>::to_vec)
+        .collect();
     // The first untracked name the restore did not carry; the loop stops there, as `find` did.
     let mut first_untracked: Option<Vec<u8>> = None;
     let mut collapsed: Vec<Vec<u8>> = Vec::new();
@@ -321,9 +424,16 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, c
     // A whole directory that holds carried paths is decided by its content, which the collapsed listing does not carry:
     //  the same query without `--directory` names every path below it.
     if first_untracked.is_none() && !collapsed.is_empty() {
-        let (expanded_code, expanded) = ask(context, target, work_tree, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+        let (expanded_code, expanded) = ask(
+            context,
+            target,
+            work_tree,
+            &["ls-files", "--others", "--exclude-standard", "-z"],
+        )?;
         if expanded_code != Some(0) {
-            return Err(String::from("Git could not list the untracked files below the carried directories of the restored worktree"));
+            return Err(String::from(
+                "Git could not list the untracked files below the carried directories of the restored worktree",
+            ));
         }
         // Inside a reported directory only its own paths are judged; every other name was carried already.
         for name in expanded.split(is_nul_byte).filter(is_nonempty_name) {
@@ -334,11 +444,18 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, c
         }
     }
     if let Some(name) = first_untracked {
-        return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name.as_slice()).as_ref())));
+        return Err(format!(
+            "{} is still untracked in the restored worktree",
+            crate::worktree_snapshot_source::plain(
+                String::from_utf8_lossy(name.as_slice()).as_ref()
+            )
+        ));
     }
     let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;
     if files != Some(0) {
-        return Err(String::from("a tracked file of the restored worktree differs from its index entry"));
+        return Err(String::from(
+            "a tracked file of the restored worktree differs from its index entry",
+        ));
     }
     return Ok(());
 }
@@ -358,12 +475,22 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, c
 /// ```ts
 /// const carried = listedIgnored({ context, target, stage }); // throws the reason
 /// ```
-fn listed_ignored(context: &GitContext, target: &Target, stage: &Path) -> Result<Vec<Vec<u8>>, String> {
+fn listed_ignored(
+    context: &GitContext,
+    target: &Target,
+    stage: &Path,
+) -> Result<Vec<Vec<u8>>, String> {
     let (listed, names) = ask(context, target, stage, IGNORED_WORDS.as_slice())?;
     if listed != Some(0) {
-        return Err(String::from("Git could not list the ignored files of the snapshot"));
+        return Err(String::from(
+            "Git could not list the ignored files of the snapshot",
+        ));
     }
-    return Ok(names.split(is_nul_byte).filter(is_nonempty_name).map(<[u8]>::to_vec).collect());
+    return Ok(names
+        .split(is_nul_byte)
+        .filter(is_nonempty_name)
+        .map(<[u8]>::to_vec)
+        .collect());
 }
 
 /// What:
@@ -420,35 +547,84 @@ fn the_reason_of(refusal: crate::worktree_clean::CleanRefusal) -> String {
 /// ```ts
 /// const removed = removeTheFilesTheResetCannotSee({ source, target, stage, conversion }); // throws the reason
 /// ```
-fn remove_the_files_the_reset_cannot_see(source: &SnapshotSource, target: &Target, stage: &Path, conversion: &ConversionEnvironment) -> Result<usize, String> {
+fn remove_the_files_the_reset_cannot_see(
+    source: &SnapshotSource,
+    target: &Target,
+    stage: &Path,
+    conversion: &ConversionEnvironment,
+) -> Result<usize, String> {
     let index_path: PathBuf = target.index_file();
     let index: Vec<u8> = std::fs::read(index_path.as_path()).map_err(index_unreadable)?;
-    let index_seconds: u32 = std::fs::metadata(index_path.as_path()).map_err(index_unexamined)?.mtime() as u32;
+    let index_seconds: u32 = std::fs::metadata(index_path.as_path())
+        .map_err(index_unexamined)?
+        .mtime() as u32;
     let hash_length: usize = source.clean.hash_length;
-    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    let (Some(entries), Some(indexed)) = (stored_stats(index.as_slice(), hash_length), parse_index(index.as_slice(), format)) else {
-        return Err(String::from("the index of the new worktree has a layout the reader does not know"));
+    let format: ObjectFormat = if hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
     };
-    let content: ContentTarget<'_> = ContentTarget { root: stage, git_dir: target.admin.as_path(), common_dir: source.common_dir.as_path(), environment: conversion, format };
-    let hidden: Vec<Vec<u8>> = paths_whose_content_differs(&content, entries.as_slice(), indexed.as_slice(), index_seconds).map_err(the_reason_of)?;
+    let (Some(entries), Some(indexed)) = (
+        stored_stats(index.as_slice(), hash_length),
+        parse_index(index.as_slice(), format),
+    ) else {
+        return Err(String::from(
+            "the index of the new worktree has a layout the reader does not know",
+        ));
+    };
+    let content: ContentTarget<'_> = ContentTarget {
+        root: stage,
+        git_dir: target.admin.as_path(),
+        common_dir: source.common_dir.as_path(),
+        environment: conversion,
+        format,
+    };
+    let hidden: Vec<Vec<u8>> = paths_whose_content_differs(
+        &content,
+        entries.as_slice(),
+        indexed.as_slice(),
+        index_seconds,
+    )
+    .map_err(the_reason_of)?;
     if hidden.is_empty() {
         return Ok(0);
     }
     let held: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
-    let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(String::from("the stage cannot be examined")) };
+    let Ok(mut chain) = DirectoryChain::new(&held) else {
+        return Err(String::from("the stage cannot be examined"));
+    };
     for path in &hidden {
         let shown: String = String::from_utf8_lossy(path.as_slice()).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path.as_slice()))) else { return Err(format!("{shown} is not a plain path")) };
-        let Some((name, parents)) = names.split_last() else { return Err(format!("{shown} is not a plain path")) };
-        let Some(directory) = chain.directory(parents).ok() else { return Err(format!("{shown} cannot be reached without following a link")) };
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path.as_slice()))) else {
+            return Err(format!("{shown} is not a plain path"));
+        };
+        let Some((name, parents)) = names.split_last() else {
+            return Err(format!("{shown} is not a plain path"));
+        };
+        let Some(directory) = chain.directory(parents).ok() else {
+            return Err(format!(
+                "{shown} cannot be reached without following a link"
+            ));
+        };
         match remove_at(directory, name.as_os_str(), false) {
             Ok(()) => {}
             // A file that is already gone is one the reset writes, so nothing is lost when it cannot be removed twice.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{shown} could not be removed from the snapshot ({error})")),
+            Err(error) => {
+                return Err(format!(
+                    "{shown} could not be removed from the snapshot ({error})"
+                ));
+            }
         }
     }
-    crate::diagnostic_log::debug(TAG, format!("removed {} files the reset cannot see: the commit's bytes replace them", hidden.len()).as_str());
+    crate::diagnostic_log::debug(
+        TAG,
+        format!(
+            "removed {} files the reset cannot see: the commit's bytes replace them",
+            hidden.len()
+        )
+        .as_str(),
+    );
     return Ok(hidden.len());
 }
 
@@ -467,12 +643,27 @@ fn remove_the_files_the_reset_cannot_see(source: &SnapshotSource, target: &Targe
 /// ```ts
 /// await restoreDirty({ source, target, stage, runGit, context, conversion }); // throws the reason
 /// ```
-pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut dyn GitRunner, context: &GitContext, conversion: &ConversionEnvironment) -> Result<(), String> {
-    if stage == source.root.as_path() || target.admin == source.git_dir || target.admin == source.common_dir {
-        return Err(String::from("the restore would run in the source's own directory"));
+pub fn restore_dirty(
+    source: &SnapshotSource,
+    target: &Target,
+    stage: &Path,
+    run_git_step: &mut dyn GitRunner,
+    context: &GitContext,
+    conversion: &ConversionEnvironment,
+) -> Result<(), String> {
+    if stage == source.root.as_path()
+        || target.admin == source.git_dir
+        || target.admin == source.common_dir
+    {
+        return Err(String::from(
+            "the restore would run in the source's own directory",
+        ));
     }
     let began: std::time::Instant = std::time::Instant::now();
-    let environment = checkout_environment_with_index((target.admin.as_path(), stage), Some(target.index_file().as_path()));
+    let environment = checkout_environment_with_index(
+        (target.admin.as_path(), stage),
+        Some(target.index_file().as_path()),
+    );
     // The ignored paths are listed, and the clean runs, while the stage still carries the source's ignore rules: an
     //  untracked file the source ignores is the person's, and a rule the new commit removed must not turn it into one the
     //  clean removes.
@@ -482,7 +673,10 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     //  captured, like the proof that follows, in the same stage under the same Git directory.
     let clean_request: GitRequest = GitRequest {
         cwd: stage.to_path_buf(),
-        arguments: ["clean", "--force", "-d"].iter().map(OsString::from).collect(),
+        arguments: ["clean", "--force", "-d"]
+            .iter()
+            .map(OsString::from)
+            .collect(),
         without_prefix: true,
         environment: environment.clone(),
         ..GitRequest::default()
@@ -492,7 +686,10 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
         Err(error) => return Err(format!("`git clean --force -d` could not start ({error})")),
     };
     if !clean.succeeded() {
-        return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
+        return Err(format!(
+            "`git clean --force -d` ended with {:?}",
+            clean.code
+        ));
     }
     record_words(&["clean", "--force", "-d"], &clean);
     let clean_ms: u128 = began.elapsed().as_millis();
@@ -500,9 +697,20 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     //  the same second as the entry it was recorded against, leaves looking unchanged, so it is removed here and the reset
     //  writes the commit's bytes into it.
     let removed: usize = remove_the_files_the_reset_cannot_see(source, target, stage, conversion)?;
-    let reset = run_step(run_git_step, arguments_in_stage(stage, &["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
+    let reset = run_step(
+        run_git_step,
+        arguments_in_stage(
+            stage,
+            &["read-tree", "--reset", "-u", target.commit.as_str()],
+        )
+        .as_slice(),
+        environment.as_slice(),
+    )?;
     if !reset.succeeded() {
-        return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
+        return Err(format!(
+            "`git read-tree --reset -u` ended with {:?}",
+            reset.code
+        ));
     }
     let reset_ms: u128 = began.elapsed().as_millis();
     prove_restored(context, target, stage, carried.as_slice())?;

@@ -9,6 +9,19 @@
 //! process.exit(runProcess(process.argv.slice(2), Object.entries(process.env), startDirectory));
 //! ```
 
+/// The wait at the end of this process for the diagnostic lines it handed to their own thread.
+use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;
+/// The wait at the end of this process for the log lines it handed to their own thread.
+use git_policy_cli::service_log_lines_off_the_calling_thread::{
+    WAIT_BEFORE_AN_EXIT,
+    write_what_waits,
+};
+/// The one module that decides a root-mode start, in a Linux build only.
+#[cfg(target_os = "linux")]
+use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{
+    self,
+    RootModeStart,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -20,13 +33,6 @@
 /// // process.argv / process.env, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// The wait at the end of this process for the log lines it handed to their own thread.
-use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};
-/// The wait at the end of this process for the diagnostic lines it handed to their own thread.
-use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;
-/// The one module that decides a root-mode start, in a Linux build only.
-#[cfg(target_os = "linux")]
-use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};
 
 /// What:
 ///  The program entry point:
@@ -61,7 +67,8 @@ fn main() {
             }
             RootModeStart::Refused(misuse) => {
                 git_policy_cli::panic_notice::install_payload_free_panic_hook();
-                let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);
+                let code: i32 =
+                    git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);
                 end_after_the_log(code);
             }
         }
@@ -76,7 +83,10 @@ fn main() {
         let code: i32 = match git_policy_cli::service_main::service_options(handed) {
             Ok(options) => git_policy_cli::service_main::run(options.as_slice()),
             Err(word) => {
-                git_policy_cli::service_error!("an argument of the service is not text: {}", word.to_string_lossy());
+                git_policy_cli::service_error!(
+                    "an argument of the service is not text: {}",
+                    word.to_string_lossy()
+                );
                 git_policy_cli::service_main::EXIT_REFUSED
             }
         };
@@ -92,7 +102,8 @@ fn main() {
     let start_directory: git_policy_cli::start_directory::StartDirectory =
         git_policy_cli::start_directory::StartDirectory::read_from_the_process();
     // `i32` is the signed 32-bit type of process exit codes.
-    let code: i32 = git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);
+    let code: i32 =
+        git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);
     end_after_the_log(code);
 }
 

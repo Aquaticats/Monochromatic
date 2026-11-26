@@ -6,7 +6,14 @@
 
 use super::*;
 use crate::maintenance_decision::parse_config_records;
-use crate::test_support::{fixture, git, git_context, isolated_overlay, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    isolated_overlay,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -24,7 +31,8 @@ fn listing(records: &[(&str, &str)]) -> Vec<u8> {
 
 /// Parse a listing that must be well formed.
 fn snapshot_of(records: &[(&str, &str)]) -> ConfigSnapshot {
-    return ConfigSnapshot::parse(listing(records).as_slice(), true).expect("a well-formed listing");
+    return ConfigSnapshot::parse(listing(records).as_slice(), true)
+        .expect("a well-formed listing");
 }
 
 /// A key with a value,
@@ -42,7 +50,10 @@ fn parse_reads_values_valueless_keys_and_newlines_in_values() {
     assert_eq!(entries[0].scope, "global");
     assert_eq!(entries[0].value.as_deref(), Some(&b"value"[..]));
     assert_eq!(entries[1].value, None);
-    assert_eq!(entries[2].value.as_deref(), Some(&b"line one\nline two"[..]));
+    assert_eq!(
+        entries[2].value.as_deref(),
+        Some(&b"line one\nline two"[..])
+    );
     assert_eq!(entries[3].value.as_deref(), Some(&b""[..]));
 }
 
@@ -51,10 +62,22 @@ fn parse_reads_values_valueless_keys_and_newlines_in_values() {
 #[test]
 fn parse_refuses_a_listing_that_is_not_scope_record_pairs() {
     assert_eq!(snapshot_of(&[]).entries().len(), 0);
-    assert!(ConfigSnapshot::parse(b"local\0a.b\nc", true).is_none(), "no final NUL");
-    assert!(ConfigSnapshot::parse(b"local\0a.b\nc\0local\0", true).is_none(), "a scope without its record");
-    assert!(ConfigSnapshot::parse(b"local\0\nvalue\0", true).is_none(), "an empty key");
-    assert!(ConfigSnapshot::parse(b"local\0\xff.b\nc\0", true).is_none(), "a key that is not UTF-8");
+    assert!(
+        ConfigSnapshot::parse(b"local\0a.b\nc", true).is_none(),
+        "no final NUL"
+    );
+    assert!(
+        ConfigSnapshot::parse(b"local\0a.b\nc\0local\0", true).is_none(),
+        "a scope without its record"
+    );
+    assert!(
+        ConfigSnapshot::parse(b"local\0\nvalue\0", true).is_none(),
+        "an empty key"
+    );
+    assert!(
+        ConfigSnapshot::parse(b"local\0\xff.b\nc\0", true).is_none(),
+        "a key that is not UTF-8"
+    );
 }
 
 /// The last entry of a key wins,
@@ -66,7 +89,10 @@ fn the_last_entry_of_a_key_wins() {
         ("local", "core.hookspath\n/second"),
         ("command", "core.hookspath\n/third"),
     ]);
-    assert_eq!(snapshot.path_value("core.hookspath"), Lookup::Found(String::from("/third")));
+    assert_eq!(
+        snapshot.path_value("core.hookspath"),
+        Lookup::Found(String::from("/third"))
+    );
     assert_eq!(snapshot.path_value("core.other"), Lookup::Unset);
 }
 
@@ -132,17 +158,53 @@ fn every_boolean_spelling_agrees_with_real_git() {
     let root: PathBuf = fixture("config-bool-oracle");
     let repo: PathBuf = repository(root.as_path(), "repo");
     for written in [
-        "true", "TRUE", "yes", "on", "false", "No", "OFF", "", "0", "1", "42", "1k", "-1", "007", "0x10", " 1", "00",
-        "0x0", "-0", "+0", "0k", " 0", "08", "1 ", "0 k", "1234567890", "maybe",
+        "true",
+        "TRUE",
+        "yes",
+        "on",
+        "false",
+        "No",
+        "OFF",
+        "",
+        "0",
+        "1",
+        "42",
+        "1k",
+        "-1",
+        "007",
+        "0x10",
+        " 1",
+        "00",
+        "0x0",
+        "-0",
+        "+0",
+        "0k",
+        " 0",
+        "08",
+        "1 ",
+        "0 k",
+        "1234567890",
+        "maybe",
     ] {
         git(repo.as_path(), &["config", "core.fsmonitor", written]);
-        let pressed = crate::test_support::git_output(repo.as_path(), &["config", "--type=bool", "--get", "core.fsmonitor"]);
+        let pressed = crate::test_support::git_output(
+            repo.as_path(),
+            &["config", "--type=bool", "--get", "core.fsmonitor"],
+        );
         let ours: Option<bool> = canonical_bool(Some(written.as_bytes()));
         if pressed.status.success() {
-            let git_reads_it_as: bool = String::from_utf8_lossy(pressed.stdout.as_slice()).trim() == "true";
-            assert_eq!(ours, Some(git_reads_it_as), "{written:?}: Git reads {git_reads_it_as}");
+            let git_reads_it_as: bool =
+                String::from_utf8_lossy(pressed.stdout.as_slice()).trim() == "true";
+            assert_eq!(
+                ours,
+                Some(git_reads_it_as),
+                "{written:?}: Git reads {git_reads_it_as}"
+            );
         } else {
-            assert_eq!(ours, None, "{written:?}: Git refuses it and the lookup must leave it to Git");
+            assert_eq!(
+                ours, None,
+                "{written:?}: Git refuses it and the lookup must leave it to Git"
+            );
         }
     }
     remove(root.as_path());
@@ -163,7 +225,11 @@ fn bool_or_int_prints_words_and_plain_numbers() {
         (Some(&b"007"[..]), None),
         (Some(&b"x"[..]), None),
     ] {
-        assert_eq!(canonical_bool_or_int(value), expected.map(String::from), "{value:?}");
+        assert_eq!(
+            canonical_bool_or_int(value),
+            expected.map(String::from),
+            "{value:?}"
+        );
     }
 }
 
@@ -198,9 +264,15 @@ fn maintenance_records_hold_the_last_value_of_each_key() {
         ("local", "other.key\nx"),
     ]);
     let records = snapshot.maintenance_records().expect("modelled values");
-    assert_eq!(records.get("maintenance.auto").map(String::as_str), Some("true"));
+    assert_eq!(
+        records.get("maintenance.auto").map(String::as_str),
+        Some("true")
+    );
     assert_eq!(records.get("gc.auto").map(String::as_str), Some("6700"));
-    assert_eq!(records.get("gc.autodetach").map(String::as_str), Some("true"));
+    assert_eq!(
+        records.get("gc.autodetach").map(String::as_str),
+        Some("true")
+    );
     assert_eq!(records.len(), 3);
     let unhandled: ConfigSnapshot = snapshot_of(&[("local", "gc.auto\n1k")]);
     assert_eq!(unhandled.maintenance_records(), None);
@@ -210,20 +282,31 @@ fn maintenance_records_hold_the_last_value_of_each_key() {
 /// and one that names the key never does.
 #[test]
 fn ref_storage_is_proven_only_without_options_and_without_the_key() {
-    assert!(snapshot_of(&[("local", "core.repositoryformatversion\n0")]).proves_files_ref_storage());
+    assert!(
+        snapshot_of(&[("local", "core.repositoryformatversion\n0")]).proves_files_ref_storage()
+    );
     assert!(!snapshot_of(&[("local", "extensions.refstorage\nfiles")]).proves_files_ref_storage());
     let with_options: ConfigSnapshot =
-        ConfigSnapshot::parse(listing(&[("local", "core.bare\nfalse")]).as_slice(), false).expect("listing");
+        ConfigSnapshot::parse(listing(&[("local", "core.bare\nfalse")]).as_slice(), false)
+            .expect("listing");
     assert!(!with_options.proves_files_ref_storage());
     assert!(!with_options.without_global_options());
 }
 
 /// Real Git's answer to `git config <type> --get <key>` in the same context.
-fn oracle(context: &GitContext, repo: &Path, kind: &str, key: &str) -> (Option<i32>, String) {
+fn oracle(
+    context: &GitContext,
+    repo: &Path,
+    kind: &str,
+    key: &str,
+) -> (Option<i32>, String) {
     let arguments: [&str; 4] = ["config", kind, "--get", key];
     let output = run_git(context, &GitRequest::new(repo, &arguments)).expect("git config starts");
     let text: String = String::from_utf8(output.stdout).expect("UTF-8");
-    return (output.code, String::from(text.strip_suffix('\n').unwrap_or(text.as_str())));
+    return (
+        output.code,
+        String::from(text.strip_suffix('\n').unwrap_or(text.as_str())),
+    );
 }
 
 /// Require `lookup` to agree with Git's answer,
@@ -243,9 +326,13 @@ fn agrees<Value: std::fmt::Debug + PartialEq>(
         }
         (Some(0), Lookup::Unhandled) => return false,
         (Some(1), other) => panic!("{label}: Git says unset but the snapshot says {other:?}"),
-        (Some(0), Lookup::Unset) => panic!("{label}: Git found {text:?} but the snapshot says unset"),
+        (Some(0), Lookup::Unset) => {
+            panic!("{label}: Git found {text:?} but the snapshot says unset")
+        }
         (_, Lookup::Unhandled) => return false,
-        (other_code, answer) => panic!("{label}: Git exited {other_code:?} ({text:?}) but the snapshot answered {answer:?}"),
+        (other_code, answer) => panic!(
+            "{label}: Git exited {other_code:?} ({text:?}) but the snapshot answered {answer:?}"
+        ),
     }
 }
 
@@ -255,7 +342,10 @@ struct Draw(u64);
 
 impl Draw {
     /// The next pseudo-random number below `bound`.
-    fn below(&mut self, bound: usize) -> usize {
+    fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;
         self.0 ^= self.0 << 17;
@@ -268,8 +358,30 @@ impl Draw {
 /// integers,
 /// bad booleans and paths Git expands.
 const VALUES: [&str; 24] = [
-    "", "true", "TRUE", "yes", "on", "off", "No", "false", "0", "1", "2", "007", "08", "-1", "1k", "0x10", "x",
-    "~/h", "%(prefix)/p", ":(optional)p", "rel/p", "/abs/p", " 1", "a~b",
+    "",
+    "true",
+    "TRUE",
+    "yes",
+    "on",
+    "off",
+    "No",
+    "false",
+    "0",
+    "1",
+    "2",
+    "007",
+    "08",
+    "-1",
+    "1k",
+    "0x10",
+    "x",
+    "~/h",
+    "%(prefix)/p",
+    ":(optional)p",
+    "rel/p",
+    "/abs/p",
+    " 1",
+    "a~b",
 ];
 
 /// Keys the generated cases set,
@@ -318,25 +430,38 @@ struct Tally {
 }
 
 /// Compare every consumer lookup of one configured repository with real Git.
-fn compare_case(context: &GitContext, repo: &Path, label: &str, tally: &mut Tally) {
+fn compare_case(
+    context: &GitContext,
+    repo: &Path,
+    label: &str,
+    tally: &mut Tally,
+) {
     let snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, repo);
     let Some(listing_snapshot) = snapshot else {
         // A configuration Git itself refuses must make every oracle read fail too.
         let (code, _text) = oracle(context, repo, "--type=bool", "gc.auto");
-        assert_ne!(code, Some(0), "{label}: the snapshot failed but Git read the configuration");
+        assert_ne!(
+            code,
+            Some(0),
+            "{label}: the snapshot failed but Git read the configuration"
+        );
         tally.declined += 1;
         return;
     };
     let path_answer: bool = agrees(
         &listing_snapshot.path_value("core.hookspath"),
         &oracle(context, repo, "--type=path", "core.hooksPath"),
-        |value| { return value.clone(); },
+        |value| {
+            return value.clone();
+        },
         label,
     );
     let bool_answer: bool = agrees(
         &listing_snapshot.bool_value("hook.pre-commit.enabled"),
         &oracle(context, repo, "--type=bool", "hook.pre-commit.enabled"),
-        |value| { return String::from(if *value { "true" } else { "false" }); },
+        |value| {
+            return String::from(if *value { "true" } else { "false" });
+        },
         label,
     );
     for answered in [path_answer, bool_answer] {
@@ -353,7 +478,8 @@ fn compare_case(context: &GitContext, repo: &Path, label: &str, tally: &mut Tall
         "--get-regexp",
         r"^(maintenance\.auto|maintenance\.autodetach|gc\.auto|gc\.autodetach)$",
     ];
-    let listing_output = run_git(context, &GitRequest::new(repo, &arguments)).expect("git config starts");
+    let listing_output =
+        run_git(context, &GitRequest::new(repo, &arguments)).expect("git config starts");
     match listing_snapshot.maintenance_records() {
         None => tally.declined += 1,
         Some(records) => {
@@ -362,7 +488,8 @@ fn compare_case(context: &GitContext, repo: &Path, label: &str, tally: &mut Tall
                 "{label}: the snapshot answered but Git exited {:?}",
                 listing_output.code
             );
-            let expected = parse_config_records(listing_output.stdout.as_slice()).expect("UTF-8 records");
+            let expected =
+                parse_config_records(listing_output.stdout.as_slice()).expect("UTF-8 records");
             assert_eq!(records, expected, "{label}");
             tally.answered += 1;
         }
@@ -387,14 +514,21 @@ fn generated_configurations_agree_with_git() {
         let mut local: String = String::from("[core]\n\trepositoryformatversion = 0\n");
         local.push_str(generated_block(&mut draw).as_str());
         std::fs::write(git_dir.join("included"), generated_block(&mut draw)).expect("include file");
-        std::fs::write(git_dir.join("conditional"), generated_block(&mut draw)).expect("conditional file");
+        std::fs::write(git_dir.join("conditional"), generated_block(&mut draw))
+            .expect("conditional file");
         std::fs::write(global.as_path(), generated_block(&mut draw)).expect("global file");
         if draw.below(2) == 0 {
             local.push_str("[include]\n\tpath = included\n");
         }
         local.push_str(generated_block(&mut draw).as_str());
         if draw.below(2) == 0 {
-            local.push_str(format!("[includeIf \"gitdir:{}\"]\n\tpath = conditional\n", git_dir.display()).as_str());
+            local.push_str(
+                format!(
+                    "[includeIf \"gitdir:{}\"]\n\tpath = conditional\n",
+                    git_dir.display()
+                )
+                .as_str(),
+            );
         }
         if draw.below(3) == 0 {
             local.push_str("[includeIf \"gitdir:/nowhere/\"]\n\tpath = conditional\n");
@@ -402,19 +536,30 @@ fn generated_configurations_agree_with_git() {
         local.push_str(generated_block(&mut draw).as_str());
         std::fs::write(git_dir.join("config"), local).expect("local config");
         let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
-        overlay.retain(|(name, _value)| { return name != "GIT_CONFIG_GLOBAL"; });
-        overlay.push((OsString::from("GIT_CONFIG_GLOBAL"), global.clone().into_os_string()));
+        overlay.retain(|(name, _value)| {
+            return name != "GIT_CONFIG_GLOBAL";
+        });
+        overlay.push((
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            global.clone().into_os_string(),
+        ));
         if draw.below(3) == 0 {
             let (key, _kind) = KEYS[draw.below(KEYS.len())];
             overlay.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")));
             overlay.push((OsString::from("GIT_CONFIG_KEY_0"), OsString::from(key)));
-            overlay.push((OsString::from("GIT_CONFIG_VALUE_0"), OsString::from(VALUES[draw.below(VALUES.len())])));
+            overlay.push((
+                OsString::from("GIT_CONFIG_VALUE_0"),
+                OsString::from(VALUES[draw.below(VALUES.len())]),
+            ));
         }
         let mut prefix: Vec<OsString> = Vec::new();
         if draw.below(3) == 0 {
             let (key, _kind) = KEYS[draw.below(KEYS.len())];
             prefix.push(OsString::from("-c"));
-            prefix.push(OsString::from(format!("{key}={}", VALUES[draw.below(VALUES.len())])));
+            prefix.push(OsString::from(format!(
+                "{key}={}",
+                VALUES[draw.below(VALUES.len())]
+            )));
         }
         let context: GitContext = GitContext {
             real_git: PathBuf::from(crate::test_support::REAL_GIT),
@@ -422,10 +567,23 @@ fn generated_configurations_agree_with_git() {
             global_prefix: prefix,
             common_dir: None,
         };
-        compare_case(&context, repo.as_path(), format!("case {case}").as_str(), &mut tally);
+        compare_case(
+            &context,
+            repo.as_path(),
+            format!("case {case}").as_str(),
+            &mut tally,
+        );
     }
-    assert!(tally.answered > 60, "the lookups answered only {} times; they decline too much", tally.answered);
-    assert!(tally.declined > 5, "only {} lookups declined; the bad shapes were not drawn", tally.declined);
+    assert!(
+        tally.answered > 60,
+        "the lookups answered only {} times; they decline too much",
+        tally.answered
+    );
+    assert!(
+        tally.declined > 5,
+        "only {} lookups declined; the bad shapes were not drawn",
+        tally.declined
+    );
     remove(root.as_path());
 }
 
@@ -439,23 +597,44 @@ fn repeated_valueless_and_bad_values_agree_with_git() {
     let context: GitContext = git_context();
     let mut tally: Tally = Tally::default();
     for (label, text) in [
-        ("repeated", "[hook \"pre-commit\"]\n\tenabled = false\n\tenabled = true\n"),
+        (
+            "repeated",
+            "[hook \"pre-commit\"]\n\tenabled = false\n\tenabled = true\n",
+        ),
         ("valueless", "[hook \"pre-commit\"]\n\tenabled\n"),
         ("bad bool", "[hook \"pre-commit\"]\n\tenabled = maybe\n"),
-        ("bad then good", "[hook \"pre-commit\"]\n\tenabled = maybe\n\tenabled = true\n"),
+        (
+            "bad then good",
+            "[hook \"pre-commit\"]\n\tenabled = maybe\n\tenabled = true\n",
+        ),
         ("empty", "[hook \"pre-commit\"]\n\tenabled =\n"),
         ("case", "[Hook \"pre-commit\"]\n\tEnabled = OFF\n"),
         ("old subsection form", "[hook.pre-commit]\n\tenabled = no\n"),
-        ("other subsection case", "[hook \"Pre-Commit\"]\n\tenabled = false\n"),
+        (
+            "other subsection case",
+            "[hook \"Pre-Commit\"]\n\tenabled = false\n",
+        ),
         ("path valueless", "[core]\n\thooksPath\n"),
         ("path empty", "[core]\n\thooksPath =\n"),
         ("path tilde", "[core]\n\thooksPath = ~/hooks\n"),
-        ("path repeated", "[core]\n\thooksPath = a\n\thooksPath = b\n"),
+        (
+            "path repeated",
+            "[core]\n\thooksPath = a\n\thooksPath = b\n",
+        ),
     ] {
-        std::fs::write(repo.join(".git/config"), format!("[core]\n\trepositoryformatversion = 0\n{text}")).expect("config");
+        std::fs::write(
+            repo.join(".git/config"),
+            format!("[core]\n\trepositoryformatversion = 0\n{text}"),
+        )
+        .expect("config");
         compare_case(&context, repo.as_path(), label, &mut tally);
     }
-    assert!(tally.answered > 0 && tally.declined > 0, "answered {} declined {}", tally.answered, tally.declined);
+    assert!(
+        tally.answered > 0 && tally.declined > 0,
+        "answered {} declined {}",
+        tally.answered,
+        tally.declined
+    );
     remove(root.as_path());
 }
 
@@ -467,16 +646,33 @@ fn ref_storage_proof_agrees_with_rev_parse() {
     let files: PathBuf = repository(root.as_path(), "files");
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("directory");
-    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable"]);
+    git(
+        reftable.as_path(),
+        &["init", "--quiet", "--ref-format=reftable"],
+    );
     let context: GitContext = git_context();
-    for (name, repo, expected_format) in [("files", &files, "files"), ("reftable", &reftable, "reftable")] {
+    for (name, repo, expected_format) in [
+        ("files", &files, "files"),
+        ("reftable", &reftable, "reftable"),
+    ] {
         let format = oracle(&context, repo.as_path(), "--type=bool", "core.bare");
         assert_eq!(format.0, Some(0), "{name}: the repository is readable");
-        let reported = run_git(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "--show-ref-format"]))
-            .expect("rev-parse starts");
-        assert_eq!(String::from_utf8_lossy(reported.stdout.as_slice()).trim(), expected_format);
-        let snapshot: ConfigSnapshot = read_config_snapshot(&context, repo.as_path()).expect("snapshot");
-        assert_eq!(snapshot.proves_files_ref_storage(), expected_format == "files", "{name}");
+        let reported = run_git(
+            &context,
+            &GitRequest::new(repo.as_path(), &["rev-parse", "--show-ref-format"]),
+        )
+        .expect("rev-parse starts");
+        assert_eq!(
+            String::from_utf8_lossy(reported.stdout.as_slice()).trim(),
+            expected_format
+        );
+        let snapshot: ConfigSnapshot =
+            read_config_snapshot(&context, repo.as_path()).expect("snapshot");
+        assert_eq!(
+            snapshot.proves_files_ref_storage(),
+            expected_format == "files",
+            "{name}"
+        );
     }
     remove(root.as_path());
 }
@@ -503,23 +699,61 @@ fn a_configuration_git_refuses_gives_no_snapshot() {
 #[test]
 fn core_fsync_names_the_index_as_git_reads_it() {
     let names = |values: &[&str]| -> Option<bool> {
-        let records: Vec<(&str, String)> = values.iter().map(|value| { return ("local", format!("core.fsync\n{value}")); }).collect();
-        let borrowed: Vec<(&str, &str)> = records.iter().map(|(scope, record)| { return (*scope, record.as_str()); }).collect();
+        let records: Vec<(&str, String)> = values
+            .iter()
+            .map(|value| {
+                return ("local", format!("core.fsync\n{value}"));
+            })
+            .collect();
+        let borrowed: Vec<(&str, &str)> = records
+            .iter()
+            .map(|(scope, record)| {
+                return (*scope, record.as_str());
+            })
+            .collect();
         return snapshot_of(borrowed.as_slice()).hardens_index();
     };
-    assert_eq!(snapshot_of(&[]).hardens_index(), Some(false), "the default names no index");
+    assert_eq!(
+        snapshot_of(&[]).hardens_index(),
+        Some(false),
+        "the default names no index"
+    );
     assert_eq!(names(&["committed"]), Some(false));
     assert_eq!(names(&["objects,reference"]), Some(false));
     assert_eq!(names(&["added"]), Some(true));
     assert_eq!(names(&["all"]), Some(true));
     assert_eq!(names(&["index"]), Some(true));
-    assert_eq!(names(&["ind"]), Some(true), "a word names every component it is a prefix of");
-    assert_eq!(names(&["all,-index"]), Some(true), "the added components win over the removed, as in Git's last line");
+    assert_eq!(
+        names(&["ind"]),
+        Some(true),
+        "a word names every component it is a prefix of"
+    );
+    assert_eq!(
+        names(&["all,-index"]),
+        Some(true),
+        "the added components win over the removed, as in Git's last line"
+    );
     assert_eq!(names(&["-index"]), Some(false));
-    assert_eq!(names(&["pack,none"]), Some(false), "none clears the set when it ends the value");
-    assert_eq!(names(&["added", "committed"]), Some(false), "the last entry decides alone");
-    assert_eq!(names(&["added", ""]), Some(false), "an empty value is the default again");
-    assert_eq!(names(&["bogus"]), Some(false), "a word that names no component is ignored, as Git ignores it");
+    assert_eq!(
+        names(&["pack,none"]),
+        Some(false),
+        "none clears the set when it ends the value"
+    );
+    assert_eq!(
+        names(&["added", "committed"]),
+        Some(false),
+        "the last entry decides alone"
+    );
+    assert_eq!(
+        names(&["added", ""]),
+        Some(false),
+        "an empty value is the default again"
+    );
+    assert_eq!(
+        names(&["bogus"]),
+        Some(false),
+        "a word that names no component is ignored, as Git ignores it"
+    );
 }
 
 /// The import step of a landing is given a `core.fsync` without the packs only where loose objects are not flushed:
@@ -531,26 +765,101 @@ fn core_fsync_names_the_index_as_git_reads_it() {
 /// that is not modelled leaves the import as the repository has it.
 #[test]
 fn the_import_gets_a_value_without_packs_only_where_loose_objects_are_not_flushed() {
-    let value = |records: &[(&str, &str)]| -> Option<String> { return snapshot_of(records).import_fsync_value(); };
-    assert_eq!(value(&[]), Some(String::from("commit-graph,none")), "the default keeps the commit graph and drops the packs");
-    assert_eq!(value(&[("local", "core.fsync\nreference")]), Some(String::from("commit-graph,reference,none")), "the person's reference flush stays");
-    assert_eq!(value(&[("local", "core.fsync\nnone")]), None, "a set with no pack has nothing to drop");
-    assert_eq!(value(&[("local", "core.fsync\nloose-object")]), None, "loose objects are flushed there");
+    let value = |records: &[(&str, &str)]| -> Option<String> {
+        return snapshot_of(records).import_fsync_value();
+    };
+    assert_eq!(
+        value(&[]),
+        Some(String::from("commit-graph,none")),
+        "the default keeps the commit graph and drops the packs"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsync\nreference")]),
+        Some(String::from("commit-graph,reference,none")),
+        "the person's reference flush stays"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsync\nnone")]),
+        None,
+        "a set with no pack has nothing to drop"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsync\nloose-object")]),
+        None,
+        "loose objects are flushed there"
+    );
     assert_eq!(value(&[("local", "core.fsync\nadded")]), None);
     assert_eq!(value(&[("local", "core.fsync\nall")]), None);
-    assert_eq!(value(&[("local", "core.fsync\nobjects")]), None, "objects includes loose objects");
-    assert_eq!(value(&[("local", "core.fsyncobjectfiles\ntrue")]), None, "the deprecated switch flushes loose objects");
-    assert_eq!(value(&[("local", "core.fsyncobjectfiles\nfalse")]), Some(String::from("commit-graph,none")));
-    assert_eq!(value(&[("local", "core.fsyncobjectfiles\nsometimes")]), None, "a value that is not a boolean is not modelled");
-    assert_eq!(value(&[("local", "core.fsync")]), None, "a key without a value is refused by Git, so it is left to Git");
+    assert_eq!(
+        value(&[("local", "core.fsync\nobjects")]),
+        None,
+        "objects includes loose objects"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsyncobjectfiles\ntrue")]),
+        None,
+        "the deprecated switch flushes loose objects"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsyncobjectfiles\nfalse")]),
+        Some(String::from("commit-graph,none"))
+    );
+    assert_eq!(
+        value(&[("local", "core.fsyncobjectfiles\nsometimes")]),
+        None,
+        "a value that is not a boolean is not modelled"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsync")]),
+        None,
+        "a key without a value is refused by Git, so it is left to Git"
+    );
     // Loose objects flushed without the packs: a pack the import keeps is flushed too, with its index.
-    let with_packs = |entries: &[(&str, &str)]| -> Option<String> { return value(entries); };
-    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,none")]), Some(String::from("loose-object,pack,pack-metadata,none")));
-    assert_eq!(with_packs(&[("local", "core.fsync\nobjects,none")]), Some(String::from("loose-object,pack,pack-metadata,none")));
-    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,pack,none")]), None, "the word pack names the pack metadata too, so both are flushed already");
-    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,reference,none")]), Some(String::from("loose-object,pack,pack-metadata,reference,none")));
-    assert_eq!(with_packs(&[("local", "core.fsync\nnone"), ("local", "core.fsyncobjectfiles\ntrue")]), Some(String::from("pack,pack-metadata,none")));
-    assert_eq!(with_packs(&[("local", "core.fsyncobjectfiles\nyes")]), None, "the default already flushes the packs");
-    assert_eq!(value(&[("global", "core.fsync\nadded"), ("local", "core.fsync\nreference")]), Some(String::from("commit-graph,reference,none")), "the last entry decides alone");
-    assert_eq!(value(&[("local", "core.fsync\ncommitted,-loose-object")]), None, "an added component stays when it is also removed, so loose objects are flushed there");
+    let with_packs = |entries: &[(&str, &str)]| -> Option<String> {
+        return value(entries);
+    };
+    assert_eq!(
+        with_packs(&[("local", "core.fsync\nloose-object,none")]),
+        Some(String::from("loose-object,pack,pack-metadata,none"))
+    );
+    assert_eq!(
+        with_packs(&[("local", "core.fsync\nobjects,none")]),
+        Some(String::from("loose-object,pack,pack-metadata,none"))
+    );
+    assert_eq!(
+        with_packs(&[("local", "core.fsync\nloose-object,pack,none")]),
+        None,
+        "the word pack names the pack metadata too, so both are flushed already"
+    );
+    assert_eq!(
+        with_packs(&[("local", "core.fsync\nloose-object,reference,none")]),
+        Some(String::from(
+            "loose-object,pack,pack-metadata,reference,none"
+        ))
+    );
+    assert_eq!(
+        with_packs(&[
+            ("local", "core.fsync\nnone"),
+            ("local", "core.fsyncobjectfiles\ntrue")
+        ]),
+        Some(String::from("pack,pack-metadata,none"))
+    );
+    assert_eq!(
+        with_packs(&[("local", "core.fsyncobjectfiles\nyes")]),
+        None,
+        "the default already flushes the packs"
+    );
+    assert_eq!(
+        value(&[
+            ("global", "core.fsync\nadded"),
+            ("local", "core.fsync\nreference")
+        ]),
+        Some(String::from("commit-graph,reference,none")),
+        "the last entry decides alone"
+    );
+    assert_eq!(
+        value(&[("local", "core.fsync\ncommitted,-loose-object")]),
+        None,
+        "an added component stays when it is also removed, so loose objects are flushed there"
+    );
 }

@@ -26,20 +26,63 @@
 
 use super::probe_arms::ProbeStep;
 use super::probe_attach_arm::AttachFailure;
-use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_STATUS_DESCRIPTOR, close_from, exit_now, join_own_process_group, move_descriptor};
-use super::probe_configuration::{ProbeCheckout, checkout_path, read_configuration, source_name};
+use super::probe_child_prelude::{
+    CHILD_CONTROL_DESCRIPTOR,
+    CHILD_STATUS_DESCRIPTOR,
+    close_from,
+    exit_now,
+    join_own_process_group,
+    move_descriptor,
+};
+use super::probe_configuration::{
+    ProbeCheckout,
+    checkout_path,
+    read_configuration,
+    source_name,
+};
 use super::probe_configuration_refusal::CheckoutRefusal;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
-use super::probe_mount_calls::{make_mounts_private, mount_scratch_tmpfs, unshare_mount_namespace};
-use super::probe_namespace_scan::{compare_namespaces, scan_namespaces};
+use super::probe_mount_calls::{
+    make_mounts_private,
+    mount_scratch_tmpfs,
+    unshare_mount_namespace,
+};
+use super::probe_namespace_scan::{
+    compare_namespaces,
+    scan_namespaces,
+};
 use super::probe_open_beneath::open_path_handle;
-use super::probe_pipe_lines::{read_line_blocking, read_one_blocking, write_all};
-use super::probe_processes::{fork, pipe_pair, raw, wait_blocking};
+use super::probe_pipe_lines::{
+    read_line_blocking,
+    read_one_blocking,
+    write_all,
+};
+use super::probe_processes::{
+    fork,
+    pipe_pair,
+    raw,
+    wait_blocking,
+};
 use super::probe_record_files::RecordPlace;
-use super::probe_status_line::{LineFeed, StepAnswer, StepLine};
-use super::probe_walk_arm::{make_scratch_tree, open_checkout, refusal_controls, walk_to_slot};
-use std::os::fd::{OwnedFd, RawFd};
-use std::path::{Path, PathBuf};
+use super::probe_status_line::{
+    LineFeed,
+    StepAnswer,
+    StepLine,
+};
+use super::probe_walk_arm::{
+    make_scratch_tree,
+    open_checkout,
+    refusal_controls,
+    walk_to_slot,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
+use std::os::fd::{
+    OwnedFd,
+    RawFd,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory inside the scratch tmpfs the attach lands on.
 pub const SLOT_NAME: &str = "slot";
@@ -80,7 +123,10 @@ pub struct WorkerStart<'a> {
 }
 
 /// One step's line on the status pipe.
-fn say(status: RawFd, line: StepLine) {
+fn say(
+    status: RawFd,
+    line: StepLine,
+) {
     let _written = write_all(status, line.encode().as_bytes());
 }
 
@@ -89,9 +135,17 @@ fn say(status: RawFd, line: StepLine) {
 /// special errnos.
 fn attach_line(failure: AttachFailure) -> StepLine {
     return match (failure.step, failure.errno) {
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(failure.step, "exclusive-create-unsupported", Some("EOPNOTSUPP")),
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => StepLine::not_exercised(failure.step, "source-held", Some("EBUSY")),
-        (ProbeStep::AttachExclusiveCreate, Some(libc::ENOENT)) => StepLine::not_exercised(failure.step, "missing-source", Some("ENOENT")),
+        (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(
+            failure.step,
+            "exclusive-create-unsupported",
+            Some("EOPNOTSUPP"),
+        ),
+        (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => {
+            StepLine::not_exercised(failure.step, "source-held", Some("EBUSY"))
+        }
+        (ProbeStep::AttachExclusiveCreate, Some(libc::ENOENT)) => {
+            StepLine::not_exercised(failure.step, "missing-source", Some("ENOENT"))
+        }
         _ => StepLine::failed_number(failure.step, failure.errno),
     };
 }
@@ -116,48 +170,85 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
             // Twice the shipped bound keeps the step long enough for the
             // deadline to fire,
             // and lets M3's raised-deadline control see the step finish.
-            let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: start.reply, events: libc::POLLIN, revents: 0 }];
-            let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
+            let mut watched: [libc::pollfd; 1] = [libc::pollfd {
+                fd: start.reply,
+                events: libc::POLLIN,
+                revents: 0,
+            }];
+            let _ = super::probe_processes::poll_descriptors(
+                watched.as_mut_slice(),
+                Some(super::probe_deadline::PROBE_DEADLINE * 2),
+            );
         }
     };
     let _ = join_own_process_group();
     if let Err(error) = unshare_mount_namespace() {
-        ending(StepLine::failed_number(ProbeStep::Unshare, Some(error.errno)));
+        ending(StepLine::failed_number(
+            ProbeStep::Unshare,
+            Some(error.errno),
+        ));
     }
     say(start.status, StepLine::passed(ProbeStep::Unshare));
     hold_after(ProbeStep::Unshare);
     if let Err(error) = make_mounts_private() {
-        ending(StepLine::failed_number(ProbeStep::PrivatePropagation, Some(error.errno)));
+        ending(StepLine::failed_number(
+            ProbeStep::PrivatePropagation,
+            Some(error.errno),
+        ));
     }
-    say(start.status, StepLine::passed(ProbeStep::PrivatePropagation));
+    say(
+        start.status,
+        StepLine::passed(ProbeStep::PrivatePropagation),
+    );
     hold_after(ProbeStep::PrivatePropagation);
     let scratch: PathBuf = start.place.scratch();
     let slot: PathBuf = scratch.join(SLOT_NAME);
     let move_target: PathBuf = scratch.join(MOVE_TARGET_NAME);
     if let Err(error) = mount_scratch_tmpfs(scratch.as_path()) {
-        ending(StepLine::failed_number(ProbeStep::ScratchTmpfs, Some(error.errno)));
+        ending(StepLine::failed_number(
+            ProbeStep::ScratchTmpfs,
+            Some(error.errno),
+        ));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTmpfs));
     hold_after(ProbeStep::ScratchTmpfs);
-    if let Err(failure) = make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path()) {
-        ending(StepLine::failed_number(ProbeStep::ScratchTree, failure.errno_number()));
+    if let Err(failure) =
+        make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path())
+    {
+        ending(StepLine::failed_number(
+            ProbeStep::ScratchTree,
+            failure.errno_number(),
+        ));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTree));
     hold_after(ProbeStep::ScratchTree);
     if let Err(failure) = walk_to_slot(scratch.as_path(), slot.as_path()) {
-        ending(StepLine::failed_number(ProbeStep::WalkSlot, failure.errno_number()));
+        ending(StepLine::failed_number(
+            ProbeStep::WalkSlot,
+            failure.errno_number(),
+        ));
     }
     say(start.status, StepLine::passed(ProbeStep::WalkSlot));
     hold_after(ProbeStep::WalkSlot);
     if let Err(failure) = refusal_controls(scratch.as_path(), slot.as_path()) {
-        ending(StepLine::failed_number(ProbeStep::WalkRefusalControls, failure.errno_number()));
+        ending(StepLine::failed_number(
+            ProbeStep::WalkRefusalControls,
+            failure.errno_number(),
+        ));
     }
-    say(start.status, StepLine::passed(ProbeStep::WalkRefusalControls));
+    say(
+        start.status,
+        StepLine::passed(ProbeStep::WalkRefusalControls),
+    );
     hold_after(ProbeStep::WalkRefusalControls);
     // The file is read once, and the same bytes answer both the checkout's finding and the source's.
     let document: Option<String> = match read_configuration(start.configuration) {
         Ok(document) => document,
-        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
+        Err(refusal) => ending(StepLine::not_exercised(
+            ProbeStep::ReadSourceName,
+            refusal.word(),
+            None,
+        )),
     };
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     // A checkout this run cannot tell leaves its own arm not exercised and runs the source arm anyway,
@@ -166,23 +257,46 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     let checkout: Option<&ProbeCheckout> = told.as_ref().ok();
     match checkout.and_then(|found| return open_checkout(found.path.as_path()).ok()) {
         Some(_identity) => say(start.status, StepLine::passed(ProbeStep::CheckoutRoot)),
-        None => say(start.status, StepLine::not_exercised(ProbeStep::CheckoutRoot, told.as_ref().err().map_or("no-checkout-path", |refusal| return refusal.word()), None)),
+        None => say(
+            start.status,
+            StepLine::not_exercised(
+                ProbeStep::CheckoutRoot,
+                told.as_ref()
+                    .err()
+                    .map_or("no-checkout-path", |refusal| return refusal.word()),
+                None,
+            ),
+        ),
     }
-    let source: String = match source_name(document.as_deref(), start.configuration, &mounts, checkout) {
-        Ok(source) => source.snapshot_name(),
-        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
-    };
+    let source: String =
+        match source_name(document.as_deref(), start.configuration, &mounts, checkout) {
+            Ok(source) => source.snapshot_name(),
+            Err(refusal) => ending(StepLine::not_exercised(
+                ProbeStep::ReadSourceName,
+                refusal.word(),
+                None,
+            )),
+        };
     let mut read = StepLine::passed(ProbeStep::ReadSourceName);
     read.source = Some(source.clone());
     say(start.status, read);
     let slot_handle: OwnedFd = match open_path_handle(slot.as_path()) {
         Ok(handle) => handle,
-        Err(error) => ending(StepLine::failed_number(ProbeStep::AttachPlace, Some(error.errno))),
+        Err(error) => ending(StepLine::failed_number(
+            ProbeStep::AttachPlace,
+            Some(error.errno),
+        )),
     };
-    let evidence = match super::probe_attach_arm::attach_snapshot(&slot_handle, slot.as_path(), source.as_str(), start.keep_descriptor, |step| {
-        say(start.status, StepLine::passed(step));
-        hold_after(step);
-    }) {
+    let evidence = match super::probe_attach_arm::attach_snapshot(
+        &slot_handle,
+        slot.as_path(),
+        source.as_str(),
+        start.keep_descriptor,
+        |step| {
+            say(start.status, StepLine::passed(step));
+            hold_after(step);
+        },
+    ) {
         Ok(evidence) => evidence,
         Err(failure) => ending(attach_line(failure)),
     };
@@ -197,7 +311,12 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         Ok(namespace) => namespace,
         Err(()) => ending(StepLine::failed(ProbeStep::ScanWhileHeld, None)),
     };
-    if scan_expecting(source.as_str(), &[worker_own.as_str(), holder_namespace.as_str()]).is_err() {
+    if scan_expecting(
+        source.as_str(),
+        &[worker_own.as_str(), holder_namespace.as_str()],
+    )
+    .is_err()
+    {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanWhileHeld));
@@ -214,7 +333,12 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     }
     say(start.status, StepLine::passed(ProbeStep::ScanAfterHolder));
     hold_after(ProbeStep::ScanAfterHolder);
-    let mut child = match fork_unmount_child(slot.as_path(), move_target.as_path(), evidence.mount.mount_id, start.hold) {
+    let mut child = match fork_unmount_child(
+        slot.as_path(),
+        move_target.as_path(),
+        evidence.mount.mount_id,
+        start.hold,
+    ) {
         Ok(child) => child,
         Err(errno) => ending(StepLine::failed(ProbeStep::Move, errno)),
     };
@@ -238,7 +362,10 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
 ///  Requests are single bytes,
 ///  and the reply is one line so the first pass can compare the exact set
 ///  of namespaces with the worker's and the holder's rather than a count.
-fn ask_holder(start: &WorkerStart<'_>, request: u8) -> Option<String> {
+fn ask_holder(
+    start: &WorkerStart<'_>,
+    request: u8,
+) -> Option<String> {
     if write_all(start.request, &[request]).is_err() {
         return None;
     }
@@ -251,13 +378,18 @@ fn ask_holder(start: &WorkerStart<'_>, request: u8) -> Option<String> {
 
 /// This process's own mount-namespace identity.
 fn own_namespace() -> Result<String, ()> {
-    return std::fs::read_link("/proc/self/ns/mnt").map(|path| return path.to_string_lossy().into_owned()).map_err(|_| ());
+    return std::fs::read_link("/proc/self/ns/mnt")
+        .map(|path| return path.to_string_lossy().into_owned())
+        .map_err(|_| ());
 }
 
 /// Scan this PID namespace for the source and require exactly the namespaces
 ///  the pass expects,
 ///  naming a leaked or missing namespace rather than comparing a count.
-fn scan_expecting(source: &str, expected: &[&str]) -> Result<(), ()> {
+fn scan_expecting(
+    source: &str,
+    expected: &[&str],
+) -> Result<(), ()> {
     let mentioned: Vec<String> = match scan_namespaces(Path::new("/proc"), source) {
         Ok(mentioned) => mentioned,
         Err(_) => return Err(()),
@@ -290,7 +422,10 @@ impl UnmountChild {
     ///  so the worker relays while the child lives rather than after it ends.
     ///  The child holds its status pipe open until `_exit`,
     ///  so the end of the pipe is the child's own end.
-    fn relay_until_eof(&mut self, status: RawFd) -> bool {
+    fn relay_until_eof(
+        &mut self,
+        status: RawFd,
+    ) -> bool {
         let mut feed: LineFeed = LineFeed::new();
         let mut failed: bool = false;
         loop {
@@ -315,7 +450,12 @@ impl UnmountChild {
 }
 
 /// Fork the unmount child with its two pipes.
-fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64, hold: Option<ProbeStep>) -> Result<UnmountChild, Option<&'static str>> {
+fn fork_unmount_child(
+    slot: &Path,
+    move_target: &Path,
+    mount_id: u64,
+    hold: Option<ProbeStep>,
+) -> Result<UnmountChild, Option<&'static str>> {
     let control = pipe_pair().map_err(|error| return error.errno_name())?;
     let reports = pipe_pair().map_err(|error| return error.errno_name())?;
     match fork() {
@@ -324,14 +464,24 @@ fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64, hold: Opti
             let _ = move_descriptor(raw(&control.read), CHILD_CONTROL_DESCRIPTOR);
             let _ = move_descriptor(raw(&reports.write), CHILD_STATUS_DESCRIPTOR);
             let _ = close_from(5);
-            super::probe_unmount_child::run(CHILD_STATUS_DESCRIPTOR, slot, move_target, mount_id, hold);
+            super::probe_unmount_child::run(
+                CHILD_STATUS_DESCRIPTOR,
+                slot,
+                move_target,
+                mount_id,
+                hold,
+            );
         }
         Ok(Some(pid)) => {
             // The child stays in the worker's own process group,
             // so the mode's group kill at the deadline reaches it too.
             drop(control.read);
             drop(reports.write);
-            return Ok(UnmountChild { pid, reports: reports.read, _control: control.write });
+            return Ok(UnmountChild {
+                pid,
+                reports: reports.read,
+                _control: control.write,
+            });
         }
     }
 }

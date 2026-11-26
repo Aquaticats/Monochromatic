@@ -26,12 +26,22 @@ use super::clone_destruction_proof::CloneDestructionProof;
 use super::lock_installation::LOCK_FILE_NAME;
 use super::reading_a_bounded_file::ARefusedReading;
 use super::recorded_lock_facts::RecordedLockFacts;
-use crate::entries_of_one_open_folder::{open_entry_for_reading, read_entry_bytes};
+use crate::entries_of_one_open_folder::{
+    open_entry_for_reading,
+    read_entry_bytes,
+};
 use crate::private_storage::ReadRefusal;
 use crate::publishing_entries_in_one_open_folder::sync_folder;
-use crate::worktree_clone_binding_record::lock_words::{LOCK_WORDS_MAXIMUM_BYTES, LockStanding, lock_standing_of};
+use crate::worktree_clone_binding_record::lock_words::{
+    LOCK_WORDS_MAXIMUM_BYTES,
+    LockStanding,
+    lock_standing_of,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why the release refused.
@@ -80,17 +90,32 @@ impl ReleaseRefusal {
     /// The words a person reads for one refusal.
     pub fn words(&self) -> String {
         return match self {
-            ReleaseRefusal::TheProofIsForAnotherSlot { proof, settling } => format!(
+            ReleaseRefusal::TheProofIsForAnotherSlot {
+                proof,
+                settling,
+            } => format!(
                 "the destruction proof names the slot `{proof}` and this settle releases the lock of `{settling}`, so nothing was released"
             ),
-            ReleaseRefusal::TheProofIsForAnotherClone { proof, recorded } => {
-                format!("the destruction proof names the clone `{proof}` and the record names `{recorded}`, so nothing was released")
+            ReleaseRefusal::TheProofIsForAnotherClone {
+                proof,
+                recorded,
+            } => {
+                format!(
+                    "the destruction proof names the clone `{proof}` and the record names `{recorded}`, so nothing was released"
+                )
             }
             ReleaseRefusal::NoLockStands => String::from(
                 "no managed Git lock stands in the registration, and a settle writes a lost lock again before it releases it, so nothing was released",
             ),
-            ReleaseRefusal::NotTheAddsLock { cause } => format!("the lock is not this add's ({}), so nothing was released", cause.words()),
-            ReleaseRefusal::Refused { reason } => format!("the release was refused ({reason}), so the lock stands where it was"),
+            ReleaseRefusal::NotTheAddsLock {
+                cause,
+            } => format!(
+                "the lock is not this add's ({}), so nothing was released",
+                cause.words()
+            ),
+            ReleaseRefusal::Refused {
+                reason,
+            } => format!("the release was refused ({reason}), so the lock stands where it was"),
         };
     }
 }
@@ -138,39 +163,79 @@ fn bytes_through_the_descriptor(registration: &std::fs::File) -> Result<Vec<u8>,
 /// if (proof.slot !== slot) throw ...; if (proof.clone !== facts.clone.dataset) throw ...;
 /// if (!lockStandsAsTheAddsOwn) throw ...; await unlinkat(registration, 'locked'); await syncFolder(registration);
 /// ```
-pub fn release_the_managed_lock(registration: &std::fs::File, registration_path: &Path, slot: &str, facts: &RecordedLockFacts, proof: &CloneDestructionProof) -> Result<ReleaseOutcome, ReleaseRefusal> {
+pub fn release_the_managed_lock(
+    registration: &std::fs::File,
+    registration_path: &Path,
+    slot: &str,
+    facts: &RecordedLockFacts,
+    proof: &CloneDestructionProof,
+) -> Result<ReleaseOutcome, ReleaseRefusal> {
     if proof.slot() != slot {
-        return Err(ReleaseRefusal::TheProofIsForAnotherSlot { proof: String::from(proof.slot()), settling: String::from(slot) });
+        return Err(ReleaseRefusal::TheProofIsForAnotherSlot {
+            proof: String::from(proof.slot()),
+            settling: String::from(slot),
+        });
     }
-    if proof.clone_dataset() != facts.clone.dataset || Some(proof.clone_guid()) != facts.clone.guid {
-        return Err(ReleaseRefusal::TheProofIsForAnotherClone { proof: String::from(proof.clone_dataset()), recorded: facts.clone.dataset.clone() });
+    if proof.clone_dataset() != facts.clone.dataset || Some(proof.clone_guid()) != facts.clone.guid
+    {
+        return Err(ReleaseRefusal::TheProofIsForAnotherClone {
+            proof: String::from(proof.clone_dataset()),
+            recorded: facts.clone.dataset.clone(),
+        });
     }
     let bytes: Vec<u8> = match bytes_through_the_descriptor(registration) {
         Ok(found) => found,
         Err(ReadRefusal::Missing) => return Err(ReleaseRefusal::NoLockStands),
-        Err(ReadRefusal::NotRegular) => return Err(ReleaseRefusal::NotTheAddsLock { cause: ARefusedReading::AFileOfAnotherKind }),
-        Err(ReadRefusal::TooLarge) => {
+        Err(ReadRefusal::NotRegular) => {
             return Err(ReleaseRefusal::NotTheAddsLock {
-                cause: ARefusedReading::Unreadable { reason: format!("it holds more than the {LOCK_WORDS_MAXIMUM_BYTES} bytes the sentence and Git's newline take") },
+                cause: ARefusedReading::AFileOfAnotherKind,
             });
         }
-        Err(ReadRefusal::Io(error)) => return Err(ReleaseRefusal::Refused { reason: error.to_string() }),
+        Err(ReadRefusal::TooLarge) => {
+            return Err(ReleaseRefusal::NotTheAddsLock {
+                cause: ARefusedReading::Unreadable {
+                    reason: format!(
+                        "it holds more than the {LOCK_WORDS_MAXIMUM_BYTES} bytes the sentence and Git's newline take"
+                    ),
+                },
+            });
+        }
+        Err(ReadRefusal::Io(error)) => {
+            return Err(ReleaseRefusal::Refused {
+                reason: error.to_string(),
+            });
+        }
     };
     match lock_standing_of(bytes.as_slice(), &facts.nonce) {
-        LockStanding::Verified | LockStanding::CutShort { .. } => {}
+        LockStanding::Verified
+        | LockStanding::CutShort {
+            ..
+        } => {}
         LockStanding::Foreign => {
             return Err(ReleaseRefusal::NotTheAddsLock {
-                cause: ARefusedReading::Unreadable { reason: String::from("the bytes are not the sentence recomposed from the record's nonce") },
+                cause: ARefusedReading::Unreadable {
+                    reason: String::from(
+                        "the bytes are not the sentence recomposed from the record's nonce",
+                    ),
+                },
             });
         }
     }
     return match crate::fs_beneath::remove_at(registration, OsStr::new(LOCK_FILE_NAME), false) {
         Ok(()) => match sync_folder(registration) {
-            Ok(()) => Ok(ReleaseOutcome { registration: registration_path.to_path_buf() }),
-            Err(error) => Err(ReleaseRefusal::Refused { reason: error.to_string() }),
+            Ok(()) => Ok(ReleaseOutcome {
+                registration: registration_path.to_path_buf(),
+            }),
+            Err(error) => Err(ReleaseRefusal::Refused {
+                reason: error.to_string(),
+            }),
         },
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(ReleaseRefusal::NoLockStands),
-        Err(error) => Err(ReleaseRefusal::Refused { reason: error.to_string() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(ReleaseRefusal::NoLockStands)
+        }
+        Err(error) => Err(ReleaseRefusal::Refused {
+            reason: error.to_string(),
+        }),
     };
 }
 

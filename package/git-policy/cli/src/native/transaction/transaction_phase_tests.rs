@@ -1,13 +1,21 @@
 //! Controls for the test-only transaction phase markers.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// The phases are named in the order a command reaches them,
 /// and none of the retired landing's phases is among them.
 #[test]
 fn phases_are_named_in_transaction_order() {
-    let names: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
+    let names: Vec<&str> = TRANSACTION_TEST_PHASES
+        .iter()
+        .map(|phase| {
+            return phase.name();
+        })
+        .collect();
     assert_eq!(
         names,
         [
@@ -26,8 +34,19 @@ fn phases_are_named_in_transaction_order() {
             "kept-references-listed",
         ]
     );
-    for retired in ["capture-locked", "preparation-done", "landing-locked", "objects-migrated", "ref-updated", "index-installed", "race-lost"] {
-        assert!(parse_phase_signal(format!("{retired}:kill").as_str()).is_err(), "{retired} is no phase any more");
+    for retired in [
+        "capture-locked",
+        "preparation-done",
+        "landing-locked",
+        "objects-migrated",
+        "ref-updated",
+        "index-installed",
+        "race-lost",
+    ] {
+        assert!(
+            parse_phase_signal(format!("{retired}:kill").as_str()).is_err(),
+            "{retired} is no phase any more"
+        );
     }
 }
 
@@ -81,7 +100,10 @@ fn malformed_values_are_refused() {
         "merge-applied:pause:relative",
         ":kill",
     ] {
-        assert!(parse_phase_signal(value).is_err(), "{value:?} must be refused");
+        assert!(
+            parse_phase_signal(value).is_err(),
+            "{value:?} must be refused"
+        );
     }
 }
 
@@ -93,7 +115,9 @@ fn refusal_message_names_the_value_and_the_forms() {
     let phases: String = TRANSACTION_TEST_PHASES.map(Phase::name).join(", ");
     assert_eq!(
         error.to_string(),
-        format!("CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {phases}.")
+        format!(
+            "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {phases}."
+        )
     );
 }
 
@@ -122,7 +146,11 @@ fn other_phases_are_ignored_and_malformed_markers_fail_everywhere() {
 
 /// Reach a phase on a thread and fail instead of hanging when the wait never ends,
 ///  so a defect in the wait is a failure and not a timeout.
-fn reach_bounded(value: String, phase: Phase, occurrence: Option<u64>) -> Result<(), PhaseMarkerError> {
+fn reach_bounded(
+    value: String,
+    phase: Phase,
+    occurrence: Option<u64>,
+) -> Result<(), PhaseMarkerError> {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = sender.send(reach_with_value(Some(value.as_str()), phase, occurrence));
@@ -150,10 +178,14 @@ fn pause_waits_for_the_release_file() {
     });
     let started: std::time::Instant = std::time::Instant::now();
     reach_bounded(value, Phase::MergeIntent, None).expect("released");
-    assert!(started.elapsed() >= std::time::Duration::from_millis(150), "the pause returned before the release");
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(150),
+        "the pause returned before the release"
+    );
     assert!(root.join("merge-intent.release").exists());
     releaser.join().expect("releaser");
-    let reached: String = std::fs::read_to_string(root.join("merge-intent.reached")).expect("reached");
+    let reached: String =
+        std::fs::read_to_string(root.join("merge-intent.reached")).expect("reached");
     assert_eq!(reached, std::process::id().to_string());
     remove(&root);
 }
@@ -201,15 +233,17 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     let root: PathBuf = fixture("phase-kill");
     let value: String = format!("service-staged:kill:{}", root.display());
     // The kill marker ends the child with `SIGKILL`, so this asks for the raw ending rather than for a passing test.
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(PHASE_SIGNAL_VARIABLE, std::ffi::OsStr::new(value.as_str()))];
-    let status: std::process::ExitStatus = crate::child_test_process::finished(crate::child_test_process::ChildTest {
-        exact_test: "transaction::transaction_phase::tests::child_reaches_service_staged",
-        environment: environment.as_slice(),
-        ignored: true,
-        ..crate::child_test_process::ChildTest::default()
-    })
-    .expect("the child ends within the deadline")
-    .status;
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(PHASE_SIGNAL_VARIABLE, std::ffi::OsStr::new(value.as_str()))];
+    let status: std::process::ExitStatus =
+        crate::child_test_process::finished(crate::child_test_process::ChildTest {
+            exact_test: "transaction::transaction_phase::tests::child_reaches_service_staged",
+            environment: environment.as_slice(),
+            ignored: true,
+            ..crate::child_test_process::ChildTest::default()
+        })
+        .expect("the child ends within the deadline")
+        .status;
     assert_eq!(status.signal(), Some(9));
     assert!(root.join("service-staged.reached").exists());
     remove(&root);
@@ -220,7 +254,8 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
 #[test]
 #[ignore = "child process of kill_marker_sigkills_the_process_after_writing_its_marker"]
 fn child_reaches_service_staged() {
-    reach_transaction_phase(Phase::ServiceStaged, None).expect("marker is armed in the environment");
+    reach_transaction_phase(Phase::ServiceStaged, None)
+        .expect("marker is armed in the environment");
     panic!("the kill marker did not end the process");
 }
 
@@ -230,9 +265,25 @@ fn child_reaches_service_staged() {
 fn a_pause_nothing_releases_ends_at_its_patience() {
     let root: PathBuf = fixture("phase-patience");
     let release: PathBuf = root.join("service-prepared.release");
-    let error = await_release_within(root.as_path(), release.as_path(), std::time::Duration::from_millis(200)).expect_err("nothing released it");
-    assert!(matches!(error, PhaseMarkerError::Io(ref io) if io.kind() == std::io::ErrorKind::TimedOut), "{error:?}");
+    let error = await_release_within(
+        root.as_path(),
+        release.as_path(),
+        std::time::Duration::from_millis(200),
+    )
+    .expect_err("nothing released it");
+    assert!(
+        matches!(error, PhaseMarkerError::Io(ref io) if io.kind() == std::io::ErrorKind::TimedOut),
+        "{error:?}"
+    );
     std::fs::write(&release, b"").expect("release");
-    assert!(await_release_within(root.as_path(), release.as_path(), std::time::Duration::from_millis(200)).is_ok(), "a released pause ends well");
+    assert!(
+        await_release_within(
+            root.as_path(),
+            release.as_path(),
+            std::time::Duration::from_millis(200)
+        )
+        .is_ok(),
+        "a released pause ends well"
+    );
     remove(&root);
 }

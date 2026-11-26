@@ -7,14 +7,29 @@
 
 use super::*;
 use crate::service_fault::hooks;
-use crate::service_index_claim::{CLAIM_INFIX, claim_key, claim_path};
-use crate::service_index_marker::{LOCK_MARKER, Marked, marker_of_file, own_identity};
+use crate::service_index_claim::{
+    CLAIM_INFIX,
+    claim_key,
+    claim_path,
+};
+use crate::service_index_marker::{
+    LOCK_MARKER,
+    Marked,
+    marker_of_file,
+    own_identity,
+};
 use crate::service_index_placement::rename_noreplace;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A rename that does not replace,
 /// which refuses the names of claims and nothing else.
-pub(super) fn rename_unless_claim(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(super) fn rename_unless_claim(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     if to.to_string_lossy().contains(CLAIM_INFIX) {
         return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
     }
@@ -22,7 +37,10 @@ pub(super) fn rename_unless_claim(from: &Path, to: &Path) -> std::io::Result<()>
 }
 
 /// A hard link that refuses the names of claims and nothing else.
-pub(super) fn link_unless_claim(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(super) fn link_unless_claim(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     if to.to_string_lossy().contains(CLAIM_INFIX) {
         return Err(std::io::Error::from_raw_os_error(libc::EPERM));
     }
@@ -32,11 +50,16 @@ pub(super) fn link_unless_claim(from: &Path, to: &Path) -> std::io::Result<()> {
 /// A killed process's marker for batch `seq`:
 /// a holder that is not any running process.
 pub(super) fn gone_marker(seq: u64) -> String {
-    let mut child = std::process::Command::new("true").spawn().expect("a short process");
+    let mut child = std::process::Command::new("true")
+        .spawn()
+        .expect("a short process");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reaped");
     // The format of this release: the claim chain reclaims no other.
-    return format!("{LOCK_MARKER}{}{seq} {pid} gone\n", crate::service_index_marker::MARKER_VERSION);
+    return format!(
+        "{LOCK_MARKER}{}{seq} {pid} gone\n",
+        crate::service_index_marker::MARKER_VERSION
+    );
 }
 
 /// This process's marker,
@@ -55,7 +78,10 @@ pub(super) fn index_in(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 }
 
 /// The claim at `slot` for the file now at `lock`.
-pub(super) fn claim_at(lock: &Path, slot: usize) -> PathBuf {
+pub(super) fn claim_at(
+    lock: &Path,
+    slot: usize,
+) -> PathBuf {
     let file = std::fs::File::open(lock).expect("the stale lock");
     let marked = marker_of_file(&file).expect("a marker");
     let key: String = claim_key(&marked);
@@ -63,7 +89,13 @@ pub(super) fn claim_at(lock: &Path, slot: usize) -> PathBuf {
 }
 
 pub(super) fn names_in(root: &Path) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    let mut names: Vec<String> = std::fs::read_dir(root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     names.sort();
     return names;
 }
@@ -81,12 +113,24 @@ fn a_stale_lock_is_removed_under_a_claim_and_leaves_nothing() {
     let claim: PathBuf = claim_at(&lock, 0);
     let standing = std::rc::Rc::new(std::cell::Cell::new(false));
     let (hook_claim, hook_standing) = (claim, std::rc::Rc::clone(&standing));
-    hooks::set("reclaim-held", std::rc::Rc::new(move || { hook_standing.set(hook_claim.exists()); }));
+    hooks::set(
+        "reclaim-held",
+        std::rc::Rc::new(move || {
+            hook_standing.set(hook_claim.exists());
+        }),
+    );
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
-    assert!(standing.get(), "the reclaimer held a claim while it removed the lock");
+    assert!(
+        standing.get(),
+        "the reclaimer held a claim while it removed the lock"
+    );
     assert!(!lock.exists());
-    assert_eq!(names_in(&root), vec![String::from("index")], "no claim and no staging file is left");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "no claim and no staging file is left"
+    );
     remove(root.as_path());
 }
 
@@ -101,7 +145,12 @@ fn a_flock_on_the_stale_lock_does_not_stop_the_reclaim() {
     let (root, _index, lock) = index_in("claim-flock-ignored");
     let holding = std::fs::File::open(&lock).expect("another descriptor");
     // SAFETY: `flock` takes an open descriptor, which `holding` keeps open for the call.
-    let taken: i32 = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&holding), libc::LOCK_EX | libc::LOCK_NB) };
+    let taken: i32 = unsafe {
+        libc::flock(
+            std::os::fd::AsRawFd::as_raw_fd(&holding),
+            libc::LOCK_EX | libc::LOCK_NB,
+        )
+    };
     assert_eq!(taken, 0, "the control plays a holder of the flock");
     assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed);
     assert!(!lock.exists());
@@ -127,9 +176,17 @@ fn a_landing_takes_a_stale_lock_under_a_claim_without_waiting() {
         }
     })
     .expect("the stale lock is reclaimed and the lock is taken");
-    assert!(announced.borrow().is_empty(), "the stale lock was taken without waiting for a holder: {:?}", announced.borrow());
+    assert!(
+        announced.borrow().is_empty(),
+        "the stale lock was taken without waiting for a holder: {:?}",
+        announced.borrow()
+    );
     drop(taken);
-    assert_eq!(names_in(&root), vec![String::from("index")], "no claim and no lock is left");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "no claim and no lock is left"
+    );
     remove(root.as_path());
 }
 
@@ -143,16 +200,32 @@ fn a_landing_takes_a_stale_lock_under_a_claim_without_waiting() {
 fn a_second_reclaimer_backs_off_while_the_first_holds() {
     let (root, _index, lock) = index_in("claim-two-reclaimers");
     let platform: Platform = SYSTEM;
-    let second: std::rc::Rc<std::cell::RefCell<Option<Reclaimed>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let second: std::rc::Rc<std::cell::RefCell<Option<Reclaimed>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
     let (hook_lock, hook_second) = (lock.clone(), std::rc::Rc::clone(&second));
-    hooks::set("reclaim-held", std::rc::Rc::new(move || {
-        let other: Platform = SYSTEM;
-        *hook_second.borrow_mut() = Some(reclaim(&other, &hook_lock));
-    }));
+    hooks::set(
+        "reclaim-held",
+        std::rc::Rc::new(move || {
+            let other: Platform = SYSTEM;
+            *hook_second.borrow_mut() = Some(reclaim(&other, &hook_lock));
+        }),
+    );
     let first: Reclaimed = reclaim(&platform, &lock);
-    assert_eq!(*second.borrow(), Some(Reclaimed::Busy), "the second reclaimer backs off");
-    assert_eq!(first, Reclaimed::Removed, "the first reclaimer removes the stale lock");
-    assert_eq!(names_in(&root), vec![String::from("index")], "the claims of both are gone");
+    assert_eq!(
+        *second.borrow(),
+        Some(Reclaimed::Busy),
+        "the second reclaimer backs off"
+    );
+    assert_eq!(
+        first,
+        Reclaimed::Removed,
+        "the first reclaimer removes the stale lock"
+    );
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "the claims of both are gone"
+    );
     remove(root.as_path());
 }
 
@@ -169,7 +242,11 @@ fn a_dead_claimers_claims_are_passed_over_and_cleared() {
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
     assert!(!lock.exists());
-    assert_eq!(names_in(&root), vec![String::from("index")], "the dead claims are cleared with the own one");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "the dead claims are cleared with the own one"
+    );
     remove(root.as_path());
 }
 
@@ -206,8 +283,16 @@ fn a_running_claimer_ahead_makes_the_reclaimer_back_off() {
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
     assert!(lock.exists(), "the stale lock stays");
-    assert_eq!(std::fs::read_to_string(&ahead).expect("the claim stands"), live_marker());
-    assert_eq!(names_in(&root).len(), 3, "the index, the lock, the claim ahead: {:?}", names_in(&root));
+    assert_eq!(
+        std::fs::read_to_string(&ahead).expect("the claim stands"),
+        live_marker()
+    );
+    assert_eq!(
+        names_in(&root).len(),
+        3,
+        "the index, the lock, the claim ahead: {:?}",
+        names_in(&root)
+    );
     remove(root.as_path());
 }
 
@@ -222,18 +307,29 @@ fn a_slot_below_that_turns_live_after_the_reclaimer_looked_makes_it_back_off() {
     let below: PathBuf = claim_at(&lock, 0);
     std::fs::write(&below, gone_marker(0)).expect("a dead claimer's claim");
     let (hook_below, done) = (below.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
-    hooks::set("reclaim-claim-placed", std::rc::Rc::new(move || {
-        if !done.replace(true) {
-            // The dead claim was cleared by a reclaimer that finished, and a new reclaimer placed its running claim there.
-            std::fs::remove_file(&hook_below).expect("the dead claim is cleared");
-            std::fs::write(&hook_below, live_marker()).expect("the new reclaimer's claim");
-        }
-    }));
+    hooks::set(
+        "reclaim-claim-placed",
+        std::rc::Rc::new(move || {
+            if !done.replace(true) {
+                // The dead claim was cleared by a reclaimer that finished, and a new reclaimer placed its running claim there.
+                std::fs::remove_file(&hook_below).expect("the dead claim is cleared");
+                std::fs::write(&hook_below, live_marker()).expect("the new reclaimer's claim");
+            }
+        }),
+    );
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
     assert!(lock.exists(), "the stale lock stays");
-    assert_eq!(std::fs::read_to_string(&below).expect("the running claim stands"), live_marker());
-    assert_eq!(names_in(&root).len(), 3, "the index, the lock, the running claim: {:?}", names_in(&root));
+    assert_eq!(
+        std::fs::read_to_string(&below).expect("the running claim stands"),
+        live_marker()
+    );
+    assert_eq!(
+        names_in(&root).len(),
+        3,
+        "the index, the lock, the running claim: {:?}",
+        names_in(&root)
+    );
     remove(root.as_path());
 }
 
@@ -248,15 +344,22 @@ fn a_slot_below_that_vanishes_after_the_reclaimer_looked_makes_it_back_off() {
     let below: PathBuf = claim_at(&lock, 0);
     std::fs::write(&below, gone_marker(0)).expect("a dead claimer's claim");
     let (hook_below, done) = (below.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
-    hooks::set("reclaim-claim-placed", std::rc::Rc::new(move || {
-        if !done.replace(true) {
-            std::fs::remove_file(&hook_below).expect("the dead claim is cleared");
-        }
-    }));
+    hooks::set(
+        "reclaim-claim-placed",
+        std::rc::Rc::new(move || {
+            if !done.replace(true) {
+                std::fs::remove_file(&hook_below).expect("the dead claim is cleared");
+            }
+        }),
+    );
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
     assert!(lock.exists(), "the stale lock stays");
-    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "the own claim is removed");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index"), String::from("index.lock")],
+        "the own claim is removed"
+    );
     // The next attempt, with nothing in the way, holds at the lowest slot and removes the lock.
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
     remove(root.as_path());
@@ -271,19 +374,32 @@ fn a_slot_below_that_vanishes_after_the_reclaimer_looked_makes_it_back_off() {
 #[test]
 fn a_replaced_name_removes_nothing() {
     let (root, index, lock) = index_in("claim-replaced");
-    let live_cell: std::rc::Rc<std::cell::RefCell<Option<IndexLock>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let (hook_lock, hook_index, hook_live) = (lock.clone(), index.clone(), std::rc::Rc::clone(&live_cell));
-    hooks::set("reclaim-held", std::rc::Rc::new(move || {
-        // A reclaimer on a file system that gives it the hold removed the stale lock; its landing places a live lock.
-        std::fs::remove_file(&hook_lock).expect("the other reclaimer removes the stale lock");
-        *hook_live.borrow_mut() = Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
-    }));
+    let live_cell: std::rc::Rc<std::cell::RefCell<Option<IndexLock>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let (hook_lock, hook_index, hook_live) =
+        (lock.clone(), index.clone(), std::rc::Rc::clone(&live_cell));
+    hooks::set(
+        "reclaim-held",
+        std::rc::Rc::new(move || {
+            // A reclaimer on a file system that gives it the hold removed the stale lock; its landing places a live lock.
+            std::fs::remove_file(&hook_lock).expect("the other reclaimer removes the stale lock");
+            *hook_live.borrow_mut() =
+                Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
+        }),
+    );
     let platform: Platform = SYSTEM;
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Changed);
-    assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(8, &own_identity).expect("an identity"));
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the live lock stands"),
+        marker_text(8, &own_identity).expect("an identity")
+    );
     let live = live_cell.borrow_mut().take().expect("the live lock");
     drop(live);
-    assert_eq!(names_in(&root), vec![String::from("index")], "the live lock was released and no claim is left");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "the live lock was released and no claim is left"
+    );
     remove(root.as_path());
 }
 
@@ -297,12 +413,25 @@ fn a_removal_that_fails_clears_only_the_own_claim() {
     let (root, _index, lock) = index_in("claim-stuck");
     let dead: PathBuf = claim_at(&lock, 0);
     std::fs::write(&dead, gone_marker(0)).expect("a dead claimer's claim");
-    let refusing = |_: &Path| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(libc::EPERM)); };
-    let platform: Platform = Platform { unlink: &refusing, ..SYSTEM };
+    let refusing = |_: &Path| -> std::io::Result<()> {
+        return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+    };
+    let platform: Platform = Platform {
+        unlink: &refusing,
+        ..SYSTEM
+    };
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Stuck);
     assert!(lock.exists());
-    assert!(dead.exists(), "a claim of another maker stays while the stale lock stands");
-    assert_eq!(names_in(&root).len(), 3, "the index, the lock, the dead claim: {:?}", names_in(&root));
+    assert!(
+        dead.exists(),
+        "a claim of another maker stays while the stale lock stands"
+    );
+    assert_eq!(
+        names_in(&root).len(),
+        3,
+        "the index, the lock, the dead claim: {:?}",
+        names_in(&root)
+    );
     remove(root.as_path());
 }
 
@@ -312,11 +441,19 @@ fn a_removal_that_fails_clears_only_the_own_claim() {
 #[test]
 fn no_claim_can_be_placed_leaves_the_lock_and_says_so() {
     let (root, _index, lock) = index_in("claim-none");
-    let platform: Platform = Platform { rename: &rename_unless_claim, link: &link_unless_claim, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &rename_unless_claim,
+        link: &link_unless_claim,
+        ..SYSTEM
+    };
     let outcome: Reclaimed = reclaim(&platform, &lock);
     assert!(matches!(outcome, Reclaimed::Unguarded(_)), "{outcome:?}");
     assert!(lock.exists());
-    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim and no staging file is left");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index"), String::from("index.lock")],
+        "no claim and no staging file is left"
+    );
     remove(root.as_path());
 }
 
@@ -331,10 +468,19 @@ fn no_claim_can_be_placed_leaves_the_lock_and_says_so() {
 fn a_claim_placement_that_is_interrupted_or_short_of_memory_is_a_back_off() {
     for errno in TRANSIENT_ERRNOS {
         let (root, _index, lock) = index_in("claim-transient");
-        let failing = move |_: &Path, _: &Path| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(errno)); };
-        let platform: Platform = Platform { rename: &failing, ..SYSTEM };
+        let failing = move |_: &Path, _: &Path| -> std::io::Result<()> {
+            return Err(std::io::Error::from_raw_os_error(errno));
+        };
+        let platform: Platform = Platform {
+            rename: &failing,
+            ..SYSTEM
+        };
         assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy, "errno {errno}");
-        assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+        assert_eq!(
+            names_in(&root),
+            vec![String::from("index"), String::from("index.lock")],
+            "no claim was placed"
+        );
         remove(root.as_path());
     }
 }
@@ -355,9 +501,16 @@ fn a_placement_whose_answer_was_lost_is_still_this_attempts_claim() {
         rename_noreplace(from, to)?;
         return Err(std::io::Error::from_raw_os_error(libc::EIO));
     };
-    let platform: Platform = Platform { rename: &lost, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &lost,
+        ..SYSTEM
+    };
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
-    assert_eq!(names_in(&root), vec![String::from("index")], "no claim is left standing as a running claimer's");
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index")],
+        "no claim is left standing as a running claimer's"
+    );
     remove(root.as_path());
 }
 
@@ -391,9 +544,16 @@ fn a_claim_is_readable_by_other_accounts_whatever_the_makers_umask() {
     let own: PathBuf = claim_at(&lock, 0);
     let seen = std::rc::Rc::new(std::cell::Cell::new(0_u32));
     let (hook_seen, hook_own) = (std::rc::Rc::clone(&seen), own.clone());
-    hooks::set("reclaim-claim-placed", std::rc::Rc::new(move || {
-        hook_seen.set(std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&hook_own).expect("the claim").permissions()));
-    }));
+    hooks::set(
+        "reclaim-claim-placed",
+        std::rc::Rc::new(move || {
+            hook_seen.set(std::os::unix::fs::PermissionsExt::mode(
+                &std::fs::metadata(&hook_own)
+                    .expect("the claim")
+                    .permissions(),
+            ));
+        }),
+    );
     // SAFETY: `umask` takes a mode only; each control runs in its own process under nextest.
     let before: libc::mode_t = unsafe { libc::umask(0o077) };
     let platform: Platform = SYSTEM;
@@ -402,16 +562,28 @@ fn a_claim_is_readable_by_other_accounts_whatever_the_makers_umask() {
     unsafe { libc::umask(before) };
     assert_eq!(outcome, Reclaimed::Removed);
     let readable: u32 = 0o444;
-    assert_eq!(seen.get() & readable, readable, "the claim's mode was {:o}", seen.get());
+    assert_eq!(
+        seen.get() & readable,
+        readable,
+        "the claim's mode was {:o}",
+        seen.get()
+    );
     remove(root.as_path());
 }
 
 /// The rename of the system that counts the times a claim's name was found taken,
 /// and tells `first_refusal` the first time.
-fn counting_rename<'a>(refused: &'a std::cell::Cell<usize>, first_refusal: &'a std::sync::mpsc::Sender<()>) -> impl Fn(&Path, &Path) -> std::io::Result<()> + 'a {
+fn counting_rename<'a>(
+    refused: &'a std::cell::Cell<usize>,
+    first_refusal: &'a std::sync::mpsc::Sender<()>,
+) -> impl Fn(&Path, &Path) -> std::io::Result<()> + 'a {
     return move |from: &Path, to: &Path| -> std::io::Result<()> {
         let answer = rename_noreplace(from, to);
-        if to.to_string_lossy().contains(CLAIM_INFIX) && answer.as_ref().is_err_and(|error| { return error.kind() == std::io::ErrorKind::AlreadyExists; }) {
+        if to.to_string_lossy().contains(CLAIM_INFIX)
+            && answer.as_ref().is_err_and(|error| {
+                return error.kind() == std::io::ErrorKind::AlreadyExists;
+            })
+        {
             refused.set(refused.get() + 1);
             if refused.get() == 1 {
                 let _told = first_refusal.send(());
@@ -434,7 +606,12 @@ const CLAIMER_GIVE_UP: std::time::Duration = std::time::Duration::from_secs(120)
 /// and keeps it until told to let go (or until
 ///  `give_up`,
 /// so a failed control cannot hang).
-fn spawn_other_claimer(claim: PathBuf, placed: std::sync::mpsc::Sender<()>, let_go: std::sync::mpsc::Receiver<()>, give_up: std::time::Duration) -> std::thread::JoinHandle<()> {
+fn spawn_other_claimer(
+    claim: PathBuf,
+    placed: std::sync::mpsc::Sender<()>,
+    let_go: std::sync::mpsc::Receiver<()>,
+    give_up: std::time::Duration,
+) -> std::thread::JoinHandle<()> {
     return std::thread::spawn(move || {
         std::fs::write(&claim, live_marker()).expect("the other reclaimer's claim");
         placed.send(()).expect("the control waits for the claim");
@@ -470,14 +647,34 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
     let refused = std::cell::Cell::new(0_usize);
     let (first_tx, _first_rx) = std::sync::mpsc::channel::<()>();
     let counting = counting_rename(&refused, &first_tx);
-    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &counting,
+        ..SYSTEM
+    };
     let began: std::time::Instant = std::time::Instant::now();
-    let failure = acquire_within(&platform, &index, 9, ceiling, &|_| {}).expect_err("the lock is not taken while the other reclaimer holds a claim");
-    assert_eq!(failure.code, FailureCode::IndexInUse, "the wait ends at its ceiling, as for any held lock");
-    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling");
-    assert!(refused.get() >= 1, "the landing met the reclaimer's claim: {} refusals", refused.get());
-    assert!(lock.exists(), "the stale lock stays for the reclaimer that holds the claim");
-    let_go_tx.send(()).expect("the other reclaimer is told to let go");
+    let failure = acquire_within(&platform, &index, 9, ceiling, &|_| {})
+        .expect_err("the lock is not taken while the other reclaimer holds a claim");
+    assert_eq!(
+        failure.code,
+        FailureCode::IndexInUse,
+        "the wait ends at its ceiling, as for any held lock"
+    );
+    assert!(
+        began.elapsed() >= ceiling,
+        "the wait ended before its ceiling"
+    );
+    assert!(
+        refused.get() >= 1,
+        "the landing met the reclaimer's claim: {} refusals",
+        refused.get()
+    );
+    assert!(
+        lock.exists(),
+        "the stale lock stays for the reclaimer that holds the claim"
+    );
+    let_go_tx
+        .send(())
+        .expect("the other reclaimer is told to let go");
     other.join().expect("the other reclaimer ends");
     remove(root.as_path());
 }
@@ -508,9 +705,13 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     placed_rx.recv().expect("the claim is placed");
     let refused = std::cell::Cell::new(0_usize);
     let counting = counting_rename(&refused, &first_tx);
-    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &counting,
+        ..SYSTEM
+    };
     let holders = std::cell::RefCell::new(Vec::<String>::new());
-    let mut notes: crate::service_index_found::WaitNotes = crate::service_index_found::WaitNotes::default();
+    let mut notes: crate::service_index_found::WaitNotes =
+        crate::service_index_found::WaitNotes::default();
     let announce = |note: Announce| {
         if let Announce::Holder(who) = note {
             holders.borrow_mut().push(who);
@@ -518,13 +719,22 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     };
     crate::service_index_attempts::forget_waits_chosen();
     let taken = acquire_placing(&platform, &index, 9, ceiling, &announce, &mut notes, None)
-    .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
-    assert!(refused.get() >= 1, "the acquisition met the other reclaimer's claim");
-    assert!(notes.polled, "the wait looked again at the poll pace while another reclaimer held a claim, as nothing wakes it when the claim goes");
+        .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
+    assert!(
+        refused.get() >= 1,
+        "the acquisition met the other reclaimer's claim"
+    );
+    assert!(
+        notes.polled,
+        "the wait looked again at the poll pace while another reclaimer held a claim, as nothing wakes it when the claim goes"
+    );
     // The span the wait asked for, which the clock cannot say: a thread the scheduler holds makes a wait that asked for the poll
     //  pace look slow and one held just after a sleep makes a wait that asked for the notice look quick.
     let chosen: Vec<Duration> = crate::service_index_attempts::waits_chosen_by_this_thread();
-    assert!(!chosen.is_empty(), "the acquisition waited for the claim instead of taking the lock at once");
+    assert!(
+        !chosen.is_empty(),
+        "the acquisition waited for the claim instead of taking the lock at once"
+    );
     assert!(
         chosen[0] <= crate::service_index_watch::POLL_PAUSE,
         "the wait that followed the refusal meeting the claim asked for {:?}: a claim's end leaves no event on the lock's name, so the wait looks again at the poll pace ({} ms), not at the notice interval ({:?})",
@@ -532,7 +742,11 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
         crate::service_index_watch::POLL_PAUSE.as_millis(),
         notice_every()
     );
-    assert!(holders.borrow().is_empty(), "a claimed stale lock is no dead holder to give up on: {:?}", holders.borrow());
+    assert!(
+        holders.borrow().is_empty(),
+        "a claimed stale lock is no dead holder to give up on: {:?}",
+        holders.borrow()
+    );
     drop(taken);
     other.join().expect("the other reclaimer ends");
     remove(root.as_path());
@@ -544,15 +758,30 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
 fn a_wait_while_a_claim_stands_asks_for_the_poll_pace() {
     let notice: Duration = notice_every();
     let ceiling: Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
-    assert!(notice > crate::service_index_watch::POLL_PAUSE, "the notice interval and the poll pace are told apart: {notice:?}");
+    assert!(
+        notice > crate::service_index_watch::POLL_PAUSE,
+        "the notice interval and the poll pace are told apart: {notice:?}"
+    );
     // No watch can end a claim, so the wait that met one looks again at the poll pace.
-    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, false), crate::service_index_watch::POLL_PAUSE);
+    assert_eq!(
+        crate::service_index_attempts::until_next_wake(notice, ceiling, false),
+        crate::service_index_watch::POLL_PAUSE
+    );
     // A watched wait is the notice itself, which is what makes the cap above the figure that decides.
-    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, true), notice);
+    assert_eq!(
+        crate::service_index_attempts::until_next_wake(notice, ceiling, true),
+        notice
+    );
     // The ceiling bounds both.
     let short: Duration = crate::service_index_watch::POLL_PAUSE / 2;
-    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, false), short);
-    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, true), short);
+    assert_eq!(
+        crate::service_index_attempts::until_next_wake(notice, short, false),
+        short
+    );
+    assert_eq!(
+        crate::service_index_attempts::until_next_wake(notice, short, true),
+        short
+    );
 }
 
 /// The longest file name Linux gives a directory entry.
@@ -567,7 +796,11 @@ const NAME_LIMIT: usize = 255;
 #[test]
 fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     let identity: String = own_identity().expect("an identity");
-    let marked = Marked { seq: u64::MAX, holder: Some((i64::from(i32::MAX), identity)), current: true };
+    let marked = Marked {
+        seq: u64::MAX,
+        holder: Some((i64::from(i32::MAX), identity)),
+        current: true,
+    };
     let root: PathBuf = fixture("claim-long-name");
     let file_name: String = "i".repeat(40) + ".lock";
     let lock: PathBuf = root.join(file_name);
@@ -575,7 +808,10 @@ fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     let key: String = claim_key(&marked);
     let claim: PathBuf = claim_path(&lock, key.as_str(), usize::MAX);
     let length: usize = claim.file_name().expect("a name").len();
-    assert!(length <= NAME_LIMIT, "the claim name is {length} bytes: {claim:?}");
+    assert!(
+        length <= NAME_LIMIT,
+        "the claim name is {length} bytes: {claim:?}"
+    );
     remove(root.as_path());
 }
 
@@ -588,7 +824,8 @@ fn the_claim_name_of_a_marker_without_a_holder_does_not_depend_on_the_file() {
     let root: PathBuf = fixture("claim-key-holderless");
     let (first, second) = (root.join("first"), root.join("second"));
     std::fs::write(&first, format!("{LOCK_MARKER}5\n")).expect("a lock");
-    std::fs::write(&second, format!("{LOCK_MARKER}5\n")).expect("the same lock seen by another mount");
+    std::fs::write(&second, format!("{LOCK_MARKER}5\n"))
+        .expect("the same lock seen by another mount");
     let key_of = |path: &Path| -> String {
         let file = std::fs::File::open(path).expect("the lock");
         let marked = marker_of_file(&file).expect("a marker");
@@ -613,14 +850,33 @@ fn a_claim_is_placed_beside_a_lock_with_a_very_long_name() {
     // A gone process with a whole identity (boot, namespace and machine), so that the identity is as long as a real one.
     let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
     let boot: &str = crate::claim_time::current_boot_id();
-    let text: String = gone_marker(5).replacen("gone", &format!("gone#{boot}#{scope}#0123456789abcdef0123456789abcdef"), 1);
+    let text: String = gone_marker(5).replacen(
+        "gone",
+        &format!("gone#{boot}#{scope}#0123456789abcdef0123456789abcdef"),
+        1,
+    );
     std::fs::write(&lock, text).expect("a stale lock");
     let seen = std::rc::Rc::new(std::cell::Cell::new(0_usize));
     let (hook_lock, hook_seen) = (lock.clone(), std::rc::Rc::clone(&seen));
-    hooks::set("reclaim-held", std::rc::Rc::new(move || { hook_seen.set(claim_at(&hook_lock, 0).file_name().map_or(0, |name| { return name.len(); })); }));
+    hooks::set(
+        "reclaim-held",
+        std::rc::Rc::new(move || {
+            hook_seen.set(claim_at(&hook_lock, 0).file_name().map_or(0, |name| {
+                return name.len();
+            }));
+        }),
+    );
     assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed);
-    assert!(seen.get() > 0 && seen.get() <= NAME_LIMIT, "the claim name is {} bytes", seen.get());
-    assert_eq!(std::fs::read_dir(&root).expect("listing").count(), 0, "nothing is left");
+    assert!(
+        seen.get() > 0 && seen.get() <= NAME_LIMIT,
+        "the claim name is {} bytes",
+        seen.get()
+    );
+    assert_eq!(
+        std::fs::read_dir(&root).expect("listing").count(),
+        0,
+        "nothing is left"
+    );
     remove(root.as_path());
 }
 
@@ -636,7 +892,10 @@ const LONG_LOCK_NAME: usize = 150;
 /// and it is not another machine's.
 fn claim_text_of_an_unjudgeable_maker() -> String {
     let boot: &str = crate::claim_time::current_boot_id();
-    return format!("{LOCK_MARKER}{}0 4242 linux:1#{boot}#1\n", crate::service_index_marker::MARKER_VERSION);
+    return format!(
+        "{LOCK_MARKER}{}0 4242 linux:1#{boot}#1\n",
+        crate::service_index_marker::MARKER_VERSION
+    );
 }
 
 /// Refused and told:
@@ -652,14 +911,25 @@ fn a_claim_that_cannot_be_judged_is_named_and_not_taken_for_contention() {
     let text: String = claim_text_of_an_unjudgeable_maker();
     std::fs::write(&claim, &text).expect("a claim of a maker that cannot be judged");
     match reclaim(&SYSTEM, &lock) {
-        Reclaimed::Unjudged { file, marked } => {
+        Reclaimed::Unjudged {
+            file,
+            marked,
+        } => {
             assert_eq!(file, claim);
-            assert_eq!(marked.map(|found| { return found.seq; }), Some(0));
+            assert_eq!(
+                marked.map(|found| {
+                    return found.seq;
+                }),
+                Some(0)
+            );
         }
         other => panic!("expected the claim to be named: {other:?}"),
     }
     assert!(lock.exists(), "the stale lock stays");
-    assert_eq!(std::fs::read_to_string(&claim).expect("the claim stands"), text);
+    assert_eq!(
+        std::fs::read_to_string(&claim).expect("the claim stands"),
+        text
+    );
     remove(root.as_path());
 }
 
@@ -668,7 +938,12 @@ fn a_claim_that_cannot_be_judged_is_named_and_not_taken_for_contention() {
 fn the_words_for_a_claim_that_cannot_be_judged_give_the_removal() {
     let marked = parse_marker(claim_text_of_an_unjudgeable_maker().as_str()).expect("a marker");
     let words: String = unjudged_words(Path::new("/repo/it's here/cli-reclaim-x-0"), Some(&marked));
-    for needed in ["/repo/it's here/cli-reclaim-x-0", "process 4242", "cannot", "rm -- '/repo/it'\\''s here/cli-reclaim-x-0'"] {
+    for needed in [
+        "/repo/it's here/cli-reclaim-x-0",
+        "process 4242",
+        "cannot",
+        "rm -- '/repo/it'\\''s here/cli-reclaim-x-0'",
+    ] {
         assert!(words.contains(needed), "missing {needed}: {words}");
     }
 }
@@ -689,7 +964,10 @@ fn a_landing_names_the_claim_that_cannot_be_judged() {
     .expect_err("the lock is not taken");
     assert_eq!(failure.code, FailureCode::IndexInUse);
     let lines: String = said.borrow().join("\n");
-    assert!(lines.contains(claim.to_string_lossy().as_ref()) && lines.contains("rm --"), "{lines}");
+    assert!(
+        lines.contains(claim.to_string_lossy().as_ref()) && lines.contains("rm --"),
+        "{lines}"
+    );
     remove(root.as_path());
 }
 
@@ -710,17 +988,36 @@ fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
             return Err(std::io::Error::from_raw_os_error(libc::EINTR));
         };
         let (hook_claim, done) = (claim.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
-        hooks::set("reclaim-claim-unread", std::rc::Rc::new(move || {
-            if !done.replace(true) {
-                // The claim cannot be read at this moment.
-                std::fs::set_permissions(&hook_claim, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("the claim is unreadable");
-            }
-        }));
-        let first: Platform = Platform { rename: &lost, ..SYSTEM };
-        assert_eq!(reclaim(&first, &lock), Reclaimed::Busy, "the placement's answer is lost and the claim cannot be recognised");
+        hooks::set(
+            "reclaim-claim-unread",
+            std::rc::Rc::new(move || {
+                if !done.replace(true) {
+                    // The claim cannot be read at this moment.
+                    std::fs::set_permissions(
+                        &hook_claim,
+                        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+                    )
+                    .expect("the claim is unreadable");
+                }
+            }),
+        );
+        let first: Platform = Platform {
+            rename: &lost,
+            ..SYSTEM
+        };
+        assert_eq!(
+            reclaim(&first, &lock),
+            Reclaimed::Busy,
+            "the placement's answer is lost and the claim cannot be recognised"
+        );
         assert!(claim.exists(), "the claim took effect");
-        std::fs::set_permissions(&claim, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
-        assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed, "the next attempt resolves its own abandoned claim and goes on");
+        std::fs::set_permissions(&claim, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+            .expect("readable again");
+        assert_eq!(
+            reclaim(&SYSTEM, &lock),
+            Reclaimed::Removed,
+            "the next attempt resolves its own abandoned claim and goes on"
+        );
         assert_eq!(names_in(&root), vec![String::from("index")]);
         remove(root.as_path());
     });
@@ -734,19 +1031,33 @@ fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
 #[test]
 fn a_stale_lock_of_an_earlier_releases_format_is_left_and_named() {
     let (root, _index, lock) = index_in("claim-legacy");
-    let legacy: String = gone_marker(5).replacen(crate::service_index_marker::MARKER_VERSION, "", 1);
+    let legacy: String =
+        gone_marker(5).replacen(crate::service_index_marker::MARKER_VERSION, "", 1);
     std::fs::write(&lock, &legacy).expect("a legacy lock");
     match reclaim(&SYSTEM, &lock) {
-        Reclaimed::Foreign { file, marked } => {
+        Reclaimed::Foreign {
+            file,
+            marked,
+        } => {
             assert_eq!(file, lock);
             assert!(!marked.current);
             let words: String = foreign_words(file.as_path(), &marked);
-            assert!(words.contains("earlier release") && words.contains("rm --"), "{words}");
+            assert!(
+                words.contains("earlier release") && words.contains("rm --"),
+                "{words}"
+            );
         }
         other => panic!("expected the legacy lock to be left: {other:?}"),
     }
-    assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), legacy);
-    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the lock stands"),
+        legacy
+    );
+    assert_eq!(
+        names_in(&root),
+        vec![String::from("index"), String::from("index.lock")],
+        "no claim was placed"
+    );
     remove(root.as_path());
 }
 
@@ -762,5 +1073,8 @@ fn an_earlier_releases_reader_finds_no_marker_in_a_marker_of_this_release() {
     // The earlier release's reader: the prefix, then a batch number, then a holder.
     let after_prefix: &str = text.strip_prefix(LOCK_MARKER).expect("the prefix");
     let first_word: &str = after_prefix.split(' ').next().expect("a word");
-    assert!(first_word.parse::<u64>().is_err(), "an earlier release would read {first_word:?} as a batch number");
+    assert!(
+        first_word.parse::<u64>().is_err(),
+        "an earlier release would read {first_word:?} as a batch number"
+    );
 }

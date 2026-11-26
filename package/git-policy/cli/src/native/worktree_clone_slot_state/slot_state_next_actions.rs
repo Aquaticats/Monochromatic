@@ -32,7 +32,11 @@ use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::SettleReason;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, SlotReadings};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    IntentFacts,
+    SlotReadings,
+};
 
 /// The placeholder a report leaves where a person must copy a value the record holds.
 const GUIDE_DIGITS_PLACEHOLDER: &str = "<the last four decimal digits of cloneGuid=>";
@@ -42,7 +46,6 @@ const NONCE_PLACEHOLDER: &str = "<32 lowercase hex digits>";
 
 /// The unit whose journal explains a sweep that has not attached a requested mount.
 const SWEEP_UNIT: &str = "reconcile-git-worktree-clone-mounts.service";
-
 
 /// What:
 ///  The line that says whether the Git registration the record names stands.
@@ -58,8 +61,12 @@ const SWEEP_UNIT: &str = "reconcile-git-worktree-clone-mounts.service";
 /// ```
 pub fn registration_sentence(registration_stands: Option<bool>) -> String {
     return match registration_stands {
-        Some(true) => String::from("The Git registration the record names still stands, so `git worktree` lists this worktree."),
-        Some(false) => String::from("The Git registration the record names is gone, so `git worktree` no longer lists this worktree."),
+        Some(true) => String::from(
+            "The Git registration the record names still stands, so `git worktree` lists this worktree.",
+        ),
+        Some(false) => String::from(
+            "The Git registration the record names is gone, so `git worktree` no longer lists this worktree.",
+        ),
         None => String::from("The record names no Git registration yet."),
     };
 }
@@ -75,25 +82,38 @@ pub fn registration_sentence(registration_stands: Option<bool>) -> String {
 /// ```ts
 /// const asked = intent_sentence(dataset, intent);
 /// ```
-fn intent_sentence(clone_dataset: &str, intent: &IntentFacts) -> String {
+fn intent_sentence(
+    clone_dataset: &str,
+    intent: &IntentFacts,
+) -> String {
     return match intent {
-        IntentFacts::Unasked => String::from(" No mount request was asked of the clone, because the record names no clone dataset yet."),
+        IntentFacts::Unasked => String::from(
+            " No mount request was asked of the clone, because the record names no clone dataset yet.",
+        ),
         IntentFacts::Absent => format!(
             " No mount request stands on the clone. To use the worktree again, write one on it (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
             NO_REMOVAL_WORDS
         ),
-        IntentFacts::Mounting { nonce } => format!(
+        IntentFacts::Mounting {
+            nonce,
+        } => format!(
             " A mount request under nonce `{nonce}` stands on the clone, and no sweep has attached it yet: the handler's next sweep does, and `journalctl -u {SWEEP_UNIT}` says when one ran. Do not add here and do not move the slot while it waits."
         ),
-        IntentFacts::Unmounting { nonce } => format!(
+        IntentFacts::Unmounting {
+            nonce,
+        } => format!(
             " The clone's own intent keeps it unmounted under nonce `{nonce}`, so this is the state a person asked for. To use the worktree again, write a mount request back on the clone (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
             NO_REMOVAL_WORDS
         ),
-        IntentFacts::Inherited { from } => format!(
+        IntentFacts::Inherited {
+            from,
+        } => format!(
             " The clone's property is inherited from `{from}` and authorizes nothing, so no mount request stands. To use the worktree again, write a request on the clone itself (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
             NO_REMOVAL_WORDS
         ),
-        IntentFacts::Unreadable { reason } => format!(
+        IntentFacts::Unreadable {
+            reason,
+        } => format!(
             " The clone's mount intent cannot be read, so no request stands that a person can rely on: {reason} Write the intent again in the designed form on `{clone_dataset}`; to be rid of it, {}.",
             NO_REMOVAL_WORDS
         ),
@@ -112,7 +132,11 @@ fn intent_sentence(clone_dataset: &str, intent: &IntentFacts) -> String {
 /// ```ts
 /// const resume = unfinished_add(dataset, slot, phase, settleReason);
 /// ```
-fn unfinished_add(clone_dataset: &str, slot: &str, settle_reason: Option<SettleReason>) -> String {
+fn unfinished_add(
+    clone_dataset: &str,
+    slot: &str,
+    settle_reason: Option<SettleReason>,
+) -> String {
     let stopping: String = match settle_reason {
         Some(reason) => format!(" (settle reason `{}`)", reason.word()),
         None => String::new(),
@@ -134,21 +158,35 @@ fn unfinished_add(clone_dataset: &str, slot: &str, settle_reason: Option<SettleR
 /// ```ts
 /// const action = next_safe_action(state, record, readings);
 /// ```
-pub fn next_safe_action(state: &SlotRouteState, readings: &SlotReadings) -> String {
+pub fn next_safe_action(
+    state: &SlotRouteState,
+    readings: &SlotReadings,
+) -> String {
     let record: Option<&BindingRecord> = match &readings.binding {
         BindingReading::Record(record) => Some(record),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => None,
+        BindingReading::Absent
+        | BindingReading::Unreadable {
+            ..
+        } => None,
     };
     return match state {
         SlotRouteState::NotAManagedClone => String::from(
             "nothing: no binding record is filed under this slot and nothing is mounted at it, so the wrapper's clone route holds nothing here; add, move or remove it as an ordinary worktree.",
         ),
-        SlotRouteState::PendingAdd { phase, clone_dataset } => {
-            let settling: bool = phase == &crate::worktree_clone_binding_record::binding_words::Phase::Settling;
+        SlotRouteState::PendingAdd {
+            phase,
+            clone_dataset,
+        } => {
+            let settling: bool =
+                phase == &crate::worktree_clone_binding_record::binding_words::Phase::Settling;
             let reason: Option<SettleReason> = record.and_then(|found| return found.settle_reason);
             if settling {
-                let sentence: String = unfinished_add(clone_dataset, readings.slot.as_str(), reason);
-                return format!("{sentence} {}", registration_sentence(readings.registration_stands));
+                let sentence: String =
+                    unfinished_add(clone_dataset, readings.slot.as_str(), reason);
+                return format!(
+                    "{sentence} {}",
+                    registration_sentence(readings.registration_stands)
+                );
             }
             return format!(
                 "do not run Git in this folder and do not add here: the add that made this slot is unfinished at `phase={}`. Run the add again at `{}`; it reads the record and carries on from the step the phase names, and the clone dataset is `{clone_dataset}`. {}",
@@ -157,24 +195,33 @@ pub fn next_safe_action(state: &SlotRouteState, readings: &SlotReadings) -> Stri
                 registration_sentence(readings.registration_stands)
             );
         }
-        SlotRouteState::PendingRemoval { plan, .. } => format!(
+        SlotRouteState::PendingRemoval {
+            plan,
+            ..
+        } => format!(
             "do not run Git in this folder and do not add here: a removal's destruction plan at {} names this clone, so a removal is in flight or was killed. The removal that wrote it resumes from the plan and ends it, and {}. {}",
             plan.display(),
             NO_REMOVAL_WORDS,
             registration_sentence(readings.registration_stands)
         ),
-        SlotRouteState::KnownUnmountedClone { clone_dataset } => {
+        SlotRouteState::KnownUnmountedClone {
+            clone_dataset,
+        } => {
             let asked: String = intent_sentence(clone_dataset, &readings.intent);
             return format!(
                 "the clone is unmounted, and nothing under the slot is a person's file: the checkout lives on `{clone_dataset}`, and no tracked file is deleted. Do not run Git in this folder until the clone is mounted again. {asked} {}",
                 registration_sentence(readings.registration_stands)
             );
         }
-        SlotRouteState::MountedManagedClone { clone_dataset } => format!(
+        SlotRouteState::MountedManagedClone {
+            clone_dataset,
+        } => format!(
             "nothing: `{clone_dataset}` is mounted at its slot, so run Git in the worktree as usual. The slot is fixed and `git worktree move` is refused for it; to be rid of it, {}.",
             NO_REMOVAL_WORDS
         ),
-        SlotRouteState::CannotProve { reason } => format!(
+        SlotRouteState::CannotProve {
+            reason,
+        } => format!(
             "nothing until the reason is resolved: {reason} Do not add here, do not move or remove the slot, and do not write a mount request; read the record, the mount table or the folder the reason names, then run the command again."
         ),
     };

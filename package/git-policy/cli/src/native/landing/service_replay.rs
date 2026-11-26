@@ -30,30 +30,65 @@
 //! const merged = await mergeOntoBranch(captured, currentTip);   // { tree } | { conflict }
 //! ```
 
-pub use crate::service_prepare_ready_shapes::{LandedFirst, ReplayConflict};
-use crate::service_replay_line_text::is_not_empty_line;
-use crate::private_index_request::indexed_request;
-use crate::commit_transaction::{TransactionResult, TransactionStop, failed};
-use crate::path_bytes::{os_from_path_bytes, path_message_text};
-use crate::policy_events::PolicyEvent;
-use crate::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
 use crate::child_environment::environment_with_overlay;
+use crate::commit_transaction::{
+    TransactionResult,
+    TransactionStop,
+    failed,
+};
 use crate::journald_native::CLIENT_IDENTIFIER;
-use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables_on_the_runtime, resolve_tree_on_the_runtime};
+use crate::merge_second_pass::{
+    Conflict,
+    ContextRunner,
+    Merged as MergedFile,
+};
+use crate::merge_second_pass_tree::{
+    AttributeProbe,
+    announce,
+    attribute_tree_variables_on_the_runtime,
+    resolve_tree_on_the_runtime,
+};
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_message_text,
+};
+use crate::policy_events::PolicyEvent;
+use crate::private_index_request::indexed_request;
 use crate::replay_capture_order::CaptureOrderDecision;
+use crate::replay_merge::{
+    ReplayMerge,
+    merge_replay_tree,
+};
+use crate::replay_shared_paths::{
+    SharedPath,
+    list_shared_paths,
+};
+use crate::replay_subsumption::{
+    SubsumptionBase,
+    subsume_landed_changes,
+};
+use crate::service_messages::NOTHING_CHANGED;
+use crate::service_prepare_ready_shapes::Ready;
+pub use crate::service_prepare_ready_shapes::{
+    LandedFirst,
+    ReplayConflict,
+};
+use crate::service_protocol::LandedCapture;
 /// The capture order of every shared path of a replay,
 /// from one walk over the history.
 use crate::service_replay_capture_order::capture_order_of_each;
-use crate::replay_merge::{ReplayMerge, merge_replay_tree};
-use crate::replay_shared_paths::{SharedPath, list_shared_paths};
-use crate::replay_subsumption::{SubsumptionBase, subsume_landed_changes};
-use crate::service_messages::NOTHING_CHANGED;
-use crate::service_prepare_ready_shapes::Ready;
-use crate::service_protocol::LandedCapture;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::service_replay_line_text::is_not_empty_line;
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git_checked,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The transform that names the finding a retry ends with,
 /// as for every other concurrent-commit finding.
@@ -111,7 +146,10 @@ pub struct Captured {
 pub fn capture_stamp() -> u64 {
     #[cfg(unix)]
     {
-        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        let mut now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
         // SAFETY: `clock_gettime` writes one `timespec` through a valid pointer.
         let read: i32 = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut now) };
         if read != 0 {
@@ -119,7 +157,10 @@ pub fn capture_stamp() -> u64 {
         }
         let seconds: u64 = u64::try_from(now.tv_sec).unwrap_or(0);
         let nanoseconds: u64 = u64::try_from(now.tv_nsec).unwrap_or(0);
-        return seconds.saturating_mul(1_000_000_000).saturating_add(nanoseconds).max(1);
+        return seconds
+            .saturating_mul(1_000_000_000)
+            .saturating_add(nanoseconds)
+            .max(1);
     }
     #[cfg(not(unix))]
     {
@@ -190,8 +231,18 @@ pub struct MergeSite<'a> {
 /// ```ts
 /// await retryOf(context, cwd, ready, landed)
 /// ```
-pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<LandedCapture>) -> Result<Captured, TransactionStop> {
-    let tree: String = captured_tree(context, cwd, ready.inputs.commit_index.as_path(), ready.inputs.capture.layout.object_directory.as_path())?;
+pub fn retry_of(
+    context: &GitContext,
+    cwd: &Path,
+    ready: &Ready,
+    landed: Vec<LandedCapture>,
+) -> Result<Captured, TransactionStop> {
+    let tree: String = captured_tree(
+        context,
+        cwd,
+        ready.inputs.commit_index.as_path(),
+        ready.inputs.capture.layout.object_directory.as_path(),
+    )?;
     return Ok(capture_of(ready, landed, tree));
 }
 
@@ -210,7 +261,11 @@ pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<Lan
 /// ```ts
 /// retryOfAPreparedTree(ready, landed, tree)
 /// ```
-pub fn retry_of_a_prepared_tree(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captured {
+pub fn retry_of_a_prepared_tree(
+    ready: &Ready,
+    landed: Vec<LandedCapture>,
+    tree: String,
+) -> Captured {
     return capture_of(ready, landed, tree);
 }
 
@@ -227,14 +282,32 @@ pub fn retry_of_a_prepared_tree(ready: &Ready, landed: Vec<LandedCapture>, tree:
 /// ```ts
 /// captureOf(ready, landed, tree)
 /// ```
-fn capture_of(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captured {
+fn capture_of(
+    ready: &Ready,
+    landed: Vec<LandedCapture>,
+    tree: String,
+) -> Captured {
     // A branch that did not exist yet named the all-zero object as its base, which no Git step reads as a tree; the empty tree
     //  is what that base holds, and the change captured against it is the whole root tree the person staged.
-    let unborn: bool = matches!(ready.inputs.capture.base, crate::transaction_journal::Base::Unborn);
-    let base: String = if unborn { ready.inputs.capture.layout.empty_tree_oid.clone() } else { ready.base.clone() };
+    let unborn: bool = matches!(
+        ready.inputs.capture.base,
+        crate::transaction_journal::Base::Unborn
+    );
+    let base: String = if unborn {
+        ready.inputs.capture.layout.empty_tree_oid.clone()
+    } else {
+        ready.base.clone()
+    };
     // The state the preparation saw, not a reading now: another command may have concluded the operation while this commit
     //  waited, and the retry must find the same one.
-    return Captured { base, unborn, tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() };
+    return Captured {
+        base,
+        unborn,
+        tree,
+        captured: ready.captured_at,
+        landed,
+        conclusion: ready.conclusion_state.clone(),
+    };
 }
 
 /// What:
@@ -253,10 +326,19 @@ fn capture_of(ready: &Ready, landed: Vec<LandedCapture>, tree: String) -> Captur
 /// # Errors
 ///
 /// `TransactionStop::Message` when the commit cannot be read.
-pub fn tree_of_commit(context: &GitContext, cwd: &Path, commit: &str) -> Result<String, TransactionStop> {
+pub fn tree_of_commit(
+    context: &GitContext,
+    cwd: &Path,
+    commit: &str,
+) -> Result<String, TransactionStop> {
     let spec: String = format!("{commit}^{{tree}}");
-    let read = run_git_checked(context, &GitRequest::new(cwd, &["rev-parse", "--verify", spec.as_str()]))?;
-    return Ok(String::from_utf8_lossy(read.stdout.as_slice()).trim().to_string());
+    let read = run_git_checked(
+        context,
+        &GitRequest::new(cwd, &["rev-parse", "--verify", spec.as_str()]),
+    )?;
+    return Ok(String::from_utf8_lossy(read.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -277,7 +359,12 @@ pub fn tree_of_commit(context: &GitContext, cwd: &Path, commit: &str) -> Result<
 /// ```ts
 /// await capturedTree(context, cwd, commitIndex, objectDirectory)
 /// ```
-pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, object_directory: &Path) -> Result<String, TransactionStop> {
+pub fn captured_tree(
+    context: &GitContext,
+    cwd: &Path,
+    commit_index: &Path,
+    object_directory: &Path,
+) -> Result<String, TransactionStop> {
     let present: bool = match std::fs::symlink_metadata(commit_index) {
         Ok(metadata) => metadata.is_file(),
         Err(_) => false,
@@ -289,8 +376,19 @@ pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, obje
             commit_index.display()
         )));
     }
-    let written = run_git_checked(context, &indexed_request(context, cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
-    return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
+    let written = run_git_checked(
+        context,
+        &indexed_request(
+            context,
+            cwd,
+            &["write-tree"],
+            Some(commit_index),
+            Some(object_directory),
+        ),
+    )?;
+    return Ok(String::from_utf8_lossy(written.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -316,10 +414,24 @@ fn quoted_path(path: &Vec<u8>) -> String {
 /// ```ts
 /// const mergeAt = (site, captured, tip, base) => mergeReplayTree(site, base, tip, captured.tree)
 /// ```
-fn merge_at(site: &MergeSite<'_>, captured: &Captured, tip: &str, base: &str) -> Result<ReplayMerge, TransactionStop> {
-    return match merge_replay_tree(site.context, site.common_dir, site.cwd, base, tip, captured.tree.as_str()) {
+fn merge_at(
+    site: &MergeSite<'_>,
+    captured: &Captured,
+    tip: &str,
+    base: &str,
+) -> Result<ReplayMerge, TransactionStop> {
+    return match merge_replay_tree(
+        site.context,
+        site.common_dir,
+        site.cwd,
+        base,
+        tip,
+        captured.tree.as_str(),
+    ) {
         Ok(merged) => Ok(merged),
-        Err(error) => Err(failed(format!("merging the commit onto the branch failed: {error:?}"))),
+        Err(error) => Err(failed(format!(
+            "merging the commit onto the branch failed: {error:?}"
+        ))),
     };
 }
 
@@ -339,14 +451,37 @@ fn merge_at(site: &MergeSite<'_>, captured: &Captured, tip: &str, base: &str) ->
 /// ```ts
 /// await mergeCaptured(site, captured, tip) // { tree } | { conflict: paths }
 /// ```
-pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, attempt: u64) -> Result<Merged, TransactionStop> {
-    let (conflicting, first_tree, first_conflicts) = match merge_at(site, captured, tip, captured.base.as_str())? {
-        ReplayMerge::Merged { tree_oid } => return Ok(Merged::Tree(tree_oid)),
-        ReplayMerge::Conflict { paths, tree_oid, conflicts } => (paths, tree_oid, conflicts),
-    };
-    let listed: Vec<SharedPath> = match list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str()) {
+pub fn merge_captured(
+    site: &MergeSite<'_>,
+    captured: &Captured,
+    tip: &str,
+    attempt: u64,
+) -> Result<Merged, TransactionStop> {
+    let (conflicting, first_tree, first_conflicts) =
+        match merge_at(site, captured, tip, captured.base.as_str())? {
+            ReplayMerge::Merged {
+                tree_oid,
+            } => return Ok(Merged::Tree(tree_oid)),
+            ReplayMerge::Conflict {
+                paths,
+                tree_oid,
+                conflicts,
+            } => (paths, tree_oid, conflicts),
+        };
+    let listed: Vec<SharedPath> = match list_shared_paths(
+        site.context,
+        site.common_dir,
+        site.cwd,
+        captured.base.as_str(),
+        tip,
+        captured.tree.as_str(),
+    ) {
         Ok(found) => found,
-        Err(error) => return Err(failed(format!("listing the paths the branch changed failed: {error:?}"))),
+        Err(error) => {
+            return Err(failed(format!(
+                "listing the paths the branch changed failed: {error:?}"
+            )));
+        }
     };
     // Only the paths still in conflict are compared with what landed.
     let mut shared: Vec<SharedPath> = Vec::new();
@@ -355,7 +490,8 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
             shared.push(entry);
         }
     }
-    let order: BTreeMap<Vec<u8>, CaptureOrderDecision> = capture_order_of_each(site, captured, tip, shared.as_slice())?;
+    let order: BTreeMap<Vec<u8>, CaptureOrderDecision> =
+        capture_order_of_each(site, captured, tip, shared.as_slice())?;
     let compared = subsume_landed_changes(
         site.context,
         site.common_dir,
@@ -369,14 +505,34 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
     );
     let settled: SubsumptionBase = match compared {
         Ok(base) => base,
-        Err(error) => return Err(failed(format!("comparing the commit with what landed failed: {error:?}"))),
+        Err(error) => {
+            return Err(failed(format!(
+                "comparing the commit with what landed failed: {error:?}"
+            )));
+        }
     };
     if settled.subsumed_paths.is_empty() && settled.kept_landed_paths.is_empty() {
-        return Ok(word_pass(site, tip, (first_tree.as_str(), first_conflicts.as_slice()), conflicting));
+        return Ok(word_pass(
+            site,
+            tip,
+            (first_tree.as_str(), first_conflicts.as_slice()),
+            conflicting,
+        ));
     }
     return match merge_at(site, captured, tip, settled.merge_base.as_str())? {
-        ReplayMerge::Merged { tree_oid } => Ok(Merged::Tree(tree_oid)),
-        ReplayMerge::Conflict { paths, tree_oid, conflicts } => Ok(word_pass(site, tip, (tree_oid.as_str(), conflicts.as_slice()), paths)),
+        ReplayMerge::Merged {
+            tree_oid,
+        } => Ok(Merged::Tree(tree_oid)),
+        ReplayMerge::Conflict {
+            paths,
+            tree_oid,
+            conflicts,
+        } => Ok(word_pass(
+            site,
+            tip,
+            (tree_oid.as_str(), conflicts.as_slice()),
+            paths,
+        )),
     };
 }
 
@@ -398,7 +554,9 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
     if files.is_empty() {
         return None;
     }
-    return Some(PolicyEvent::WordMerged { lines: announce("", (CLIENT_IDENTIFIER, "commit-replay"), files) });
+    return Some(PolicyEvent::WordMerged {
+        lines: announce("", (CLIENT_IDENTIFIER, "commit-replay"), files),
+    });
 }
 
 /// What:
@@ -441,23 +599,49 @@ fn toplevel_of(stdout: &[u8]) -> PathBuf {
     return PathBuf::from(without_terminator);
 }
 
-fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {
+fn word_pass(
+    site: &MergeSite<'_>,
+    tip: &str,
+    merge: (&str, &[Conflict]),
+    paths: Vec<Vec<u8>>,
+) -> Merged {
     let (tree, conflicts): (&str, &[Conflict]) = merge;
     // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
     let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
     top_request.without_prefix = true;
-    top_request.repository_selection = crate::repository_selection::from_global_options(site.cwd, site.context.global_prefix.as_slice());
+    top_request.repository_selection = crate::repository_selection::from_global_options(
+        site.cwd,
+        site.context.global_prefix.as_slice(),
+    );
     let top: PathBuf = match run_git_checked(site.context, &top_request) {
         Ok(found) => toplevel_of(found.stdout.as_slice()),
         Err(_) => return Merged::Conflict(paths),
     };
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), site.context.overlay.as_slice());
+    let variables: Vec<(OsString, OsString)> = environment_with_overlay(
+        process_environment.as_slice(),
+        site.context.overlay.as_slice(),
+    );
     // The replay runs at the top of the worktree and keeps none of the caller's other options, so the repository the line named is
     //  carried here: a Git directory beside the work tree is found only when it is named.
-    let repository: Vec<OsString> = crate::repository_selection::from_global_options(top.as_path(), site.context.global_prefix.as_slice());
-    let probing: ContextRunner<'_> = ContextRunner { context: site.context, cwd: top.as_path(), without_prefix: true, repository: repository.clone(), object_directory: None, environment: Vec::new() };
-    let probe: AttributeProbe<'_> = AttributeProbe { directory: top.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
+    let repository: Vec<OsString> = crate::repository_selection::from_global_options(
+        top.as_path(),
+        site.context.global_prefix.as_slice(),
+    );
+    let probing: ContextRunner<'_> = ContextRunner {
+        context: site.context,
+        cwd: top.as_path(),
+        without_prefix: true,
+        repository: repository.clone(),
+        object_directory: None,
+        environment: Vec::new(),
+    };
+    let probe: AttributeProbe<'_> = AttributeProbe {
+        directory: top.as_path(),
+        global_prefix: &[],
+        variables: variables.as_slice(),
+        runner: &probing,
+    };
     let runner: ContextRunner<'_> = ContextRunner {
         context: site.context,
         cwd: top.as_path(),
@@ -467,11 +651,13 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         environment: attribute_tree_variables_on_the_runtime(tip, &probe),
     };
     return match resolve_tree_on_the_runtime(&runner, site.common_dir, tree, conflicts, &probe) {
-        Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
+        Some(resolved) => Merged::Combined {
+            tree: resolved.tree,
+            files: resolved.merged,
+        },
         None => Merged::Conflict(paths),
     };
 }
-
 
 /// The revision a walk of the landed history leaves out,
 /// which is the base the change was prepared against.
@@ -494,9 +680,22 @@ fn excluded_from_the_walk(revision: &str) -> String {
 /// ```ts
 /// await firstLanded(context, cwd, base, tip, paths) // { short, subject } | undefined
 /// ```
-pub fn first_landed(context: &GitContext, cwd: &Path, base: Option<&str>, tip: &str, paths: &[Vec<u8>]) -> Result<Option<LandedFirst>, TransactionStop> {
+pub fn first_landed(
+    context: &GitContext,
+    cwd: &Path,
+    base: Option<&str>,
+    tip: &str,
+    paths: &[Vec<u8>],
+) -> Result<Option<LandedFirst>, TransactionStop> {
     let exclusion: Option<String> = base.map(excluded_from_the_walk);
-    let mut words: Vec<&str> = vec!["log", "--reverse", "--format=%h%x00%s", "--no-color", "--no-show-signature", tip];
+    let mut words: Vec<&str> = vec![
+        "log",
+        "--reverse",
+        "--format=%h%x00%s",
+        "--no-color",
+        "--no-show-signature",
+        tip,
+    ];
     if let Some(left_out) = exclusion.as_deref() {
         words.push(left_out);
     }
@@ -505,15 +704,22 @@ pub fn first_landed(context: &GitContext, cwd: &Path, base: Option<&str>, tip: &
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
         pathspec.extend_from_slice(path.as_slice());
-        spec_words.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+        spec_words
+            .arguments
+            .push(os_from_path_bytes(pathspec.as_slice()));
     }
     // Every spec here is the wrapper's own, so no pathspec mode the caller set reaches it.
     let request: GitRequest = spec_words.own_pathspecs();
     let listed = run_git_checked(context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
-    let Some(first) = text.lines().find(is_not_empty_line) else { return Ok(None) };
+    let Some(first) = text.lines().find(is_not_empty_line) else {
+        return Ok(None);
+    };
     let (short, subject) = first.split_once('\0').unwrap_or((first, ""));
-    return Ok(Some(LandedFirst { short: short.to_string(), subject: subject.to_string() }));
+    return Ok(Some(LandedFirst {
+        short: short.to_string(),
+        subject: subject.to_string(),
+    }));
 }
 
 /// The paths as the person reads them:
@@ -542,13 +748,19 @@ fn paths_text(paths: &[Vec<u8>]) -> String {
 /// ```ts
 /// conflictText(conflict, savedMessage)
 /// ```
-pub fn conflict_text(conflict: &ReplayConflict, saved: Option<&Path>) -> String {
+pub fn conflict_text(
+    conflict: &ReplayConflict,
+    saved: Option<&Path>,
+) -> String {
     let landed: String = match &conflict.landed {
         Some(first) => format!("the commit {} (\"{}\")", first.short, first.subject),
         None => String::from("another commit"),
     };
     let look: String = match &conflict.landed {
-        Some(first) => format!("Look at what that commit changed with `git show {}`, bring your", first.short),
+        Some(first) => format!(
+            "Look at what that commit changed with `git show {}`, bring your",
+            first.short
+        ),
         None => String::from("Look at what the branch changed, bring your"),
     };
     let again: String = match saved {
@@ -567,9 +779,16 @@ pub fn conflict_text(conflict: &ReplayConflict, saved: Option<&Path>) -> String 
 }
 
 /// The finding a conflict ends the command with.
-pub fn conflict_result(conflict: &ReplayConflict, saved: Option<&Path>) -> TransactionResult {
+pub fn conflict_result(
+    conflict: &ReplayConflict,
+    saved: Option<&Path>,
+) -> TransactionResult {
     return TransactionResult {
-        events: vec![PolicyEvent::CoreFinding { core_id: CORE_ID, code: "replay-conflict", message: conflict_text(conflict, saved) }],
+        events: vec![PolicyEvent::CoreFinding {
+            core_id: CORE_ID,
+            code: "replay-conflict",
+            message: conflict_text(conflict, saved),
+        }],
         exit_code: 1,
         landed_oid: None,
         uses_lfs: false,

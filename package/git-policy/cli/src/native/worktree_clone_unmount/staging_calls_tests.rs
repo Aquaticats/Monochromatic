@@ -13,7 +13,11 @@
 //! expect(live.boot()).not.toBe('');
 //! ```
 
-use super::{LiveStagingCalls, StagingCalls, MOUNT_NAMESPACE_PATH};
+use super::{
+    LiveStagingCalls,
+    MOUNT_NAMESPACE_PATH,
+    StagingCalls,
+};
 use std::os::unix::fs::MetadataExt;
 
 /// The boot identifier is the kernel's own and is not empty.
@@ -27,18 +31,27 @@ fn the_boot_is_the_kernels() {
 /// The namespace pair is this process's own mount namespace.
 #[test]
 fn the_namespace_pair_is_this_processs() {
-    let (device, inode): (u64, u64) = LiveStagingCalls.namespace_pair().expect("this namespace is read");
-    let facts: std::fs::Metadata = std::fs::metadata(MOUNT_NAMESPACE_PATH).expect("the namespace file is read");
+    let (device, inode): (u64, u64) = LiveStagingCalls
+        .namespace_pair()
+        .expect("this namespace is read");
+    let facts: std::fs::Metadata =
+        std::fs::metadata(MOUNT_NAMESPACE_PATH).expect("the namespace file is read");
     assert_eq!((device, inode), (facts.dev(), facts.ino()));
 }
 
 /// A fixture folder is on a mount this process's table lists.
 #[test]
 fn a_folder_is_on_a_listed_mount() {
-    let root: std::path::PathBuf = crate::testing::test_support::fixture_root().join("staging-calls-mount");
+    let root: std::path::PathBuf =
+        crate::testing::test_support::fixture_root().join("staging-calls-mount");
     std::fs::create_dir_all(root.as_path()).expect("the fixture folder is made");
-    let folder: std::fs::File = std::fs::File::open(root.as_path()).expect("the fixture folder opens");
-    let mount_id: u64 = LiveStagingCalls.mount_id(&folder).expect("the folder's mount is read");
-    let facts = LiveStagingCalls.mount_facts(mount_id).expect("the mount's facts are read");
+    let folder: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("the fixture folder opens");
+    let mount_id: u64 = LiveStagingCalls
+        .mount_id(&folder)
+        .expect("the folder's mount is read");
+    let facts = LiveStagingCalls
+        .mount_facts(mount_id)
+        .expect("the mount's facts are read");
     assert_eq!(facts.mount_id, mount_id);
 }

@@ -18,7 +18,10 @@ fn words(text: &[&str]) -> Vec<OsString> {
 struct Buffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl Write for Buffer {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.0.lock().expect("buffer").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -41,7 +44,10 @@ fn the_command_line_can_ask_for_a_signature_and_take_it_back() {
     assert!(signs_commit(None, &words(&["-S", "-m", "x"])));
     assert!(signs_commit(None, &words(&["--gpg-sign=KEY", "-m", "x"])));
     assert!(signs_commit(None, &words(&["-SKEY", "-m", "x"])));
-    assert!(!signs_commit(None, &words(&["-S", "--no-gpg-sign", "-m", "x"])));
+    assert!(!signs_commit(
+        None,
+        &words(&["-S", "--no-gpg-sign", "-m", "x"])
+    ));
     assert!(!signs_commit(None, &words(&["-m", "x", "--", "-S"])));
     assert!(!signs_commit(None, &words(&["-m", "x"])));
 }
@@ -51,25 +57,42 @@ fn the_command_line_can_ask_for_a_signature_and_take_it_back() {
 #[test]
 fn a_step_that_ends_at_once_prints_nothing_and_a_long_one_prints_again() {
     let quick: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(400), interval: Duration::from_millis(400) };
-    let quick_notice: NativeCommitNotice = NativeCommitNotice::start(None, &words(&["-m", "x"]), cadence, Box::new(quick.clone()));
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(400),
+        interval: Duration::from_millis(400),
+    };
+    let quick_notice: NativeCommitNotice =
+        NativeCommitNotice::start(None, &words(&["-m", "x"]), cadence, Box::new(quick.clone()));
     quick_notice.finish();
     assert_eq!(text_of(&quick), "");
     let slow: Buffer = Buffer::default();
-    let notice: NativeCommitNotice = NativeCommitNotice::start(None, &words(&["-m", "x"]), cadence, Box::new(slow.clone()));
+    let notice: NativeCommitNotice =
+        NativeCommitNotice::start(None, &words(&["-m", "x"]), cadence, Box::new(slow.clone()));
     std::thread::sleep(Duration::from_millis(1300));
     notice.finish();
     let said: String = text_of(&slow);
     assert!(said.lines().count() >= 2, "{said}");
-    assert_eq!(said.matches("Hint").count(), 1, "only the first line carries the hint: {said}");
+    assert_eq!(
+        said.matches("Hint").count(),
+        1,
+        "only the first line carries the hint: {said}"
+    );
 }
 
 /// A commit that opens the person's editor prints nothing however long it lasts.
 #[test]
 fn a_commit_that_opens_an_editor_prints_nothing() {
     let quiet: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(50), interval: Duration::from_millis(50) };
-    let notice: NativeCommitNotice = NativeCommitNotice::start(None, &words(&["-m", "x", "--edit"]), cadence, Box::new(quiet.clone()));
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(50),
+        interval: Duration::from_millis(50),
+    };
+    let notice: NativeCommitNotice = NativeCommitNotice::start(
+        None,
+        &words(&["-m", "x", "--edit"]),
+        cadence,
+        Box::new(quiet.clone()),
+    );
     std::thread::sleep(Duration::from_millis(300));
     notice.finish();
     assert_eq!(text_of(&quiet), "");
@@ -79,7 +102,8 @@ fn a_commit_that_opens_an_editor_prints_nothing() {
 /// which stands for the `git commit` of the step,
 /// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn sleeping_step() -> std::process::Child {
-    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120")).expect("a long-running child");
+    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120"))
+        .expect("a long-running child");
 }
 
 /// The number of a child,
@@ -109,7 +133,10 @@ fn ended_by_signal(child: &mut std::process::Child) -> Option<i32> {
 fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -123,14 +150,28 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
     if ended.is_none() {
         step.kill().expect("cleanup");
     }
-    assert!(ended.is_some(), "the step was still running after its ceiling");
+    assert!(
+        ended.is_some(),
+        "the step was still running after its ceiling"
+    );
     let stopped: Option<Duration> = seen.stopped_after;
-    assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(300); }), "{stopped:?}");
+    assert!(
+        stopped.is_some_and(|after| {
+            return after >= Duration::from_millis(300);
+        }),
+        "{stopped:?}"
+    );
     assert!(seen.armed, "a message on the command line arms the ceiling");
-    assert!(seen.looks >= 1 && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
+    assert!(
+        seen.looks >= 1 && seen.looks_found >= 1,
+        "the notice looked and found the step: {seen:?}"
+    );
     // A `sleep` acts on the signal at once, so no look of this stop finds it held, and the notice says nothing of a kernel holding it.
     let said: String = text_of(&sink);
-    assert!(!said.contains("has not released"), "a step that acted on its stop is said to be held by the kernel: {said}");
+    assert!(
+        !said.contains("has not released"),
+        "a step that acted on its stop is said to be held by the kernel: {said}"
+    );
 }
 
 /// A commit that may open the person's editor has no ceiling:
@@ -139,7 +180,10 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
 #[test]
 fn a_commit_that_may_open_an_editor_is_never_stopped() {
     let mut step: std::process::Child = sleeping_step();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x", "--edit"]),
@@ -161,7 +205,10 @@ fn a_commit_that_may_open_an_editor_is_never_stopped() {
 /// a commit that landed is never turned into a failure.
 #[test]
 fn a_step_that_ended_before_its_ceiling_reports_no_stop() {
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -186,7 +233,10 @@ fn a_step_that_ended_before_its_ceiling_reports_no_stop() {
 /// this control holds the reading that a missing process never takes the ceiling away.
 #[test]
 fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -204,13 +254,24 @@ fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert!(ended.is_some(), "a step that started after the ceiling's look ran on with no ceiling and was never stopped");
-    assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(200); }), "{stopped:?}");
+    assert!(
+        ended.is_some(),
+        "a step that started after the ceiling's look ran on with no ceiling and was never stopped"
+    );
+    assert!(
+        stopped.is_some_and(|after| {
+            return after >= Duration::from_millis(200);
+        }),
+        "{stopped:?}"
+    );
 }
 
 /// The entry the notice kept for the program `name`,
 /// or a failure that names what it kept instead.
-fn kept_below<'kept>(below: &'kept [crate::scratch_commit_step::SeenProgram], name: &str) -> &'kept crate::scratch_commit_step::SeenProgram {
+fn kept_below<'kept>(
+    below: &'kept [crate::scratch_commit_step::SeenProgram],
+    name: &str,
+) -> &'kept crate::scratch_commit_step::SeenProgram {
     for program in below {
         if program.name == name {
             return program;
@@ -230,8 +291,13 @@ fn kept_below<'kept>(below: &'kept [crate::scratch_commit_step::SeenProgram], na
 /// named as the kernel names it.
 #[test]
 fn the_notice_reports_the_programs_that_ran_below_the_step() {
-    let mut step: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("2")).expect("a long-running child");
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let mut step: std::process::Child =
+        crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("2"))
+            .expect("a long-running child");
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -244,17 +310,39 @@ fn the_notice_reports_the_programs_that_ran_below_the_step() {
     let seen: ScratchStepFacts = notice.finish();
     step.kill().expect("cleanup");
     step.wait().expect("reaped");
-    assert!(seen.armed && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
+    assert!(
+        seen.armed && seen.looks_found >= 1,
+        "the notice looked and found the step: {seen:?}"
+    );
     assert_eq!(seen.stopped_after, None, "the ceiling never came: {seen:?}");
-    let found: &crate::scratch_commit_step::SeenProgram = kept_below(seen.below.as_slice(), "sleep");
-    assert!(found.seen >= Duration::from_millis(750), "the sleep ran while the notice looked: {seen:?}");
-    assert!(found.seen <= Duration::from_millis(1200), "a program cannot be seen longer than it ran: {seen:?}");
+    let found: &crate::scratch_commit_step::SeenProgram =
+        kept_below(seen.below.as_slice(), "sleep");
+    assert!(
+        found.seen >= Duration::from_millis(750),
+        "the sleep ran while the notice looked: {seen:?}"
+    );
+    assert!(
+        found.seen <= Duration::from_millis(1200),
+        "a program cannot be seen longer than it ran: {seen:?}"
+    );
 }
 
 /// One process a look saw below the step,
 /// as `look_below` reports it.
-fn seen(pid: i32, started: u64, name: &str) -> (i32, ProcessUse) {
-    return (pid, ProcessUse { name: String::from(name), started, state: 'S', cpu: Duration::ZERO });
+fn seen(
+    pid: i32,
+    started: u64,
+    name: &str,
+) -> (i32, ProcessUse) {
+    return (
+        pid,
+        ProcessUse {
+            name: String::from(name),
+            started,
+            state: 'S',
+            cpu: Duration::ZERO,
+        },
+    );
 }
 
 /// What:
@@ -270,9 +358,19 @@ fn the_same_program_must_be_seen_at_both_looks_to_be_credited() {
     let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
     let before: Vec<SeenBelow> = seen_below(&[seen(100, 5, "ssh-keygen")]);
     let now: Vec<(i32, ProcessUse)> = vec![seen(200, 9, "ssh-keygen")];
-    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
-    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
-    assert_eq!(kept.seen, Duration::ZERO, "a program that was not below the step at the look before it was credited with time no process ran: {facts:?}");
+    credit_between_looks(
+        &mut facts,
+        before.as_slice(),
+        now.as_slice(),
+        Duration::from_millis(250),
+    );
+    let kept: &crate::scratch_commit_step::SeenProgram =
+        kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(
+        kept.seen,
+        Duration::ZERO,
+        "a program that was not below the step at the look before it was credited with time no process ran: {facts:?}"
+    );
 }
 
 /// What:
@@ -289,9 +387,19 @@ fn a_program_that_takes_another_place_between_looks_is_credited_only_from_its_ow
     let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
     let before: Vec<SeenBelow> = seen_below(&[seen(100, 5, "sh")]);
     let now: Vec<(i32, ProcessUse)> = vec![seen(100, 5, "ssh-keygen")];
-    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
-    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
-    assert_eq!(kept.seen, Duration::ZERO, "a program was credited with an interval in which another program held its process: {facts:?}");
+    credit_between_looks(
+        &mut facts,
+        before.as_slice(),
+        now.as_slice(),
+        Duration::from_millis(250),
+    );
+    let kept: &crate::scratch_commit_step::SeenProgram =
+        kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(
+        kept.seen,
+        Duration::ZERO,
+        "a program was credited with an interval in which another program held its process: {facts:?}"
+    );
 }
 
 /// What:
@@ -308,9 +416,19 @@ fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
     let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
     let before: Vec<SeenBelow> = Vec::new();
     let now: Vec<(i32, ProcessUse)> = vec![seen(300, 9, "ssh-keygen")];
-    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
-    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
-    assert_eq!(kept.seen, Duration::ZERO, "a program seen once is kept with a zero lower bound: {facts:?}");
+    credit_between_looks(
+        &mut facts,
+        before.as_slice(),
+        now.as_slice(),
+        Duration::from_millis(250),
+    );
+    let kept: &crate::scratch_commit_step::SeenProgram =
+        kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(
+        kept.seen,
+        Duration::ZERO,
+        "a program seen once is kept with a zero lower bound: {facts:?}"
+    );
 }
 
 /// What:
@@ -323,12 +441,22 @@ fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
 /// the notice returned,
 /// the ceiling went with it,
 /// and the step ran on while the command still waited for it.
-///  The limit is this test's own process,
-/// which nextest runs alone for each test.
+///  The limit belongs to a whole process,
+/// so it is lowered in a child process of this test's own,
+/// and no other test of the run opens under it.
 #[test]
 fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
+    if !crate::descriptor_limit_child_test_support::this_process_is_the_child() {
+        crate::descriptor_limit_child_test_support::started_this_test_in_a_child(
+            module_path!(),
+            "a_look_that_could_not_be_made_keeps_the_ceiling_armed",
+            None,
+        );
+        return;
+    }
     let baseline: usize = crate::test_support::open_descriptors();
-    let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
+    let before: rustix::process::Rlimit =
+        crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
     let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
     let look: Option<Vec<(i32, ProcessUse)>> = look_below(own);
@@ -337,8 +465,15 @@ fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
     let came: CeilingCame = ceiling_came(&watched).came;
     drop(held);
     crate::test_support::restore_limit(before);
-    assert!(look.is_none(), "the look was made with no descriptor left free: {look:?}");
-    assert_eq!(came, CeilingCame::Unknown, "a look that could not be made was read as the step having ended, which takes the ceiling away");
+    assert!(
+        look.is_none(),
+        "the look was made with no descriptor left free: {look:?}"
+    );
+    assert_eq!(
+        came,
+        CeilingCame::Unknown,
+        "a look that could not be made was read as the step having ended, which takes the ceiling away"
+    );
 }
 
 /// The longest a control waits for the notice to reach a state it means to test.
@@ -390,10 +525,21 @@ const A_CEILING_ALREADY_COME: Duration = Duration::from_millis(1);
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
+    if !crate::descriptor_limit_child_test_support::this_process_is_the_child() {
+        crate::descriptor_limit_child_test_support::started_this_test_in_a_child(
+            module_path!(),
+            "a_step_is_still_stopped_after_a_look_that_could_not_be_made",
+            None,
+        );
+        return;
+    }
     let _window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -408,9 +554,13 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
     );
     // The ceiling comes now, and `/proc` cannot be read at all, so the look that carries it out fails.
     let baseline: usize = crate::test_support::open_descriptors();
-    let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
+    let before: rustix::process::Rlimit =
+        crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
     let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
-    assert!(std::fs::read_dir("/proc").is_err(), "the window this control makes is not blind: `/proc` was read with no descriptor left free");
+    assert!(
+        std::fs::read_dir("/proc").is_err(),
+        "the window this control makes is not blind: `/proc` was read with no descriptor left free"
+    );
     the_controls_window::plant_the_ceiling(A_CEILING_ALREADY_COME);
     let ended: Option<i32> = ended_by_signal(&mut step);
     drop(held);
@@ -420,9 +570,19 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(ended, Some(libc::SIGKILL), "a look that could not be made took the ceiling away, so the step ran on: {seen:?}");
-    assert!(seen.stopped_after.is_some(), "the stop is recorded: {seen:?}");
-    assert!(seen.below_unlisted, "a walk that could not be made leaves what the step started unnamed, and the record says so: {seen:?}");
+    assert_eq!(
+        ended,
+        Some(libc::SIGKILL),
+        "a look that could not be made took the ceiling away, so the step ran on: {seen:?}"
+    );
+    assert!(
+        seen.stopped_after.is_some(),
+        "the stop is recorded: {seen:?}"
+    );
+    assert!(
+        seen.below_unlisted,
+        "a walk that could not be made leaves what the step started unnamed, and the record says so: {seen:?}"
+    );
 }
 
 /// What:
@@ -431,7 +591,10 @@ fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
 /// Why:
 ///   A control that shows a process was left alone must give a signal on its way the same bound,
 /// so "alive" is an answer and not a race.
-fn ended_within(child: &mut std::process::Child, bound: Duration) -> Option<i32> {
+fn ended_within(
+    child: &mut std::process::Child,
+    bound: Duration,
+) -> Option<i32> {
     use std::os::unix::process::ExitStatusExt;
     let deadline: Instant = Instant::now() + bound;
     loop {
@@ -453,7 +616,12 @@ const STILL_RUNNING_BOUND: Duration = Duration::from_millis(500);
 /// A child of this process that is nobody's step,
 /// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn a_process_beside_the_step() -> std::process::Child {
-    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("600").stdin(std::process::Stdio::null())).expect("a long-running child");
+    return crate::test_support::spawn_owned(
+        std::process::Command::new("sleep")
+            .arg("600")
+            .stdin(std::process::Stdio::null()),
+    )
+    .expect("a long-running child");
 }
 
 /// What:
@@ -472,7 +640,10 @@ fn a_process_beside_the_step() -> std::process::Child {
 fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
     let mut beside: std::process::Child = a_process_beside_the_step();
     let mut step: std::process::Child = sleeping_step();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -488,8 +659,14 @@ fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
         beside.kill().expect("cleanup");
         beside.wait().expect("reaped");
     }
-    assert!(ended.is_some(), "the ceiling did not end the step it watches: {seen:?}");
-    assert!(beside_ended.is_none(), "the ceiling ended a process beside the step ({beside_ended:?}); only the step it watches may be ended");
+    assert!(
+        ended.is_some(),
+        "the ceiling did not end the step it watches: {seen:?}"
+    );
+    assert!(
+        beside_ended.is_none(),
+        "the ceiling ended a process beside the step ({beside_ended:?}); only the step it watches may be ended"
+    );
 }
 
 /// What:
@@ -518,8 +695,16 @@ fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
         running_step.kill().expect("cleanup");
         running_step.wait().expect("reaped");
     }
-    assert_eq!(after_the_end, CeilingCame::TheStepEnded, "a step that already ended was reported as stopped, which refuses a commit that landed");
-    assert_eq!(while_running, CeilingCame::Stopped, "a step that was signalled is reported as stopped");
+    assert_eq!(
+        after_the_end,
+        CeilingCame::TheStepEnded,
+        "a step that already ended was reported as stopped, which refuses a commit that landed"
+    );
+    assert_eq!(
+        while_running,
+        CeilingCame::Stopped,
+        "a step that was signalled is reported as stopped"
+    );
     assert!(ended.is_some(), "the step the ceiling signalled ended");
 }
 
@@ -538,12 +723,19 @@ struct StoppedReaderSink {
 }
 
 impl Write for StoppedReaderSink {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.entered.store(true, std::sync::atomic::Ordering::SeqCst);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.entered
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         while !self.released.load(std::sync::atomic::Ordering::SeqCst) {
             std::thread::sleep(Duration::from_millis(5));
         }
-        self.written.lock().expect("written").extend_from_slice(bytes);
+        self.written
+            .lock()
+            .expect("written")
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -572,8 +764,15 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     let entered: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
     let released: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
     let written: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::default();
-    let sink: StoppedReaderSink = StoppedReaderSink { entered: entered.clone(), released: released.clone(), written: written.clone() };
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) };
+    let sink: StoppedReaderSink = StoppedReaderSink {
+        entered: entered.clone(),
+        released: released.clone(),
+        written: written.clone(),
+    };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(100),
+        interval: Duration::from_millis(100),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -586,7 +785,10 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     while !entered.load(std::sync::atomic::Ordering::SeqCst) && Instant::now() < writing_started {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(entered.load(std::sync::atomic::Ordering::SeqCst), "the notice never wrote a line");
+    assert!(
+        entered.load(std::sync::atomic::Ordering::SeqCst),
+        "the notice never wrote a line"
+    );
     // Three cadences: the writer holds the first line, the queue holds the second, and the third cannot be handed over.
     std::thread::sleep(cadence.interval.saturating_mul(3));
     let (sent, told) = std::sync::mpsc::channel::<ScratchStepFacts>();
@@ -602,12 +804,23 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     let answered_in_time: bool = heard.is_some();
     let facts: ScratchStepFacts = match heard {
         Some(answered) => answered,
-        None => told.recv_timeout(Duration::from_secs(30)).expect("the finish returns once the reader takes the line"),
+        None => told
+            .recv_timeout(Duration::from_secs(30))
+            .expect("the finish returns once the reader takes the line"),
     };
     finishing.join().expect("the finishing thread");
-    assert!(answered_in_time, "the commit was still waiting for a reader that stopped reading {waited:?} after its step ended: {facts:?}");
-    assert!(facts.lines_dropped >= 1, "the record says a line was dropped because the reader was not taking it: {facts:?}");
-    assert_eq!(facts.looks_found, 0, "no step ran, so no look found one: {facts:?}");
+    assert!(
+        answered_in_time,
+        "the commit was still waiting for a reader that stopped reading {waited:?} after its step ended: {facts:?}"
+    );
+    assert!(
+        facts.lines_dropped >= 1,
+        "the record says a line was dropped because the reader was not taking it: {facts:?}"
+    );
+    assert_eq!(
+        facts.looks_found, 0,
+        "no step ran, so no look found one: {facts:?}"
+    );
 }
 
 /// A sink that takes the first line at once and waits to be let go before every later one.
@@ -621,15 +834,22 @@ struct LateSink {
 }
 
 impl Write for LateSink {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         let after_the_first: bool = !self.written.lock().expect("written").is_empty();
         if after_the_first {
-            self.blocking.store(true, std::sync::atomic::Ordering::SeqCst);
+            self.blocking
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             while !self.released.load(std::sync::atomic::Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(5));
             }
         }
-        self.written.lock().expect("written").push(String::from_utf8_lossy(bytes).into_owned());
+        self.written
+            .lock()
+            .expect("written")
+            .push(String::from_utf8_lossy(bytes).into_owned());
         return Ok(bytes.len());
     }
 
@@ -654,8 +874,15 @@ fn a_finished_command_prints_nothing_more() {
     let written: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::default();
     let blocking: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
     let released: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
-    let sink: LateSink = LateSink { written: written.clone(), blocking: blocking.clone(), released: released.clone() };
-    let cadence: Cadence = Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) };
+    let sink: LateSink = LateSink {
+        written: written.clone(),
+        blocking: blocking.clone(),
+        released: released.clone(),
+    };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_millis(60),
+        interval: Duration::from_millis(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -668,7 +895,10 @@ fn a_finished_command_prints_nothing_more() {
     while !blocking.load(std::sync::atomic::Ordering::SeqCst) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(blocking.load(std::sync::atomic::Ordering::SeqCst), "the sink never had a second line to wait on");
+    assert!(
+        blocking.load(std::sync::atomic::Ordering::SeqCst),
+        "the sink never had a second line to wait on"
+    );
     // Two more cadences: the writer still waits, so one line is queued behind it and the later ones are dropped.
     std::thread::sleep(Duration::from_millis(150));
     let _facts: ScratchStepFacts = notice.finish();
@@ -677,7 +907,11 @@ fn a_finished_command_prints_nothing_more() {
     released.store(true, std::sync::atomic::Ordering::SeqCst);
     std::thread::sleep(Duration::from_millis(300));
     let after: usize = written.lock().expect("written").len();
-    assert!(after <= when_over + 1, "a line was printed after the command was over: {} lines, {when_over} of them before it ended", after);
+    assert!(
+        after <= when_over + 1,
+        "a line was printed after the command was over: {} lines, {when_over} of them before it ended",
+        after
+    );
 }
 
 /// The ceiling a control gives a step that outlasts it:
@@ -709,12 +943,16 @@ const A_STALL_BOUND: Duration = Duration::from_secs(30);
 #[test]
 fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
     // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
-    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _look_window: std::sync::MutexGuard<'_, ()> =
+        crate::scratch_step_look_below::the_controls_window::take_the_window();
     let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -722,7 +960,10 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
         ceiling: A_CEILING_A_STEP_OUTLASTS,
         sink: Box::new(sink.clone()),
     });
-    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(step_number(&step), "git");
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(
+        step_number(&step),
+        "git",
+    );
     notice.step_started(step_number(&step));
     std::thread::sleep(A_CEILING_A_STEP_OUTLASTS * 5);
     let ended: Option<i32> = ended_within(&mut step, A_CEILING_A_STEP_OUTLASTS);
@@ -731,13 +972,25 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(ended, None, "the ceiling ended a step the kernel held past it: {seen:?}");
-    assert_eq!(seen.stopped_after, None, "the ceiling stood aside, so no stop is recorded: {seen:?}");
+    assert_eq!(
+        ended, None,
+        "the ceiling ended a step the kernel held past it: {seen:?}"
+    );
+    assert_eq!(
+        seen.stopped_after, None,
+        "the ceiling stood aside, so no stop is recorded: {seen:?}"
+    );
     assert!(
-        seen.held_after_ceiling.is_some_and(|waited| { return waited >= A_CEILING_A_STEP_OUTLASTS; }),
+        seen.held_after_ceiling.is_some_and(|waited| {
+            return waited >= A_CEILING_A_STEP_OUTLASTS;
+        }),
         "the record does not say when the ceiling stood aside: {seen:?}"
     );
-    assert_eq!(seen.stall_ceiling, Some(A_STALL_BOUND), "the record names the bound the step then ran under: {seen:?}");
+    assert_eq!(
+        seen.stall_ceiling,
+        Some(A_STALL_BOUND),
+        "the record names the bound the step then ran under: {seen:?}"
+    );
 }
 
 /// What:
@@ -758,12 +1011,16 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
 #[test]
 fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
     // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
-    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _look_window: std::sync::MutexGuard<'_, ()> =
+        crate::scratch_step_look_below::the_controls_window::take_the_window();
     let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
-    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let cadence: Cadence = Cadence {
+        grace: Duration::from_secs(60),
+        interval: Duration::from_secs(60),
+    };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -771,14 +1028,27 @@ fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
         ceiling: A_CEILING_A_STEP_OUTLASTS,
         sink: Box::new(sink.clone()),
     });
-    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(step_number(&step), "git");
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(
+        step_number(&step),
+        "git",
+    );
     notice.step_started(step_number(&step));
     std::thread::sleep(A_CEILING_A_STEP_OUTLASTS * 5);
     let seen: ScratchStepFacts = notice.finish();
     step.kill().expect("cleanup");
     step.wait().expect("reaped");
-    assert_eq!(seen.stall_ceiling, Some(A_STALL_BOUND), "the ceiling stood aside: {seen:?}");
+    assert_eq!(
+        seen.stall_ceiling,
+        Some(A_STALL_BOUND),
+        "the ceiling stood aside: {seen:?}"
+    );
     let said: String = text_of(&sink);
-    assert!(!said.contains("reached its ceiling"), "the thread that watches the step printed the wait's line: {said}");
-    assert!(!said.contains("waits for it instead of failing the commit"), "the stand-aside is said by the wait that owns the step, once: {said}");
+    assert!(
+        !said.contains("reached its ceiling"),
+        "the thread that watches the step printed the wait's line: {said}"
+    );
+    assert!(
+        !said.contains("waits for it instead of failing the commit"),
+        "the stand-aside is said by the wait that owns the step, once: {said}"
+    );
 }

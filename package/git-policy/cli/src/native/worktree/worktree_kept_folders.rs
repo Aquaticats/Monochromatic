@@ -33,8 +33,14 @@
 
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::ObjectId;
-use crate::worktree_trash::{TRASH_PARENT, Trash};
-use std::path::{Path, PathBuf};
+use crate::worktree_trash::{
+    TRASH_PARENT,
+    Trash,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The prefix of a folder this command keeps when the name it came from is taken.
@@ -71,14 +77,22 @@ pub(crate) const KEPT_PREFIX: &str = ".cli-git-worktree-kept-";
 /// ```ts
 /// keepTheFolder({ trash, name: 'd3', moved: id, shown }); // '.claude/cli-git-trash/.cli-git-worktree-kept-<digits>'
 /// ```
-pub(crate) fn keep_the_folder(trash: &Trash, to: &str, moved: ObjectId, shown: &Path) -> Result<Option<PathBuf>, String> {
+pub(crate) fn keep_the_folder(
+    trash: &Trash,
+    to: &str,
+    moved: ObjectId,
+    shown: &Path,
+) -> Result<Option<PathBuf>, String> {
     // Only the entry this command moved is taken out: one that is not there any more,
     // or one that is another object, belongs to whoever replaced it.
     match trash.held_entry(to, moved) {
         Ok(Some(_the_entry_this_command_moved)) => {}
         Ok(None) => return Ok(None),
         Err(another_object) => {
-            debug("worktreeKeptFolders", format!("{another_object}; the entry is left to whoever put it there").as_str());
+            debug(
+                "worktreeKeptFolders",
+                format!("{another_object}; the entry is left to whoever put it there").as_str(),
+            );
             return Ok(None);
         }
     }
@@ -102,7 +116,9 @@ pub(crate) fn keep_the_folder(trash: &Trash, to: &str, moved: ObjectId, shown: &
 /// keptFolders(stage) // every <stage>/.claude/cli-git-trash/.cli-git-worktree-kept-* path
 /// ```
 pub(crate) fn kept_folders(stage: &Path) -> Vec<PathBuf> {
-    let Ok(listed) = std::fs::read_dir(stage.join(TRASH_PARENT)) else { return Vec::new() };
+    let Ok(listed) = std::fs::read_dir(stage.join(TRASH_PARENT)) else {
+        return Vec::new();
+    };
     let mut kept: Vec<PathBuf> = Vec::new();
     for entry in listed.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -131,7 +147,11 @@ pub(crate) fn kept_folders(stage: &Path) -> Vec<PathBuf> {
 fn kept_name() -> Result<String, String> {
     let made: String = match crate::random_id::random_uuid() {
         Ok(uuid) => uuid,
-        Err(error) => return Err(format!("a name for the kept folder could not be made: {error:?}")),
+        Err(error) => {
+            return Err(format!(
+                "a name for the kept folder could not be made: {error:?}"
+            ));
+        }
     };
     let digits: String = made.chars().filter(char::is_ascii_hexdigit).collect();
     return Ok(format!("{KEPT_PREFIX}{}", digits.to_ascii_lowercase()));

@@ -22,24 +22,62 @@
 
 use crate::diagnostic_log::debug;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, UNKNOWN_DESTINATION_NOTICE, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registered_by_another_notice, registration_changed, unconfirmed_destination_notice, uncopiable_notice, unreadable_notice, unsettled_notice};
-use crate::worktree_subvolume::Reservation;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
+use crate::worktree_copy::{
+    Invocation,
+    summary_line,
+};
+use crate::worktree_copy_ceiling::CopyCeiling;
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure_of,
+};
 use crate::worktree_copy_journal::create_journal;
 use crate::worktree_copy_journal_encoding_and_validation::PendingJournal;
+use crate::worktree_copy_notices::{
+    DestinationOwnership,
+    UNKNOWN_DESTINATION_NOTICE,
+    not_this_commands_destination_notice,
+    nothing_but_a_reservation,
+    ownership_of,
+    registered_by_another_notice,
+    registration_changed,
+    unconfirmed_destination_notice,
+    uncopiable_notice,
+    unreadable_notice,
+    unsettled_notice,
+};
+use crate::worktree_copy_registry::{
+    CreatedWorktrees,
+    WorktreeCopyObservation,
+    command_token,
+    find_created_worktree,
+};
 use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_source_still_being_filled::{source_is_still_being_filled, source_still_being_filled_notice};
-use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot_for};
+use crate::worktree_copy_source_still_being_filled::{
+    source_is_still_being_filled,
+    source_still_being_filled_notice,
+};
+use crate::worktree_copy_stage::{
+    StagedSnapshot,
+    stage_ignored_snapshot_for,
+};
 use crate::worktree_copy_stage_binding::verify_stage_binding;
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
-use crate::worktree_copy::{Invocation, summary_line};
-use crate::worktree_copy_registry::{CreatedWorktrees, WorktreeCopyObservation, command_token, find_created_worktree};
-use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
+use crate::worktree_copy_stage_claim::{
+    StageClaim,
+    claim_stage_for_add,
+};
+use crate::worktree_copy_transaction::{
+    Outcome,
+    SnapshotSource,
+    complete_journal,
+};
+use crate::worktree_subvolume::Reservation;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The claim this copy runs under:
@@ -58,13 +96,16 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const claim = recorded ?? await claimStageForAdd({ commonDir, destinationRoot });
 /// ```
-fn claim_for_the_copy(recorded: Option<StageClaim>, common_dir: &Path, destination_root: &Path) -> Result<StageClaim, WorktreeCopyError> {
+fn claim_for_the_copy(
+    recorded: Option<StageClaim>,
+    common_dir: &Path,
+    destination_root: &Path,
+) -> Result<StageClaim, WorktreeCopyError> {
     return match recorded {
         Some(written) => Ok(written),
         None => claim_stage_for_add(common_dir, destination_root),
     };
 }
-
 
 /// What:
 ///  Stages,
@@ -99,7 +140,6 @@ pub fn synchronize_created_worktree(
         &mut std::io::sink(),
     );
 }
-
 
 /// What:
 ///  Stages one source's ignored state,
@@ -169,15 +209,19 @@ pub fn synchronize_created_worktree_noting(
         Ok(pending) => pending,
         Err(error) => {
             // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(raw_failure_of)?;
+            std::fs::remove_dir_all(snapshot.stage_container.as_path()).map_err(raw_failure_of)?;
             // As above: the record of the unfilled destination outlives this command.
             return Err(error);
         }
     };
     debug(
         "worktreeCopyTransaction",
-        format!("journal created in {} ms after the stage at {} ms", journaling.elapsed().as_millis(), staged_done.as_millis()).as_str(),
+        format!(
+            "journal created in {} ms after the stage at {} ms",
+            journaling.elapsed().as_millis(),
+            staged_done.as_millis()
+        )
+        .as_str(),
     );
     // The journal names the stage from here on, so the claim has done its work.
     claim.release()?;
@@ -211,15 +255,21 @@ pub fn synchronize_created_worktree_noting(
         Outcome::Installed(copied) => {
             if !snapshot.unreadable.is_empty() {
                 // A closed standard error leaves nowhere to print; the log line of the stage still names the entries.
-                let _written = notice.write_all(unreadable_notice(source_root, snapshot.unreadable.as_slice()).as_bytes());
+                let _written = notice.write_all(
+                    unreadable_notice(source_root, snapshot.unreadable.as_slice()).as_bytes(),
+                );
             }
             if !snapshot.uncopiable.is_empty() {
                 // The same writer and the same silence: a socket the copy cannot hold is named once, and the rest arrived.
-                let _written = notice.write_all(uncopiable_notice(source_root, snapshot.uncopiable.as_slice()).as_bytes());
+                let _written = notice.write_all(
+                    uncopiable_notice(source_root, snapshot.uncopiable.as_slice()).as_bytes(),
+                );
             }
             if !snapshot.unsettled.is_empty() {
                 // The same writer and the same silence: an entry a build kept writing stays in its source, named.
-                let _written = notice.write_all(unsettled_notice(source_root, snapshot.unsettled.as_slice()).as_bytes());
+                let _written = notice.write_all(
+                    unsettled_notice(source_root, snapshot.unsettled.as_slice()).as_bytes(),
+                );
             }
             Ok(copied)
         }
@@ -291,7 +341,11 @@ pub(crate) fn synchronize_after(
         // A refused command whose destination carries another command's proof did not make that worktree, and its own
         // record must not describe the whole worktree as unfinished.
         if ownership == DestinationOwnership::GitFailed
-            && crate::worktree_copy_registry::registered_by_another(observation.common_dir.as_path(), destination, mine.as_str())?
+            && crate::worktree_copy_registry::registered_by_another(
+                observation.common_dir.as_path(),
+                destination,
+                mine.as_str(),
+            )?
         {
             *another_commands_worktree = true;
         }
@@ -302,11 +356,11 @@ pub(crate) fn synchronize_after(
         }
         // A refused add whose destination carries another command's proof settles this command's record, so the line
         // must not promise one a later command would report.
-        let record_stays: bool = !(ownership == DestinationOwnership::GitFailed && *another_commands_worktree);
-        let line: String = not_this_commands_destination_notice(destination, ownership, record_stays);
-        stderr
-            .write_all(line.as_bytes())
-            .map_err(raw_failure_of)?;
+        let record_stays: bool =
+            !(ownership == DestinationOwnership::GitFailed && *another_commands_worktree);
+        let line: String =
+            not_this_commands_destination_notice(destination, ownership, record_stays);
+        stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
     // The object the destination was when this command decided it was his: the registration it takes must be that one.
@@ -315,15 +369,14 @@ pub(crate) fn synchronize_after(
         Reservation::Anothers(identity) => *identity,
         Reservation::NotAttempted => None,
     };
-    let mut found: CreatedWorktrees =
-        find_created_worktree(
-            &invocation.context,
-            observation,
-            destination,
-            registered_before,
-            mine.as_str(),
-            expected,
-        )?;
+    let mut found: CreatedWorktrees = find_created_worktree(
+        &invocation.context,
+        observation,
+        destination,
+        registered_before,
+        mine.as_str(),
+        expected,
+    )?;
     // The registration is bound once Git has returned; a reservation it does not describe is another command's
     // registration at this command's path, made after the ownership answer was read.
     if let Reservation::Mine(made) = reserved
@@ -331,10 +384,12 @@ pub(crate) fn synchronize_after(
     {
         for worktree in &found.created {
             if worktree.binding.destination_id != identity {
-                let line: String = not_this_commands_destination_notice(destination, DestinationOwnership::MadeAgain, true);
-                stderr
-                    .write_all(line.as_bytes())
-                    .map_err(raw_failure_of)?;
+                let line: String = not_this_commands_destination_notice(
+                    destination,
+                    DestinationOwnership::MadeAgain,
+                    true,
+                );
+                stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
                 return Ok(Vec::new());
             }
         }
@@ -343,9 +398,7 @@ pub(crate) fn synchronize_after(
     // there and nothing is written into that one: its ignored state is that command's to copy.
     if let Some(other) = found.other_commands.as_deref() {
         let line: String = registered_by_another_notice(destination, other);
-        stderr
-            .write_all(line.as_bytes())
-            .map_err(raw_failure_of)?;
+        stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
     // A destination Git made but whose registration cannot be confirmed is told, not skipped without a word.
@@ -355,9 +408,7 @@ pub(crate) fn synchronize_after(
         && std::fs::symlink_metadata(destination.join(".git")).is_ok()
     {
         let line: String = unconfirmed_destination_notice(destination);
-        stderr
-            .write_all(line.as_bytes())
-            .map_err(raw_failure_of)?;
+        stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
     let mut created_roots: Vec<PathBuf> = Vec::new();
@@ -379,11 +430,12 @@ pub(crate) fn synchronize_after(
         // A source that is itself receiving a copy holds only part of its ignored files, so nothing is staged from it;
         // the new worktree is made whole by the same add once that copy has finished, and the person is told so.
         // This comes before the record below is taken, so the caller still holds the record and settles it.
-        if let Some(unfinished) = source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
-            let line: String = source_still_being_filled_notice(destination, source.as_path(), unfinished);
-            stderr
-                .write_all(line.as_bytes())
-                .map_err(raw_failure_of)?;
+        if let Some(unfinished) =
+            source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())?
+        {
+            let line: String =
+                source_still_being_filled_notice(destination, source.as_path(), unfinished);
+            stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
             // The destination received no ignored state and this command's Git made it, so the record its owner wrote stays
             // for the next command to report and for the readiness check to hold others back with.
             *left_unfilled = true;
@@ -420,9 +472,7 @@ pub(crate) fn synchronize_after(
         found.created.len(),
         observation.source_root.as_deref(),
     );
-    stderr
-        .write_all(line.as_bytes())
-        .map_err(raw_failure_of)?;
+    stderr.write_all(line.as_bytes()).map_err(raw_failure_of)?;
     return Ok(created_roots);
 }
 

@@ -20,7 +20,12 @@ fn every_refusal_reads_back_as_itself() {
         RefusalWord::CallerGone,
     ];
     for word in words {
-        assert_eq!(RefusalWord::parse(word.word()), Some(word), "word `{}`", word.word());
+        assert_eq!(
+            RefusalWord::parse(word.word()),
+            Some(word),
+            "word `{}`",
+            word.word()
+        );
     }
     assert_eq!(RefusalWord::parse("holder-busy"), None);
 }
@@ -54,7 +59,13 @@ fn every_refusal_fits_the_receipts_failed_step_bound() {
 /// so a progress file that went backwards is read as a rewritten file.
 #[test]
 fn the_stages_rise_in_the_acts_order() {
-    let stages: [Stage; 5] = [Stage::Preflight, Stage::Structural, Stage::Signals, Stage::Unmount, Stage::Done];
+    let stages: [Stage; 5] = [
+        Stage::Preflight,
+        Stage::Structural,
+        Stage::Signals,
+        Stage::Unmount,
+        Stage::Done,
+    ];
     let orders: Vec<u8> = stages.iter().map(|stage| return stage.order()).collect();
     assert_eq!(orders, vec![0, 1, 2, 3, 4]);
     assert_eq!(Stage::Preflight.word(), "preflight");
@@ -68,9 +79,18 @@ fn the_reserved_names_are_the_designs() {
     assert_eq!(SCAN_FILE_SUFFIX, ".holder-scan");
     assert_eq!(PROGRESS_FILE_SUFFIX, ".removal-progress");
     assert_eq!(DESTINATION_DIRECTORY_PREFIX, ".git-worktree-clone-removal-");
-    assert_eq!(CALLER_PROPERTY, "org.monochromatic:git-worktree-clone-removal-caller");
+    assert_eq!(
+        CALLER_PROPERTY,
+        "org.monochromatic:git-worktree-clone-removal-caller"
+    );
     assert!(FORCE_PROPERTY.starts_with("org.monochromatic:git-worktree-clone-removal-"));
     // The version word and the separator are the mount protocol's own, so one grammar spells them once.
-    assert_eq!(crate::worktree_clone_mount_protocol::clone_mount_property_names::VALUE_VERSION, "v1");
-    assert_eq!(crate::worktree_clone_mount_protocol::clone_mount_property_names::FIELD_SEPARATOR, ':');
+    assert_eq!(
+        crate::worktree_clone_mount_protocol::clone_mount_property_names::VALUE_VERSION,
+        "v1"
+    );
+    assert_eq!(
+        crate::worktree_clone_mount_protocol::clone_mount_property_names::FIELD_SEPARATOR,
+        ':'
+    );
 }

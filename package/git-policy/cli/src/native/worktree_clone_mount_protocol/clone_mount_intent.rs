@@ -24,10 +24,22 @@
 //! ```
 
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
-    DESIRED_STATE_PROPERTY, FIELD_SEPARATOR, MAXIMUM_INTENT_BYTES, MOUNT_WORD, UNMOUNT_WORD, VALUE_VERSION,
+    DESIRED_STATE_PROPERTY,
+    FIELD_SEPARATOR,
+    MAXIMUM_INTENT_BYTES,
+    MOUNT_WORD,
+    UNMOUNT_WORD,
+    VALUE_VERSION,
 };
-use crate::worktree_clone_mount_protocol::local_user_property::{PropertyReading, PropertyRefusal, read_local_property};
-use crate::worktree_clone_mount_protocol::request_nonce::{NonceRefusal, RequestNonce};
+use crate::worktree_clone_mount_protocol::local_user_property::{
+    PropertyReading,
+    PropertyRefusal,
+    read_local_property,
+};
+use crate::worktree_clone_mount_protocol::request_nonce::{
+    NonceRefusal,
+    RequestNonce,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// What:
@@ -139,19 +151,31 @@ impl IntentRefusal {
     /// what was read and the way forward.
     pub fn message(&self) -> String {
         let named: String = match self {
-            IntentRefusal::TooLong { bytes, bound } => format!(
+            IntentRefusal::TooLong {
+                bytes,
+                bound,
+            } => format!(
                 "the mount intent under {DESIRED_STATE_PROPERTY} is {bytes} bytes long, and the longest intent this route reads is {bound} bytes (`{VALUE_VERSION}:<32 lowercase hex digits>:{UNMOUNT_WORD}`). Nothing was parsed, mounted or unmounted. Ways forward: write the intent in the designed form, or inherit nothing and leave the property unset."
             ),
-            IntentRefusal::FieldCount { fields } => format!(
+            IntentRefusal::FieldCount {
+                fields,
+            } => format!(
                 "the mount intent under {DESIRED_STATE_PROPERTY} has {fields} `{FIELD_SEPARATOR}`-separated fields, and the grammar has exactly three: `{VALUE_VERSION}`, the 32-hex-digit nonce, and `{MOUNT_WORD}` or `{UNMOUNT_WORD}`. Nothing was parsed, mounted or unmounted. Ways forward: write the intent again in the designed form, with no extra field."
             ),
-            IntentRefusal::WrongVersion { word } => format!(
+            IntentRefusal::WrongVersion {
+                word,
+            } => format!(
                 "the mount intent under {DESIRED_STATE_PROPERTY} begins with `{word}`, and this build reads only `{VALUE_VERSION}`. Nothing was parsed, mounted or unmounted. Ways forward: write the intent with the `{VALUE_VERSION}` version word; a version this build does not know is never read as an older or newer one."
             ),
-            IntentRefusal::UnknownOperation { word } => format!(
+            IntentRefusal::UnknownOperation {
+                word,
+            } => format!(
                 "the mount intent under {DESIRED_STATE_PROPERTY} asks for `{word}`, and the only operations are `{MOUNT_WORD}` and `{UNMOUNT_WORD}`. Nothing was parsed, mounted or unmounted. Ways forward: write one of the two operation words."
             ),
-            IntentRefusal::Nonce(refusal) => format!("the intent under {DESIRED_STATE_PROPERTY} was not read: {}", refusal.message()),
+            IntentRefusal::Nonce(refusal) => format!(
+                "the intent under {DESIRED_STATE_PROPERTY} was not read: {}",
+                refusal.message()
+            ),
             IntentRefusal::Property(refusal) => refusal.message(DESIRED_STATE_PROPERTY),
         };
         return named;
@@ -205,8 +229,15 @@ impl IntentReading {
 /// ```ts
 /// const intentText = (operation, nonce) => `v1:${nonce.asStr()}:${operation}`;
 /// ```
-pub fn intent_text(operation: MountOperation, nonce: &RequestNonce) -> String {
-    return format!("{VALUE_VERSION}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{}", nonce.as_str(), operation.word());
+pub fn intent_text(
+    operation: MountOperation,
+    nonce: &RequestNonce,
+) -> String {
+    return format!(
+        "{VALUE_VERSION}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{}",
+        nonce.as_str(),
+        operation.word()
+    );
 }
 
 /// What:
@@ -230,19 +261,32 @@ pub fn intent_text(operation: MountOperation, nonce: &RequestNonce) -> String {
 pub fn parse_mount_intent(text: &str) -> Result<MountIntent, IntentRefusal> {
     let bytes: usize = text.len();
     if bytes > MAXIMUM_INTENT_BYTES {
-        return Err(IntentRefusal::TooLong { bytes, bound: MAXIMUM_INTENT_BYTES });
+        return Err(IntentRefusal::TooLong {
+            bytes,
+            bound: MAXIMUM_INTENT_BYTES,
+        });
     }
     let fields: Vec<&str> = text.split(FIELD_SEPARATOR).collect();
     let [version, digits, operation_word] = fields.as_slice() else {
-        return Err(IntentRefusal::FieldCount { fields: fields.len() });
+        return Err(IntentRefusal::FieldCount {
+            fields: fields.len(),
+        });
     };
     if *version != VALUE_VERSION {
-        return Err(IntentRefusal::WrongVersion { word: String::from(*version) });
+        return Err(IntentRefusal::WrongVersion {
+            word: String::from(*version),
+        });
     }
-    let operation: MountOperation = MountOperation::from_word(operation_word)
-        .ok_or_else(|| return IntentRefusal::UnknownOperation { word: String::from(*operation_word) })?;
+    let operation: MountOperation = MountOperation::from_word(operation_word).ok_or_else(|| {
+        return IntentRefusal::UnknownOperation {
+            word: String::from(*operation_word),
+        };
+    })?;
     let nonce: RequestNonce = RequestNonce::parse(digits).map_err(IntentRefusal::Nonce)?;
-    return Ok(MountIntent { operation, nonce });
+    return Ok(MountIntent {
+        operation,
+        nonce,
+    });
 }
 
 /// What:
@@ -258,16 +302,28 @@ pub fn parse_mount_intent(text: &str) -> Result<MountIntent, IntentRefusal> {
 /// ```ts
 /// const reading = readIntent(reply.properties, cloneName);
 /// ```
-pub fn read_intent(properties: Option<&NvList>, clone: &str) -> IntentReading {
-    let reading: PropertyReading<'_> = read_local_property(properties, clone, DESIRED_STATE_PROPERTY);
+pub fn read_intent(
+    properties: Option<&NvList>,
+    clone: &str,
+) -> IntentReading {
+    let reading: PropertyReading<'_> =
+        read_local_property(properties, clone, DESIRED_STATE_PROPERTY);
     return match reading {
         PropertyReading::Absent => IntentReading::Absent,
-        PropertyReading::Inherited { from } => IntentReading::Inherited { from },
-        PropertyReading::Local { value } => match parse_mount_intent(value) {
+        PropertyReading::Inherited {
+            from,
+        } => IntentReading::Inherited {
+            from,
+        },
+        PropertyReading::Local {
+            value,
+        } => match parse_mount_intent(value) {
             Ok(intent) => IntentReading::Request(intent),
             Err(refusal) => IntentReading::Refused(refusal),
         },
-        PropertyReading::Malformed(refusal) => IntentReading::Refused(IntentRefusal::Property(refusal)),
+        PropertyReading::Malformed(refusal) => {
+            IntentReading::Refused(IntentRefusal::Property(refusal))
+        }
     };
 }
 

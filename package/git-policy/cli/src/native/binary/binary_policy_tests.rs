@@ -14,11 +14,26 @@
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::run_commit;
 use super::support::{
-    Fixture, Observed, bounded, direct, executable, fixture, git, observe, remove, repository,
+    Fixture,
+    Observed,
+    bounded,
+    direct,
+    executable,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
     wrapped,
 };
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The only configuration file the native wrapper reads.
 const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
@@ -28,13 +43,20 @@ const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
 const LOCATION_QUERY: &str = "rev-parse --path-format=absolute --is-bare-repository --git-dir --git-common-dir --show-toplevel --show-prefix";
 
 /// Run a wrapped command in a repository and return what the caller saw.
-fn run_wrapped(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
+fn run_wrapped(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(wrapped(fixture).current_dir(repo).args(arguments), b"");
 }
 
 /// Real Git's porcelain status of a repository,
 ///  as raw bytes.
-fn status(fixture: &Fixture, repo: &Path) -> Vec<u8> {
+fn status(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Vec<u8> {
     return git(
         fixture,
         repo,
@@ -48,7 +70,11 @@ fn status(fixture: &Fixture, repo: &Path) -> Vec<u8> {
 /// the caller saw with the log:
 ///  one line per Git process,
 ///  holding its arguments.
-fn run_counted(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Observed, String) {
+fn run_counted(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> (Observed, String) {
     let log: PathBuf = fixture.root.join("spawn.log");
     std::fs::write(&log, b"").expect("empty spawn log");
     let mut path: OsString = fixture.root.join("bin").into_os_string();
@@ -80,7 +106,10 @@ fn read_only_commands_start_only_the_forwarded_command() {
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     // The hooks-off options the wrapper puts in front of the subcommand are not part of the count's question, so the
     //  log leaves them out when nothing precedes them; a global option the wrapper adds itself precedes them.
-    let mut hooks_off: String = format!("-c core.hooksPath={} ", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY);
+    let mut hooks_off: String = format!(
+        "-c core.hooksPath={} ",
+        git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY
+    );
     for event in git_policy_cli::hooks_off::switched_off_events() {
         hooks_off.push_str(format!("-c hook.{event}.enabled=false ").as_str());
     }
@@ -122,7 +151,8 @@ fn read_only_commands_start_only_the_forwarded_command() {
     // The announced query starts Git exactly once as well; the caller sees Git's output, then the banner.
     let (announced, announced_log) = run_counted(&fixture, repo.as_path(), &["--version"]);
     assert_eq!(announced_log, "--version\n");
-    let mut expected_stdout: Vec<u8> = observe(direct(&fixture).current_dir(&repo).arg("--version"), b"").stdout;
+    let mut expected_stdout: Vec<u8> =
+        observe(direct(&fixture).current_dir(&repo).arg("--version"), b"").stdout;
     expected_stdout.extend_from_slice(
         format!(
             "monochromatic-git-policy-cli {}, shadowing git at {}\n",
@@ -151,10 +181,17 @@ fn read_only_commands_start_only_the_forwarded_command() {
         assert_eq!(logged, format!("{forwarded}\n"), "{arguments:?}");
     }
     // Positive control: a global option the reader leaves to Git brings the location question back.
-    let (_, asked) = run_counted(&fixture, repo.as_path(), &["-c", "core.pager=cat", "log", "--oneline"]);
+    let (_, asked) = run_counted(
+        &fixture,
+        repo.as_path(),
+        &["-c", "core.pager=cat", "log", "--oneline"],
+    );
     let asked_lines: Vec<&str> = asked.lines().collect();
     assert_eq!(asked_lines.len(), 2, "{asked:?}");
-    assert!(asked_lines[0].ends_with(LOCATION_QUERY), "the first start is the location question: {asked:?}");
+    assert!(
+        asked_lines[0].ends_with(LOCATION_QUERY),
+        "the first start is the location question: {asked:?}"
+    );
     // Positive control: a guarded command does read the configuration, and stops on it
     // without starting any Git process.
     let (stopped, stopped_log) =
@@ -293,11 +330,20 @@ fn inspection_commands_never_read_configuration() {
     }
     // The announced query reads no configuration either: Git's line comes first, the banner is the only addition.
     let version: Observed = run_wrapped(&fixture, repo.as_path(), &["--version"]);
-    let version_through_git: Observed = observe(direct(&fixture).current_dir(&repo).arg("--version"), b"");
+    let version_through_git: Observed =
+        observe(direct(&fixture).current_dir(&repo).arg("--version"), b"");
     assert_eq!(version.code, Some(0));
     assert_eq!(version.stderr, version_through_git.stderr);
-    assert!(version.stdout.starts_with(version_through_git.stdout.as_slice()));
-    assert!(version.stdout.ends_with(b", shadowing git at /usr/bin/git\n"));
+    assert!(
+        version
+            .stdout
+            .starts_with(version_through_git.stdout.as_slice())
+    );
+    assert!(
+        version
+            .stdout
+            .ends_with(b", shadowing git at /usr/bin/git\n")
+    );
     remove(&fixture);
 }
 
@@ -335,7 +381,11 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
         "{ordinary_stderr}"
     );
     // Fix stays silent about the legacy files, and finds nothing to correct.
-    let fix: Observed = run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]);
+    let fix: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "fix", "--all"],
+    );
     assert_eq!(fix.code, Some(0));
     assert_eq!(fix.stdout, Vec::<u8>::new());
     assert!(
@@ -343,7 +393,11 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
         "{:?}",
         String::from_utf8_lossy(&fix.stderr)
     );
-    let check: Observed = run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]);
+    let check: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
     assert_eq!(check.code, Some(0));
     assert_eq!(
         String::from_utf8_lossy(&check.stdout),
@@ -384,7 +438,12 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
 
 /// The line a forbidden-strings content match prints,
 ///  as event number `sequence`.
-fn forbidden_match(trigger: &str, sequence: u64, path: &str, line: u64) -> String {
+fn forbidden_match(
+    trigger: &str,
+    sequence: u64,
+    path: &str,
+    line: u64,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"{trigger}\",\"policyId\":\"security/forbidden-strings\",\"severity\":\"error\",\"code\":\"security/forbidden-strings/forbidden-string\",\"message\":\"Forbidden string matched at line {line} (rule 0).\",\"path\":\"{path}\",\"fix\":\"none\"}}\n"
     );
@@ -520,7 +579,12 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
         run_wrapped(
             &fixture,
             repo.as_path(),
-            &["add", "--no-enforce-security/forbidden-strings", "--", "a.txt"]
+            &[
+                "add",
+                "--no-enforce-security/forbidden-strings",
+                "--",
+                "a.txt"
+            ]
         ),
         Observed {
             code: Some(0),
@@ -540,7 +604,12 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
         repo.as_path(),
         &["commit", "--quiet", "--message=blocked", "--", "a.txt"],
     );
-    assert_eq!(blocked.code, Some(1), "{}", String::from_utf8_lossy(&blocked.stderr));
+    assert_eq!(
+        blocked.code,
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&blocked.stderr)
+    );
     assert!(
         String::from_utf8_lossy(&blocked.stderr).contains("security/forbidden-strings"),
         "{}",
@@ -559,7 +628,12 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
             "a.txt",
         ],
     );
-    assert_eq!(committed.code, Some(0), "{}", String::from_utf8_lossy(&committed.stderr));
+    assert_eq!(
+        committed.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&committed.stderr)
+    );
     assert_eq!(
         String::from_utf8_lossy(&status(&fixture, repo.as_path())),
         "?? monochromatic-git-policy-cli.config.jsonc\n?? rules/private.txt\n"
@@ -643,7 +717,11 @@ fn direct_fix_corrects_only_worktree_files() {
     );
     // A second fix finds nothing to do.
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]),
+        run_wrapped(
+            &fixture,
+            repo.as_path(),
+            &["monochromatic-git-policy-cli", "fix", "--all"]
+        ),
         Observed {
             code: Some(0),
             stdout: Vec::<u8>::new(),

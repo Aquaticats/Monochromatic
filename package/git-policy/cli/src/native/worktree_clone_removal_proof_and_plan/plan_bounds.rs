@@ -27,7 +27,10 @@
 //! ```
 
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{
-    ATTEMPT_KEY, ATTEMPT_NAME_KEY, PLAN_HEADER, SNAPSHOT_KIND,
+    ATTEMPT_KEY,
+    ATTEMPT_NAME_KEY,
+    PLAN_HEADER,
+    SNAPSHOT_KIND,
 };
 
 /// The largest header a plan may carry,
@@ -132,7 +135,10 @@ pub const HEADER_FIELD_WIDEST_BYTES: [(&str, usize); 18] = [
 /// the key,
 /// the separator,
 /// the value and the newline.
-pub fn line_bytes(key: &str, value_bytes: usize) -> u64 {
+pub fn line_bytes(
+    key: &str,
+    value_bytes: usize,
+) -> u64 {
     return key.len() as u64 + 1 + value_bytes as u64 + 1;
 }
 

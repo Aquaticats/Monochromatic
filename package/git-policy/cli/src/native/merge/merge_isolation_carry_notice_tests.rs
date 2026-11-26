@@ -4,14 +4,21 @@
 //! and what the person can do with it.
 
 use super::*;
-use crate::merge_isolation_carry_kept_path::{Holds, MergeHolds, Staged};
+use crate::merge_isolation_carry_kept_path::{
+    Holds,
+    MergeHolds,
+    Staged,
+};
 
 /// What:
 ///  A conflict line names the file and says what to do with the markers,
 /// because the command exits 0 and has no other way to say so.
 #[test]
 fn a_conflict_line_names_the_file_and_what_to_do() {
-    let report: Report = Report { conflicts: vec![b"dir/a.txt".to_vec()], ..Report::default() };
+    let report: Report = Report {
+        conflicts: vec![b"dir/a.txt".to_vec()],
+        ..Report::default()
+    };
     let lines: Vec<String> = report_lines("feature", &report);
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("git merge feature"), "{}", lines[0]);
@@ -34,9 +41,16 @@ fn a_kept_line_names_the_file_its_reason_and_the_way_back() {
         merge: MergeHolds::Nothing,
         staged: Staged::Nothing,
     };
-    let report: Report = Report { kept: vec![kept], ..Report::default() };
+    let report: Report = Report {
+        kept: vec![kept],
+        ..Report::default()
+    };
     let lines: Vec<String> = report_lines("feature", &report);
-    assert!(lines[0].contains("gone.txt") && lines[0].contains("the merge deletes it"), "{}", lines[0]);
+    assert!(
+        lines[0].contains("gone.txt") && lines[0].contains("the merge deletes it"),
+        "{}",
+        lines[0]
+    );
     assert!(lines[0].contains("`rm -- gone.txt`"), "{}", lines[0]);
 }
 
@@ -52,8 +66,16 @@ fn changed_and_merged_paths_get_their_own_lines() {
     };
     let lines: Vec<String> = report_lines("feature", &report);
     assert_eq!(lines.len(), 2);
-    assert!(lines[0].contains("b.txt") && lines[0].contains("by word"), "{}", lines[0]);
-    assert!(lines[1].contains("a.txt") && lines[1].contains("changed while the merge ran"), "{}", lines[1]);
+    assert!(
+        lines[0].contains("b.txt") && lines[0].contains("by word"),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines[1].contains("a.txt") && lines[1].contains("changed while the merge ran"),
+        "{}",
+        lines[1]
+    );
 }
 
 /// What:
@@ -66,10 +88,17 @@ fn changed_and_merged_paths_get_their_own_lines() {
 /// and a line that says a file holds bytes sends the person to the wrong place when nothing does.
 #[test]
 fn a_changed_line_claims_nothing_about_what_stands_at_the_path() {
-    let report: Report = Report { changed: vec![b"a.txt".to_vec()], ..Report::default() };
+    let report: Report = Report {
+        changed: vec![b"a.txt".to_vec()],
+        ..Report::default()
+    };
     let lines: Vec<String> = report_lines("feature", &report);
     assert!(lines[0].contains("a.txt"), "{}", lines[0]);
-    assert!(!lines[0].contains("the file holds what was written then"), "{}", lines[0]);
+    assert!(
+        !lines[0].contains("the file holds what was written then"),
+        "{}",
+        lines[0]
+    );
 }
 
 /// What:
@@ -82,12 +111,26 @@ fn a_changed_line_claims_nothing_about_what_stands_at_the_path() {
 /// finding 1).
 #[test]
 fn a_command_in_a_line_quotes_a_path_with_a_space() {
-    let report: Report = Report { conflicts: vec![b"dir/a b.txt".to_vec()], ..Report::default() };
+    let report: Report = Report {
+        conflicts: vec![b"dir/a b.txt".to_vec()],
+        ..Report::default()
+    };
     let lines: Vec<String> = report_lines("feature", &report);
-    assert!(lines[0].contains("`git add -- 'dir/a b.txt'`"), "{}", lines[0]);
-    let touched: Report = Report { changed: vec![b"dir/a b.txt".to_vec()], ..Report::default() };
+    assert!(
+        lines[0].contains("`git add -- 'dir/a b.txt'`"),
+        "{}",
+        lines[0]
+    );
+    let touched: Report = Report {
+        changed: vec![b"dir/a b.txt".to_vec()],
+        ..Report::default()
+    };
     let touched_lines: Vec<String> = report_lines("feature", &touched);
-    assert!(touched_lines[0].contains("`git diff HEAD -- 'dir/a b.txt'`"), "{}", touched_lines[0]);
+    assert!(
+        touched_lines[0].contains("`git diff HEAD -- 'dir/a b.txt'`"),
+        "{}",
+        touched_lines[0]
+    );
 }
 
 /// What:
@@ -116,9 +159,17 @@ fn a_path_a_write_left_alone_keeps_one_line() {
         conflicts: vec![b"c.txt".to_vec()],
         ..Report::default()
     };
-    report.a_path_written_again(vec![b"a.txt".to_vec(), b"b.txt".to_vec(), b"c.txt".to_vec()]);
+    report.a_path_written_again(vec![
+        b"a.txt".to_vec(),
+        b"b.txt".to_vec(),
+        b"c.txt".to_vec(),
+    ]);
     let lines: Vec<String> = report_lines("feature", &report);
-    assert_eq!(lines.len(), 3, "one line for each path a write left alone: {lines:?}");
+    assert_eq!(
+        lines.len(),
+        3,
+        "one line for each path a write left alone: {lines:?}"
+    );
     for line in &lines {
         assert!(line.contains("changed while the merge ran"), "{line}");
         assert!(!line.contains("holds nothing of yours"), "{line}");
@@ -144,7 +195,10 @@ fn the_line_about_a_path_a_restore_left_alone_names_no_file() {
 /// An empty report says nothing.
 #[test]
 fn nothing_to_say_is_no_line() {
-    assert_eq!(report_lines("feature", &Report::default()), Vec::<String>::new());
+    assert_eq!(
+        report_lines("feature", &Report::default()),
+        Vec::<String>::new()
+    );
 }
 
 /// What:
@@ -165,10 +219,19 @@ fn nothing_to_say_is_no_line() {
 /// ```
 #[test]
 fn a_recovered_merges_line_names_the_merge_and_not_a_repository_ref() {
-    let report: Report = Report { merged: vec![b"a.txt".to_vec()], ..Report::default() };
+    let report: Report = Report {
+        merged: vec![b"a.txt".to_vec()],
+        ..Report::default()
+    };
     let lines: Vec<String> = report_lines("", &report);
     let line: &str = lines.first().map(String::as_str).unwrap_or_default();
-    assert!(line.contains("the merge an earlier command began and this one finished"), "{line}");
+    assert!(
+        line.contains("the merge an earlier command began and this one finished"),
+        "{line}"
+    );
     assert!(line.contains("a.txt"), "{line}");
-    assert!(!line.contains("refs/heads/"), "a repository ref is no command: {line}");
+    assert!(
+        !line.contains("refs/heads/"),
+        "a repository ref is no command: {line}"
+    );
 }

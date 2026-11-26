@@ -111,14 +111,20 @@ impl<'wave, T: 'wave> AnswersAsTheyCome<'wave, T> {
     /// ```ts
     /// const wave = AnswersAsTheyCome.starting(futures);
     /// ```
-    pub fn starting(futures: Vec<Pin<Box<dyn Future<Output = T> + Send + 'wave>>>) -> AnswersAsTheyCome<'wave, T> {
+    pub fn starting(
+        futures: Vec<Pin<Box<dyn Future<Output = T> + Send + 'wave>>>
+    ) -> AnswersAsTheyCome<'wave, T> {
         let count: usize = futures.len();
         let answered: Vec<bool> = std::iter::repeat_n(false, count).collect();
-        let mut guarded: Vec<Pin<Box<dyn Future<Output = Result<T, String>> + Send + 'wave>>> = Vec::with_capacity(count);
+        let mut guarded: Vec<Pin<Box<dyn Future<Output = Result<T, String>> + Send + 'wave>>> =
+            Vec::with_capacity(count);
         for future in futures {
             guarded.push(Box::pin(keep_a_panic_awaiting(future)));
         }
-        return AnswersAsTheyCome { futures: guarded, answered };
+        return AnswersAsTheyCome {
+            futures: guarded,
+            answered,
+        };
     }
 
     /// What:
@@ -134,7 +140,10 @@ impl<'wave, T: 'wave> AnswersAsTheyCome<'wave, T> {
     /// const next = await wave.next();
     /// ```
     pub async fn the_next_answer(&mut self) -> Option<(usize, AnAnswer<T>)> {
-        return TheNextAnswer { wave: self }.await;
+        return TheNextAnswer {
+            wave: self,
+        }
+        .await;
     }
 
     /// What:
@@ -178,7 +187,10 @@ struct TheNextAnswer<'wave, 'answers, T> {
 impl<'wave, T: 'wave> Future for TheNextAnswer<'wave, '_, T> {
     type Output = Option<(usize, AnAnswer<T>)>;
 
-    fn poll(self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Option<(usize, AnAnswer<T>)>> {
+    fn poll(
+        self: Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> Poll<Option<(usize, AnAnswer<T>)>> {
         let wave: &mut AnswersAsTheyCome<'_, T> = &mut *self.get_mut().wave;
         let mut waiting: bool = false;
         for index in 0..wave.futures.len() {
@@ -199,7 +211,11 @@ impl<'wave, T: 'wave> Future for TheNextAnswer<'wave, '_, T> {
             }
         }
         // Nothing was left to answer; a wave with items still waiting asks for the wake that may let one answer.
-        return if waiting { Poll::Pending } else { Poll::Ready(None) };
+        return if waiting {
+            Poll::Pending
+        } else {
+            Poll::Ready(None)
+        };
     }
 }
 
@@ -218,9 +234,12 @@ impl<'wave, T: 'wave> Future for TheNextAnswer<'wave, '_, T> {
 /// ```ts
 /// const answers = await answersOfWave(futures);
 /// ```
-pub async fn run_all_side_by_side_on_the_current_task<T>(futures: Vec<Pin<Box<dyn Future<Output = T> + Send + '_>>>) -> Vec<AnAnswer<T>> {
+pub async fn run_all_side_by_side_on_the_current_task<T>(
+    futures: Vec<Pin<Box<dyn Future<Output = T> + Send + '_>>>
+) -> Vec<AnAnswer<T>> {
     let count: usize = futures.len();
-    let mut answers: Vec<Option<AnAnswer<T>>> = std::iter::repeat_with(no_answer_yet).take(count).collect();
+    let mut answers: Vec<Option<AnAnswer<T>>> =
+        std::iter::repeat_with(no_answer_yet).take(count).collect();
     let mut wave: AnswersAsTheyCome<'_, T> = AnswersAsTheyCome::starting(futures);
     while let Some((index, answer)) = wave.the_next_answer().await {
         answers[index] = Some(answer);

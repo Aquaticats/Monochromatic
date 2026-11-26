@@ -30,9 +30,16 @@
 
 use crate::hooks_path_values::without_the_terminator;
 use crate::private_storage::write_private_file_unsynced;
-use crate::worktree_registration_proof::{RegistrationRefusal, read_record_here, registration_of};
+use crate::worktree_registration_proof::{
+    RegistrationRefusal,
+    read_record_here,
+    registration_of,
+};
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeAddedByTheWrapper";
@@ -56,14 +63,21 @@ pub const ADDED_RECORD_NAME: &str = "monochromatic-git-policy-cli-worktree-added
 /// ```ts
 /// recordAddedByTheWrapper(commonDir, worktree); // throws the reason
 /// ```
-pub fn record(common_dir: &Path, worktree: &Path) -> Result<(), String> {
-    let admin: PathBuf = registration_of(common_dir, worktree).map_err(RegistrationRefusal::into_words)?;
+pub fn record(
+    common_dir: &Path,
+    worktree: &Path,
+) -> Result<(), String> {
+    let admin: PathBuf =
+        registration_of(common_dir, worktree).map_err(RegistrationRefusal::into_words)?;
     let record_path: PathBuf = admin.join(ADDED_RECORD_NAME);
     let mut bytes: Vec<u8> = worktree.as_os_str().as_bytes().to_vec();
     bytes.push(b'\n');
     return match write_private_file_unsynced(record_path.as_path(), bytes.as_slice()) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("the record {} cannot be written ({error})", record_path.display())),
+        Err(error) => Err(format!(
+            "the record {} cannot be written ({error})",
+            record_path.display()
+        )),
     };
 }
 
@@ -80,7 +94,10 @@ pub fn record(common_dir: &Path, worktree: &Path) -> Result<(), String> {
 /// ```ts
 /// recordOrLog(commonDir, worktree) // never throws
 /// ```
-pub fn record_or_log(common_dir: &Path, worktree: &Path) {
+pub fn record_or_log(
+    common_dir: &Path,
+    worktree: &Path,
+) {
     let Err(reason) = record(common_dir, worktree) else {
         return;
     };
@@ -107,9 +124,15 @@ pub fn record_or_log(common_dir: &Path, worktree: &Path) {
 /// ```ts
 /// addedByTheWrapper(admin, worktree) // boolean
 /// ```
-pub fn added_by_the_wrapper(admin: &Path, worktree: &Path) -> bool {
+pub fn added_by_the_wrapper(
+    admin: &Path,
+    worktree: &Path,
+) -> bool {
     let record: PathBuf = admin.join(ADDED_RECORD_NAME);
-    let Ok(bytes) = read_record_here(record.as_path(), "the record that says the wrapper made this worktree") else {
+    let Ok(bytes) = read_record_here(
+        record.as_path(),
+        "the record that says the wrapper made this worktree",
+    ) else {
         return false;
     };
     return without_the_terminator(bytes.as_slice()) == worktree.as_os_str().as_bytes();

@@ -33,31 +33,71 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, open_root, plain_components};
+use crate::fs_beneath::{
+    ObjectId,
+    open_root,
+    plain_components,
+};
 use crate::fs_beneath_walk_chain::open_directory_beneath;
-use crate::fs_kind::{is_stand_in, is_subvolume_root};
+use crate::fs_kind::{
+    is_stand_in,
+    is_subvolume_root,
+};
 use crate::path_bytes::path_bytes_of;
 use crate::worktree_clean::stored_stats;
-use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
+use crate::worktree_path_failure_message::{
+    path_failure,
+    subject_failure,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
-pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, TrashLeft, delete_trash, delete_trash_awaiting, empty_trash};
-pub use crate::worktree_trash_unaccounted::name_unaccounted_trash;
-pub use crate::worktree_trash_exclude_line::{TRASH_EXCLUDE_LINE, ensure_trash_is_excluded};
-pub use crate::worktree_trash_hand_over::{Reach, Recorded, hand_over_to_the_service, hand_over_with, record_the_trash};
+pub use crate::worktree_trash_dispose::{
+    PendingTrash,
+    TRASH_REFERENCE,
+    TrashLeft,
+    delete_trash,
+    delete_trash_awaiting,
+    empty_trash,
+};
 pub use crate::worktree_trash_dispose_awaiting::empty_trash_awaiting;
-pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
+pub use crate::worktree_trash_exclude_line::{
+    TRASH_EXCLUDE_LINE,
+    ensure_trash_is_excluded,
+};
+pub use crate::worktree_trash_hand_over::{
+    Reach,
+    Recorded,
+    hand_over_to_the_service,
+    hand_over_with,
+    record_the_trash,
+};
+pub use crate::worktree_trash_manifest::{
+    TrashManifest,
+    entry_name,
+    is_trash_name,
+};
 use crate::worktree_trash_remove::remove_tree_beneath;
+pub use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use std::collections::HashSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[path = "worktree_trash_set_aside_entries.rs"]
 mod set_aside_entries;
 
-use set_aside_entries::{inherited_trash_entries, names_the_container, remove_containers_beneath};
+use set_aside_entries::{
+    inherited_trash_entries,
+    names_the_container,
+    remove_containers_beneath,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrash";
@@ -109,7 +149,11 @@ pub struct Pruned {
 #[path = "worktree_trash_set_aside.rs"]
 mod set_aside;
 
-pub(crate) use set_aside::{Trash, make_trash, reopen_trash};
+pub(crate) use set_aside::{
+    Trash,
+    make_trash,
+    reopen_trash,
+};
 
 /// Where left-out directories go:
 /// into one trash directory when there is one,
@@ -135,10 +179,23 @@ struct Aside {
 impl Aside {
     /// The held directory that contains `relative`,
     /// and the entry's name in it.
-    fn holder(&self, relative: &Path) -> Result<(File, OsString), String> {
-        let names: Vec<OsString> = path_failure(plain_components(relative), relative, "is not a plain path inside the snapshot")?;
-        let Some((name, parents)) = names.split_last() else { return Err(format!("{} names the snapshot itself", relative.display())) };
-        let parent: File = path_failure(open_directory_beneath(&self.root, parents), self.stage.join(relative).as_path(), "is reached through a link or another mount in the snapshot")?;
+    fn holder(
+        &self,
+        relative: &Path,
+    ) -> Result<(File, OsString), String> {
+        let names: Vec<OsString> = path_failure(
+            plain_components(relative),
+            relative,
+            "is not a plain path inside the snapshot",
+        )?;
+        let Some((name, parents)) = names.split_last() else {
+            return Err(format!("{} names the snapshot itself", relative.display()));
+        };
+        let parent: File = path_failure(
+            open_directory_beneath(&self.root, parents),
+            self.stage.join(relative).as_path(),
+            "is reached through a link or another mount in the snapshot",
+        )?;
         return Ok((parent, name.clone()));
     }
 
@@ -158,7 +215,10 @@ impl Aside {
     /// Everything else still waits for the emptying,
     /// so the add pays only the
     ///  container's own removal.
-    fn put(&mut self, relative: &Path) -> Result<(), String> {
+    fn put(
+        &mut self,
+        relative: &Path,
+    ) -> Result<(), String> {
         // A container is removed here and never renamed into the trash: the pattern is None for it either way.
         let direct_container: bool = names_the_container(relative);
         if !direct_container {
@@ -177,11 +237,21 @@ impl Aside {
         match into_trash {
             Some(trash) => {
                 let to: String = entry_name(self.entries.len());
-                let moved: ObjectId = trash.set_aside(&parent, name.as_os_str(), to.as_str(), shown.as_path())?;
+                let moved: ObjectId =
+                    trash.set_aside(&parent, name.as_os_str(), to.as_str(), shown.as_path())?;
                 self.entries.push(moved);
             }
             None => {
-                path_failure(remove_tree_beneath(shown.parent().unwrap_or(self.stage.as_path()), &parent, name.as_os_str(), None), shown.as_path(), "cannot be removed")?;
+                path_failure(
+                    remove_tree_beneath(
+                        shown.parent().unwrap_or(self.stage.as_path()),
+                        &parent,
+                        name.as_os_str(),
+                        None,
+                    ),
+                    shown.as_path(),
+                    "cannot be removed",
+                )?;
             }
         }
         self.count += 1;
@@ -207,7 +277,10 @@ impl Aside {
 /// const keep = trackedPaths(source); // has 'src', 'src/.cache' and the gitlink 'vendor/lib'
 /// ```
 fn tracked_paths(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+    let Some(entries) = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    ) else {
         return Err(String::from("the index entries have no plain layout"));
     };
     let mut directories: HashSet<Vec<u8>> = HashSet::new();
@@ -243,10 +316,18 @@ pub(crate) fn is_directory_itself(path: &Path) -> bool {
     };
 }
 
-fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
-    let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length)?;
+fn tracked_below(
+    source: &SnapshotSource,
+    directory: &[u8],
+) -> Option<String> {
+    let entries = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    )?;
     for entry in entries {
-        if entry.path == directory || (entry.path.starts_with(directory) && entry.path.get(directory.len()) == Some(&b'/')) {
+        if entry.path == directory
+            || (entry.path.starts_with(directory) && entry.path.get(directory.len()) == Some(&b'/'))
+        {
             return Some(String::from_utf8_lossy(entry.path.as_slice()).into_owned());
         }
     }
@@ -290,14 +371,23 @@ fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
 /// ```ts
 /// const { count, trash } = await pruneSnapshot({ stage, source }); // throws the reason; the caller destroys the stage
 /// ```
-pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, String> {
+pub fn prune_snapshot(
+    stage: &Path,
+    source: &SnapshotSource,
+) -> Result<Pruned, String> {
     // A linked or bare source hands over everything it ignores, so the main checkout's cache and run-record rule is not its own;
     //  the stage-container exclusion is, because such a container is never state of any source.
-    let prune: Prune = if source.git_dir == source.common_dir { Prune::main_checkout() } else { Prune::Never };
+    let prune: Prune = if source.git_dir == source.common_dir {
+        Prune::main_checkout()
+    } else {
+        Prune::Never
+    };
     let tracked: HashSet<Vec<u8>> = tracked_paths(source)?;
     let mut nested_copies: Vec<PathBuf> = Vec::new();
     for nested in &source.nested {
-        let Ok(relative) = nested.strip_prefix(source.root.as_path()) else { continue };
+        let Ok(relative) = nested.strip_prefix(source.root.as_path()) else {
+            continue;
+        };
         if is_subvolume_root(nested.as_path()).unwrap_or(false) {
             continue;
         }
@@ -309,23 +399,40 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
                 Some(found) => found,
                 None => relative.display().to_string(),
             };
-            return Err(format!("{} is a registered worktree, but the main checkout tracks {inside} in it, so the snapshot cannot leave it out", relative.display()));
+            return Err(format!(
+                "{} is a registered worktree, but the main checkout tracks {inside} in it, so the snapshot cannot leave it out",
+                relative.display()
+            ));
         }
         nested_copies.push(relative.to_path_buf());
     }
-    let root: File = subject_failure(open_root(stage), &format!("the snapshot {}", stage.display()), "cannot be opened")?;
+    let root: File = subject_failure(
+        open_root(stage),
+        &format!("the snapshot {}", stage.display()),
+        "cannot be opened",
+    )?;
     let trash: Option<Trash> = if source.trash_ignored {
         match make_trash(&root) {
             Ok(made) => Some(made),
             Err(reason) => {
-                debug(TAG, format!("{reason}; the left-out directories are removed in place instead").as_str());
+                debug(
+                    TAG,
+                    format!("{reason}; the left-out directories are removed in place instead")
+                        .as_str(),
+                );
                 None
             }
         }
     } else {
         None
     };
-    let mut aside: Aside = Aside { root, stage: stage.to_path_buf(), trash, entries: Vec::new(), count: 0 };
+    let mut aside: Aside = Aside {
+        root,
+        stage: stage.to_path_buf(),
+        trash,
+        entries: Vec::new(),
+        count: 0,
+    };
     // A trash an earlier add left is not this add's, and nothing would ever empty it once the snapshot became a worktree: the
     //  disposal is handed only this add's manifest. Its directories go into this add's trash, so the emptying that runs before
     //  this command returns covers them and no snapshot carries a trash folder forward.
@@ -344,8 +451,13 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(stage.to_path_buf(), Vec::new())];
     while let Some((directory, relative)) = pending.pop() {
         let mut children: Vec<(OsString, bool)> = Vec::new();
-        for listed in path_failure(std::fs::read_dir(&directory), directory.as_path(), "cannot be listed")? {
-            let entry: std::fs::DirEntry = path_failure(listed, directory.as_path(), "cannot be listed")?;
+        for listed in path_failure(
+            std::fs::read_dir(&directory),
+            directory.as_path(),
+            "cannot be listed",
+        )? {
+            let entry: std::fs::DirEntry =
+                path_failure(listed, directory.as_path(), "cannot be listed")?;
             let is_directory: bool = match entry.file_type() {
                 Ok(kind) => kind.is_dir(),
                 Err(_unreadable) => false,
@@ -359,7 +471,10 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             names.push(path_bytes_of(Path::new(name.as_os_str())).to_vec());
         }
         // A directory that is another checkout is set aside whole, its pointer first.
-        if !relative.is_empty() && prune.skips_checkout(names.as_slice()) && !tracked.contains(relative.as_slice()) {
+        if !relative.is_empty()
+            && prune.skips_checkout(names.as_slice())
+            && !tracked.contains(relative.as_slice())
+        {
             unlink_pointer(directory.as_path())?;
             aside.put(Path::new(OsStr::from_bytes(relative.as_slice())))?;
             continue;
@@ -368,7 +483,11 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             if !is_directory {
                 continue;
             }
-            let child_relative: Vec<u8> = if relative.is_empty() { name.as_bytes().to_vec() } else { [relative.as_slice(), b"/", name.as_bytes()].concat() };
+            let child_relative: Vec<u8> = if relative.is_empty() {
+                name.as_bytes().to_vec()
+            } else {
+                [relative.as_slice(), b"/", name.as_bytes()].concat()
+            };
             if child_relative == b".git" || child_relative == TRASH_PARENT.as_bytes() {
                 continue;
             }
@@ -377,7 +496,9 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             if is_stand_in(directory.join(&name).as_path()) {
                 continue;
             }
-            if !tracked.contains(child_relative.as_slice()) && prune.skips_path(child_relative.as_slice()) {
+            if !tracked.contains(child_relative.as_slice())
+                && prune.skips_path(child_relative.as_slice())
+            {
                 aside.put(Path::new(OsStr::from_bytes(child_relative.as_slice())))?;
             } else {
                 pending.push((directory.join(&name), child_relative));
@@ -389,8 +510,24 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         Some(made) => made.finish(aside.entries),
         None => None,
     };
-    debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
-    return Ok(Pruned { count, trash: manifest, taken_over });
+    debug(
+        TAG,
+        format!(
+            "{count} directories set aside in {} ({})",
+            stage.display(),
+            if manifest.is_some() {
+                "into the trash"
+            } else {
+                "removed in place"
+            }
+        )
+        .as_str(),
+    );
+    return Ok(Pruned {
+        count,
+        trash: manifest,
+        taken_over,
+    });
 }
 
 /// Unlink the `.git` file of a copied directory,
@@ -399,10 +536,21 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
 fn unlink_pointer(directory: &Path) -> Result<(), String> {
     let pointer: PathBuf = directory.join(".git");
     match std::fs::symlink_metadata(&pointer) {
-        Ok(metadata) if metadata.is_file() => return path_failure(std::fs::remove_file(&pointer), pointer.as_path(), "cannot be unlinked"),
+        Ok(metadata) if metadata.is_file() => {
+            return path_failure(
+                std::fs::remove_file(&pointer),
+                pointer.as_path(),
+                "cannot be unlinked",
+            );
+        }
         Ok(_) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("{} cannot be examined ({error})", pointer.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be examined ({error})",
+                pointer.display()
+            ));
+        }
     }
 }
 

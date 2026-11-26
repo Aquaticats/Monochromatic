@@ -22,7 +22,10 @@
 /// Bounded no-follow reading of a regular file.
 use crate::private_storage::read_regular_file;
 /// The ref storage backend and the symbolic `HEAD` answer.
-use crate::transaction_journal::{RefFormat, SymbolicHead};
+use crate::transaction_journal::{
+    RefFormat,
+    SymbolicHead,
+};
 /// Borrowed filesystem paths.
 use std::path::Path;
 
@@ -127,7 +130,10 @@ fn is_reference_name_byte(byte: u8) -> bool {
 /// ```ts
 /// new RegExp(`^[0-9a-f]{${length}}$`).test(text) && !/^0+$/.test(text)
 /// ```
-fn is_object_name(text: &str, length: usize) -> bool {
+fn is_object_name(
+    text: &str,
+    length: usize,
+) -> bool {
     if text.len() != length {
         return false;
     }
@@ -188,7 +194,11 @@ pub fn is_plain_branch_name(name: &str) -> bool {
 /// ```ts
 /// const text = await readFile(join(commonDir, name)).catch(notFound); return text === undefined || isObjectName(text.trimEnd('\n'));
 /// ```
-fn loose_branch_is_plain(layout: &RefFilesLayout<'_>, name: &str, length: usize) -> bool {
+fn loose_branch_is_plain(
+    layout: &RefFilesLayout<'_>,
+    name: &str,
+    length: usize,
+) -> bool {
     let path = layout.common_dir.join(name);
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(&path) {
         Ok(found) => found,
@@ -226,12 +236,15 @@ pub fn read_symbolic_head(layout: &RefFilesLayout<'_>) -> Option<SymbolicHead> {
         return None;
     }
     let length: usize = hex_length(layout.object_format)?;
-    let bytes: Vec<u8> = read_regular_file(layout.git_dir.join("HEAD").as_path(), HEAD_LIMIT).ok()?;
+    let bytes: Vec<u8> =
+        read_regular_file(layout.git_dir.join("HEAD").as_path(), HEAD_LIMIT).ok()?;
     let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
     let line: &str = text.strip_suffix('\n')?;
     if let Some(name) = line.strip_prefix("ref: ") {
         if is_plain_branch_name(name) && loose_branch_is_plain(layout, name, length) {
-            return Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(name)));
+            return Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+                name,
+            )));
         }
         return None;
     }

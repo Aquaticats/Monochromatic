@@ -28,24 +28,58 @@
 
 use crate::worktree_clone_mount_handler::handler_install_paths::CHECKOUT_RECORD_PATH;
 use crate::worktree_clone_mount_handler::handler_mode_arguments::RecordCheckoutRequest;
-use crate::worktree_clone_mount_handler::sweep_checkout_mount::{CheckoutMount, CheckoutMounts};
-use crate::worktree_clone_mount_handler::sweep_configuration::{SweepConfiguration, read_configuration};
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{facts_of, value_of, MOUNTPOINT_PROPERTY};
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ReadFailure, ZfsDatasetReader};
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasets};
+use crate::worktree_clone_mount_handler::sweep_checkout_mount::{
+    CheckoutMount,
+    CheckoutMounts,
+};
+use crate::worktree_clone_mount_handler::sweep_configuration::{
+    SweepConfiguration,
+    read_configuration,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    MOUNTPOINT_PROPERTY,
+    facts_of,
+    value_of,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ReadFailure,
+    ZfsDatasetReader,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasets,
+};
 use rustix::process::geteuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The record's own facts,
 /// the field a later run finds different,
 /// and why the mode recorded nothing.
-pub use super::record_checkout_mode_record::{RECORD_FOLDER_MODE, RECORD_MODE, RECORD_VERSION, WRITABLE_BY_OTHERS, WRITING_NAME, DifferingField, RecordCheckoutFailure, RecordedCheckout};
+pub use super::record_checkout_mode_record::{
+    DifferingField,
+    RECORD_FOLDER_MODE,
+    RECORD_MODE,
+    RECORD_VERSION,
+    RecordCheckoutFailure,
+    RecordedCheckout,
+    WRITABLE_BY_OTHERS,
+    WRITING_NAME,
+};
 
 /// The record's own read,
 /// which every proof that names a checkout asks.
 pub(super) use super::record_checkout_mode_record_file::read_record;
 
-use super::record_checkout_mode_record_file::{already_recorded_line, recorded_line, replaced_line, write_record};
+use super::record_checkout_mode_record_file::{
+    already_recorded_line,
+    recorded_line,
+    replaced_line,
+    write_record,
+};
 
 /// What:
 ///  Where one `record-checkout` run reads and writes,
@@ -94,15 +128,27 @@ pub struct RecordCheckoutPlaces<'a> {
 /// or everything `run_with` refuses.
 pub fn run(request: &RecordCheckoutRequest) -> Result<String, RecordCheckoutFailure> {
     let effective_user = geteuid();
-    let datasets: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| return RecordCheckoutFailure::DatasetRead { dataset: String::from("<the device>"), failure: ReadFailure::at(error.to_string()) })?;
+    let datasets: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| {
+        return RecordCheckoutFailure::DatasetRead {
+            dataset: String::from("<the device>"),
+            failure: ReadFailure::at(error.to_string()),
+        };
+    })?;
     let places: RecordCheckoutPlaces<'_> = RecordCheckoutPlaces {
-        configuration: PathBuf::from(crate::worktree_clone_mount_handler::handler_install_paths::CONFIGURATION_PATH),
+        configuration: PathBuf::from(
+            crate::worktree_clone_mount_handler::handler_install_paths::CONFIGURATION_PATH,
+        ),
         record: PathBuf::from(CHECKOUT_RECORD_PATH),
         mounts: &crate::worktree_clone_mount_handler::sweep_checkout_mount::LiveCheckoutMounts,
         mounted: &LiveMountedDatasets,
         datasets: &datasets,
     };
-    return run_with(&places, request, effective_user.is_root(), effective_user.as_raw());
+    return run_with(
+        &places,
+        request,
+        effective_user.is_root(),
+        effective_user.as_raw(),
+    );
 }
 
 /// What:
@@ -120,29 +166,61 @@ pub fn run(request: &RecordCheckoutRequest) -> Result<String, RecordCheckoutFail
 ///
 /// # Errors
 /// Every refusal in `RecordCheckoutFailure`.
-pub fn run_with(places: &RecordCheckoutPlaces<'_>, request: &RecordCheckoutRequest, running_as_root: bool, effective_user: u32) -> Result<String, RecordCheckoutFailure> {
+pub fn run_with(
+    places: &RecordCheckoutPlaces<'_>,
+    request: &RecordCheckoutRequest,
+    running_as_root: bool,
+    effective_user: u32,
+) -> Result<String, RecordCheckoutFailure> {
     if !running_as_root {
-        return Err(RecordCheckoutFailure::NotRoot { effective_user });
+        return Err(RecordCheckoutFailure::NotRoot {
+            effective_user,
+        });
     }
     let checkout: PathBuf = request.checkout.clone();
-    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), places.mounted).map_err(RecordCheckoutFailure::Configuration)?;
-    let mount: CheckoutMount = places.mounts.mount_holding(checkout.as_path()).map_err(RecordCheckoutFailure::Mount)?;
+    let configuration: SweepConfiguration =
+        read_configuration(places.configuration.as_path(), places.mounted)
+            .map_err(RecordCheckoutFailure::Configuration)?;
+    let mount: CheckoutMount = places
+        .mounts
+        .mount_holding(checkout.as_path())
+        .map_err(RecordCheckoutFailure::Mount)?;
     let Some(mounted_dataset) = mount.dataset() else {
-        return Err(RecordCheckoutFailure::NotOnZfs { checkout, filesystem_type: mount.filesystem_type });
+        return Err(RecordCheckoutFailure::NotOnZfs {
+            checkout,
+            filesystem_type: mount.filesystem_type,
+        });
     };
     let dataset: String = String::from(mounted_dataset);
     if !the_checkout_is_the_mounts_root(checkout.as_path(), &mount) {
         return Err(RecordCheckoutFailure::NotAMountPoint {
             checkout,
-            found: format!("is on the mount of `{}` at {}", mount.source, mount.mount_point.display()),
+            found: format!(
+                "is on the mount of `{}` at {}",
+                mount.source,
+                mount.mount_point.display()
+            ),
         });
     }
-    let identity = places.datasets.identity(dataset.as_str()).map_err(|failure| return RecordCheckoutFailure::DatasetRead { dataset: dataset.clone(), failure })?;
+    let identity = places
+        .datasets
+        .identity(dataset.as_str())
+        .map_err(|failure| {
+            return RecordCheckoutFailure::DatasetRead {
+                dataset: dataset.clone(),
+                failure,
+            };
+        })?;
     let facts = facts_of(dataset.as_str(), &identity);
     let mountpoint: String = match value_of(&identity.properties, MOUNTPOINT_PROPERTY) {
-        value if value.text() == Some(checkout.to_string_lossy().as_ref()) => String::from(checkout.to_string_lossy().as_ref()),
+        value if value.text() == Some(checkout.to_string_lossy().as_ref()) => {
+            String::from(checkout.to_string_lossy().as_ref())
+        }
         value => {
-            return Err(RecordCheckoutFailure::NotAMountPoint { checkout, found: value.describe(MOUNTPOINT_PROPERTY) });
+            return Err(RecordCheckoutFailure::NotAMountPoint {
+                checkout,
+                found: value.describe(MOUNTPOINT_PROPERTY),
+            });
         }
     };
     let container: String = configuration.parent_dataset;
@@ -189,11 +267,17 @@ pub fn run_with(places: &RecordCheckoutPlaces<'_>, request: &RecordCheckoutReque
 /// a wrong token,
 /// a record that is not one root alone may write,
 /// and a write that fails.
-fn write_or_agree(places: &RecordCheckoutPlaces<'_>, proved: &RecordedCheckout, request: &RecordCheckoutRequest) -> Result<String, RecordCheckoutFailure> {
+fn write_or_agree(
+    places: &RecordCheckoutPlaces<'_>,
+    proved: &RecordedCheckout,
+    request: &RecordCheckoutRequest,
+) -> Result<String, RecordCheckoutFailure> {
     let existing: Option<RecordedCheckout> = read_record(places.record.as_path())?;
     let Some(recorded) = existing else {
         if request.replace.is_some() {
-            return Err(RecordCheckoutFailure::NothingToReplace { record: places.record.clone() });
+            return Err(RecordCheckoutFailure::NothingToReplace {
+                record: places.record.clone(),
+            });
         }
         write_record(places.record.as_path(), proved)?;
         return Ok(recorded_line(proved, places.record.as_path()));
@@ -203,17 +287,31 @@ fn write_or_agree(places: &RecordCheckoutPlaces<'_>, proved: &RecordedCheckout, 
         return Ok(already_recorded_line(places.record.as_path()));
     };
     let Some(typed) = request.replace.as_deref() else {
-        return Err(RecordCheckoutFailure::RecordDiffers { recorded: recorded_value(&field), kernel: proved_value(proved, &field), field });
+        return Err(RecordCheckoutFailure::RecordDiffers {
+            recorded: recorded_value(&field),
+            kernel: proved_value(proved, &field),
+            field,
+        });
     };
     if typed != proved.guid {
-        return Err(RecordCheckoutFailure::ReplaceTokenDiffers { kernel: proved.guid.clone(), typed: String::from(typed) });
+        return Err(RecordCheckoutFailure::ReplaceTokenDiffers {
+            kernel: proved.guid.clone(),
+            typed: String::from(typed),
+        });
     }
     // The token admits the GUID, so the record with that GUID is what the write would leave: any field that still
     // differs is a change no token names, and it refuses rather than being written under a line that says it was kept.
     let was: String = recorded.guid.clone();
-    let admitted: RecordedCheckout = RecordedCheckout { guid: proved.guid.clone(), ..recorded };
+    let admitted: RecordedCheckout = RecordedCheckout {
+        guid: proved.guid.clone(),
+        ..recorded
+    };
     if let Some(also) = differing_field(&admitted, proved) {
-        return Err(RecordCheckoutFailure::RecordDiffers { recorded: recorded_value(&also), kernel: proved_value(proved, &also), field: also });
+        return Err(RecordCheckoutFailure::RecordDiffers {
+            recorded: recorded_value(&also),
+            kernel: proved_value(proved, &also),
+            field: also,
+        });
     }
     write_record(places.record.as_path(), proved)?;
     return Ok(replaced_line(proved, was.as_str(), places.record.as_path()));
@@ -230,18 +328,29 @@ fn write_or_agree(places: &RecordCheckoutPlaces<'_>, proved: &RecordedCheckout, 
 /// ```ts
 /// const field = differingField(recorded, proved); // undefined when every field agrees
 /// ```
-fn differing_field(recorded: &RecordedCheckout, proved: &RecordedCheckout) -> Option<DifferingField> {
+fn differing_field(
+    recorded: &RecordedCheckout,
+    proved: &RecordedCheckout,
+) -> Option<DifferingField> {
     if recorded.checkout != proved.checkout {
-        return Some(DifferingField::Path { recorded: recorded.checkout.display().to_string() });
+        return Some(DifferingField::Path {
+            recorded: recorded.checkout.display().to_string(),
+        });
     }
     if recorded.dataset != proved.dataset {
-        return Some(DifferingField::Dataset { recorded: recorded.dataset.clone() });
+        return Some(DifferingField::Dataset {
+            recorded: recorded.dataset.clone(),
+        });
     }
     if recorded.guid != proved.guid {
-        return Some(DifferingField::Guid { recorded: recorded.guid.clone() });
+        return Some(DifferingField::Guid {
+            recorded: recorded.guid.clone(),
+        });
     }
     if recorded.container != proved.container {
-        return Some(DifferingField::Container { recorded: recorded.container.clone() });
+        return Some(DifferingField::Container {
+            recorded: recorded.container.clone(),
+        });
     }
     return None;
 }
@@ -250,18 +359,40 @@ fn differing_field(recorded: &RecordedCheckout, proved: &RecordedCheckout) -> Op
 /// which a refusal prints beside the kernel's.
 fn recorded_value(field: &DifferingField) -> String {
     return match field {
-        DifferingField::Path { recorded } | DifferingField::Dataset { recorded } | DifferingField::Guid { recorded } | DifferingField::Container { recorded } => recorded.clone(),
+        DifferingField::Path {
+            recorded,
+        }
+        | DifferingField::Dataset {
+            recorded,
+        }
+        | DifferingField::Guid {
+            recorded,
+        }
+        | DifferingField::Container {
+            recorded,
+        } => recorded.clone(),
     };
 }
 
 /// The kernel's value of one field,
 /// which a refusal prints beside the record's.
-fn proved_value(proved: &RecordedCheckout, field: &DifferingField) -> String {
+fn proved_value(
+    proved: &RecordedCheckout,
+    field: &DifferingField,
+) -> String {
     return match field {
-        DifferingField::Path { .. } => proved.checkout.display().to_string(),
-        DifferingField::Dataset { .. } => proved.dataset.clone(),
-        DifferingField::Guid { .. } => proved.guid.clone(),
-        DifferingField::Container { .. } => proved.container.clone(),
+        DifferingField::Path {
+            ..
+        } => proved.checkout.display().to_string(),
+        DifferingField::Dataset {
+            ..
+        } => proved.dataset.clone(),
+        DifferingField::Guid {
+            ..
+        } => proved.guid.clone(),
+        DifferingField::Container {
+            ..
+        } => proved.container.clone(),
     };
 }
 
@@ -276,7 +407,10 @@ fn proved_value(proved: &RecordedCheckout, field: &DifferingField) -> String {
 /// ```ts
 /// const isRoot = (checkout, mount) => canonical(checkout) === canonical(mount.mountPoint);
 /// ```
-fn the_checkout_is_the_mounts_root(checkout: &Path, mount: &CheckoutMount) -> bool {
+fn the_checkout_is_the_mounts_root(
+    checkout: &Path,
+    mount: &CheckoutMount,
+) -> bool {
     return canonical(checkout) == canonical(mount.mount_point.as_path());
 }
 
@@ -345,25 +479,44 @@ fn pool_of(dataset: &str) -> String {
 ///
 /// # Errors
 /// `ContainerNotBesideTheCheckout` naming the direction the proof found.
-fn prove_the_container_beside(dataset: &str, container: &str) -> Result<(), RecordCheckoutFailure> {
+fn prove_the_container_beside(
+    dataset: &str,
+    container: &str,
+) -> Result<(), RecordCheckoutFailure> {
     if container == dataset {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout { dataset: String::from(dataset), container: String::from(container), because: String::from("they are the same dataset") });
+        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
+            dataset: String::from(dataset),
+            container: String::from(container),
+            because: String::from("they are the same dataset"),
+        });
     }
     if is_inside(container, dataset) {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout { dataset: String::from(dataset), container: String::from(container), because: String::from("the container is inside the checkout") });
+        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
+            dataset: String::from(dataset),
+            container: String::from(container),
+            because: String::from("the container is inside the checkout"),
+        });
     }
     if is_inside(dataset, container) {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout { dataset: String::from(dataset), container: String::from(container), because: String::from("the container holds the checkout") });
+        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
+            dataset: String::from(dataset),
+            container: String::from(container),
+            because: String::from("the container holds the checkout"),
+        });
     }
     return Ok(());
 }
 
 /// Whether one dataset's name stands under another's,
 /// compared on `/` boundaries so `a/bc` is not inside `a/b`.
-fn is_inside(inner: &str, outer: &str) -> bool {
-    return inner.len() > outer.len() && inner.starts_with(outer) && inner.as_bytes().get(outer.len()) == Some(&b'/');
+fn is_inside(
+    inner: &str,
+    outer: &str,
+) -> bool {
+    return inner.len() > outer.len()
+        && inner.starts_with(outer)
+        && inner.as_bytes().get(outer.len()) == Some(&b'/');
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

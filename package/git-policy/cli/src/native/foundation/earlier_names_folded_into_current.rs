@@ -31,18 +31,42 @@
 //! foldAndTell(gitDir, [DATA_FOLDER, MERGE_INTENT_FOLDER]); // silent after a fold; one line when it waits or fails
 //! ```
 
-use crate::earlier_folder_entries_moved_into_current_folder::{FolderFold, fold_folder};
-use crate::earlier_log_lines_added_to_current_log::{FoldSteps, LogFold, fold_log, numbered_copies};
+use crate::earlier_folder_entries_moved_into_current_folder::{
+    FolderFold,
+    fold_folder,
+};
+use crate::earlier_log_lines_added_to_current_log::{
+    FoldSteps,
+    LogFold,
+    fold_log,
+    numbered_copies,
+};
 use crate::earlier_service_journal_adopted::earlier_journals_in_state;
-use crate::earlier_service_process_look::{Hold, Holding, ServiceLook, earlier_service_process_hold, effective_user};
+use crate::earlier_service_process_look::{
+    Hold,
+    Holding,
+    ServiceLook,
+    earlier_service_process_hold,
+    effective_user,
+};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::service_instance::instance_of;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
-use crate::wrapper_names_old_and_new::{KEPT_BESIDE_SUFFIX, MESSAGE_PREFIX, RenamedName};
+use crate::wrapper_names_old_and_new::{
+    KEPT_BESIDE_SUFFIX,
+    MESSAGE_PREFIX,
+    RenamedName,
+};
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What kind of thing a kept name is,
 /// which decides how it folds.
@@ -98,7 +122,10 @@ impl FoldSurroundings {
     pub fn of_this_process() -> Self {
         let named: Option<PathBuf> = non_empty_environment_path("XDG_STATE_HOME");
         let state_dir: Option<PathBuf> = named.or_else(home_state_dir);
-        return FoldSurroundings { state_dir, proc_root: PathBuf::from("/proc") };
+        return FoldSurroundings {
+            state_dir,
+            proc_root: PathBuf::from("/proc"),
+        };
     }
 }
 
@@ -146,14 +173,32 @@ fn present(path: &Path) -> bool {
 /// Whether a kept name needs folding:
 /// both names exist,
 /// or a fold of a log was interrupted and left its moved log or journal.
-fn needs_fold(directory: &Path, kept: KeptName) -> bool {
+fn needs_fold(
+    directory: &Path,
+    kept: KeptName,
+) -> bool {
     let earlier: bool = present(directory.join(kept.name.earlier).as_path());
     let current: bool = present(directory.join(kept.name.current).as_path());
     return match kept.kind {
         KeptKind::Folder => earlier && current,
         KeptKind::Log => {
-            let leftovers: bool = present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::WAITING_SUFFIX)).as_path())
-                || present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::JOURNAL_SUFFIX)).as_path());
+            let leftovers: bool = present(
+                directory
+                    .join(format!(
+                        "{}{}",
+                        kept.name.current,
+                        crate::earlier_log_lines_added_to_current_log::WAITING_SUFFIX
+                    ))
+                    .as_path(),
+            ) || present(
+                directory
+                    .join(format!(
+                        "{}{}",
+                        kept.name.current,
+                        crate::earlier_log_lines_added_to_current_log::JOURNAL_SUFFIX
+                    ))
+                    .as_path(),
+            );
             (earlier && current) || leftovers
         }
     };
@@ -175,7 +220,10 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
 /// ```ts
 /// for (const copy of numberedCopies(parent, earlier)) await renameNoReplace(copy, current + number) ?? renameNoReplace(copy, current + number + suffix)
 /// ```
-fn keep_numbered_copies(directory: &Path, name: RenamedName) -> std::io::Result<()> {
+fn keep_numbered_copies(
+    directory: &Path,
+    name: RenamedName,
+) -> std::io::Result<()> {
     for copy in numbered_copies(directory, name.earlier) {
         let Some(found) = copy.file_name() else {
             continue;
@@ -188,7 +236,8 @@ fn keep_numbered_copies(directory: &Path, name: RenamedName) -> std::io::Result<
         match rename_noreplace(copy.as_path(), target.as_path()) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let beside: PathBuf = directory.join(format!("{}.{number}{KEPT_BESIDE_SUFFIX}", name.current));
+                let beside: PathBuf =
+                    directory.join(format!("{}.{number}{KEPT_BESIDE_SUFFIX}", name.current));
                 match rename_noreplace(copy.as_path(), beside.as_path()) {
                     Ok(()) => {}
                     Err(second) if second.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -203,13 +252,27 @@ fn keep_numbered_copies(directory: &Path, name: RenamedName) -> std::io::Result<
 }
 
 /// Fold one kept name.
-fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outcome {
+fn fold_one(
+    directory: &Path,
+    kept: KeptName,
+    steps: &mut dyn FoldSteps,
+) -> Outcome {
     match kept.kind {
         KeptKind::Folder => match fold_folder(directory, kept.name, steps) {
             Ok(FolderFold::Nothing) => return Outcome::Nothing,
-            Ok(FolderFold::Folded { .. }) => return Outcome::Folded,
-            Ok(FolderFold::Left { kept: stayed }) => return Outcome::Left(stayed),
-            Ok(FolderFold::NotRemoved { reason }) => return Outcome::Failed(format!("every entry moved, but the emptied earlier folder could not be removed: {reason}")),
+            Ok(FolderFold::Folded {
+                ..
+            }) => return Outcome::Folded,
+            Ok(FolderFold::Left {
+                kept: stayed,
+            }) => return Outcome::Left(stayed),
+            Ok(FolderFold::NotRemoved {
+                reason,
+            }) => {
+                return Outcome::Failed(format!(
+                    "every entry moved, but the emptied earlier folder could not be removed: {reason}"
+                ));
+            }
             Ok(FolderFold::Stopped(step)) => return Outcome::Stopped(step),
             Err(error) => return Outcome::Failed(error.to_string()),
         },
@@ -236,7 +299,10 @@ fn reason_of(holding: Holding) -> Hold {
 
 /// The look at the earlier commit service of the worktree whose Git directory this is,
 /// processes only.
-fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Option<Hold> {
+fn earlier_program_hold(
+    directory: &Path,
+    surroundings: &FoldSurroundings,
+) -> Option<Hold> {
     let instance: String = instance_of(directory);
     let journals: Vec<PathBuf> = match surroundings.state_dir.as_deref() {
         Some(state) => {
@@ -245,7 +311,13 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
         }
         None => Vec::new(),
     };
-    let look: ServiceLook = ServiceLook { instance, journals, own_pid: std::process::id(), own_user: effective_user(), ceiling: PROCESS_LOOK_CEILING };
+    let look: ServiceLook = ServiceLook {
+        instance,
+        journals,
+        own_pid: std::process::id(),
+        own_user: effective_user(),
+        ceiling: PROCESS_LOOK_CEILING,
+    };
     return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(reason_of);
 }
 
@@ -262,7 +334,12 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
 /// ```ts
 /// function foldKeptNames(directory: string, names: KeptName[], surroundings: FoldSurroundings, steps: FoldSteps): FoldReport;
 /// ```
-pub fn fold_kept_names(directory: &Path, names: &[KeptName], surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) -> FoldReport {
+pub fn fold_kept_names(
+    directory: &Path,
+    names: &[KeptName],
+    surroundings: &FoldSurroundings,
+    steps: &mut dyn FoldSteps,
+) -> FoldReport {
     let mut wanted: Vec<KeptName> = Vec::new();
     for kept in names.iter().copied() {
         if needs_fold(directory, kept) {
@@ -270,10 +347,16 @@ pub fn fold_kept_names(directory: &Path, names: &[KeptName], surroundings: &Fold
         }
     }
     if wanted.is_empty() {
-        return FoldReport { held: None, outcomes: Vec::new() };
+        return FoldReport {
+            held: None,
+            outcomes: Vec::new(),
+        };
     }
     if let Some(hold) = earlier_program_hold(directory, surroundings) {
-        return FoldReport { held: Some(hold), outcomes: Vec::new() };
+        return FoldReport {
+            held: Some(hold),
+            outcomes: Vec::new(),
+        };
     }
     let mut outcomes: Vec<(RenamedName, Outcome)> = Vec::new();
     for kept in wanted {
@@ -284,7 +367,10 @@ pub fn fold_kept_names(directory: &Path, names: &[KeptName], surroundings: &Fold
             break;
         }
     }
-    return FoldReport { held: None, outcomes };
+    return FoldReport {
+        held: None,
+        outcomes,
+    };
 }
 
 /// Whether this process has already said that a fold waits.
@@ -295,11 +381,18 @@ static FAILURE_SAID: AtomicBool = AtomicBool::new(false);
 
 /// The line that says a fold waits,
 /// with what to do in plain words.
-fn waiting_line(directory: &Path, hold: Hold) -> String {
+fn waiting_line(
+    directory: &Path,
+    hold: Hold,
+) -> String {
     let instance: String = instance_of(directory);
     let stop: String = match hold {
-        Hold::InstanceHelperRuns => format!("stop it with `systemctl --user stop cli-git@{instance}.socket cli-git@{instance}.service`"),
-        _ => String::from("stop the commit services of the earlier release (`systemctl --user list-units 'cli-git@*'` lists them)"),
+        Hold::InstanceHelperRuns => format!(
+            "stop it with `systemctl --user stop cli-git@{instance}.socket cli-git@{instance}.service`"
+        ),
+        _ => String::from(
+            "stop the commit services of the earlier release (`systemctl --user list-units 'cli-git@*'` lists them)",
+        ),
     };
     return format!(
         "{}: names the earlier release gave its saved data still sit beside the new names in {}. Nothing is lost and nothing is \
@@ -312,7 +405,11 @@ fn waiting_line(directory: &Path, hold: Hold) -> String {
 }
 
 /// The line that says a fold could not finish.
-fn failure_line(directory: &Path, name: RenamedName, outcome: &Outcome) -> Option<String> {
+fn failure_line(
+    directory: &Path,
+    name: RenamedName,
+    outcome: &Outcome,
+) -> Option<String> {
     let because: String = match outcome {
         Outcome::Failed(message) => message.clone(),
         Outcome::Left(kept) => format!(
@@ -345,7 +442,12 @@ fn failure_line(directory: &Path, name: RenamedName, outcome: &Outcome) -> Optio
 /// ```ts
 /// foldKeptNamesAndTell(directory, names, { procRoot: fixtureProc, stateDir: null }, steps);
 /// ```
-pub fn fold_kept_names_and_tell(directory: &Path, names: &[KeptName], surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) {
+pub fn fold_kept_names_and_tell(
+    directory: &Path,
+    names: &[KeptName],
+    surroundings: &FoldSurroundings,
+    steps: &mut dyn FoldSteps,
+) {
     let report: FoldReport = fold_kept_names(directory, names, surroundings, steps);
     if let Some(hold) = report.held
         && !WAIT_SAID.swap(true, Ordering::Relaxed)

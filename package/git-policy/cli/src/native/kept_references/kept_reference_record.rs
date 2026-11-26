@@ -25,10 +25,19 @@
 //! await writeIfAbsent(recordPath(commonDir, 'refs/cli-git/kept/7'), { version: 1, reference, commit, batch: 7n, rescued: false, worktree, keptAtMs, why });
 //! ```
 
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder inside the wrapper's data folder that holds one record per kept reference.
 pub const RECORD_FOLDER: &str = "kept-references";
@@ -101,7 +110,10 @@ pub fn record_folder(common_dir: &Path) -> PathBuf {
 }
 
 /// The path of one kept reference's record.
-fn record_path(common_dir: &Path, reference: &str) -> Option<PathBuf> {
+fn record_path(
+    common_dir: &Path,
+    reference: &str,
+) -> Option<PathBuf> {
     return Some(record_folder(common_dir).join(file_name_of(reference)?));
 }
 
@@ -119,10 +131,15 @@ fn record_path(common_dir: &Path, reference: &str) -> Option<PathBuf> {
 /// ```ts
 /// readRecord(commonDir, 'refs/cli-git/kept/7') // undefined when absent or damaged
 /// ```
-pub fn read_record(common_dir: &Path, reference: &str) -> Option<KeptReferenceRecord> {
+pub fn read_record(
+    common_dir: &Path,
+    reference: &str,
+) -> Option<KeptReferenceRecord> {
     let path: PathBuf = record_path(common_dir, reference)?;
     // A record that is a named pipe is no record, and it answers at once rather than waiting for a writer.
-    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
+    let bytes: Vec<u8> =
+        crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT)
+            .ok()?;
     let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
     let value: Value = serde_json::from_str(text.trim()).ok()?;
     let object: &Map<String, Value> = value.as_object()?;
@@ -136,7 +153,10 @@ pub fn read_record(common_dir: &Path, reference: &str) -> Option<KeptReferenceRe
         commit: String::from(object.get("commit")?.as_str()?),
         batch,
         rescued: object.get("rescued")?.as_bool()?,
-        worktree: object.get("worktree").and_then(Value::as_str).map(String::from),
+        worktree: object
+            .get("worktree")
+            .and_then(Value::as_str)
+            .map(String::from),
         kept_at_ms,
         why: String::from(object.get("why")?.as_str()?),
     });
@@ -161,7 +181,10 @@ pub fn read_record(common_dir: &Path, reference: &str) -> Option<KeptReferenceRe
 /// ```ts
 /// const record = writeIfAbsent(commonDir, candidate) ?? readRecord(commonDir, candidate.reference);
 /// ```
-pub fn write_if_absent(common_dir: &Path, record: &KeptReferenceRecord) -> Option<KeptReferenceRecord> {
+pub fn write_if_absent(
+    common_dir: &Path,
+    record: &KeptReferenceRecord,
+) -> Option<KeptReferenceRecord> {
     if let Some(path) = record_path(common_dir, record.reference.as_str()) {
         if let Some(directory) = path.parent() {
             let _created = create_private_directory_all(directory);
@@ -185,7 +208,10 @@ pub fn write_if_absent(common_dir: &Path, record: &KeptReferenceRecord) -> Optio
 /// ```ts
 /// try { await unlink(recordPath(commonDir, reference)); } catch {}
 /// ```
-pub fn remove_record(common_dir: &Path, reference: &str) {
+pub fn remove_record(
+    common_dir: &Path,
+    reference: &str,
+) {
     let Some(path) = record_path(common_dir, reference) else {
         return;
     };
@@ -223,7 +249,13 @@ fn path_text(path: &std::path::Path) -> String {
 /// ```ts
 /// writeIfAbsent(commonDir, { version: 1, reference, commit, batch, rescued, worktree, keptAtMs: Date.now(), why: KEPT_FOR_A_REMOVAL });
 /// ```
-pub fn record_a_removals_kept_reference(common_dir: &Path, reference: &str, commit: &str, worktree: &std::path::Path, now_ms: u128) {
+pub fn record_a_removals_kept_reference(
+    common_dir: &Path,
+    reference: &str,
+    commit: &str,
+    worktree: &std::path::Path,
+    now_ms: u128,
+) {
     let Some((batch, rescued)) = crate::kept_reference_name::batch_and_rescued_of(reference) else {
         return;
     };
@@ -256,14 +288,21 @@ pub fn record_a_removals_kept_reference(common_dir: &Path, reference: &str, comm
 /// ```ts
 /// for (const file of await readdir(folder)) { const record = await read(file); if (!held.has(record.reference) && now - record.keptAtMs > grace) await unlink(file); }
 /// ```
-pub fn sweep_records_of_references_that_are_gone(common_dir: &Path, held: &[crate::kept_references_reading::OneKeptReference], now: u128, grace: std::time::Duration) {
+pub fn sweep_records_of_references_that_are_gone(
+    common_dir: &Path,
+    held: &[crate::kept_references_reading::OneKeptReference],
+    now: u128,
+    grace: std::time::Duration,
+) {
     let Ok(listing) = std::fs::read_dir(record_folder(common_dir)) else {
         return;
     };
     for entry in listing.flatten() {
         let path: std::path::PathBuf = entry.path();
         // A record that is a named pipe sweeps to nothing rather than waiting for a writer.
-        let Ok(bytes) = crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT) else {
+        let Ok(bytes) =
+            crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT)
+        else {
             continue;
         };
         let Ok(value) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
@@ -275,7 +314,11 @@ pub fn sweep_records_of_references_that_are_gone(common_dir: &Path, held: &[crat
         if names_one_of(held, reference) {
             continue;
         }
-        let kept_at_ms: u128 = value.get("kept_at_ms").and_then(Value::as_u64).map(u128::from).unwrap_or(0);
+        let kept_at_ms: u128 = value
+            .get("kept_at_ms")
+            .and_then(Value::as_u64)
+            .map(u128::from)
+            .unwrap_or(0);
         if now.saturating_sub(kept_at_ms) <= grace.as_millis() {
             continue;
         }
@@ -293,7 +336,10 @@ pub fn sweep_records_of_references_that_are_gone(common_dir: &Path, held: &[crat
 /// ```ts
 /// const namesOneOf = (held, reference) => held.some((one) => one.reference === reference);
 /// ```
-fn names_one_of(held: &[crate::kept_references_reading::OneKeptReference], reference: &str) -> bool {
+fn names_one_of(
+    held: &[crate::kept_references_reading::OneKeptReference],
+    reference: &str,
+) -> bool {
     for one in held {
         if one.reference == reference {
             return true;
@@ -335,12 +381,21 @@ fn worktree_value(worktree: Option<&str>) -> Value {
 pub fn line_of(record: &KeptReferenceRecord) -> String {
     let mut object: Map<String, Value> = Map::new();
     object.insert(String::from("version"), Value::from(VERSION));
-    object.insert(String::from("reference"), Value::from(record.reference.as_str()));
+    object.insert(
+        String::from("reference"),
+        Value::from(record.reference.as_str()),
+    );
     object.insert(String::from("commit"), Value::from(record.commit.as_str()));
     object.insert(String::from("batch"), Value::from(record.batch));
     object.insert(String::from("rescued"), Value::from(record.rescued));
-    object.insert(String::from("worktree"), worktree_value(record.worktree.as_deref()));
-    object.insert(String::from("kept_at_ms"), Value::from(u64::try_from(record.kept_at_ms).unwrap_or(u64::MAX)));
+    object.insert(
+        String::from("worktree"),
+        worktree_value(record.worktree.as_deref()),
+    );
+    object.insert(
+        String::from("kept_at_ms"),
+        Value::from(u64::try_from(record.kept_at_ms).unwrap_or(u64::MAX)),
+    );
     object.insert(String::from("why"), Value::from(record.why.as_str()));
     return format!("{}\n", Value::Object(object));
 }

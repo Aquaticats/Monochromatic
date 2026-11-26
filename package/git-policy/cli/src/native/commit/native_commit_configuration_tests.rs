@@ -4,10 +4,14 @@
 //! and that real Git reads every value from it as it went in.
 
 use super::*;
+use crate::argument_limit::one_argument_limit;
+use crate::test_support::{
+    fixture,
+    git_output,
+    remove,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
-use crate::argument_limit::one_argument_limit;
-use crate::test_support::{fixture, git_output, remove};
 
 /// A snapshot of the listing Git prints for the given `scope`,
 /// `key` and optional `value` records,
@@ -24,12 +28,18 @@ fn snapshot_records(records: &[(&str, &str, Option<&[u8]>)]) -> ConfigSnapshot {
         }
         listing.push(0);
     }
-    return ConfigSnapshot::parse(listing.as_slice(), true).expect("a listing of the printed shape");
+    return ConfigSnapshot::parse(listing.as_slice(), true)
+        .expect("a listing of the printed shape");
 }
 
 /// `snapshot_records` for the text records of a listing.
 fn snapshot(records: &[(&str, &str, Option<&str>)]) -> ConfigSnapshot {
-    let owned: Vec<(&str, &str, Option<&[u8]>)> = records.iter().map(|(scope, key, value)| { return (*scope, *key, value.map(str::as_bytes)); }).collect();
+    let owned: Vec<(&str, &str, Option<&[u8]>)> = records
+        .iter()
+        .map(|(scope, key, value)| {
+            return (*scope, *key, value.map(str::as_bytes));
+        })
+        .collect();
     return snapshot_records(owned.as_slice());
 }
 
@@ -67,16 +77,27 @@ fn every_character_the_format_treats_specially_reads_back_from_the_carried_file(
     let root: PathBuf = fixture("native-commit-configuration-specials");
     let records: Vec<(&str, &str, Option<&[u8]>)> = SPECIAL_VALUES
         .iter()
-        .map(|(key, value)| { return ("local", *key, Some(*value)); })
+        .map(|(key, value)| {
+            return ("local", *key, Some(*value));
+        })
         .collect();
     let found: ConfigSnapshot = snapshot_records(records.as_slice());
-    let mut query: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
-    query.extend([OsString::from("config"), OsString::from("-z"), OsString::from("--get")]);
+    let mut query: Vec<OsString> =
+        native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    query.extend([
+        OsString::from("config"),
+        OsString::from("-z"),
+        OsString::from("--get"),
+    ]);
     for (key, value) in SPECIAL_VALUES {
         let mut asked: Vec<OsString> = query.clone();
         asked.push(OsString::from(key));
         let output: std::process::Output = git_output(root.as_path(), asked.as_slice());
-        assert!(output.status.success(), "real Git must read {key}: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "real Git must read {key}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         let mut expected: Vec<u8> = value.to_vec();
         expected.push(0);
         assert_eq!(output.stdout, expected, "{key} reads back as it went in");
@@ -97,13 +118,28 @@ fn every_character_the_format_treats_specially_reads_back_from_the_carried_file(
 fn an_empty_subsection_is_written_as_one() {
     let root: PathBuf = fixture("native-commit-configuration-empty-subsection");
     let found: ConfigSnapshot = snapshot(&[("local", "trailer..key", Some("X-Empty"))]);
-    let mut query: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
-    let text: String = String::from_utf8(std::fs::read(root.join(NATIVE_COMMIT_CONFIGURATION_NAME)).expect("the carried file"))
-        .expect("the file is text");
-    assert_eq!(text.lines().collect::<Vec<&str>>(), vec!["[trailer \"\"]", "\tkey = \"X-Empty\""]);
-    query.extend([OsString::from("config"), OsString::from("-z"), OsString::from("--get"), OsString::from("trailer..key")]);
+    let mut query: Vec<OsString> =
+        native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let text: String = String::from_utf8(
+        std::fs::read(root.join(NATIVE_COMMIT_CONFIGURATION_NAME)).expect("the carried file"),
+    )
+    .expect("the file is text");
+    assert_eq!(
+        text.lines().collect::<Vec<&str>>(),
+        vec!["[trailer \"\"]", "\tkey = \"X-Empty\""]
+    );
+    query.extend([
+        OsString::from("config"),
+        OsString::from("-z"),
+        OsString::from("--get"),
+        OsString::from("trailer..key"),
+    ]);
     let output: std::process::Output = git_output(root.as_path(), query.as_slice());
-    assert!(output.status.success(), "real Git must read trailer..key: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "real Git must read trailer..key: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(output.stdout, b"X-Empty\0");
     remove(root.as_path());
 }
@@ -120,19 +156,42 @@ fn a_setting_the_format_cannot_state_is_left_out() {
     let root: PathBuf = fixture("native-commit-configuration-unrepresentable");
     let found: ConfigSnapshot = snapshot_records(&[
         ("local", "commitcleanup", Some(b"no section at all")),
-        ("local", "commit cleanup", Some(b"a space where a name is read")),
-        ("local", "commit.cleanup=verbatim", Some(b"an equals sign in the name")),
+        (
+            "local",
+            "commit cleanup",
+            Some(b"a space where a name is read"),
+        ),
+        (
+            "local",
+            "commit.cleanup=verbatim",
+            Some(b"an equals sign in the name"),
+        ),
         ("local", "commit.verbose", Some(b"kept")),
     ]);
     // The arguments the shadow is given, kept so the production path is the one that writes the file.
-    let _arguments: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let _arguments: Vec<OsString> =
+        native_commit_configuration(Some(&found), root.as_path()).expect("carried");
     let file: PathBuf = root.join(NATIVE_COMMIT_CONFIGURATION_NAME);
-    let text: String = String::from_utf8(std::fs::read(file.as_path()).expect("the carried file")).expect("the file is text");
-    assert_eq!(text.lines().collect::<Vec<&str>>(), vec!["[commit]", "\tverbose = \"kept\""]);
+    let text: String = String::from_utf8(std::fs::read(file.as_path()).expect("the carried file"))
+        .expect("the file is text");
+    assert_eq!(
+        text.lines().collect::<Vec<&str>>(),
+        vec!["[commit]", "\tverbose = \"kept\""]
+    );
     // The file alone, so the listing holds what the file states and not the settings that included it.
-    let query: Vec<OsString> = vec![OsString::from("config"), OsString::from("-z"), OsString::from("--file"), file.into_os_string(), OsString::from("--list")];
+    let query: Vec<OsString> = vec![
+        OsString::from("config"),
+        OsString::from("-z"),
+        OsString::from("--file"),
+        file.into_os_string(),
+        OsString::from("--list"),
+    ];
     let output: std::process::Output = git_output(root.as_path(), query.as_slice());
-    assert!(output.status.success(), "real Git must read the file: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "real Git must read the file: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(output.stdout, b"commit.verbose\nkept\0");
     remove(root.as_path());
 }
@@ -151,9 +210,15 @@ fn a_setting_the_format_cannot_state_is_left_out() {
 fn a_value_holding_a_nul_cannot_be_stated_and_is_left_out() {
     let mut listing: Vec<u8> = Vec::new();
     listing.extend_from_slice(b"local\0commit.template\nkept\0rest\0");
-    assert!(ConfigSnapshot::parse(listing.as_slice(), true).is_none(), "Git's listing cannot hold a NUL in a value");
+    assert!(
+        ConfigSnapshot::parse(listing.as_slice(), true).is_none(),
+        "Git's listing cannot hold a NUL in a value"
+    );
     let mut text: Vec<u8> = Vec::new();
-    assert!(!push_entry(&mut text, "commit.template", Some(b"kept\x00rest")), "a NUL value is left out");
+    assert!(
+        !push_entry(&mut text, "commit.template", Some(b"kept\x00rest")),
+        "a NUL value is left out"
+    );
     assert!(text.is_empty(), "nothing is written for it");
 }
 
@@ -186,7 +251,13 @@ fn the_keys_are_the_signing_and_message_keys_and_trailers() {
     ] {
         assert!(is_native_commit_key(key), "{key}");
     }
-    for key in ["core.filemode", "user.name", "commit.gpgsign2", "gpg", "gpgx.format"] {
+    for key in [
+        "core.filemode",
+        "user.name",
+        "commit.gpgsign2",
+        "gpg",
+        "gpgx.format",
+    ] {
         assert!(!is_native_commit_key(key), "{key}");
     }
 }
@@ -209,12 +280,17 @@ fn every_entry_of_a_native_key_reaches_the_carried_file_in_order() {
         ("local", "commit.verbose", None),
         ("local", "core.filemode", Some("true")),
     ]);
-    let arguments: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let arguments: Vec<OsString> =
+        native_commit_configuration(Some(&found), root.as_path()).expect("carried");
     let file: PathBuf = root.join(NATIVE_COMMIT_CONFIGURATION_NAME);
     let mut setting: Vec<u8> = b"include.path=".to_vec();
     setting.extend_from_slice(file.as_os_str().as_encoded_bytes());
-    assert_eq!(arguments, vec![OsString::from("-c"), os_from_path_bytes(setting.as_slice())]);
-    let text: String = String::from_utf8(std::fs::read(file).expect("the carried file")).expect("the file is text");
+    assert_eq!(
+        arguments,
+        vec![OsString::from("-c"), os_from_path_bytes(setting.as_slice())]
+    );
+    let text: String = String::from_utf8(std::fs::read(file).expect("the carried file"))
+        .expect("the file is text");
     assert_eq!(
         text.lines().collect::<Vec<&str>>(),
         vec![
@@ -254,7 +330,8 @@ fn real_git_reads_every_carried_value_from_the_file() {
         ("local", "trailer.unused.key", Some(long.as_slice())),
         ("local", "commit.template", Some(&not_text)),
     ]);
-    let mut asked: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    let mut asked: Vec<OsString> =
+        native_commit_configuration(Some(&found), root.as_path()).expect("carried");
     asked.extend([OsString::from("config"), OsString::from("--get")]);
     for (key, expected) in [
         ("trailer.review=bot.key", b"Reviewed-by".as_slice()),
@@ -265,8 +342,16 @@ fn real_git_reads_every_carried_value_from_the_file() {
         let mut query: Vec<OsString> = asked.clone();
         query.push(OsString::from(key));
         let output: std::process::Output = git_output(root.as_path(), query.as_slice());
-        assert!(output.status.success(), "real Git must read {key}: {}", String::from_utf8_lossy(&output.stderr));
-        assert_eq!(output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout), expected, "{key}");
+        assert!(
+            output.status.success(),
+            "real Git must read {key}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout),
+            expected,
+            "{key}"
+        );
     }
     remove(root.as_path());
 }
@@ -279,9 +364,18 @@ fn real_git_reads_every_carried_value_from_the_file() {
 fn no_native_entry_adds_no_setting() {
     let root: PathBuf = fixture("native-commit-configuration-absent");
     let unrelated: ConfigSnapshot = snapshot(&[("local", "core.filemode", Some("true"))]);
-    assert_eq!(native_commit_configuration(None, root.as_path()).expect("nothing to carry"), Vec::<OsString>::new());
-    assert_eq!(native_commit_configuration(Some(&unrelated), root.as_path()).expect("nothing to carry"), Vec::<OsString>::new());
-    assert!(!root.join(NATIVE_COMMIT_CONFIGURATION_NAME).exists(), "no file is written when nothing travels");
+    assert_eq!(
+        native_commit_configuration(None, root.as_path()).expect("nothing to carry"),
+        Vec::<OsString>::new()
+    );
+    assert_eq!(
+        native_commit_configuration(Some(&unrelated), root.as_path()).expect("nothing to carry"),
+        Vec::<OsString>::new()
+    );
+    assert!(
+        !root.join(NATIVE_COMMIT_CONFIGURATION_NAME).exists(),
+        "no file is written when nothing travels"
+    );
     remove(root.as_path());
 }
 

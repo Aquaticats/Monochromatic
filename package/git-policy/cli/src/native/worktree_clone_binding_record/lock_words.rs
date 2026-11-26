@@ -27,7 +27,8 @@
 use crate::worktree_clone_mount_protocol::RequestNonce;
 
 /// The sentence's fixed part before the nonce.
-pub const LOCK_WORDS_PREFIX: &str = "monochromatic-git-policy-cli holds this Git registration for a ZFS clone slot (add nonce ";
+pub const LOCK_WORDS_PREFIX: &str =
+    "monochromatic-git-policy-cli holds this Git registration for a ZFS clone slot (add nonce ";
 
 /// The sentence's fixed part after the nonce,
 /// which ends with the command a person runs and no newline.
@@ -40,7 +41,8 @@ pub const GIT_COMPLETES_WITH: u8 = b'\n';
 /// computed from the sentence's two fixed parts,
 /// the nonce's 32 digits and Git's newline.
 /// It is not a measured limit and it is not a wait (rule `LQM` lets it cite its own bytes).
-pub const LOCK_WORDS_MAXIMUM_BYTES: u64 = LOCK_WORDS_PREFIX.len() as u64 + 32 + LOCK_WORDS_SUFFIX.len() as u64 + 1;
+pub const LOCK_WORDS_MAXIMUM_BYTES: u64 =
+    LOCK_WORDS_PREFIX.len() as u64 + 32 + LOCK_WORDS_SUFFIX.len() as u64 + 1;
 
 /// What:
 ///  How one `locked` file stands against the sentence recomposed from a record's nonce.
@@ -84,22 +86,33 @@ pub fn lock_file_bytes(nonce: &RequestNonce) -> Vec<u8> {
 }
 
 /// How one `locked` file's bytes stand against the nonce's sentence.
-pub fn lock_standing_of(locked: &[u8], nonce: &RequestNonce) -> LockStanding {
+pub fn lock_standing_of(
+    locked: &[u8],
+    nonce: &RequestNonce,
+) -> LockStanding {
     let expected: Vec<u8> = lock_file_bytes(nonce);
     if locked == expected.as_slice() {
         return LockStanding::Verified;
     }
     let covers_the_nonce: u64 = LOCK_WORDS_PREFIX.len() as u64 + 32;
     let length: u64 = locked.len() as u64;
-    if length > covers_the_nonce && length < expected.len() as u64 && locked == &expected[..locked.len()] {
-        return LockStanding::CutShort { at: length };
+    if length > covers_the_nonce
+        && length < expected.len() as u64
+        && locked == &expected[..locked.len()]
+    {
+        return LockStanding::CutShort {
+            at: length,
+        };
     }
     return LockStanding::Foreign;
 }
 
 /// Whether these bytes are a prefix of the sentence Git's own write would complete,
 /// empty included.
-pub fn is_a_prefix_of_the_sentence(locked: &[u8], nonce: &RequestNonce) -> bool {
+pub fn is_a_prefix_of_the_sentence(
+    locked: &[u8],
+    nonce: &RequestNonce,
+) -> bool {
     let expected: Vec<u8> = lock_file_bytes(nonce);
     return locked.len() <= expected.len() && locked == &expected[..locked.len()];
 }

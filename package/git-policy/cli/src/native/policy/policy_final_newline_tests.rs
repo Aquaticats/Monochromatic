@@ -16,7 +16,10 @@
 
 /// Import the module under test.
 use super::{
-    FINAL_NEWLINE_CODE, FINAL_NEWLINE_MESSAGE, check_final_newline, is_final_newline_excluded,
+    FINAL_NEWLINE_CODE,
+    FINAL_NEWLINE_MESSAGE,
+    check_final_newline,
+    is_final_newline_excluded,
     normalized_final_newline,
 };
 use crate::candidate_object::CandidateMode;
@@ -24,11 +27,25 @@ use crate::candidate_prediction::CandidateRequest;
 use crate::diagnostics::EngineFailureCode;
 use crate::event_path::EventPath;
 use crate::policy_content::Correction;
-use crate::policy_content::{ContentState, LifecycleContent};
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
 use crate::policy_trigger::Trigger;
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -110,7 +127,10 @@ fn preserved_paths_keep_their_bytes() {
 
 /// The finding about the file at `path`,
 ///  offering a fix or not.
-fn finding_with(path: &str, fix_available: bool) -> PolicyFinding {
+fn finding_with(
+    path: &str,
+    fix_available: bool,
+) -> PolicyFinding {
     return PolicyFinding {
         code: FINAL_NEWLINE_CODE,
         message: String::from(FINAL_NEWLINE_MESSAGE),
@@ -126,7 +146,12 @@ fn finding(path: &str) -> PolicyFinding {
 }
 
 /// The correction of the file at `path` from `before` to `after`.
-fn correction(path: &str, mode: CandidateMode, before: &[u8], after: &[u8]) -> Correction {
+fn correction(
+    path: &str,
+    mode: CandidateMode,
+    before: &[u8],
+    after: &[u8],
+) -> Correction {
     return Correction {
         path: path.as_bytes().to_vec(),
         mode,
@@ -162,7 +187,13 @@ fn the_check_reports_each_noncanonical_text_file() {
         LifecycleContent::Requested(CandidateRequest::Add(vec![OsString::from("--all")]));
     let mut content: ContentState = ContentState::new();
     assert_eq!(
-        check_final_newline(&mut content, &lifecycle, &mut facts, Trigger::PreForward, false),
+        check_final_newline(
+            &mut content,
+            &lifecycle,
+            &mut facts,
+            Trigger::PreForward,
+            false
+        ),
         PolicyOutcome::Findings(vec![
             finding("a-extra.txt"),
             finding("b-missing.txt"),
@@ -171,7 +202,13 @@ fn the_check_reports_each_noncanonical_text_file() {
     );
     // A check proposes nothing; only a direct fix offers and proposes each correction.
     assert_eq!(
-        check_final_newline(&mut content, &lifecycle, &mut facts, Trigger::DirectCheck, false),
+        check_final_newline(
+            &mut content,
+            &lifecycle,
+            &mut facts,
+            Trigger::DirectCheck,
+            false
+        ),
         PolicyOutcome::Findings(vec![
             finding("a-extra.txt"),
             finding("b-missing.txt"),
@@ -180,7 +217,13 @@ fn the_check_reports_each_noncanonical_text_file() {
     );
     assert_eq!(content.take_proposals(), Vec::<Correction>::new());
     assert_eq!(
-        check_final_newline(&mut content, &lifecycle, &mut facts, Trigger::DirectFix, false),
+        check_final_newline(
+            &mut content,
+            &lifecycle,
+            &mut facts,
+            Trigger::DirectFix,
+            false
+        ),
         PolicyOutcome::Findings(vec![
             finding_with("a-extra.txt", true),
             finding_with("b-missing.txt", true),
@@ -267,7 +310,10 @@ fn the_check_reports_each_noncanonical_text_file() {
         Trigger::PreForward,
         false,
     ) {
-        PolicyOutcome::Failed { code, .. } => {
+        PolicyOutcome::Failed {
+            code,
+            ..
+        } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable);
         }
         other => panic!("expected a failure, got {other:?}"),

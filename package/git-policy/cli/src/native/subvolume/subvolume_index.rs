@@ -36,7 +36,10 @@
 //! const outcome = rewriteIndexStat(bytes, (path) => lstatFields(join(tree, path))); // { bytes, updated, total } | { skipped }
 //! ```
 
-use crate::subvolume_sha::{sha1, sha256};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
 
 /// The bytes of the header:
 /// signature,
@@ -143,14 +146,20 @@ pub(crate) struct Located {
 
 /// A big-endian `u32` at `at`,
 /// or nothing past the end.
-pub(crate) fn be32(bytes: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn be32(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     let quad: &[u8] = bytes.get(at..at.checked_add(4)?)?;
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
 
 /// A big-endian `u16` at `at`,
 /// or nothing past the end.
-fn be16(bytes: &[u8], at: usize) -> Option<u16> {
+fn be16(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u16> {
     let pair: &[u8] = bytes.get(at..at.checked_add(2)?)?;
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
@@ -167,7 +176,10 @@ fn be16(bytes: &[u8], at: usize) -> Option<u16> {
 /// ```ts
 /// function walkEntries(bytes: Uint8Array, hashLength: number): { entries: Located[]; end: number } | undefined;
 /// ```
-pub(crate) fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Located>, usize)> {
+pub(crate) fn walk_entries(
+    bytes: &[u8],
+    hash_length: usize,
+) -> Option<(Vec<Located>, usize)> {
     let version: u32 = be32(bytes, 4)?;
     let count: usize = usize::try_from(be32(bytes, 8)?).ok()?;
     let limit: usize = bytes.len().checked_sub(hash_length)?;
@@ -212,7 +224,12 @@ pub(crate) fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Loca
             return None;
         }
         previous = path.clone();
-        found.push(Located { start: at, path, flags, mode });
+        found.push(Located {
+            start: at,
+            path,
+            flags,
+            mode,
+        });
         at = next;
     }
     return Some((found, at));
@@ -235,7 +252,10 @@ fn first_nul_at(bytes: &[u8]) -> Option<usize> {
 }
 
 /// Whether `signature` is one of the four-byte extension names in `names`.
-fn is_listed(names: &[&[u8; 4]], signature: &[u8]) -> bool {
+fn is_listed(
+    names: &[&[u8; 4]],
+    signature: &[u8],
+) -> bool {
     for name in names {
         if signature == name.as_slice() {
             return true;
@@ -257,14 +277,28 @@ fn is_listed(names: &[&[u8; 4]], signature: &[u8]) -> bool {
 /// ```ts
 /// function extensionsFit(bytes: Uint8Array, entriesEnd: number, hashLength: number): boolean;
 /// ```
-fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool {
-    let Some(limit) = bytes.len().checked_sub(hash_length) else { return false };
+fn extensions_fit(
+    bytes: &[u8],
+    entries_end: usize,
+    hash_length: usize,
+) -> bool {
+    let Some(limit) = bytes.len().checked_sub(hash_length) else {
+        return false;
+    };
     let mut at: usize = entries_end;
     while at < limit {
-        let Some(size) = be32(bytes, at + 4) else { return false };
-        let Some(header_end) = at.checked_add(8) else { return false };
-        let Ok(extension_size) = usize::try_from(size) else { return false };
-        let Some(end) = header_end.checked_add(extension_size) else { return false };
+        let Some(size) = be32(bytes, at + 4) else {
+            return false;
+        };
+        let Some(header_end) = at.checked_add(8) else {
+            return false;
+        };
+        let Ok(extension_size) = usize::try_from(size) else {
+            return false;
+        };
+        let Some(end) = header_end.checked_add(extension_size) else {
+            return false;
+        };
         if end > limit {
             return false;
         }
@@ -295,15 +329,24 @@ fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool 
 /// ```ts
 /// function checksumLength(bytes: Uint8Array, known?: number): { length: number; zero: boolean } | { declined: string };
 /// ```
-pub(crate) fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), String> {
+pub(crate) fn checksum_kind(
+    bytes: &[u8],
+    known: Option<usize>,
+) -> Result<(usize, bool), String> {
     let candidates: Vec<usize> = match known {
         Some(length) => vec![length],
         None => vec![20, 32],
     };
     for length in &candidates {
         let verifies: bool = match length {
-            20 => bytes.len() >= HEADER + 20 && sha1(&bytes[..bytes.len() - 20]) == bytes[bytes.len() - 20..],
-            32 => bytes.len() >= HEADER + 32 && sha256(&bytes[..bytes.len() - 32]) == bytes[bytes.len() - 32..],
+            20 => {
+                bytes.len() >= HEADER + 20
+                    && sha1(&bytes[..bytes.len() - 20]) == bytes[bytes.len() - 20..]
+            }
+            32 => {
+                bytes.len() >= HEADER + 32
+                    && sha256(&bytes[..bytes.len() - 32]) == bytes[bytes.len() - 32..]
+            }
             _ => false,
         };
         if verifies {
@@ -312,7 +355,8 @@ pub(crate) fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize
     }
     let mut fitting: Vec<usize> = Vec::new();
     for length in candidates.iter().copied() {
-        let zero: bool = bytes.len() >= HEADER + length && bytes[bytes.len() - length..].iter().all(is_zero_byte);
+        let zero: bool = bytes.len() >= HEADER + length
+            && bytes[bytes.len() - length..].iter().all(is_zero_byte);
         if !zero {
             continue;
         }
@@ -324,9 +368,15 @@ pub(crate) fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize
     }
     return match fitting.as_slice() {
         [length] => Ok((*length, true)),
-        [] if known.is_some() => Err(String::from("the checksum does not match the repository's hash and is not all zero")),
-        [] => Err(String::from("the checksum matches neither SHA-1 nor SHA-256, and it is not an all-zero checksum of a file that parses to its end")),
-        _ => Err(String::from("the checksum is all zero and the file parses as both SHA-1 and SHA-256, and the repository's object format is not known")),
+        [] if known.is_some() => Err(String::from(
+            "the checksum does not match the repository's hash and is not all zero",
+        )),
+        [] => Err(String::from(
+            "the checksum matches neither SHA-1 nor SHA-256, and it is not an all-zero checksum of a file that parses to its end",
+        )),
+        _ => Err(String::from(
+            "the checksum is all zero and the file parses as both SHA-1 and SHA-256, and the repository's object format is not known",
+        )),
     };
 }
 
@@ -344,8 +394,16 @@ pub(crate) fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize
 /// ```ts
 /// function rewriteIndexStat(bytes: Uint8Array, lookup: (path: Uint8Array) => StatFields | undefined): IndexOutcome;
 /// ```
-pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn StatLookup) -> IndexOutcome {
-    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut AcceptEveryStat);
+pub fn rewrite_index_stat(
+    bytes: &[u8],
+    lookup: &mut dyn StatLookup,
+) -> IndexOutcome {
+    return rewrite_index_stat_with(
+        bytes,
+        &RewriteContext::default(),
+        lookup,
+        &mut AcceptEveryStat,
+    );
 }
 
 /// What:
@@ -366,7 +424,10 @@ pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn StatLookup) -> IndexOut
 pub trait StatLookup {
     /// What `lstat` reports now for `path`,
     /// or nothing for a file that is missing.
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields>;
+    fn stat_now(
+        &mut self,
+        path: &[u8],
+    ) -> Option<StatFields>;
 }
 
 /// What:
@@ -383,7 +444,11 @@ pub trait StatTrust {
     /// Whether the entry for `path`,
     /// with the fields it stored,
     /// is still trusted.
-    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool;
+    fn is_trusted(
+        &mut self,
+        path: &[u8],
+        stored: &StoredStat,
+    ) -> bool;
 }
 
 /// The check that accepts every entry:
@@ -391,7 +456,11 @@ pub trait StatTrust {
 pub struct AcceptEveryStat;
 
 impl StatTrust for AcceptEveryStat {
-    fn is_trusted(&mut self, _path: &[u8], _stored: &StoredStat) -> bool {
+    fn is_trusted(
+        &mut self,
+        _path: &[u8],
+        _stored: &StoredStat,
+    ) -> bool {
         return true;
     }
 }
@@ -487,12 +556,15 @@ pub fn rewrite_index_stat_with(
     if !(2..=4).contains(&version) {
         return IndexOutcome::Skipped(format!("index version {version} is not 2, 3 or 4"));
     }
-    let (hash_length, zero_checksum): (usize, bool) = match checksum_kind(bytes, context.hash_length) {
-        Ok(found) => found,
-        Err(reason) => return IndexOutcome::Skipped(reason),
-    };
+    let (hash_length, zero_checksum): (usize, bool) =
+        match checksum_kind(bytes, context.hash_length) {
+            Ok(found) => found,
+            Err(reason) => return IndexOutcome::Skipped(reason),
+        };
     let Some((entries, entries_end)) = walk_entries(bytes, hash_length) else {
-        return IndexOutcome::Skipped(String::from("the entries do not have the documented layout"));
+        return IndexOutcome::Skipped(String::from(
+            "the entries do not have the documented layout",
+        ));
     };
     let limit: usize = bytes.len() - hash_length;
     // The extensions after the entries: keep each unless it is derived state; decline on one that changes the meaning.
@@ -504,10 +576,15 @@ pub fn rewrite_index_stat_with(
         };
         let end: usize = at + 8 + usize::try_from(size).unwrap_or(usize::MAX);
         if end > limit {
-            return IndexOutcome::Skipped(String::from("an extension runs past the end of the file"));
+            return IndexOutcome::Skipped(String::from(
+                "an extension runs past the end of the file",
+            ));
         }
         if is_listed(&DECLINED, signature) {
-            return IndexOutcome::Skipped(format!("the index uses the {} extension (split or sparse index)", String::from_utf8_lossy(signature)));
+            return IndexOutcome::Skipped(format!(
+                "the index uses the {} extension (split or sparse index)",
+                String::from_utf8_lossy(signature)
+            ));
         }
         if !is_listed(&DROPPED, signature) {
             kept.extend_from_slice(&bytes[at..end]);
@@ -532,9 +609,12 @@ pub fn rewrite_index_stat_with(
         {
             continue;
         }
-        let Some(now) = lookup.stat_now(entry.path.as_slice()) else { continue };
+        let Some(now) = lookup.stat_now(entry.path.as_slice()) else {
+            continue;
+        };
         // An index written by a Git built without nanosecond support stores 0 there.
-        let same_time: bool = now.mtime_seconds == stored_seconds && (stored_nanos == 0 || stored_nanos == now.mtime_nanos);
+        let same_time: bool = now.mtime_seconds == stored_seconds
+            && (stored_nanos == 0 || stored_nanos == now.mtime_nanos);
         if now.size != stored_size || !same_time {
             continue;
         }
@@ -551,9 +631,17 @@ pub fn rewrite_index_stat_with(
         if !trusted.is_trusted(entry.path.as_slice(), &recorded) {
             continue;
         }
-        let fields: [(usize, u32); 6] = [(0, now.ctime_seconds), (4, now.ctime_nanos), (16, now.dev), (20, now.ino), (28, now.uid), (32, now.gid)];
+        let fields: [(usize, u32); 6] = [
+            (0, now.ctime_seconds),
+            (4, now.ctime_nanos),
+            (16, now.dev),
+            (20, now.ino),
+            (28, now.uid),
+            (32, now.gid),
+        ];
         for (offset, value) in fields {
-            output[entry.start + offset..entry.start + offset + 4].copy_from_slice(&value.to_be_bytes());
+            output[entry.start + offset..entry.start + offset + 4]
+                .copy_from_slice(&value.to_be_bytes());
         }
         updated += 1;
     }
@@ -567,7 +655,11 @@ pub fn rewrite_index_stat_with(
         let digest: [u8; 32] = sha256(output.as_slice());
         output.extend_from_slice(&digest);
     }
-    return IndexOutcome::Rewritten { bytes: output, updated, total: entries.len() };
+    return IndexOutcome::Rewritten {
+        bytes: output,
+        updated,
+        total: entries.len(),
+    };
 }
 
 /// Index rewrite controls stay out of the release executable.

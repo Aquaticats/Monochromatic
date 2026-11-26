@@ -31,7 +31,10 @@
 //! ```
 
 use std::io::Write;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 /// What:
 ///  The stream a command was given,
@@ -83,7 +86,10 @@ impl Write for SharedNoticeStream<'_, '_> {
     /// Write one piece of a line that the caller builds,
     /// whole,
     /// with the lock held.
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         if self.quiet {
             return Ok(buffer.len());
         }
@@ -93,7 +99,10 @@ impl Write for SharedNoticeStream<'_, '_> {
 
     /// Write one piece in one locked call,
     /// so the other thread's line never comes inside it.
-    fn write_all(&mut self, buffer: &[u8]) -> std::io::Result<()> {
+    fn write_all(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<()> {
         if self.quiet {
             return Ok(());
         }
@@ -102,7 +111,10 @@ impl Write for SharedNoticeStream<'_, '_> {
 
     /// Render the whole line before the lock is taken,
     /// then write it in one locked call.
-    fn write_fmt(&mut self, arguments: std::fmt::Arguments<'_>) -> std::io::Result<()> {
+    fn write_fmt(
+        &mut self,
+        arguments: std::fmt::Arguments<'_>,
+    ) -> std::io::Result<()> {
         let mut line: String = String::new();
         if std::fmt::Write::write_fmt(&mut line, arguments).is_err() {
             return Err(std::io::Error::other("the line could not be rendered"));

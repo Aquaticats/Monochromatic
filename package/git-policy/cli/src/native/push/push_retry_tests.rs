@@ -6,7 +6,12 @@
 //! and the plans of the branches waiting for one.
 
 use super::*;
-use crate::push_retry_store::{StoredPlan, load, remove, save};
+use crate::push_retry_store::{
+    StoredPlan,
+    load,
+    remove,
+    save,
+};
 use crate::work_item::WorkKind;
 
 fn item(branch: &str) -> WorkItem {
@@ -29,11 +34,18 @@ fn item(branch: &str) -> WorkItem {
 #[test]
 fn the_pauses_double_and_stop_at_the_longest() {
     let first: Duration = Duration::from_secs(10);
-    let pauses: Vec<Duration> = (1..=4).map(|attempt| { return pause_before(attempt, first); }).collect();
+    let pauses: Vec<Duration> = (1..=4)
+        .map(|attempt| {
+            return pause_before(attempt, first);
+        })
+        .collect();
     assert_eq!(pauses, vec![first, first * 2, first * 4, first * 8]);
     assert_eq!(pause_before(1_000, first), LONGEST_PAUSE);
     assert_eq!(pause_before(u32::MAX, first), LONGEST_PAUSE);
-    assert!(pause_before(0, first) == first, "a try number of zero is the first");
+    assert!(
+        pause_before(0, first) == first,
+        "a try number of zero is the first"
+    );
 }
 
 /// The variable sets the first pause in whole seconds;
@@ -42,11 +54,21 @@ fn the_pauses_double_and_stop_at_the_longest() {
 #[test]
 fn the_variable_sets_the_first_pause() {
     assert_eq!(first_pause_from(None), FIRST_PAUSE);
-    assert_eq!(first_pause_from(Some(std::ffi::OsStr::new("3"))), Duration::from_secs(3));
+    assert_eq!(
+        first_pause_from(Some(std::ffi::OsStr::new("3"))),
+        Duration::from_secs(3)
+    );
     for unusable in ["0", "-1", "1.5", "soon", ""] {
-        assert_eq!(first_pause_from(Some(std::ffi::OsStr::new(unusable))), FIRST_PAUSE, "{unusable:?}");
+        assert_eq!(
+            first_pause_from(Some(std::ffi::OsStr::new(unusable))),
+            FIRST_PAUSE,
+            "{unusable:?}"
+        );
     }
-    assert_eq!(first_pause_from(Some(std::ffi::OsStr::new("99999"))), LONGEST_PAUSE);
+    assert_eq!(
+        first_pause_from(Some(std::ffi::OsStr::new("99999"))),
+        LONGEST_PAUSE
+    );
 }
 
 /// A plan is due after its pause and not before,
@@ -58,13 +80,28 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
     let now: Instant = Instant::now();
     let here: &Path = Path::new("/srv/repo/.git");
     let elsewhere: &Path = Path::new("/srv/other/.git");
-    assert_eq!(retries.schedule(here, &item("refs/heads/main"), 1, now), Duration::from_secs(10));
-    assert_eq!(retries.schedule(here, &item("refs/heads/main"), 2, now), Duration::from_secs(20), "the same branch has one plan");
+    assert_eq!(
+        retries.schedule(here, &item("refs/heads/main"), 1, now),
+        Duration::from_secs(10)
+    );
+    assert_eq!(
+        retries.schedule(here, &item("refs/heads/main"), 2, now),
+        Duration::from_secs(20),
+        "the same branch has one plan"
+    );
     retries.schedule(here, &item("refs/heads/topic"), 1, now);
     assert_eq!(retries.next_wait(here, now), Some(Duration::from_secs(10)));
     assert_eq!(retries.next_wait(elsewhere, now), None);
-    assert!(retries.take_due(here, now + Duration::from_secs(9)).is_empty());
-    assert!(retries.take_due(elsewhere, now + Duration::from_secs(60)).is_empty());
+    assert!(
+        retries
+            .take_due(here, now + Duration::from_secs(9))
+            .is_empty()
+    );
+    assert!(
+        retries
+            .take_due(elsewhere, now + Duration::from_secs(60))
+            .is_empty()
+    );
     let due: Vec<Due> = retries.take_due(here, now + Duration::from_secs(10));
     assert_eq!(due.len(), 1);
     assert_eq!(due[0].item.branch_ref, "refs/heads/topic");
@@ -87,19 +124,45 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
 fn a_forget_drops_the_branch_from_the_list_and_the_worker_takes_its_file() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-older");
     let here: &Path = Path::new("/srv/repo/.git");
-    let main: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 };
-    let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1 };
+    let main: StoredPlan = StoredPlan {
+        git_dir: here.to_path_buf(),
+        item: item("refs/heads/main"),
+        attempt: 1,
+    };
+    let other: StoredPlan = StoredPlan {
+        git_dir: here.to_path_buf(),
+        item: item("refs/heads/topic"),
+        attempt: 1,
+    };
     save(root.as_path(), &main).expect("saved");
     save(root.as_path(), &other).expect("saved");
     let first: Duration = Duration::from_secs(10);
     let mut retries: PushRetries = PushRetries::restored(first, root.as_path());
     retries.forget(here, "refs/heads/main");
-    let mut due: Vec<String> = retries.take_due(here, Instant::now() + Duration::from_secs(60)).into_iter().map(|one| { return one.item.branch_ref; }).collect();
+    let mut due: Vec<String> = retries
+        .take_due(here, Instant::now() + Duration::from_secs(60))
+        .into_iter()
+        .map(|one| {
+            return one.item.branch_ref;
+        })
+        .collect();
     due.sort();
-    assert_eq!(due, vec![String::from("refs/heads/topic")], "the list kept the other branch's retry and dropped the forgotten one");
-    assert_eq!(load(root.as_path()).len(), 2, "the list writes nothing, so the file is the worker's to remove");
+    assert_eq!(
+        due,
+        vec![String::from("refs/heads/topic")],
+        "the list kept the other branch's retry and dropped the forgotten one"
+    );
+    assert_eq!(
+        load(root.as_path()).len(),
+        2,
+        "the list writes nothing, so the file is the worker's to remove"
+    );
     remove(root.as_path(), here, "refs/heads/main");
-    assert_eq!(load(root.as_path()), vec![other], "only the forgotten branch's plan is gone with the worker's removal");
+    assert_eq!(
+        load(root.as_path()),
+        vec![other],
+        "only the forgotten branch's plan is gone with the worker's removal"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -124,15 +187,34 @@ fn a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-after-later-plan");
     let here: &Path = Path::new("/srv/repo/.git");
     let branch: &str = "refs/heads/main";
-    let later: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item(branch), attempt: 4 };
+    let later: StoredPlan = StoredPlan {
+        git_dir: here.to_path_buf(),
+        item: item(branch),
+        attempt: 4,
+    };
     // The later round's worker wrote the plan it promised before its notice reached the person.
     save(root.as_path(), &later).expect("the later round's plan");
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
-    assert!(retries.next_wait(here, Instant::now()).is_some(), "the plan the later round wrote is what this service is trying");
+    assert!(
+        retries.next_wait(here, Instant::now()).is_some(),
+        "the plan the later round wrote is what this service is trying"
+    );
     // The older round's forget reaches the journal now, after the later plan was published.
-    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false, taken: None }]);
-    assert!(retries.next_wait(here, Instant::now()).is_none(), "the list of this process forgot the branch, which is the older round's statement");
-    assert_eq!(load(root.as_path()), vec![later], "a plan a later round wrote is not taken away by an earlier round's forget");
+    retries.apply(vec![RetryChange::Forget {
+        git_dir: here.to_path_buf(),
+        branch_ref: branch.to_owned(),
+        only_while_unreachable: false,
+        taken: None,
+    }]);
+    assert!(
+        retries.next_wait(here, Instant::now()).is_none(),
+        "the list of this process forgot the branch, which is the older round's statement"
+    );
+    assert_eq!(
+        load(root.as_path()),
+        vec![later],
+        "a plan a later round wrote is not taken away by an earlier round's forget"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -151,17 +233,46 @@ fn a_journal_read_that_came_to_nothing_is_owed_again_after_a_longer_pause() {
     let first: Duration = Duration::from_secs(2);
     let root: PathBuf = crate::test_support::fixture("retry-restore-pause");
     let mut retries: PushRetries = PushRetries::unread(first, root.as_path());
-    assert_eq!(retries.plans(), Some(root.as_path()), "the journal's directory is kept while the read is owed");
-    assert!(retries.needs_restore(), "a list that has not read its journal is owed the read");
-    assert_eq!(retries.restore_pause(), first, "the first attempt is made after the first pause");
+    assert_eq!(
+        retries.plans(),
+        Some(root.as_path()),
+        "the journal's directory is kept while the read is owed"
+    );
+    assert!(
+        retries.needs_restore(),
+        "a list that has not read its journal is owed the read"
+    );
+    assert_eq!(
+        retries.restore_pause(),
+        first,
+        "the first attempt is made after the first pause"
+    );
     retries.restore_came_to_nothing();
-    assert!(retries.needs_restore(), "a read that gave no answer is still owed");
-    assert_eq!(retries.restore_pause(), first * 2, "the second attempt is made after the pause doubled");
+    assert!(
+        retries.needs_restore(),
+        "a read that gave no answer is still owed"
+    );
+    assert_eq!(
+        retries.restore_pause(),
+        first * 2,
+        "the second attempt is made after the pause doubled"
+    );
     retries.restore_came_to_nothing();
-    assert_eq!(retries.restore_pause(), first * 4, "the third attempt is made after the pause doubled again");
+    assert_eq!(
+        retries.restore_pause(),
+        first * 4,
+        "the third attempt is made after the pause doubled again"
+    );
     // The read that answers ends what the list owes, and the record of what came to nothing goes with it.
     let _found: Vec<PathBuf> = retries.restore();
-    assert!(!retries.needs_restore(), "a read that answered is not owed again");
-    assert_eq!(retries.restore_pause(), first, "a list that has read its journal starts the pauses again");
+    assert!(
+        !retries.needs_restore(),
+        "a read that answered is not owed again"
+    );
+    assert_eq!(
+        retries.restore_pause(),
+        first,
+        "a list that has read its journal starts the pauses again"
+    );
     crate::test_support::remove(root.as_path());
 }

@@ -17,7 +17,14 @@
 //! interruptedWords(failure) // string | undefined
 //! ```
 
-use crate::service_messages::{CHECK_COMMANDS, LOG_COMMAND, NOTHING_CHANGED, RESTART_COMMAND, it_had_said, waiting_for};
+use crate::service_messages::{
+    CHECK_COMMANDS,
+    LOG_COMMAND,
+    NOTHING_CHANGED,
+    RESTART_COMMAND,
+    it_had_said,
+    waiting_for,
+};
 
 /// What:
 ///  The words for a commit the person interrupted,
@@ -33,7 +40,10 @@ use crate::service_messages::{CHECK_COMMANDS, LOG_COMMAND, NOTHING_CHANGED, REST
 /// ```ts
 /// `This commit was interrupted with signal ${signal} before it landed, so it was not made, ...`
 /// ```
-pub(crate) fn interrupted(signal: i32, blocker: Option<&str>) -> String {
+pub(crate) fn interrupted(
+    signal: i32,
+    blocker: Option<&str>,
+) -> String {
     return format!(
         "This commit was interrupted with signal {signal} before it landed, so it was not made, and nothing lands later by itself.{} \
          Your staged changes and your worktree are as they were. Run the commit again. {NOTHING_CHANGED}",
@@ -53,14 +63,18 @@ pub(crate) fn interrupted(signal: i32, blocker: Option<&str>) -> String {
 /// ```ts
 /// `This commit was interrupted with signal ${signal}, and the commit service did not confirm ...`
 /// ```
-pub(crate) fn not_known(signal: i32, blocker: Option<&str>) -> String {
+pub(crate) fn not_known(
+    signal: i32,
+    blocker: Option<&str>,
+) -> String {
     return format!(
         "This commit was interrupted with signal {signal}, and the commit service did not confirm that it gave the commit up, so \
          it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to see what is still staged. \
          If it was not made, run the commit again; if the service is stuck, look at why with `{LOG_COMMAND}` and restart it with \
          `{RESTART_COMMAND}`.",
         it_had_said(blocker),
-        CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        CHECK_COMMANDS[0],
+        CHECK_COMMANDS[1]
     );
 }
 

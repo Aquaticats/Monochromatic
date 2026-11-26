@@ -8,19 +8,34 @@
 //!  The word on the command line hid every guarded form from the guard,
 //!  and normal use must keep working when the expansion is harmless.
 
-use super::{GuardedForwarded, decide_guarded_forwarded};
-use crate::rule_linked_worktree::{GuardedCommand, LinkedWorktreeDecision};
-use crate::test_support::{executable, fixture, git, isolated_overlay, remove};
-use std::path::Path;
+use super::{
+    GuardedForwarded,
+    decide_guarded_forwarded,
+};
+use crate::rule_linked_worktree::{
+    GuardedCommand,
+    LinkedWorktreeDecision,
+};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    isolated_overlay,
+    remove,
+};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
+use std::path::Path;
 use std::path::PathBuf;
 
 /// A context whose only aliases are the given name and value pairs,
 ///  read by real Git through its `GIT_CONFIG_*` overlay.
 fn context_with_aliases(pairs: &[(&str, &str)]) -> GitContext {
     let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
-    overlay.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from(pairs.len().to_string())));
+    overlay.push((
+        OsString::from("GIT_CONFIG_COUNT"),
+        OsString::from(pairs.len().to_string()),
+    ));
     for (index, (name, value)) in pairs.iter().enumerate() {
         overlay.push((
             OsString::from(format!("GIT_CONFIG_KEY_{index}")),
@@ -72,7 +87,10 @@ fn outside_every_repository() -> &'static Path {
 }
 
 /// Decide one invocation and return its decision together with the arguments Git will run.
-fn decided(pairs: &[(&str, &str)], words: &[&str]) -> GuardedForwarded {
+fn decided(
+    pairs: &[(&str, &str)],
+    words: &[&str],
+) -> GuardedForwarded {
     return decide_guarded_forwarded(
         &context_with_aliases(pairs),
         no_environment().as_slice(),
@@ -151,9 +169,21 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
 #[test]
 fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
     for (value, words, command) in [
-        ("!git", vec!["fixup", "reset", "--hard"], GuardedCommand::ResetHard),
-        ("!git reset", vec!["fixup", "--hard"], GuardedCommand::ResetHard),
-        ("!git clean", vec!["fixup", "-fdx"], GuardedCommand::CleanIgnored),
+        (
+            "!git",
+            vec!["fixup", "reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git reset",
+            vec!["fixup", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git clean",
+            vec!["fixup", "-fdx"],
+            GuardedCommand::CleanIgnored,
+        ),
     ] {
         let walked: GuardedForwarded = decided(&[("fixup", value)], words.as_slice());
         assert_eq!(
@@ -161,7 +191,11 @@ fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
             LinkedWorktreeDecision::NeedsEffectiveTarget(command),
             "{value} {words:?}"
         );
-        assert_eq!(walked.arguments, args(words.as_slice()), "{value}: Git receives the caller's own words");
+        assert_eq!(
+            walked.arguments,
+            args(words.as_slice()),
+            "{value}: Git receives the caller's own words"
+        );
     }
 }
 
@@ -172,7 +206,10 @@ fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
     for (pairs, words) in [
         // A shell command the plain reading cannot follow, and a command with a global option of its own.
         (vec![("fixup", "!sh -c 'git reset --hard'")], vec!["fixup"]),
-        (vec![("fixup", "!git -C /elsewhere reset --hard")], vec!["fixup"]),
+        (
+            vec![("fixup", "!git -C /elsewhere reset --hard")],
+            vec!["fixup"],
+        ),
         (vec![], vec!["no-such-subcommand"]),
         (vec![], vec!["lfs", "pull"]),
         // An alias loop is Git's own error, not a guarded form.
@@ -222,7 +259,11 @@ fn a_shell_alias_is_decided_on_the_git_command_it_names() {
             LinkedWorktreeDecision::NeedsEffectiveTarget(command),
             "{value}"
         );
-        assert_eq!(walked.arguments, args(&["fixup"]), "{value}: Git receives the alias word");
+        assert_eq!(
+            walked.arguments,
+            args(&["fixup"]),
+            "{value}: Git receives the alias word"
+        );
     }
 }
 
@@ -248,14 +289,18 @@ fn a_shell_alias_is_decided_on_the_git_command_it_names() {
 #[test]
 fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
     let root: PathBuf = fixture("guard-shell-run-directory");
-    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main", "."],
+    );
     let directory: PathBuf = root.join("sub/bin");
     std::fs::create_dir_all(directory.as_path()).expect("program directory");
-    executable(directory.join("git-fixturewipe").as_path(), b"#!/bin/sh\necho external\n");
-    let environment: Vec<(OsString, OsString)> = vec![(
-        OsString::from("PATH"),
-        OsString::from("bin:/usr/bin:/bin"),
-    )];
+    executable(
+        directory.join("git-fixturewipe").as_path(),
+        b"#!/bin/sh\necho external\n",
+    );
+    let environment: Vec<(OsString, OsString)> =
+        vec![(OsString::from("PATH"), OsString::from("bin:/usr/bin:/bin"))];
     let walked: GuardedForwarded = decide_guarded_forwarded(
         &context_with_aliases(&[
             ("fixtureouter", "!git fixturewipe"),
@@ -298,7 +343,10 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
 #[test]
 fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
     let root: PathBuf = fixture("guard-shell-directory");
-    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main", "."],
+    );
     let below: PathBuf = root.join("below");
     std::fs::create_dir_all(below.as_path()).expect("directory below the worktree root");
     let walked: GuardedForwarded = decide_guarded_forwarded(
@@ -347,11 +395,23 @@ fn a_command_the_caller_names_carries_no_shell_directory() {
     for (pairs, words) in [
         (
             vec![],
-            vec!["config", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+            vec![
+                "config",
+                "--file",
+                "named.config",
+                "remote.origin.url",
+                "https://example.invalid/named.git",
+            ],
         ),
         (
             vec![("cfg", "config")],
-            vec!["cfg", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+            vec![
+                "cfg",
+                "--file",
+                "named.config",
+                "remote.origin.url",
+                "https://example.invalid/named.git",
+            ],
         ),
     ] {
         let walked: GuardedForwarded = decided(pairs.as_slice(), words.as_slice());
@@ -359,6 +419,9 @@ fn a_command_the_caller_names_carries_no_shell_directory() {
             matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
             "{words:?} was not decided at all"
         );
-        assert_eq!(walked.shell_directory, None, "{words:?} carries a shell directory");
+        assert_eq!(
+            walked.shell_directory, None,
+            "{words:?} carries a shell directory"
+        );
     }
 }

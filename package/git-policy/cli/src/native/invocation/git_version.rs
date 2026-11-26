@@ -27,9 +27,19 @@
 //! ```
 
 /// The per-executable cache of the version text.
-use crate::git_version_cache::{binary_identity, cache_directory, read_version_text, store_version_text};
+use crate::git_version_cache::{
+    binary_identity,
+    cache_directory,
+    read_version_text,
+    store_version_text,
+};
 /// Running real Git.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// OS strings and paths for the cache location.
 use std::ffi::OsString;
 use std::io::Write;
@@ -71,7 +81,10 @@ static CHECKED: OnceLock<Result<GitRelease, String>> = OnceLock::new();
 /// ```
 pub fn parse_git_version(output: &[u8]) -> Option<(u64, u64, u64)> {
     let text: &str = std::str::from_utf8(output).ok()?;
-    let release: &str = text.strip_prefix("git version ")?.split_whitespace().next()?;
+    let release: &str = text
+        .strip_prefix("git version ")?
+        .split_whitespace()
+        .next()?;
     let mut parts: std::str::Split<'_, char> = release.split('.');
     let major: u64 = parts.next()?.parse::<u64>().ok()?;
     let minor: u64 = parts.next()?.parse::<u64>().ok()?;
@@ -104,7 +117,10 @@ fn not_digit(character: char) -> bool {
 /// ```ts
 /// `monochromatic-git-policy-cli: real Git at ${path} reports ${found}, so its release cannot be read ...`
 /// ```
-pub fn unsupported_message(context: &GitContext, found: &str) -> String {
+pub fn unsupported_message(
+    context: &GitContext,
+    found: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: real Git at {} reports {found}, so its release cannot be read; commits, hooks and the \
          locks that coordinate with them depend on it. Nothing was run. Point the wrapper at a working \
@@ -126,7 +142,10 @@ pub fn unsupported_message(context: &GitContext, found: &str) -> String {
 /// ```ts
 /// function olderGitWarning(context, release): string | undefined;
 /// ```
-pub fn older_git_warning(context: &GitContext, release: GitRelease) -> Option<String> {
+pub fn older_git_warning(
+    context: &GitContext,
+    release: GitRelease,
+) -> Option<String> {
     if release >= MINIMUM_GIT_VERSION {
         return None;
     }
@@ -153,10 +172,16 @@ pub fn older_git_warning(context: &GitContext, release: GitRelease) -> Option<St
 /// ```ts
 /// function judgeGitVersion(context, stdout): [number, number, number]; // throws the unsupported message
 /// ```
-fn judge_version_text(context: &GitContext, stdout: &[u8]) -> Result<GitRelease, String> {
+fn judge_version_text(
+    context: &GitContext,
+    stdout: &[u8],
+) -> Result<GitRelease, String> {
     let Some(version) = parse_git_version(stdout) else {
         let shown: String = String::from_utf8_lossy(stdout).trim().to_string();
-        return Err(unsupported_message(context, format!("an unreadable version {shown:?}").as_str()));
+        return Err(unsupported_message(
+            context,
+            format!("an unreadable version {shown:?}").as_str(),
+        ));
     };
     return Ok(version);
 }
@@ -176,7 +201,10 @@ fn run_git_version(context: &GitContext) -> Result<GitOutput, String> {
     request.without_prefix = true;
     return match run_git(context, &request) {
         Ok(finished) => Ok(finished),
-        Err(error) => Err(unsupported_message(context, format!("nothing ({error})").as_str())),
+        Err(error) => Err(unsupported_message(
+            context,
+            format!("nothing ({error})").as_str(),
+        )),
     };
 }
 
@@ -212,7 +240,10 @@ pub fn ask_git_version(context: &GitContext) -> Result<(u64, u64, u64), String> 
 /// ```ts
 /// async function askGitVersionCached(context, cacheDirectory?: string): Promise<[number, number, number]>;
 /// ```
-pub fn ask_git_version_cached(context: &GitContext, cache_directory: Option<&Path>) -> Result<GitRelease, String> {
+pub fn ask_git_version_cached(
+    context: &GitContext,
+    cache_directory: Option<&Path>,
+) -> Result<GitRelease, String> {
     let Some(directory) = cache_directory else {
         return ask_git_version(context);
     };

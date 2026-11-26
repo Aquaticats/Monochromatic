@@ -17,16 +17,28 @@
 //! const again = afterAMovedBranch(moved); // the capture the next attempt replays
 //! ```
 
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+};
 use crate::diagnostic_log::warn;
-use crate::service_amend_replayed::{AmendedCommit, amended_fields};
+use crate::service_amend_replayed::{
+    AmendedCommit,
+    amended_fields,
+};
 use crate::service_branch_shows::branch_moved;
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
 use crate::service_commit_rebuild_ceiling::may_rebuild;
 use crate::service_messages::ClientFailure;
-use crate::service_prepare::{NativeInputs, Ready};
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
 use crate::service_protocol::CommitRequest;
-use crate::service_replay::{Captured, retry_of};
+use crate::service_replay::{
+    Captured,
+    retry_of,
+};
 use crate::transaction_journal::Base;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -126,7 +138,12 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     let branch: String = ready.reference.short().spoken();
     if amended.is_some() {
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
+            return Err(crate::commit_transaction::client_stop(
+                ClientFailure::BranchKeepsChanging {
+                    branch,
+                    times: attempt + 1,
+                },
+            ));
         }
         // The replay merges the amended tree onto the new tip by the same rule an ordinary commit's replay uses.
         return retry_of(invocation.context, invocation.cwd, ready, Vec::new());
@@ -137,15 +154,27 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     //  staged change stays where it is; nothing the person chose is lost, and no command is refused for another
     //  session's commit (the owner's "Commits should never fail.").
     if rewords {
-        let Some(commit) = sent.commit.as_deref() else { return Err(branch_moved(ready)) };
+        let Some(commit) = sent.commit.as_deref() else {
+            return Err(branch_moved(ready));
+        };
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
+            return Err(crate::commit_transaction::client_stop(
+                ClientFailure::BranchKeepsChanging {
+                    branch,
+                    times: attempt + 1,
+                },
+            ));
         }
         // The change this commit stands for is the tree Git wrote into it, not the private index Git ignored.
-        let captured: String = crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
+        let captured: String =
+            crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
         *amended = Some(amended_fields(invocation, sent, embedded)?);
         unlanded.extend(sent.commit.clone());
-        return Ok(crate::service_replay::retry_of_a_prepared_tree(ready, Vec::new(), captured));
+        return Ok(crate::service_replay::retry_of_a_prepared_tree(
+            ready,
+            Vec::new(),
+            captured,
+        ));
     }
     // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
     //  again on the new tip (and signs it again), up to the bound.
@@ -156,49 +185,77 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     // A branch that did not exist when this commit was prepared names no parent to keep: the change it captured is
     //  a whole root tree, which the replay puts on the branch as another session created it
     //  (`service_replay.rs`, `Captured::unborn`).
-    let parents_are_fixed: bool = ready.fixed_parents && !matches!(native_inputs.capture.base, Base::Unborn);
-    if native && !sent.amend && !editor_possible && !ready.interactive && (!parents_are_fixed || conclusion_may_move) {
+    let parents_are_fixed: bool =
+        ready.fixed_parents && !matches!(native_inputs.capture.base, Base::Unborn);
+    if native
+        && !sent.amend
+        && !editor_possible
+        && !ready.interactive
+        && (!parents_are_fixed || conclusion_may_move)
+    {
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
+            return Err(crate::commit_transaction::client_stop(
+                ClientFailure::BranchKeepsChanging {
+                    branch,
+                    times: attempt + 1,
+                },
+            ));
         }
         // Git builds it again from the tree this build captured, not from the worktree.
         let again: Captured = retry_of(invocation.context, invocation.cwd, ready, Vec::new())?;
         unlanded.extend(sent.commit.clone());
         return Ok(again);
     }
-    if native && editor_possible && let Some(text) = typed {
+    if native
+        && editor_possible
+        && let Some(text) = typed
+    {
         // The person typed this message, and everything else the line took from somewhere other than itself is
         //  settled too: while the bound allows, Git builds the commit again on the new tip from the arguments
         //  `reissued_arguments` makes of what the preparation captured, with no editor and no person.
-        let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id)));
-        let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-        let reissued: Option<Vec<OsString>> = crate::service_commit_line_reissued::reissued_arguments(
-            invocation.context,
-            invocation.cwd,
-            native_inputs.arguments.as_slice(),
-            prefix,
-            file.as_path(),
-            sent.commit.as_deref(),
-            ready.interactive,
-        )?;
+        let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!(
+            "monochromatic-git-policy-cli-saved-message-{}",
+            id.get(..8).unwrap_or(id)
+        ));
+        let prefix: usize =
+            crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
+        let reissued: Option<Vec<OsString>> =
+            crate::service_commit_line_reissued::reissued_arguments(
+                invocation.context,
+                invocation.cwd,
+                native_inputs.arguments.as_slice(),
+                prefix,
+                file.as_path(),
+                sent.commit.as_deref(),
+                ready.interactive,
+            )?;
         // A line a rebuild cannot read back (an abbreviated borrowing option the wrapper does not guess at) keeps no
         //  message file: the same command makes that message again, and saving it here would suggest a commit of
         //  another kind.
         if let Some(line) = reissued {
             match std::fs::write(&file, text) {
                 Ok(()) => {
-                    let repeatable: bool = !sent.amend && (!parents_are_fixed || conclusion_may_move);
+                    let repeatable: bool =
+                        !sent.amend && (!parents_are_fixed || conclusion_may_move);
                     if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         *fixed_message = Some(file);
                         *reissued_line = Some(line);
-                        let again: Captured = retry_of(invocation.context, invocation.cwd, ready, Vec::new())?;
+                        let again: Captured =
+                            retry_of(invocation.context, invocation.cwd, ready, Vec::new())?;
                         unlanded.extend(sent.commit.clone());
                         return Ok(again);
                     }
-                    let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
+                    let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved {
+                        branch,
+                        file: file.display().to_string(),
+                        amend: sent.amend,
+                    };
                     return Err(crate::commit_transaction::client_stop(failure));
                 }
-                Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
+                Err(error) => warn(
+                    "serviceCommit",
+                    format!("saving the typed message failed: {error}").as_str(),
+                ),
             }
         }
     }

@@ -22,7 +22,10 @@
 //! const start = rootModeStart(process.argv); // { kind: 'arguments' } | { kind: 'refused' } | { kind: 'wrapper' }
 //! ```
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
@@ -78,10 +81,15 @@ pub fn root_mode_start(arguments: &[OsString]) -> RootModeStart<'_> {
     if !names_the_zedlet(start_name) {
         return RootModeStart::Wrapper;
     }
-    if handed.is_empty() || (handed.len() == 1 && (handed[0] == OsStr::new("--help") || handed[0] == OsStr::new("--version"))) {
+    if handed.is_empty()
+        || (handed.len() == 1
+            && (handed[0] == OsStr::new("--help") || handed[0] == OsStr::new("--version")))
+    {
         return RootModeStart::Arguments(handed);
     }
-    return RootModeStart::Refused(RootModeMisuse::WordUnderTheZedletName(word_that_cannot_be_honoured(handed)));
+    return RootModeStart::Refused(RootModeMisuse::WordUnderTheZedletName(
+        word_that_cannot_be_honoured(handed),
+    ));
 }
 
 /// What:
@@ -98,7 +106,9 @@ pub fn root_mode_start(arguments: &[OsString]) -> RootModeStart<'_> {
 /// const isWords = (handed) => handed.length >= 2 && handed[0] === COMMAND_WORD.current && handed[1] === 'zfs-root';
 /// ```
 fn starts_with_the_group_words(handed: &[OsString]) -> bool {
-    return handed.len() >= 2 && handed[0] == OsStr::new(COMMAND_WORD.current) && handed[1] == OsStr::new(ROOT_GROUP_WORD);
+    return handed.len() >= 2
+        && handed[0] == OsStr::new(COMMAND_WORD.current)
+        && handed[1] == OsStr::new(ROOT_GROUP_WORD);
 }
 
 /// What:
@@ -169,7 +179,11 @@ fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {
 /// ```
 fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {
     let first: &OsStr = handed[0].as_os_str();
-    if handed.len() > 1 && (first == OsStr::new(COMMAND_WORD.current) || first == OsStr::new("--help") || first == OsStr::new("--version")) {
+    if handed.len() > 1
+        && (first == OsStr::new(COMMAND_WORD.current)
+            || first == OsStr::new("--help")
+            || first == OsStr::new("--version"))
+    {
         return handed[1].as_os_str();
     }
     return first;

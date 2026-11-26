@@ -190,7 +190,11 @@ impl ScratchStepFacts {
     /// ```ts
     /// const entry = facts.below.find((b) => b.name === name); if (entry) entry.seen += interval; else if (facts.below.length < MAX) facts.below.push({ name, seen: interval });
     /// ```
-    pub fn credit(&mut self, name: &str, interval: Duration) {
+    pub fn credit(
+        &mut self,
+        name: &str,
+        interval: Duration,
+    ) {
         for program in &mut self.below {
             if program.name == name {
                 program.seen = program.seen.saturating_add(interval);
@@ -200,7 +204,10 @@ impl ScratchStepFacts {
         if self.below.len() >= MAX_BELOW_NAMES {
             return;
         }
-        self.below.push(SeenProgram { name: name.to_string(), seen: interval });
+        self.below.push(SeenProgram {
+            name: name.to_string(),
+            seen: interval,
+        });
     }
 }
 
@@ -221,7 +228,9 @@ static FACTS: Mutex<Vec<ScratchStepFacts>> = Mutex::new(Vec::new());
 /// ```
 pub fn note_scratch_step(facts: ScratchStepFacts) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of facts.
-    let mut kept = FACTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut kept = FACTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     kept.push(facts);
 }
 
@@ -236,7 +245,9 @@ pub fn note_scratch_step(facts: ScratchStepFacts) {
 /// const facts = drainScratchSteps();
 /// ```
 pub fn drain_scratch_steps() -> Vec<ScratchStepFacts> {
-    let mut kept = FACTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut kept = FACTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     return std::mem::take(&mut *kept);
 }
 
@@ -261,7 +272,11 @@ fn millis(word: Option<Duration>) -> String {
 /// JSON.stringify({ name, seenMs: seen })
 /// ```
 fn seen_json(program: &SeenProgram) -> String {
-    return format!("{{\"name\":{},\"seenMs\":{}}}", quote(program.name.as_str()), program.seen.as_millis());
+    return format!(
+        "{{\"name\":{},\"seenMs\":{}}}",
+        quote(program.name.as_str()),
+        program.seen.as_millis()
+    );
 }
 
 /// What:

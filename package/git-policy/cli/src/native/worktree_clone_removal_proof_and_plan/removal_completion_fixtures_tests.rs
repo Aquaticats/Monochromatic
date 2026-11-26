@@ -25,36 +25,78 @@ use crate::clone_holder_scan::held_mounts::HeldMount;
 use crate::clone_holder_scan::holder_scan::HolderScan;
 use crate::clone_holder_scan::incomplete_reads::IncompleteRead;
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
+use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
+use crate::worktree_clone_binding_record::registration_home::home_folder;
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::FreshHolderScan;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::RemovalCompletion;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalClock, RemovalEntry};
-use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
-    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_DATASET, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT_GUID, ORIGIN_CREATETXG, OWN_GUID, OWN_SNAPSHOT, OWN_CREATETXG, POOL, POOL_GUID, RemovalFixture, SANOID_GUID, SANOID_SNAPSHOT,
-    SANOID_CREATETXG, guid, the_stats,
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalClock,
+    RemovalEntry,
 };
-use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
+use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
+    CLONE,
+    CLONE_CREATETXG,
+    CLONE_GUID,
+    ORIGIN_CREATETXG,
+    ORIGIN_DATASET,
+    ORIGIN_DATASET_GUID,
+    ORIGIN_SNAPSHOT_GUID,
+    OWN_CREATETXG,
+    OWN_GUID,
+    OWN_SNAPSHOT,
+    POOL,
+    POOL_GUID,
+    RemovalFixture,
+    SANOID_CREATETXG,
+    SANOID_GUID,
+    SANOID_SNAPSHOT,
+    guid,
+    the_stats,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::DatasetDestroyDevice;
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
-use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
-use crate::worktree_clone_binding_record::registration_home::home_folder;
-use crate::worktree_removal_deferred_origin_check::fixtures::{Answer, Pool, origin_properties};
-use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
-use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
-use std::rc::Rc;
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::DatasetDestroyDevice;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, Error, NvList, Operation};
-use std::cell::{Cell, RefCell};
+use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
+use crate::worktree_removal_deferred_origin_check::fixtures::{
+    Answer,
+    Pool,
+    origin_properties,
+};
+use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
+use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    Error,
+    NvList,
+    Operation,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// The run nonce every control's plan carries.
 pub const RUN_NONCE: &str = "00112233445566778899aabbccddeeff";
@@ -97,8 +139,19 @@ pub struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
@@ -149,28 +202,64 @@ impl ScriptedHead {
     /// A device that answers success,
     /// reads the plan before its request,
     /// and hides the clone from the absence proof afterwards.
-    pub fn succeeding(plan_folder: PathBuf, clone_guid: DatasetGuid, hidden: Rc<Cell<bool>>) -> ScriptedHead {
-        return ScriptedHead { sent: RefCell::new(Vec::new()), words: RefCell::new(Vec::new()), plan_folder, clone_guid, refuses: false, hidden: Some(hidden) };
+    pub fn succeeding(
+        plan_folder: PathBuf,
+        clone_guid: DatasetGuid,
+        hidden: Rc<Cell<bool>>,
+    ) -> ScriptedHead {
+        return ScriptedHead {
+            sent: RefCell::new(Vec::new()),
+            words: RefCell::new(Vec::new()),
+            plan_folder,
+            clone_guid,
+            refuses: false,
+            hidden: Some(hidden),
+        };
     }
 
     /// The same device,
     /// refusing its one request and leaving the clone answering.
-    pub fn refusing(plan_folder: PathBuf, clone_guid: DatasetGuid, hidden: Rc<Cell<bool>>) -> ScriptedHead {
-        return ScriptedHead { sent: RefCell::new(Vec::new()), words: RefCell::new(Vec::new()), plan_folder, clone_guid, refuses: true, hidden: Some(hidden) };
+    pub fn refusing(
+        plan_folder: PathBuf,
+        clone_guid: DatasetGuid,
+        hidden: Rc<Cell<bool>>,
+    ) -> ScriptedHead {
+        return ScriptedHead {
+            sent: RefCell::new(Vec::new()),
+            words: RefCell::new(Vec::new()),
+            plan_folder,
+            clone_guid,
+            refuses: true,
+            hidden: Some(hidden),
+        };
     }
 }
 
 impl DatasetDestroyDevice for ScriptedHead {
-    fn destroy_the_dataset(&self, name: &str) -> Result<Option<NvList>, DeviceError> {
+    fn destroy_the_dataset(
+        &self,
+        name: &str,
+    ) -> Result<Option<NvList>, DeviceError> {
         self.sent.borrow_mut().push(String::from(name));
         let path: PathBuf = self.plan_folder.join(self.clone_guid.file_name());
         let word: String = std::fs::read_to_string(path.as_path())
             .ok()
-            .and_then(|text| return text.lines().find(|line| return line.starts_with("head=")).map(|line| return String::from(line)))
+            .and_then(|text| {
+                return text
+                    .lines()
+                    .find(|line| return line.starts_with("head="))
+                    .map(|line| return String::from(line));
+            })
             .unwrap_or_default();
         self.words.borrow_mut().push(word);
         if self.refuses {
-            return Err(DeviceError::Request { source: Error::Call { operation: Operation::Destroy, target: String::from(CLONE), errno: libc::EBUSY } });
+            return Err(DeviceError::Request {
+                source: Error::Call {
+                    operation: Operation::Destroy,
+                    target: String::from(CLONE),
+                    errno: libc::EBUSY,
+                },
+            });
         }
         if let Some(hidden) = &self.hidden {
             hidden.set(true);
@@ -205,18 +294,30 @@ pub struct ScriptedHolders {
 impl ScriptedHolders {
     /// A scan that answers the same value every time.
     pub fn always(answer: HolderScan) -> ScriptedHolders {
-        return ScriptedHolders { answers: vec![answer], asked: RefCell::new(Vec::new()), calls: Cell::new(0) };
+        return ScriptedHolders {
+            answers: vec![answer],
+            asked: RefCell::new(Vec::new()),
+            calls: Cell::new(0),
+        };
     }
 
     /// One answer per call,
     /// then the last one again.
     pub fn in_order(answers: Vec<HolderScan>) -> ScriptedHolders {
-        return ScriptedHolders { answers, asked: RefCell::new(Vec::new()), calls: Cell::new(0) };
+        return ScriptedHolders {
+            answers,
+            asked: RefCell::new(Vec::new()),
+            calls: Cell::new(0),
+        };
     }
 }
 
 impl FreshHolderScan for ScriptedHolders {
-    fn holders_of(&self, dataset: &str, _dataset_guid: DatasetGuid) -> Result<HolderScan, RemovalStop> {
+    fn holders_of(
+        &self,
+        dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<HolderScan, RemovalStop> {
         self.asked.borrow_mut().push(String::from(dataset));
         let seen: usize = self.calls.get();
         self.calls.set(seen + 1);
@@ -235,21 +336,32 @@ pub fn a_scan_with_a_holder() -> HolderScan {
     let holder: NamespaceHolder = NamespaceHolder {
         namespace: String::from("mnt:[4026532001]"),
         task: PathBuf::from("/proc/1234"),
-        mounts: vec![HeldMount { mount_id: 41, root: PathBuf::from("/"), mount_point: PathBuf::from("/srv/holder") }],
+        mounts: vec![HeldMount {
+            mount_id: 41,
+            root: PathBuf::from("/"),
+            mount_point: PathBuf::from("/srv/holder"),
+        }],
     };
     return a_scan(vec![holder], Vec::new());
 }
 
 /// A scan that read everything it met except one namespace's link.
 pub fn a_scan_with_an_incomplete_read() -> HolderScan {
-    let unfinished: IncompleteRead = IncompleteRead::NamespaceLinkUnreadable { thread: PathBuf::from("/proc/999/task/999"), reason: String::from("permission denied") };
+    let unfinished: IncompleteRead = IncompleteRead::NamespaceLinkUnreadable {
+        thread: PathBuf::from("/proc/999/task/999"),
+        reason: String::from("permission denied"),
+    };
     return a_scan(Vec::new(), vec![unfinished]);
 }
 
 /// One scan of `CLONE` with the holders and reads a control names.
-pub fn a_scan(holders: Vec<NamespaceHolder>, incomplete: Vec<IncompleteRead>) -> HolderScan {
+pub fn a_scan(
+    holders: Vec<NamespaceHolder>,
+    incomplete: Vec<IncompleteRead>,
+) -> HolderScan {
     return HolderScan {
-        dataset: DatasetGuid::parse(CLONE_GUID.to_string().as_str()).expect("the fixture's GUID is canonical"),
+        dataset: DatasetGuid::parse(CLONE_GUID.to_string().as_str())
+            .expect("the fixture's GUID is canonical"),
         source: String::from(CLONE),
         nonce: RequestNonce::parse(RUN_NONCE).expect("the control's nonce is canonical"),
         own_namespace: Some(String::from("mnt:[4026532000]")),
@@ -283,23 +395,38 @@ pub struct ScriptedSettle {
 impl ScriptedSettle {
     /// A settle that answers what it did.
     pub fn succeeding() -> ScriptedSettle {
-        return ScriptedSettle { refuses: None, calls: Cell::new(0) };
+        return ScriptedSettle {
+            refuses: None,
+            calls: Cell::new(0),
+        };
     }
 
     /// A settle that refuses with one sentence.
     pub fn refusing(said: String) -> ScriptedSettle {
-        return ScriptedSettle { refuses: Some(said), calls: Cell::new(0) };
+        return ScriptedSettle {
+            refuses: Some(said),
+            calls: Cell::new(0),
+        };
     }
 }
 
 impl RegistrationSettle for ScriptedSettle {
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
+    fn settle_the_registration(
+        &self,
+        request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop> {
         self.calls.set(self.calls.get() + 1);
         if request.proof.slot() != request.slot {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the proof"), said: String::from("the proof names another slot") });
+            return Err(RemovalStop::TheSettleRefused {
+                step: String::from("the proof"),
+                said: String::from("the proof names another slot"),
+            });
         }
         if let Some(said) = &self.refuses {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the registration"), said: said.clone() });
+            return Err(RemovalStop::TheSettleRefused {
+                step: String::from("the registration"),
+                said: said.clone(),
+            });
         }
         return Ok(SettleAnswer {
             wrote_the_lost_lock: false,
@@ -353,10 +480,18 @@ pub struct TheCompletion<'a> {
 /// ```ts
 /// const done = completeTheRemoval(theCompletion({...}));
 /// ```
-pub fn complete(the: &TheCompletion<'_>) -> Result<crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone, RemovalStop> {
+pub fn complete(
+    the: &TheCompletion<'_>
+) -> Result<crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone, RemovalStop>
+{
     let recorded = the.fixture.recorded();
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
-    let at: RemovalEntry<'_> = RemovalEntry { common_dir: the.fixture.common(), slot: recorded.slot.as_str() };
+    let unmount: ADoneUnmount = ADoneUnmount {
+        clone_guid: recorded.clone_guid,
+    };
+    let at: RemovalEntry<'_> = RemovalEntry {
+        common_dir: the.fixture.common(),
+        slot: recorded.slot.as_str(),
+    };
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &at,
         reads: the.pool,
@@ -371,7 +506,9 @@ pub fn complete(the: &TheCompletion<'_>) -> Result<crate::worktree_clone_removal
         budget: the.budget,
         now: NOW,
     };
-    return crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal(&input);
+    return crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal(
+        &input,
+    );
 }
 
 /// What:
@@ -413,8 +550,22 @@ impl LivePool {
     /// ```
     pub fn healthy(origin_own_name: &str) -> LivePool {
         let clone_list: Vec<LiveObject> = vec![
-            LiveObject { kind: EntryKind::Snapshot, name: String::from(OWN_SNAPSHOT), guid: guid(OWN_GUID), createtxg: OWN_CREATETXG, owning_dataset: String::from(CLONE), owning_dataset_guid: guid(CLONE_GUID) },
-            LiveObject { kind: EntryKind::Snapshot, name: String::from(SANOID_SNAPSHOT), guid: guid(SANOID_GUID), createtxg: SANOID_CREATETXG, owning_dataset: String::from(CLONE), owning_dataset_guid: guid(CLONE_GUID) },
+            LiveObject {
+                kind: EntryKind::Snapshot,
+                name: String::from(OWN_SNAPSHOT),
+                guid: guid(OWN_GUID),
+                createtxg: OWN_CREATETXG,
+                owning_dataset: String::from(CLONE),
+                owning_dataset_guid: guid(CLONE_GUID),
+            },
+            LiveObject {
+                kind: EntryKind::Snapshot,
+                name: String::from(SANOID_SNAPSHOT),
+                guid: guid(SANOID_GUID),
+                createtxg: SANOID_CREATETXG,
+                owning_dataset: String::from(CLONE),
+                owning_dataset_guid: guid(CLONE_GUID),
+            },
         ];
         let origin_list: Vec<LiveObject> = vec![LiveObject {
             kind: EntryKind::Snapshot,
@@ -425,29 +576,73 @@ impl LivePool {
             owning_dataset_guid: guid(ORIGIN_DATASET_GUID),
         }];
         let identities: Vec<(String, DatasetIdentity)> = vec![
-            (String::from(POOL), DatasetIdentity { stats: the_stats(POOL_GUID, false, 1, 0, ""), properties: NvList::new() }),
-            (String::from(CLONE), DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, format!("{ORIGIN_DATASET}@{origin_own_name}").as_str()), properties: NvList::new() }),
-            (String::from(ORIGIN_DATASET), DatasetIdentity { stats: the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), properties: NvList::new() }),
+            (
+                String::from(POOL),
+                DatasetIdentity {
+                    stats: the_stats(POOL_GUID, false, 1, 0, ""),
+                    properties: NvList::new(),
+                },
+            ),
+            (
+                String::from(CLONE),
+                DatasetIdentity {
+                    stats: the_stats(
+                        CLONE_GUID,
+                        false,
+                        CLONE_CREATETXG,
+                        0,
+                        format!("{ORIGIN_DATASET}@{origin_own_name}").as_str(),
+                    ),
+                    properties: NvList::new(),
+                },
+            ),
+            (
+                String::from(ORIGIN_DATASET),
+                DatasetIdentity {
+                    stats: the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""),
+                    properties: NvList::new(),
+                },
+            ),
             (
                 format!("{ORIGIN_DATASET}@{origin_own_name}"),
-                DatasetIdentity { stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 0, ""), properties: origin_properties(Some(MARK_OFF), Some(0)) },
+                DatasetIdentity {
+                    stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 0, ""),
+                    properties: origin_properties(Some(MARK_OFF), Some(0)),
+                },
             ),
         ];
-        return LivePool { identities, lists: Rc::new(RefCell::new(vec![(String::from(CLONE), clone_list), (String::from(ORIGIN_DATASET), origin_list)])), bookmarks: Rc::new(RefCell::new(Vec::new())) };
+        return LivePool {
+            identities,
+            lists: Rc::new(RefCell::new(vec![
+                (String::from(CLONE), clone_list),
+                (String::from(ORIGIN_DATASET), origin_list),
+            ])),
+            bookmarks: Rc::new(RefCell::new(Vec::new())),
+        };
     }
 }
 
 impl RemovalPoolReads for LivePool {
-    fn identity(&self, name: &str) -> Result<DatasetIdentity, String> {
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String> {
         for (scripted, identity) in &self.identities {
             if scripted == name {
-                return Ok(DatasetIdentity { stats: identity.stats, properties: identity.properties.clone() });
+                return Ok(DatasetIdentity {
+                    stats: identity.stats,
+                    properties: identity.properties.clone(),
+                });
             }
         }
         return Err(format!("`{name}` does not answer this scripted pool"));
     }
 
-    fn snapshots_of(&self, dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn snapshots_of(
+        &self,
+        dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         for (scripted, objects) in self.lists.borrow().iter() {
             if scripted == dataset {
                 return Ok(objects.clone());
@@ -456,7 +651,11 @@ impl RemovalPoolReads for LivePool {
         return Ok(Vec::new());
     }
 
-    fn bookmarks_of(&self, _dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn bookmarks_of(
+        &self,
+        _dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         return Ok(self.bookmarks.borrow().clone());
     }
 }
@@ -490,7 +689,11 @@ impl ClearingDevice {
     /// A device that destroys what it is asked for,
     /// over one pool's own lists.
     pub fn over(pool: &LivePool) -> ClearingDevice {
-        return ClearingDevice { lists: Rc::clone(&pool.lists), sent: RefCell::new(Vec::new()), refuses: Vec::new() };
+        return ClearingDevice {
+            lists: Rc::clone(&pool.lists),
+            sent: RefCell::new(Vec::new()),
+            refuses: Vec::new(),
+        };
     }
 }
 
@@ -513,14 +716,24 @@ pub struct EpochProbe {
 }
 
 impl DatasetReader for EpochProbe {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         if self.hidden.get() && dataset == CLONE {
-            return Err(ReadFailure { said: String::from("no such dataset"), errno: Some(libc::ENOENT) });
+            return Err(ReadFailure {
+                said: String::from("no such dataset"),
+                errno: Some(libc::ENOENT),
+            });
         }
         return self.pool.identity(dataset);
     }
 
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         if self.hidden.get() {
             return Ok(None);
         }
@@ -529,18 +742,33 @@ impl DatasetReader for EpochProbe {
 }
 
 impl SnapshotDestroyDevice for ClearingDevice {
-    fn destroy_snaps(&self, _pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
-        self.sent.borrow_mut().push(names.iter().map(|name| return String::from(*name)).collect());
+    fn destroy_snaps(
+        &self,
+        _pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
+        self.sent.borrow_mut().push(
+            names
+                .iter()
+                .map(|name| return String::from(*name))
+                .collect(),
+        );
         for refused in &self.refuses {
             if names.contains(&refused.as_str()) {
                 return Err(DeviceError::Request {
-                    source: Error::Elements { operation: Operation::DestroySnaps, target: String::from(POOL), errno: libc::EBUSY, elements: Vec::new() },
+                    source: Error::Elements {
+                        operation: Operation::DestroySnaps,
+                        target: String::from(POOL),
+                        errno: libc::EBUSY,
+                        elements: Vec::new(),
+                    },
                 });
             }
         }
         let mut lists = self.lists.borrow_mut();
         for pair in lists.iter_mut() {
-            pair.1.retain(|object| return !names.contains(&object.full_name().as_str()));
+            pair.1
+                .retain(|object| return !names.contains(&object.full_name().as_str()));
         }
         return Ok(None);
     }
@@ -576,22 +804,47 @@ pub fn a_fixture(name: &str) -> RemovalFixture {
 pub fn the_checks_pool() -> Pool {
     let full: String = the_origin_full_name();
     return Pool::new(vec![
-        (CLONE, Answer::of(the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, full.as_str()), NvList::new())),
-        (ORIGIN_DATASET, Answer::of(the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), NvList::new())),
-        (full.as_str(), Answer::of(the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""), origin_properties(Some(MARK_OFF), Some(0)))),
+        (
+            CLONE,
+            Answer::of(
+                the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, full.as_str()),
+                NvList::new(),
+            ),
+        ),
+        (
+            ORIGIN_DATASET,
+            Answer::of(
+                the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""),
+                NvList::new(),
+            ),
+        ),
+        (
+            full.as_str(),
+            Answer::of(
+                the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""),
+                origin_properties(Some(MARK_OFF), Some(0)),
+            ),
+        ),
     ]);
 }
 
 /// The budget both of the clone's own snapshots need,
 /// measured from the exact request they become.
 pub fn the_budget() -> RequestBudget {
-    let names: Vec<String> = vec![format!("{CLONE}@{OWN_SNAPSHOT}"), format!("{CLONE}@{SANOID_SNAPSHOT}")];
-    let bytes: usize = encoded_request_bytes(POOL, names.as_slice()).expect("both names pack into a request");
+    let names: Vec<String> = vec![
+        format!("{CLONE}@{OWN_SNAPSHOT}"),
+        format!("{CLONE}@{SANOID_SNAPSHOT}"),
+    ];
+    let bytes: usize =
+        encoded_request_bytes(POOL, names.as_slice()).expect("both names pack into a request");
     return RequestBudget::of_input_bytes(bytes);
 }
 
 /// Whether one record file stands in the wrapper's home,
 /// by the name it is filed under.
-pub fn a_record_stands(fixture: &RemovalFixture, name: &str) -> bool {
+pub fn a_record_stands(
+    fixture: &RemovalFixture,
+    name: &str,
+) -> bool {
     return std::fs::symlink_metadata(home_folder(fixture.common()).join(name).as_path()).is_ok();
 }

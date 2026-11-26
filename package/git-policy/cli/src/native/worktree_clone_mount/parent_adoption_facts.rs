@@ -13,7 +13,10 @@
 //! const binding = { kind: 'live' | 'staged' | 'unresolved', what, place };
 //! ```
 
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use super::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -47,11 +50,19 @@ impl ParentPolicy {
     /// which is the folder's own owner,
     /// mode and ACLs.
     pub fn from_recorded(identity: &CloneFolderIdentity) -> ParentPolicy {
-        return ParentPolicy { owner: identity.owner, mode: identity.mode, access_acl: identity.access_acl.clone(), default_acl: identity.default_acl.clone() };
+        return ParentPolicy {
+            owner: identity.owner,
+            mode: identity.mode,
+            access_acl: identity.access_acl.clone(),
+            default_acl: identity.default_acl.clone(),
+        };
     }
 
     /// The policy fields in which `held` differs from this policy.
-    pub(super) fn differences(&self, held: &CloneFolderIdentity) -> Vec<CloneFolderField> {
+    pub(super) fn differences(
+        &self,
+        held: &CloneFolderIdentity,
+    ) -> Vec<CloneFolderField> {
         let mut fields: Vec<CloneFolderField> = Vec::new();
         if held.owner != self.owner {
             fields.push(CloneFolderField::Owner);

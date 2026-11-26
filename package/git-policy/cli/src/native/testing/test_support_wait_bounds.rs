@@ -31,7 +31,9 @@
 /// ```ts
 /// const result = await finishedWithin(() => readPlainText(path)); // undefined when five seconds passed
 /// ```
-pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+pub(crate) fn finished_within<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static
+) -> Option<T> {
     return finished_within_at(std::time::Duration::from_secs(5), work);
 }
 
@@ -54,7 +56,10 @@ pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send
 /// ```ts
 /// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
 /// ```
-pub(crate) fn finished_within_at<T: Send + 'static>(deadline: std::time::Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+pub(crate) fn finished_within_at<T: Send + 'static>(
+    deadline: std::time::Duration,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
     let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
     std::thread::spawn(move || {
         let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
@@ -123,7 +128,10 @@ pub(crate) struct WaitingFor<'a> {
 /// const waitUntil = (done) => waitUntilFor({ window: STILL_WORKING_WINDOW, done });
 /// ```
 pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
-    return wait_until_for(WaitingFor { window: STILL_WORKING_WINDOW, done });
+    return wait_until_for(WaitingFor {
+        window: STILL_WORKING_WINDOW,
+        done,
+    });
 }
 
 /// `wait_until` with the window given.
@@ -136,7 +144,10 @@ pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
 /// }
 /// ```
 pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
-    let WaitingFor { window, done } = waiting;
+    let WaitingFor {
+        window,
+        done,
+    } = waiting;
     // This thread reads the run at every look: registered for the whole wait, so no look taken meanwhile counts its readings,
     //  while the work its predicate does on this thread is still counted (`run_progress::look`).
     let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
@@ -149,7 +160,10 @@ pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
         std::thread::sleep(WAIT_LOOK_EVERY);
         // The look is taken after the wait for the event, so a run that stopped working while the event was checked is still seen to have moved.
         if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
-            eprintln!("a control's wait gave up after {:.1} s because the run {ending}", began.elapsed().as_secs_f64());
+            eprintln!(
+                "a control's wait gave up after {:.1} s because the run {ending}",
+                began.elapsed().as_secs_f64()
+            );
             return done();
         }
     }

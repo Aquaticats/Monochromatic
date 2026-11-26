@@ -29,16 +29,34 @@
 //! const bytes = plan.encode(); // throws when a field is past its bound
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::{bytes_as_hexadecimal, path_as_hexadecimal};
+use crate::worktree_clone_binding_record::binding_encoding::{
+    bytes_as_hexadecimal,
+    path_as_hexadecimal,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::canonical_decimal::decimal_digits;
 use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{
-    ATTEMPT_COUNT_MAXIMUM_DIGITS, ATTEMPT_LINE_MAXIMUM_BYTES, NUMBER_MAXIMUM_DIGITS, ZFS_NAME_MAXIMUM_BYTES, header_field_maximum_bytes,
+    ATTEMPT_COUNT_MAXIMUM_DIGITS,
+    ATTEMPT_LINE_MAXIMUM_BYTES,
+    NUMBER_MAXIMUM_DIGITS,
+    ZFS_NAME_MAXIMUM_BYTES,
+    header_field_maximum_bytes,
 };
-use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
+use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{
-    ATTEMPT_KEY, ATTEMPT_NAME_KEY, HeadWord, NO_ERRNO, NO_MOUNT_ID, PLAN_HEADER, PLAN_KEYS_IN_ORDER, SNAPSHOT_KIND, SnapshotOutcome,
+    ATTEMPT_KEY,
+    ATTEMPT_NAME_KEY,
+    HeadWord,
+    NO_ERRNO,
+    NO_MOUNT_ID,
+    PLAN_HEADER,
+    PLAN_KEYS_IN_ORDER,
+    SNAPSHOT_KIND,
+    SnapshotOutcome,
 };
 use crate::worktree_clone_removal_proof_and_plan::started_moment::is_seconds_with_offset;
 use std::path::Path;
@@ -186,15 +204,27 @@ impl DestructionPlan {
     /// ```ts
     /// const plan = DestructionPlan.firstWrite(facts, verifiedSnapshots);
     /// ```
-    pub fn first_write(facts: PlanFacts, snapshots: &[PlanSnapshot]) -> DestructionPlan {
+    pub fn first_write(
+        facts: PlanFacts,
+        snapshots: &[PlanSnapshot],
+    ) -> DestructionPlan {
         let mut attempts: Vec<PlanAttempt> = snapshots
             .iter()
             .map(|snapshot| {
-                return PlanAttempt { snapshot: snapshot.clone(), attempt: 0, outcome: SnapshotOutcome::Planned, errno: None };
+                return PlanAttempt {
+                    snapshot: snapshot.clone(),
+                    attempt: 0,
+                    outcome: SnapshotOutcome::Planned,
+                    errno: None,
+                };
             })
             .collect();
         attempts.sort_by(|left, right| return left.snapshot.name.cmp(&right.snapshot.name));
-        return DestructionPlan { facts, head: HeadWord::Present, attempts };
+        return DestructionPlan {
+            facts,
+            head: HeadWord::Present,
+            attempts,
+        };
     }
 
     /// What:
@@ -209,7 +239,10 @@ impl DestructionPlan {
     /// ```ts
     /// const current = (name) => attempts.filter(a => a.snapshot.name === name).sort((l, r) => r.attempt - l.attempt)[0];
     /// ```
-    pub fn current_state(&self, name: &str) -> Option<&PlanAttempt> {
+    pub fn current_state(
+        &self,
+        name: &str,
+    ) -> Option<&PlanAttempt> {
         let mut highest: Option<&PlanAttempt> = None;
         for line in &self.attempts {
             if line.snapshot.name != name {
@@ -243,17 +276,28 @@ impl DestructionPlan {
     /// ```ts
     /// plan.recordLine({ snapshot, attempt: 1, outcome: 'intact' });
     /// ```
-    pub fn record_line(&mut self, line: PlanAttempt) -> Result<(), PlanRefusal> {
-        let gone: bool = self
-            .attempts
-            .iter()
-            .any(|held| return held.snapshot.name == line.snapshot.name && (held.attempt == line.attempt || held.outcome == SnapshotOutcome::Destroyed));
+    pub fn record_line(
+        &mut self,
+        line: PlanAttempt,
+    ) -> Result<(), PlanRefusal> {
+        let gone: bool = self.attempts.iter().any(|held| {
+            return held.snapshot.name == line.snapshot.name
+                && (held.attempt == line.attempt || held.outcome == SnapshotOutcome::Destroyed);
+        });
         if gone {
-            return Err(PlanRefusal::at(PlanRefusalCause::DuplicateAttempt, ATTEMPT_NAME_KEY, line.snapshot.name));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::DuplicateAttempt,
+                ATTEMPT_NAME_KEY,
+                line.snapshot.name,
+            ));
         }
         self.attempts.push(line);
         self.attempts.sort_by(|left, right| {
-            return left.snapshot.name.cmp(&right.snapshot.name).then(left.attempt.cmp(&right.attempt));
+            return left
+                .snapshot
+                .name
+                .cmp(&right.snapshot.name)
+                .then(left.attempt.cmp(&right.attempt));
         });
         return Ok(());
     }
@@ -273,7 +317,10 @@ impl DestructionPlan {
     pub fn named_snapshots(&self) -> Vec<PlanSnapshot> {
         let mut found: Vec<PlanSnapshot> = Vec::new();
         for line in &self.attempts {
-            if found.iter().any(|held| return held.name == line.snapshot.name) {
+            if found
+                .iter()
+                .any(|held| return held.name == line.snapshot.name)
+            {
                 continue;
             }
             found.push(line.snapshot.clone());
@@ -355,10 +402,18 @@ impl DestructionPlan {
             lines.push((String::from(*key), value));
         }
         if !is_seconds_with_offset(self.facts.started.as_str()) {
-            return Err(PlanRefusal::at(PlanRefusalCause::NotCanonical, "started", self.facts.started.clone()));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::NotCanonical,
+                "started",
+                self.facts.started.clone(),
+            ));
         }
         if decimal_digits(self.attempts.len() as u64) > ATTEMPT_COUNT_MAXIMUM_DIGITS {
-            return Err(PlanRefusal::at(PlanRefusalCause::FieldTooWide, "attempts", self.attempts.len().to_string()));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::FieldTooWide,
+                "attempts",
+                self.attempts.len().to_string(),
+            ));
         }
         return Ok(lines);
     }
@@ -368,20 +423,44 @@ impl DestructionPlan {
     fn attempt_lines(&self) -> Result<Vec<String>, PlanRefusal> {
         let mut ordered: Vec<&PlanAttempt> = self.attempts.iter().collect();
         ordered.sort_by(|left, right| {
-            return left.snapshot.name.cmp(&right.snapshot.name).then(left.attempt.cmp(&right.attempt));
+            return left
+                .snapshot
+                .name
+                .cmp(&right.snapshot.name)
+                .then(left.attempt.cmp(&right.attempt));
         });
         let mut lines: Vec<String> = Vec::with_capacity(ordered.len());
         for line in ordered {
             if line.snapshot.name.len() > ZFS_NAME_MAXIMUM_BYTES {
-                return Err(PlanRefusal::at(PlanRefusalCause::FieldTooWide, ATTEMPT_NAME_KEY, line.snapshot.name.clone()));
+                return Err(PlanRefusal::at(
+                    PlanRefusalCause::FieldTooWide,
+                    ATTEMPT_NAME_KEY,
+                    line.snapshot.name.clone(),
+                ));
             }
             if decimal_digits(line.attempt) > NUMBER_MAXIMUM_DIGITS {
-                return Err(PlanRefusal::at(PlanRefusalCause::FieldTooWide, ATTEMPT_KEY, line.attempt.to_string()));
+                return Err(PlanRefusal::at(
+                    PlanRefusalCause::FieldTooWide,
+                    ATTEMPT_KEY,
+                    line.attempt.to_string(),
+                ));
             }
             let errno: String = match (line.outcome, line.errno) {
                 (SnapshotOutcome::Refused, Some(number)) => number.to_string(),
-                (SnapshotOutcome::Refused, None) => return Err(PlanRefusal::at(PlanRefusalCause::MissingErrno, ATTEMPT_KEY, line.snapshot.name.clone())),
-                (_, Some(_)) => return Err(PlanRefusal::at(PlanRefusalCause::ErrnoOnAnotherLine, ATTEMPT_KEY, line.snapshot.name.clone())),
+                (SnapshotOutcome::Refused, None) => {
+                    return Err(PlanRefusal::at(
+                        PlanRefusalCause::MissingErrno,
+                        ATTEMPT_KEY,
+                        line.snapshot.name.clone(),
+                    ));
+                }
+                (_, Some(_)) => {
+                    return Err(PlanRefusal::at(
+                        PlanRefusalCause::ErrnoOnAnotherLine,
+                        ATTEMPT_KEY,
+                        line.snapshot.name.clone(),
+                    ));
+                }
                 (_, None) => String::from(NO_ERRNO),
             };
             let built: String = format!(
@@ -393,7 +472,11 @@ impl DestructionPlan {
                 line.snapshot.name
             );
             if built.len() as u64 > ATTEMPT_LINE_MAXIMUM_BYTES {
-                return Err(PlanRefusal::at(PlanRefusalCause::LineTooWide, ATTEMPT_NAME_KEY, line.snapshot.name.clone()));
+                return Err(PlanRefusal::at(
+                    PlanRefusalCause::LineTooWide,
+                    ATTEMPT_NAME_KEY,
+                    line.snapshot.name.clone(),
+                ));
             }
             lines.push(built);
         }
@@ -405,7 +488,11 @@ impl DestructionPlan {
     /// a line after a `destroyed` one,
     /// or an attempt number out of order in the file.
     fn refuse_a_broken_history(&self) -> Result<(), PlanRefusal> {
-        let mut names: Vec<&str> = self.attempts.iter().map(|line| return line.snapshot.name.as_str()).collect();
+        let mut names: Vec<&str> = self
+            .attempts
+            .iter()
+            .map(|line| return line.snapshot.name.as_str())
+            .collect();
         names.sort_unstable();
         names.dedup();
         for name in names {
@@ -416,10 +503,18 @@ impl DestructionPlan {
                     continue;
                 }
                 if seen.contains(&line.attempt) {
-                    return Err(PlanRefusal::at(PlanRefusalCause::DuplicateAttempt, ATTEMPT_NAME_KEY, name));
+                    return Err(PlanRefusal::at(
+                        PlanRefusalCause::DuplicateAttempt,
+                        ATTEMPT_NAME_KEY,
+                        name,
+                    ));
                 }
                 if closed {
-                    return Err(PlanRefusal::at(PlanRefusalCause::DestroyedHistoryReopened, ATTEMPT_NAME_KEY, name));
+                    return Err(PlanRefusal::at(
+                        PlanRefusalCause::DestroyedHistoryReopened,
+                        ATTEMPT_NAME_KEY,
+                        name,
+                    ));
                 }
                 seen.push(line.attempt);
                 closed = line.outcome == SnapshotOutcome::Destroyed;
@@ -439,7 +534,10 @@ impl DestructionPlan {
 /// ```ts
 /// const owner = `${pid}:${birthIdentity}`;
 /// ```
-pub fn owner_text(pid: u32, birth_identity: &str) -> String {
+pub fn owner_text(
+    pid: u32,
+    birth_identity: &str,
+) -> String {
     return format!("{pid}:{birth_identity}");
 }
 

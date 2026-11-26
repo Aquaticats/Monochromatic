@@ -25,8 +25,16 @@
 use crate::foundation::iso_time::instant_of_iso;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
-    ABSENT_WORD, CloneMountReceipt, MAXIMUM_DATASET_NAME_BYTES, MAXIMUM_PATH_BYTES, MAXIMUM_WORD_BYTES, RECEIPT_KEYS, RECEIPT_KIND,
-    RECEIPT_VERSION, ReceiptMountIdentity, ReceiptOutcome,
+    ABSENT_WORD,
+    CloneMountReceipt,
+    MAXIMUM_DATASET_NAME_BYTES,
+    MAXIMUM_PATH_BYTES,
+    MAXIMUM_WORD_BYTES,
+    RECEIPT_KEYS,
+    RECEIPT_KIND,
+    RECEIPT_VERSION,
+    ReceiptMountIdentity,
+    ReceiptOutcome,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_receipt_refusals::ReceiptRefusal;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -44,39 +52,69 @@ use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 /// const receipt = parseReceipt(text);
 /// ```
 pub fn parse_receipt(text: &str) -> Result<CloneMountReceipt, ReceiptRefusal> {
-    let bound: usize = crate::worktree_clone_mount_protocol::clone_mount_receipt::MAXIMUM_RECEIPT_BYTES;
+    let bound: usize =
+        crate::worktree_clone_mount_protocol::clone_mount_receipt::MAXIMUM_RECEIPT_BYTES;
     if text.len() > bound {
-        return Err(ReceiptRefusal::TooLarge { bytes: text.len(), bound });
+        return Err(ReceiptRefusal::TooLarge {
+            bytes: text.len(),
+            bound,
+        });
     }
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() != RECEIPT_KEYS.len() {
-        return Err(ReceiptRefusal::LineCount { found: lines.len(), expected: RECEIPT_KEYS.len() });
+        return Err(ReceiptRefusal::LineCount {
+            found: lines.len(),
+            expected: RECEIPT_KEYS.len(),
+        });
     }
     if lines[0] != RECEIPT_VERSION {
-        return Err(ReceiptRefusal::Key { number: 1, expected: RECEIPT_VERSION, found: String::from(lines[0]) });
+        return Err(ReceiptRefusal::Key {
+            number: 1,
+            expected: RECEIPT_VERSION,
+            found: String::from(lines[0]),
+        });
     }
     let kind: &str = value_of(&lines, 1, RECEIPT_KEYS[1])?;
     if kind != RECEIPT_KIND {
-        return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[1], shown: String::from(kind) });
+        return Err(ReceiptRefusal::Value {
+            key: RECEIPT_KEYS[1],
+            shown: String::from(kind),
+        });
     }
-    let dataset: DatasetGuid = DatasetGuid::parse(value_of(&lines, 2, RECEIPT_KEYS[2])?).map_err(ReceiptRefusal::Dataset)?;
-    let nonce: RequestNonce = RequestNonce::parse(value_of(&lines, 3, RECEIPT_KEYS[3])?).map_err(ReceiptRefusal::Nonce)?;
-    let operation: MountOperation = MountOperation::from_word(value_of(&lines, 4, RECEIPT_KEYS[4])?)
-        .ok_or_else(|| return ReceiptRefusal::Value { key: RECEIPT_KEYS[4], shown: String::from(value_of(&lines, 4, RECEIPT_KEYS[4]).unwrap_or_default()) })?;
+    let dataset: DatasetGuid = DatasetGuid::parse(value_of(&lines, 2, RECEIPT_KEYS[2])?)
+        .map_err(ReceiptRefusal::Dataset)?;
+    let nonce: RequestNonce = RequestNonce::parse(value_of(&lines, 3, RECEIPT_KEYS[3])?)
+        .map_err(ReceiptRefusal::Nonce)?;
+    let operation: MountOperation =
+        MountOperation::from_word(value_of(&lines, 4, RECEIPT_KEYS[4])?).ok_or_else(|| {
+            return ReceiptRefusal::Value {
+                key: RECEIPT_KEYS[4],
+                shown: String::from(value_of(&lines, 4, RECEIPT_KEYS[4]).unwrap_or_default()),
+            };
+        })?;
     let outcome_word: &str = value_of(&lines, 5, RECEIPT_KEYS[5])?;
-    let outcome: ReceiptOutcome =
-        ReceiptOutcome::from_word(outcome_word).ok_or_else(|| return ReceiptRefusal::Value { key: RECEIPT_KEYS[5], shown: String::from(outcome_word) })?;
+    let outcome: ReceiptOutcome = ReceiptOutcome::from_word(outcome_word).ok_or_else(|| {
+        return ReceiptRefusal::Value {
+            key: RECEIPT_KEYS[5],
+            shown: String::from(outcome_word),
+        };
+    })?;
     let mount: Option<ReceiptMountIdentity> = read_mount(&lines, outcome, operation)?;
     let failed_step: Option<String> = read_word(&lines, 11, RECEIPT_KEYS[11])?;
     let errno: Option<String> = read_word(&lines, 12, RECEIPT_KEYS[12])?;
     check_outcome_words(outcome, &failed_step, &errno)?;
     let boot: &str = value_of(&lines, 13, RECEIPT_KEYS[13])?;
     if !crate::foundation::random_id::is_canonical_uuid(boot) {
-        return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[13], shown: String::from(boot) });
+        return Err(ReceiptRefusal::Value {
+            key: RECEIPT_KEYS[13],
+            shown: String::from(boot),
+        });
     }
     let time: &str = value_of(&lines, 14, RECEIPT_KEYS[14])?;
     if instant_of_iso(time).is_none() {
-        return Err(ReceiptRefusal::Time { value: String::from(time) });
+        return Err(ReceiptRefusal::Time {
+            value: String::from(time),
+        });
     }
     return Ok(CloneMountReceipt {
         dataset,
@@ -102,16 +140,31 @@ pub fn parse_receipt(text: &str) -> Result<CloneMountReceipt, ReceiptRefusal> {
 /// ```ts
 /// const value = valueOf(lines, 2, 'dataset');
 /// ```
-fn value_of<'a>(lines: &[&'a str], index: usize, key: &'static str) -> Result<&'a str, ReceiptRefusal> {
+fn value_of<'a>(
+    lines: &[&'a str],
+    index: usize,
+    key: &'static str,
+) -> Result<&'a str, ReceiptRefusal> {
     let line: &'a str = lines[index];
     let Some((found, value)) = line.split_once(' ') else {
-        return Err(ReceiptRefusal::Key { number: index + 1, expected: key, found: String::from(line) });
+        return Err(ReceiptRefusal::Key {
+            number: index + 1,
+            expected: key,
+            found: String::from(line),
+        });
     };
     if found != key {
-        return Err(ReceiptRefusal::Key { number: index + 1, expected: key, found: String::from(found) });
+        return Err(ReceiptRefusal::Key {
+            number: index + 1,
+            expected: key,
+            found: String::from(found),
+        });
     }
     if value.is_empty() {
-        return Err(ReceiptRefusal::Value { key, shown: String::from("<empty>") });
+        return Err(ReceiptRefusal::Value {
+            key,
+            shown: String::from("<empty>"),
+        });
     }
     return Ok(value);
 }
@@ -127,13 +180,24 @@ fn value_of<'a>(lines: &[&'a str], index: usize, key: &'static str) -> Result<&'
 /// ```ts
 /// const word = readWord(lines, 11, 'failed-step'); // string | null
 /// ```
-fn read_word(lines: &[&str], index: usize, key: &'static str) -> Result<Option<String>, ReceiptRefusal> {
+fn read_word(
+    lines: &[&str],
+    index: usize,
+    key: &'static str,
+) -> Result<Option<String>, ReceiptRefusal> {
     let value: &str = value_of(lines, index, key)?;
     if value == ABSENT_WORD {
         return Ok(None);
     }
-    if value.len() > MAXIMUM_WORD_BYTES || !value.bytes().all(|byte| return byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_') {
-        return Err(ReceiptRefusal::Value { key, shown: String::from(value) });
+    if value.len() > MAXIMUM_WORD_BYTES
+        || !value
+            .bytes()
+            .all(|byte| return byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err(ReceiptRefusal::Value {
+            key,
+            shown: String::from(value),
+        });
     }
     return Ok(Some(String::from(value)));
 }
@@ -157,10 +221,20 @@ fn read_word(lines: &[&str], index: usize, key: &'static str) -> Result<Option<S
 /// ```ts
 /// const mount = readMount(lines, outcome, operation); // identity | null
 /// ```
-fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation) -> Result<Option<ReceiptMountIdentity>, ReceiptRefusal> {
+fn read_mount(
+    lines: &[&str],
+    outcome: ReceiptOutcome,
+    operation: MountOperation,
+) -> Result<Option<ReceiptMountIdentity>, ReceiptRefusal> {
     let may_carry: bool = (outcome == ReceiptOutcome::Done && operation == MountOperation::Mount)
         || (outcome == ReceiptOutcome::Cancelled && operation == MountOperation::Unmount);
-    let present_keys: [&'static str; 5] = [RECEIPT_KEYS[6], RECEIPT_KEYS[7], RECEIPT_KEYS[8], RECEIPT_KEYS[9], RECEIPT_KEYS[10]];
+    let present_keys: [&'static str; 5] = [
+        RECEIPT_KEYS[6],
+        RECEIPT_KEYS[7],
+        RECEIPT_KEYS[8],
+        RECEIPT_KEYS[9],
+        RECEIPT_KEYS[10],
+    ];
     let words: [&str; 5] = [
         value_of(lines, 6, present_keys[0])?,
         value_of(lines, 7, present_keys[1])?,
@@ -173,13 +247,19 @@ fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation
     if !may_carry {
         for (key, word) in present_keys.iter().zip(words.iter()) {
             if *word != ABSENT_WORD {
-                return Err(ReceiptRefusal::MountField { key, wanted: false });
+                return Err(ReceiptRefusal::MountField {
+                    key,
+                    wanted: false,
+                });
             }
         }
         return Ok(None);
     }
     if !all_absent && !all_present {
-        return Err(ReceiptRefusal::MountField { key: present_keys[0], wanted: true });
+        return Err(ReceiptRefusal::MountField {
+            key: present_keys[0],
+            wanted: true,
+        });
     }
     if all_absent {
         return Ok(None);
@@ -190,9 +270,18 @@ fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation
     let source: String = dataset_name_of(present_keys[3], words[3])?;
     let canonical_path: String = text_of(present_keys[4], words[4], MAXIMUM_PATH_BYTES)?;
     if !canonical_path.starts_with('/') {
-        return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[10], shown: canonical_path });
+        return Err(ReceiptRefusal::Value {
+            key: RECEIPT_KEYS[10],
+            shown: canonical_path,
+        });
     }
-    return Ok(Some(ReceiptMountIdentity { mount_id, device, inode, source, canonical_path }));
+    return Ok(Some(ReceiptMountIdentity {
+        mount_id,
+        device,
+        inode,
+        source,
+        canonical_path,
+    }));
 }
 
 /// What:
@@ -205,11 +294,22 @@ fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation
 /// ```ts
 /// const count = decimalOf('mount-id', '41');
 /// ```
-fn decimal_of(key: &'static str, word: &str) -> Result<u64, ReceiptRefusal> {
+fn decimal_of(
+    key: &'static str,
+    word: &str,
+) -> Result<u64, ReceiptRefusal> {
     if word.is_empty() || !word.bytes().all(|byte| return byte.is_ascii_digit()) {
-        return Err(ReceiptRefusal::Value { key, shown: String::from(word) });
+        return Err(ReceiptRefusal::Value {
+            key,
+            shown: String::from(word),
+        });
     }
-    return word.parse::<u64>().map_err(|_| return ReceiptRefusal::Value { key, shown: String::from(word) });
+    return word.parse::<u64>().map_err(|_| {
+        return ReceiptRefusal::Value {
+            key,
+            shown: String::from(word),
+        };
+    });
 }
 
 /// What:
@@ -224,10 +324,23 @@ fn decimal_of(key: &'static str, word: &str) -> Result<u64, ReceiptRefusal> {
 /// ```ts
 /// const name = datasetNameOf('source', word);
 /// ```
-fn dataset_name_of(key: &'static str, word: &str) -> Result<String, ReceiptRefusal> {
-    let allowed = |byte: u8| return byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b':' | b'/' | b'@' | b'$' | b'%');
-    if word.is_empty() || word.len() > MAXIMUM_DATASET_NAME_BYTES || !word.bytes().all(allowed) || word.starts_with('/') {
-        return Err(ReceiptRefusal::Value { key, shown: String::from(word) });
+fn dataset_name_of(
+    key: &'static str,
+    word: &str,
+) -> Result<String, ReceiptRefusal> {
+    let allowed = |byte: u8| {
+        return byte.is_ascii_alphanumeric()
+            || matches!(byte, b'_' | b'-' | b'.' | b':' | b'/' | b'@' | b'$' | b'%');
+    };
+    if word.is_empty()
+        || word.len() > MAXIMUM_DATASET_NAME_BYTES
+        || !word.bytes().all(allowed)
+        || word.starts_with('/')
+    {
+        return Err(ReceiptRefusal::Value {
+            key,
+            shown: String::from(word),
+        });
     }
     return Ok(String::from(word));
 }
@@ -242,9 +355,16 @@ fn dataset_name_of(key: &'static str, word: &str) -> Result<String, ReceiptRefus
 /// ```ts
 /// const text = textOf('source', word, 255);
 /// ```
-fn text_of(key: &'static str, word: &str, bound: usize) -> Result<String, ReceiptRefusal> {
+fn text_of(
+    key: &'static str,
+    word: &str,
+    bound: usize,
+) -> Result<String, ReceiptRefusal> {
     if word.is_empty() || word.len() > bound || word.chars().any(char::is_control) {
-        return Err(ReceiptRefusal::Value { key, shown: String::from(word) });
+        return Err(ReceiptRefusal::Value {
+            key,
+            shown: String::from(word),
+        });
     }
     return Ok(String::from(word));
 }
@@ -260,20 +380,33 @@ fn text_of(key: &'static str, word: &str, bound: usize) -> Result<String, Receip
 /// ```ts
 /// checkOutcomeWords(outcome, failedStep, errno); // throws
 /// ```
-fn check_outcome_words(outcome: ReceiptOutcome, failed_step: &Option<String>, errno: &Option<String>) -> Result<(), ReceiptRefusal> {
+fn check_outcome_words(
+    outcome: ReceiptOutcome,
+    failed_step: &Option<String>,
+    errno: &Option<String>,
+) -> Result<(), ReceiptRefusal> {
     return match outcome {
         ReceiptOutcome::Done => {
             if failed_step.is_some() {
-                return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[11], shown: String::from("a step on a done result") });
+                return Err(ReceiptRefusal::Value {
+                    key: RECEIPT_KEYS[11],
+                    shown: String::from("a step on a done result"),
+                });
             }
             if errno.is_some() {
-                return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[12], shown: String::from("an errno on a done result") });
+                return Err(ReceiptRefusal::Value {
+                    key: RECEIPT_KEYS[12],
+                    shown: String::from("an errno on a done result"),
+                });
             }
             Ok(())
         }
         ReceiptOutcome::Refused | ReceiptOutcome::Failed | ReceiptOutcome::Cancelled => {
             if failed_step.is_none() {
-                return Err(ReceiptRefusal::MountField { key: RECEIPT_KEYS[11], wanted: true });
+                return Err(ReceiptRefusal::MountField {
+                    key: RECEIPT_KEYS[11],
+                    wanted: true,
+                });
             }
             Ok(())
         }

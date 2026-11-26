@@ -20,19 +20,51 @@
 //! expect(earlier.stderr).toBe(NOTICE + (await run(repo, ['monochromatic-git-policy-cli', 'doctor'])).stderr);
 //! ```
 
-use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, ServiceLaunch, fixture, git, observe, remove, repository, start_fixture_service, wrapped};
+use super::commit::{
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    ServiceLaunch,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    start_fixture_service,
+    wrapped,
+};
 use git_policy_cli::entry::EARLIER_COMMAND_WORD_NOTICE;
 use git_policy_cli::wrapper_names_old_and_new::{
-    COMMAND_WORD, COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, PUSH_TRIGGER_LOG, RenamedName, SETTINGS_FILE,
-    WORKTREE_ADD_TIMING_LOG, WORKTREE_COPY_RECORD_FOLDER,
+    COMMAND_WORD,
+    COMMIT_TIMING_LOG,
+    DATA_FOLDER,
+    DISCARD_AUDIT_LOG,
+    MERGE_INTENT_FOLDER,
+    PUSH_TRIGGER_LOG,
+    RenamedName,
+    SETTINGS_FILE,
+    WORKTREE_ADD_TIMING_LOG,
+    WORKTREE_COPY_RECORD_FOLDER,
 };
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Run the wrapped `git` with `arguments` in `directory`.
-fn run(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
+fn run(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(wrapped(fixture).current_dir(directory).args(arguments), b"");
 }
 
@@ -68,15 +100,27 @@ fn the_earlier_word_does_the_same_with_one_notice_for_every_command() {
         let old_run: Observed = run(&fixture, repo.as_path(), earlier.as_slice());
         assert_eq!(old_run.code, new_run.code, "{command:?}");
         assert_eq!(old_run.stdout, new_run.stdout, "{command:?}");
-        assert_eq!(stderr_text(&old_run), format!("{EARLIER_COMMAND_WORD_NOTICE}{}", stderr_text(&new_run)), "{command:?}");
-        assert!(!stderr_text(&new_run).contains(EARLIER_COMMAND_WORD_NOTICE), "{command:?}");
+        assert_eq!(
+            stderr_text(&old_run),
+            format!("{EARLIER_COMMAND_WORD_NOTICE}{}", stderr_text(&new_run)),
+            "{command:?}"
+        );
+        assert!(
+            !stderr_text(&new_run).contains(EARLIER_COMMAND_WORD_NOTICE),
+            "{command:?}"
+        );
     }
     remove(&fixture);
 }
 
 /// How many lines of a run's standard error say that the settings file is read under its earlier name.
 fn earlier_name_lines(observed: &Observed) -> usize {
-    return stderr_text(observed).lines().filter(|line| { return line.contains("read under its earlier name"); }).count();
+    return stderr_text(observed)
+        .lines()
+        .filter(|line| {
+            return line.contains("read under its earlier name");
+        })
+        .count();
 }
 
 /// A repository whose only settings file has the earlier name:
@@ -86,14 +130,39 @@ fn earlier_name_lines(observed: &Observed) -> usize {
 fn an_earlier_settings_file_alone_is_read_with_one_notice() {
     let fixture: Fixture = fixture("rename-settings-earlier");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join(SETTINGS_FILE.earlier), "{ \"policies\": { \"final-newline\": \"error\" } }").expect("an earlier file");
+    std::fs::write(
+        repo.join(SETTINGS_FILE.earlier),
+        "{ \"policies\": { \"final-newline\": \"error\" } }",
+    )
+    .expect("an earlier file");
     std::fs::write(repo.join("a.txt"), "no newline at the end").expect("a file");
     git(&fixture, repo.as_path(), &["add", "a.txt"]);
-    let checked: Observed = run(&fixture, repo.as_path(), &[COMMAND_WORD.current, "check", "--all"]);
-    assert_eq!(checked.code, Some(1), "the earlier file was read, so its error policy found the file: {}", String::from_utf8_lossy(&checked.stdout));
-    assert_eq!(earlier_name_lines(&checked), 1, "one notice: {}", stderr_text(&checked));
-    assert!(stderr_text(&checked).contains(SETTINGS_FILE.current), "{}", stderr_text(&checked));
-    assert!(repo.join(SETTINGS_FILE.earlier).is_file() && !repo.join(SETTINGS_FILE.current).exists(), "no file was renamed or made");
+    let checked: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[COMMAND_WORD.current, "check", "--all"],
+    );
+    assert_eq!(
+        checked.code,
+        Some(1),
+        "the earlier file was read, so its error policy found the file: {}",
+        String::from_utf8_lossy(&checked.stdout)
+    );
+    assert_eq!(
+        earlier_name_lines(&checked),
+        1,
+        "one notice: {}",
+        stderr_text(&checked)
+    );
+    assert!(
+        stderr_text(&checked).contains(SETTINGS_FILE.current),
+        "{}",
+        stderr_text(&checked)
+    );
+    assert!(
+        repo.join(SETTINGS_FILE.earlier).is_file() && !repo.join(SETTINGS_FILE.current).exists(),
+        "no file was renamed or made"
+    );
     remove(&fixture);
 }
 
@@ -118,9 +187,16 @@ fn a_guarded_git_command_says_the_settings_notice_once() {
 fn the_new_settings_file_alone_is_read_without_a_notice() {
     let fixture: Fixture = fixture("rename-settings-new");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join(SETTINGS_FILE.current), "{ \"unknown\": 1 }").expect("an invalid new file");
-    let refused: Observed = run(&fixture, repo.as_path(), &[COMMAND_WORD.current, "check", "--all"]);
-    assert!(String::from_utf8_lossy(&refused.stdout).contains("Unknown configuration key: unknown."));
+    std::fs::write(repo.join(SETTINGS_FILE.current), "{ \"unknown\": 1 }")
+        .expect("an invalid new file");
+    let refused: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[COMMAND_WORD.current, "check", "--all"],
+    );
+    assert!(
+        String::from_utf8_lossy(&refused.stdout).contains("Unknown configuration key: unknown.")
+    );
     assert_eq!(stderr_text(&refused), "");
     remove(&fixture);
 }
@@ -133,10 +209,25 @@ fn both_settings_files_read_the_new_one_and_report_the_earlier() {
     let fixture: Fixture = fixture("rename-settings-both");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join(SETTINGS_FILE.current), "{}").expect("a valid new file");
-    std::fs::write(repo.join(SETTINGS_FILE.earlier), "{ \"unknown\": 1 }").expect("an invalid earlier file");
-    let checked: Observed = run(&fixture, repo.as_path(), &[COMMAND_WORD.current, "check", "--all"]);
-    assert_eq!(checked.code, Some(0), "the earlier file's error is not read: {}", String::from_utf8_lossy(&checked.stdout));
-    assert!(stderr_text(&checked).contains(SETTINGS_FILE.earlier) && stderr_text(&checked).contains("ignored"), "{}", stderr_text(&checked));
+    std::fs::write(repo.join(SETTINGS_FILE.earlier), "{ \"unknown\": 1 }")
+        .expect("an invalid earlier file");
+    let checked: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[COMMAND_WORD.current, "check", "--all"],
+    );
+    assert_eq!(
+        checked.code,
+        Some(0),
+        "the earlier file's error is not read: {}",
+        String::from_utf8_lossy(&checked.stdout)
+    );
+    assert!(
+        stderr_text(&checked).contains(SETTINGS_FILE.earlier)
+            && stderr_text(&checked).contains("ignored"),
+        "{}",
+        stderr_text(&checked)
+    );
     remove(&fixture);
 }
 
@@ -146,7 +237,11 @@ fn both_settings_files_read_the_new_one_and_report_the_earlier() {
 fn no_settings_file_says_nothing_about_names() {
     let fixture: Fixture = fixture("rename-settings-neither");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    let checked: Observed = run(&fixture, repo.as_path(), &[COMMAND_WORD.current, "check", "--all"]);
+    let checked: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[COMMAND_WORD.current, "check", "--all"],
+    );
     assert_eq!(checked.code, Some(0));
     assert_eq!(stderr_text(&checked), "");
     remove(&fixture);
@@ -154,7 +249,11 @@ fn no_settings_file_says_nothing_about_names() {
 
 /// Plant a kind under its earlier name in `.git`,
 ///  with content that names the kind.
-fn plant_earlier(git_dir: &Path, kind: RenamedName, is_folder: bool) {
+fn plant_earlier(
+    git_dir: &Path,
+    kind: RenamedName,
+    is_folder: bool,
+) {
     let path: PathBuf = git_dir.join(kind.earlier);
     if is_folder {
         std::fs::create_dir_all(path.join("inner")).expect("folder");
@@ -165,12 +264,22 @@ fn plant_earlier(git_dir: &Path, kind: RenamedName, is_folder: bool) {
 }
 
 /// Read what `plant_earlier` wrote under the current name.
-fn read_current(git_dir: &Path, kind: RenamedName, is_folder: bool) -> String {
+fn read_current(
+    git_dir: &Path,
+    kind: RenamedName,
+    is_folder: bool,
+) -> String {
     let path: PathBuf = git_dir.join(kind.current);
     if is_folder {
-        return std::fs::read_to_string(path.join("inner").join("record")).unwrap_or_else(|error| { return format!("missing: {error}"); });
+        return std::fs::read_to_string(path.join("inner").join("record")).unwrap_or_else(
+            |error| {
+                return format!("missing: {error}");
+            },
+        );
     }
-    return std::fs::read_to_string(path).unwrap_or_else(|error| { return format!("missing: {error}"); });
+    return std::fs::read_to_string(path).unwrap_or_else(|error| {
+        return format!("missing: {error}");
+    });
 }
 
 /// The folders and files the wrapper keeps in the Git directory of a plain repository.
@@ -199,8 +308,15 @@ fn every_kept_kind_is_renamed_in_place_by_an_ordinary_command() {
     assert_eq!(status.code, Some(0), "{}", stderr_text(&status));
     assert_eq!(stderr_text(&status), "", "a move in place is silent");
     for (kind, folder) in KEPT {
-        assert_eq!(read_current(git_dir.as_path(), kind, folder), kind.earlier, "{kind:?}");
-        assert!(!git_dir.join(kind.earlier).exists(), "{kind:?}: no second name");
+        assert_eq!(
+            read_current(git_dir.as_path(), kind, folder),
+            kind.earlier,
+            "{kind:?}"
+        );
+        assert!(
+            !git_dir.join(kind.earlier).exists(),
+            "{kind:?}: no second name"
+        );
     }
     remove(&fixture);
 }
@@ -228,12 +344,30 @@ fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word_or_wait_
     assert_eq!(status.code, Some(0), "{}", stderr_text(&status));
     let said: String = stderr_text(&status);
     if said.is_empty() {
-        assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier);
-        assert!(!git_dir.join(DATA_FOLDER.earlier).exists(), "no second name");
+        assert_eq!(
+            read_current(git_dir.as_path(), DATA_FOLDER, true),
+            DATA_FOLDER.earlier
+        );
+        assert!(
+            !git_dir.join(DATA_FOLDER.earlier).exists(),
+            "no second name"
+        );
     } else {
         assert_eq!(said.lines().count(), 1, "one line: {said}");
-        assert!(said.contains("a later command folds them into the new names"), "{said}");
-        assert_eq!(std::fs::read_to_string(git_dir.join(DATA_FOLDER.earlier).join("inner").join("record")).expect("untouched"), DATA_FOLDER.earlier);
+        assert!(
+            said.contains("a later command folds them into the new names"),
+            "{said}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(
+                git_dir
+                    .join(DATA_FOLDER.earlier)
+                    .join("inner")
+                    .join("record")
+            )
+            .expect("untouched"),
+            DATA_FOLDER.earlier
+        );
     }
     remove(&fixture);
 }
@@ -260,17 +394,38 @@ fn wrapper_processes_racing_to_move_a_kept_folder_lose_nothing() {
         let observed: Vec<Observed> = std::thread::scope(|scope| {
             let mut workers = Vec::new();
             for _ in 0..RACING_PROCESSES {
-                workers.push(scope.spawn(|| { return run(&fixture, repo.as_path(), &["status"]); }));
+                workers.push(scope.spawn(|| {
+                    return run(&fixture, repo.as_path(), &["status"]);
+                }));
             }
-            return workers.into_iter().map(|worker| { return worker.join().expect("a worker"); }).collect();
+            return workers
+                .into_iter()
+                .map(|worker| {
+                    return worker.join().expect("a worker");
+                })
+                .collect();
         });
         for run_result in &observed {
-            assert_eq!(run_result.code, Some(0), "round {round}: {}", stderr_text(run_result));
-            assert_eq!(stderr_text(run_result), "", "round {round}: no process complains");
+            assert_eq!(
+                run_result.code,
+                Some(0),
+                "round {round}: {}",
+                stderr_text(run_result)
+            );
+            assert_eq!(
+                stderr_text(run_result),
+                "",
+                "round {round}: no process complains"
+            );
         }
-        assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier, "round {round}");
+        assert_eq!(
+            read_current(git_dir.as_path(), DATA_FOLDER, true),
+            DATA_FOLDER.earlier,
+            "round {round}"
+        );
         assert!(!git_dir.join(DATA_FOLDER.earlier).exists(), "round {round}");
-        std::fs::remove_dir_all(git_dir.join(DATA_FOLDER.current)).expect("reset for the next round");
+        std::fs::remove_dir_all(git_dir.join(DATA_FOLDER.current))
+            .expect("reset for the next round");
     }
     remove(&fixture);
 }
@@ -286,28 +441,52 @@ fn an_awkward_repository_path_changes_nothing() {
     let git_dir: PathBuf = repo.join(".git");
     std::fs::write(repo.join(SETTINGS_FILE.earlier), "{}").expect("an earlier settings file");
     plant_earlier(git_dir.as_path(), DATA_FOLDER, true);
-    let checked: Observed = run(&fixture, repo.as_path(), &[COMMAND_WORD.earlier, "check", "--all"]);
+    let checked: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[COMMAND_WORD.earlier, "check", "--all"],
+    );
     assert_eq!(checked.code, Some(0), "{}", stderr_text(&checked));
     let lines: Vec<String> = stderr_text(&checked).lines().map(str::to_owned).collect();
-    assert_eq!(lines.len(), 2, "the word notice and the settings notice, one line each: {lines:?}");
-    assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier);
+    assert_eq!(
+        lines.len(),
+        2,
+        "the word notice and the settings notice, one line each: {lines:?}"
+    );
+    assert_eq!(
+        read_current(git_dir.as_path(), DATA_FOLDER, true),
+        DATA_FOLDER.earlier
+    );
     remove(&fixture);
 }
 
 /// Write one commit's worth of change to `a.txt` and commit it through the service of the fixture,
 ///  then count the batches the service finished.
-fn commit_through_the_fixture_service(fixture: &Fixture, repo: &Path, message: &str) -> usize {
+fn commit_through_the_fixture_service(
+    fixture: &Fixture,
+    repo: &Path,
+    message: &str,
+) -> usize {
     std::fs::write(repo.join("a.txt"), format!("base\n{message}\n")).expect("edit");
     let service = start_fixture_service(fixture);
     service.serve(fixture, repo.join(".git").as_path());
-    let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", message, "--", "a.txt"]);
+    let mut command: Command =
+        wrapped_commit(fixture, repo, &["commit", "-m", message, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", &service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let finished: usize = std::fs::read_dir(fixture.root.join("journal"))
         .expect("journal")
         .flatten()
-        .filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::DONE_EXTENSION; }); })
+        .filter(|entry| {
+            return entry.path().extension().is_some_and(|extension| {
+                return extension == git_policy_cli::service_journal::DONE_EXTENSION;
+            });
+        })
         .count();
     drop(service);
     return finished;
@@ -319,7 +498,11 @@ fn repository_with_a_committed_file(fixture: &Fixture) -> PathBuf {
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(fixture, &repo, &["add", "a.txt"]);
     git(fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     return repo;
 }
 
@@ -330,7 +513,10 @@ fn repository_with_a_committed_file(fixture: &Fixture) -> PathBuf {
 fn a_service_started_with_the_new_command_word_lands_a_commit() {
     let fixture: Fixture = fixture("rename-service-new");
     let repo: PathBuf = repository_with_a_committed_file(&fixture);
-    assert_eq!(commit_through_the_fixture_service(&fixture, repo.as_path(), "through the new word"), 1);
+    assert_eq!(
+        commit_through_the_fixture_service(&fixture, repo.as_path(), "through the new word"),
+        1
+    );
     remove_settled(&fixture);
 }
 
@@ -340,8 +526,14 @@ fn a_service_started_with_the_new_command_word_lands_a_commit() {
 #[test]
 fn a_helper_started_with_the_earlier_command_word_keeps_landing_commits() {
     let fixture: Fixture = fixture("rename-service-earlier");
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { earlier_command_word: true, ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        earlier_command_word: true,
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = repository_with_a_committed_file(&fixture);
-    assert_eq!(commit_through_the_fixture_service(&fixture, repo.as_path(), "through the earlier word"), 1);
+    assert_eq!(
+        commit_through_the_fixture_service(&fixture, repo.as_path(), "through the earlier word"),
+        1
+    );
     remove_settled(&fixture);
 }

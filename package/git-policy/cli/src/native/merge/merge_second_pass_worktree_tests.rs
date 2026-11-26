@@ -8,15 +8,45 @@
 //!  `binary_word_merge_tests.rs`.
 
 use super::*;
-use crate::merge_second_pass::tests::{Change, World, await_it, corpus, runner, world};
-use crate::merge_second_pass::{GitReply, resolved_record};
+use crate::merge_second_pass::tests::{
+    Change,
+    World,
+    await_it,
+    corpus,
+    runner,
+    world,
+};
+use crate::merge_second_pass::{
+    GitReply,
+    resolved_record,
+};
 use crate::merge_second_pass_worktree_unchanged::LARGEST_RECORDED_BYTES;
-use crate::test_support::{git, git_context, git_output, git_text, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    git,
+    git_context,
+    git_output,
+    git_text,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// An index entry of a path at a stage.
-fn entry(path: &str, stage: u8, mode: u32, byte: u8) -> IndexEntry {
-    return IndexEntry { path: path.as_bytes().to_vec(), mode, id: vec![byte; 20], stage, extended: 0 };
+fn entry(
+    path: &str,
+    stage: u8,
+    mode: u32,
+    byte: u8,
+) -> IndexEntry {
+    return IndexEntry {
+        path: path.as_bytes().to_vec(),
+        mode,
+        id: vec![byte; 20],
+        stage,
+        extended: 0,
+    };
 }
 
 /// Only the named paths are read,
@@ -36,10 +66,30 @@ fn the_stages_of_the_named_paths_are_read_from_the_index() {
     let conflicts: Vec<Conflict> = conflicts_of_index(entries.as_slice(), &only);
     assert_eq!(conflicts.len(), 2);
     assert_eq!(conflicts[0].path, b"b.md".to_vec());
-    assert_eq!(conflicts[0].base, Some(Stage { mode: 0o100_644, oid: "01".repeat(20) }));
-    assert_eq!(conflicts[0].ours.as_ref().map(|stage| { return stage.mode; }), Some(0o100_755));
-    assert_eq!(conflicts[0].theirs, Some(Stage { mode: 0o100_644, oid: "03".repeat(20) }));
-    assert_eq!((conflicts[1].path.as_slice(), conflicts[1].base.is_none()), (b"c.md".as_slice(), true));
+    assert_eq!(
+        conflicts[0].base,
+        Some(Stage {
+            mode: 0o100_644,
+            oid: "01".repeat(20)
+        })
+    );
+    assert_eq!(
+        conflicts[0].ours.as_ref().map(|stage| {
+            return stage.mode;
+        }),
+        Some(0o100_755)
+    );
+    assert_eq!(
+        conflicts[0].theirs,
+        Some(Stage {
+            mode: 0o100_644,
+            oid: "03".repeat(20)
+        })
+    );
+    assert_eq!(
+        (conflicts[1].path.as_slice(), conflicts[1].base.is_none()),
+        (b"c.md".as_slice(), true)
+    );
     let none: BTreeSet<Vec<u8>> = BTreeSet::new();
     assert!(conflicts_of_index(entries.as_slice(), &none).is_empty());
 }
@@ -50,11 +100,26 @@ fn the_stages_of_the_named_paths_are_read_from_the_index() {
 fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
     let conflict = Conflict {
         path: b"d/x.md".to_vec(),
-        base: Some(Stage { mode: 0o100_644, oid: String::from("aa") }),
-        ours: Some(Stage { mode: 0o100_644, oid: String::from("bb") }),
-        theirs: Some(Stage { mode: 0o100_755, oid: String::from("cc") }),
+        base: Some(Stage {
+            mode: 0o100_644,
+            oid: String::from("aa"),
+        }),
+        ours: Some(Stage {
+            mode: 0o100_644,
+            oid: String::from("bb"),
+        }),
+        theirs: Some(Stage {
+            mode: 0o100_755,
+            oid: String::from("cc"),
+        }),
     };
-    let expected: Vec<u8> = [b"0 00\td/x.md\0".as_slice(), b"100644 aa 1\td/x.md\0", b"100644 bb 2\td/x.md\0", b"100755 cc 3\td/x.md\0"].concat();
+    let expected: Vec<u8> = [
+        b"0 00\td/x.md\0".as_slice(),
+        b"100644 aa 1\td/x.md\0",
+        b"100644 bb 2\td/x.md\0",
+        b"100755 cc 3\td/x.md\0",
+    ]
+    .concat();
     assert_eq!(restore_records(&conflict), expected);
 }
 
@@ -64,22 +129,61 @@ fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
 /// and never the failing step's own sentence about itself.
 #[test]
 fn the_closing_words_say_whether_a_conflict_remains() {
-    assert!(closing_words("rebase", 0).contains("no conflicted file is left") && closing_words("rebase", 0).contains("finish the rebase"));
-    assert!(closing_words("merge", 2).contains("still lists as conflicted") && closing_words("merge", 2).contains("git diff --cached"));
-    for (operation, ending) in [("merge", "`git commit`"), ("pull", "`git commit`"), ("rebase", "`git rebase --continue`"), ("cherry-pick", "`git cherry-pick --continue`"), ("revert", "`git revert --continue`")] {
+    assert!(
+        closing_words("rebase", 0).contains("no conflicted file is left")
+            && closing_words("rebase", 0).contains("finish the rebase")
+    );
+    assert!(
+        closing_words("merge", 2).contains("still lists as conflicted")
+            && closing_words("merge", 2).contains("git diff --cached")
+    );
+    for (operation, ending) in [
+        ("merge", "`git commit`"),
+        ("pull", "`git commit`"),
+        ("rebase", "`git rebase --continue`"),
+        ("cherry-pick", "`git cherry-pick --continue`"),
+        ("revert", "`git revert --continue`"),
+    ] {
         let line: String = unfinished_words(operation, "notes.md", Some(&[]), ending);
-        assert!(line.contains(format!("the {operation} did not finish").as_str()) && line.contains("the files the second merge pass staged as resolved are notes.md"), "{line}");
+        assert!(
+            line.contains(format!("the {operation} did not finish").as_str())
+                && line.contains("the files the second merge pass staged as resolved are notes.md"),
+            "{line}"
+        );
         assert!(line.contains("no file is conflicted"), "{line}");
         assert!(line.contains(ending), "{line}");
-        assert!(!line.contains("Nothing in the repository changed"), "the last word is not the failing step's sentence about itself: {line}");
+        assert!(
+            !line.contains("Nothing in the repository changed"),
+            "the last word is not the failing step's sentence about itself: {line}"
+        );
     }
     let one: Vec<String> = vec![String::from("notes.md")];
-    let line: String = unfinished_words("rebase", "a.md", Some(one.as_slice()), "`git rebase --continue`");
-    assert!(line.contains("notes.md is conflicted again where the ending step stopped") && line.contains("resolve it"), "{line}");
-    assert!(!line.contains("the conflict is gone") && !line.contains("no file is conflicted"), "the state is read, not assumed: {line}");
+    let line: String = unfinished_words(
+        "rebase",
+        "a.md",
+        Some(one.as_slice()),
+        "`git rebase --continue`",
+    );
+    assert!(
+        line.contains("notes.md is conflicted again where the ending step stopped")
+            && line.contains("resolve it"),
+        "{line}"
+    );
+    assert!(
+        !line.contains("the conflict is gone") && !line.contains("no file is conflicted"),
+        "the state is read, not assumed: {line}"
+    );
     let two: Vec<String> = vec![String::from("a.md"), String::from("b.md")];
-    let several: String = unfinished_words("rebase", "c.md", Some(two.as_slice()), "`git rebase --continue`");
-    assert!(several.contains("a.md, b.md are conflicted again") && several.contains("resolve them"), "{several}");
+    let several: String = unfinished_words(
+        "rebase",
+        "c.md",
+        Some(two.as_slice()),
+        "`git rebase --continue`",
+    );
+    assert!(
+        several.contains("a.md, b.md are conflicted again") && several.contains("resolve them"),
+        "{several}"
+    );
 }
 
 /// What:
@@ -95,19 +199,40 @@ fn the_ending_command_is_the_one_the_state_files_name() {
     let root: PathBuf = crate::test_support::fixture("second-pass-ending-command");
     let git_dir: PathBuf = root.join("git");
     std::fs::create_dir_all(git_dir.join("rebase-merge")).expect("the rebase state");
-    assert_eq!(ending_command(git_dir.as_path(), "pull"), "`git rebase --continue`", "a rebasing pull");
-    assert_eq!(ending_command(git_dir.as_path(), "rebase"), "`git rebase --continue`");
+    assert_eq!(
+        ending_command(git_dir.as_path(), "pull"),
+        "`git rebase --continue`",
+        "a rebasing pull"
+    );
+    assert_eq!(
+        ending_command(git_dir.as_path(), "rebase"),
+        "`git rebase --continue`"
+    );
     std::fs::remove_dir(git_dir.join("rebase-merge")).expect("remove the rebase state");
     std::fs::write(git_dir.join("MERGE_HEAD"), b"0".repeat(40)).expect("the merge state");
-    assert_eq!(ending_command(git_dir.as_path(), "pull"), "`git commit`", "a merging pull");
+    assert_eq!(
+        ending_command(git_dir.as_path(), "pull"),
+        "`git commit`",
+        "a merging pull"
+    );
     std::fs::remove_file(git_dir.join("MERGE_HEAD")).expect("remove the merge state");
     std::fs::write(git_dir.join("CHERRY_PICK_HEAD"), b"0".repeat(40)).expect("the pick state");
-    assert_eq!(ending_command(git_dir.as_path(), "cherry-pick"), "`git cherry-pick --continue`");
+    assert_eq!(
+        ending_command(git_dir.as_path(), "cherry-pick"),
+        "`git cherry-pick --continue`"
+    );
     std::fs::remove_file(git_dir.join("CHERRY_PICK_HEAD")).expect("remove the pick state");
     std::fs::write(git_dir.join("REVERT_HEAD"), b"0".repeat(40)).expect("the revert state");
-    assert_eq!(ending_command(git_dir.as_path(), "revert"), "`git revert --continue`");
+    assert_eq!(
+        ending_command(git_dir.as_path(), "revert"),
+        "`git revert --continue`"
+    );
     std::fs::remove_file(git_dir.join("REVERT_HEAD")).expect("remove the revert state");
-    assert_eq!(ending_command(git_dir.as_path(), "merge"), "`git commit`", "the operation's word is the fallback");
+    assert_eq!(
+        ending_command(git_dir.as_path(), "merge"),
+        "`git commit`",
+        "the operation's word is the fallback"
+    );
     remove(root.as_path());
 }
 
@@ -127,30 +252,75 @@ impl GitRunner for Scripted {
         arguments: &'a [&'a str],
         input: Option<&'a [u8]>,
         _index_file: Option<&'a Path>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>>
+    {
         return Box::pin(async move {
-            self.calls.lock().expect("no control panics while it holds the starts").push((arguments[0].to_owned(), input.map(<[u8]>::to_vec).unwrap_or_default()));
-            let code: Option<i32> = if arguments[0] == self.failing { Some(1) } else { Some(0) };
-            return Ok(GitReply { code, stdout: Vec::new(), stderr: b"boom".to_vec() });
+            self.calls
+                .lock()
+                .expect("no control panics while it holds the starts")
+                .push((
+                    arguments[0].to_owned(),
+                    input.map(<[u8]>::to_vec).unwrap_or_default(),
+                ));
+            let code: Option<i32> = if arguments[0] == self.failing {
+                Some(1)
+            } else {
+                Some(0)
+            };
+            return Ok(GitReply {
+                code,
+                stdout: Vec::new(),
+                stderr: b"boom".to_vec(),
+            });
         });
     }
 }
 
 /// One merged file with the stages it came from.
 fn merged_file() -> Merged {
-    let stage = |mode: u32, oid: &str| { return Some(Stage { mode, oid: oid.to_owned() }); };
-    let stages = Conflict { path: b"a.md".to_vec(), base: stage(0o100_644, "aa"), ours: stage(0o100_644, "bb"), theirs: stage(0o100_644, "cc") };
-    return Merged { path: b"a.md".to_vec(), mode: 0o100_644, bytes: b"merged\n".to_vec(), parts: Vec::new(), stages };
+    let stage = |mode: u32, oid: &str| {
+        return Some(Stage {
+            mode,
+            oid: oid.to_owned(),
+        });
+    };
+    let stages = Conflict {
+        path: b"a.md".to_vec(),
+        base: stage(0o100_644, "aa"),
+        ours: stage(0o100_644, "bb"),
+        theirs: stage(0o100_644, "cc"),
+    };
+    return Merged {
+        path: b"a.md".to_vec(),
+        mode: 0o100_644,
+        bytes: b"merged\n".to_vec(),
+        parts: Vec::new(),
+        stages,
+    };
 }
 
 /// A file is staged and then written to the worktree;
 /// nothing else runs when both work.
 #[test]
 fn a_merged_file_is_staged_and_then_checked_out() {
-    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "none" };
+    let runner = Scripted {
+        calls: std::sync::Mutex::new(Vec::new()),
+        failing: "none",
+    };
     await_it(install(&runner, &[merged_file()], &[String::from("dd")])).expect("both steps work");
-    let calls = runner.calls.lock().expect("no control panics while it holds the starts");
-    assert_eq!(calls.iter().map(|(word, _)| { return word.as_str(); }).collect::<Vec<&str>>(), vec!["update-index", "checkout-index"]);
+    let calls = runner
+        .calls
+        .lock()
+        .expect("no control panics while it holds the starts");
+    assert_eq!(
+        calls
+            .iter()
+            .map(|(word, _)| {
+                return word.as_str();
+            })
+            .collect::<Vec<&str>>(),
+        vec!["update-index", "checkout-index"]
+    );
     assert_eq!(calls[0].1, resolved_record(0o100_644, "dd", b"a.md"));
     assert_eq!(calls[1].1, b"a.md\0".to_vec());
 }
@@ -159,40 +329,80 @@ fn a_merged_file_is_staged_and_then_checked_out() {
 /// so the index never says resolved over a file with markers.
 #[test]
 fn a_failed_checkout_puts_the_conflict_stages_back() {
-    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "checkout-index" };
-    let error: String = await_it(install(&runner, &[merged_file()], &[String::from("dd")])).expect_err("the checkout failed");
+    let runner = Scripted {
+        calls: std::sync::Mutex::new(Vec::new()),
+        failing: "checkout-index",
+    };
+    let error: String = await_it(install(&runner, &[merged_file()], &[String::from("dd")]))
+        .expect_err("the checkout failed");
     assert!(error.contains("boom"), "{error}");
-    let calls = runner.calls.lock().expect("no control panics while it holds the starts");
-    assert_eq!(calls.iter().map(|(word, _)| { return word.as_str(); }).collect::<Vec<&str>>(), vec!["update-index", "checkout-index", "update-index"]);
+    let calls = runner
+        .calls
+        .lock()
+        .expect("no control panics while it holds the starts");
+    assert_eq!(
+        calls
+            .iter()
+            .map(|(word, _)| {
+                return word.as_str();
+            })
+            .collect::<Vec<&str>>(),
+        vec!["update-index", "checkout-index", "update-index"]
+    );
     assert_eq!(calls[2].1, restore_records(&merged_file().stages));
 }
 
 /// A failed staging stops before the worktree is written.
 #[test]
 fn a_failed_staging_writes_nothing_to_the_worktree() {
-    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "update-index" };
+    let runner = Scripted {
+        calls: std::sync::Mutex::new(Vec::new()),
+        failing: "update-index",
+    };
     assert!(await_it(install(&runner, &[merged_file()], &[String::from("dd")])).is_err());
-    assert_eq!(runner.calls.lock().expect("no control panics while it holds the starts").len(), 1);
+    assert_eq!(
+        runner
+            .calls
+            .lock()
+            .expect("no control panics while it holds the starts")
+            .len(),
+        1
+    );
 }
 
 /// The index entries of a repository's index,
 /// as the pass reads them in process.
 fn entries_of(repo: &Path) -> Vec<IndexEntry> {
     let bytes: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index");
-    return parse_index(bytes.as_slice(), crate::repo_read_layout::ObjectFormat::Sha1).expect("an index the in-process reader takes");
+    return parse_index(
+        bytes.as_slice(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
+    )
+    .expect("an index the in-process reader takes");
 }
 
 /// The text of the index entry at stage 0 of a path,
 /// or nothing when the path has no resolved entry.
-fn staged_text(repo: &Path, path: &str) -> Option<String> {
-    let shown: std::process::Output = crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
-    return if shown.status.code() == Some(0) { Some(String::from_utf8_lossy(&shown.stdout).into_owned()) } else { None };
+fn staged_text(
+    repo: &Path,
+    path: &str,
+) -> Option<String> {
+    let shown: std::process::Output =
+        crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
+    return if shown.status.code() == Some(0) {
+        Some(String::from_utf8_lossy(&shown.stdout).into_owned())
+    } else {
+        None
+    };
 }
 
 /// A sparse file of `length` bytes at `path`:
 /// longer than a conflicted file can be,
 /// without writing the bytes no control reads.
-fn sparse_file_of(path: &Path, length: u64) {
+fn sparse_file_of(
+    path: &Path,
+    length: u64,
+) {
     let file: std::fs::File = std::fs::File::create(path).expect("the file");
     file.set_len(length).expect("a sparse file of that length");
 }
@@ -214,16 +424,40 @@ fn a_path_too_large_to_compare_twice_is_left_and_named() {
     let path: PathBuf = world.repo.join("a.md");
     sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 1);
     let (file, oid, held) = merged_of(&world, entries.as_slice());
-    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a file past the limit is recorded as nothing to compare");
+    assert_eq!(
+        held.get(b"a.md".as_slice()),
+        Some(&None),
+        "a file past the limit is recorded as nothing to compare"
+    );
     // Different bytes, and still past the limit: the second read records nothing either.
     sparse_file_of(path.as_path(), LARGEST_RECORDED_BYTES + 2);
     let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
-    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let before = Before {
+        worktree_root: world.repo.as_path(),
+        entries: fresh.as_slice(),
+        held: &held,
+    };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
-    assert!(kept.files.is_empty(), "nothing is installed over a file the pass never read: {} merged file(s) would be", kept.files.len());
-    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody compared is named");
-    assert!(kept.moved.is_empty(), "no edit was seen, so none is claimed: {:?}", kept.moved);
-    assert_eq!(std::fs::metadata(path.as_path()).expect("the file").len(), LARGEST_RECORDED_BYTES + 2, "the newer file is still there");
+    assert!(
+        kept.files.is_empty(),
+        "nothing is installed over a file the pass never read: {} merged file(s) would be",
+        kept.files.len()
+    );
+    assert_eq!(
+        kept.unreadable,
+        vec![b"a.md".to_vec()],
+        "the path nobody compared is named"
+    );
+    assert!(
+        kept.moved.is_empty(),
+        "no edit was seen, so none is claimed: {:?}",
+        kept.moved
+    );
+    assert_eq!(
+        std::fs::metadata(path.as_path()).expect("the file").len(),
+        LARGEST_RECORDED_BYTES + 2,
+        "the newer file is still there"
+    );
     remove(world.root.as_path());
 }
 
@@ -243,12 +477,28 @@ fn a_path_that_cannot_be_read_is_left_and_named() {
     std::fs::remove_file(path.as_path()).expect("the file Git left");
     std::fs::create_dir(path.as_path()).expect("a directory where the file was");
     let (file, oid, held) = merged_of(&world, entries.as_slice());
-    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that cannot be read is recorded as nothing to compare");
+    assert_eq!(
+        held.get(b"a.md".as_slice()),
+        Some(&None),
+        "a path that cannot be read is recorded as nothing to compare"
+    );
     let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
-    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let before = Before {
+        worktree_root: world.repo.as_path(),
+        entries: fresh.as_slice(),
+        held: &held,
+    };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
-    assert!(kept.files.is_empty(), "nothing is installed over a path the pass never read: {} merged file(s) would be", kept.files.len());
-    assert_eq!(kept.unreadable, vec![b"a.md".to_vec()], "the path nobody read is named");
+    assert!(
+        kept.files.is_empty(),
+        "nothing is installed over a path the pass never read: {} merged file(s) would be",
+        kept.files.len()
+    );
+    assert_eq!(
+        kept.unreadable,
+        vec![b"a.md".to_vec()],
+        "the path nobody read is named"
+    );
     assert!(path.is_dir(), "what is at the path is untouched");
     remove(world.root.as_path());
 }
@@ -273,7 +523,10 @@ fn make_pipe(path: &Path) {
 ///   A read that waits has no end of its own,
 /// and a test that waited with it could only be stopped from outside;
 /// the panic here names what waited and why it must not.
-fn held_within(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held> {
+fn held_within(
+    root: &Path,
+    paths: &BTreeSet<Vec<u8>>,
+) -> BTreeMap<Vec<u8>, Held> {
     let (sender, receiver) = std::sync::mpsc::channel::<BTreeMap<Vec<u8>, Held>>();
     let handed: PathBuf = root.to_path_buf();
     let asked: BTreeSet<Vec<u8>> = paths.clone();
@@ -303,7 +556,11 @@ fn a_named_pipe_with_no_writer_is_not_waited_for() {
     make_pipe(path.as_path());
     let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
     let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
-    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    assert_eq!(
+        held.get(b"a.md".as_slice()),
+        Some(&None),
+        "a path that is no plain file is nothing to compare"
+    );
     drop(entries);
     remove(world.root.as_path());
 }
@@ -324,10 +581,18 @@ fn a_named_pipe_whose_writer_says_nothing_is_not_waited_for() {
     std::fs::remove_file(path.as_path()).expect("the file Git left");
     make_pipe(path.as_path());
     // One handle that is both ends keeps a writer open without a second process and without a thread that could block.
-    let writer: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path.as_path()).expect("a writer for the pipe");
+    let writer: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path.as_path())
+        .expect("a writer for the pipe");
     let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
     let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
-    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    assert_eq!(
+        held.get(b"a.md".as_slice()),
+        Some(&None),
+        "a path that is no plain file is nothing to compare"
+    );
     drop(writer);
     drop(entries);
     remove(world.root.as_path());
@@ -342,8 +607,14 @@ fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
         &[("a.md", Change::Write(corpus("md1b", "ours").as_slice()))],
         &[("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
     );
-    let merged: std::process::Output = git_output(world.repo.as_path(), &["merge", "--no-edit", "theirs"]);
-    assert_eq!(merged.status.code(), Some(1), "the merge stops on the conflict: {}", String::from_utf8_lossy(&merged.stderr));
+    let merged: std::process::Output =
+        git_output(world.repo.as_path(), &["merge", "--no-edit", "theirs"]);
+    assert_eq!(
+        merged.status.code(),
+        Some(1),
+        "the merge stops on the conflict: {}",
+        String::from_utf8_lossy(&merged.stderr)
+    );
     let entries: Vec<IndexEntry> = entries_of(world.repo.as_path());
     return (world, entries);
 }
@@ -351,13 +622,23 @@ fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
 /// The one file of a stopped merge,
 /// merged by word,
 /// with its blob written.
-fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap<Vec<u8>, Held>) {
+fn merged_of(
+    world: &World,
+    entries: &[IndexEntry],
+) -> (Merged, String, BTreeMap<Vec<u8>, Held>) {
     let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
     let conflicts: Vec<Conflict> = conflicts_of_index(entries, &created);
     let context: GitContext = git_context();
     let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
-    let verdicts: Vec<Verdict> = await_it(second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation)).expect("the pass runs");
-    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("the one file resolves by word: {verdicts:?}") };
+    let verdicts: Vec<Verdict> = await_it(second_pass(
+        &pass,
+        conflicts.as_slice(),
+        AttributeSource::Invocation,
+    ))
+    .expect("the pass runs");
+    let [Verdict::Merged(file)] = verdicts.as_slice() else {
+        panic!("the one file resolves by word: {verdicts:?}")
+    };
     let oid: String = await_it(write_blob(&pass, file.bytes.as_slice())).expect("the merged blob");
     let held: BTreeMap<Vec<u8>, Held> = held_paths(world.repo.as_path(), &created);
     return ((**file).clone(), oid, held);
@@ -376,16 +657,41 @@ fn a_resolution_another_command_staged_is_left_alone() {
     let (world, entries) = stopped_merge("second-pass-worktree-staged");
     let (file, oid, held) = merged_of(&world, entries.as_slice());
     // Another command resolves the file and stages it, after the pass read the stages.
-    std::fs::write(world.repo.join("a.md"), b"a resolution another command wrote\n").expect("the resolution");
+    std::fs::write(
+        world.repo.join("a.md"),
+        b"a resolution another command wrote\n",
+    )
+    .expect("the resolution");
     git(world.repo.as_path(), &["add", "--", "a.md"]);
     let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
-    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let before = Before {
+        worktree_root: world.repo.as_path(),
+        entries: fresh.as_slice(),
+        held: &held,
+    };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
-    assert_eq!(kept.moved, vec![b"a.md".to_vec()], "the path that moved is named");
+    assert_eq!(
+        kept.moved,
+        vec![b"a.md".to_vec()],
+        "the path that moved is named"
+    );
     assert!(kept.files.is_empty(), "nothing is installed over it");
-    await_it(install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice())).expect("nothing to install is not a failure");
-    assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from("a resolution another command wrote\n")), "the index keeps the other command's resolution");
-    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"a resolution another command wrote\n".to_vec(), "the worktree keeps it too");
+    await_it(install(
+        &runner(&git_context(), world.repo.as_path()),
+        kept.files.as_slice(),
+        kept.oids.as_slice(),
+    ))
+    .expect("nothing to install is not a failure");
+    assert_eq!(
+        staged_text(world.repo.as_path(), "a.md"),
+        Some(String::from("a resolution another command wrote\n")),
+        "the index keeps the other command's resolution"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join("a.md")).expect("the file"),
+        b"a resolution another command wrote\n".to_vec(),
+        "the worktree keeps it too"
+    );
     remove(world.root.as_path());
 }
 
@@ -401,13 +707,34 @@ fn a_path_that_did_not_move_is_installed() {
     let (file, oid, held) = merged_of(&world, entries.as_slice());
     let expected: Vec<u8> = file.bytes.clone();
     let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
-    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let before = Before {
+        worktree_root: world.repo.as_path(),
+        entries: fresh.as_slice(),
+        held: &held,
+    };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
     assert!(kept.moved.is_empty(), "nothing moved: {:?}", kept.moved);
-    await_it(install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice())).expect("the install works");
-    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), expected, "the worktree holds the merged bytes");
-    assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from_utf8_lossy(expected.as_slice()).into_owned()), "and the index does too");
-    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--unmerged"]), "", "the conflict stages are gone");
+    await_it(install(
+        &runner(&git_context(), world.repo.as_path()),
+        kept.files.as_slice(),
+        kept.oids.as_slice(),
+    ))
+    .expect("the install works");
+    assert_eq!(
+        std::fs::read(world.repo.join("a.md")).expect("the file"),
+        expected,
+        "the worktree holds the merged bytes"
+    );
+    assert_eq!(
+        staged_text(world.repo.as_path(), "a.md"),
+        Some(String::from_utf8_lossy(expected.as_slice()).into_owned()),
+        "and the index does too"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["ls-files", "--unmerged"]),
+        "",
+        "the conflict stages are gone"
+    );
     remove(world.root.as_path());
 }
 
@@ -423,11 +750,22 @@ fn a_worktree_file_edited_after_it_was_read_is_left_alone() {
     let (file, oid, held) = merged_of(&world, entries.as_slice());
     std::fs::write(world.repo.join("a.md"), b"half of my own resolution\n").expect("the edit");
     let fresh: Vec<IndexEntry> = entries_of(world.repo.as_path());
-    let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
+    let before = Before {
+        worktree_root: world.repo.as_path(),
+        entries: fresh.as_slice(),
+        held: &held,
+    };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
-    assert_eq!(kept.moved, vec![b"a.md".to_vec()], "the edited file is named");
+    assert_eq!(
+        kept.moved,
+        vec![b"a.md".to_vec()],
+        "the edited file is named"
+    );
     assert!(kept.files.is_empty(), "nothing is installed over it");
-    assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"half of my own resolution\n".to_vec());
+    assert_eq!(
+        std::fs::read(world.repo.join("a.md")).expect("the file"),
+        b"half of my own resolution\n".to_vec()
+    );
     remove(world.root.as_path());
 }
 
@@ -445,9 +783,23 @@ fn a_line_about_an_unread_index_does_not_claim_a_clean_one() {
     let line: String = unfinished_words("rebase", "a.md", None, "`git rebase --continue`");
     assert!(line.contains("could not be read"), "{line}");
     assert!(!line.contains("no file is conflicted"), "{line}");
-    assert!(line.contains("git rebase --continue"), "the command that ends it is still named: {line}");
+    assert!(
+        line.contains("git rebase --continue"),
+        "the command that ends it is still named: {line}"
+    );
     // The known states still say what they hold.
-    assert!(unfinished_words("rebase", "a.md", Some(&[]), "`git rebase --continue`").contains("no file is conflicted"));
+    assert!(
+        unfinished_words("rebase", "a.md", Some(&[]), "`git rebase --continue`")
+            .contains("no file is conflicted")
+    );
     let one: Vec<String> = vec![String::from("b.md")];
-    assert!(unfinished_words("rebase", "a.md", Some(one.as_slice()), "`git rebase --continue`").contains("b.md is conflicted again"));
+    assert!(
+        unfinished_words(
+            "rebase",
+            "a.md",
+            Some(one.as_slice()),
+            "`git rebase --continue`"
+        )
+        .contains("b.md is conflicted again")
+    );
 }

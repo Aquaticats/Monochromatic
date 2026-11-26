@@ -4,12 +4,22 @@
 //! and the last hop crosses a mount that a walk refusing the crossing would stop at.
 
 use super::*;
-use crate::fs_beneath::{identity_at, identity_of, open_root};
+use crate::fs_beneath::{
+    identity_at,
+    identity_of,
+    open_root,
+};
 use crate::fs_beneath_mount_facts::mount_id_of;
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::testing::standing_slot_mounts::MountedSlot;
-use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The root of a walk for a fixture directory,
 /// by its canonical path.
@@ -30,7 +40,12 @@ fn a_chain_keeps_a_handle_per_folder_and_stops_at_a_link() {
     std::fs::create_dir_all(root.join("one/two/three")).expect("tree");
     std::fs::create_dir_all(root.join("elsewhere/two")).expect("elsewhere");
     let held: File = open_directory(root.as_path()).expect("root");
-    let names: Vec<OsString> = [OsString::from("one"), OsString::from("two"), OsString::from("three")].to_vec();
+    let names: Vec<OsString> = [
+        OsString::from("one"),
+        OsString::from("two"),
+        OsString::from("three"),
+    ]
+    .to_vec();
     let chain: Vec<File> = open_chain_beneath(&held, &names).expect("chain");
     assert_eq!(chain.len(), names.len(), "one handle per component");
     let mut named_path: PathBuf = root.clone();
@@ -38,18 +53,50 @@ fn a_chain_keeps_a_handle_per_folder_and_stops_at_a_link() {
         named_path = named_path.join(name);
         let named: std::fs::Metadata = std::fs::metadata(&named_path).expect("named");
         let walked: std::fs::Metadata = handle.metadata().expect("walked");
-        assert_eq!((walked.dev(), walked.ino()), (named.dev(), named.ino()), "{}", named_path.display());
+        assert_eq!(
+            (walked.dev(), walked.ino()),
+            (named.dev(), named.ino()),
+            "{}",
+            named_path.display()
+        );
     }
     // The first handle still names the folder it was opened on after the folder moves.
     std::fs::rename(root.join("one"), root.join("moved-one")).expect("rename");
-    assert_eq!(identity_of(&chain[0]).expect("identity"), identity_at(&held, OsStr::new("moved-one")).expect("moved"));
-    assert!(open_chain_beneath(&held, &[OsString::from("one"), OsString::from("two")]).is_err(), "the old name is gone");
+    assert_eq!(
+        identity_of(&chain[0]).expect("identity"),
+        identity_at(&held, OsStr::new("moved-one")).expect("moved")
+    );
+    assert!(
+        open_chain_beneath(&held, &[OsString::from("one"), OsString::from("two")]).is_err(),
+        "the old name is gone"
+    );
     // A link at the second component is refused, and the refusal names its position.
-    std::os::unix::fs::symlink(root.join("elsewhere/two"), root.join("moved-one/two-linked")).expect("link");
-    let refused: ChainRefusal = open_chain_beneath(&held, &[OsString::from("moved-one"), OsString::from("two-linked")]).expect_err("link in the way");
-    assert!(matches!(refused, ChainRefusal::Link { step: 1, .. }), "{refused:?}");
+    std::os::unix::fs::symlink(
+        root.join("elsewhere/two"),
+        root.join("moved-one/two-linked"),
+    )
+    .expect("link");
+    let refused: ChainRefusal = open_chain_beneath(
+        &held,
+        &[OsString::from("moved-one"), OsString::from("two-linked")],
+    )
+    .expect_err("link in the way");
+    assert!(
+        matches!(
+            refused,
+            ChainRefusal::Link {
+                step: 1,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
     let empty: Vec<OsString> = Vec::new();
-    assert!(open_chain_beneath(&held, &empty).expect("nothing to walk").is_empty());
+    assert!(
+        open_chain_beneath(&held, &empty)
+            .expect("nothing to walk")
+            .is_empty()
+    );
     remove(root.as_path());
 }
 
@@ -67,11 +114,23 @@ fn the_deepest_handle_is_the_chain_s_end_and_the_same_hop_stops_both() {
     let names: Vec<OsString> = [OsString::from("one"), OsString::from("two")].to_vec();
     let deepest: File = open_directory_beneath(&held, &names).expect("the deepest folder");
     let chain: Vec<File> = open_chain_beneath(&held, &names).expect("the chain");
-    assert_eq!(identity_of(&deepest).expect("deepest"), identity_of(&chain[1]).expect("chain end"));
-    assert_eq!(identity_of(&open_directory_beneath(&held, &[]).expect("the root itself")).expect("root"), identity_of(&held).expect("held"));
+    assert_eq!(
+        identity_of(&deepest).expect("deepest"),
+        identity_of(&chain[1]).expect("chain end")
+    );
+    assert_eq!(
+        identity_of(&open_directory_beneath(&held, &[]).expect("the root itself")).expect("root"),
+        identity_of(&held).expect("held")
+    );
     std::os::unix::fs::symlink(root.join("one"), root.join("linked")).expect("link");
-    assert!(open_directory_beneath(&held, &[OsString::from("linked")]).is_err(), "a link at the first hop");
-    assert!(open_chain_beneath(&held, &[OsString::from("linked")]).is_err(), "and the chain refuses it too");
+    assert!(
+        open_directory_beneath(&held, &[OsString::from("linked")]).is_err(),
+        "a link at the first hop"
+    );
+    assert!(
+        open_chain_beneath(&held, &[OsString::from("linked")]).is_err(),
+        "and the chain refuses it too"
+    );
     remove(root.as_path());
 }
 
@@ -89,10 +148,20 @@ fn the_last_hop_crosses_a_mount_that_the_walk_refuses() {
     std::fs::create_dir_all(root.join("elsewhere")).expect("elsewhere");
     std::os::unix::fs::symlink(root.join("elsewhere"), root.join("real/linked")).expect("link");
     let held: File = open_directory(root.join("real").as_path()).expect("root");
-    let inner: File = open_directory_at_a_mount(&held, OsStr::new("inner")).expect("a plain folder is opened as before");
-    assert_eq!(identity_of(&inner).expect("identity"), identity_at(&held, OsStr::new("inner")).expect("named"));
-    assert!(open_directory_at_a_mount(&held, OsStr::new("linked")).is_err(), "a link is refused at the last hop too");
-    assert!(open_directory_at_a_mount(&held, OsStr::new("../real")).is_err(), "a name with a slash is no component");
+    let inner: File = open_directory_at_a_mount(&held, OsStr::new("inner"))
+        .expect("a plain folder is opened as before");
+    assert_eq!(
+        identity_of(&inner).expect("identity"),
+        identity_at(&held, OsStr::new("inner")).expect("named")
+    );
+    assert!(
+        open_directory_at_a_mount(&held, OsStr::new("linked")).is_err(),
+        "a link is refused at the last hop too"
+    );
+    assert!(
+        open_directory_at_a_mount(&held, OsStr::new("../real")).is_err(),
+        "a name with a slash is no component"
+    );
     remove(root.as_path());
 }
 
@@ -129,27 +198,50 @@ const NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_MOUNT_N
 fn the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own() {
     if std::env::var_os(MOUNT_SIDE_VARIABLE).is_none() {
         let probe: std::process::Output = std::process::Command::new("unshare")
-            .args(["--user", "--map-root-user", "--mount", "--propagation", "private", "--", "mount", "--version"])
+            .args([
+                "--user",
+                "--map-root-user",
+                "--mount",
+                "--propagation",
+                "private",
+                "--",
+                "mount",
+                "--version",
+            ])
             .output()
             .expect("unshare runs");
         if !probe.status.success() {
-            let said: String = String::from_utf8_lossy(probe.stderr.as_slice()).trim().to_string();
-            let acknowledged: bool = std::env::var_os(NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+            let said: String = String::from_utf8_lossy(probe.stderr.as_slice())
+                .trim()
+                .to_string();
+            let acknowledged: bool = std::env::var_os(NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE)
+                .is_some_and(|value| {
+                    return !value.is_empty();
+                });
             assert!(
                 acknowledged,
                 "this control needs a mount namespace of its own, and this host lets no unprivileged process make one: {said}; set {NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE}=1 to state that this host has none"
             );
-            eprintln!("MOUNT NAMESPACE CONTROL NOT RUN: the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own ({said})");
+            eprintln!(
+                "MOUNT NAMESPACE CONTROL NOT RUN: the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own ({said})"
+            );
             return;
         }
         // The inner half is this test binary in a mount namespace of its own, and its pass is this control's assertion.
-        let environment: [(&str, &std::ffi::OsStr); 1] = [(MOUNT_SIDE_VARIABLE, std::ffi::OsStr::new("1"))];
+        let environment: [(&str, &std::ffi::OsStr); 1] =
+            [(MOUNT_SIDE_VARIABLE, std::ffi::OsStr::new("1"))];
         crate::child_test_process::passed(crate::child_test_process::ChildTest {
             exact_test: "subvolume::fs_beneath_walk_chain::tests::the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own",
             environment: environment.as_slice(),
             running_program: Some(crate::child_test_process::ProgramRunningTheTest {
                 program: "unshare",
-                arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+                arguments_before_the_test_binary: &[
+                    "--user",
+                    "--map-root-user",
+                    "--mount",
+                    "--propagation",
+                    "private",
+                ],
             }),
             ..crate::child_test_process::ChildTest::default()
         });
@@ -159,13 +251,30 @@ fn the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own() {
     std::fs::create_dir_all(root.join("real/mounted")).expect("the folder a mount is put on");
     let mounted: MountedSlot = MountedSlot::at(root.join("real/mounted").as_path());
     let held: File = open_directory(root.join("real").as_path()).expect("root");
-    let plain: std::io::Error = open_directory_at(&held, OsStr::new("mounted")).expect_err("the walk refuses the mount point");
-    assert_eq!(plain.raw_os_error(), Some(libc::EXDEV), "the resolution refuses to cross a mount: {plain}");
-    let crossed: File = open_directory_at_a_mount(&held, OsStr::new("mounted")).expect("the last hop crosses the mount");
-    assert_ne!(device_of(&crossed).expect("device"), device_of(&held).expect("device"), "the crossed folder is on the mounted filesystem");
-    assert_eq!(mount_id_of(&crossed).expect("mount"), mounted.id(), "the crossed handle is on the mount this control made");
+    let plain: std::io::Error = open_directory_at(&held, OsStr::new("mounted"))
+        .expect_err("the walk refuses the mount point");
+    assert_eq!(
+        plain.raw_os_error(),
+        Some(libc::EXDEV),
+        "the resolution refuses to cross a mount: {plain}"
+    );
+    let crossed: File = open_directory_at_a_mount(&held, OsStr::new("mounted"))
+        .expect("the last hop crosses the mount");
+    assert_ne!(
+        device_of(&crossed).expect("device"),
+        device_of(&held).expect("device"),
+        "the crossed folder is on the mounted filesystem"
+    );
+    assert_eq!(
+        mount_id_of(&crossed).expect("mount"),
+        mounted.id(),
+        "the crossed handle is on the mount this control made"
+    );
     // Every hop above the last is still the walked one: the chain refuses the same mount point.
-    assert!(open_chain_beneath(&held, &[OsString::from("mounted")]).is_err(), "a chain never crosses a mount, whatever hop it is at");
+    assert!(
+        open_chain_beneath(&held, &[OsString::from("mounted")]).is_err(),
+        "a chain never crosses a mount, whatever hop it is at"
+    );
     drop(mounted);
     remove(root.as_path());
 }

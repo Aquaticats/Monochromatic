@@ -23,20 +23,40 @@
 //! const ending = theEndOfAFailedStep({ session, plan, intent, record, reference, detail, lockTaken, code, gitStderr });
 //! ```
 
-use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
+use crate::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure_with_hint,
+};
 use crate::merge_isolation_apply_findings::{
-    BytesAfterAFailedMerge, WhyTheMergeIsSaved, a_merge_in_the_branch_whose_carry_waits, a_merge_partly_installed_behind_the_lock,
-    a_merge_the_branch_moved_under, failure_text,
+    BytesAfterAFailedMerge,
+    WhyTheMergeIsSaved,
+    a_merge_in_the_branch_whose_carry_waits,
+    a_merge_partly_installed_behind_the_lock,
+    a_merge_the_branch_moved_under,
+    failure_text,
 };
 use crate::merge_isolation_apply_save::save_for_a_later_finish;
-use crate::merge_isolation_report::not_applied_finding;
 use crate::merge_isolation_carry_apply::CarryFailure;
 use crate::merge_isolation_git_reads::Session;
 use crate::merge_isolation_journal::MergeIntent;
-use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
+use crate::merge_isolation_recovery::{
+    MergeRecoveryAction,
+    RecoveryPlace,
+    settle_failed_merge,
+};
 use crate::merge_isolation_recovery_steps::IndexHeldAt;
-use crate::merge_isolation_run_types::{BRANCH_MOVED_EXIT_CODE, Bail, IsolatedMerge, Plan, refused};
-use std::path::{Path, PathBuf};
+use crate::merge_isolation_report::not_applied_finding;
+use crate::merge_isolation_run_types::{
+    BRANCH_MOVED_EXIT_CODE,
+    Bail,
+    IsolatedMerge,
+    Plan,
+    refused,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Put the person's own work back and make the merge again on the bytes their files hold now.
@@ -51,13 +71,27 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function aClearThatMetNewerBytes({ place, record, intent, reference, failure }): Bail; // settle, then Bail.Again
 /// ```
-pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path, intent: &MergeIntent, reference: &str, failure: &CarryFailure) -> Bail {
+pub(crate) fn a_clear_that_met_newer_bytes(
+    place: &RecoveryPlace,
+    record: &Path,
+    intent: &MergeIntent,
+    reference: &str,
+    failure: &CarryFailure,
+) -> Bail {
     let detail: String = failure_text(failure);
     return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
         // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
-        Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
+        Ok(
+            MergeRecoveryAction::Discarded
+            | MergeRecoveryAction::BranchMoved
+            | MergeRecoveryAction::SavedBranchMoved,
+        ) => Bail::Again(detail),
         // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
-        Ok(MergeRecoveryAction::IndexHeld(_) | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
+        Ok(
+            MergeRecoveryAction::IndexHeld(_)
+            | MergeRecoveryAction::DeferredRefused
+            | MergeRecoveryAction::OwnerActive,
+        ) => refused(
             2,
             format!(
                 "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \
@@ -65,12 +99,24 @@ pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path,
             ),
         ),
         // The merge is in the branch, which another command may have made it; the person's work is back and nothing is left.
-        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!("monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"),
-        }),
-        Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
+        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => {
+            Bail::Done(IsolatedMerge::Finished {
+                code: 0,
+                stdout: String::new(),
+                stderr: format!(
+                    "monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"
+                ),
+            })
+        }
+        Err(error) => refused(
+            2,
+            render_engine_failure_with_hint(
+                0,
+                EngineFailureCode::ContentUnavailable,
+                error.error.0.as_str(),
+                None,
+            ),
+        ),
     };
 }
 
@@ -139,10 +185,24 @@ pub(crate) fn the_end_of_a_failed_step(
     git_stderr: &[u8],
 ) -> Result<IsolatedMerge, Bail> {
     let place: RecoveryPlace = RecoveryPlace::settling(&session.context, plan.git_dir, plan.root);
-    let ending: StepEnding = settle_a_failed_step(&place, record, intent, reference, detail, lock_taken, code, git_stderr);
+    let ending: StepEnding = settle_a_failed_step(
+        &place, record, intent, reference, detail, lock_taken, code, git_stderr,
+    );
     return match ending {
         StepEnding::Stop(bail) => Err(bail),
-        StepEnding::SavedForALaterFinish { why, at } => the_end_in_the_state_read(session, plan, intent, record, reference, why, at, the_paths_were_cleared),
+        StepEnding::SavedForALaterFinish {
+            why,
+            at,
+        } => the_end_in_the_state_read(
+            session,
+            plan,
+            intent,
+            record,
+            reference,
+            why,
+            at,
+            the_paths_were_cleared,
+        ),
     };
 }
 
@@ -179,7 +239,10 @@ fn the_end_in_the_state_read(
     if let Some(capture) = plan.carried.as_ref() {
         kept = capture.reference.as_deref();
     }
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared, kept_on: kept };
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared,
+        kept_on: kept,
+    };
     // A landed merge is also a branch built on, so it is answered first: only its carry is left.
     if at.landed {
         return Ok(IsolatedMerge::Finished {
@@ -192,7 +255,10 @@ fn the_end_in_the_state_read(
         // Nothing of this merge is in the checkout and nothing of it is saved on a side ref, so no later command can finish it:
         //  a 0 here named a merge that never happened (issue 6473). The line says what the settle read, and that running the merge
         //  again is safe.
-        return Err(refused(BRANCH_MOVED_EXIT_CODE, a_merge_the_branch_moved_under(reference, lock.as_path(), &bytes)));
+        return Err(refused(
+            BRANCH_MOVED_EXIT_CODE,
+            a_merge_the_branch_moved_under(reference, lock.as_path(), &bytes),
+        ));
     }
     if at.the_merges_entries_in_the_checkout {
         return Ok(IsolatedMerge::Finished {
@@ -201,7 +267,15 @@ fn the_end_in_the_state_read(
             stderr: a_merge_partly_installed_behind_the_lock(reference, lock.as_path(), &bytes),
         });
     }
-    return save_for_a_later_finish(session, plan, intent, record, reference, why, the_paths_were_cleared);
+    return save_for_a_later_finish(
+        session,
+        plan,
+        intent,
+        record,
+        reference,
+        why,
+        the_paths_were_cleared,
+    );
 }
 
 /// What:
@@ -227,23 +301,45 @@ pub(crate) fn settle_a_failed_step(
     git_stderr: &[u8],
 ) -> StepEnding {
     return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
-        Ok(MergeRecoveryAction::BranchMoved) => StepEnding::Stop(Bail::Again(format!("{reference} was merged on a branch that moved meanwhile"))),
-        Ok(MergeRecoveryAction::Discarded) if lock_taken => StepEnding::Stop(Bail::Again(String::from("another program took the index lock first"))),
-        Ok(MergeRecoveryAction::Completed) => StepEnding::Stop(Bail::Done(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!(
-                "monochromatic-git-policy-cli: git merge {reference}: Git reported an error ({detail}) after it had started, and the \
+        Ok(MergeRecoveryAction::BranchMoved) => StepEnding::Stop(Bail::Again(format!(
+            "{reference} was merged on a branch that moved meanwhile"
+        ))),
+        Ok(MergeRecoveryAction::Discarded) if lock_taken => StepEnding::Stop(Bail::Again(
+            String::from("another program took the index lock first"),
+        )),
+        Ok(MergeRecoveryAction::Completed) => {
+            StepEnding::Stop(Bail::Done(IsolatedMerge::Finished {
+                code: 0,
+                stdout: String::new(),
+                stderr: format!(
+                    "monochromatic-git-policy-cli: git merge {reference}: Git reported an error ({detail}) after it had started, and the \
                  wrapper completed the merge.\n"
-            ),
-        })),
+                ),
+            }))
+        }
         // The record stayed, and the settle's putting back was stopped by the same lock that stopped Git's update, so the
         //  merge is saved on a side ref rather than refused. Which of the two instants it was decides what the line may say
         //  about the checkout: a lock taken after the clear left the branch's content where the person's bytes were.
-        Ok(MergeRecoveryAction::IndexHeld(at)) => {
-            StepEnding::SavedForALaterFinish { why: WhyTheMergeIsSaved::TheLockStoppedTheSettle, at }
-        }
-        Ok(_) => StepEnding::Stop(refused(code, format!("{}{}", String::from_utf8_lossy(git_stderr), not_applied_finding(reference, detail)))),
-        Err(error) => StepEnding::Stop(refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None))),
+        Ok(MergeRecoveryAction::IndexHeld(at)) => StepEnding::SavedForALaterFinish {
+            why: WhyTheMergeIsSaved::TheLockStoppedTheSettle,
+            at,
+        },
+        Ok(_) => StepEnding::Stop(refused(
+            code,
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(git_stderr),
+                not_applied_finding(reference, detail)
+            ),
+        )),
+        Err(error) => StepEnding::Stop(refused(
+            2,
+            render_engine_failure_with_hint(
+                0,
+                EngineFailureCode::ContentUnavailable,
+                error.error.0.as_str(),
+                None,
+            ),
+        )),
     };
 }

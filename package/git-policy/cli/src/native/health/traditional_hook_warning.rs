@@ -21,30 +21,33 @@
 //! if (hooksPath !== undefined && !isWrapperOwned(hooksPath)) stderr.write(renderConfigurationWarning(0, code, message, hooksPath));
 //! ```
 
+/// The configuration the commit read once.
+use crate::config_snapshot::ConfigSnapshot;
 /// Debug logging of a stream that refused the warning.
 use crate::diagnostic_log::debug;
 /// The warning's JSONL rendering,
 /// shared with the other configuration warnings.
 use crate::diagnostics::render_configuration_warning;
-/// The configuration the commit read once.
-use crate::config_snapshot::ConfigSnapshot;
 /// The name of the absent hooks directory the wrapper's own overrides use.
 use crate::hooks_off::NO_HOOKS_DIRECTORY;
+/// How the wrapper names its transaction directories.
+use crate::random_id::is_canonical_uuid;
+use crate::shadow_git::{
+    SHADOW_NO_HOOKS_NAME,
+    SHADOW_ROOT_NAME,
+};
 /// The longest this optional line may take to reach the stream it is written to.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
 /// The line given to the stream on a thread of its own,
 /// awaited no longer than that ceiling.
 use crate::work_awaited_within_a_ceiling::write_within;
-use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// The spellings of the folder the wrapper keeps inside a Git directory.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
-/// How the wrapper names its transaction directories.
-use crate::random_id::is_canonical_uuid;
-/// A stream the warning is written to.
-use std::io::Write;
 /// `OsStr` is operating-system text;
 /// `Path` is a borrowed filesystem path.
 use std::ffi::OsStr;
+/// A stream the warning is written to.
+use std::io::Write;
 use std::path::Path;
 
 /// Code of the configuration warning for a configured `core.hooksPath`.
@@ -75,7 +78,10 @@ const TAG: &str = "traditionalHookWarning";
 /// ```ts
 /// value === NO_HOOKS_DIRECTORY || /\/monochromatic-git-policy-cli\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
-pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
+pub fn is_wrapper_hooks_path(
+    scope: &str,
+    value: &str,
+) -> bool {
     // A value a configuration file holds is somebody's choice, whatever it spells; the wrapper writes no configuration,
     // so only a value that reached Git as a `-c` option or through the environment is its own.
     if scope != COMMAND_SCOPE {
@@ -109,7 +115,9 @@ pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
     // The folder above `shadow` is the wrapper's own data folder inside the Git directory, whose name this build knows.
     // A path that merely ends in `shadow/<transaction>/no-hooks` belongs to whoever made it.
     return match root.parent().and_then(Path::file_name) {
-        Some(folder) => folder == OsStr::new(DATA_FOLDER.current) || folder == OsStr::new(DATA_FOLDER.earlier),
+        Some(folder) => {
+            folder == OsStr::new(DATA_FOLDER.current) || folder == OsStr::new(DATA_FOLDER.earlier)
+        }
         None => false,
     };
 }
@@ -209,7 +217,10 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
 /// ```ts
 /// const line = traditionalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) -> bool {
+pub fn warn_traditional_hooks(
+    snapshot: Option<&ConfigSnapshot>,
+    stream: impl Write + Send + 'static,
+) -> bool {
     let Some(line) = traditional_hooks_warning(snapshot) else {
         // A configuration with nothing to warn about lost nothing.
         return true;
@@ -218,11 +229,17 @@ pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Wr
     return match delivered {
         Some(Ok(())) => true,
         Some(Err(error)) => {
-            debug(TAG, format!("the warning could not be written: {error}").as_str());
+            debug(
+                TAG,
+                format!("the warning could not be written: {error}").as_str(),
+            );
             false
         }
         None => {
-            debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str());
+            debug(
+                TAG,
+                format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str(),
+            );
             false
         }
     };

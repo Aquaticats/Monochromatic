@@ -18,14 +18,34 @@ use crate::child_class::ChildClass;
 use crate::child_watch::ChildWatch;
 use crate::child_watch_clock_marks_and_stopping::WatchTerms;
 use crate::child_watch_running_task::a_waiter_thread_is_refused_now;
-use crate::child_watch_step_bounds_and_errors::{NotKnown, Outlived, StepBound, ending_of_a_watched_step, not_known_text, output_of, refused_while_stopping};
+use crate::child_watch_step_bounds_and_errors::{
+    NotKnown,
+    Outlived,
+    StepBound,
+    ending_of_a_watched_step,
+    not_known_text,
+    output_of,
+    refused_while_stopping,
+};
 use crate::output_capture::Capture;
 use crate::start_retry::RetryStart;
-use crate::step_output_read_whole_through_pipes::{StepPipes, attach_pipes, release_write_ends};
-use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
+use crate::step_output_read_whole_through_pipes::{
+    StepPipes,
+    attach_pipes,
+    release_write_ends,
+};
+use crate::stop_of_the_service_noticed_by_its_children::{
+    StopArm,
+    Unfinished,
+    begin_unfinished_work,
+};
 use crate::stopped_git_locks::LockLedger;
 use crate::wait_ceilings::OBJECT_STEP_CEILING;
-use std::process::{Child, Command, Output};
+use std::process::{
+    Child,
+    Command,
+    Output,
+};
 use std::time::Duration;
 
 /// What:
@@ -62,7 +82,11 @@ pub fn reader_subject() -> String {
 /// ```ts
 /// const output = await spawnWatched(command, { waitingFor, terms }); // throws on a stall
 /// ```
-pub fn output_watched(command: &mut Command, waiting_for: &str, terms: WatchTerms) -> std::io::Result<Output> {
+pub fn output_watched(
+    command: &mut Command,
+    waiting_for: &str,
+    terms: WatchTerms,
+) -> std::io::Result<Output> {
     return output_watched_stopping(command, waiting_for, waiting_for, terms, true);
 }
 
@@ -87,7 +111,14 @@ pub fn output_watched_stopping(
     terms: WatchTerms,
     stoppable: bool,
 ) -> std::io::Result<Output> {
-    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, StepBound::EndAt(OBJECT_STEP_CEILING));
+    return output_watched_within(
+        command,
+        waiting_for,
+        ledger_step,
+        terms,
+        stoppable,
+        StepBound::EndAt(OBJECT_STEP_CEILING),
+    );
 }
 
 /// What:
@@ -120,7 +151,16 @@ pub fn output_watched_within(
     stoppable: bool,
     bound: StepBound,
 ) -> std::io::Result<Output> {
-    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false, None);
+    return output_watched_within_for_a_stop(
+        command,
+        waiting_for,
+        ledger_step,
+        terms,
+        stoppable,
+        bound,
+        false,
+        None,
+    );
 }
 
 /// What:
@@ -151,7 +191,10 @@ pub fn output_watched_within_for_a_stop(
 ) -> std::io::Result<Output> {
     let ceiling: Option<Duration> = match bound {
         StepBound::EndAt(limit) => Some(limit),
-        StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
+        StepBound::LeaveRunning {
+            ..
+        }
+        | StepBound::Unbounded => None,
     };
     // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
     // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut. A step
@@ -159,7 +202,10 @@ pub fn output_watched_within_for_a_stop(
     // made before the child starts, so a refusal starts nothing.
     let (captured, pipes): (Option<Capture>, Option<StepPipes>) = match bound {
         StepBound::EndAt(_) => (None, Some(attach_pipes(command)?)),
-        StepBound::LeaveRunning { .. } | StepBound::Unbounded => (Some(Capture::new()?), None),
+        StepBound::LeaveRunning {
+            ..
+        }
+        | StepBound::Unbounded => (Some(Capture::new()?), None),
     };
     if let Some(files) = captured.as_ref() {
         let (out, err) = files.stdio()?;
@@ -167,7 +213,10 @@ pub fn output_watched_within_for_a_stop(
     }
     // The service's shutdown waits for this step and ends it when the service is stopped. A landing that is already unwinding after a stop
     //  may start the steps that undo what the stop cut (the side ref that keeps its commit); every other step begun after the stop is refused.
-    let mut unfinished: Unfinished = match begin_unfinished_work(crate::service_busy_step_record_on_this_thread::on_landing_thread(), waiting_for) {
+    let mut unfinished: Unfinished = match begin_unfinished_work(
+        crate::service_busy_step_record_on_this_thread::on_landing_thread(),
+        waiting_for,
+    ) {
         Ok(counted) => counted,
         Err(refusal) => return Err(refused_while_stopping(&refusal)),
     };
@@ -186,9 +235,17 @@ pub fn output_watched_within_for_a_stop(
             //  declines the source before this thread reached its spawn). The abandon writes `ABANDONED_CHILD`, and the
             //  child then ends here, the moment it is published, rather than running its whole length beside the command
             //  that will not use its answer (`worktree_clone_conversion_size_read.rs`, `abandon`).
-            match cell.compare_exchange(0, published, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst) {
+            match cell.compare_exchange(
+                0,
+                published,
+                std::sync::atomic::Ordering::SeqCst,
+                std::sync::atomic::Ordering::SeqCst,
+            ) {
                 Ok(_) => {}
-                Err(current) if current == crate::transaction_git_request_and_reply_types::ABANDONED_CHILD => {
+                Err(current)
+                    if current
+                        == crate::transaction_git_request_and_reply_types::ABANDONED_CHILD =>
+                {
                     // SAFETY: `published` is the id `spawn_retrying` just returned, so the child exists and is this process's.
                     let _ = unsafe { libc::kill(published, libc::SIGKILL) };
                     crate::diagnostic_log::debug("childWatch", format!("{waiting_for} was abandoned before its child was published, so child {published} is ended at publication").as_str());
@@ -202,8 +259,14 @@ pub fn output_watched_within_for_a_stop(
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
-    let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
-    let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
+    let arm: Option<StopArm> = if a_stop_lets_it_finish {
+        None
+    } else {
+        unfinished.take_arm()
+    };
+    let started: ChildWatch =
+        ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm)
+            .kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {
         Some(limit) => started.within(limit),
@@ -214,7 +277,11 @@ pub fn output_watched_within_for_a_stop(
     }
     // A step the command stops waiting for and leaves running says so in every notice: the notice names that bound, not a wait
     //  that has none (`wait_progress.rs`, `child_wait_line`).
-    if let StepBound::LeaveRunning { after, extra } = bound {
+    if let StepBound::LeaveRunning {
+        after,
+        extra,
+    } = bound
+    {
         watch.stops_waiting_after(after.saturating_add(extra));
     }
     // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
@@ -222,13 +289,20 @@ pub fn output_watched_within_for_a_stop(
     // (the third review's finding 2). A watch whose pin proves the process is the one that ends the step, and this wait is then the
     // backstop behind it, later by the ending such a watch needs. A step with no ceiling is waited for as before.
     let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
-        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.what_watches_the_step());
+        crate::step_output_read_whole_through_pipes::carried_for(
+            ceiling,
+            watch.what_watches_the_step(),
+        );
     watch.begin();
     let output: std::io::Result<Output> = match bound {
-        StepBound::LeaveRunning { after, extra } => {
+        StepBound::LeaveRunning {
+            after,
+            extra,
+        } => {
             // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
             // goes on; the thread reaps it when it ends.
-            let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
+            let (sender, receiver) =
+                std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
             // The child is handed over through a channel rather than moved into the closure, so a refused start leaves it here
             //  (`a_waiter_thread_is_refused_now`, and a system at its thread limit below).
             let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
@@ -239,12 +313,16 @@ pub fn output_watched_within_for_a_stop(
                     drop(taken);
                     Err(refusal)
                 }
-                None => std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
-                    // A refused start drops this receiver with the closure, and the child is handed back to the caller below.
-                    let Ok(mut leaving) = taken.recv() else { return };
-                    // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
-                    let _abandoned = sender.send(leaving.wait());
-                }),
+                None => std::thread::Builder::new()
+                    .name(String::from("cli-git-left-running-step"))
+                    .spawn(move || {
+                        // A refused start drops this receiver with the closure, and the child is handed back to the caller below.
+                        let Ok(mut leaving) = taken.recv() else {
+                            return;
+                        };
+                        // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
+                        let _abandoned = sender.send(leaving.wait());
+                    }),
             };
             // A child dropped with a refused start would run on unreaped and stay a zombie of this process once it ended, so it is
             //  kept by whoever can still collect it: the thread above, or a reaper of its own where no thread could start.
@@ -253,7 +331,10 @@ pub fn output_watched_within_for_a_stop(
             }
             if let Err(error) = waiter {
                 watch.end();
-                return Err(std::io::Error::other(format!("{waiting_for} was started but {}", crate::scoped_start::refused_thread_sentence("wait for it", &error))));
+                return Err(std::io::Error::other(format!(
+                    "{waiting_for} was started but {}",
+                    crate::scoped_start::refused_thread_sentence("wait for it", &error)
+                )));
             }
             match receiver.recv_timeout(after.saturating_add(extra)) {
                 Ok(finished) => match finished {
@@ -266,13 +347,17 @@ pub fn output_watched_within_for_a_stop(
                     if let Some(files) = captured.as_ref() {
                         files.discard();
                     }
-                    return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        NotKnown(not_known_text(waiting_for, after, extra)),
+                    ));
                 }
             }
         }
         StepBound::EndAt(_) => match pipes {
             Some(open) => {
-                let ended: std::io::Result<Output> = open.read_until_the_child_ends(child, waiting_for, carried);
+                let ended: std::io::Result<Output> =
+                    open.read_until_the_child_ends(child, waiting_for, carried);
                 // The child has exited by now, and its pipes are read for up to `OUTPUT_DRAIN_AFTER_EXIT` longer;
                 //  before this clear the cell can still name an id no process has, and an abandon then signals that
                 //  id, which is one of the two windows the integration recheck's Low 3 of 2026-11-22 names. The
@@ -282,11 +367,18 @@ pub fn output_watched_within_for_a_stop(
                 #[cfg(test)]
                 hold_the_clear_where_a_control_asked();
                 if let (Some(cell), Some(published)) = (started_child, published_child) {
-                    let _ = cell.compare_exchange(published, 0, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst);
+                    let _ = cell.compare_exchange(
+                        published,
+                        0,
+                        std::sync::atomic::Ordering::SeqCst,
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
                 }
                 ended
             }
-            None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
+            None => Err(std::io::Error::other(
+                "a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli",
+            )),
         },
         StepBound::Unbounded => {
             let mut waited_for: Child = child;
@@ -316,7 +408,8 @@ pub fn output_watched_within_for_a_stop(
 static THE_CLEAR_IS_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
-static THE_CLEAR_WAS_REACHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_CLEAR_WAS_REACHED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(test)]
 static THE_HELD_CLEAR: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -341,8 +434,12 @@ fn hold_the_clear_where_a_control_asked() {
         return;
     }
     THE_CLEAR_WAS_REACHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    let held = THE_HELD_CLEAR.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _lets_go = THE_HELD_CLEAR_LETS_GO.wait_timeout(held, std::time::Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+    let held = THE_HELD_CLEAR
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _lets_go = THE_HELD_CLEAR_LETS_GO
+        .wait_timeout(held, std::time::Duration::from_secs(30))
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 }
 
 /// What:

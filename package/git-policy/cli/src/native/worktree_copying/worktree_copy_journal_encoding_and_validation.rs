@@ -14,14 +14,31 @@
 //! const journal = parseJournal(text, path, journalRoot); // throws when any field is not what the encoder writes
 //! ```
 
-use crate::wrapper_names_old_and_new::WORKTREE_COPY_RECORD_FOLDER;
 use crate::json_record::quote;
 use crate::path_bytes::path_bytes_of;
-use crate::path_bytes_in_records::{HEX_SUFFIX, field_fragment, hex_of_path, list_fragment, read_field, read_path_field, read_path_list};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::path_bytes_in_records::{
+    HEX_SUFFIX,
+    field_fragment,
+    hex_of_path,
+    list_fragment,
+    read_field,
+    read_path_field,
+    read_path_list,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+};
 use crate::worktree_copy_install_entry::InstalledPath;
-use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_selection::{
+    STAGE_PREFIX,
+    assert_safe_repository_path,
+};
+use crate::wrapper_names_old_and_new::WORKTREE_COPY_RECORD_FOLDER;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The parent directory name of the journals,
@@ -197,12 +214,18 @@ pub fn owner_token_of(path: &Path) -> Option<String> {
 /// ```ts
 /// const text = path.toString(); return [...(Buffer.from(text).equals(Buffer.from(path)) ? [`"${key}":${JSON.stringify(text)}`] : []), `"${key}Hex":${JSON.stringify(hexOfPath(path))}`];
 /// ```
-fn root_fields(key: &str, path: &Path) -> Vec<String> {
+fn root_fields(
+    key: &str,
+    path: &Path,
+) -> Vec<String> {
     let mut fields: Vec<String> = Vec::new();
     if let Some(text) = path.to_str() {
         fields.push(format!("\"{key}\":{}", quote(text)));
     }
-    fields.push(format!("\"{key}{HEX_SUFFIX}\":{}", quote(hex_of_path(path).as_str())));
+    fields.push(format!(
+        "\"{key}{HEX_SUFFIX}\":{}",
+        quote(hex_of_path(path).as_str())
+    ));
     return fields;
 }
 
@@ -227,12 +250,24 @@ pub fn encode_journal(journal: &Journal) -> String {
         .collect();
     let mut fields: Vec<String> = Vec::with_capacity(13);
     fields.push(format!("\"createdEntries\":[{}]", created.join(",")));
-    fields.push(list_fragment("intendedEntries", journal.intended_entries.as_slice()));
-    fields.extend(root_fields("destinationRoot", journal.destination_root.as_path()));
+    fields.push(list_fragment(
+        "intendedEntries",
+        journal.intended_entries.as_slice(),
+    ));
+    fields.extend(root_fields(
+        "destinationRoot",
+        journal.destination_root.as_path(),
+    ));
     fields.push(format!("\"phase\":{}", quote(journal.phase.as_str())));
-    fields.push(list_fragment("selectedRoots", journal.selected_roots.as_slice()));
+    fields.push(list_fragment(
+        "selectedRoots",
+        journal.selected_roots.as_slice(),
+    ));
     fields.extend(root_fields("sourceRoot", journal.source_root.as_path()));
-    fields.extend(root_fields("stageContainer", journal.stage_container.as_path()));
+    fields.extend(root_fields(
+        "stageContainer",
+        journal.stage_container.as_path(),
+    ));
     fields.extend(root_fields("stageRoot", journal.stage_root.as_path()));
     fields.push(String::from("\"version\":1"));
     return format!("{{{}}}\n", fields.join(","));
@@ -420,7 +455,8 @@ pub fn parse_journal(
     path: &Path,
     journal_root: &Path,
 ) -> Result<Journal, WorktreeCopyError> {
-    return parse_journal_reading(text, path, journal_root).map_err(|refusal| return refusal.into_error(path));
+    return parse_journal_reading(text, path, journal_root)
+        .map_err(|refusal| return refusal.into_error(path));
 }
 
 /// What:
@@ -459,7 +495,9 @@ impl JournalRefusal {
     /// ```
     pub fn reason(&self) -> String {
         return match self {
-            JournalRefusal::NotJson(cause) => format!("its bytes are not the JSON a copy writes ({cause})"),
+            JournalRefusal::NotJson(cause) => {
+                format!("its bytes are not the JSON a copy writes ({cause})")
+            }
             JournalRefusal::NotTheShape => String::from("it is not a record this release writes"),
             JournalRefusal::Unsafe(error) => error.0.clone(),
         };
@@ -476,7 +514,10 @@ impl JournalRefusal {
     /// ```ts
     /// refusal.intoError(path)
     /// ```
-    fn into_error(self, path: &Path) -> WorktreeCopyError {
+    fn into_error(
+        self,
+        path: &Path,
+    ) -> WorktreeCopyError {
         return match self {
             JournalRefusal::NotJson(cause) => {
                 let message: String = format!(
@@ -527,8 +568,17 @@ pub fn parse_journal_reading(
 /// ```ts
 /// function parseJournalRelations(journal, path, root): Journal;
 /// ```
-fn parse_journal_relations(journal: Journal, path: &Path, journal_root: &Path) -> Result<Journal, JournalRefusal> {
-    let refused = |message: String| return Err(JournalRefusal::Unsafe(failure_with_cause(message.as_str(), None)));
+fn parse_journal_relations(
+    journal: Journal,
+    path: &Path,
+    journal_root: &Path,
+) -> Result<Journal, JournalRefusal> {
+    let refused = |message: String| {
+        return Err(JournalRefusal::Unsafe(failure_with_cause(
+            message.as_str(),
+            None,
+        )));
+    };
     if path.parent() != Some(journal_root) {
         return refused(format!(
             "monochromatic-git-policy-cli: worktree-copy journal escaped private root: {}.",

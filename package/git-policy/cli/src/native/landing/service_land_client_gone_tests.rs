@@ -8,13 +8,26 @@
 //!  (`SPEC.md`,
 //! "The commit protocol").
 
-use super::tests::{World, request, world};
+use super::tests::{
+    World,
+    request,
+    world,
+};
 use super::*;
-use crate::service_index_lock::{Announce, Announcer};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
 use crate::service_journal::OPEN_EXTENSION;
-use crate::test_support::{git_text, remove};
+use crate::test_support::{
+    git_text,
+    remove,
+};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// What:
 ///  An announcer whose client is gone from the first ask on.
@@ -25,9 +38,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 struct Gone;
 
 impl Announcer for Gone {
-    fn announce(&self, _note: Announce) {}
+    fn announce(
+        &self,
+        _note: Announce,
+    ) {
+    }
 
-    fn client_is_gone(&self, _place: usize) -> bool {
+    fn client_is_gone(
+        &self,
+        _place: usize,
+    ) -> bool {
         return true;
     }
 }
@@ -39,9 +59,16 @@ impl Announcer for Gone {
 struct GoneFirst;
 
 impl Announcer for GoneFirst {
-    fn announce(&self, _note: Announce) {}
+    fn announce(
+        &self,
+        _note: Announce,
+    ) {
+    }
 
-    fn client_is_gone(&self, place: usize) -> bool {
+    fn client_is_gone(
+        &self,
+        place: usize,
+    ) -> bool {
         return place == 0;
     }
 }
@@ -65,13 +92,19 @@ struct GoingAwayAfterTheFirstAsk {
 }
 
 impl Announcer for GoingAwayAfterTheFirstAsk {
-    fn announce(&self, note: Announce) {
+    fn announce(
+        &self,
+        note: Announce,
+    ) {
         if matches!(note, Announce::Waiting(_)) {
             let _told = std::fs::write(self.release.as_path(), b"let go\n");
         }
     }
 
-    fn client_is_gone(&self, _place: usize) -> bool {
+    fn client_is_gone(
+        &self,
+        _place: usize,
+    ) -> bool {
         return self.asked.fetch_add(1, Ordering::SeqCst) > 0;
     }
 }
@@ -84,18 +117,29 @@ impl Announcer for GoingAwayAfterTheFirstAsk {
 /// so only a lock a live program holds makes the wait last.
 ///  The caller waits for the program,
 ///  because a child nothing waits for is a process this test left behind.
-fn hold_the_index(world: &World, release: &Path) -> (PathBuf, std::process::Child) {
+fn hold_the_index(
+    world: &World,
+    release: &Path,
+) -> (PathBuf, std::process::Child) {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     let script: PathBuf = world.root.join("hold-the-index.sh");
     crate::test_support::executable(
         script.as_path(),
         b"#!/bin/sh\nexec 9>\"$1\"\nwhile [ ! -e \"$2\" ]; do /usr/bin/sleep 0.02; done\nrm -f \"$1\"\n".as_slice(),
     );
-    let holder: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new(script.as_path()).arg(lock.as_path()).arg(release))
-        .expect("the holder of the index runs");
+    let holder: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new(script.as_path())
+            .arg(lock.as_path())
+            .arg(release),
+    )
+    .expect("the holder of the index runs");
     let began: std::time::Instant = std::time::Instant::now();
     while !lock.exists() {
-        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the holder did not take {}", lock.display());
+        assert!(
+            began.elapsed() < std::time::Duration::from_secs(60),
+            "the holder did not take {}",
+            lock.display()
+        );
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     return (lock, holder);
@@ -110,12 +154,32 @@ fn a_commit_whose_client_is_gone_is_not_made() {
     let world: World = world("land-client-gone");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let asked: CommitRequest = request(&world, "gone", "gone.txt", "gone\n");
-    let outcomes = land_batch_announcing(&world.context, 1, std::slice::from_ref(&asked), &Gone).expect("nothing fails: nothing lands");
-    assert_eq!(outcomes, vec![Outcome::ClientGone], "the request makes no commit");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "?? gone.txt", "the worktree is as it was");
-    assert!(!crate::service_journal::batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "no batch is left open");
-    assert!(!crate::owed_index_update::path_of(world.repo.join(".git").as_path(), 1).exists(), "a batch that did not land owes nothing");
+    let outcomes = land_batch_announcing(&world.context, 1, std::slice::from_ref(&asked), &Gone)
+        .expect("nothing fails: nothing lands");
+    assert_eq!(
+        outcomes,
+        vec![Outcome::ClientGone],
+        "the request makes no commit"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        base,
+        "the branch did not move"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "?? gone.txt",
+        "the worktree is as it was"
+    );
+    assert!(
+        !crate::service_journal::batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)
+            .exists(),
+        "no batch is left open"
+    );
+    assert!(
+        !crate::owed_index_update::path_of(world.repo.join(".git").as_path(), 1).exists(),
+        "a batch that did not land owes nothing"
+    );
     remove(world.root.as_path());
 }
 
@@ -129,14 +193,39 @@ fn a_commit_whose_client_goes_away_while_the_index_lock_is_waited_for_is_not_mad
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let asked: CommitRequest = request(&world, "interrupted", "interrupted.txt", "interrupted\n");
     let release: PathBuf = world.root.join("release-the-index");
-    let (_lock, mut holder): (PathBuf, std::process::Child) = hold_the_index(&world, release.as_path());
-    let announce: GoingAwayAfterTheFirstAsk = GoingAwayAfterTheFirstAsk { asked: AtomicUsize::new(0), release };
-    let outcomes = land_batch_announcing(&world.context, 1, std::slice::from_ref(&asked), &announce).expect("nothing fails: nothing lands");
-    assert_eq!(outcomes, vec![Outcome::ClientGone], "the wait ended with the client gone, and no commit was made");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "?? interrupted.txt", "the worktree is as it was");
-    assert!(!crate::service_journal::batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the batch the wait took is given back");
-    assert!(!crate::owed_index_update::path_of(world.repo.join(".git").as_path(), 1).exists(), "a batch that did not land owes nothing");
+    let (_lock, mut holder): (PathBuf, std::process::Child) =
+        hold_the_index(&world, release.as_path());
+    let announce: GoingAwayAfterTheFirstAsk = GoingAwayAfterTheFirstAsk {
+        asked: AtomicUsize::new(0),
+        release,
+    };
+    let outcomes =
+        land_batch_announcing(&world.context, 1, std::slice::from_ref(&asked), &announce)
+            .expect("nothing fails: nothing lands");
+    assert_eq!(
+        outcomes,
+        vec![Outcome::ClientGone],
+        "the wait ended with the client gone, and no commit was made"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        base,
+        "the branch did not move"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "?? interrupted.txt",
+        "the worktree is as it was"
+    );
+    assert!(
+        !crate::service_journal::batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)
+            .exists(),
+        "the batch the wait took is given back"
+    );
+    assert!(
+        !crate::owed_index_update::path_of(world.repo.join(".git").as_path(), 1).exists(),
+        "a batch that did not land owes nothing"
+    );
     let _ended = holder.wait();
     remove(world.root.as_path());
 }
@@ -154,11 +243,35 @@ fn the_rest_of_a_batch_lands_when_one_of_its_clients_is_gone() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let first: CommitRequest = request(&world, "first", "first.txt", "first\n");
     let second: CommitRequest = request(&world, "second", "second.txt", "second\n");
-    let outcomes = land_batch_announcing(&world.context, 1, &[first, second], &GoneFirst).expect("the second lands");
-    assert_eq!(outcomes[0], Outcome::ClientGone, "the commit of the client that is gone is not made");
-    let Outcome::Landed { commit } = &outcomes[1] else { panic!("{:?}", outcomes[1]) };
-    assert_eq!(git_text(world.repo.as_path(), &["log", "--format=%s", format!("{base}..HEAD").as_str()]), "message of second", "the rest of the batch is one commit");
-    assert_eq!(git_text(world.repo.as_path(), &["ls-tree", "--name-only", commit.as_str()]), "second.txt", "the gone client's file is in no commit");
+    let outcomes = land_batch_announcing(&world.context, 1, &[first, second], &GoneFirst)
+        .expect("the second lands");
+    assert_eq!(
+        outcomes[0],
+        Outcome::ClientGone,
+        "the commit of the client that is gone is not made"
+    );
+    let Outcome::Landed {
+        commit,
+    } = &outcomes[1]
+    else {
+        panic!("{:?}", outcomes[1])
+    };
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "--format=%s", format!("{base}..HEAD").as_str()]
+        ),
+        "message of second",
+        "the rest of the batch is one commit"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["ls-tree", "--name-only", commit.as_str()]
+        ),
+        "second.txt",
+        "the gone client's file is in no commit"
+    );
     remove(world.root.as_path());
 }
 
@@ -183,15 +296,46 @@ fn a_batch_whose_client_is_gone_makes_no_commit() {
     let (reply, messages) = Reply::new();
     // The client is gone: the task that writes its connection ended, so nothing reads what the landing would answer.
     drop(messages);
-    let group: Vec<crate::service_server_queue_types_and_send::Queued> = vec![(Box::new(asked), reply, Arrival { accepted: std::time::Instant::now(), read: std::time::Duration::ZERO })];
+    let group: Vec<crate::service_server_queue_types_and_send::Queued> = vec![(
+        Box::new(asked),
+        reply,
+        Arrival {
+            accepted: std::time::Instant::now(),
+            read: std::time::Duration::ZERO,
+        },
+    )];
     let mut seq: u64 = 0;
     let mut landed: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut captures: CaptureMemory = CaptureMemory::default();
     let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-    land_group(&world.context, None, &mut seq, group, &mut landed, &mut captures, crate::wait_ceilings::WAITING_NOTICE_AFTER, crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING, &mut handed_back, &crate::service_shadow_draw::DrawnShadows::none_yet());
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch did not move");
-    assert_eq!(seq, 0, "no batch number is taken for a request nobody waits for");
-    assert!(landed.is_empty(), "no commit of a client that is gone is remembered as landed: {landed:?}");
-    assert!(handed_back.contains("gone"), "the tree stays for a client that reconnects: {handed_back:?}");
+    land_group(
+        &world.context,
+        None,
+        &mut seq,
+        group,
+        &mut landed,
+        &mut captures,
+        crate::wait_ceilings::WAITING_NOTICE_AFTER,
+        crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
+        &mut handed_back,
+        &crate::service_shadow_draw::DrawnShadows::none_yet(),
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        base,
+        "the branch did not move"
+    );
+    assert_eq!(
+        seq, 0,
+        "no batch number is taken for a request nobody waits for"
+    );
+    assert!(
+        landed.is_empty(),
+        "no commit of a client that is gone is remembered as landed: {landed:?}"
+    );
+    assert!(
+        handed_back.contains("gone"),
+        "the tree stays for a client that reconnects: {handed_back:?}"
+    );
     remove(world.root.as_path());
 }

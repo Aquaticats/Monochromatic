@@ -14,7 +14,11 @@
 
 /// Import the grammar under test.
 use super::{
-    MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
+    MANAGEMENT_HELP,
+    MANAGEMENT_USAGE,
+    ManagementAction,
+    ManagementRefusal,
+    RetiredCommand,
     parse_management_arguments,
 };
 use std::ffi::OsString;
@@ -29,7 +33,12 @@ fn parse(values: &[&str]) -> Result<ManagementAction, ManagementRefusal> {
 }
 
 /// Build the expected direct action from text parts.
-fn direct(fix: bool, all: bool, policies: &[&str], pathspecs: &[&str]) -> ManagementAction {
+fn direct(
+    fix: bool,
+    all: bool,
+    policies: &[&str],
+    pathspecs: &[&str],
+) -> ManagementAction {
     let mut owned_policies: Vec<String> = Vec::<String>::new();
     for policy in policies {
         owned_policies.push(String::from(*policy));
@@ -64,10 +73,17 @@ fn help_takes_no_further_arguments() {
             "{arguments:?}"
         );
     }
-    assert!(MANAGEMENT_HELP.starts_with("Usage: git monochromatic-git-policy-cli <command> [options]\n"));
+    assert!(
+        MANAGEMENT_HELP
+            .starts_with("Usage: git monochromatic-git-policy-cli <command> [options]\n")
+    );
     assert!(MANAGEMENT_HELP.contains("The trust, untrust and status commands are retired"));
     assert!(MANAGEMENT_HELP.ends_with("so there is nothing to approve.\n"));
-    assert!(MANAGEMENT_USAGE.starts_with("Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...)"));
+    assert!(
+        MANAGEMENT_USAGE.starts_with(
+            "Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...)"
+        )
+    );
     assert!(MANAGEMENT_USAGE.ends_with("git monochromatic-git-policy-cli --help\n"));
 }
 
@@ -102,7 +118,10 @@ fn retired_commands_accept_their_former_forms() {
     ] {
         assert_eq!(
             parse(arguments.as_slice()),
-            Ok(ManagementAction::Retired { command, help }),
+            Ok(ManagementAction::Retired {
+                command,
+                help
+            }),
             "{arguments:?}"
         );
     }
@@ -223,7 +242,9 @@ fn scope_mistakes_have_specific_refusals() {
     ] {
         assert_eq!(
             parse(arguments.as_slice()),
-            Err(ManagementRefusal::PathspecsBeforeSeparator { fix }),
+            Err(ManagementRefusal::PathspecsBeforeSeparator {
+                fix
+            }),
             "{arguments:?}"
         );
     }
@@ -237,7 +258,9 @@ fn scope_mistakes_have_specific_refusals() {
     ] {
         assert_eq!(
             parse(arguments.as_slice()),
-            Err(ManagementRefusal::ScopeRequired { fix }),
+            Err(ManagementRefusal::ScopeRequired {
+                fix
+            }),
             "{arguments:?}"
         );
     }
@@ -282,10 +305,22 @@ fn native_bytes_are_kept_for_pathspecs_and_refused_for_policy_ids() {
 #[test]
 fn doctor_takes_no_arguments_and_is_documented() {
     assert_eq!(parse(&["doctor"]), Ok(ManagementAction::Doctor));
-    for arguments in [vec!["doctor", "--all"], vec!["doctor", "--help"], vec!["doctor", "--", "a.txt"], vec!["doctor", "x"]] {
-        assert_eq!(parse(arguments.as_slice()), Err(ManagementRefusal::Usage), "{arguments:?}");
+    for arguments in [
+        vec!["doctor", "--all"],
+        vec!["doctor", "--help"],
+        vec!["doctor", "--", "a.txt"],
+        vec!["doctor", "x"],
+    ] {
+        assert_eq!(
+            parse(arguments.as_slice()),
+            Err(ManagementRefusal::Usage),
+            "{arguments:?}"
+        );
     }
-    assert!(MANAGEMENT_USAGE.contains("git monochromatic-git-policy-cli doctor"), "{MANAGEMENT_USAGE}");
+    assert!(
+        MANAGEMENT_USAGE.contains("git monochromatic-git-policy-cli doctor"),
+        "{MANAGEMENT_USAGE}"
+    );
     assert!(MANAGEMENT_HELP.contains("doctor"), "{MANAGEMENT_HELP}");
 }
 
@@ -300,14 +335,23 @@ fn doctor_help_states_the_exit_statuses() {
         "           1 when any other hook is found, 2 outside a repository.\n",
     );
     assert!(MANAGEMENT_HELP.contains(sentence), "{MANAGEMENT_HELP}");
-    assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
+    assert!(
+        !MANAGEMENT_HELP.contains("exit 1 when any are found"),
+        "{MANAGEMENT_HELP}"
+    );
 }
 
 /// `service stop-units-of-removed-worktrees` takes no argument and is named in the usage and the help.
 #[test]
 fn the_service_command_takes_stop_units_of_removed_worktrees_alone() {
-    assert_eq!(parse(&["service", "stop-units-of-removed-worktrees"]), Ok(ManagementAction::StopUnitsOfRemovedWorktrees));
-    for bad in [vec!["service", "stop-units-of-removed-worktrees", "--now"], vec!["service", "stop-units"]] {
+    assert_eq!(
+        parse(&["service", "stop-units-of-removed-worktrees"]),
+        Ok(ManagementAction::StopUnitsOfRemovedWorktrees)
+    );
+    for bad in [
+        vec!["service", "stop-units-of-removed-worktrees", "--now"],
+        vec!["service", "stop-units"],
+    ] {
         assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
     }
     for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
@@ -320,17 +364,39 @@ fn the_service_command_takes_stop_units_of_removed_worktrees_alone() {
 ///  `uninstall` included) is a usage error.
 #[test]
 fn the_service_command_takes_only_status_and_settle_earlier_batches() {
-    assert_eq!(parse(&["service", "settle-earlier-batches"]), Ok(ManagementAction::SettleEarlierBatches));
-    for bad in [vec!["service", "settle-earlier-batches", "--now"], vec!["service", "settle-earlier-batches", "status"], vec!["service", "settle"]] {
+    assert_eq!(
+        parse(&["service", "settle-earlier-batches"]),
+        Ok(ManagementAction::SettleEarlierBatches)
+    );
+    for bad in [
+        vec!["service", "settle-earlier-batches", "--now"],
+        vec!["service", "settle-earlier-batches", "status"],
+        vec!["service", "settle"],
+    ] {
         assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
     }
     for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
         assert!(text.contains("settle-earlier-batches"), "{text}");
     }
-    assert!(MANAGEMENT_HELP.contains("no wrapper of the earlier release"), "the help states the condition: {MANAGEMENT_HELP}");
-    assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from("status")]), Ok(ManagementAction::ServiceStatus));
-    for bad in [vec!["service"], vec!["service", "install"], vec!["service", "uninstall"], vec!["service", "status", "--now"]] {
+    assert!(
+        MANAGEMENT_HELP.contains("no wrapper of the earlier release"),
+        "the help states the condition: {MANAGEMENT_HELP}"
+    );
+    assert_eq!(
+        parse_management_arguments(&[OsString::from("service"), OsString::from("status")]),
+        Ok(ManagementAction::ServiceStatus)
+    );
+    for bad in [
+        vec!["service"],
+        vec!["service", "install"],
+        vec!["service", "uninstall"],
+        vec!["service", "status", "--now"],
+    ] {
         let arguments: Vec<OsString> = bad.iter().map(OsString::from).collect();
-        assert_eq!(parse_management_arguments(&arguments), Err(ManagementRefusal::Usage), "{bad:?}");
+        assert_eq!(
+            parse_management_arguments(&arguments),
+            Err(ManagementRefusal::Usage),
+            "{bad:?}"
+        );
     }
 }

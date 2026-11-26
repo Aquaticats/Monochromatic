@@ -21,10 +21,12 @@
 //! ```
 
 /// The first line of the binding record, naming the grammar's version.
-pub const BINDING_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree clone binding, version 1";
+pub const BINDING_HEADER: &str =
+    "# monochromatic-git-policy-cli zfs worktree clone binding, version 1";
 
 /// The first line of an inventory record, naming the grammar's version.
-pub const INVENTORY_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree clone inventory, version 1";
+pub const INVENTORY_HEADER: &str =
+    "# monochromatic-git-policy-cli zfs worktree clone inventory, version 1";
 
 /// Every key the binding grammar writes, in the order it writes them.
 ///
@@ -85,8 +87,14 @@ pub const KEYS_FROM_EACH_PHASE: [(&str, &[&str]); 6] = [
     ("originSnapshot", &["originSnapshot"]),
     ("originDataset", &["originDataset", "originDatasetGuid"]),
     ("slot", &["slotIdentity"]),
-    ("registered", &["registration", "registrationIdentity", "pointer"]),
-    ("snapshotted", &["originSnapshotGuid", "originSnapshotCreatetxg"]),
+    (
+        "registered",
+        &["registration", "registrationIdentity", "pointer"],
+    ),
+    (
+        "snapshotted",
+        &["originSnapshotGuid", "originSnapshotCreatetxg"],
+    ),
     ("cloned", &["cloneGuid", "cloneCreatetxg"]),
 ];
 

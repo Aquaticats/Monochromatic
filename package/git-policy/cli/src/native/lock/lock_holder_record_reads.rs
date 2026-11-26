@@ -27,14 +27,27 @@
 //! ```
 
 /// The record files and their lines.
-use crate::lock_holder_records::{CHILD_KIND, SELF_KIND, folder_of};
+use crate::lock_holder_records::{
+    CHILD_KIND,
+    SELF_KIND,
+    folder_of,
+};
+/// Reading a small file without following a link and without waiting on a pipe.
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 /// The one judgement of a holder the commit service's marker also uses.
 use crate::process_identity::process_birth_identity;
-use crate::service_index_identity::{HolderState, holder_state};
-/// Reading a small file without following a link and without waiting on a pipe.
-use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
+use crate::service_index_identity::{
+    HolderState,
+    holder_state,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many record files one lookup reads,
 /// so a folder a broken command filled cannot hold a command.
@@ -137,7 +150,10 @@ fn every_holder(common_dir: &Path) -> Vec<(PathBuf, Vec<(i64, String)>)> {
 /// ```ts
 /// const identities = recordedIdentities(commonDir, pid); // ['linux:1234#…', …]
 /// ```
-pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
+pub fn identities_recorded(
+    common_dir: &Path,
+    pid: i64,
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for (_, holders) in every_holder(common_dir) {
         for (holder, identity) in holders {
@@ -184,7 +200,10 @@ pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
 /// ```ts
 /// const gone = pidIsFree(pid) && recordedIdentities(commonDir, pid).every((id) => holderState([pid, id]) === 'gone');
 /// ```
-pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
+pub fn proved_gone_writer(
+    common_dir: &Path,
+    pid: i64,
+) -> Option<String> {
     let identities: Vec<String> = identities_recorded(common_dir, pid);
     if identities.is_empty() {
         return None;
@@ -219,11 +238,16 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
 /// ```ts
 /// for (const [file, holders] of records) if (holders.every(dead) && !holders.some(inUse)) rm(file)
 /// ```
-pub fn sweep(common_dir: &Path, pids_in_use: &[i64]) {
+pub fn sweep(
+    common_dir: &Path,
+    pids_in_use: &[i64],
+) {
     for (path, holders) in every_holder(common_dir) {
         let mut explainable: bool = false;
         for (pid, identity) in &holders {
-            if pids_in_use.contains(pid) || holder_state(Some(&(*pid, identity.clone()))) != HolderState::Gone {
+            if pids_in_use.contains(pid)
+                || holder_state(Some(&(*pid, identity.clone()))) != HolderState::Gone
+            {
                 explainable = true;
                 break;
             }
@@ -247,5 +271,7 @@ pub fn sweep(common_dir: &Path, pids_in_use: &[i64]) {
 /// `PID ${pid}, which the record this repository's commands wrote names with a birth identity this boot no longer has`
 /// ```
 pub fn gone_holder_words(pid: i64) -> String {
-    return format!("PID {pid}, which a record this repository's own commands wrote names by a birth identity that this boot, this process table and this machine no longer have");
+    return format!(
+        "PID {pid}, which a record this repository's own commands wrote names by a birth identity that this boot, this process table and this machine no longer have"
+    );
 }

@@ -23,9 +23,15 @@ use crate::candidate_version::CandidateVersion;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the lifecycle's candidates.
-use crate::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
 /// Import the finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Import the facts interface that prepares candidates.
 use crate::repository_facts::RepositoryFacts;
 /// `Rc<T>` is a shared,

@@ -22,8 +22,19 @@
 //! publishThePrivateIndex(admin); // one rename, replacing nothing
 //! ```
 
-use crate::fs_beneath::{create_file_at, rename_at};
-use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
+use crate::fs_beneath::{
+    create_file_at,
+    rename_at,
+};
+use crate::subvolume_index::{
+    IndexOutcome,
+    RewriteContext,
+    StatFields,
+    StatLookup,
+    StatTrust,
+    StoredStat,
+    rewrite_index_stat_with,
+};
 use std::ffi::OsStr;
 use std::io::Write as _;
 use std::path::Path;
@@ -39,7 +50,10 @@ pub const INDEX_NAME: &str = "index";
 struct NoStats;
 
 impl StatLookup for NoStats {
-    fn stat_now(&mut self, _path: &[u8]) -> Option<StatFields> {
+    fn stat_now(
+        &mut self,
+        _path: &[u8],
+    ) -> Option<StatFields> {
         return None;
     }
 }
@@ -49,7 +63,11 @@ impl StatLookup for NoStats {
 struct NoTrust;
 
 impl StatTrust for NoTrust {
-    fn is_trusted(&mut self, _path: &[u8], _stored: &StoredStat) -> bool {
+    fn is_trusted(
+        &mut self,
+        _path: &[u8],
+        _stored: &StoredStat,
+    ) -> bool {
         return false;
     }
 }
@@ -66,11 +84,22 @@ impl StatTrust for NoTrust {
 /// # Errors
 /// The index is not one this reader knows,
 /// or it declares an extension that changes what its entries mean.
-pub fn index_for_the_fill(seed: &[u8], hash_length: usize) -> Result<Vec<u8>, String> {
-    let context: RewriteContext = RewriteContext { hash_length: Some(hash_length), index_mtime: None };
+pub fn index_for_the_fill(
+    seed: &[u8],
+    hash_length: usize,
+) -> Result<Vec<u8>, String> {
+    let context: RewriteContext = RewriteContext {
+        hash_length: Some(hash_length),
+        index_mtime: None,
+    };
     return match rewrite_index_stat_with(seed, &context, &mut NoStats, &mut NoTrust) {
-        IndexOutcome::Rewritten { bytes, .. } => Ok(bytes),
-        IndexOutcome::Skipped(reason) => Err(format!("the captured index cannot be written for the fill ({reason}); Ways forward: run the add again with Git's own checkout")),
+        IndexOutcome::Rewritten {
+            bytes,
+            ..
+        } => Ok(bytes),
+        IndexOutcome::Skipped(reason) => Err(format!(
+            "the captured index cannot be written for the fill ({reason}); Ways forward: run the add again with Git's own checkout"
+        )),
     };
 }
 
@@ -83,10 +112,20 @@ pub fn index_for_the_fill(seed: &[u8], hash_length: usize) -> Result<Vec<u8>, St
 /// # Errors
 /// The private name already stands,
 /// or the file cannot be written or flushed.
-pub fn write_the_private_index(admin: &std::fs::File, bytes: &[u8]) -> Result<(), String> {
-    let mut file: std::fs::File = create_file_at(admin, OsStr::new(PENDING_INDEX_NAME), 0o600).map_err(|error| return format!("the fill's index {PENDING_INDEX_NAME} cannot be made ({error})"))?;
-    file.write_all(bytes).map_err(|error| return format!("the fill's index {PENDING_INDEX_NAME} cannot be written ({error})"))?;
-    file.sync_all().map_err(|error| return format!("the fill's index {PENDING_INDEX_NAME} cannot be flushed ({error})"))?;
+pub fn write_the_private_index(
+    admin: &std::fs::File,
+    bytes: &[u8],
+) -> Result<(), String> {
+    let mut file: std::fs::File = create_file_at(admin, OsStr::new(PENDING_INDEX_NAME), 0o600)
+        .map_err(|error| {
+            return format!("the fill's index {PENDING_INDEX_NAME} cannot be made ({error})");
+        })?;
+    file.write_all(bytes).map_err(|error| {
+        return format!("the fill's index {PENDING_INDEX_NAME} cannot be written ({error})");
+    })?;
+    file.sync_all().map_err(|error| {
+        return format!("the fill's index {PENDING_INDEX_NAME} cannot be flushed ({error})");
+    })?;
     return Ok(());
 }
 
@@ -100,14 +139,24 @@ pub fn write_the_private_index(admin: &std::fs::File, bytes: &[u8]) -> Result<()
 /// The private name does not stand,
 /// the worktree's name already stands,
 /// or the rename was refused.
-pub fn publish_the_private_index(admin: &std::fs::File, admin_path: &Path) -> Result<(), String> {
+pub fn publish_the_private_index(
+    admin: &std::fs::File,
+    admin_path: &Path,
+) -> Result<(), String> {
     if !admin_path.join(PENDING_INDEX_NAME).is_file() {
-        return Err(String::from("the fill's index is not under its private name, so there is nothing to publish"));
+        return Err(String::from(
+            "the fill's index is not under its private name, so there is nothing to publish",
+        ));
     }
     rename_at(admin, OsStr::new(PENDING_INDEX_NAME), admin, OsStr::new(INDEX_NAME), false).map_err(|error| {
         return format!("the fill's index cannot take the worktree's own name ({error}); Ways forward: remove the file that stands at {} and run the add again", admin_path.join(INDEX_NAME).display());
     })?;
-    admin.sync_all().map_err(|error| return format!("the registration {} cannot be flushed after the index took its name ({error})", admin_path.display()))?;
+    admin.sync_all().map_err(|error| {
+        return format!(
+            "the registration {} cannot be flushed after the index took its name ({error})",
+            admin_path.display()
+        );
+    })?;
     return Ok(());
 }
 

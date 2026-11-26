@@ -15,13 +15,27 @@
 
 /// The reader,
 ///  its table and the tokenizer's refusal names.
-use super::{parse_remote_region, RemoteRegion};
-use crate::command_options::OptionErrorKind::{UnexpectedValue, UnknownOption};
+use super::{
+    RemoteRegion,
+    parse_remote_region,
+};
 use crate::command_options::OptionError;
+use crate::command_options::OptionErrorKind::{
+    UnexpectedValue,
+    UnknownOption,
+};
 use crate::command_remote_table::REMOTE_TABLE;
-use crate::command_test_completion::{git_completion, render_completion};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, fixture, git, os_arguments, remove, repository,
+    assert_table_invariants,
+    fixture,
+    git,
+    os_arguments,
+    remove,
+    repository,
 };
 use std::path::PathBuf;
 
@@ -29,11 +43,11 @@ use std::path::PathBuf;
 ///  or nothing.
 fn subcommand(line: &str) -> Option<String> {
     let values: Vec<&str> = line.split_whitespace().collect();
-    let parsed: RemoteRegion = parse_remote_region(os_arguments(values.as_slice()).as_slice())
-        .expect("valid region");
-    return parsed
-        .subcommand
-        .map(|word| { return word.to_string_lossy().into_owned(); });
+    let parsed: RemoteRegion =
+        parse_remote_region(os_arguments(values.as_slice()).as_slice()).expect("valid region");
+    return parsed.subcommand.map(|word| {
+        return word.to_string_lossy().into_owned();
+    });
 }
 
 /// The options Git reads before a subcommand are skipped,
@@ -47,16 +61,31 @@ fn the_subcommand_is_the_first_token_that_is_not_one_of_gits_own_options() {
         ("-vv", None),
         ("--no-verbose", None),
         ("add beta https://example.invalid/beta.git", Some("add")),
-        ("-v set-url origin https://example.invalid/two.git", Some("set-url")),
-        ("--verbose add beta https://example.invalid/beta.git", Some("add")),
-        ("-v -v add beta https://example.invalid/beta.git", Some("add")),
+        (
+            "-v set-url origin https://example.invalid/two.git",
+            Some("set-url"),
+        ),
+        (
+            "--verbose add beta https://example.invalid/beta.git",
+            Some("add"),
+        ),
+        (
+            "-v -v add beta https://example.invalid/beta.git",
+            Some("add"),
+        ),
         // Git accepts a unique abbreviation of `--verbose`, so the reading must too.
-        ("--verb add beta https://example.invalid/beta.git", Some("add")),
+        (
+            "--verb add beta https://example.invalid/beta.git",
+            Some("add"),
+        ),
         ("--no-verbos rm beta", Some("rm")),
         ("show origin", Some("show")),
         ("get-url origin", Some("get-url")),
         // The subcommand's own options are the subcommand's, not this table's.
-        ("add -t main beta https://example.invalid/beta.git", Some("add")),
+        (
+            "add -t main beta https://example.invalid/beta.git",
+            Some("add"),
+        ),
         ("rename --progress origin two", Some("rename")),
         // `git remote -- add ...` names no subcommand Git can dispatch to.
         ("-- add beta https://example.invalid/beta.git", None),
@@ -99,13 +128,48 @@ fn the_table_holds_exactly_the_options_git_lists() {
     }
     assert_table_invariants(REMOTE_TABLE);
     assert_eq!(render_completion(REMOTE_TABLE), listed.join(" "));
-    assert!(completion.contains(" set-url "), "the listing names the subcommands: {completion}");
+    assert!(
+        completion.contains(" set-url "),
+        "the listing names the subcommands: {completion}"
+    );
     // A positive control: this Git accepts the spellings the table declares, abbreviations included.
-    git(root.as_path(), &["remote", "--verbose", "add", "beta", "https://example.invalid/beta.git"]);
-    git(root.as_path(), &["remote", "--verb", "add", "gamma", "https://example.invalid/gamma.git"]);
-    git(root.as_path(), &["remote", "--no-verbos", "add", "delta", "https://example.invalid/delta.git"]);
-    let refused: std::process::Output =
-        crate::command_test_support::git_status(root.as_path(), &["remote", "set-u", "origin", "x"]);
-    assert!(!refused.status.success(), "Git accepted an abbreviated subcommand");
+    git(
+        root.as_path(),
+        &[
+            "remote",
+            "--verbose",
+            "add",
+            "beta",
+            "https://example.invalid/beta.git",
+        ],
+    );
+    git(
+        root.as_path(),
+        &[
+            "remote",
+            "--verb",
+            "add",
+            "gamma",
+            "https://example.invalid/gamma.git",
+        ],
+    );
+    git(
+        root.as_path(),
+        &[
+            "remote",
+            "--no-verbos",
+            "add",
+            "delta",
+            "https://example.invalid/delta.git",
+        ],
+    );
+    let refused: std::process::Output = crate::command_test_support::git_status(
+        root.as_path(),
+        &["remote", "set-u", "origin", "x"],
+    );
+    assert!(
+        !refused.status.success(),
+        "Git accepted an abbreviated subcommand"
+    );
     remove(directory.as_path());
 }

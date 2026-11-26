@@ -20,23 +20,48 @@
 //! const { stats, beside } = cloneInSlices({ source, entries, destination, created, workers, beside });
 //! ```
 
-use crate::add_timing::{begin_step, end_step, note};
-use crate::parallel_budget::{HostResources, PARALLEL_BREAK_EVEN_ENTRIES, sliced_workers};
-use crate::side_by_side_on_the_runtime::{AJob, run_all_side_by_side_on_the_runtime};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+    note,
+};
+use crate::diagnostic_log::debug;
+use crate::fs_beneath::open_root;
+use crate::parallel_budget::{
+    HostResources,
+    PARALLEL_BREAK_EVEN_ENTRIES,
+    sliced_workers,
+};
+use crate::side_by_side_on_the_runtime::{
+    AJob,
+    run_all_side_by_side_on_the_runtime,
+};
 use crate::subvolume_index::StatFields;
 use crate::worktree_clean::StatEntry;
-use crate::worktree_clone_entries::{ClonedEntries, EntriesToClone, clone_the_entries, clone_with_entries};
-use crate::fs_beneath::open_root;
-use crate::worktree_clone_entry::{Seams, do_nothing};
-use crate::worktree_clone_paths::{Created, Directories};
+use crate::worktree_clone_entries::{
+    ClonedEntries,
+    EntriesToClone,
+    clone_the_entries,
+    clone_with_entries,
+};
+use crate::worktree_clone_entry::{
+    Seams,
+    do_nothing,
+};
+use crate::worktree_clone_paths::{
+    Created,
+    Directories,
+};
 use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::diagnostic_log::debug;
 use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cloneSlices";
@@ -104,8 +129,20 @@ pub(crate) struct SliceOfClones {
 /// function cloneASlice(state) { const cloned = cloneTheEntries(state); if (cloned.failure) state.failed.store(true); return cloned; }
 /// ```
 fn clone_a_slice(state: SliceOfClones) -> ClonedEntries {
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries: state.entries.as_ref(), positions: state.positions.as_slice(), source: state.source.as_ref(), source_root: state.source_root.as_ref(), destination: state.destination.as_ref(), seams: &mut seams, failed: state.failed.as_ref() });
+    let mut seams: Seams<'_> = Seams {
+        after_lookup: &mut do_nothing,
+        after_clone: &mut do_nothing,
+        before_index: &mut do_nothing,
+    };
+    let cloned: ClonedEntries = clone_the_entries(EntriesToClone {
+        entries: state.entries.as_ref(),
+        positions: state.positions.as_slice(),
+        source: state.source.as_ref(),
+        source_root: state.source_root.as_ref(),
+        destination: state.destination.as_ref(),
+        seams: &mut seams,
+        failed: state.failed.as_ref(),
+    });
     if cloned.failure.is_some() {
         state.failed.store(true, Ordering::Relaxed);
     }
@@ -129,7 +166,9 @@ async fn clone_the_slices(states: Vec<SliceOfClones>) -> Vec<Result<ClonedEntrie
     for answer in run_all_side_by_side_on_the_runtime(states, clone_a_slice).await {
         answers.push(match answer {
             Ok(cloned) => Ok(cloned),
-            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(String::from("a clone worker panicked")),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => {
+                Err(String::from("a clone worker panicked"))
+            }
             Err(refused) => Err(format!("a clone worker did not run ({refused})")),
         });
     }
@@ -196,24 +235,55 @@ pub(crate) fn clone_worker_count(entries: usize) -> usize {
 /// ```ts
 /// cloneInSlices({ source, entries, destination, created, workers }); // throws a reason
 /// ```
-pub(crate) fn clone_in_slices<S, T>(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, created: &mut Vec<Created>, workers: usize, mut beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
+pub(crate) fn clone_in_slices<S, T>(
+    source: &SnapshotSource,
+    entries: Arc<[StatEntry]>,
+    destination: &File,
+    created: &mut Vec<Created>,
+    workers: usize,
+    mut beside: Option<AJob<S, T>>,
+) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
-    let source_root: Arc<File> = Arc::new(subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?);
-    let destination_held: Arc<File> = Arc::new(subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
+    let source_root: Arc<File> = Arc::new(subject_failure(
+        open_root(source.root.as_path()),
+        &"the source's root",
+        "cannot be opened",
+    )?);
+    let destination_held: Arc<File> = Arc::new(subject_failure(
+        destination.try_clone(),
+        &"the destination handle",
+        "cannot be kept",
+    )?);
     let shared_source: Arc<SnapshotSource> = Arc::new(source.clone());
     let failed: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let slice_length: usize = entries.len().div_ceil(workers).max(1);
     let mut states: Vec<SliceOfClones> = Vec::new();
     let mut at: usize = 0;
     for chunk in entries.chunks(slice_length) {
-        states.push(SliceOfClones { entries: Arc::clone(&entries), positions: (at..at + chunk.len()).collect(), source: Arc::clone(&shared_source), source_root: Arc::clone(&source_root), destination: Arc::clone(&destination_held), failed: Arc::clone(&failed) });
+        states.push(SliceOfClones {
+            entries: Arc::clone(&entries),
+            positions: (at..at + chunk.len()).collect(),
+            source: Arc::clone(&shared_source),
+            source_root: Arc::clone(&source_root),
+            destination: Arc::clone(&destination_held),
+            failed: Arc::clone(&failed),
+        });
         at += chunk.len();
     }
     let slices: usize = states.len();
-    note("cloneSlices", format!("{} entries in {} slices, up to {} workers", entries.len(), slices, workers).as_str());
+    note(
+        "cloneSlices",
+        format!(
+            "{} entries in {} slices, up to {} workers",
+            entries.len(),
+            slices,
+            workers
+        )
+        .as_str(),
+    );
     // What:
     //  The copies start as one task of the process's runtime, and this thread leaves the runtime before the work that
     //  must run outside it.
@@ -228,24 +298,49 @@ where
     // const beside = besideJob ? besideJob() : undefined;
     // const answers = await runtime.wait(started);
     // ```
-    let started: Result<tokio::task::JoinHandle<Vec<Result<ClonedEntries, String>>>, crate::lazy_runtime::RuntimeError> = match the_slices_are_refused_by_a_control() {
+    let started: Result<
+        tokio::task::JoinHandle<Vec<Result<ClonedEntries, String>>>,
+        crate::lazy_runtime::RuntimeError,
+    > = match the_slices_are_refused_by_a_control() {
         true => Err(crate::lazy_runtime::RuntimeError::Nested),
-        false => crate::lazy_runtime::run_on_runtime(async move { return tokio::spawn(clone_the_slices(states)); }),
+        false => crate::lazy_runtime::run_on_runtime(async move {
+            return tokio::spawn(clone_the_slices(states));
+        }),
     };
     let beside_answer: Option<T> = beside.take().map(|(state, work)| return work(state));
     let entries_entered: bool = begin_step("cloneEntries");
     let ran = match started {
-        Ok(handle) => crate::lazy_runtime::run_on_runtime(handle).map_err(|refusal| return refusal.to_string()).and_then(|joined| return joined.map_err(|error| return format!("a clone task ended without an answer ({error})"))),
+        Ok(handle) => crate::lazy_runtime::run_on_runtime(handle)
+            .map_err(|refusal| return refusal.to_string())
+            .and_then(|joined| {
+                return joined.map_err(|error| {
+                    return format!("a clone task ended without an answer ({error})");
+                });
+            }),
         Err(refusal) => Err(refusal.to_string()),
     };
     end_step(entries_entered);
     let answers: Vec<Result<ClonedEntries, String>> = match ran {
         Ok(answers) => answers,
         Err(refusal) => {
-            debug(TAG, format!("the clones run in one turn ({refusal})").as_str());
+            debug(
+                TAG,
+                format!("the clones run in one turn ({refusal})").as_str(),
+            );
             let mut directories: Directories = HashMap::new();
-            directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
-            let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
+            directories.insert(
+                Vec::new(),
+                subject_failure(
+                    destination.try_clone(),
+                    &"the destination handle",
+                    "cannot be kept",
+                )?,
+            );
+            let mut seams: Seams<'_> = Seams {
+                after_lookup: &mut do_nothing,
+                after_clone: &mut do_nothing,
+                before_index: &mut do_nothing,
+            };
             // What:
             //  The one-turn arm clones the entries `clone_in_slices` was handed, not a fresh read of the source's
             //  index.
@@ -254,7 +349,13 @@ where
             //  a partial clone of a source with changes hands over the paths its proof settled, so a fresh read of the
             //  index would clone every index path instead, staged additions included, and a staged addition is in no
             //  tree (the release pass over alpha.45's finding H2).
-            let stats: HashMap<Vec<u8>, StatFields> = clone_with_entries(source, entries.as_ref(), &mut directories, created, &mut seams)?;
+            let stats: HashMap<Vec<u8>, StatFields> = clone_with_entries(
+                source,
+                entries.as_ref(),
+                &mut directories,
+                created,
+                &mut seams,
+            )?;
             return Ok((stats, beside_answer));
         }
     };

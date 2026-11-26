@@ -14,9 +14,17 @@
 //! const safe: boolean | undefined = noScopeSetsBareOrWorktree({ home, env }); // undefined: ask Git
 //! ```
 
-use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_bool, parse_config_text};
+use crate::repo_read_config_text::{
+    CONFIG_TEXT_LIMIT,
+    ConfigEntry,
+    parse_bool,
+    parse_config_text,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many nested includes are followed before the reader gives up.
 const INCLUDE_DEPTH_LIMIT: usize = 10;
@@ -75,7 +83,11 @@ pub fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
 /// `~/x` below `home`,
 /// an absolute path as is,
 /// a relative path beside the including file.
-pub fn include_target(value: &[u8], including: &Path, home: Option<&Path>) -> Option<PathBuf> {
+pub fn include_target(
+    value: &[u8],
+    including: &Path,
+    home: Option<&Path>,
+) -> Option<PathBuf> {
     let text: &str = std::str::from_utf8(value).ok()?;
     if let Some(rest) = text.strip_prefix("~/") {
         return Some(home?.join(rest));
@@ -104,7 +116,8 @@ pub fn discovery_key(key: &str) -> bool {
 /// cached diffs,
 /// `show`) print.
 pub fn content_key(key: &str) -> bool {
-    return CONTENT_KEYS.contains(&key) || (key.starts_with("submodule.") && key.ends_with(".ignore"));
+    return CONTENT_KEYS.contains(&key)
+        || (key.starts_with("submodule.") && key.ends_with(".ignore"));
 }
 
 /// What:
@@ -120,7 +133,12 @@ pub fn content_key(key: &str) -> bool {
 /// ```ts
 /// function avoidsKeys(path: string, declines: (key: string) => boolean, depth = 0): boolean | undefined;
 /// ```
-pub fn file_avoids_keys(path: &Path, home: Option<&Path>, depth: usize, declines: &dyn Fn(&str) -> bool) -> Option<bool> {
+pub fn file_avoids_keys(
+    path: &Path,
+    home: Option<&Path>,
+    depth: usize,
+    declines: &dyn Fn(&str) -> bool,
+) -> Option<bool> {
     if depth > INCLUDE_DEPTH_LIMIT {
         return None;
     }
@@ -154,7 +172,11 @@ pub fn entries_avoid_keys(
 }
 
 /// The discovery proof for one file.
-pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize) -> Option<bool> {
+pub fn file_avoids_discovery_keys(
+    path: &Path,
+    home: Option<&Path>,
+    depth: usize,
+) -> Option<bool> {
     return file_avoids_keys(path, home, depth, &discovery_key);
 }
 
@@ -203,7 +225,10 @@ pub struct ScopeEnvironment {
 /// or nothing;
 /// later entries override earlier ones,
 /// as in a child's environment.
-pub fn last_variable(variables: &[(OsString, OsString)], name: &str) -> Option<OsString> {
+pub fn last_variable(
+    variables: &[(OsString, OsString)],
+    name: &str,
+) -> Option<OsString> {
     for (candidate, value) in variables.iter().rev() {
         if candidate == name {
             return Some(value.clone());
@@ -214,7 +239,10 @@ pub fn last_variable(variables: &[(OsString, OsString)], name: &str) -> Option<O
 
 /// The last variable named `name` as a path,
 /// or nothing when it is unset.
-fn path_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+fn path_variable(
+    variables: &[(OsString, OsString)],
+    name: &str,
+) -> Option<PathBuf> {
     if let Some(value) = last_variable(variables, name) {
         return Some(PathBuf::from(value));
     }
@@ -223,7 +251,10 @@ fn path_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathB
 
 /// The last variable named `name` as a path,
 /// or nothing when it is unset or empty.
-fn nonempty_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+fn nonempty_variable(
+    variables: &[(OsString, OsString)],
+    name: &str,
+) -> Option<PathBuf> {
     if let Some(value) = last_variable(variables, name)
         && !value.is_empty()
     {
@@ -242,14 +273,15 @@ impl ScopeEnvironment {
     ///  deliberately no constructor that reads the process environment alone.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopeEnvironment {
         // `GIT_CONFIG_NOSYSTEM` is a boolean: absent or false reads the system file, an empty value is false.
-        let (no_system, boolean_ok): (bool, bool) = match last_variable(variables, "GIT_CONFIG_NOSYSTEM") {
-            None => (false, true),
-            Some(value) if value.is_empty() => (false, true),
-            Some(value) => match parse_bool(Some(value.as_encoded_bytes())) {
-                Some(truth) => (truth, true),
-                None => (true, false),
-            },
-        };
+        let (no_system, boolean_ok): (bool, bool) =
+            match last_variable(variables, "GIT_CONFIG_NOSYSTEM") {
+                None => (false, true),
+                Some(value) if value.is_empty() => (false, true),
+                Some(value) => match parse_bool(Some(value.as_encoded_bytes())) {
+                    Some(truth) => (truth, true),
+                    None => (true, false),
+                },
+            };
         let mut scope: ScopeEnvironment = ScopeEnvironment {
             home: nonempty_variable(variables, "HOME"),
             xdg: nonempty_variable(variables, "XDG_CONFIG_HOME"),
@@ -329,7 +361,10 @@ impl ScopeEnvironment {
 /// ```ts
 /// scopeFiles(env).every((file) => avoidsDiscoveryKeys(file)); // undefined when unreadable
 /// ```
-pub fn outer_scopes_avoid_keys(scope: &ScopeEnvironment, declines: &dyn Fn(&str) -> bool) -> Option<bool> {
+pub fn outer_scopes_avoid_keys(
+    scope: &ScopeEnvironment,
+    declines: &dyn Fn(&str) -> bool,
+) -> Option<bool> {
     if scope.unresolvable {
         return None;
     }

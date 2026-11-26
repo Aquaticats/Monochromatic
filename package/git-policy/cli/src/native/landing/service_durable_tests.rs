@@ -5,7 +5,10 @@
 //! and the flush of the index that follows `core.fsync`.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// The names of the syncs a closure's landing queued or waited for,
 /// from the events of this thread.
@@ -38,7 +41,10 @@ fn a_published_landing_queues_and_the_background_thread_flushes() {
         });
         assert_eq!(events, vec![String::from("sync-queued:x")]);
         drain();
-        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed it");
+        assert!(
+            BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before,
+            "the background thread flushed it"
+        );
         remove(root.as_path());
     });
 }
@@ -53,7 +59,10 @@ fn an_unpublished_landing_forces_what_it_queued() {
             flush_file(&file, "x").expect("queued");
             deferral.settle(false);
         });
-        assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x")]);
+        assert_eq!(
+            events,
+            vec![String::from("sync-queued:x"), String::from("sync-waited:x")]
+        );
         remove(root.as_path());
     });
 }
@@ -70,7 +79,14 @@ fn a_dropped_deferral_forces_and_ends() {
             drop(deferral);
             flush_file(&file, "y").expect("made now");
         });
-        assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x"), String::from("sync-waited:y")]);
+        assert_eq!(
+            events,
+            vec![
+                String::from("sync-queued:x"),
+                String::from("sync-waited:x"),
+                String::from("sync-waited:y")
+            ]
+        );
         remove(root.as_path());
     });
 }
@@ -80,7 +96,9 @@ fn a_dropped_deferral_forces_and_ends() {
 #[test]
 fn a_flush_outside_a_landing_is_made_now() {
     let (root, file) = record("durable-outside");
-    let events = events_of(|| { flush_file(&file, "z").expect("made now"); });
+    let events = events_of(|| {
+        flush_file(&file, "z").expect("made now");
+    });
     assert_eq!(events, vec![String::from("sync-waited:z")]);
     remove(root.as_path());
 }
@@ -128,7 +146,10 @@ fn a_landing_begun_without_the_index_named_reports_it_unhardened() {
         // `let deferral = begin(false);` starts the landing on this thread; `false` says `core.fsync` did not name the index.
         let deferral = begin(false);
         // The answer while the landing runs is the one it was told.
-        assert!(!index_is_hardened(), "core.fsync did not name the index, so it is not flushed");
+        assert!(
+            !index_is_hardened(),
+            "core.fsync did not name the index, so it is not flushed"
+        );
         // `settle(true)` ends the landing as one that published a commit; nothing was queued, so nothing is handed over.
         deferral.settle(true);
     });
@@ -162,15 +183,27 @@ fn a_landing_begun_with_the_index_named_reports_it_hardened_and_the_default_retu
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         // `begin(true)` says `core.fsync` named the index.
         let hardened = begin(true);
-        assert!(index_is_hardened(), "core.fsync named the index, so it is flushed");
+        assert!(
+            index_is_hardened(),
+            "core.fsync named the index, so it is flushed"
+        );
         hardened.settle(true);
-        assert!(index_is_hardened(), "no landing runs, so the default (flushed) holds");
+        assert!(
+            index_is_hardened(),
+            "no landing runs, so the default (flushed) holds"
+        );
         // A landing begun with `false` changes the answer; ending it, here by dropping it unsettled, restores the default.
         let unhardened = begin(false);
-        assert!(!index_is_hardened(), "the landing was told the index is not named");
+        assert!(
+            !index_is_hardened(),
+            "the landing was told the index is not named"
+        );
         // `drop(x)` ends `x` early, as a panic in the landing would; the deferral's `Drop` forces its queue and ends it.
         drop(unhardened);
-        assert!(index_is_hardened(), "a dropped landing leaves the default behind");
+        assert!(
+            index_is_hardened(),
+            "a dropped landing leaves the default behind"
+        );
     });
 }
 
@@ -186,7 +219,14 @@ fn thread_probe() {
         return;
     }
     let started: bool = std::thread::Builder::new().spawn(|| {}).is_ok();
-    println!("{}", if started { "thread-started" } else { "thread-refused" });
+    println!(
+        "{}",
+        if started {
+            "thread-started"
+        } else {
+            "thread-refused"
+        }
+    );
 }
 
 /// Makes the syncs of a landing,
@@ -196,10 +236,19 @@ fn thread_probe() {
 /// A test run without the variable does nothing.
 #[test]
 fn durable_helper() {
-    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
+    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else {
+        return;
+    };
     let directory: std::path::PathBuf = std::path::PathBuf::from(named);
     let pending = |what: &'static str| -> Vec<Pending> {
-        return (0..3).map(|_| { return Pending { handle: File::open(directory.join("record")).expect("open"), what }; }).collect();
+        return (0..3)
+            .map(|_| {
+                return Pending {
+                    handle: File::open(directory.join("record")).expect("open"),
+                    what,
+                };
+            })
+            .collect();
     };
     let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
     force(pending("forced"));
@@ -223,13 +272,19 @@ fn durable_helper() {
 #[test]
 fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic() {
     let apply_limit = || -> std::io::Result<()> {
-        let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut found = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
         unsafe {
             if libc::getrlimit(libc::RLIMIT_NPROC, &mut found) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            let lowered = libc::rlimit { rlim_cur: 1, rlim_max: found.rlim_max };
+            let lowered = libc::rlimit {
+                rlim_cur: 1,
+                rlim_max: found.rlim_max,
+            };
             if libc::setrlimit(libc::RLIMIT_NPROC, &lowered) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -237,15 +292,19 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
         return Ok(());
     };
     // The probe is a process of the same program that tries to start one thread under the limit and says what happened.
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, std::ffi::OsStr::new("probe"))];
-    let probe: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
-        exact_test: "landing::service_durable::tests::thread_probe",
-        environment: environment.as_slice(),
-        standard_error: std::process::Stdio::null(),
-        before_the_exec: Some(Box::new(move || { return apply_limit(); })),
-        ..crate::child_test_process::ChildTest::default()
-    })
-    .expect("the probe ends within the deadline");
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(HELPER_DIRECTORY, std::ffi::OsStr::new("probe"))];
+    let probe: std::process::Output =
+        crate::child_test_process::finished(crate::child_test_process::ChildTest {
+            exact_test: "landing::service_durable::tests::thread_probe",
+            environment: environment.as_slice(),
+            standard_error: std::process::Stdio::null(),
+            before_the_exec: Some(Box::new(move || {
+                return apply_limit();
+            })),
+            ..crate::child_test_process::ChildTest::default()
+        })
+        .expect("the probe ends within the deadline");
     if String::from_utf8_lossy(probe.stdout.as_slice()).contains("thread-started") {
         eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no start was refused");
         return;
@@ -253,16 +312,28 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
     let (root, _file) = record("durable-no-thread");
     let helper_environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, root.as_os_str())];
     // The helper's pass is this control's assertion: it fails when a sync panics or cannot start its thread.
-    let output: std::process::Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
-        exact_test: "landing::service_durable::tests::durable_helper",
-        environment: helper_environment.as_slice(),
-        before_the_exec: Some(Box::new(move || { return apply_limit(); })),
-        ..crate::child_test_process::ChildTest::default()
-    });
+    let output: std::process::Output =
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "landing::service_durable::tests::durable_helper",
+            environment: helper_environment.as_slice(),
+            before_the_exec: Some(Box::new(move || {
+                return apply_limit();
+            })),
+            ..crate::child_test_process::ChildTest::default()
+        });
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(output.status.success(), "the helper panicked or failed: {said}");
+    assert!(
+        output.status.success(),
+        "the helper panicked or failed: {said}"
+    );
     assert!(!said.contains("failed to spawn thread"), "{said}");
-    assert_eq!(std::fs::read_to_string(root.join("done")).expect("the helper finished").trim(), "3", "the background batch was made here, handle by handle: {said}");
+    assert_eq!(
+        std::fs::read_to_string(root.join("done"))
+            .expect("the helper finished")
+            .trim(),
+        "3",
+        "the background batch was made here, handle by handle: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -270,7 +341,10 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
 /// read from `/proc`.
 fn thread_names_of_this_process() -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
-    for task in std::fs::read_dir("/proc/self/task").expect("the tasks of this process").flatten() {
+    for task in std::fs::read_dir("/proc/self/task")
+        .expect("the tasks of this process")
+        .flatten()
+    {
         if let Ok(name) = std::fs::read_to_string(task.path().join("comm")) {
             names.push(name.trim_end().to_string());
         }
@@ -289,10 +363,19 @@ fn the_background_syncs_are_made_without_a_thread_of_their_own() {
         flush_file(&file, "x").expect("queued");
         deferral.settle(true);
         drain();
-        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the queued sync was made");
+        assert!(
+            BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before,
+            "the queued sync was made"
+        );
     });
-    let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| return name == "cli-git-durable").collect();
-    assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
+    let own: Vec<String> = thread_names_of_this_process()
+        .into_iter()
+        .filter(|name| return name == "cli-git-durable")
+        .collect();
+    assert!(
+        own.is_empty(),
+        "the background syncs started a thread of their own: {own:?}"
+    );
     remove(root.as_path());
 }
 
@@ -315,9 +398,16 @@ fn the_lock_markers_flush_is_queued_and_the_background_task_makes_it() {
     let events = events_of(|| {
         crate::service_index_placement::sync_file(&file).expect("queued");
     });
-    assert_eq!(events, vec![String::from("sync-queued:lock-marker")], "the flush is queued and none is waited for");
+    assert_eq!(
+        events,
+        vec![String::from("sync-queued:lock-marker")],
+        "the flush is queued and none is waited for"
+    );
     drain();
-    assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed the marker");
+    assert!(
+        BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before,
+        "the background thread flushed the marker"
+    );
     remove(root.as_path());
 }
 
@@ -339,9 +429,20 @@ fn the_lock_markers_flush_is_queued_and_the_background_task_makes_it() {
 fn a_flush_no_background_task_takes_is_never_made_on_the_callers_thread() {
     let (root, file) = record("durable-lock-marker-refused");
     let events = events_of(|| {
-        defer_file_with(&|batch: Vec<Pending>| { return Some(batch); }, &file, "lock-marker").expect("queued, or left to the write-back");
+        defer_file_with(
+            &|batch: Vec<Pending>| {
+                return Some(batch);
+            },
+            &file,
+            "lock-marker",
+        )
+        .expect("queued, or left to the write-back");
     });
-    assert_eq!(events, vec![String::from("sync-queued:lock-marker")], "no flush is waited for when no task takes it");
+    assert_eq!(
+        events,
+        vec![String::from("sync-queued:lock-marker")],
+        "no flush is waited for when no task takes it"
+    );
     remove(root.as_path());
 }
 
@@ -366,9 +467,15 @@ fn a_published_landing_whose_queue_no_task_takes_waits_for_nothing() {
         let events = events_of(|| {
             let deferral = begin(false);
             flush_file(&file, "x").expect("queued");
-            deferral.settle_with(true, &|batch: Vec<Pending>| { return Some(batch); });
+            deferral.settle_with(true, &|batch: Vec<Pending>| {
+                return Some(batch);
+            });
         });
-        assert_eq!(events, vec![String::from("sync-queued:x")], "the commit's thread waits for no flush");
+        assert_eq!(
+            events,
+            vec![String::from("sync-queued:x")],
+            "the commit's thread waits for no flush"
+        );
         remove(root.as_path());
     });
 }

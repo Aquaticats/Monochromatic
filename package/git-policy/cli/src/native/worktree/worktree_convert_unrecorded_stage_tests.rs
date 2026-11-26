@@ -15,7 +15,11 @@ fn creating_journal() -> Journal {
         phase: Phase::Creating,
         token: String::from("a"),
         path: b"/x".to_vec(),
-        old_identity: ObjectId { device: 1, inode: 2, birth: Some((3, 4)) },
+        old_identity: ObjectId {
+            device: 1,
+            inode: 2,
+            birth: Some((3, 4)),
+        },
         git_file: b"g".to_vec(),
         new_identity: None,
         synced_ms: None,
@@ -63,12 +67,19 @@ fn another_phase_or_another_object_is_not_adopted() {
     let candidate: PathBuf = root.join("wt");
     std::fs::create_dir_all(candidate.as_path()).expect("worktree");
     std::fs::create_dir_all(converting_path(candidate.as_path()).as_path()).expect("empty stage");
-    let synced: Journal = Journal { phase: Phase::Synced, ..creating_journal() };
+    let synced: Journal = Journal {
+        phase: Phase::Synced,
+        ..creating_journal()
+    };
     assert!(!owns_unrecorded_stage(&synced, candidate.as_path()).expect("answered"));
     // A journal that recorded an identity owns the stage with that identity and not the empty one the name holds.
     let recorded: Journal = Journal {
         phase: Phase::Creating,
-        new_identity: Some(ObjectId { device: 1, inode: 99, birth: Some((3, 4)) }),
+        new_identity: Some(ObjectId {
+            device: 1,
+            inode: 99,
+            birth: Some((3, 4)),
+        }),
         ..creating_journal()
     };
     assert!(!owns_unrecorded_stage(&recorded, candidate.as_path()).expect("answered"));
@@ -83,8 +94,13 @@ fn a_free_name_owns_nothing() {
     let candidate: PathBuf = root.join("wt");
     std::fs::create_dir_all(candidate.as_path()).expect("worktree");
     assert!(!owns_unrecorded_stage(&creating_journal(), candidate.as_path()).expect("answered"));
-    assert!(!stage_is_this_conversions(&creating_journal(), candidate.as_path()).expect("answered"));
-    assert!(!candidate.join(".git").exists(), "the fixture holds no journal of its own");
+    assert!(
+        !stage_is_this_conversions(&creating_journal(), candidate.as_path()).expect("answered")
+    );
+    assert!(
+        !candidate.join(".git").exists(),
+        "the fixture holds no journal of its own"
+    );
     let _ = JOURNAL_NAME;
     remove(root.as_path());
 }

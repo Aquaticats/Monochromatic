@@ -4,11 +4,22 @@
 //! unfinished trailing appends and corruption.
 
 use super::*;
-use crate::private_storage::{take_directory_syncs, take_file_syncs, write_private_file};
-use crate::test_support::{fixture, remove};
+use crate::private_storage::{
+    take_directory_syncs,
+    take_file_syncs,
+    write_private_file,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// One created-entry record.
-fn created(relative_path: &[u8], device: u64, inode: u64) -> InstalledPath {
+fn created(
+    relative_path: &[u8],
+    device: u64,
+    inode: u64,
+) -> InstalledPath {
     return InstalledPath {
         device,
         inode,
@@ -82,16 +93,36 @@ fn the_install_log_flushes_nothing() {
     take_directory_syncs();
     {
         let mut opened: OpenedLog = open_install_log(stage.as_path()).expect("open");
-        opened.log.append_intents(&[b"a".to_vec()]).expect("intents");
-        opened.log.append_creations(&[created(b"a", 1, 2)]).expect("creations");
+        opened
+            .log
+            .append_intents(&[b"a".to_vec()])
+            .expect("intents");
+        opened
+            .log
+            .append_creations(&[created(b"a", 1, 2)])
+            .expect("creations");
     }
-    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the install log flushes no file");
-    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the install log flushes no directory");
+    assert_eq!(
+        take_file_syncs(),
+        Vec::<PathBuf>::new(),
+        "the install log flushes no file"
+    );
+    assert_eq!(
+        take_directory_syncs(),
+        Vec::<PathBuf>::new(),
+        "the install log flushes no directory"
+    );
     let text: String = std::fs::read_to_string(stage.join(INSTALL_LOG_NAME)).expect("log");
-    assert!(text.contains("\"intended\":[\"a\"]"), "the batch is published whole: {text}");
+    assert!(
+        text.contains("\"intended\":[\"a\"]"),
+        "the batch is published whole: {text}"
+    );
     let control: PathBuf = root.join("durable-control");
     crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
-    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    assert!(
+        !take_file_syncs().is_empty(),
+        "the recorder sees a durable private file"
+    );
     remove(root.as_path());
 }
 
@@ -222,8 +253,7 @@ fn a_batch_holding_a_name_that_is_not_text_round_trips_through_its_bytes() {
     }
     let text: String = std::fs::read_to_string(stage.join(INSTALL_LOG_NAME)).expect("log");
     assert_eq!(
-        text,
-        "{\"intendedHex\":[\"6361636865\",\"63616368652f626164ff2e62696e\"]}\n",
+        text, "{\"intendedHex\":[\"6361636865\",\"63616368652f626164ff2e62696e\"]}\n",
         "one name that is not text moves the whole batch to its bytes"
     );
     let reopened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");

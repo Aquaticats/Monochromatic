@@ -4,17 +4,42 @@
 //! and resumption.
 
 use super::*;
-use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    dead_copy_owner,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{
-    adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals, write_journal,
+    adopt_journal,
+    create_journal,
+    create_journal_for,
+    ensure_journal_root,
+    journal_root,
+    read_pending_journals,
+    write_journal,
 };
 use crate::worktree_copy_journal_encoding_and_validation::Journal;
 use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
-use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
-use crate::worktree_copy_unfilled_record::{UnfilledCopy, decode_unfilled, unfilled_records_exist};
-use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::worktree_copy_stage::{
+    StagedSnapshot,
+    new_stage_container,
+    stage_ignored_snapshot,
+};
+use crate::worktree_copy_stage_claim::{
+    claim_stage,
+    claim_stage_for,
+    stage_claims_exist,
+};
+use crate::worktree_copy_unfilled_record::{
+    UnfilledCopy,
+    decode_unfilled,
+    unfilled_records_exist,
+};
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.
@@ -58,11 +83,23 @@ fn left_unfilled_record(common: &Path) -> Option<UnfilledCopy> {
 
 /// Creates a staged journal for a destination,
 /// as an interrupted copy would have left it.
-fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
+fn staged_journal(
+    source: &Path,
+    destination: &Path,
+) -> PendingJournal {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let snapshot: StagedSnapshot =
-        stage_ignored_snapshot(&git_context(), source, new_stage_container(destination).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
-    return create_journal_for(common.as_path(), destination, &snapshot, &dead_copy_owner()).expect("journal");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source,
+        new_stage_container(destination)
+            .expect("container")
+            .as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    return create_journal_for(common.as_path(), destination, &snapshot, &dead_copy_owner())
+        .expect("journal");
 }
 
 /// A repository's registrations decide whether a destination is registered:
@@ -110,15 +147,31 @@ fn a_pointer_that_ends_in_a_carriage_return_is_still_followed() {
     let (source, topic) = linked_source(root.as_path());
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let pointer: PathBuf = topic.join(".git");
-    let recorded: String = std::fs::read_to_string(pointer.as_path()).expect("the pointer Git wrote");
-    std::fs::write(pointer.as_path(), format!("{}\r\n", recorded.trim_end_matches(['\n', '\r'])).as_bytes()).expect("the same pointer, ended the way a Windows tool ends a line");
+    let recorded: String =
+        std::fs::read_to_string(pointer.as_path()).expect("the pointer Git wrote");
+    std::fs::write(
+        pointer.as_path(),
+        format!("{}\r\n", recorded.trim_end_matches(['\n', '\r'])).as_bytes(),
+    )
+    .expect("the same pointer, ended the way a Windows tool ends a line");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1, "{:?}", report.notices);
     assert!(report.notices.is_empty(), "{:?}", report.notices);
-    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
-    assert!(!PathBuf::from(pending.journal.stage_container.as_path()).exists(), "a finished copy takes its stage with it");
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("resumed copy"),
+        b"payload"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
+    assert!(
+        !PathBuf::from(pending.journal.stage_container.as_path()).exists(),
+        "a finished copy takes its stage with it"
+    );
     remove(root.as_path());
 }
 
@@ -130,26 +183,46 @@ fn a_pointer_that_cannot_be_followed_keeps_the_pending_copy() {
     let (source, topic) = linked_source(root.as_path());
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    std::fs::write(topic.join(".git"), b"gitdir: /nonexistent/admin\n").expect("a pointer to nothing");
+    std::fs::write(topic.join(".git"), b"gitdir: /nonexistent/admin\n")
+        .expect("a pointer to nothing");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("still registers"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy that may still be registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy that may still be registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
 /// A copy whose stage recorded the registration it was made for,
 /// as an add's copy does.
-fn staged_journal_of_a_bound_copy(source: &Path, topic: &Path) -> (PendingJournal, PathBuf) {
+fn staged_journal_of_a_bound_copy(
+    source: &Path,
+    topic: &Path,
+) -> (PendingJournal, PathBuf) {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic).expect("binding").binding;
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic)
+        .expect("binding")
+        .binding;
     let pending: PendingJournal = staged_journal(source, topic);
     let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding)
+        .expect("recorded");
     return (pending, container);
 }
 
@@ -165,14 +238,31 @@ fn a_pointer_left_naming_the_repository_directory_keeps_the_pending_copy() {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     // The path a rewrite reaches before the last component of the registration is written; it exists, and it is not
     // the registrations directory.
-    std::fs::write(topic.join(".git"), format!("gitdir: {}\n", common.display()).as_bytes()).expect("a pointer cut before its last component");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    std::fs::write(
+        topic.join(".git"),
+        format!("gitdir: {}\n", common.display()).as_bytes(),
+    )
+    .expect("a pointer cut before its last component");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("still registers"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that is still registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
@@ -187,13 +277,26 @@ fn a_pointer_missing_while_it_is_replaced_keeps_the_pending_copy() {
     let (_pending, stage) = staged_journal_of_a_bound_copy(source.as_path(), topic.as_path());
     std::fs::remove_file(topic.join(".git")).expect("the pointer is gone while it is replaced");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("still registers"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that is still registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
@@ -209,12 +312,22 @@ fn a_pointer_naming_a_symlink_loop_keeps_the_pending_copy_and_still_answers() {
     std::os::unix::fs::symlink("loop", topic.join("loop")).expect("a link to itself");
     std::fs::write(topic.join(".git"), b"gitdir: loop\n").expect("a pointer into the loop");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("the recovery check answers instead of failing");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path())
+        .expect("the recovery check answers instead of failing");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("still registers"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that is still registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
     remove(root.as_path());
 }
 
@@ -230,16 +343,22 @@ fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewher
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let naming_nothing: PathBuf = root.join("naming-nothing");
     std::fs::create_dir(naming_nothing.as_path()).expect("destination");
-    std::fs::write(naming_nothing.join(".git"), b"gitdir: \r\n").expect("a pointer with no directory");
+    std::fs::write(naming_nothing.join(".git"), b"gitdir: \r\n")
+        .expect("a pointer with no directory");
     assert_eq!(
         destination_registration(common.as_path(), naming_nothing.as_path()),
         Registration::Unregistered
     );
     let elsewhere: PathBuf = root.join("admin");
-    std::fs::create_dir(elsewhere.as_path()).expect("a directory that is no administrative directory");
+    std::fs::create_dir(elsewhere.as_path())
+        .expect("a directory that is no administrative directory");
     let foreign: PathBuf = root.join("foreign");
     std::fs::create_dir(foreign.as_path()).expect("destination");
-    std::fs::write(foreign.join(".git"), format!("gitdir: {}\n", elsewhere.display()).as_bytes()).expect("a pointer outside the repository");
+    std::fs::write(
+        foreign.join(".git"),
+        format!("gitdir: {}\n", elsewhere.display()).as_bytes(),
+    )
+    .expect("a pointer outside the repository");
     assert_eq!(
         destination_registration(common.as_path(), foreign.as_path()),
         Registration::Unregistered
@@ -278,19 +397,35 @@ fn a_pointer_left_empty_by_an_interrupted_rewrite_keeps_the_pending_copy() {
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     std::fs::write(topic.join(".git"), b"").expect("a pointer cut off before its path");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("still registers"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy that is still registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy that is still registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
 /// The administrative directory of the destination's registration,
 /// read before a test disturbs the `gitdir` file inside it.
-fn registration_of(common: &Path, destination: &Path) -> PathBuf {
+fn registration_of(
+    common: &Path,
+    destination: &Path,
+) -> PathBuf {
     return match registration_naming(common, destination) {
         NamedRegistration::Named(admin) => admin,
         other => panic!("the registration is there: {other:?}"),
@@ -311,13 +446,26 @@ fn a_gitdir_left_empty_keeps_the_pending_copy() {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
     std::fs::write(admin.join("gitdir").as_path(), b"").expect("a gitdir cut off before its path");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("could not be examined"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that may still be registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
@@ -334,14 +482,28 @@ fn a_gitdir_unlinked_while_it_is_written_again_keeps_the_pending_copy() {
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
-    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the gitdir is gone while it is written again");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    std::fs::remove_file(admin.join("gitdir").as_path())
+        .expect("the gitdir is gone while it is written again");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("could not be examined"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that may still be registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
@@ -362,16 +524,35 @@ fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
     let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
     let closed: PathBuf = root.join("closed");
     std::fs::create_dir(closed.as_path()).expect("a directory another command closes for a moment");
-    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search through it");
-    std::fs::write(admin.join("gitdir").as_path(), format!("{}/see/.git\n", closed.display()).as_bytes()).expect("a gitdir recorded through the closed directory");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
-    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("searchable again");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o000))
+        .expect("no search through it");
+    std::fs::write(
+        admin.join("gitdir").as_path(),
+        format!("{}/see/.git\n", closed.display()).as_bytes(),
+    )
+    .expect("a gitdir recorded through the closed directory");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("searchable again");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
     assert!(notice.contains("could not be examined"), "{notice}");
-    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
-    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    assert!(
+        stage.exists(),
+        "the stage stays for the copy of a worktree that may still be registered"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays"
+    );
+    assert!(
+        !topic.join("cache/data").exists(),
+        "nothing was written into the destination"
+    );
     remove(root.as_path());
 }
 
@@ -381,7 +562,9 @@ fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
 #[cfg(unix)]
 #[test]
 fn a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_recovery::tests::a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_recovery::tests::a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStrExt;
@@ -393,17 +576,32 @@ fn a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy() {
     std::fs::create_dir(admin.as_path()).expect("an administrative directory");
     let destination: PathBuf = admin.join(std::ffi::OsStr::from_bytes(b" \xff"));
     std::fs::create_dir(destination.as_path()).expect("the worktree the registration names");
-    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display()).as_bytes()).expect("the pointer back to the registration");
-    std::fs::write(admin.join("gitdir"), b" \xff/.git\n").expect("a gitdir recorded relative to the registration");
+    std::fs::write(
+        destination.join(".git"),
+        format!("gitdir: {}\n", admin.display()).as_bytes(),
+    )
+    .expect("the pointer back to the registration");
+    std::fs::write(admin.join("gitdir"), b" \xff/.git\n")
+        .expect("a gitdir recorded relative to the registration");
     // The pair Git would leave passes the binding every copy is made against, so the space is part of the path it records.
-    let _bound = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("a registration the binding accepts");
+    let _bound =
+        crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path())
+            .expect("a registration the binding accepts");
     let pending: PendingJournal = staged_journal(source.as_path(), destination.as_path());
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1, "{:?}", report.notices);
     assert!(report.notices.is_empty(), "{:?}", report.notices);
-    assert_eq!(std::fs::read(destination.join("cache/data")).expect("resumed copy"), b"payload");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).expect("resumed copy"),
+        b"payload"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     assert!(!stage.exists(), "a finished copy takes its stage with it");
     remove(root.as_path());
 }
@@ -421,7 +619,8 @@ fn a_pointer_that_is_a_named_pipe_is_answered_without_waiting() {
     make_pipe(destination.join(".git").as_path());
     let (sender, receiver) = std::sync::mpsc::channel::<Registration>();
     std::thread::spawn(move || {
-        let answer: Registration = destination_registration(common.as_path(), destination.as_path());
+        let answer: Registration =
+            destination_registration(common.as_path(), destination.as_path());
         let _sent: Result<(), _> = sender.send(answer);
     });
     let answer: Registration = receiver
@@ -439,7 +638,10 @@ fn registration_answers_a_pointer_left_half_written() {
     let root: PathBuf = fixture("recovery-registration-half-written");
     let (source, _topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    for (name, content) in [("cut-in-the-word", b"gitdir".as_slice()), ("cut-before-the-prefix", b"g".as_slice())] {
+    for (name, content) in [
+        ("cut-in-the-word", b"gitdir".as_slice()),
+        ("cut-before-the-prefix", b"g".as_slice()),
+    ] {
         let destination: PathBuf = root.join(name);
         std::fs::create_dir(destination.as_path()).expect("destination");
         std::fs::write(destination.join(".git"), content).expect("a pointer cut off mid-word");
@@ -563,7 +765,14 @@ fn a_resumed_installation_that_fails_ends_with_a_notice_and_leaves_its_record() 
     std::fs::create_dir_all(topic.join("cache")).expect("destination cache");
     std::fs::write(topic.join("cache/data"), b"differs").expect("differing entry");
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
+    write_journal(
+        pending.path.as_path(),
+        &Journal {
+            phase: Phase::Installing,
+            ..pending.journal.clone()
+        },
+    )
+    .expect("installing phase");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let report: RecoveryReport =
         recover_worktree_copy_transactions(common.as_path()).expect("recovered");
@@ -586,8 +795,12 @@ fn a_resumed_installation_that_fails_ends_with_a_notice_and_leaves_its_record() 
     );
     // The record the copy wrote before its first entry stays, and names this worktree and the source that still holds
     // what is missing; the line comes again from every later command until the worktree is removed or replaced.
-    let record: UnfilledCopy = left_unfilled_record(common.as_path()).expect("a record that names the unfilled worktree");
-    assert_eq!(record.destination, std::fs::canonicalize(topic.as_path()).expect("topic"));
+    let record: UnfilledCopy =
+        left_unfilled_record(common.as_path()).expect("a record that names the unfilled worktree");
+    assert_eq!(
+        record.destination,
+        std::fs::canonicalize(topic.as_path()).expect("topic")
+    );
     assert_eq!(record.source, source);
     assert!(unfilled_records_exist(common.as_path()).expect("pending check"));
     // A copy still running owns its record: the same pass says the failure once and does not repeat its own line.
@@ -605,9 +818,16 @@ fn a_resumed_installation_that_fails_ends_with_a_notice_and_leaves_its_record() 
 fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
     let root: PathBuf = fixture("recovery-resume-main");
     let (source, topic) = linked_source(root.as_path());
-    std::fs::write(source.join(".gitignore"), b"cache/\nnode_modules/\ntarget/\n.pnpm-store/\n").expect("gitignore");
+    std::fs::write(
+        source.join(".gitignore"),
+        b"cache/\nnode_modules/\ntarget/\n.pnpm-store/\n",
+    )
+    .expect("gitignore");
     for (path, bytes) in [
-        ("node_modules/.pnpm/dep@1/node_modules/dep/index.js", b"module".as_slice()),
+        (
+            "node_modules/.pnpm/dep@1/node_modules/dep/index.js",
+            b"module".as_slice(),
+        ),
         ("node_modules/.cache/jiti/x", b"cache"),
         ("target/debug/deps/libx.rlib", b"rlib"),
         ("target/debug/incremental/x", b"incremental"),
@@ -616,32 +836,66 @@ fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
         std::fs::create_dir_all(source.join(path).parent().expect("parent")).expect("directories");
         std::fs::write(source.join(path), bytes).expect("file");
     }
-    std::os::unix::fs::symlink(".pnpm/dep@1/node_modules/dep", source.join("node_modules/dep")).expect("link");
+    std::os::unix::fs::symlink(
+        ".pnpm/dep@1/node_modules/dep",
+        source.join("node_modules/dep"),
+    )
+    .expect("link");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
-        new_stage_container(topic.as_path()).expect("container").as_path(),
+        new_stage_container(topic.as_path())
+            .expect("container")
+            .as_path(),
         std::slice::from_ref(&topic),
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    let pending: PendingJournal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
-    write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let pending: PendingJournal = create_journal_for(
+        common.as_path(),
+        topic.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
+    write_journal(
+        pending.path.as_path(),
+        &Journal {
+            phase: Phase::Installing,
+            ..pending.journal.clone()
+        },
+    )
+    .expect("installing phase");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1);
     assert!(report.notices.is_empty(), "{:?}", report.notices);
-    assert_eq!(std::fs::read(topic.join("node_modules/.pnpm/dep@1/node_modules/dep/index.js")).expect("dependency"), b"module");
+    assert_eq!(
+        std::fs::read(topic.join("node_modules/.pnpm/dep@1/node_modules/dep/index.js"))
+            .expect("dependency"),
+        b"module"
+    );
     assert_eq!(
         std::fs::read_link(topic.join("node_modules/dep")).expect("link"),
         PathBuf::from(".pnpm/dep@1/node_modules/dep")
     );
-    assert_eq!(std::fs::read(topic.join("target/debug/deps/libx.rlib")).expect("build"), b"rlib");
-    assert!(topic.join("cache/data").exists(), "the earlier ignored directory arrives too");
+    assert_eq!(
+        std::fs::read(topic.join("target/debug/deps/libx.rlib")).expect("build"),
+        b"rlib"
+    );
+    assert!(
+        topic.join("cache/data").exists(),
+        "the earlier ignored directory arrives too"
+    );
     assert!(!topic.join("node_modules/.cache").exists());
     assert!(!topic.join("target/debug/incremental").exists());
     assert!(!topic.join(".pnpm-store").exists());
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     remove(root.as_path());
 }
 
@@ -685,20 +939,63 @@ fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     let root: PathBuf = fixture("recovery-pending-check");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut Vec::new()).expect("nothing pending");
-    assert!(!journal_root(common.as_path()).exists(), "the check creates no journal root");
-    let snapshot: StagedSnapshot =
-        stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
-    let live: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal of this process");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(topic.as_path()),
+        &git_context(),
+        &mut Vec::new(),
+    )
+    .expect("nothing pending");
+    assert!(
+        !journal_root(common.as_path()).exists(),
+        "the check creates no journal root"
+    );
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(topic.as_path())
+            .expect("container")
+            .as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let live: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot)
+        .expect("journal of this process");
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("a live owner's journal is skipped");
-    assert!(live.path.exists(), "a live owner keeps the journal for itself");
-    assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
-    assert!(Path::new(live.journal.stage_container.as_path()).exists(), "its stage stays");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(topic.as_path()),
+        &git_context(),
+        &mut notices,
+    )
+    .expect("a live owner's journal is skipped");
+    assert!(
+        live.path.exists(),
+        "a live owner keeps the journal for itself"
+    );
+    assert!(
+        notices.is_empty(),
+        "{}",
+        String::from_utf8_lossy(notices.as_slice())
+    );
+    assert!(
+        Path::new(live.journal.stage_container.as_path()).exists(),
+        "its stage stays"
+    );
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("a dead owner's journal is recovered");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(topic.as_path()),
+        &git_context(),
+        &mut notices,
+    )
+    .expect("a dead owner's journal is recovered");
     assert!(!dead.path.exists());
-    assert!(live.path.exists(), "the live journal is still whole after the dead one went");
+    assert!(
+        live.path.exists(),
+        "the live journal is still whole after the dead one went"
+    );
     remove(root.as_path());
 }
 
@@ -715,11 +1012,18 @@ fn only_one_command_takes_over_a_dead_journal() {
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let first = dead_copy_owner();
     let second = dead_copy_owner();
-    let won: PendingJournal = adopt_journal(&dead, &first).expect("rename works").expect("the first command wins");
+    let won: PendingJournal = adopt_journal(&dead, &first)
+        .expect("rename works")
+        .expect("the first command wins");
     assert_eq!(won.owner_token(), Some(first.token()));
     assert!(won.path.exists());
     assert!(!dead.path.exists());
-    assert!(adopt_journal(&dead, &second).expect("rename works").is_none(), "the old name is gone");
+    assert!(
+        adopt_journal(&dead, &second)
+            .expect("rename works")
+            .is_none(),
+        "the old name is gone"
+    );
     remove(root.as_path());
 }
 
@@ -731,14 +1035,20 @@ fn recovery_removes_a_stage_no_journal_names() {
     let root: PathBuf = fixture("recovery-abandoned-stage");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let claim = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim");
+    let claim =
+        claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::create_dir(claim.container()).expect("stage");
-    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700))
+        .expect("private");
     std::fs::write(claim.container().join("half"), b"copied so far").expect("partial copy");
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     assert_eq!(report.notices.len(), 1);
-    assert!(report.notices[0].contains("removed the stage"), "{:?}", report.notices);
+    assert!(
+        report.notices[0].contains("removed the stage"),
+        "{:?}",
+        report.notices
+    );
     assert!(!claim.container().exists());
     assert!(!stage_claims_exist(common.as_path()).expect("claims"));
     remove(root.as_path());
@@ -754,16 +1064,30 @@ fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let live = claim_stage(common.as_path(), topic.as_path()).expect("claim of this process");
-    let dead = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim of a dead process");
+    let dead = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner())
+        .expect("claim of a dead process");
     for claim in [&live, &dead] {
         std::fs::create_dir(claim.container()).expect("stage");
-        std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
+        std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700))
+            .expect("private");
     }
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("reaped");
-    assert!(live.container().exists(), "a live copy may still be staging");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(topic.as_path()),
+        &git_context(),
+        &mut notices,
+    )
+    .expect("reaped");
+    assert!(
+        live.container().exists(),
+        "a live copy may still be staging"
+    );
     assert!(!dead.container().exists(), "a dead owner's stage is reaped");
-    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the live claim stays");
+    assert!(
+        stage_claims_exist(common.as_path()).expect("claims"),
+        "the live claim stays"
+    );
     assert!(String::from_utf8_lossy(notices.as_slice()).contains("removed the stage"));
     remove(root.as_path());
 }
@@ -869,7 +1193,8 @@ fn incumbent_written_journal_is_recovered_natively() {
 #[cfg(unix)]
 #[test]
 fn registration_tells_a_missing_destination_from_an_unreadable_pointer() {
-    let root: PathBuf = std::fs::canonicalize(fixture("recovery-registration-faults")).expect("canonical");
+    let root: PathBuf =
+        std::fs::canonicalize(fixture("recovery-registration-faults")).expect("canonical");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let file: PathBuf = root.join("a-file");
@@ -898,9 +1223,12 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
     let blocker: PathBuf = root.join("blocker");
     std::fs::write(blocker.as_path(), b"a file").expect("blocker");
     pending.journal.stage_container = blocker.join("stage");
-    let failure: WorktreeCopyError = validate_stage(&pending).expect_err("the stage cannot be examined");
+    let failure: WorktreeCopyError =
+        validate_stage(&pending).expect_err("the stage cannot be examined");
     assert!(
-        failure.0.contains("could not validate worktree-copy recovery state"),
+        failure
+            .0
+            .contains("could not validate worktree-copy recovery state"),
         "{}",
         failure.0
     );
@@ -917,7 +1245,11 @@ fn racing_commands_take_a_dead_journal_exactly_once() {
     let root: PathBuf = fixture("recovery-race");
     let (source, topic) = linked_source(root.as_path());
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let owners: Vec<_> = (0..RACERS).map(|_racer| { return dead_copy_owner(); }).collect();
+    let owners: Vec<_> = (0..RACERS)
+        .map(|_racer| {
+            return dead_copy_owner();
+        })
+        .collect();
     let start: std::sync::Barrier = std::sync::Barrier::new(RACERS);
     let wins: usize = std::thread::scope(|scope| {
         let handles: Vec<_> = owners
@@ -929,11 +1261,25 @@ fn racing_commands_take_a_dead_journal_exactly_once() {
                 });
             })
             .collect();
-        return handles.into_iter().map(|handle| { return handle.join().expect("racer ends"); }).filter(|won| { return *won; }).count();
+        return handles
+            .into_iter()
+            .map(|handle| {
+                return handle.join().expect("racer ends");
+            })
+            .filter(|won| {
+                return *won;
+            })
+            .count();
     });
     assert_eq!(wins, 1, "exactly one command takes the journal");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "one journal remains, under the winner's name");
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "one journal remains, under the winner's name"
+    );
     remove(root.as_path());
 }
 
@@ -953,16 +1299,55 @@ fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_cha
     let root: PathBuf = fixture("recovery-foreign-expired");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let snapshot: StagedSnapshot =
-        stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
-    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
-    let pending: PendingJournal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &foreign).expect("journal");
-    std::fs::File::options().write(true).open(pending.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(topic.as_path())
+            .expect("container")
+            .as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let foreign = crate::worktree_copy_owner::CopyOwner {
+        pid: 31337,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
+    let pending: PendingJournal =
+        create_journal_for(common.as_path(), topic.as_path(), &snapshot, &foreign)
+            .expect("journal");
+    std::fs::File::options()
+        .write(true)
+        .open(pending.path.as_path())
+        .expect("open")
+        .set_modified(
+            std::time::SystemTime::now()
+                - crate::pid_namespace::FOREIGN_OWNER_PATIENCE
+                - std::time::Duration::from_secs(300),
+        )
+        .expect("age");
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
-    assert!(refused.0.contains(pending.path.to_string_lossy().as_ref()) && refused.0.contains("31337") && refused.0.contains("pid:[1]") && refused.0.contains("rm -- "), "{}", refused.0);
-    assert!(pending.path.exists() && stage.exists(), "the journal and its stage are untouched");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
+    let refused = recover_worktree_copy_transactions(common.as_path())
+        .expect_err("an expired foreign journal stops recovery");
+    assert!(
+        refused.0.contains(pending.path.to_string_lossy().as_ref())
+            && refused.0.contains("31337")
+            && refused.0.contains("pid:[1]")
+            && refused.0.contains("rm -- "),
+        "{}",
+        refused.0
+    );
+    assert!(
+        pending.path.exists() && stage.exists(),
+        "the journal and its stage are untouched"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1
+    );
     remove(root.as_path());
 }
 
@@ -976,25 +1361,52 @@ fn an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_on
     let root: PathBuf = fixture("recovery-foreign-after-dead");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let foreign = crate::worktree_copy_owner::CopyOwner {
+        pid: 31337,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
     let other: PathBuf = root.join("other");
     // Journals are read in name order, which holds random identifiers: journals are made until the dead one sorts before the foreign one.
     let (dead, expired): (PendingJournal, PendingJournal) = loop {
         let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-        let snapshot: StagedSnapshot =
-            stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(other.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
-        let expired: PendingJournal = create_journal_for(common.as_path(), other.as_path(), &snapshot, &foreign).expect("journal");
+        let snapshot: StagedSnapshot = stage_ignored_snapshot(
+            &git_context(),
+            source.as_path(),
+            new_stage_container(other.as_path())
+                .expect("container")
+                .as_path(),
+            &[],
+            &CopySelection::Ignored,
+        )
+        .expect("staged");
+        let expired: PendingJournal =
+            create_journal_for(common.as_path(), other.as_path(), &snapshot, &foreign)
+                .expect("journal");
         if dead.path.file_name() < expired.path.file_name() {
             break (dead, expired);
         }
         std::fs::remove_file(dead.path.as_path()).expect("discard the pair");
         std::fs::remove_file(expired.path.as_path()).expect("discard the pair");
     };
-    std::fs::File::options().write(true).open(expired.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    std::fs::File::options()
+        .write(true)
+        .open(expired.path.as_path())
+        .expect("open")
+        .set_modified(
+            std::time::SystemTime::now()
+                - crate::pid_namespace::FOREIGN_OWNER_PATIENCE
+                - std::time::Duration::from_secs(300),
+        )
+        .expect("age");
     let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_path());
-    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
+    let refused = recover_worktree_copy_transactions(common.as_path())
+        .expect_err("an expired foreign journal stops recovery");
     assert!(refused.0.contains("31337"), "{}", refused.0);
-    assert!(dead.path.exists() && dead_stage.exists(), "the dead owner's journal and stage are untouched: nothing changed");
+    assert!(
+        dead.path.exists() && dead_stage.exists(),
+        "the dead owner's journal and stage are untouched: nothing changed"
+    );
     assert!(expired.path.exists());
     remove(root.as_path());
 }
@@ -1015,14 +1427,49 @@ fn an_expired_foreign_stage_claim_stops_recovery_before_a_dead_journal_is_touche
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_path());
-    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
-    let _claim = claim_stage_for(common.as_path(), root.join("elsewhere").as_path(), &foreign).expect("a foreign claim");
-    let claim_path: PathBuf = std::fs::read_dir(crate::worktree_copy_journal::journal_root(common.as_path())).expect("the journal root").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|extension| { return extension == "stage"; }); }).expect("the claim file");
-    std::fs::File::options().write(true).open(claim_path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
-    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign claim stops recovery");
+    let foreign = crate::worktree_copy_owner::CopyOwner {
+        pid: 31337,
+        birth_identity: String::from("linux:1"),
+        pid_namespace: Some(String::from("pid:[1]")),
+    };
+    let _claim = claim_stage_for(common.as_path(), root.join("elsewhere").as_path(), &foreign)
+        .expect("a foreign claim");
+    let claim_path: PathBuf =
+        std::fs::read_dir(crate::worktree_copy_journal::journal_root(common.as_path()))
+            .expect("the journal root")
+            .flatten()
+            .map(|entry| {
+                return entry.path();
+            })
+            .find(|path| {
+                return path.extension().is_some_and(|extension| {
+                    return extension == "stage";
+                });
+            })
+            .expect("the claim file");
+    std::fs::File::options()
+        .write(true)
+        .open(claim_path.as_path())
+        .expect("open")
+        .set_modified(
+            std::time::SystemTime::now()
+                - crate::pid_namespace::FOREIGN_OWNER_PATIENCE
+                - std::time::Duration::from_secs(300),
+        )
+        .expect("age");
+    let refused = recover_worktree_copy_transactions(common.as_path())
+        .expect_err("an expired foreign claim stops recovery");
     assert!(refused.0.contains("31337"), "{}", refused.0);
-    assert!(dead.path.exists() && dead_stage.exists(), "the dead journal and its stage are untouched");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
+    assert!(
+        dead.path.exists() && dead_stage.exists(),
+        "the dead journal and its stage are untouched"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1
+    );
     remove(root.as_path());
 }
 
@@ -1035,10 +1482,13 @@ fn a_recorded_registration_that_is_gone_is_discarded_with_a_notice() {
     let root: PathBuf = fixture("recovery-registration-replaced");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path())
+        .expect("binding")
+        .binding;
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding)
+        .expect("recorded");
     // Another command removes this worktree and registers another one at the same path, whose checkout has not run.
     git(
         source.as_path(),
@@ -1061,13 +1511,23 @@ fn a_recorded_registration_that_is_gone_is_discarded_with_a_notice() {
             topic.to_str().expect("utf8"),
         ],
     );
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
-    assert!(notice.contains(binding.admin.to_str().expect("utf8")), "the registration the copy was made for is named: {notice}");
+    assert!(
+        notice.contains(binding.admin.to_str().expect("utf8")),
+        "the registration the copy was made for is named: {notice}"
+    );
     assert!(notice.contains("is registered by"), "{notice}");
-    assert!(!topic.join("cache").exists(), "the replacement registration received nothing");
-    assert!(!topic.join("tracked.txt").exists(), "the replacement registration's own checkout never ran");
+    assert!(
+        !topic.join("cache").exists(),
+        "the replacement registration received nothing"
+    );
+    assert!(
+        !topic.join("tracked.txt").exists(),
+        "the replacement registration's own checkout never ran"
+    );
     assert!(
         read_pending_journals(common.as_path())
             .expect("pending")
@@ -1084,14 +1544,21 @@ fn a_recorded_registration_that_still_holds_is_resumed() {
     let root: PathBuf = fixture("recovery-registration-holds");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path())
+        .expect("binding")
+        .binding;
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
-    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
-    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding)
+        .expect("recorded");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1);
     assert!(report.notices.is_empty(), "{:?}", report.notices);
-    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("resumed copy"),
+        b"payload"
+    );
     remove(root.as_path());
 }
 
@@ -1099,7 +1566,9 @@ fn a_recorded_registration_that_still_holds_is_resumed() {
 /// the pointer Git wrote names the administrative directory with those bytes.
 #[test]
 fn a_registration_under_a_path_that_is_not_text_is_read() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_recovery::tests::a_registration_under_a_path_that_is_not_text_is_read") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_recovery::tests::a_registration_under_a_path_that_is_not_text_is_read",
+    ) {
         return;
     }
     use std::ffi::OsString;
@@ -1143,20 +1612,65 @@ fn a_command_in_another_worktree_leaves_a_killed_copys_journal_to_the_worktree_i
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    git(source.as_path(), &["worktree", "add", "--quiet", "-b", "other", root.join("other").to_str().expect("utf8")]);
+    git(
+        source.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "other",
+            root.join("other").to_str().expect("utf8"),
+        ],
+    );
     let other: PathBuf = std::fs::canonicalize(root.join("other")).expect("canonical other");
     let mut said: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(other.as_path()), &git_context(), &mut said).expect("the pass");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(other.as_path()),
+        &git_context(),
+        &mut said,
+    )
+    .expect("the pass");
     let told: String = String::from_utf8_lossy(said.as_slice()).into_owned();
-    assert!(!topic.join("cache/data").exists(), "no command in another worktree installs into a worktree it does not run in");
-    assert!(told.contains("the first command run in that worktree makes it, and this command does not wait for it"), "{told}");
-    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays for that worktree's own command");
-    assert!(Path::new(pending.journal.stage_container.as_path()).exists(), "and so does its stage");
+    assert!(
+        !topic.join("cache/data").exists(),
+        "no command in another worktree installs into a worktree it does not run in"
+    );
+    assert!(
+        told.contains(
+            "the first command run in that worktree makes it, and this command does not wait for it"
+        ),
+        "{told}"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .len(),
+        1,
+        "the journal stays for that worktree's own command"
+    );
+    assert!(
+        Path::new(pending.journal.stage_container.as_path()).exists(),
+        "and so does its stage"
+    );
     // The worktree's own command resumes it, and the journal goes with the copy it finishes.
     let mut resumed: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut resumed).expect("the worktree's own command resumes it");
-    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
-    assert!(!pending.path.exists(), "a finished copy takes its journal with it");
+    recover_pending_worktree_copies(
+        common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(topic.as_path()),
+        &git_context(),
+        &mut resumed,
+    )
+    .expect("the worktree's own command resumes it");
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("resumed copy"),
+        b"payload"
+    );
+    assert!(
+        !pending.path.exists(),
+        "a finished copy takes its journal with it"
+    );
     remove(root.as_path());
 }
 
@@ -1180,7 +1694,10 @@ fn a_journal_resumed_settles_the_claim_that_names_its_stage() {
     let root: PathBuf = fixture("recovery-claim-with-journal");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let owed = crate::worktree_add_binding::OwedCopy { source: source.clone(), selection: crate::worktree_add_binding::OwedSelection::MainCheckout };
+    let owed = crate::worktree_add_binding::OwedCopy {
+        source: source.clone(),
+        selection: crate::worktree_add_binding::OwedSelection::MainCheckout,
+    };
     let claim = crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing(
         common.as_path(),
         topic.as_path(),
@@ -1188,13 +1705,35 @@ fn a_journal_resumed_settles_the_claim_that_names_its_stage() {
         Some(&owed),
     )
     .expect("the add's claim");
-    let snapshot: StagedSnapshot = stage_ignored_snapshot(&git_context(), source.as_path(), claim.container(), &[], &CopySelection::Ignored).expect("staged");
-    let _journal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        claim.container(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let _journal = create_journal_for(
+        common.as_path(),
+        topic.as_path(),
+        &snapshot,
+        &dead_copy_owner(),
+    )
+    .expect("journal");
     // The process dies here: the claim is neither released nor dropped cleanly.
     std::mem::forget(claim);
-    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the claim a kill left stands");
+    assert!(
+        stage_claims_exist(common.as_path()).expect("claims"),
+        "the claim a kill left stands"
+    );
     let _report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
-    assert_eq!(std::fs::read(topic.join("cache/data")).expect("the ignored file arrived"), b"payload");
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the claim and its record go with the journal");
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("the ignored file arrived"),
+        b"payload"
+    );
+    assert!(
+        !stage_claims_exist(common.as_path()).expect("claims"),
+        "the claim and its record go with the journal"
+    );
     remove(root.as_path());
 }

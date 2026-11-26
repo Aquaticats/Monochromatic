@@ -22,17 +22,47 @@
 
 /// The linter under test and its private parts.
 use super::{
-    ABANDONED_REASON, EmbeddedLinter, LINT_QUIET_WINDOW, embedded_linter, embedded_linter_with, guard_failure_reason,
+    ABANDONED_REASON,
+    EmbeddedLinter,
+    LINT_QUIET_WINDOW,
+    embedded_linter,
+    embedded_linter_with,
+    guard_failure_reason,
 };
-use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig};
+use crate::config_schema::{
+    MarkdownAutofixOptions,
+    MarkdownRule,
+    PolicyConfig,
+};
 use crate::markdown_linter_guard::GuardFailure;
-use crate::markdown_linter_output::{EXPLANATION_LIMIT, LintRun, RemainingFinding};
-use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{fixture, remove, wait_until};
-use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun};
+use crate::markdown_linter_output::{
+    EXPLANATION_LIMIT,
+    LintRun,
+    RemainingFinding,
+};
+use crate::policy_markdown::{
+    LintRequest,
+    MarkdownLinter,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+    wait_until,
+};
+use monochromatic_lint::run_embedded::{
+    EmbeddedFailure,
+    EmbeddedRequest,
+    EmbeddedRun,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use std::time::Duration;
 
 /// The quiet window of the one control whose planted fix never returns,
@@ -122,19 +152,31 @@ fn a_stalled_linter_is_abandoned_when_it_shows_no_sign_of_work() {
     let root: PathBuf = fixture("linter-stall");
     let mut linter: EmbeddedLinter = embedded_linter_with(stalls, SHORT_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("abandoned");
-    assert_eq!(reason, guard_failure_reason(&GuardFailure::Quiet(SHORT_WINDOW)));
-    assert!(reason.contains(SHORT_WINDOW.as_millis().to_string().as_str()), "{reason}");
+    assert_eq!(
+        reason,
+        guard_failure_reason(&GuardFailure::Quiet(SHORT_WINDOW))
+    );
+    assert!(
+        reason.contains(SHORT_WINDOW.as_millis().to_string().as_str()),
+        "{reason}"
+    );
     assert!(reason.contains("markdown/autofix"), "{reason}");
     // The stalled thread is still running: the next candidate is refused without starting another.
     let starts: usize = STALL_STARTS.load(Ordering::SeqCst);
     let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
     assert_eq!(later, ABANDONED_REASON);
-    assert_eq!(STALL_STARTS.load(Ordering::SeqCst), starts, "no second thread started");
+    assert_eq!(
+        STALL_STARTS.load(Ordering::SeqCst),
+        starts,
+        "no second thread started"
+    );
     remove(root.as_path());
 }
 
 /// A panic message far longer than the explanation bound is cut at that bound in the reason.
-fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+fn panics_with_a_long_message(
+    _request: &EmbeddedRequest<'_>
+) -> Result<EmbeddedRun, EmbeddedFailure> {
     panic!("{}", "p".repeat(EXPLANATION_LIMIT * 3));
 }
 
@@ -142,10 +184,17 @@ fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<Embedded
 #[test]
 fn a_long_panic_message_is_bounded() {
     let root: PathBuf = fixture("linter-long-panic");
-    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, LINT_QUIET_WINDOW);
+    let mut linter: EmbeddedLinter =
+        embedded_linter_with(panics_with_a_long_message, LINT_QUIET_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
-    assert!(reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()), "{reason}");
-    assert!(!reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()), "the payload is cut");
+    assert!(
+        reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()),
+        "{reason}"
+    );
+    assert!(
+        !reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()),
+        "the payload is cut"
+    );
     remove(root.as_path());
 }
 
@@ -172,9 +221,13 @@ fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
 #[test]
 fn an_unexpected_status_is_refused() {
     let root: PathBuf = fixture("linter-status");
-    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, LINT_QUIET_WINDOW);
+    let mut linter: EmbeddedLinter =
+        embedded_linter_with(ends_with_error_status, LINT_QUIET_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("refused");
-    assert!(reason.contains(format!("status {NEVER_PRODUCED_STATUS}").as_str()), "{reason}");
+    assert!(
+        reason.contains(format!("status {NEVER_PRODUCED_STATUS}").as_str()),
+        "{reason}"
+    );
     remove(root.as_path());
 }
 
@@ -208,7 +261,8 @@ fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
         });
     }
     let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, LINT_QUIET_WINDOW);
-    let run: LintRun = lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
+    let run: LintRun =
+        lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
     assert_eq!(run.fixed, b"ok".to_vec());
     remove(root.as_path());
 }
@@ -253,7 +307,12 @@ fn the_linked_linter_meets_the_contract() {
     let rewritten: String = format!("# T\n\n![shot]({SHOT_URL})\n");
     for name in [&b"pkg/README.md"[..], b"pkg/caf\xe9.md", b"pkg/-x.mdx"] {
         assert_eq!(
-            lint(&mut linter, top.as_path(), name, b"# T\n\n![shot](asset/shot.png)\n"),
+            lint(
+                &mut linter,
+                top.as_path(),
+                name,
+                b"# T\n\n![shot](asset/shot.png)\n"
+            ),
             Ok(LintRun {
                 fixed: rewritten.clone().into_bytes(),
                 remaining: Vec::new(),
@@ -263,7 +322,12 @@ fn the_linked_linter_meets_the_contract() {
         );
     }
     assert_eq!(
-        lint(&mut linter, top.as_path(), b"pkg/README.md", rewritten.as_bytes()),
+        lint(
+            &mut linter,
+            top.as_path(),
+            b"pkg/README.md",
+            rewritten.as_bytes()
+        ),
         Ok(LintRun {
             fixed: rewritten.clone().into_bytes(),
             remaining: Vec::new(),
@@ -274,7 +338,12 @@ fn the_linked_linter_meets_the_contract() {
         "b".repeat(64)
     );
     assert_eq!(
-        lint(&mut linter, top.as_path(), b"pkg/README.md", stale.as_bytes()),
+        lint(
+            &mut linter,
+            top.as_path(),
+            b"pkg/README.md",
+            stale.as_bytes()
+        ),
         Ok(LintRun {
             fixed: stale.clone().into_bytes(),
             remaining: vec![RemainingFinding {
@@ -332,7 +401,8 @@ fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embe
         std::fs::write(&scratch, round.to_string()).expect("the fixture writes its progress");
         std::thread::sleep(Duration::from_millis(200));
     }
-    std::fs::write(request.top_level.join(WORKING_FINISHED), b"").expect("the fixture says its writes are over");
+    std::fs::write(request.top_level.join(WORKING_FINISHED), b"")
+        .expect("the fixture says its writes are over");
     return echoes(request);
 }
 
@@ -346,7 +416,11 @@ fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
     let started: std::time::Instant = std::time::Instant::now();
     let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"a.md", b"a\n");
     assert!(run.is_ok(), "{run:?}");
-    assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
+    assert!(
+        started.elapsed() > WORKING_WINDOW * 2,
+        "the fixture ran only {:?}",
+        started.elapsed()
+    );
     remove(root.as_path());
 }
 
@@ -361,15 +435,28 @@ fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
 fn a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file() {
     let root: PathBuf = fixture("linter-ceiling");
     let ceiling: Duration = Duration::from_secs(2);
-    let mut linter: EmbeddedLinter = embedded_linter_with(works_then_answers, WORKING_WINDOW).with_ceiling(ceiling);
-    let reason: String = lint(&mut linter, root.as_path(), b"big.md", b"a\n").expect_err("abandoned at the ceiling");
-    assert!(reason.contains("monochromatic-lint") && reason.contains("big.md") && reason.contains(format!("{} seconds", ceiling.as_secs()).as_str()), "{reason}");
-    assert!(reason.contains("markdown/autofix") && reason.contains("by hand"), "{reason}");
+    let mut linter: EmbeddedLinter =
+        embedded_linter_with(works_then_answers, WORKING_WINDOW).with_ceiling(ceiling);
+    let reason: String =
+        lint(&mut linter, root.as_path(), b"big.md", b"a\n").expect_err("abandoned at the ceiling");
+    assert!(
+        reason.contains("monochromatic-lint")
+            && reason.contains("big.md")
+            && reason.contains(format!("{} seconds", ceiling.as_secs()).as_str()),
+        "{reason}"
+    );
+    assert!(
+        reason.contains("markdown/autofix") && reason.contains("by hand"),
+        "{reason}"
+    );
     let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
     assert_eq!(later, ABANDONED_REASON);
     // The abandoned fix is still writing into the fixture on its own thread.
     let finished: PathBuf = root.join(WORKING_FINISHED);
-    assert!(wait_until(&|| return finished.exists()), "the abandoned fix ended its writes");
+    assert!(
+        wait_until(&|| return finished.exists()),
+        "the abandoned fix ended its writes"
+    );
     remove(root.as_path());
 }
 

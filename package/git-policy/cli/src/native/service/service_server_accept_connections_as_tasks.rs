@@ -19,8 +19,16 @@
 //! server.on('connection', (socket) => handleConnection(socket, shared));
 //! ```
 
-use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, say_how_the_runtime_was_built, start_what_the_service_cannot_serve_without};
-use crate::service_server_connection_handling::{ConnectionShared, handle_connection};
+use crate::service_runtime_build_report::{
+    EXIT_NO_WORKER,
+    no_worker_words,
+    say_how_the_runtime_was_built,
+    start_what_the_service_cannot_serve_without,
+};
+use crate::service_server_connection_handling::{
+    ConnectionShared,
+    handle_connection,
+};
 use std::os::unix::net::UnixListener;
 use std::time::Duration;
 
@@ -43,8 +51,16 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 /// ```ts
 /// startOrExit('the acceptor of connections', () => acceptConnections(listener, shared));
 /// ```
-pub(crate) fn start_acceptor_or_exit(listener: UnixListener, shared: ConnectionShared) {
-    if start_what_the_service_cannot_serve_without("the acceptor of connections", accept_connections(listener, shared)).is_some() {
+pub(crate) fn start_acceptor_or_exit(
+    listener: UnixListener,
+    shared: ConnectionShared,
+) {
+    if start_what_the_service_cannot_serve_without(
+        "the acceptor of connections",
+        accept_connections(listener, shared),
+    )
+    .is_some()
+    {
         say_how_the_runtime_was_built();
         return;
     }
@@ -54,9 +70,14 @@ pub(crate) fn start_acceptor_or_exit(listener: UnixListener, shared: ConnectionS
 
 /// Accepts connections for as long as the process runs,
 /// each served by a task of its own.
-async fn accept_connections(inherited: UnixListener, shared: ConnectionShared) {
+async fn accept_connections(
+    inherited: UnixListener,
+    shared: ConnectionShared,
+) {
     if let Err(error) = inherited.set_nonblocking(true) {
-        crate::service_error!("cannot make the listening socket non-blocking for the acceptor: {error}");
+        crate::service_error!(
+            "cannot make the listening socket non-blocking for the acceptor: {error}"
+        );
         std::process::exit(EXIT_NO_WORKER);
     }
     let listener: tokio::net::UnixListener = match tokio::net::UnixListener::from_std(inherited) {
@@ -72,7 +93,9 @@ async fn accept_connections(inherited: UnixListener, shared: ConnectionShared) {
                 tokio::spawn(handle_connection(connection, shared.clone()));
             }
             Err(error) => {
-                crate::service_error!("a connection could not be accepted, so the acceptor waits a moment before it asks again: {error}");
+                crate::service_error!(
+                    "a connection could not be accepted, so the acceptor waits a moment before it asks again: {error}"
+                );
                 tokio::time::sleep(ACCEPT_BACKOFF).await;
             }
         }

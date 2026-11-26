@@ -11,12 +11,37 @@
 //! const reply = decodeResponse(await readLine(socket));
 //! ```
 
-use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
-use crate::service_review_key::ReviewKey;
-use std::path::{Path, PathBuf};
+use crate::service_protocol_messages_and_name_checks::{
+    ALLOWED_MODES,
+    Change,
+    Cleanup,
+    ClientMessage,
+    CommitRequest,
+    FailureCode,
+    LandedCapture,
+    LandingFigures,
+    LandingSync,
+    MAX_CHANGES,
+    MAX_ID_BYTES,
+    MAX_LINE_BYTES,
+    PROTOCOL_VERSION,
+    ServiceMessage,
+    ends_a_ref_name,
+    field,
+    is_identity_byte,
+    is_object_name,
+    is_plain_path,
+    is_scratch_path,
+    is_zero_object,
+};
 use crate::service_protocol_programs_of_a_request::programs_of;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
+use crate::service_review_key::ReviewKey;
+use serde_json::Value;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Reads and checks one client line.
@@ -51,15 +76,23 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             if id.is_empty() || id.len() > MAX_ID_BYTES {
                 return Err(String::from("withdraw request is not acceptable"));
             }
-            return Ok(ClientMessage::Withdraw { id: id.to_string() });
+            return Ok(ClientMessage::Withdraw {
+                id: id.to_string(),
+            });
         }
         "shadow" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
             let scratch: PathBuf = path_bytes::read_field(&value, "scratch")?;
-            if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') || !is_scratch_path(scratch.as_path(), git_dir.as_path()) {
+            if !git_dir.is_absolute()
+                || git_dir.to_string_lossy().contains('\0')
+                || !is_scratch_path(scratch.as_path(), git_dir.as_path())
+            {
                 return Err(String::from("shadow request is not acceptable"));
             }
-            return Ok(ClientMessage::Shadow { git_dir, scratch });
+            return Ok(ClientMessage::Shadow {
+                git_dir,
+                scratch,
+            });
         }
         "warm" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
@@ -69,7 +102,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                     return Err(String::from("warm request is not acceptable"));
                 }
             }
-            return Ok(ClientMessage::Warm { git_dir, repository });
+            return Ok(ClientMessage::Warm {
+                git_dir,
+                repository,
+            });
         }
         "work" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
@@ -81,39 +117,76 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 Some(Value::String(text)) => ReviewKey::new(text.as_str()),
                 Some(_) => return Err(String::from("work request is not acceptable")),
             };
-            let mut push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = Vec::new();
+            let mut push_programs: Vec<(
+                String,
+                crate::service_push_programs_held_in_memory::PushPrograms,
+            )> = Vec::new();
             match value.get("pushPrograms") {
                 None | Some(Value::Null) => {}
                 Some(Value::Array(entries)) => {
                     for entry in entries {
                         let id: &str = field(entry, "id")?;
                         if !crate::work_item_ids_and_names::is_valid_id(id) {
-                            return Err(String::from("a work request names a record that is no work record"));
+                            return Err(String::from(
+                                "a work request names a record that is no work record",
+                            ));
                         }
-                        let programs: &Value = entry.get("programs").ok_or("a work request names no programs")?;
+                        let programs: &Value = entry
+                            .get("programs")
+                            .ok_or("a work request names no programs")?;
                         push_programs.push((id.to_string(), programs_of(programs)?));
                     }
                 }
                 Some(_) => return Err(String::from("work request is not acceptable")),
             }
-            return Ok(ClientMessage::Work { git_dir, review_key, push_programs });
+            return Ok(ClientMessage::Work {
+                git_dir,
+                review_key,
+                push_programs,
+            });
         }
-        "forgetPrograms" => return crate::service_protocol_forgetting_programs::forgetting_programs(&value),
+        "forgetPrograms" => {
+            return crate::service_protocol_forgetting_programs::forgetting_programs(&value);
+        }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
     }
     let mut changes: Vec<Change> = Vec::new();
-    for entry in value.get("changes").and_then(Value::as_array).ok_or("changes is missing")? {
+    for entry in value
+        .get("changes")
+        .and_then(Value::as_array)
+        .ok_or("changes is missing")?
+    {
         let path: PathBuf = path_bytes::read_field(entry, "path")?;
-        let mode: u32 = match u32::try_from(entry.get("mode").and_then(Value::as_u64).ok_or("mode is missing")?) {
+        let mode: u32 = match u32::try_from(
+            entry
+                .get("mode")
+                .and_then(Value::as_u64)
+                .ok_or("mode is missing")?,
+        ) {
             Ok(found) => found,
             Err(_out_of_range) => return Err(String::from("mode is out of range")),
         };
-        let blob: Option<String> = entry.get("blob").and_then(Value::as_str).map(str::to_string);
-        if !is_plain_path(path.as_path()) || !ALLOWED_MODES.contains(&mode) || matches!(blob.as_deref(), Some(name) if !is_object_name(name)) {
-            return Err(format!("change for {:?} is not acceptable", crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(path.as_path()))));
+        let blob: Option<String> = entry
+            .get("blob")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if !is_plain_path(path.as_path())
+            || !ALLOWED_MODES.contains(&mode)
+            || matches!(blob.as_deref(), Some(name) if !is_object_name(name))
+        {
+            return Err(format!(
+                "change for {:?} is not acceptable",
+                crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(
+                    path.as_path()
+                ))
+            ));
         }
-        changes.push(Change { path, mode, blob });
+        changes.push(Change {
+            path,
+            mode,
+            blob,
+        });
     }
     if changes.len() > MAX_CHANGES {
         return Err(String::from("number of changes is not acceptable"));
@@ -123,18 +196,31 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         repository: path_bytes::read_field(&value, "repository")?,
         common_dir: path_bytes::read_field(&value, "commonDir")?,
         git_dir: path_bytes::read_field(&value, "gitDir")?,
-        reference: match value.get("referenceHex").and_then(serde_json::Value::as_str) {
-            Some(hexadecimal) => crate::ref_name::RefName::from_hex(hexadecimal).ok_or("the referenceHex field is not the bytes of a name")?,
+        reference: match value
+            .get("referenceHex")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some(hexadecimal) => crate::ref_name::RefName::from_hex(hexadecimal)
+                .ok_or("the referenceHex field is not the bytes of a name")?,
             None => crate::ref_name::RefName::from_text(field(&value, "reference")?),
         },
         base: field(&value, "base")?.to_string(),
         changes,
         message: field(&value, "message")?.to_string(),
-        author: value.get("author").and_then(Value::as_str).map(str::to_string),
+        author: value
+            .get("author")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         committer: field(&value, "committer")?.to_string(),
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
-        tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
-        commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
+        tree: value
+            .get("tree")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        commit: value
+            .get("commit")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         index: path_bytes::read_field(&value, "index")?,
         scratch: path_bytes::read_field(&value, "scratch")?,
         // A request of an earlier release names no drawn shadow, which is the case every commit had before this one.
@@ -144,13 +230,20 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         },
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A request of an earlier release names no holder, which settles nothing and hides nothing.
-        holder: value.get("holder").and_then(Value::as_str).unwrap_or_default().to_string(),
+        holder: value
+            .get("holder")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
             Some(entry) if !entry.is_null() => Some(Cleanup {
                 git_dir: path_bytes::read_field(entry, "gitDir")?,
                 scratch: path_bytes::read_field(entry, "scratch")?,
-                reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
+                reftable: entry
+                    .get("reftable")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
             }),
             _ => None,
         },
@@ -226,8 +319,15 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
 /// ```ts
 /// const isADrawnTreeOfTheRequest = (tree, request) => isADrawnTree(tree, request.commonDir, request.gitDir);
 /// ```
-fn is_a_drawn_tree_of_the_request(tree: &Path, request: &CommitRequest) -> bool {
-    return crate::shadow_drawn::is_a_drawn_tree(tree, request.common_dir.as_path(), request.git_dir.as_path());
+fn is_a_drawn_tree_of_the_request(
+    tree: &Path,
+    request: &CommitRequest,
+) -> bool {
+    return crate::shadow_drawn::is_a_drawn_tree(
+        tree,
+        request.common_dir.as_path(),
+        request.git_dir.as_path(),
+    );
 }
 
 /// What:
@@ -241,7 +341,10 @@ fn is_a_drawn_tree_of_the_request(tree: &Path, request: &CommitRequest) -> bool 
 /// ```ts
 /// const numberField = (value, name) => { const n = value[name]; if (!Number.isSafeInteger(n)) throw new Error(`field ${name} is missing`); return n; };
 /// ```
-fn number_field(value: &Value, name: &str) -> Result<usize, String> {
+fn number_field(
+    value: &Value,
+    name: &str,
+) -> Result<usize, String> {
     let Some(wide) = value.get(name).and_then(Value::as_u64) else {
         return Err(format!("field {name} is missing"));
     };
@@ -276,7 +379,10 @@ fn landed_captures(entries: &Vec<Value>) -> Vec<LandedCapture> {
         let Some(captured) = entry.get("captured").and_then(Value::as_u64) else {
             continue;
         };
-        captures.push(LandedCapture { commit: commit.to_string(), captured });
+        captures.push(LandedCapture {
+            commit: commit.to_string(),
+            captured,
+        });
     }
     return captures;
 }
@@ -319,17 +425,37 @@ fn landing_figures(value: &Value) -> Result<LandingFigures, String> {
         reads.push((name.clone(), number_field_value(ms, "a read of a landing")?));
     }
     let mut syncs: Vec<LandingSync> = Vec::new();
-    for each in value.get("syncs").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default() {
+    for each in value
+        .get("syncs")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+    {
         syncs.push(LandingSync {
             what: field(each, "what")?.to_string(),
-            waited: each.get("waited").and_then(Value::as_bool).ok_or_else(no_word_on_waiting)?,
-            ms: number_field_value(each.get("ms").unwrap_or(&Value::Null), "a sync of a landing")?,
+            waited: each
+                .get("waited")
+                .and_then(Value::as_bool)
+                .ok_or_else(no_word_on_waiting)?,
+            ms: number_field_value(
+                each.get("ms").unwrap_or(&Value::Null),
+                "a sync of a landing",
+            )?,
         });
     }
     return Ok(LandingFigures {
-        lock_hold_ms: number_field_value(value.get("lockHoldMs").unwrap_or(&Value::Null), "the lock hold of a landing")?,
-        queued_behind: number_field_value(value.get("queuedBehind").unwrap_or(&Value::Null), "the commits queued behind a landing")?,
-        reads_ms: number_field_value(value.get("readsMs").unwrap_or(&Value::Null), "the reads of a landing")?,
+        lock_hold_ms: number_field_value(
+            value.get("lockHoldMs").unwrap_or(&Value::Null),
+            "the lock hold of a landing",
+        )?,
+        queued_behind: number_field_value(
+            value.get("queuedBehind").unwrap_or(&Value::Null),
+            "the commits queued behind a landing",
+        )?,
+        reads_ms: number_field_value(
+            value.get("readsMs").unwrap_or(&Value::Null),
+            "the reads of a landing",
+        )?,
         reads,
         syncs,
     });
@@ -354,7 +480,10 @@ fn no_word_on_waiting() -> String {
 /// ```ts
 /// const numberFieldValue = (v, what) => Number.isInteger(v) && v >= 0 ? v : fail(`${what} is not a whole number`);
 /// ```
-fn number_field_value(value: &Value, what: &str) -> Result<u64, String> {
+fn number_field_value(
+    value: &Value,
+    what: &str,
+) -> Result<u64, String> {
     let Some(number) = value.as_u64() else {
         return Err(format!("{what} is not a whole number"));
     };
@@ -381,15 +510,26 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
                 Ok(found) => found,
                 Err(_out_of_range) => return Err(String::from("version is out of range")),
             },
-            release: value.get("release").and_then(Value::as_str).map(String::from),
+            release: value
+                .get("release")
+                .and_then(Value::as_str)
+                .map(String::from),
         }),
-        "drawn" => Ok(ServiceMessage::Drawn { tree: path_bytes::read_field(&value, "tree")? }),
+        "drawn" => Ok(ServiceMessage::Drawn {
+            tree: path_bytes::read_field(&value, "tree")?,
+        }),
         "no-shadow" => Ok(ServiceMessage::NoShadow),
-        "position" => Ok(ServiceMessage::Position { number: number_field(&value, "number")?, of: number_field(&value, "of")? }),
+        "position" => Ok(ServiceMessage::Position {
+            number: number_field(&value, "number")?,
+            of: number_field(&value, "of")?,
+        }),
         "landed" => Ok(ServiceMessage::Landed {
             id: field(&value, "id")?.to_string(),
             commit: field(&value, "commit")?.to_string(),
-            already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
+            already: value
+                .get("already")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
             // A service of a release that does not send the figures leaves them absent, which the record states as none.
             landing: match value.get("landing") {
                 None | Some(Value::Null) => None,
@@ -411,11 +551,21 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
                 .map(landed_captures)
                 .unwrap_or_default(),
         }),
-        "waiting" if value.get("inside_write").and_then(Value::as_bool) == Some(true) => Ok(ServiceMessage::InsideWrite { text: field(&value, "text")?.to_string() }),
-        "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
-        "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
+        "waiting" if value.get("inside_write").and_then(Value::as_bool) == Some(true) => {
+            Ok(ServiceMessage::InsideWrite {
+                text: field(&value, "text")?.to_string(),
+            })
+        }
+        "waiting" => Ok(ServiceMessage::Waiting {
+            text: field(&value, "text")?.to_string(),
+        }),
+        "holder" => Ok(ServiceMessage::Holder {
+            who: field(&value, "who")?.to_string(),
+        }),
         "heartbeat" => Ok(ServiceMessage::Heartbeat),
-        "withdrawn" => Ok(ServiceMessage::Withdrawn { id: field(&value, "id")?.to_string() }),
+        "withdrawn" => Ok(ServiceMessage::Withdrawn {
+            id: field(&value, "id")?.to_string(),
+        }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

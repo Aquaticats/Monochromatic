@@ -22,7 +22,10 @@
 use crate::fs_primitive_error::PrimitiveError;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///  Why a migration step stopped.
@@ -79,8 +82,16 @@ impl MigrateError {
     /// ```ts
     /// const io = (action: string, path: string, error: Error) => new MigrateError(...);
     /// ```
-    pub fn io(action: &str, path: &std::path::Path, error: &std::io::Error) -> MigrateError {
-        return MigrateError::Io { action: action.to_string(), path: path.to_path_buf(), reason: error.to_string() };
+    pub fn io(
+        action: &str,
+        path: &std::path::Path,
+        error: &std::io::Error,
+    ) -> MigrateError {
+        return MigrateError::Io {
+            action: action.to_string(),
+            path: path.to_path_buf(),
+            reason: error.to_string(),
+        };
     }
 
     /// The success of an input and output result as it is,
@@ -90,7 +101,11 @@ impl MigrateError {
     /// ```ts
     /// const value = ioResult(await attempt(), action, path); // throws MigrateError(io) on failure
     /// ```
-    pub fn from_io_result<T>(result: std::io::Result<T>, action: &str, path: &std::path::Path) -> Result<T, MigrateError> {
+    pub fn from_io_result<T>(
+        result: std::io::Result<T>,
+        action: &str,
+        path: &std::path::Path,
+    ) -> Result<T, MigrateError> {
         return match result {
             Ok(value) => Ok(value),
             Err(error) => Err(MigrateError::io(action, path, &error)),
@@ -100,11 +115,21 @@ impl MigrateError {
 
 /// Prints the cause in plain words.
 impl fmt::Display for MigrateError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
-            MigrateError::Io { action, path, reason } => return write!(formatter, "cannot {action} {}: {reason}", path.display()),
+            MigrateError::Io {
+                action,
+                path,
+                reason,
+            } => return write!(formatter, "cannot {action} {}: {reason}", path.display()),
             MigrateError::Primitive(error) => return write!(formatter, "{error}"),
-            MigrateError::UnreadableDirectory { path, reason } => {
+            MigrateError::UnreadableDirectory {
+                path,
+                reason,
+            } => {
                 return write!(
                     formatter,
                     "the directory {} cannot be listed or searched by this user ({reason}); copying around it would leave its content out of the new checkout",
@@ -113,7 +138,9 @@ impl fmt::Display for MigrateError {
             }
             MigrateError::Journal(message) => return write!(formatter, "{message}"),
             MigrateError::Runtime(message) => return write!(formatter, "{message}"),
-            MigrateError::Interrupted(point) => return write!(formatter, "stopped at the test point {point}"),
+            MigrateError::Interrupted(point) => {
+                return write!(formatter, "stopped at the test point {point}");
+            }
         }
     }
 }
@@ -158,12 +185,21 @@ impl Interrupt {
     /// A run that is never stopped:
     /// what the release code uses.
     pub fn never() -> Interrupt {
-        return Interrupt { target: None, hits: AtomicU64::new(0) };
+        return Interrupt {
+            target: None,
+            hits: AtomicU64::new(0),
+        };
     }
 
     /// A run that stops at the `after`-th (counting from 0) hit of `point`.
-    pub fn at(point: &str, after: u64) -> Interrupt {
-        return Interrupt { target: Some((point.to_string(), after)), hits: AtomicU64::new(0) };
+    pub fn at(
+        point: &str,
+        after: u64,
+    ) -> Interrupt {
+        return Interrupt {
+            target: Some((point.to_string(), after)),
+            hits: AtomicU64::new(0),
+        };
     }
 
     /// What:
@@ -176,8 +212,13 @@ impl Interrupt {
     /// ```ts
     /// interrupt.check('after-copy');
     /// ```
-    pub fn check(&self, point: &str) -> Result<(), MigrateError> {
-        let Some((name, after)) = &self.target else { return Ok(()) };
+    pub fn check(
+        &self,
+        point: &str,
+    ) -> Result<(), MigrateError> {
+        let Some((name, after)) = &self.target else {
+            return Ok(());
+        };
         if name != point {
             return Ok(());
         }

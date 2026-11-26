@@ -3,13 +3,19 @@
 //! the restart decision follows the branch,
 //!  and a damaged or temporary file is never an intent.
 
-use crate::service_protocol::Cleanup;
 use super::*;
 use crate::claim_time::ClaimTime;
 use crate::service_journal_record_age::stamp_line;
-use crate::test_support::{fixture, remove};
+use crate::service_protocol::Cleanup;
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 fn intent(seq: u64) -> Intent {
     return Intent {
@@ -52,17 +58,30 @@ fn an_intent_round_trips_through_its_text() {
 fn a_written_record_carries_the_reading_of_the_clock_it_was_written_by() {
     let root: PathBuf = fixture("service-journal-stamped");
     write_intent(root.as_path(), &intent(1)).expect("an intent");
-    let text: String = std::fs::read_to_string(batch_path(root.as_path(), 1, OPEN_EXTENSION)).expect("the written record");
+    let text: String = std::fs::read_to_string(batch_path(root.as_path(), 1, OPEN_EXTENSION))
+        .expect("the written record");
     let stamped: &str = text
         .lines()
-        .find(|line| { return line.starts_with("stamp="); })
+        .find(|line| {
+            return line.starts_with("stamp=");
+        })
         .expect("the record carries the reading of the clocks it was written by")
         .trim_start_matches("stamp=");
     let written: ClaimTime = ClaimTime::decode(stamped).expect("a reading this release can read");
     let now: ClaimTime = ClaimTime::read();
-    assert!(!now.is_past_the_boot_of(&written), "the record is of this boot");
-    assert!(now.elapsed_since(&written) < Duration::from_secs(60), "the reading was taken when the record was written, not when it is read");
-    assert_eq!(parse_intent(text.as_str()), Some(intent(1)), "every reader of a record skips the line it does not know");
+    assert!(
+        !now.is_past_the_boot_of(&written),
+        "the record is of this boot"
+    );
+    assert!(
+        now.elapsed_since(&written) < Duration::from_secs(60),
+        "the reading was taken when the record was written, not when it is read"
+    );
+    assert_eq!(
+        parse_intent(text.as_str()),
+        Some(intent(1)),
+        "every reader of a record skips the line it does not know"
+    );
     remove(root.as_path());
 }
 
@@ -73,9 +92,22 @@ fn a_written_record_carries_the_reading_of_the_clock_it_was_written_by() {
 fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither() {
     let mut sent: Intent = intent(8);
     sent.derived = true;
-    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"), reftable: true });
-    assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent.clone()));
-    let older: String = intent_text(&intent(9)).lines().filter(|line| { return !line.starts_with("derived=") && !line.starts_with("cleanup"); }).collect::<Vec<&str>>().join("\n");
+    sent.cleanup = Some(Cleanup {
+        git_dir: PathBuf::from("/work/repo/.git"),
+        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"),
+        reftable: true,
+    });
+    assert_eq!(
+        parse_intent(intent_text(&sent).as_str()),
+        Some(sent.clone())
+    );
+    let older: String = intent_text(&intent(9))
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("derived=") && !line.starts_with("cleanup");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     let read: Intent = parse_intent(older.as_str()).expect("an older intent still reads");
     assert!(!read.derived && read.cleanup.is_none());
 }
@@ -97,7 +129,13 @@ fn an_intent_of_a_repository_that_is_not_text_round_trips() {
     sent.common_dir = sent.repository.join(OsStr::from_bytes(b".g\xffit"));
     sent.index = sent.common_dir.join("index");
     sent.git_dir = sent.repository.join(".git");
-    sent.cleanup = Some(Cleanup { git_dir: sent.common_dir.clone(), scratch: sent.common_dir.join(OsStr::from_bytes(b"monochromatic-git-policy-cli-service-\xffx")), reftable: false });
+    sent.cleanup = Some(Cleanup {
+        git_dir: sent.common_dir.clone(),
+        scratch: sent.common_dir.join(OsStr::from_bytes(
+            b"monochromatic-git-policy-cli-service-\xffx",
+        )),
+        reftable: false,
+    });
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
 }
 
@@ -114,10 +152,26 @@ fn an_intent_of_a_repository_that_is_not_text_round_trips() {
 fn an_intent_keeps_a_transport_flag_for_each_of_its_commits() {
     let mut sent: Intent = intent(13);
     sent.transports = vec![true, false];
-    assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent), "a flag for each commit survives the record");
-    let older: String = intent_text(&intent(14)).lines().filter(|line| { return !line.starts_with("transports="); }).collect::<Vec<&str>>().join("\n") + "\n";
-    let read: Intent = parse_intent(older.as_str()).expect("an intent of an earlier release still reads");
-    assert!(read.transports.is_empty(), "a record written before the field existed names no transport: {:?}", read.transports);
+    assert_eq!(
+        parse_intent(intent_text(&sent).as_str()),
+        Some(sent),
+        "a flag for each commit survives the record"
+    );
+    let older: String = intent_text(&intent(14))
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("transports=");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n")
+        + "\n";
+    let read: Intent =
+        parse_intent(older.as_str()).expect("an intent of an earlier release still reads");
+    assert!(
+        read.transports.is_empty(),
+        "a record written before the field existed names no transport: {:?}",
+        read.transports
+    );
 }
 
 /// What:
@@ -135,7 +189,10 @@ fn an_intent_of_an_earlier_release_is_still_read() {
     assert_eq!(read.index, PathBuf::from("/srv/repo/.git/index"));
     assert_eq!(read.git_dir, PathBuf::from("/srv/repo/.git"));
     assert!(read.cleanup.is_none(), "an empty cleanup field names none");
-    assert_eq!(read.reference, crate::ref_name::RefName::from_text("refs/heads/main"));
+    assert_eq!(
+        read.reference,
+        crate::ref_name::RefName::from_text("refs/heads/main")
+    );
 }
 
 /// What:
@@ -150,20 +207,41 @@ fn a_path_that_holds_a_line_break_cannot_add_a_line() {
     let mut sent: Intent = intent(12);
     sent.repository = PathBuf::from("/work/re\nref=refs/heads/evil\npo");
     let text: String = intent_text(&sent);
-    assert_eq!(text.lines().filter(|line| { return line.starts_with("ref="); }).count(), 1, "the intent has one branch line: {text}");
+    assert_eq!(
+        text.lines()
+            .filter(|line| {
+                return line.starts_with("ref=");
+            })
+            .count(),
+        1,
+        "the intent has one branch line: {text}"
+    );
     let read: Intent = parse_intent(text.as_str()).expect("reads");
-    assert_eq!(read.reference, crate::ref_name::RefName::from_text("refs/heads/main"));
+    assert_eq!(
+        read.reference,
+        crate::ref_name::RefName::from_text("refs/heads/main")
+    );
     assert_eq!(read.repository, sent.repository);
 }
 
 /// The text of an intent without its Git directory,
 /// as an earlier release wrote it,
 /// for a repository and an index elsewhere.
-fn older_text(repository: &Path, index: &Path) -> String {
+fn older_text(
+    repository: &Path,
+    index: &Path,
+) -> String {
     let mut sent: Intent = intent(10);
     sent.repository = repository.to_path_buf();
     sent.index = index.to_path_buf();
-    return intent_text(&sent).lines().filter(|line| { return !line.starts_with("gitdir"); }).collect::<Vec<&str>>().join("\n") + "\n";
+    return intent_text(&sent)
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("gitdir");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n")
+        + "\n";
 }
 
 /// An intent written before it recorded its Git directory names the Git directory of its repository,
@@ -176,9 +254,14 @@ fn an_older_intent_names_the_git_directory_of_its_repository_and_not_of_its_inde
     let repository: PathBuf = root.join("work/repo");
     std::fs::create_dir_all(repository.join(".git")).expect("a plain repository");
     let alternate: PathBuf = root.join("elsewhere/alternate.index");
-    let read: Intent = parse_intent(older_text(repository.as_path(), alternate.as_path()).as_str()).expect("an older intent still reads");
+    let read: Intent = parse_intent(older_text(repository.as_path(), alternate.as_path()).as_str())
+        .expect("an older intent still reads");
     assert_eq!(read.git_dir, repository.join(".git"));
-    assert_ne!(Some(read.git_dir.as_path()), alternate.parent(), "not the directory of the index");
+    assert_ne!(
+        Some(read.git_dir.as_path()),
+        alternate.parent(),
+        "not the directory of the index"
+    );
     remove(root.as_path());
 }
 
@@ -192,12 +275,18 @@ fn an_older_intent_of_a_linked_worktree_reads_the_pointer_in_its_dot_git_file() 
     let admin: PathBuf = root.join("work/main/.git/worktrees/linked");
     std::fs::create_dir_all(&linked).expect("linked worktree");
     std::fs::create_dir_all(&admin).expect("administrative directory");
-    std::fs::write(linked.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    std::fs::write(
+        linked.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("pointer");
     let alternate: PathBuf = root.join("elsewhere/alternate.index");
-    let read: Intent = parse_intent(older_text(linked.as_path(), alternate.as_path()).as_str()).expect("reads");
+    let read: Intent =
+        parse_intent(older_text(linked.as_path(), alternate.as_path()).as_str()).expect("reads");
     assert_eq!(read.git_dir, admin);
     let missing: PathBuf = root.join("work/gone");
-    let fallback: Intent = parse_intent(older_text(missing.as_path(), alternate.as_path()).as_str()).expect("reads");
+    let fallback: Intent =
+        parse_intent(older_text(missing.as_path(), alternate.as_path()).as_str()).expect("reads");
     assert_eq!(fallback.git_dir, missing.join(".git"));
     remove(root.as_path());
 }
@@ -210,7 +299,10 @@ fn damaged_text_is_no_intent() {
     let text: String = intent_text(&intent(1));
     assert_eq!(parse_intent(""), None);
     assert_eq!(parse_intent(text.replace("old=", "older=").as_str()), None);
-    assert_eq!(parse_intent(text.replace("seq=1", "seq=one").as_str()), None);
+    assert_eq!(
+        parse_intent(text.replace("seq=1", "seq=one").as_str()),
+        None
+    );
     assert_eq!(parse_intent(&text[..text.len() / 3]), None);
 }
 
@@ -227,9 +319,19 @@ fn a_damaged_field_of_bytes_is_no_intent_and_never_another_index() {
     let sent: Intent = intent(11);
     let text: String = intent_text(&sent);
     let hexadecimal: String = crate::path_bytes_in_records::hex_of_path(sent.index.as_path());
-    let damaged: String = text.replace(format!("indexHex={hexadecimal}").as_str(), format!("indexHex={}", &hexadecimal[1..]).as_str());
-    assert!(damaged.contains("index=/work/repo/.git/index"), "the plain line is intact: {damaged}");
-    assert_eq!(parse_intent(damaged.as_str()), None, "one digit missing makes the bytes field damaged, and the intent is no intent");
+    let damaged: String = text.replace(
+        format!("indexHex={hexadecimal}").as_str(),
+        format!("indexHex={}", &hexadecimal[1..]).as_str(),
+    );
+    assert!(
+        damaged.contains("index=/work/repo/.git/index"),
+        "the plain line is intact: {damaged}"
+    );
+    assert_eq!(
+        parse_intent(damaged.as_str()),
+        None,
+        "one digit missing makes the bytes field damaged, and the intent is no intent"
+    );
 }
 
 /// What:
@@ -241,11 +343,23 @@ fn a_damaged_field_of_bytes_is_no_intent_and_never_another_index() {
 #[test]
 fn a_damaged_cleanup_is_no_intent() {
     let mut sent: Intent = intent(12);
-    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"), reftable: false });
+    sent.cleanup = Some(Cleanup {
+        git_dir: PathBuf::from("/work/repo/.git"),
+        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"),
+        reftable: false,
+    });
     let text: String = intent_text(&sent);
-    let hexadecimal: String = crate::path_bytes_in_records::hex_of_path(sent.cleanup.as_ref().expect("a cleanup").git_dir.as_path());
-    let damaged: String = text.replace(format!("cleanupHex={hexadecimal}").as_str(), format!("cleanupHex={}", &hexadecimal[1..]).as_str());
-    assert!(damaged.contains("cleanup=/work/repo/.git\t"), "the plain line is intact: {damaged}");
+    let hexadecimal: String = crate::path_bytes_in_records::hex_of_path(
+        sent.cleanup.as_ref().expect("a cleanup").git_dir.as_path(),
+    );
+    let damaged: String = text.replace(
+        format!("cleanupHex={hexadecimal}").as_str(),
+        format!("cleanupHex={}", &hexadecimal[1..]).as_str(),
+    );
+    assert!(
+        damaged.contains("cleanup=/work/repo/.git\t"),
+        "the plain line is intact: {damaged}"
+    );
     assert_eq!(parse_intent(damaged.as_str()), None);
 }
 
@@ -256,11 +370,27 @@ fn a_damaged_cleanup_is_no_intent() {
 #[test]
 fn recovery_follows_the_branch() {
     let batch: Intent = intent(1);
-    assert_eq!(recovery_for(&batch, batch.old.as_str(), false), Recovery::Drop);
-    assert_eq!(recovery_for(&batch, batch.new.as_str(), false), Recovery::Finish);
-    assert_eq!(recovery_for(&batch, "c".repeat(40).as_str(), true), Recovery::Finish);
-    assert_eq!(recovery_for(&batch, "c".repeat(40).as_str(), false), Recovery::Drop);
-    assert_eq!(recovery_for(&batch, batch.old.as_str(), true), Recovery::Drop, "an old value is never a landing");
+    assert_eq!(
+        recovery_for(&batch, batch.old.as_str(), false),
+        Recovery::Drop
+    );
+    assert_eq!(
+        recovery_for(&batch, batch.new.as_str(), false),
+        Recovery::Finish
+    );
+    assert_eq!(
+        recovery_for(&batch, "c".repeat(40).as_str(), true),
+        Recovery::Finish
+    );
+    assert_eq!(
+        recovery_for(&batch, "c".repeat(40).as_str(), false),
+        Recovery::Drop
+    );
+    assert_eq!(
+        recovery_for(&batch, batch.old.as_str(), true),
+        Recovery::Drop,
+        "an old value is never a landing"
+    );
 }
 
 /// A written intent is listed as open,
@@ -275,12 +405,17 @@ fn written_intents_are_listed_and_finished_ones_are_remembered() {
     }
     let open: Vec<u64> = list_intents(root.as_path(), OPEN_EXTENSION)
         .iter()
-        .map(|(_, parsed)| { return parsed.as_ref().expect("readable").seq; })
+        .map(|(_, parsed)| {
+            return parsed.as_ref().expect("readable").seq;
+        })
         .collect();
     assert_eq!(open, vec![1, 2, 3]);
     assert!(landed_commits(root.as_path()).is_empty());
     mark_done(root.as_path(), 2).expect("mark");
-    assert_eq!(landed_commits(root.as_path()).get("id-2"), Some(&"d".repeat(40)));
+    assert_eq!(
+        landed_commits(root.as_path()).get("id-2"),
+        Some(&"d".repeat(40))
+    );
     assert_eq!(list_intents(root.as_path(), OPEN_EXTENSION).len(), 2);
     remove(root.as_path());
 }
@@ -307,16 +442,29 @@ fn longer_than_a_client_s_life() -> Duration {
 /// A record of an earlier boot,
 /// and a wall clock as far back,
 /// make the reading past on a host with no boot ID too.
-fn finished_record(root: &Path, seq: u64, older: Duration) {
+fn finished_record(
+    root: &Path,
+    seq: u64,
+    older: Duration,
+) {
     // A record of this boot a moment old, or one of an earlier boot that far back, which are the two ways time passes.
     let written: ClaimTime = match older.is_zero() {
         true => ClaimTime::read(),
         false => ClaimTime::read().in_boot(AN_EARLIER_BOOT).rewound(older),
     };
-    std::fs::write(batch_path(root, seq, OPEN_EXTENSION), format!("{}{}", intent_text(&intent(seq)), stamp_line(&written))).expect("an intent");
+    std::fs::write(
+        batch_path(root, seq, OPEN_EXTENSION),
+        format!("{}{}", intent_text(&intent(seq)), stamp_line(&written)),
+    )
+    .expect("an intent");
     mark_done(root, seq).expect("the batch finishes");
-    let when: SystemTime = SystemTime::now().checked_sub(older).expect("a fixture time after the epoch");
-    std::fs::File::open(batch_path(root, seq, DONE_EXTENSION)).expect("a fixture record to age").set_modified(when).expect("a fixture time to age");
+    let when: SystemTime = SystemTime::now()
+        .checked_sub(older)
+        .expect("a fixture time after the epoch");
+    std::fs::File::open(batch_path(root, seq, DONE_EXTENSION))
+        .expect("a fixture record to age")
+        .set_modified(when)
+        .expect("a fixture time to age");
 }
 
 /// Pruning keeps the newest finished batches whatever their age,
@@ -337,21 +485,36 @@ fn pruning_keeps_the_newest_finished_batches_whatever_their_age() {
     let open: u64 = total + 1;
     write_intent(root.as_path(), &intent(open)).expect("an open batch");
     std::fs::write(root.join("notes.done"), "kept").expect("a file that is no batch");
-    std::fs::create_dir(batch_path(root.as_path(), 0, DONE_EXTENSION)).expect("a directory named like a batch");
+    std::fs::create_dir(batch_path(root.as_path(), 0, DONE_EXTENSION))
+        .expect("a directory named like a batch");
     let removed: usize = prune_done(root.as_path(), retained, &ClaimTime::read());
     assert_eq!(removed, usize::try_from(total).expect("a count") - retained);
     let oldest_kept: u64 = total - u64::try_from(retained).expect("a count") + 1;
     for seq in 1..oldest_kept {
-        assert!(!batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is among the oldest and past every client of it");
+        assert!(
+            !batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is among the oldest and past every client of it"
+        );
     }
     for seq in oldest_kept..=total {
-        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is among the newest");
+        assert!(
+            batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is among the newest"
+        );
     }
     assert!(batch_path(root.as_path(), open, OPEN_EXTENSION).exists());
     assert!(root.join("notes.done").exists());
     assert!(batch_path(root.as_path(), 0, DONE_EXTENSION).is_dir());
-    assert_eq!(prune_done(root.as_path(), retained, &ClaimTime::read()), 0, "a second pruning has nothing to remove");
-    assert_eq!(prune_done(root.join("absent").as_path(), retained, &ClaimTime::read()), 0, "a journal that is not there has nothing to remove");
+    assert_eq!(
+        prune_done(root.as_path(), retained, &ClaimTime::read()),
+        0,
+        "a second pruning has nothing to remove"
+    );
+    assert_eq!(
+        prune_done(root.join("absent").as_path(), retained, &ClaimTime::read()),
+        0,
+        "a journal that is not there has nothing to remove"
+    );
     remove(root.as_path());
 }
 
@@ -370,9 +533,16 @@ fn a_record_older_than_the_age_but_within_the_count_stays() {
     for seq in 1..=u64::try_from(retained).expect("a count") {
         finished_record(root.as_path(), seq, older);
     }
-    assert_eq!(prune_done(root.as_path(), retained, &ClaimTime::read()), 0, "nothing is beyond the count");
+    assert_eq!(
+        prune_done(root.as_path(), retained, &ClaimTime::read()),
+        0,
+        "nothing is beyond the count"
+    );
     for seq in 1..=u64::try_from(retained).expect("a count") {
-        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is within the count and stays");
+        assert!(
+            batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is within the count and stays"
+        );
     }
     remove(root.as_path());
 }
@@ -391,9 +561,16 @@ fn a_record_beyond_the_count_but_younger_than_the_age_stays() {
     for seq in 1..=total {
         finished_record(root.as_path(), seq, Duration::ZERO);
     }
-    assert_eq!(prune_done(root.as_path(), retained, &now), 0, "a client of every one of them may still read it");
+    assert_eq!(
+        prune_done(root.as_path(), retained, &now),
+        0,
+        "a client of every one of them may still read it"
+    );
     for seq in 1..=total {
-        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is younger than the age and stays");
+        assert!(
+            batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is younger than the age and stays"
+        );
     }
     remove(root.as_path());
 }
@@ -417,12 +594,22 @@ fn a_record_older_than_the_age_and_beyond_the_count_goes() {
         };
         finished_record(root.as_path(), seq, older);
     }
-    assert_eq!(prune_done(root.as_path(), retained, &now), 2, "the two past records beyond the count go");
+    assert_eq!(
+        prune_done(root.as_path(), retained, &now),
+        2,
+        "the two past records beyond the count go"
+    );
     for seq in 1..=2 {
-        assert!(!batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is past every client of it and beyond the count");
+        assert!(
+            !batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is past every client of it and beyond the count"
+        );
     }
     for seq in 3..=total {
-        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is younger than the age and stays");
+        assert!(
+            batch_path(root.as_path(), seq, DONE_EXTENSION).exists(),
+            "batch {seq} is younger than the age and stays"
+        );
     }
     remove(root.as_path());
 }
@@ -435,13 +622,24 @@ fn a_torn_write_leaves_nothing_readable() {
     let root: PathBuf = fixture("service-journal-torn");
     std::fs::write(batch_path(root.as_path(), 5, "tmp"), "seq=5\nrep").expect("torn temporary");
     // Left by a kill long ago: nothing can still be writing it.
-    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
-    std::fs::File::options().append(true).open(batch_path(root.as_path(), 5, "tmp")).and_then(|file| { return file.set_modified(long_ago); }).expect("aged");
-    std::fs::write(batch_path(root.as_path(), 6, OPEN_EXTENSION), "seq=6\nrep").expect("torn intent");
+    let long_ago: std::time::SystemTime =
+        std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
+    std::fs::File::options()
+        .append(true)
+        .open(batch_path(root.as_path(), 5, "tmp"))
+        .and_then(|file| {
+            return file.set_modified(long_ago);
+        })
+        .expect("aged");
+    std::fs::write(batch_path(root.as_path(), 6, OPEN_EXTENSION), "seq=6\nrep")
+        .expect("torn intent");
     let listed = list_intents(root.as_path(), OPEN_EXTENSION);
     assert_eq!(listed.len(), 1);
     assert!(listed[0].1.is_none(), "the torn intent does not parse");
-    assert!(!batch_path(root.as_path(), 5, "tmp").exists(), "the temporary file is removed");
+    assert!(
+        !batch_path(root.as_path(), 5, "tmp").exists(),
+        "the temporary file is removed"
+    );
     remove(root.as_path());
 }
 
@@ -457,7 +655,10 @@ fn a_temporary_file_that_is_being_written_is_left_alone() {
     std::fs::write(&live, "seq=11\nrep").expect("a write in progress");
     let listed = list_intents(root.as_path(), OPEN_EXTENSION);
     assert!(listed.is_empty());
-    assert!(live.exists(), "a write in progress is not removed from under its writer");
+    assert!(
+        live.exists(),
+        "a write in progress is not removed from under its writer"
+    );
     remove(root.as_path());
 }
 
@@ -472,10 +673,19 @@ fn a_temporary_file_of_a_writer_stalled_for_minutes_is_left_alone() {
     std::fs::write(&stalled, "seq=12\nrep").expect("a write in progress");
     let stalled_for: std::time::Duration = std::time::Duration::from_secs(5 * 60);
     let since: std::time::SystemTime = std::time::SystemTime::now() - stalled_for;
-    std::fs::File::options().append(true).open(&stalled).and_then(|file| { return file.set_modified(since); }).expect("aged");
+    std::fs::File::options()
+        .append(true)
+        .open(&stalled)
+        .and_then(|file| {
+            return file.set_modified(since);
+        })
+        .expect("aged");
     let listed = list_intents(root.as_path(), OPEN_EXTENSION);
     assert!(listed.is_empty());
-    assert!(stalled.exists(), "a writer that stalled for {stalled_for:?} is not removed from under its rename");
+    assert!(
+        stalled.exists(),
+        "a writer that stalled for {stalled_for:?} is not removed from under its rename"
+    );
     remove(root.as_path());
 }
 
@@ -493,11 +703,22 @@ fn a_batch_number_skips_every_number_the_journal_holds() {
     let held: BatchClaim = claim_batch(root.as_path(), first + 2).expect("a claim");
     assert_eq!(held.seq(), first + 2);
     let next: BatchClaim = claim_batch(root.as_path(), first).expect("a claim past the held ones");
-    assert_eq!(next.seq(), first + 3, "an intent, a finished batch and a claim each hold their number");
+    assert_eq!(
+        next.seq(),
+        first + 3,
+        "an intent, a finished batch and a claim each hold their number"
+    );
     drop(held);
-    assert!(!batch_path(root.as_path(), first + 2, CLAIM_EXTENSION).exists(), "a claim goes with its landing");
+    assert!(
+        !batch_path(root.as_path(), first + 2, CLAIM_EXTENSION).exists(),
+        "a claim goes with its landing"
+    );
     let again: BatchClaim = claim_batch(root.as_path(), first).expect("a claim after the release");
-    assert_eq!(again.seq(), first + 2, "a number with no record and no claim is free again");
+    assert_eq!(
+        again.seq(),
+        first + 2,
+        "a number with no record and no claim is free again"
+    );
     remove(root.as_path());
 }
 
@@ -508,9 +729,14 @@ fn a_batch_number_skips_every_number_the_journal_holds() {
 fn a_batch_number_whose_scratch_record_stays_is_not_taken_again() {
     let root: PathBuf = fixture("service-journal-scratch-record");
     let first: u64 = 40;
-    std::fs::write(batch_path(root.as_path(), first, SCRATCH_EXTENSION), "{}\n").expect("the record of a scratch reference");
+    std::fs::write(batch_path(root.as_path(), first, SCRATCH_EXTENSION), "{}\n")
+        .expect("the record of a scratch reference");
     let taken: BatchClaim = claim_batch(root.as_path(), first).expect("a claim");
-    assert_eq!(taken.seq(), first + 1, "a number with a record is not free again");
+    assert_eq!(
+        taken.seq(),
+        first + 1,
+        "a number with a record is not free again"
+    );
     remove(root.as_path());
 }
 
@@ -524,10 +750,20 @@ fn a_claim_of_a_killed_landing_is_removed_when_old_and_left_when_young() {
     let young: PathBuf = batch_path(root.as_path(), 31, CLAIM_EXTENSION);
     std::fs::write(&old, "").expect("an old claim");
     std::fs::write(&young, "").expect("a young claim");
-    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
-    std::fs::File::options().append(true).open(&old).and_then(|file| { return file.set_modified(long_ago); }).expect("aged");
+    let long_ago: std::time::SystemTime =
+        std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
+    std::fs::File::options()
+        .append(true)
+        .open(&old)
+        .and_then(|file| {
+            return file.set_modified(long_ago);
+        })
+        .expect("aged");
     let _listed = list_intents(root.as_path(), OPEN_EXTENSION);
-    assert!(!old.exists(), "the claim of a landing that was killed is removed");
+    assert!(
+        !old.exists(),
+        "the claim of a landing that was killed is removed"
+    );
     assert!(young.exists(), "a claim that may be a live landing's stays");
     remove(root.as_path());
 }

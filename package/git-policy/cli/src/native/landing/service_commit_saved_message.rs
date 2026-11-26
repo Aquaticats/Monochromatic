@@ -24,7 +24,10 @@ const SAVED_MESSAGE_PREFIX: &str = "monochromatic-git-policy-cli-saved-message-"
 /// Warning lines for a message that could not be written.
 use crate::diagnostic_log::warn;
 /// A path.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The path the typed message of request `id` is kept at,
@@ -38,13 +41,23 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// keepTheTypedMessage(conflict.gitDir, id, lastMessage)
 /// ```
-pub(crate) fn keep_the_typed_message(git_dir: &Path, id: &str, text: Option<&str>) -> Option<PathBuf> {
+pub(crate) fn keep_the_typed_message(
+    git_dir: &Path,
+    id: &str,
+    text: Option<&str>,
+) -> Option<PathBuf> {
     let typed: &str = text?;
-    let saved: PathBuf = git_dir.join(format!("{SAVED_MESSAGE_PREFIX}{}", id.get(..8).unwrap_or(id)));
+    let saved: PathBuf = git_dir.join(format!(
+        "{SAVED_MESSAGE_PREFIX}{}",
+        id.get(..8).unwrap_or(id)
+    ));
     return match std::fs::write(&saved, typed) {
         Ok(()) => Some(saved),
         Err(error) => {
-            warn("serviceCommit", format!("saving the message failed: {error}").as_str());
+            warn(
+                "serviceCommit",
+                format!("saving the message failed: {error}").as_str(),
+            );
             None
         }
     };

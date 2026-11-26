@@ -17,19 +17,35 @@
 //! expect(AWAITING.arrives_with).toContain('plan step 19'); expect(run()).toEqual({ refused: AWAITING });
 //! ```
 
-use super::{AWAITING, run};
+use super::{
+    AWAITING,
+    run,
+};
 
 /// The refusal names the mode word and the unit that runs it,
 /// and never claims that the step whose code landed lands the mode.
 #[test]
 fn the_refusal_names_the_mode_and_the_unit_that_runs_it() {
     assert_eq!(AWAITING.mode, "shutdown-unmount");
-    assert!(AWAITING.arrives_with.contains("plan step 19"), "{}", AWAITING.arrives_with);
+    assert!(
+        AWAITING.arrives_with.contains("plan step 19"),
+        "{}",
+        AWAITING.arrives_with
+    );
     let message: String = AWAITING.message();
     assert!(message.contains("shutdown-unmount"), "{message}");
-    assert!(message.contains("it arrives with plan step 19"), "{message}");
-    assert!(message.contains("the unmount code itself landed with plan step 9"), "{message}");
-    assert!(!message.contains("plan step 9 lands it"), "step 9's code is in this binary, so it lands no mode: {message}");
+    assert!(
+        message.contains("it arrives with plan step 19"),
+        "{message}"
+    );
+    assert!(
+        message.contains("the unmount code itself landed with plan step 9"),
+        "{message}"
+    );
+    assert!(
+        !message.contains("plan step 9 lands it"),
+        "step 9's code is in this binary, so it lands no mode: {message}"
+    );
 }
 
 /// Running the mode answers the refusal,

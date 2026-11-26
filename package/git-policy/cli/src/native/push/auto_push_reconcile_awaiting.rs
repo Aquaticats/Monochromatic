@@ -20,15 +20,34 @@
 //! const integrated = await integrateAndPushOnTheRuntime({ git, plan, rejected, pushMerge });
 //! ```
 
-use crate::auto_push_reconcile_plan::{Integrated, Reconcile, attempt_of, auto_push_plan, wording_of};
+use crate::auto_push_destination::{
+    Destination,
+    read_destination_awaiting,
+};
 use crate::auto_push_reconcile_basics_and_limits::{
-    MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
-    unpublished, was_rejected_as_stale,
+    MAX_RECONCILE_ATTEMPTS,
+    TAG,
+    argv,
+    fetch_remote_tip_awaiting,
+    is_ancestor_awaiting,
+    journal_identifier,
+    unpublished,
+    was_rejected_as_stale,
 };
 use crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting;
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
-use crate::auto_push_destination::{Destination, read_destination_awaiting};
+use crate::auto_push_reconcile_plan::{
+    Integrated,
+    Reconcile,
+    attempt_of,
+    auto_push_plan,
+    wording_of,
+};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
 use crate::merge_second_pass_tree::announce;
@@ -90,7 +109,9 @@ impl MergePusherAwaiting for PushMergeThroughGitAwaiting<'_> {
             &target.remote,
             &format!("{merge_oid}:{}", target.merge_ref),
         ]);
-        return Box::pin(async move { return run_push_awaiting(self.git, &arguments).await; });
+        return Box::pin(async move {
+            return run_push_awaiting(self.git, &arguments).await;
+        });
     }
 }
 
@@ -222,14 +243,17 @@ pub async fn integrate_and_push_awaiting(
                 "attempt {attempt}: pushing the merge {merge_oid} of {local} and {remote_tip}"
             ),
         );
-        let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
+        let pushed: PushAttempt =
+            (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
         if pushed.exit_code == 0 {
             let branch: &str = match plan.branch_ref {
                 Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
                 None => "HEAD",
             };
             let advanced = match plan.branch_ref {
-                Some(branch_ref) => (advance_local_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?,
+                Some(branch_ref) => {
+                    (advance_local_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?
+                }
                 None => Err(String::from("HEAD is detached")),
             };
             let followed: String = match advanced {
@@ -247,7 +271,11 @@ pub async fn integrate_and_push_awaiting(
                 }
             };
             let mut merged_parts: String = String::new();
-            for line in announce(line_prefix, (journal_identifier(plan.explicit), label), &committed.merged) {
+            for line in announce(
+                line_prefix,
+                (journal_identifier(plan.explicit), label),
+                &committed.merged,
+            ) {
                 merged_parts.push_str(format!("{line}\n").as_str());
             }
             return Ok(Integrated::Finished(PushAttempt {
@@ -309,6 +337,8 @@ pub async fn reconcile_divergent_push_awaiting(
     };
     let plan: Reconcile<'_> = auto_push_plan(destination, local, branch_ref);
     // The loop takes its push as a value so controls can stand in for it; this one carries the Git context.
-    let mut push_merge: PushMergeThroughGitAwaiting<'_> = PushMergeThroughGitAwaiting { git };
+    let mut push_merge: PushMergeThroughGitAwaiting<'_> = PushMergeThroughGitAwaiting {
+        git,
+    };
     return attempt_of((integrate_and_push_awaiting(git, &plan, rejected, &mut push_merge)).await);
 }

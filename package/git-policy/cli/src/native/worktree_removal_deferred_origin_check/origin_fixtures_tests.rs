@@ -16,13 +16,26 @@
 //! const verdict = checkPlannedOrigin(pool, planned());
 //! ```
 
-use super::origin_mark::{DEFER_DESTROY_PROPERTY, MARK_OFF, MARK_ON, USER_HOLDS_PROPERTY};
+use super::origin_mark::{
+    DEFER_DESTROY_PROPERTY,
+    MARK_OFF,
+    MARK_ON,
+    USER_HOLDS_PROPERTY,
+};
 use super::origin_verdict::Verdict;
 use super::planned_origin::PlannedOrigin;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::DMU_OBJECT_SET_FILESYSTEM;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DmuObjsetStats,
+    NvList,
+};
 use std::cell::RefCell;
 use std::path::PathBuf;
 
@@ -37,7 +50,8 @@ pub(crate) const CHECKOUT: &str = "zpcachyos/nosnap/checkout";
 
 /// The origin snapshot's full name,
 /// in the form the add route gives it.
-pub(crate) const ORIGIN_SNAPSHOT: &str = "zpcachyos/nosnap/checkout@git-worktree-clone-origin-0011223344556677";
+pub(crate) const ORIGIN_SNAPSHOT: &str =
+    "zpcachyos/nosnap/checkout@git-worktree-clone-origin-0011223344556677";
 
 /// The GUID this removal recorded for the clone.
 pub(crate) const CLONE_GUID: u64 = 12_345_678_901_234_567_890;
@@ -78,7 +92,10 @@ pub(crate) enum Answer {
 impl Answer {
     /// One identity answer,
     /// boxed so the script's enum stays small.
-    pub(crate) fn of(stats: DmuObjsetStats, properties: NvList) -> Answer {
+    pub(crate) fn of(
+        stats: DmuObjsetStats,
+        properties: NvList,
+    ) -> Answer {
         return Answer::Identity(Box::new(stats), properties);
     }
 
@@ -86,8 +103,14 @@ impl Answer {
     /// or the failure in its place.
     fn identity(&self) -> Result<DatasetIdentity, ReadFailure> {
         return match self {
-            Answer::Identity(stats, properties) => Ok(DatasetIdentity { stats: **stats, properties: properties.clone() }),
-            Answer::Failed(said, errno) => Err(ReadFailure { said: said.clone(), errno: *errno }),
+            Answer::Identity(stats, properties) => Ok(DatasetIdentity {
+                stats: **stats,
+                properties: properties.clone(),
+            }),
+            Answer::Failed(said, errno) => Err(ReadFailure {
+                said: said.clone(),
+                errno: *errno,
+            }),
         };
     }
 }
@@ -116,7 +139,10 @@ impl Pool {
     /// A pool answering the names given.
     pub(crate) fn new(answers: Vec<(&str, Answer)>) -> Pool {
         return Pool {
-            answers: answers.into_iter().map(|(name, answer)| return (String::from(name), answer)).collect(),
+            answers: answers
+                .into_iter()
+                .map(|(name, answer)| return (String::from(name), answer))
+                .collect(),
             reads: RefCell::new(Vec::new()),
         };
     }
@@ -129,8 +155,15 @@ impl Pool {
 
     /// The same pool with one name's answer replaced,
     /// so a control changes one object of the healthy script.
-    pub(crate) fn with(mut self, name: &str, answer: Answer) -> Pool {
-        let found: Option<&mut (String, Answer)> = self.answers.iter_mut().find(|(answered, _)| return answered == name);
+    pub(crate) fn with(
+        mut self,
+        name: &str,
+        answer: Answer,
+    ) -> Pool {
+        let found: Option<&mut (String, Answer)> = self
+            .answers
+            .iter_mut()
+            .find(|(answered, _)| return answered == name);
         match found {
             Some(entry) => entry.1 = answer,
             None => self.answers.push((String::from(name), answer)),
@@ -140,16 +173,26 @@ impl Pool {
 }
 
 impl DatasetReader for Pool {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         self.reads.borrow_mut().push(String::from(dataset));
-        let found: Option<&(String, Answer)> = self.answers.iter().find(|(name, _)| return name == dataset);
+        let found: Option<&(String, Answer)> =
+            self.answers.iter().find(|(name, _)| return name == dataset);
         let Some((_name, answer)) = found else {
-            return Err(ReadFailure::at(format!("this scripted pool holds no `{dataset}`")));
+            return Err(ReadFailure::at(format!(
+                "this scripted pool holds no `{dataset}`"
+            )));
         };
         return answer.identity();
     }
 
-    fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        _parent: &str,
+        _cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         return Ok(None);
     }
 }
@@ -173,12 +216,19 @@ pub(crate) fn planned() -> PlannedOrigin {
 
 /// One GUID as a control writes it.
 pub(crate) fn guid(value: u64) -> DatasetGuid {
-    return DatasetGuid::parse(value.to_string().as_str()).expect("a control writes a canonical GUID");
+    return DatasetGuid::parse(value.to_string().as_str())
+        .expect("a control writes a canonical GUID");
 }
 
 /// The kernel's statistics for one object,
 /// with every field the check reads set the way a healthy pool answers.
-pub(crate) fn stats(guid_value: u64, is_snapshot: bool, creation_txg: u64, clones: u64, origin: &str) -> DmuObjsetStats {
+pub(crate) fn stats(
+    guid_value: u64,
+    is_snapshot: bool,
+    creation_txg: u64,
+    clones: u64,
+    origin: &str,
+) -> DmuObjsetStats {
     let mut origin_bytes: [u8; NAME_FIELD_BYTES] = [0; NAME_FIELD_BYTES];
     origin_bytes[..origin.len()].copy_from_slice(origin.as_bytes());
     return DmuObjsetStats {
@@ -207,13 +257,23 @@ pub(crate) fn origin_dataset_stats() -> DmuObjsetStats {
 
 /// The origin snapshot's healthy statistics,
 /// which report the clones and the holds its reply's properties count.
-pub(crate) fn origin_snapshot_stats(clones: u64, mark: Option<u64>, holds: Option<u64>) -> (DmuObjsetStats, NvList) {
-    return (stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, clones, ""), origin_properties(mark, holds));
+pub(crate) fn origin_snapshot_stats(
+    clones: u64,
+    mark: Option<u64>,
+    holds: Option<u64>,
+) -> (DmuObjsetStats, NvList) {
+    return (
+        stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, clones, ""),
+        origin_properties(mark, holds),
+    );
 }
 
 /// The origin snapshot's property list,
 /// which carries the mark and the hold count when a control asks for them.
-pub(crate) fn origin_properties(mark: Option<u64>, holds: Option<u64>) -> NvList {
+pub(crate) fn origin_properties(
+    mark: Option<u64>,
+    holds: Option<u64>,
+) -> NvList {
     let mut reply: NvList = NvList::new();
     if let Some(value) = mark {
         reply.add_nvlist(DEFER_DESTROY_PROPERTY, pair_number(value, None));
@@ -228,17 +288,27 @@ pub(crate) fn origin_properties(mark: Option<u64>, holds: Option<u64>) -> NvList
 /// a healthy clone,
 /// its healthy origin dataset,
 /// and an origin snapshot whose mark and hold count come from the control.
-pub(crate) fn healthy(mark: Option<u64>, holds: Option<u64>) -> Pool {
+pub(crate) fn healthy(
+    mark: Option<u64>,
+    holds: Option<u64>,
+) -> Pool {
     return pool_over(1, mark, holds);
 }
 
 /// The same pool with the number of clones of the origin snapshot a control names.
-pub(crate) fn pool_over(clones: u64, mark: Option<u64>, holds: Option<u64>) -> Pool {
+pub(crate) fn pool_over(
+    clones: u64,
+    mark: Option<u64>,
+    holds: Option<u64>,
+) -> Pool {
     let (snapshot_stats, snapshot_properties) = origin_snapshot_stats(clones, mark, holds);
     return Pool::new(vec![
         (CLONE, Answer::of(clone_stats(), NvList::new())),
         (CHECKOUT, Answer::of(origin_dataset_stats(), NvList::new())),
-        (ORIGIN_SNAPSHOT, Answer::of(snapshot_stats, snapshot_properties)),
+        (
+            ORIGIN_SNAPSHOT,
+            Answer::of(snapshot_stats, snapshot_properties),
+        ),
     ]);
 }
 
@@ -260,7 +330,10 @@ pub(crate) fn marked() -> Pool {
 
 /// One numeric property,
 /// with the source only when a control asks for one.
-pub(crate) fn pair_number(value: u64, source: Option<&str>) -> NvList {
+pub(crate) fn pair_number(
+    value: u64,
+    source: Option<&str>,
+) -> NvList {
     let mut pair: NvList = NvList::new();
     pair.add_u64("value", value);
     if let Some(from) = source {
@@ -333,13 +406,21 @@ pub(crate) fn fields() -> super::planned_origin::PlannedOriginFields {
 pub(crate) fn every_cause() -> Vec<(&'static str, super::origin_refusal::OriginRefusal)> {
     use super::origin_mark::UserHolds;
     use super::origin_refusal::OriginRefusal;
-    use super::origin_refusals::{JudgedObject, PlanField, RefusalPoint};
+    use super::origin_refusals::{
+        JudgedObject,
+        PlanField,
+        RefusalPoint,
+    };
     let recorded: PlannedOrigin = planned();
     let marked: UserHolds = UserHolds::Counted(0);
     return vec![
         (
             "plan-incomplete",
-            OriginRefusal::PlanIncomplete { slot: String::from(SLOT), field: PlanField::CloneGuid, plan_home: PathBuf::from(PLAN_HOME) },
+            OriginRefusal::PlanIncomplete {
+                slot: String::from(SLOT),
+                field: PlanField::CloneGuid,
+                plan_home: PathBuf::from(PLAN_HOME),
+            },
         ),
         (
             "marked-before-the-unmount",
@@ -351,7 +432,14 @@ pub(crate) fn every_cause() -> Vec<(&'static str, super::origin_refusal::OriginR
                 holds: marked.clone(),
             },
         ),
-        ("marked-at-a-check", OriginRefusal::OriginMarkedForDeferredDestroy { planned: recorded.clone(), clones: 1, holds: marked }),
+        (
+            "marked-at-a-check",
+            OriginRefusal::OriginMarkedForDeferredDestroy {
+                planned: recorded.clone(),
+                clones: 1,
+                holds: marked,
+            },
+        ),
         (
             "unreadable-mark-before-the-unmount",
             OriginRefusal::MarkUnreadable {
@@ -372,33 +460,123 @@ pub(crate) fn every_cause() -> Vec<(&'static str, super::origin_refusal::OriginR
                 said: String::from("`defer_destroy` is not in the reply"),
             },
         ),
-        ("clone-gone", OriginRefusal::CloneGone { planned: recorded.clone() }),
-        ("clone-not-a-filesystem", OriginRefusal::CloneIsNotAFilesystem { planned: recorded.clone(), found: 3, snapshot: false }),
-        ("clone-is-a-snapshot", OriginRefusal::CloneIsNotAFilesystem { planned: recorded.clone(), found: 2, snapshot: true }),
-        ("clone-not-the-planned-one", OriginRefusal::CloneIsNotThePlannedOne { planned: recorded.clone(), live: CLONE_GUID + 1 }),
-        ("clone-has-no-origin", OriginRefusal::CloneHasNoOrigin { planned: recorded.clone() }),
+        (
+            "clone-gone",
+            OriginRefusal::CloneGone {
+                planned: recorded.clone(),
+            },
+        ),
+        (
+            "clone-not-a-filesystem",
+            OriginRefusal::CloneIsNotAFilesystem {
+                planned: recorded.clone(),
+                found: 3,
+                snapshot: false,
+            },
+        ),
+        (
+            "clone-is-a-snapshot",
+            OriginRefusal::CloneIsNotAFilesystem {
+                planned: recorded.clone(),
+                found: 2,
+                snapshot: true,
+            },
+        ),
+        (
+            "clone-not-the-planned-one",
+            OriginRefusal::CloneIsNotThePlannedOne {
+                planned: recorded.clone(),
+                live: CLONE_GUID + 1,
+            },
+        ),
+        (
+            "clone-has-no-origin",
+            OriginRefusal::CloneHasNoOrigin {
+                planned: recorded.clone(),
+            },
+        ),
         (
             "clone-origin-differs",
-            OriginRefusal::CloneOriginDiffers { planned: recorded.clone(), live: String::from("zpcachyos/nosnap/checkout@git-worktree-clone-origin-ffeeddccbbaa9988") },
+            OriginRefusal::CloneOriginDiffers {
+                planned: recorded.clone(),
+                live: String::from(
+                    "zpcachyos/nosnap/checkout@git-worktree-clone-origin-ffeeddccbbaa9988",
+                ),
+            },
         ),
-        ("origin-dataset-gone", OriginRefusal::OriginDatasetGone { planned: recorded.clone() }),
-        ("origin-dataset-not-a-filesystem", OriginRefusal::OriginDatasetIsNotAFilesystem { planned: recorded.clone(), found: 3, snapshot: false }),
-        ("origin-dataset-not-the-planned-one", OriginRefusal::OriginDatasetIsNotThePlannedOne { planned: recorded.clone(), live: ORIGIN_DATASET_GUID + 1 }),
-        ("origin-snapshot-gone", OriginRefusal::OriginSnapshotGone { planned: recorded.clone() }),
-        ("origin-is-not-a-snapshot", OriginRefusal::OriginIsNotASnapshot { planned: recorded.clone() }),
-        ("origin-snapshot-not-the-planned-one", OriginRefusal::OriginSnapshotIsNotThePlannedOne { planned: recorded.clone(), live: ORIGIN_SNAPSHOT_GUID + 1 }),
-        ("origin-snapshot-createtxg-differs", OriginRefusal::OriginSnapshotCreatetxgDiffers { planned: recorded.clone(), live: ORIGIN_CREATETXG + 1 }),
+        (
+            "origin-dataset-gone",
+            OriginRefusal::OriginDatasetGone {
+                planned: recorded.clone(),
+            },
+        ),
+        (
+            "origin-dataset-not-a-filesystem",
+            OriginRefusal::OriginDatasetIsNotAFilesystem {
+                planned: recorded.clone(),
+                found: 3,
+                snapshot: false,
+            },
+        ),
+        (
+            "origin-dataset-not-the-planned-one",
+            OriginRefusal::OriginDatasetIsNotThePlannedOne {
+                planned: recorded.clone(),
+                live: ORIGIN_DATASET_GUID + 1,
+            },
+        ),
+        (
+            "origin-snapshot-gone",
+            OriginRefusal::OriginSnapshotGone {
+                planned: recorded.clone(),
+            },
+        ),
+        (
+            "origin-is-not-a-snapshot",
+            OriginRefusal::OriginIsNotASnapshot {
+                planned: recorded.clone(),
+            },
+        ),
+        (
+            "origin-snapshot-not-the-planned-one",
+            OriginRefusal::OriginSnapshotIsNotThePlannedOne {
+                planned: recorded.clone(),
+                live: ORIGIN_SNAPSHOT_GUID + 1,
+            },
+        ),
+        (
+            "origin-snapshot-createtxg-differs",
+            OriginRefusal::OriginSnapshotCreatetxgDiffers {
+                planned: recorded.clone(),
+                live: ORIGIN_CREATETXG + 1,
+            },
+        ),
         (
             "read-failed-on-the-clone",
-            OriginRefusal::ReadFailed { planned: recorded.clone(), object: JudgedObject::Clone, name: String::from(CLONE), said: String::from("the device answered EACCES") },
+            OriginRefusal::ReadFailed {
+                planned: recorded.clone(),
+                object: JudgedObject::Clone,
+                name: String::from(CLONE),
+                said: String::from("the device answered EACCES"),
+            },
         ),
         (
             "read-failed-on-the-origin-dataset",
-            OriginRefusal::ReadFailed { planned: recorded.clone(), object: JudgedObject::OriginDataset, name: String::from(CHECKOUT), said: String::from("the pool is not imported") },
+            OriginRefusal::ReadFailed {
+                planned: recorded.clone(),
+                object: JudgedObject::OriginDataset,
+                name: String::from(CHECKOUT),
+                said: String::from("the pool is not imported"),
+            },
         ),
         (
             "read-failed-on-the-origin-snapshot",
-            OriginRefusal::ReadFailed { planned: recorded, object: JudgedObject::OriginSnapshot, name: String::from(ORIGIN_SNAPSHOT), said: String::from("the pool is not imported") },
+            OriginRefusal::ReadFailed {
+                planned: recorded,
+                object: JudgedObject::OriginSnapshot,
+                name: String::from(ORIGIN_SNAPSHOT),
+                said: String::from("the pool is not imported"),
+            },
         ),
     ];
 }

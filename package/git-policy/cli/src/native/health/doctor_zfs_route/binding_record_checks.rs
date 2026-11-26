@@ -29,7 +29,11 @@
 //! const outcome = checkBindingRecord(reading); // pass | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    pass,
+    unknown,
+};
 use crate::worktree_clone_slot_state::slot_state_readings::BindingReading;
 
 /// The words that stand where a field's phase has not proved it yet.
@@ -48,7 +52,10 @@ pub const NOT_RECORDED: &str = "not recorded at this phase";
 /// ```ts
 /// const shown = shown(record.clone_guid?.fileName()); // '4821193048571903102' | 'not recorded at this phase'
 /// ```
-fn shown<T>(value: Option<T>, render: impl Fn(T) -> String) -> String {
+fn shown<T>(
+    value: Option<T>,
+    render: impl Fn(T) -> String,
+) -> String {
     return match value {
         Some(held) => render(held),
         None => String::from(NOT_RECORDED),
@@ -70,8 +77,14 @@ fn shown<T>(value: Option<T>, render: impl Fn(T) -> String) -> String {
 /// ```
 pub fn check_binding_record(reading: &BindingReading) -> CheckOutcome {
     return match reading {
-        BindingReading::Absent => pass(String::from("no binding record is filed under this slot's name, so no add claims it")),
-        BindingReading::Unreadable { reason } => unknown(format!("the binding record filed under this slot's name cannot be read ({reason}), so the clone, the origin and the registration it holds are unknown")),
+        BindingReading::Absent => pass(String::from(
+            "no binding record is filed under this slot's name, so no add claims it",
+        )),
+        BindingReading::Unreadable {
+            reason,
+        } => unknown(format!(
+            "the binding record filed under this slot's name cannot be read ({reason}), so the clone, the origin and the registration it holds are unknown"
+        )),
         BindingReading::Record(record) => {
             let registration: String = match record.registration_path() {
                 Some(path) => path.display().to_string(),
@@ -82,14 +95,24 @@ pub fn check_binding_record(reading: &BindingReading) -> CheckOutcome {
                 None => String::new(),
             };
             let clone_guid: String = shown(record.clone_guid, |guid| return guid.file_name());
-            let clone_createtxg: String = shown(record.clone_createtxg, |group| return group.to_string());
+            let clone_createtxg: String =
+                shown(record.clone_createtxg, |group| return group.to_string());
             let origin: String = match (&record.origin_dataset, record.origin_snapshot_guid) {
-                (Some(dataset), Some(guid)) => format!("the origin dataset `{dataset}` and the origin snapshot `{}` (GUID {})", record.origin_snapshot, guid.file_name()),
-                _ => format!("the origin snapshot `{}` and no origin dataset or GUID", record.origin_snapshot),
+                (Some(dataset), Some(guid)) => format!(
+                    "the origin dataset `{dataset}` and the origin snapshot `{}` (GUID {})",
+                    record.origin_snapshot,
+                    guid.file_name()
+                ),
+                _ => format!(
+                    "the origin snapshot `{}` and no origin dataset or GUID",
+                    record.origin_snapshot
+                ),
             };
             return pass(format!(
                 "the binding record filed under `{}` stands at `phase={}`{settling}: claim {}, the clone `{}` with GUID {clone_guid} and creation group {clone_createtxg}, {origin}, and the Git registration {registration}",
-                record.slot_name().unwrap_or_else(|| return String::from("its slot")),
+                record
+                    .slot_name()
+                    .unwrap_or_else(|| return String::from("its slot")),
                 record.phase.word(),
                 record.claim,
                 record.clone_dataset,

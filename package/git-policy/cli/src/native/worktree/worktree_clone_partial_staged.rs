@@ -26,9 +26,16 @@
 //! const refusal = aStagedPathAmongTheClones(staged, entries, clones);
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_clean::StatEntry;
-use crate::worktree_snapshot_source::{SnapshotSource, plain};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    plain,
+};
 
 /// What:
 ///  The paths the source's index holds another object or mode for than the tree of `HEAD`,
@@ -50,17 +57,46 @@ use crate::worktree_snapshot_source::{SnapshotSource, plain};
 /// ```ts
 /// const staged = stagedPaths(context, source); // throws the reason Git could not answer
 /// ```
-pub(crate) fn staged_paths(context: &GitContext, source: &SnapshotSource) -> Result<Vec<Vec<u8>>, String> {
-    let mut request: GitRequest = GitRequest::new(source.root.as_path(), &["--no-optional-locks", "diff-index", "--cached", "--name-only", "-z", source.clean.head_commit.as_str()]);
+pub(crate) fn staged_paths(
+    context: &GitContext,
+    source: &SnapshotSource,
+) -> Result<Vec<Vec<u8>>, String> {
+    let mut request: GitRequest = GitRequest::new(
+        source.root.as_path(),
+        &[
+            "--no-optional-locks",
+            "diff-index",
+            "--cached",
+            "--name-only",
+            "-z",
+            source.clean.head_commit.as_str(),
+        ],
+    );
     request.without_prefix = true;
     let output = match run_git(context, &request) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("`git diff-index --cached --name-only` could not start ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "`git diff-index --cached --name-only` could not start ({error})"
+            ));
+        }
     };
     if output.code != Some(0) {
-        return Err(format!("`git diff-index --cached --name-only` ended with {:?}", output.code));
+        return Err(format!(
+            "`git diff-index --cached --name-only` ended with {:?}",
+            output.code
+        ));
     }
-    return Ok(output.stdout.split(|byte: &u8| { return *byte == 0; }).filter(|path| { return !path.is_empty(); }).map(<[u8]>::to_vec).collect());
+    return Ok(output
+        .stdout
+        .split(|byte: &u8| {
+            return *byte == 0;
+        })
+        .filter(|path| {
+            return !path.is_empty();
+        })
+        .map(<[u8]>::to_vec)
+        .collect());
 }
 
 /// What:
@@ -84,12 +120,23 @@ pub(crate) fn staged_paths(context: &GitContext, source: &SnapshotSource) -> Res
 /// ```ts
 /// const refusal = aStagedPathAmongTheClones(staged, entries, clones) ?? undefined;
 /// ```
-pub(crate) fn a_staged_path_among_the_clones(staged: &[Vec<u8>], entries: &[StatEntry], clones: &[usize]) -> Option<String> {
+pub(crate) fn a_staged_path_among_the_clones(
+    staged: &[Vec<u8>],
+    entries: &[StatEntry],
+    clones: &[usize],
+) -> Option<String> {
     for at in clones {
-        let Some(entry) = entries.get(*at) else { continue };
-        if staged.iter().any(|path| { return *path == entry.path; }) {
+        let Some(entry) = entries.get(*at) else {
+            continue;
+        };
+        if staged.iter().any(|path| {
+            return *path == entry.path;
+        }) {
             let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-            return Some(format!("{} is staged in the source and would have been cloned", plain(shown.as_str())));
+            return Some(format!(
+                "{} is staged in the source and would have been cloned",
+                plain(shown.as_str())
+            ));
         }
     }
     return None;

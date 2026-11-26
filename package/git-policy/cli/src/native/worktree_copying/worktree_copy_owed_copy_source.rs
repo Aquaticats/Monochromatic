@@ -57,7 +57,10 @@ pub(crate) fn source_could_be_a_worktree(source: &Path) -> bool {
     // `match` on the source itself: absence and a file where a directory belongs are answers, and every refusal that could change keeps the question open.
     match std::fs::metadata(source) {
         Ok(found) => return found.is_dir(),
-        Err(error) => return error.kind() != std::io::ErrorKind::NotFound && error.kind() != std::io::ErrorKind::NotADirectory,
+        Err(error) => {
+            return error.kind() != std::io::ErrorKind::NotFound
+                && error.kind() != std::io::ErrorKind::NotADirectory;
+        }
     }
 }
 

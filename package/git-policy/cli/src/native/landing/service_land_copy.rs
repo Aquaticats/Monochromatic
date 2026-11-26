@@ -37,13 +37,23 @@
 //! const copy = await PrivateCopy.make(lock, seq) // mkdir beside the index, owner only; copy the index into it
 //! ```
 
-use crate::random_id::{is_canonical_uuid, random_uuid};
+use crate::random_id::{
+    is_canonical_uuid,
+    random_uuid,
+};
 use crate::service_index_lock::IndexLock;
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::FailureCode;
 use std::io::Write as _;
-use std::os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _, PermissionsExt as _};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    DirBuilderExt as _,
+    OpenOptionsExt as _,
+    PermissionsExt as _,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The start of the name of a private copy's directory;
 /// a random identifier follows it.
@@ -80,7 +90,10 @@ fn hold(directory: &Path) -> Option<std::fs::File> {
         Ok(()) => Some(opened),
         Err(std::fs::TryLockError::WouldBlock) => None,
         Err(std::fs::TryLockError::Error(error)) => {
-            crate::service_log!("the private copy {} cannot be tested for an owner ({error}), so it stays", directory.display());
+            crate::service_log!(
+                "the private copy {} cannot be tested for an owner ({error}), so it stays",
+                directory.display()
+            );
             None
         }
     };
@@ -103,7 +116,10 @@ fn is_ours(entry: &std::fs::DirEntry) -> bool {
     };
     // SAFETY: `geteuid` takes no argument and cannot fail.
     let effective: u32 = unsafe { libc::geteuid() };
-    return is_canonical_uuid(tail) && metadata.is_dir() && metadata.uid() == effective && std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o777 == 0o700;
+    return is_canonical_uuid(tail)
+        && metadata.is_dir()
+        && metadata.uid() == effective
+        && std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o777 == 0o700;
 }
 
 /// What:
@@ -218,14 +234,23 @@ impl PrivateCopy {
     ///
     /// The operating system's error when the copy cannot be opened or its times set.
     pub fn keep_the_live_times(&self) -> std::io::Result<()> {
-        let Some((accessed, modified)) = self.live_times else { return Ok(()) };
-        let opened: std::fs::File = std::fs::OpenOptions::new().write(true).open(self.path.as_path())?;
-        let recorded: Option<std::time::SystemTime> = opened.metadata().ok().and_then(Self::the_modification_time);
+        let Some((accessed, modified)) = self.live_times else {
+            return Ok(());
+        };
+        let opened: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .open(self.path.as_path())?;
+        let recorded: Option<std::time::SystemTime> =
+            opened.metadata().ok().and_then(Self::the_modification_time);
         // A copy that already has them is left untouched: setting them again would dirty metadata a flush already covered.
         if recorded == Some(modified) {
             return Ok(());
         }
-        opened.set_times(std::fs::FileTimes::new().set_accessed(accessed).set_modified(modified))?;
+        opened.set_times(
+            std::fs::FileTimes::new()
+                .set_accessed(accessed)
+                .set_modified(modified),
+        )?;
         self.flushed.set(false);
         return Ok(());
     }
@@ -261,7 +286,10 @@ impl PrivateCopy {
     /// that they are on the disk (the update that wrote them flushed them before it
     ///  renamed them into place),
     /// or that something wrote to them after.
-    pub fn set_flushed(&self, flushed: bool) {
+    pub fn set_flushed(
+        &self,
+        flushed: bool,
+    ) {
         self.flushed.set(flushed);
     }
 
@@ -293,24 +321,48 @@ impl PrivateCopy {
     /// # Errors
     ///
     /// The failure the storage error stands for when the directory or the copy cannot be made.
-    pub fn make(lock: &IndexLock, seq: u64) -> Result<PrivateCopy, FailureCode> {
+    pub fn make(
+        lock: &IndexLock,
+        seq: u64,
+    ) -> Result<PrivateCopy, FailureCode> {
         let live: &Path = lock.index();
         let parent: &Path = live.parent().ok_or(FailureCode::Unavailable)?;
         sweep_leftovers(parent);
         let (directory, held) = Self::make_directory(parent)?;
-        let mut copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, live_times: None, _hold: held, flushed: std::cell::Cell::new(false) };
-        let marker_text: String = format!("{MARKER_HEAD}\npid={}\nbatch={seq}\n", std::process::id());
-        write_new(copy.directory.join(MARKER_FILE).as_path(), marker_text.as_bytes()).map_err(storage_failure_of)?;
+        let mut copy: PrivateCopy = PrivateCopy {
+            path: directory.join(COPY_FILE),
+            directory,
+            live_times: None,
+            _hold: held,
+            flushed: std::cell::Cell::new(false),
+        };
+        let marker_text: String =
+            format!("{MARKER_HEAD}\npid={}\nbatch={seq}\n", std::process::id());
+        write_new(
+            copy.directory.join(MARKER_FILE).as_path(),
+            marker_text.as_bytes(),
+        )
+        .map_err(storage_failure_of)?;
         match std::fs::File::open(live) {
             Ok(mut source) => {
-                let live_metadata: std::fs::Metadata = source.metadata().map_err(storage_failure_of)?;
+                let live_metadata: std::fs::Metadata =
+                    source.metadata().map_err(storage_failure_of)?;
                 let live_permissions: std::fs::Permissions = live_metadata.permissions();
-                copy.live_times = Some((live_metadata.accessed().map_err(storage_failure_of)?, live_metadata.modified().map_err(storage_failure_of)?));
-                let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(storage_failure_of)?;
+                copy.live_times = Some((
+                    live_metadata.accessed().map_err(storage_failure_of)?,
+                    live_metadata.modified().map_err(storage_failure_of)?,
+                ));
+                let mut made: std::fs::File = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(copy.path.as_path())
+                    .map_err(storage_failure_of)?;
                 std::io::copy(&mut source, &mut made).map_err(storage_failure_of)?;
                 // No flush here: every writer of the copy replaces it by rename, and the copy that is installed is flushed by the
                 //  release of the lock, after its last writer (`service_index_hold.rs`).
-                std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(storage_failure_of)?;
+                std::fs::set_permissions(copy.path.as_path(), live_permissions)
+                    .map_err(storage_failure_of)?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(storage_failure(&error)),
@@ -346,7 +398,10 @@ impl PrivateCopy {
                 Ok(()) => return Ok((directory, Some(opened))),
                 Err(std::fs::TryLockError::WouldBlock) => continue,
                 Err(std::fs::TryLockError::Error(error)) => {
-                    crate::service_log!("the private copy {} cannot be held with flock ({error}); a later sweep leaves it", directory.display());
+                    crate::service_log!(
+                        "the private copy {} cannot be held with flock ({error}); a later sweep leaves it",
+                        directory.display()
+                    );
                     return Ok((directory, None));
                 }
             }
@@ -384,8 +439,15 @@ fn unavailable<E>(_error: E) -> FailureCode {
 
 /// Writes a new file nobody else can open,
 /// failing when the name exists.
-fn write_new(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(path)?;
+fn write_new(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
     return file.write_all(bytes);
 }
 

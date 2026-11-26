@@ -17,7 +17,10 @@
 //! ```
 
 use crate::kept_reference_limits::KeptReferenceLimits;
-use crate::kept_reference_record::{FIRST_SEEN, KeptReferenceRecord};
+use crate::kept_reference_record::{
+    FIRST_SEEN,
+    KeptReferenceRecord,
+};
 use crate::kept_references_reading::OneKeptReference;
 use std::path::Path;
 use std::time::SystemTime;
@@ -214,7 +217,10 @@ pub fn now_ms() -> u128 {
 /// ```ts
 /// const ageOf = (record, now) => Math.max(0, now - record.keptAtMs);
 /// ```
-pub fn age_of(record: &KeptReferenceRecord, now: u128) -> u128 {
+pub fn age_of(
+    record: &KeptReferenceRecord,
+    now: u128,
+) -> u128 {
     return now.saturating_sub(record.kept_at_ms);
 }
 
@@ -233,8 +239,14 @@ pub fn age_of(record: &KeptReferenceRecord, now: u128) -> u128 {
 /// ```ts
 /// const recorded = readRecord(commonDir, name) ?? writeIfAbsent(commonDir, firstSeen(one, now));
 /// ```
-pub fn recorded_or_first_seen(common_dir: &Path, one: &OneKeptReference, now: u128) -> Option<KeptReferenceRecord> {
-    if let Some(found) = crate::kept_reference_record::read_record(common_dir, one.reference.as_str()) {
+pub fn recorded_or_first_seen(
+    common_dir: &Path,
+    one: &OneKeptReference,
+    now: u128,
+) -> Option<KeptReferenceRecord> {
+    if let Some(found) =
+        crate::kept_reference_record::read_record(common_dir, one.reference.as_str())
+    {
         return Some(found);
     }
     let candidate: KeptReferenceRecord = KeptReferenceRecord {
@@ -260,7 +272,10 @@ pub fn recorded_or_first_seen(common_dir: &Path, one: &OneKeptReference, now: u1
 /// ```ts
 /// const commitsOf = (ones, planned) => ones.filter((one, at) => !planned[at]).map((one) => one.commit);
 /// ```
-pub fn commits_of_survivors(kept: &[OneKeptReference], planned: &[bool]) -> Vec<String> {
+pub fn commits_of_survivors(
+    kept: &[OneKeptReference],
+    planned: &[bool],
+) -> Vec<String> {
     let mut commits: Vec<String> = Vec::new();
     for (at, one) in kept.iter().enumerate() {
         if !planned[at] {
@@ -281,7 +296,10 @@ pub fn commits_of_survivors(kept: &[OneKeptReference], planned: &[bool]) -> Vec<
 /// ```ts
 /// const keptAtOr = (record, fallback) => record ? record.keptAtMs : fallback;
 /// ```
-fn kept_at_or(record: Option<&KeptReferenceRecord>, fallback: u128) -> u128 {
+fn kept_at_or(
+    record: Option<&KeptReferenceRecord>,
+    fallback: u128,
+) -> u128 {
     return match record {
         Some(held) => held.kept_at_ms,
         None => fallback,
@@ -299,7 +317,10 @@ fn kept_at_or(record: Option<&KeptReferenceRecord>, fallback: u128) -> u128 {
 /// ```ts
 /// const ageOrNothing = (record, now) => record ? Math.max(0, now - record.keptAtMs) : 0;
 /// ```
-fn age_or_nothing(record: Option<&KeptReferenceRecord>, now: u128) -> u128 {
+fn age_or_nothing(
+    record: Option<&KeptReferenceRecord>,
+    now: u128,
+) -> u128 {
     return match record {
         Some(held) => age_of(held, now),
         None => 0,
@@ -336,7 +357,11 @@ fn worktree_of(record: Option<&KeptReferenceRecord>) -> Option<String> {
 /// ```ts
 /// const ageAt = (records, at, now) => records[at] ? ageOf(records[at], now) : 0;
 /// ```
-pub fn age_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> u128 {
+pub fn age_at(
+    records: &[Option<KeptReferenceRecord>],
+    at: usize,
+    now: u128,
+) -> u128 {
     return age_or_nothing(records[at].as_ref(), now);
 }
 
@@ -353,7 +378,11 @@ pub fn age_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> 
 /// ```ts
 /// const keptAt = (records, at, now) => records[at]?.keptAtMs ?? now;
 /// ```
-pub fn kept_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) -> u128 {
+pub fn kept_at(
+    records: &[Option<KeptReferenceRecord>],
+    at: usize,
+    now: u128,
+) -> u128 {
     return kept_at_or(records[at].as_ref(), now);
 }
 
@@ -368,7 +397,13 @@ pub fn kept_at(records: &[Option<KeptReferenceRecord>], at: usize, now: u128) ->
 /// ```ts
 /// const oldest = (ones, planned) => ones.filter((one, at) => !planned[at] && age(at) > floor).sortBy(keptAt)[0];
 /// ```
-pub fn oldest_the_floor_allows(reading: &[OneKeptReference], records: &[Option<KeptReferenceRecord>], planned: &[bool], limits: KeptReferenceLimits, now: u128) -> Option<usize> {
+pub fn oldest_the_floor_allows(
+    reading: &[OneKeptReference],
+    records: &[Option<KeptReferenceRecord>],
+    planned: &[bool],
+    limits: KeptReferenceLimits,
+    now: u128,
+) -> Option<usize> {
     let mut chosen: Option<usize> = None;
     for at in 0..reading.len() {
         if planned[at] || age_at(records, at, now) <= limits.floor.as_millis() {
@@ -399,7 +434,12 @@ pub fn oldest_the_floor_allows(reading: &[OneKeptReference], records: &[Option<K
 /// ```ts
 /// const keptOne = (one, record, now, whyNot) => ({ ...one, keptAtMs, ageMs, whyNot });
 /// ```
-pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, now: u128, why_not: WhyNotPruned) -> Kept {
+pub fn kept_one(
+    one: &OneKeptReference,
+    record: Option<&KeptReferenceRecord>,
+    now: u128,
+    why_not: WhyNotPruned,
+) -> Kept {
     let kept_at_ms: u128 = kept_at_or(record, now);
     let age_ms: u128 = age_or_nothing(record, now);
     return Kept {
@@ -424,7 +464,12 @@ pub fn kept_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, no
 /// ```ts
 /// const prunedOne = (one, record, now, why) => ({ ...one, keptAtMs, ageMs, why });
 /// ```
-pub fn pruned_one(one: &OneKeptReference, record: Option<&KeptReferenceRecord>, now: u128, why: WhyPruned) -> Pruned {
+pub fn pruned_one(
+    one: &OneKeptReference,
+    record: Option<&KeptReferenceRecord>,
+    now: u128,
+    why: WhyPruned,
+) -> Pruned {
     return Pruned {
         reference: one.reference.clone(),
         commit: one.commit.clone(),

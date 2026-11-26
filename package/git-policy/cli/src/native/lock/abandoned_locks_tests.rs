@@ -36,9 +36,22 @@ const COMMON: &str = "/r/.git";
 #[test]
 fn a_main_checkouts_command_meets_the_shared_locks_and_no_other_worktrees() {
     let common: &Path = Path::new(COMMON);
-    assert!(stands_in_the_way(Path::new("/r/.git/index.lock"), common, common), "the shared index is this command's");
-    assert!(stands_in_the_way(Path::new("/r/.git/refs/heads/main.lock"), common, common), "a shared reference is this command's");
-    assert!(!stands_in_the_way(Path::new("/r/.git/worktrees/held/index.lock"), common, common), "another worktree's index lock is not");
+    assert!(
+        stands_in_the_way(Path::new("/r/.git/index.lock"), common, common),
+        "the shared index is this command's"
+    );
+    assert!(
+        stands_in_the_way(Path::new("/r/.git/refs/heads/main.lock"), common, common),
+        "a shared reference is this command's"
+    );
+    assert!(
+        !stands_in_the_way(
+            Path::new("/r/.git/worktrees/held/index.lock"),
+            common,
+            common
+        ),
+        "another worktree's index lock is not"
+    );
 }
 
 /// What:
@@ -58,9 +71,18 @@ fn a_main_checkouts_command_meets_the_shared_locks_and_no_other_worktrees() {
 fn a_linked_worktrees_command_meets_its_own_administrative_directory_and_the_shared_locks() {
     let common: &Path = Path::new(COMMON);
     let own: &Path = Path::new("/r/.git/worktrees/held");
-    assert!(stands_in_the_way(Path::new("/r/.git/worktrees/held/index.lock"), own, common), "its own index lock is this command's");
-    assert!(stands_in_the_way(Path::new("/r/.git/index.lock"), own, common), "the shared index is this command's");
-    assert!(!stands_in_the_way(Path::new("/r/.git/worktrees/other/index.lock"), own, common), "a sibling's index lock is not");
+    assert!(
+        stands_in_the_way(Path::new("/r/.git/worktrees/held/index.lock"), own, common),
+        "its own index lock is this command's"
+    );
+    assert!(
+        stands_in_the_way(Path::new("/r/.git/index.lock"), own, common),
+        "the shared index is this command's"
+    );
+    assert!(
+        !stands_in_the_way(Path::new("/r/.git/worktrees/other/index.lock"), own, common),
+        "a sibling's index lock is not"
+    );
 }
 
 /// What:
@@ -75,5 +97,12 @@ fn a_linked_worktrees_command_meets_its_own_administrative_directory_and_the_sha
 /// ```
 #[test]
 fn a_lock_no_worktree_explains_is_named() {
-    assert!(stands_in_the_way(Path::new("/elsewhere/index.lock"), Path::new(COMMON), Path::new(COMMON)), "a lock outside the Git directories is named rather than hidden");
+    assert!(
+        stands_in_the_way(
+            Path::new("/elsewhere/index.lock"),
+            Path::new(COMMON),
+            Path::new(COMMON)
+        ),
+        "a lock outside the Git directories is named rather than hidden"
+    );
 }

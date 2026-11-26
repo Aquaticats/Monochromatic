@@ -21,15 +21,28 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    wrapped,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The words of the refusal that says the configuration cannot be read without starting Git.
 const CONFIGURATION_UNKNOWN: &str = "the Git configuration cannot be read without running Git";
 
 /// The words of the refusal that says the system attributes file cannot be located without starting Git.
-const SYSTEM_ATTRIBUTES_UNKNOWN: &str = "the location of the system attributes file cannot be established without running Git";
+const SYSTEM_ATTRIBUTES_UNKNOWN: &str =
+    "the location of the system attributes file cannot be established without running Git";
 
 /// The words with which a worktree that really differs from its commit is refused.
 const DIFFERS: &str = "differs from the committed content";
@@ -53,16 +66,32 @@ fn repository_with_unvouched_worktrees(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("tracked.txt"), b"committed\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "tracked.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=tracked"],
+    );
     for name in ["clean", "edited"] {
-        git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--detach", name]);
+        git(
+            fixture,
+            repo.as_path(),
+            &["worktree", "add", "--quiet", "--detach", name],
+        );
     }
     let exclude: PathBuf = repo.join(".git/info/exclude");
     std::fs::write(&exclude, "/clean/\n/edited/\n").expect("exclude");
-    std::fs::write(repo.join("edited/tracked.txt"), b"changed after the commit\n").expect("edit");
+    std::fs::write(
+        repo.join("edited/tracked.txt"),
+        b"changed after the commit\n",
+    )
+    .expect("edit");
     for name in ["clean", "edited"] {
-        let file = std::fs::OpenOptions::new().write(true).open(repo.join(name).join("tracked.txt")).expect("open for the time");
-        file.set_modified(std::time::SystemTime::now() - STALE_BY).expect("move the modification time");
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(repo.join(name).join("tracked.txt"))
+            .expect("open for the time");
+        file.set_modified(std::time::SystemTime::now() - STALE_BY)
+            .expect("move the modification time");
     }
     return repo;
 }
@@ -72,9 +101,19 @@ fn repository_with_unvouched_worktrees(fixture: &Fixture) -> PathBuf {
 /// the fixture's environment,
 /// and `unset`
 ///  variables removed from it.
-fn dry_run(fixture: &Fixture, repo: &Path, worktree: &str, unset: &[&str]) -> Observed {
+fn dry_run(
+    fixture: &Fixture,
+    repo: &Path,
+    worktree: &str,
+    unset: &[&str],
+) -> Observed {
     let mut command = wrapped(fixture);
-    command.current_dir(repo).args(["monochromatic-git-policy-cli", "convert-worktree-to-subvolume", "--dry-run", worktree]);
+    command.current_dir(repo).args([
+        "monochromatic-git-policy-cli",
+        "convert-worktree-to-subvolume",
+        "--dry-run",
+        worktree,
+    ]);
     for name in unset {
         command.env_remove(name);
     }
@@ -92,14 +131,21 @@ fn dry_run(fixture: &Fixture, repo: &Path, worktree: &str, unset: &[&str]) -> Ob
 /// and the changed one is refused because it differs,
 /// which proves the content was compared.
 #[test]
-fn a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_for_not_knowing_git() {
+fn a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_for_not_knowing_git()
+{
     let fixture: Fixture = fixture("convert-knows-real-git");
     let repo: PathBuf = repository_with_unvouched_worktrees(&fixture);
     let clean: Observed = dry_run(&fixture, repo.as_path(), "clean", &["GIT_CONFIG_NOSYSTEM"]);
     let clean_text: String = stderr_text(&clean);
     assert!(!clean_text.contains(CONFIGURATION_UNKNOWN), "{clean_text}");
-    assert!(!clean_text.contains(SYSTEM_ATTRIBUTES_UNKNOWN), "{clean_text}");
-    assert!(!clean_text.contains("is not quiet and unmodified"), "{clean_text}");
+    assert!(
+        !clean_text.contains(SYSTEM_ATTRIBUTES_UNKNOWN),
+        "{clean_text}"
+    );
+    assert!(
+        !clean_text.contains("is not quiet and unmodified"),
+        "{clean_text}"
+    );
     let edited: Observed = dry_run(&fixture, repo.as_path(), "edited", &["GIT_CONFIG_NOSYSTEM"]);
     let edited_text: String = stderr_text(&edited);
     assert!(edited_text.contains(DIFFERS), "{edited_text}");
@@ -118,9 +164,19 @@ fn the_system_attributes_file_is_located_through_the_real_git_too() {
     let repo: PathBuf = repository_with_unvouched_worktrees(&fixture);
     let clean: Observed = dry_run(&fixture, repo.as_path(), "clean", &[]);
     let clean_text: String = stderr_text(&clean);
-    assert!(!clean_text.contains(SYSTEM_ATTRIBUTES_UNKNOWN), "{clean_text}");
-    assert!(!clean_text.contains("is not quiet and unmodified"), "{clean_text}");
+    assert!(
+        !clean_text.contains(SYSTEM_ATTRIBUTES_UNKNOWN),
+        "{clean_text}"
+    );
+    assert!(
+        !clean_text.contains("is not quiet and unmodified"),
+        "{clean_text}"
+    );
     let edited: Observed = dry_run(&fixture, repo.as_path(), "edited", &[]);
-    assert!(stderr_text(&edited).contains(DIFFERS), "{}", stderr_text(&edited));
+    assert!(
+        stderr_text(&edited).contains(DIFFERS),
+        "{}",
+        stderr_text(&edited)
+    );
     remove(&fixture);
 }

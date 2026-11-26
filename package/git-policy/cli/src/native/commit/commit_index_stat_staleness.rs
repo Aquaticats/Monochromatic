@@ -28,41 +28,55 @@
 //! const stale: boolean = indexStatDataNeedsRefresh({ context, cwd, index, staging });
 //! ```
 
-/// The Git context,
-/// which carries the overlay a directory is read with.
-use crate::transaction_git::GitContext;
 /// One entry with its stat data and flags,
 /// and the whole index file read into entries.
 #[cfg(unix)]
-use crate::index_full::{ASSUME_VALID, FullEntry, FullIndex, SKIP_WORKTREE, parse_full_index};
+use crate::index_full::{
+    ASSUME_VALID,
+    FullEntry,
+    FullIndex,
+    SKIP_WORKTREE,
+    parse_full_index,
+};
 /// The nine 32-bit stat fields an entry stores.
 #[cfg(unix)]
 use crate::index_stat::StatData;
-/// A refusal to read a file,
-/// and the bounded read that reports it.
-#[cfg(unix)]
-use crate::private_storage::{ReadRefusal, read_regular_file};
-/// The worktree's top level,
-/// the start directory below it and the object hash a directory is read with.
-#[cfg(unix)]
-use crate::repo_read_layout::{RepoLayout, read_layout_in};
 /// The threads an independent set of items may use,
 /// as the neighbouring file-tree jobs derive them.
 #[cfg(unix)]
-use crate::parallel_budget::{BudgetRequest, HostResources, SLICE_MEMORY, worker_budget};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    SLICE_MEMORY,
+    worker_budget,
+};
+/// A refusal to read a file,
+/// and the bounded read that reports it.
+#[cfg(unix)]
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
+/// The worktree's top level,
+/// the start directory below it and the object hash a directory is read with.
+#[cfg(unix)]
+use crate::repo_read_layout::{
+    RepoLayout,
+    read_layout_in,
+};
+/// How many bytes one object name of the repository's hash has.
+#[cfg(unix)]
+use crate::repo_read_object::name_length;
 /// One job per thread inside one thread scope,
 /// and the join of every job.
 #[cfg(unix)]
 use crate::side_by_side_threads::run_all_side_by_side;
-/// How many bytes one object name of the repository's hash has.
-#[cfg(unix)]
-use crate::repo_read_object::name_length;
+/// The Git context,
+/// which carries the overlay a directory is read with.
+use crate::transaction_git::GitContext;
 /// `OsStr` borrows operating-system text without copying it.
 #[cfg(unix)]
 use std::ffi::OsStr;
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-#[cfg(unix)]
-use std::path::PathBuf;
 /// Index paths are bytes that need not be UTF-8,
 /// and this turns them into an operating-system file name.
 #[cfg(unix)]
@@ -73,6 +87,9 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+#[cfg(unix)]
+use std::path::PathBuf;
 
 /// The most bytes of an index file this reads:
 /// the bound the in-process query layer already puts on the same file
@@ -258,7 +275,10 @@ fn is_literal_path(spec: &[u8]) -> bool {
 /// const restaged = staging.named.filter(isLiteralPath).map((spec) => prefix + spec);
 /// ```
 #[cfg(unix)]
-fn restaged_paths(staging: &WorktreeStaging<'_>, prefix: &[u8]) -> Vec<Vec<u8>> {
+fn restaged_paths(
+    staging: &WorktreeStaging<'_>,
+    prefix: &[u8],
+) -> Vec<Vec<u8>> {
     let mut paths: Vec<Vec<u8>> = Vec::new();
     let WorktreeStaging::Named(named) = staging else {
         return paths;
@@ -286,7 +306,10 @@ fn restaged_paths(staging: &WorktreeStaging<'_>, prefix: &[u8]) -> Vec<Vec<u8>> 
 /// const isRestaged = (restaged, path) => restaged.some((named) => named === path);
 /// ```
 #[cfg(unix)]
-fn is_restaged(restaged: &[Vec<u8>], path: &[u8]) -> bool {
+fn is_restaged(
+    restaged: &[Vec<u8>],
+    path: &[u8],
+) -> bool {
     for named in restaged.iter() {
         if named.as_slice() == path {
             return true;
@@ -320,7 +343,11 @@ fn recorded_mode(file_mode: u32) -> Option<u32> {
     if file_mode & TYPE_BITS != REGULAR_FILE {
         return None;
     }
-    return if file_mode & EXECUTABLE_BIT != 0 { Some(MODE_EXECUTABLE_FILE) } else { Some(MODE_REGULAR_FILE) };
+    return if file_mode & EXECUTABLE_BIT != 0 {
+        Some(MODE_EXECUTABLE_FILE)
+    } else {
+        Some(MODE_REGULAR_FILE)
+    };
 }
 
 /// What:
@@ -370,7 +397,10 @@ fn worktree_file(path: &Path) -> Option<WorktreeFile> {
 ///   entry.mtimeSec === file.mtimeSec && entry.mtimeNsec === file.mtimeNsec;
 /// ```
 #[cfg(unix)]
-fn matches_recorded(entry: &FullEntry, file: &WorktreeFile) -> bool {
+fn matches_recorded(
+    entry: &FullEntry,
+    file: &WorktreeFile,
+) -> bool {
     let recorded: StatData = entry.stat;
     return entry.mode == file.mode
         && recorded.dev == file.dev
@@ -404,7 +434,12 @@ fn matches_recorded(entry: &FullEntry, file: &WorktreeFile) -> bool {
 /// };
 /// ```
 #[cfg(unix)]
-fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StaleStatData {
+fn read_in_process(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+    staging: WorktreeStaging<'_>,
+) -> StaleStatData {
     // What:
     //  The index file's bytes.
     // Why:
@@ -433,7 +468,11 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```ts
     // const overlay = withRealGit(context.overlay, context.realGit);
     // ```
-    let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
+    let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+        crate::git_system_config::with_real_git(
+            context.overlay.as_slice(),
+            context.real_git.as_path(),
+        );
     // What:
     //  The worktree's top level, the start directory below it and the repository's object hash.
     // Why:
@@ -457,10 +496,11 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```ts
     // const parsed = parseFullIndex(bytes, nameLength(layout.objectFormat));
     // ```
-    let parsed: FullIndex = match parse_full_index(bytes.as_slice(), name_length(layout.object_format)) {
-        Some(read) => read,
-        None => return StaleStatData::Unknown,
-    };
+    let parsed: FullIndex =
+        match parse_full_index(bytes.as_slice(), name_length(layout.object_format)) {
+            Some(read) => read,
+            None => return StaleStatData::Unknown,
+        };
     // What:
     //  The top-relative paths this commit stages from the worktree.
     // Why:
@@ -488,7 +528,11 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // const stale = walkInSlices(parsed.entries, layout.worktreeRoot, restaged, workersFor(parsed.entries.length));
     // ```
     let workers: usize = workers_for(parsed.entries.len());
-    let slice: EntrySlice<'_> = EntrySlice { entries: parsed.entries.as_slice(), worktree_root: layout.worktree_root.as_path(), restaged: restaged.as_slice() };
+    let slice: EntrySlice<'_> = EntrySlice {
+        entries: parsed.entries.as_slice(),
+        worktree_root: layout.worktree_root.as_path(),
+        restaged: restaged.as_slice(),
+    };
     let walked: Option<Vec<Vec<u8>>> = match workers {
         1 => Some(stale_paths_in_slice(slice)),
         _ => walk_in_slices(slice, workers),
@@ -499,7 +543,10 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     if stale.is_empty() {
         return StaleStatData::Current;
     }
-    return StaleStatData::Stale { paths: stale, entries: parsed.entries.len() };
+    return StaleStatData::Stale {
+        paths: stale,
+        entries: parsed.entries.len(),
+    };
 }
 
 /// What:
@@ -572,7 +619,10 @@ pub enum StaleStatData {
 /// const judged = (entry) => !isLeftToGit(entry) && !isRestaged(restaged, entry.path);
 /// ```
 #[cfg(unix)]
-fn judged(entry: &FullEntry, restaged: &[Vec<u8>]) -> bool {
+fn judged(
+    entry: &FullEntry,
+    restaged: &[Vec<u8>],
+) -> bool {
     return !is_left_to_git(entry) && !is_restaged(restaged, entry.path.as_slice());
 }
 
@@ -612,7 +662,9 @@ fn stale_paths_in_slice(slice: EntrySlice<'_>) -> Vec<Vec<u8>> {
         // ```ts
         // const path = join(slice.worktreeRoot, entry.path);
         // ```
-        let path: PathBuf = slice.worktree_root.join(OsStr::from_bytes(entry.path.as_slice()));
+        let path: PathBuf = slice
+            .worktree_root
+            .join(OsStr::from_bytes(entry.path.as_slice()));
         // What:
         //  The stat data that file has now.
         // Why:
@@ -659,7 +711,13 @@ fn workers_for(entries: usize) -> usize {
     if entries < STAT_WALK_BREAK_EVEN_ENTRIES {
         return 1;
     }
-    return worker_budget(&BudgetRequest { items: entries, per_item_memory: SLICE_MEMORY, ceiling: None, cap: None, host: &HostResources::read() });
+    return worker_budget(&BudgetRequest {
+        items: entries,
+        per_item_memory: SLICE_MEMORY,
+        ceiling: None,
+        cap: None,
+        host: &HostResources::read(),
+    });
 }
 
 /// What:
@@ -677,13 +735,21 @@ fn workers_for(entries: usize) -> usize {
 /// const stale = (await Promise.allSettled(slices.map((slice) => walk(slice)))).every(ok) ? merged : undefined;
 /// ```
 #[cfg(unix)]
-fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> Option<Vec<Vec<u8>>> {
+fn walk_in_slices(
+    slice: EntrySlice<'_>,
+    workers: usize,
+) -> Option<Vec<Vec<u8>>> {
     let size: usize = slice.entries.len().div_ceil(workers.max(1)).max(1);
     let mut slices: Vec<EntrySlice<'_>> = Vec::new();
     for entries in slice.entries.chunks(size) {
-        slices.push(EntrySlice { entries, worktree_root: slice.worktree_root, restaged: slice.restaged });
+        slices.push(EntrySlice {
+            entries,
+            worktree_root: slice.worktree_root,
+            restaged: slice.restaged,
+        });
     }
-    let walked: Vec<std::thread::Result<Vec<Vec<u8>>>> = run_all_side_by_side(slices, stale_paths_in_slice);
+    let walked: Vec<std::thread::Result<Vec<Vec<u8>>>> =
+        run_all_side_by_side(slices, stale_paths_in_slice);
     let mut stale: Vec<Vec<u8>> = Vec::new();
     for outcome in walked {
         match outcome {
@@ -708,19 +774,32 @@ fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> Option<Vec<Vec<u8>>>
 /// const answer = staleStatData({ context, cwd, index, staging }); // unknown: ask Git
 /// ```
 #[cfg(unix)]
-pub fn stale_stat_data(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StaleStatData {
+pub fn stale_stat_data(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+    staging: WorktreeStaging<'_>,
+) -> StaleStatData {
     // The reading is the preparation's own work: it parses the whole index and stats every entry the commit leaves alone,
     // so a record that names it is the only thing that can say whether a slow preparation was this question.
     let began: std::time::Instant = std::time::Instant::now();
     let answer: StaleStatData = read_in_process(context, cwd, index, staging);
-    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_STAT_CHECK, began.elapsed());
+    crate::prepare_work_spans::note_span(
+        crate::prepare_work_spans::INDEX_STAT_CHECK,
+        began.elapsed(),
+    );
     return answer;
 }
 
 /// Where there is no `stat` this reading knows,
 /// Git's own refresh always decides.
 #[cfg(not(unix))]
-pub fn stale_stat_data(_context: &GitContext, _cwd: &Path, _index: &Path, _staging: WorktreeStaging<'_>) -> StaleStatData {
+pub fn stale_stat_data(
+    _context: &GitContext,
+    _cwd: &Path,
+    _index: &Path,
+    _staging: WorktreeStaging<'_>,
+) -> StaleStatData {
     return StaleStatData::Unknown;
 }
 

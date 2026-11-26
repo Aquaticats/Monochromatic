@@ -6,16 +6,24 @@
 use super::*;
 use crate::service_fault::hooks;
 use crate::service_index_marker::LOCK_MARKER;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A killed service's lock for batch `seq`:
 /// a marker whose holder is not any running process.
 fn stale_lock_text(seq: u64) -> String {
-    let mut child = std::process::Command::new("true").spawn().expect("a short process");
+    let mut child = std::process::Command::new("true")
+        .spawn()
+        .expect("a short process");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reaped");
     // The format of this release: the claim chain reclaims no other.
-    return format!("{LOCK_MARKER}{}{seq} {pid} gone\n", crate::service_index_marker::MARKER_VERSION);
+    return format!(
+        "{LOCK_MARKER}{}{seq} {pid} gone\n",
+        crate::service_index_marker::MARKER_VERSION
+    );
 }
 
 fn index_in(name: &str) -> (PathBuf, PathBuf) {
@@ -33,8 +41,18 @@ fn a_stale_lock_is_removed_and_leaves_no_file() {
     std::fs::write(lock_path_of(&index), stale_lock_text(5)).expect("stale lock");
     remove_stale(&index, 5);
     assert!(!lock_path_of(&index).exists());
-    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(names, vec![String::from("index")], "no taken-aside file is left");
+    let names: Vec<String> = std::fs::read_dir(&root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![String::from("index")],
+        "no taken-aside file is left"
+    );
     remove(root.as_path());
 }
 
@@ -50,15 +68,28 @@ fn a_lock_placed_after_the_stale_one_was_found_is_not_removed() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
     let (hook_lock, hook_root) = (lock.clone(), root.clone());
-    hooks::set("reclaim-judged", std::rc::Rc::new(move || {
-        // The stale lock goes and a foreign program's lock takes its name, as Git's own `index.lock` would.
-        std::fs::remove_file(&hook_lock).expect("the stale lock is removed by someone else");
-        std::fs::write(hook_root.join("staged-foreign"), "a foreign program's lock").expect("staged");
-        std::fs::rename(hook_root.join("staged-foreign"), &hook_lock).expect("placed");
-    }));
+    hooks::set(
+        "reclaim-judged",
+        std::rc::Rc::new(move || {
+            // The stale lock goes and a foreign program's lock takes its name, as Git's own `index.lock` would.
+            std::fs::remove_file(&hook_lock).expect("the stale lock is removed by someone else");
+            std::fs::write(hook_root.join("staged-foreign"), "a foreign program's lock")
+                .expect("staged");
+            std::fs::rename(hook_root.join("staged-foreign"), &hook_lock).expect("placed");
+        }),
+    );
     remove_stale(&index, 5);
-    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "a foreign program's lock");
-    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the foreign lock stands"),
+        "a foreign program's lock"
+    );
+    let names: Vec<String> = std::fs::read_dir(&root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     assert_eq!(names.len(), 2, "only the index and the lock: {names:?}");
     remove(root.as_path());
 }
@@ -105,19 +136,45 @@ fn a_live_lock_found_by_a_late_reclaimer_is_never_open_to_a_third_program() {
     let live_marker: String = std::fs::read_to_string(&lock).expect("the live marker");
     let third_placed = std::rc::Rc::new(std::cell::Cell::new(false));
     let (hook_lock, hook_placed) = (lock.clone(), std::rc::Rc::clone(&third_placed));
-    hooks::set("reclaim-opened", std::rc::Rc::new(move || {
-        // Git takes `index.lock` by exclusive creation, as it does for every command that writes the index.
-        let created = std::fs::OpenOptions::new().write(true).create_new(true).open(&hook_lock);
-        hook_placed.set(created.is_ok());
-    }));
+    hooks::set(
+        "reclaim-opened",
+        std::rc::Rc::new(move || {
+            // Git takes `index.lock` by exclusive creation, as it does for every command that writes the index.
+            let created = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&hook_lock);
+            hook_placed.set(created.is_ok());
+        }),
+    );
     let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
-    assert_eq!(outcome, Reclaimed::Kept, "a lock whose holder runs is not removed");
-    assert!(!third_placed.get(), "a third program placed its lock while the reclaimer worked on the live holder's lock");
-    assert_eq!(std::fs::read_to_string(&lock).expect("a lock stands"), live_marker, "the live holder's lock stands under its name");
-    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(
+        outcome,
+        Reclaimed::Kept,
+        "a lock whose holder runs is not removed"
+    );
+    assert!(
+        !third_placed.get(),
+        "a third program placed its lock while the reclaimer worked on the live holder's lock"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("a lock stands"),
+        live_marker,
+        "the live holder's lock stands under its name"
+    );
+    let names: Vec<String> = std::fs::read_dir(&root)
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     assert_eq!(names.len(), 2, "only the index and the lock: {names:?}");
     drop(live);
-    assert!(!lock.exists(), "the live holder still owns its lock and releases it");
+    assert!(
+        !lock.exists(),
+        "the live holder still owns its lock and releases it"
+    );
     remove(root.as_path());
 }
 
@@ -135,19 +192,32 @@ fn a_reclaimer_whose_judged_file_was_replaced_removes_nothing() {
     let (root, index) = index_in("reclaim-replaced-inode");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let live_cell: std::rc::Rc<std::cell::RefCell<Option<IndexLock>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let (hook_lock, hook_index, hook_live) = (lock.clone(), index.clone(), std::rc::Rc::clone(&live_cell));
-    hooks::set("reclaim-judged", std::rc::Rc::new(move || {
-        // The other reclaimer removes the stale lock it judged too, and its landing places a live lock.
-        std::fs::remove_file(&hook_lock).expect("the other reclaimer removes the stale lock");
-        *hook_live.borrow_mut() = Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
-    }));
+    let live_cell: std::rc::Rc<std::cell::RefCell<Option<IndexLock>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let (hook_lock, hook_index, hook_live) =
+        (lock.clone(), index.clone(), std::rc::Rc::clone(&live_cell));
+    hooks::set(
+        "reclaim-judged",
+        std::rc::Rc::new(move || {
+            // The other reclaimer removes the stale lock it judged too, and its landing places a live lock.
+            std::fs::remove_file(&hook_lock).expect("the other reclaimer removes the stale lock");
+            *hook_live.borrow_mut() =
+                Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
+        }),
+    );
     let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
     assert_eq!(outcome, Reclaimed::Changed);
-    assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(8, &crate::service_index_marker::own_identity).expect("this process has an identity"));
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the live lock stands"),
+        marker_text(8, &crate::service_index_marker::own_identity)
+            .expect("this process has an identity")
+    );
     let live = live_cell.borrow_mut().take().expect("the live lock");
     drop(live);
-    assert!(!lock.exists(), "the live holder still owns its lock and releases it");
+    assert!(
+        !lock.exists(),
+        "the live holder still owns its lock and releases it"
+    );
     remove(root.as_path());
 }
 
@@ -162,15 +232,27 @@ fn a_second_reclaimer_of_one_stale_lock_backs_off_while_the_first_holds_it() {
     let (root, index) = index_in("reclaim-two-reclaimers");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let second: std::rc::Rc<std::cell::RefCell<Option<Reclaimed>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let second: std::rc::Rc<std::cell::RefCell<Option<Reclaimed>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
     let (hook_lock, hook_second) = (lock.clone(), std::rc::Rc::clone(&second));
-    hooks::set("reclaim-held", std::rc::Rc::new(move || {
-        // The second reclaimer reaches the same file while the first holds it, and reaches no point of the hold itself.
-        *hook_second.borrow_mut() = Some(reclaim(&SYSTEM, &hook_lock));
-    }));
+    hooks::set(
+        "reclaim-held",
+        std::rc::Rc::new(move || {
+            // The second reclaimer reaches the same file while the first holds it, and reaches no point of the hold itself.
+            *hook_second.borrow_mut() = Some(reclaim(&SYSTEM, &hook_lock));
+        }),
+    );
     let first: Reclaimed = reclaim(&SYSTEM, &lock);
-    assert_eq!(*second.borrow(), Some(Reclaimed::Busy), "the second reclaimer backs off");
-    assert_eq!(first, Reclaimed::Removed, "the first reclaimer removes the stale lock");
+    assert_eq!(
+        *second.borrow(),
+        Some(Reclaimed::Busy),
+        "the second reclaimer backs off"
+    );
+    assert_eq!(
+        first,
+        Reclaimed::Removed,
+        "the first reclaimer removes the stale lock"
+    );
     assert!(!lock.exists());
     remove(root.as_path());
 }
@@ -190,7 +272,11 @@ fn a_landing_that_can_place_no_claim_waits_to_its_ceiling_and_names_the_stale_lo
     let lock: PathBuf = lock_path_of(&index);
     let text: String = stale_lock_text(5);
     std::fs::write(&lock, &text).expect("stale lock");
-    let platform: Platform = Platform { rename: &claim_tests::rename_unless_claim, link: &claim_tests::link_unless_claim, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &claim_tests::rename_unless_claim,
+        link: &claim_tests::link_unless_claim,
+        ..SYSTEM
+    };
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let said = std::cell::RefCell::new(Vec::<String>::new());
     let began: std::time::Instant = std::time::Instant::now();
@@ -201,12 +287,27 @@ fn a_landing_that_can_place_no_claim_waits_to_its_ceiling_and_names_the_stale_lo
     })
     .expect_err("the lock is not taken");
     assert_eq!(failure.code, FailureCode::IndexInUse);
-    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling");
-    assert_eq!(std::fs::read_to_string(&lock).expect("the stale lock stays"), text);
+    assert!(
+        began.elapsed() >= ceiling,
+        "the wait ended before its ceiling"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the stale lock stays"),
+        text
+    );
     let lines: String = said.borrow().join("\n");
-    assert!(lines.contains(lock.to_string_lossy().as_ref()), "the notice names the lock: {lines}");
-    assert!(lines.contains("remove it"), "the notice says how to remove it: {lines}");
-    assert!(lines.contains("batch 5"), "the notice names the batch that left it: {lines}");
+    assert!(
+        lines.contains(lock.to_string_lossy().as_ref()),
+        "the notice names the lock: {lines}"
+    );
+    assert!(
+        lines.contains("remove it"),
+        "the notice says how to remove it: {lines}"
+    );
+    assert!(
+        lines.contains("batch 5"),
+        "the notice names the batch that left it: {lines}"
+    );
     remove(root.as_path());
 }
 
@@ -230,7 +331,9 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     // SAFETY: `inotify_init1` takes flags only.
     let watch: i32 = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
     assert!(watch >= 0, "an inotify descriptor");
-    let directory = std::ffi::CString::new(std::os::unix::ffi::OsStrExt::as_bytes(root.as_os_str())).expect("a path");
+    let directory =
+        std::ffi::CString::new(std::os::unix::ffi::OsStrExt::as_bytes(root.as_os_str()))
+            .expect("a path");
     let events: u32 = libc::IN_MOVED_FROM | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_CREATE;
     // SAFETY: both arguments outlive the call.
     let added: i32 = unsafe { libc::inotify_add_watch(watch, directory.as_ptr(), events) };
@@ -242,10 +345,24 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     // SAFETY: the descriptor was opened above and is closed once.
     unsafe { libc::close(watch) };
     let read_error: std::io::Error = std::io::Error::last_os_error();
-    assert!(read >= 0 || read_error.kind() == std::io::ErrorKind::WouldBlock, "the events could not be read: {read_error}");
-    let seen: String = if read > 0 { String::from_utf8_lossy(&buffer[..read as usize]).into_owned() } else { String::new() };
-    assert!(!seen.contains("index.lock"), "the live lock's name saw events: {seen:?}");
-    assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(7, &crate::service_index_marker::own_identity).expect("this process has an identity"));
+    assert!(
+        read >= 0 || read_error.kind() == std::io::ErrorKind::WouldBlock,
+        "the events could not be read: {read_error}"
+    );
+    let seen: String = if read > 0 {
+        String::from_utf8_lossy(&buffer[..read as usize]).into_owned()
+    } else {
+        String::new()
+    };
+    assert!(
+        !seen.contains("index.lock"),
+        "the live lock's name saw events: {seen:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the live lock stands"),
+        marker_text(7, &crate::service_index_marker::own_identity)
+            .expect("this process has an identity")
+    );
     drop(live);
     remove(root.as_path());
 }
@@ -267,16 +384,29 @@ fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
     std::fs::write(&lock, &stale).expect("stale lock");
     // The stale lock is reclaimed by another instance and replaced by a live landing's lock after it was judged, and no claim
     //  can be placed.
-    let (hook_lock, hook_index, hook_live) = (lock.clone(), index.clone(), std::rc::Rc::new(std::cell::RefCell::new(None::<IndexLock>)));
+    let (hook_lock, hook_index, hook_live) = (
+        lock.clone(),
+        index.clone(),
+        std::rc::Rc::new(std::cell::RefCell::new(None::<IndexLock>)),
+    );
     let kept_live = std::rc::Rc::clone(&hook_live);
-    crate::service_fault::hooks::set("reclaim-judged", std::rc::Rc::new(move || {
-        if hook_live.borrow().is_none() {
-            std::fs::remove_file(&hook_lock).expect("the other reclaimer removes the stale lock");
-            *hook_live.borrow_mut() = Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
-        }
-    }));
+    crate::service_fault::hooks::set(
+        "reclaim-judged",
+        std::rc::Rc::new(move || {
+            if hook_live.borrow().is_none() {
+                std::fs::remove_file(&hook_lock)
+                    .expect("the other reclaimer removes the stale lock");
+                *hook_live.borrow_mut() =
+                    Some(try_acquire(&hook_index, 8).expect("the live landing places its lock"));
+            }
+        }),
+    );
     let live_cell = kept_live;
-    let platform: Platform = Platform { rename: &claim_tests::rename_unless_claim, link: &claim_tests::link_unless_claim, ..SYSTEM };
+    let platform: Platform = Platform {
+        rename: &claim_tests::rename_unless_claim,
+        link: &claim_tests::link_unless_claim,
+        ..SYSTEM
+    };
     let said = std::cell::RefCell::new(Vec::<String>::new());
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let _failure = acquire_within(&platform, &index, 9, ceiling, &|announce| {
@@ -286,8 +416,14 @@ fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
     })
     .expect_err("the live lock is held to the ceiling");
     let first: String = said.borrow().first().cloned().expect("a notice");
-    assert!(first.contains(&format!("process {stale_pid}")), "the notice names the judged stale lock's process: {first}");
-    assert!(!first.contains(&format!("process {}", std::process::id())), "the notice calls the live lock's process gone: {first}");
+    assert!(
+        first.contains(&format!("process {stale_pid}")),
+        "the notice names the judged stale lock's process: {first}"
+    );
+    assert!(
+        !first.contains(&format!("process {}", std::process::id())),
+        "the notice calls the live lock's process gone: {first}"
+    );
     drop(live_cell.borrow_mut().take());
     remove(root.as_path());
 }

@@ -15,14 +15,33 @@
 /// The parser,
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
-use super::{PUSH_TABLE, PushRegion, parse_push_region, stackable_option_tokens};
-use crate::command_options::{OptionErrorKind, WrapperOccurrence};
-use crate::command_test_completion::{git_completion, render_completion};
+use super::{
+    PUSH_TABLE,
+    PushRegion,
+    parse_push_region,
+    stackable_option_tokens,
+};
+use crate::command_options::{
+    OptionErrorKind,
+    WrapperOccurrence,
+};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, git, git_status, os_arguments, output_text, remove,
+    assert_table_invariants,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
     repository_with_tracked_file,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Parse a region Git accepts,
@@ -98,7 +117,10 @@ fn reports_wrapper_flags_and_refusals() {
     .expect("valid region");
     assert_eq!(
         parsed.wrapper,
-        vec![WrapperOccurrence { flag: 0, token: 0 }]
+        vec![WrapperOccurrence {
+            flag: 0,
+            token: 0
+        }]
     );
     for (values, kind) in [
         (vec!["--unknown"], OptionErrorKind::UnknownOption),
@@ -203,13 +225,22 @@ fn stackable(values: &[&str]) -> Option<Vec<String>> {
 fn a_plain_push_keeps_its_options_and_drops_its_positionals() {
     assert_eq!(stackable(&[]), Some(vec![]));
     assert_eq!(stackable(&["origin", "HEAD:main"]), Some(vec![]));
-    assert_eq!(stackable(&["--no-verify", "origin", "HEAD:main"]), Some(vec![String::from("--no-verify")]));
+    assert_eq!(
+        stackable(&["--no-verify", "origin", "HEAD:main"]),
+        Some(vec![String::from("--no-verify")])
+    );
     assert_eq!(
         stackable(&["-o", "ci.skip", "origin", "main"]),
         Some(vec![String::from("-o"), String::from("ci.skip")])
     );
-    assert_eq!(stackable(&["--", "origin", "main"]), Some(vec![String::from("--")]));
-    assert_eq!(stackable(&["--no-force", "origin", "main"]), Some(vec![String::from("--no-force")]));
+    assert_eq!(
+        stackable(&["--", "origin", "main"]),
+        Some(vec![String::from("--")])
+    );
+    assert_eq!(
+        stackable(&["--no-force", "origin", "main"]),
+        Some(vec![String::from("--no-force")])
+    );
     assert_eq!(
         stackable(&["--force", "--no-force", "origin", "main"]),
         Some(vec![String::from("--force"), String::from("--no-force")])
@@ -223,9 +254,28 @@ fn a_plain_push_keeps_its_options_and_drops_its_positionals() {
 #[test]
 fn forms_that_rewrite_remove_widen_or_redirect_a_push_are_never_stacked() {
     for option in [
-        "--force", "-f", "--force-with-lease", "--force-with-lease=main:abc", "--force-if-includes", "--mirror", "--delete",
-        "-d", "--all", "--branches", "--tags", "--prune", "--follow-tags", "--repo=origin", "--porcelain", "-u",
-        "--set-upstream", "-n", "--dry-run", "--del", "--mir", "--no-such-option",
+        "--force",
+        "-f",
+        "--force-with-lease",
+        "--force-with-lease=main:abc",
+        "--force-if-includes",
+        "--mirror",
+        "--delete",
+        "-d",
+        "--all",
+        "--branches",
+        "--tags",
+        "--prune",
+        "--follow-tags",
+        "--repo=origin",
+        "--porcelain",
+        "-u",
+        "--set-upstream",
+        "-n",
+        "--dry-run",
+        "--del",
+        "--mir",
+        "--no-such-option",
     ] {
         assert_eq!(stackable(&[option, "origin", "main"]), None, "{option}");
     }

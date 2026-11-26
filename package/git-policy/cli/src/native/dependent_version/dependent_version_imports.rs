@@ -73,7 +73,10 @@ fn is_identifier_byte(byte: u8) -> bool {
 /// ```ts
 /// function skipWhitespaceBackwards({ text, end }): number;
 /// ```
-fn skip_whitespace_backwards(text: &[u8], end: usize) -> usize {
+fn skip_whitespace_backwards(
+    text: &[u8],
+    end: usize,
+) -> usize {
     return match text[..end].iter().rposition(is_not_whitespace_byte) {
         Some(index) => index + 1,
         None => 0,
@@ -107,7 +110,11 @@ fn is_not_whitespace_byte(byte: &u8) -> bool {
 /// ```ts
 /// function endsWithKeyword({ text, end, keywords }): boolean;
 /// ```
-fn ends_with_keyword(text: &[u8], end: usize, keywords: &[&[u8]]) -> bool {
+fn ends_with_keyword(
+    text: &[u8],
+    end: usize,
+    keywords: &[&[u8]],
+) -> bool {
     for keyword in keywords {
         let Some(start) = end.checked_sub(keyword.len()) else {
             continue;
@@ -137,7 +144,10 @@ fn ends_with_keyword(text: &[u8], end: usize, keywords: &[&[u8]]) -> bool {
 /// ```ts
 /// function isSpecifierPosition({ text, quoteIndex }): boolean;
 /// ```
-fn is_specifier_position(text: &[u8], quote_index: usize) -> bool {
+fn is_specifier_position(
+    text: &[u8],
+    quote_index: usize,
+) -> bool {
     let token_end: usize = skip_whitespace_backwards(text, quote_index);
     if ends_with_keyword(text, token_end, SPECIFIER_KEYWORDS) {
         return true;
@@ -173,7 +183,10 @@ fn is_specifier_position(text: &[u8], quote_index: usize) -> bool {
 /// ```ts
 /// function importsPackage({ sourceText, packageName }): boolean;
 /// ```
-pub fn imports_package(source_text: &str, package_name: &str) -> bool {
+pub fn imports_package(
+    source_text: &str,
+    package_name: &str,
+) -> bool {
     let text: &[u8] = source_text.as_bytes();
     for (index, _) in source_text.match_indices(package_name) {
         let Some(quote_index) = index.checked_sub(1) else {

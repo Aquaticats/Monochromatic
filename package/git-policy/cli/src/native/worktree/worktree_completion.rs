@@ -17,28 +17,46 @@
 //! await installAddedWorktreeFiles({ gitPath, cwd, repositoryRoot, records, objectDirectory });
 //! ```
 
-/// The blob batch.
-pub use crate::worktree_completion_file_inspection::{InstallResult, WorktreeFileIdentity, WorktreeFileState, inspect_worktree_file, is_conflict_error};
 use crate::blob_batch::load_blob_batch;
 /// Diagnostics.
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 /// Exact path bytes as file names,
 /// and as text for messages.
-use crate::path_bytes::{os_from_path_bytes, path_message_text};
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_message_text,
+};
 /// Unique temporary names.
 use crate::random_id::random_uuid;
 /// The fail-closed recovery failure.
-use crate::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{
+    RecoveryError,
+    io_failure,
+};
 /// Running real Git.
 use crate::transaction_git::GitContext;
 /// One added-path record.
 use crate::transaction_journal::AddedPath;
+/// The blob batch.
+pub use crate::worktree_completion_file_inspection::{
+    InstallResult,
+    WorktreeFileIdentity,
+    WorktreeFileState,
+    inspect_worktree_file,
+    is_conflict_error,
+};
 /// `HashMap` maps object IDs to bytes.
 use std::collections::HashMap;
 /// The trait that gives files `.read_to_end` and `.write_all`.
 use std::io::Write;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Write `bytes` with `mode` into a fresh same-directory file.
@@ -49,7 +67,11 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// await writeFile(prepared, bytes, { mode, flag: 'wx' }); await chmod(prepared, mode);
 /// ```
-fn write_prepared(prepared: &Path, bytes: &[u8], mode: u32) -> std::io::Result<()> {
+fn write_prepared(
+    prepared: &Path,
+    bytes: &[u8],
+    mode: u32,
+) -> std::io::Result<()> {
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]

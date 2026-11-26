@@ -14,16 +14,37 @@
 /// The decision,
 ///  its texts and the argument builder.
 use super::{
-    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    TargetTree, decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
-    ignored_file_message, main_worktree_message, outside_worktree_message, repository_stash_message,
-    resolve_linked_worktree, target_tree,
+    DirtyQuestion,
+    GuardedCommand,
+    LINKED_WORKTREE_REQUIRED_CODE,
+    LinkedWorktreeDecision,
+    TargetTree,
+    decide_linked_worktree,
+    dirty_question,
+    dirty_worktree_message,
+    exemption_notice,
+    ignored_file_message,
+    main_worktree_message,
+    outside_worktree_message,
+    repository_stash_message,
+    resolve_linked_worktree,
+    target_tree,
 };
-use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository};
+use crate::command_test_support::{
+    fixture,
+    git,
+    git_status,
+    os_arguments,
+    remove,
+    repository,
+};
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The index of a form,
 /// so the coverage control can tell a full list from one with a hole.
@@ -62,12 +83,20 @@ fn index_of(command: GuardedCommand) -> usize {
 /// so a control that walks it reaches every rejection text.
 #[test]
 fn every_guarded_form_is_listed_once() {
-    let mut seen: Vec<usize> = GuardedCommand::ALL.iter().map(|command| { return index_of(*command); }).collect();
+    let mut seen: Vec<usize> = GuardedCommand::ALL
+        .iter()
+        .map(|command| {
+            return index_of(*command);
+        })
+        .collect();
     seen.sort_unstable();
     seen.dedup();
     let forms: usize = index_of(GuardedCommand::SkipAm) + 1;
     let expected: Vec<usize> = (0..forms).collect();
-    assert_eq!(seen, expected, "GuardedCommand::ALL must hold each of the {forms} forms once");
+    assert_eq!(
+        seen, expected,
+        "GuardedCommand::ALL must hold each of the {forms} forms once"
+    );
 }
 
 /// Decide one invocation written as text.
@@ -93,7 +122,10 @@ fn destructive_forms_need_the_worktree_kind() {
         (vec!["clean", "-i"], GuardedCommand::Clean),
         (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored),
         (vec!["clean", "-f", "-x"], GuardedCommand::CleanIgnored),
-        (vec!["clean", "--force", "-d", "--quiet", "-x"], GuardedCommand::CleanIgnored),
+        (
+            vec!["clean", "--force", "-d", "--quiet", "-x"],
+            GuardedCommand::CleanIgnored,
+        ),
         (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly),
         (vec!["clean", "-X"], GuardedCommand::CleanIgnoredOnly),
         (vec!["reset"], GuardedCommand::ResetMixed),
@@ -101,7 +133,10 @@ fn destructive_forms_need_the_worktree_kind() {
         (vec!["reset", "file"], GuardedCommand::ResetMixed),
         (vec!["reset", "--", "--hard"], GuardedCommand::ResetMixed),
         (vec!["reset", "--hard"], GuardedCommand::ResetHard),
-        (vec!["reset", "--merge", "HEAD~1"], GuardedCommand::ResetHard),
+        (
+            vec!["reset", "--merge", "HEAD~1"],
+            GuardedCommand::ResetHard,
+        ),
         (vec!["reset", "--keep"], GuardedCommand::ResetHard),
         (vec!["reset", "--soft", "--hard"], GuardedCommand::ResetHard),
         (
@@ -109,18 +144,42 @@ fn destructive_forms_need_the_worktree_kind() {
             GuardedCommand::ResetHard,
         ),
         (vec!["restore", "a.txt"], GuardedCommand::RestoreWorktree),
-        (vec!["restore", "--staged", "--", "."], GuardedCommand::RestoreStaged),
-        (vec!["restore", "-S", "a.txt"], GuardedCommand::RestoreStaged),
-        (vec!["restore", "--staged", "--worktree", "a.txt"], GuardedCommand::RestoreWorktree),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths),
+        (
+            vec!["restore", "--staged", "--", "."],
+            GuardedCommand::RestoreStaged,
+        ),
+        (
+            vec!["restore", "-S", "a.txt"],
+            GuardedCommand::RestoreStaged,
+        ),
+        (
+            vec!["restore", "--staged", "--worktree", "a.txt"],
+            GuardedCommand::RestoreWorktree,
+        ),
+        (
+            vec!["checkout", "--", "a.txt"],
+            GuardedCommand::CheckoutPaths,
+        ),
         (vec!["checkout", "-f"], GuardedCommand::CheckoutPaths),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce),
+        (
+            vec!["switch", "--discard-changes", "topic"],
+            GuardedCommand::SwitchForce,
+        ),
         (vec!["switch", "-f", "topic"], GuardedCommand::SwitchForce),
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove),
         (vec!["mv", "--force", "a", "b"], GuardedCommand::Move),
-        (vec!["checkout-index", "-f", "-a"], GuardedCommand::CheckoutIndex),
-        (vec!["read-tree", "--reset", "HEAD"], GuardedCommand::ReadTree),
-        (vec!["read-tree", "-m", "-u", "HEAD"], GuardedCommand::ReadTree),
+        (
+            vec!["checkout-index", "-f", "-a"],
+            GuardedCommand::CheckoutIndex,
+        ),
+        (
+            vec!["read-tree", "--reset", "HEAD"],
+            GuardedCommand::ReadTree,
+        ),
+        (
+            vec!["read-tree", "-m", "-u", "HEAD"],
+            GuardedCommand::ReadTree,
+        ),
         (vec!["read-tree", "HEAD"], GuardedCommand::ReadTree),
         (vec!["merge", "--abort"], GuardedCommand::AbortMerge),
         (vec!["rebase", "--abort"], GuardedCommand::AbortRebase),
@@ -143,7 +202,10 @@ fn head_moves_need_the_dirtiness() {
         (vec!["checkout", "topic"], GuardedCommand::CheckoutMove),
         (vec!["checkout", "-"], GuardedCommand::CheckoutMove),
         (vec!["switch", "topic"], GuardedCommand::SwitchMove),
-        (vec!["switch", "--detach", "HEAD~1"], GuardedCommand::SwitchMove),
+        (
+            vec!["switch", "--detach", "HEAD~1"],
+            GuardedCommand::SwitchMove,
+        ),
     ] {
         assert_eq!(
             decide(values.as_slice()),
@@ -173,12 +235,19 @@ fn each_form_asks_about_the_state_it_can_destroy() {
             // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see
             //  them; without them it deletes ignored files and nothing else, which is nothing to ask about.
             assert_eq!(
-                dirty_question(command, os_arguments(&["-fdx", "--exclude=notes.txt"]).as_slice()),
+                dirty_question(
+                    command,
+                    os_arguments(&["-fdx", "--exclude=notes.txt"]).as_slice()
+                ),
                 Some(DirtyQuestion::CleanDryRun),
                 "{command:?}"
             );
             for region in [vec!["-fdx"], vec!["-fdX"], vec!["-X"]] {
-                assert_eq!(dirty_question(command, os_arguments(&region).as_slice()), None, "{region:?}");
+                assert_eq!(
+                    dirty_question(command, os_arguments(&region).as_slice()),
+                    None,
+                    "{region:?}"
+                );
             }
             continue;
         }
@@ -274,19 +343,39 @@ fn every_text_names_the_loss_an_alternative_and_the_hatch() {
         let main = main_worktree_message(command);
         let dirty = dirty_worktree_message(command);
         let outside = outside_worktree_message(command);
-        assert!(main.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {main}");
-        assert!(dirty.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {dirty}");
-        assert!(outside.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {outside}");
+        assert!(
+            main.starts_with("monochromatic-git-policy-cli: git "),
+            "{command:?}: {main}"
+        );
+        assert!(
+            dirty.starts_with("monochromatic-git-policy-cli: git "),
+            "{command:?}: {dirty}"
+        );
+        assert!(
+            outside.starts_with("monochromatic-git-policy-cli: git "),
+            "{command:?}: {outside}"
+        );
         assert!(main.contains("in the main git worktree"), "{command:?}");
         assert!(dirty.contains("has uncommitted"), "{command:?}");
         assert!(outside.contains("-C <linked-worktree-root>"), "{command:?}");
         for text in [&main, &dirty] {
-            assert!(text.contains("--no-enforce-worktree"), "{command:?}: {text}");
-            assert!(text.contains("git diff > backup.patch"), "{command:?}: {text}");
-            assert!(text.contains(" (allowed)") || text.contains("git commit --message")
-                || text.contains("git rm <destination>") || text.contains("git rebase --continue")
-                || text.contains("--continue") || text.contains("git diff -- <path>"),
-                "{command:?} names no alternative: {text}");
+            assert!(
+                text.contains("--no-enforce-worktree"),
+                "{command:?}: {text}"
+            );
+            assert!(
+                text.contains("git diff > backup.patch"),
+                "{command:?}: {text}"
+            );
+            assert!(
+                text.contains(" (allowed)")
+                    || text.contains("git commit --message")
+                    || text.contains("git rm <destination>")
+                    || text.contains("git rebase --continue")
+                    || text.contains("--continue")
+                    || text.contains("git diff -- <path>"),
+                "{command:?} names no alternative: {text}"
+            );
         }
         assert_ne!(main, dirty);
         assert_ne!(main, outside);
@@ -303,10 +392,16 @@ fn each_intent_gets_its_own_alternative() {
     assert!(revert.contains("git show HEAD:<path>"));
     assert!(revert.contains("git diff -- <path> > backup.patch"));
     assert!(main_worktree_message(GuardedCommand::ResetHard).contains("git reset --soft <commit>"));
-    assert!(main_worktree_message(GuardedCommand::Stash).contains("git worktree add -b <branch> <path>"));
+    assert!(
+        main_worktree_message(GuardedCommand::Stash)
+            .contains("git worktree add -b <branch> <path>")
+    );
     assert!(main_worktree_message(GuardedCommand::StashDrop).contains("git stash branch <branch>"));
     let stash: String = repository_stash_message(GuardedCommand::StashDrop);
-    assert!(stash.contains("this repository holds a stash entry"), "{stash}");
+    assert!(
+        stash.contains("this repository holds a stash entry"),
+        "{stash}"
+    );
     assert!(stash.contains("not this worktree's"), "{stash}");
     assert!(stash.contains("--no-enforce-worktree"), "{stash}");
     assert!(main_worktree_message(GuardedCommand::Clean).contains("git clean -n"));
@@ -325,7 +420,10 @@ fn each_intent_gets_its_own_alternative() {
     assert!(main_worktree_message(GuardedCommand::AbortAm).contains("git am --quit"));
     assert!(main_worktree_message(GuardedCommand::CheckoutIndex).contains("--prefix=<directory>/"));
     assert!(main_worktree_message(GuardedCommand::Remove).contains("git rm --cached <path>"));
-    assert!(dirty_worktree_message(GuardedCommand::SwitchMove).contains("git worktree add <path> <branch>"));
+    assert!(
+        dirty_worktree_message(GuardedCommand::SwitchMove)
+            .contains("git worktree add <path> <branch>")
+    );
 }
 
 /// The README documents the alternative that each rejection text names,
@@ -342,15 +440,30 @@ fn the_readme_documents_what_the_texts_recommend() {
         (GuardedCommand::CleanIgnoredOnly, "git clean -nX"),
         (GuardedCommand::ResetHard, "git reset --soft <commit>"),
         (GuardedCommand::ResetMixed, "git diff --cached --name-only"),
-        (GuardedCommand::RestoreStaged, "git commit --message <message> -- <paths>"),
+        (
+            GuardedCommand::RestoreStaged,
+            "git commit --message <message> -- <paths>",
+        ),
         (GuardedCommand::RestoreWorktree, "git show HEAD:<path>"),
         (GuardedCommand::CheckoutPaths, "git show HEAD:<path>"),
-        (GuardedCommand::CheckoutMove, "git worktree add <path> <branch>"),
-        (GuardedCommand::SwitchForce, "git worktree add <path> <branch>"),
-        (GuardedCommand::SwitchMove, "git worktree add <path> <branch>"),
+        (
+            GuardedCommand::CheckoutMove,
+            "git worktree add <path> <branch>",
+        ),
+        (
+            GuardedCommand::SwitchForce,
+            "git worktree add <path> <branch>",
+        ),
+        (
+            GuardedCommand::SwitchMove,
+            "git worktree add <path> <branch>",
+        ),
         (GuardedCommand::Remove, "git rm --cached <path>"),
         (GuardedCommand::Move, "git rm <destination>"),
-        (GuardedCommand::CheckoutIndex, "git checkout-index --prefix=<directory>/ --all"),
+        (
+            GuardedCommand::CheckoutIndex,
+            "git checkout-index --prefix=<directory>/ --all",
+        ),
         (GuardedCommand::ReadTree, "git read-tree --dry-run"),
         (GuardedCommand::AbortMerge, "--quit"),
         (GuardedCommand::AbortRebase, "--quit"),
@@ -361,7 +474,10 @@ fn the_readme_documents_what_the_texts_recommend() {
             main_worktree_message(command).contains(phrase),
             "{command:?} text lacks {phrase}"
         );
-        assert!(readme.contains(phrase), "{command:?}: README lacks {phrase}");
+        assert!(
+            readme.contains(phrase),
+            "{command:?}: README lacks {phrase}"
+        );
     }
     assert!(readme.contains("git diff > backup.patch"));
     assert!(readme.contains("--no-enforce-worktree"));
@@ -372,13 +488,25 @@ fn the_readme_documents_what_the_texts_recommend() {
 #[test]
 fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
     let notice: String = exemption_notice("MISE_DATA_DIR", std::path::Path::new("/work/repo"));
-    assert!(notice.contains("exempt from the worktree guard"), "{notice}");
+    assert!(
+        notice.contains("exempt from the worktree guard"),
+        "{notice}"
+    );
     assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
     assert!(notice.contains("/work/repo"), "{notice}");
-    assert!(notice.contains("Nothing was measured and nothing was saved"), "{notice}");
-    assert!(notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"), "{notice}");
+    assert!(
+        notice.contains("Nothing was measured and nothing was saved"),
+        "{notice}"
+    );
+    assert!(
+        notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"),
+        "{notice}"
+    );
     assert!(notice.ends_with('\n'), "{notice}");
-    assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));
+    assert_ne!(
+        notice,
+        exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo"))
+    );
 }
 
 /// A forced checkout,
@@ -387,22 +515,52 @@ fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
 #[test]
 fn only_the_forms_that_write_a_tree_ask_which_tree() {
     let cases: [(GuardedCommand, &[&str], Option<Option<&str>>); 10] = [
-        (GuardedCommand::ResetHard, &["--hard", "tracks"], Some(Some("tracks"))),
+        (
+            GuardedCommand::ResetHard,
+            &["--hard", "tracks"],
+            Some(Some("tracks")),
+        ),
         (GuardedCommand::ResetHard, &["--hard"], Some(None)),
-        (GuardedCommand::ResetHard, &["--hard", "--", "tracks"], Some(None)),
-        (GuardedCommand::CheckoutPaths, &["--force", "tracks"], Some(Some("tracks"))),
-        (GuardedCommand::CheckoutPaths, &["--force", "--", "tracked.txt"], Some(None)),
-        (GuardedCommand::CheckoutPaths, &["--force", "tracks", "--", "tracked.txt"], Some(Some("tracks"))),
-        (GuardedCommand::SwitchForce, &["--force", "tracks"], Some(Some("tracks"))),
+        (
+            GuardedCommand::ResetHard,
+            &["--hard", "--", "tracks"],
+            Some(None),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            &["--force", "tracks"],
+            Some(Some("tracks")),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            &["--force", "--", "tracked.txt"],
+            Some(None),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            &["--force", "tracks", "--", "tracked.txt"],
+            Some(Some("tracks")),
+        ),
+        (
+            GuardedCommand::SwitchForce,
+            &["--force", "tracks"],
+            Some(Some("tracks")),
+        ),
         (GuardedCommand::SwitchForce, &["--force"], Some(None)),
         (GuardedCommand::Clean, &["-fdx"], None),
-        (GuardedCommand::RestoreWorktree, &["--source", "tracks", "tracked.txt"], None),
+        (
+            GuardedCommand::RestoreWorktree,
+            &["--source", "tracks", "tracked.txt"],
+            None,
+        ),
     ];
     for (command, region, expected) in cases {
         let answer: Option<TargetTree> = target_tree(command, os_arguments(region).as_slice());
         assert_eq!(
             answer,
-            expected.map(|revision| return TargetTree { revision: revision.map(OsString::from) }),
+            expected.map(|revision| return TargetTree {
+                revision: revision.map(OsString::from)
+            }),
             "{command:?} {region:?}"
         );
     }
@@ -415,19 +573,29 @@ fn only_the_forms_that_write_a_tree_ask_which_tree() {
 /// and it does not claim the worktree is dirty.
 #[test]
 fn the_ignored_file_text_names_the_paths_and_the_tree() {
-    let one: String = ignored_file_message(GuardedCommand::ResetHard, Some(std::ffi::OsStr::new("tracks")), &[String::from(".env")]);
+    let one: String = ignored_file_message(
+        GuardedCommand::ResetHard,
+        Some(std::ffi::OsStr::new("tracks")),
+        &[String::from(".env")],
+    );
     assert!(one.contains("git reset --hard"), "{one}");
     assert!(one.contains("ignores .env"), "{one}");
     assert!(one.contains("the tree of tracks tracks"), "{one}");
     assert!(one.contains("would replace it"), "{one}");
-    assert!(!one.contains("uncommitted changes to tracked files"), "{one}");
+    assert!(
+        !one.contains("uncommitted changes to tracked files"),
+        "{one}"
+    );
     assert!(one.contains("git reset --soft"), "{one}");
     assert!(one.contains("--no-enforce-worktree"), "{one}");
     // A form that names no revision writes HEAD.
-    let head: String = ignored_file_message(GuardedCommand::CheckoutPaths, None, &[String::from(".env")]);
+    let head: String =
+        ignored_file_message(GuardedCommand::CheckoutPaths, None, &[String::from(".env")]);
     assert!(head.contains("the tree of HEAD"), "{head}");
     // A worktree that ignores more shared paths than the text names counts the rest instead of listing them.
-    let many: Vec<String> = (0..7).map(|index| return format!("ignored/{index}.bin")).collect();
+    let many: Vec<String> = (0..7)
+        .map(|index| return format!("ignored/{index}.bin"))
+        .collect();
     let listed: String = ignored_file_message(GuardedCommand::SwitchForce, None, many.as_slice());
     assert!(listed.contains("ignored/0.bin, ignored/1.bin"), "{listed}");
     assert!(!listed.contains("ignored/5.bin"), "{listed}");
@@ -463,7 +631,10 @@ enum GitAnswer {
 /// ```ts
 /// // write second.txt, add it, commit it, stage an edit plus new.txt, then edit tracked.txt
 /// ```
-fn repository_with_staged_work(directory: &Path, name: &str) -> PathBuf {
+fn repository_with_staged_work(
+    directory: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(directory, name);
     std::fs::write(repo.join("second.txt"), b"SECOND\n").expect("second file");
     git(repo.as_path(), &["add", "--", "second.txt"]);
@@ -493,7 +664,10 @@ fn repository_state(repo: &Path) -> String {
         vec!["ls-files", "--stage"],
         vec!["status", "--porcelain=v1", "--untracked-files=all"],
     ] {
-        state.push_str(String::from_utf8_lossy(git_status(repo, arguments.as_slice()).stdout.as_slice()).as_ref());
+        state.push_str(
+            String::from_utf8_lossy(git_status(repo, arguments.as_slice()).stdout.as_slice())
+                .as_ref(),
+        );
     }
     let mut paths: Vec<PathBuf> = std::fs::read_dir(repo)
         .expect("read repository")
@@ -502,7 +676,14 @@ fn repository_state(repo: &Path) -> String {
         .collect();
     paths.sort();
     for path in paths {
-        state.push_str(format!("{}={:?}\n", path.display(), std::fs::read(&path).expect("file")).as_str());
+        state.push_str(
+            format!(
+                "{}={:?}\n",
+                path.display(),
+                std::fs::read(&path).expect("file")
+            )
+            .as_str(),
+        );
     }
     return state;
 }
@@ -545,8 +726,14 @@ fn every_read_tree_form_is_decided_the_way_real_git_acts() {
         (vec!["-q", "-m", "-u", "HEAD"], GitAnswer::Writes),
         (vec!["--super-prefix=super/", "HEAD"], GitAnswer::Writes),
         (vec!["-n", "-m", "-u", "HEAD"], GitAnswer::WritesNothing),
-        (vec!["--dry-run", "--reset", "-u", "HEAD"], GitAnswer::WritesNothing),
-        (vec!["--debug-unpack", "-m", "-u", "HEAD"], GitAnswer::WritesNothing),
+        (
+            vec!["--dry-run", "--reset", "-u", "HEAD"],
+            GitAnswer::WritesNothing,
+        ),
+        (
+            vec!["--debug-unpack", "-m", "-u", "HEAD"],
+            GitAnswer::WritesNothing,
+        ),
         (vec!["-u", "HEAD"], GitAnswer::Refuses),
         (vec!["-m", "--prefix=sub/", "HEAD"], GitAnswer::Refuses),
         (vec!["--merge", "HEAD"], GitAnswer::Refuses),
@@ -554,7 +741,8 @@ fn every_read_tree_form_is_decided_the_way_real_git_acts() {
     .into_iter()
     .enumerate()
     {
-        let repo: PathBuf = repository_with_staged_work(directory.as_path(), format!("form-{index}").as_str());
+        let repo: PathBuf =
+            repository_with_staged_work(directory.as_path(), format!("form-{index}").as_str());
         let before: String = repository_state(repo.as_path());
         let mut invocation: Vec<&str> = vec!["read-tree"];
         invocation.extend(region.iter().copied());
@@ -587,7 +775,9 @@ fn every_read_tree_form_is_decided_the_way_real_git_acts() {
             ),
             // A region Git refuses changes nothing; the reading may still see a writing form in it, which only
             //  rejects a command Git would refuse anyway.
-            GitAnswer::Refuses => assert_eq!(after, before, "{region:?} changed a repository Git refused"),
+            GitAnswer::Refuses => {
+                assert_eq!(after, before, "{region:?} changed a repository Git refused")
+            }
         }
     }
     remove(directory.as_path());

@@ -44,7 +44,10 @@
 //! for (const file of releaseSources()) expect(codeLines(file).filter(forbidden)).toEqual([]); expect(membersCalled()).toSubsetOf(ALLOWED);
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The members of the user manager (and of the bus daemon) the wrapper may call:
 /// say hello,
@@ -71,7 +74,15 @@ use std::path::{Path, PathBuf};
 /// `SPEC.md`,
 /// the wait for the commit service),
 /// and it starts nothing at startup or at login.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
+const ALLOWED_MEMBERS: &[&str] = &[
+    "Hello",
+    "StartUnit",
+    "RestartUnit",
+    "StopUnit",
+    "ResetFailedUnit",
+    "GetUnit",
+    "Get",
+];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,
@@ -94,7 +105,10 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
 /// a file,
 /// and the text it may carry.
 /// The removal of the link an earlier release made.
-const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision_earlier_service_retirement.rs", "sockets.target.wants")];
+const ALLOWED_CODE: &[(&str, &str)] = &[(
+    "service/service_provision_earlier_service_retirement.rs",
+    "sockets.target.wants",
+)];
 
 /// The unit texts the one-time ZFS setup installs under `multi-user.target`,
 /// and the only lines they may carry that start a unit at boot:
@@ -110,7 +124,10 @@ const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision_earlier_serv
 ///  `doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`).
 /// It is by exact file,
 /// never by folder or pattern.
-const UNIT_TEXTS_INSTALLED_AT_BOOT: &[&str] = &["checkout_boot_units/boot_gate_unit_text.rs", "checkout_boot_units/nested_dataset_unit_text.rs"];
+const UNIT_TEXTS_INSTALLED_AT_BOOT: &[&str] = &[
+    "checkout_boot_units/boot_gate_unit_text.rs",
+    "checkout_boot_units/nested_dataset_unit_text.rs",
+];
 
 /// The one target line those unit texts may name.
 /// Any other target,
@@ -124,7 +141,11 @@ const BOOT_TARGET_LINE: &str = "WantedBy=multi-user.target";
 ///  and the one target line that names `multi-user.target`.
 /// Every other install line stays refused in those files too,
 /// and both lines stay refused in every other file.
-fn is_the_boot_start_exception(relative: &str, line: &str, forbidden: &str) -> bool {
+fn is_the_boot_start_exception(
+    relative: &str,
+    line: &str,
+    forbidden: &str,
+) -> bool {
     if !UNIT_TEXTS_INSTALLED_AT_BOOT.contains(&relative) {
         return false;
     }
@@ -147,7 +168,18 @@ pub(crate) fn lines_that_start_at_login(text: &str) -> Vec<String> {
         }
         let lower: String = trimmed.to_ascii_lowercase();
         let install: bool = lower == "[install]"
-            || ["wantedby=", "requiredby=", "upheldby=", "also=", "alias=", "defaultinstance="].iter().any(|key| { return lower.starts_with(key); });
+            || [
+                "wantedby=",
+                "requiredby=",
+                "upheldby=",
+                "also=",
+                "alias=",
+                "defaultinstance=",
+            ]
+            .iter()
+            .any(|key| {
+                return lower.starts_with(key);
+            });
         if install {
             found.push(trimmed.to_string());
         }
@@ -165,18 +197,29 @@ pub(crate) fn lines_that_start_at_login(text: &str) -> Vec<String> {
 /// so a link that names a folder below `root` is skipped there,
 /// and any other link refuses the walk instead of being skipped silently,
 /// because a link this walk passed over would put its target outside the guard.
-fn files_below(root: &Path, extensions: &[&str]) -> Vec<String> {
+fn files_below(
+    root: &Path,
+    extensions: &[&str],
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
-    let canonical_root: PathBuf = std::fs::canonicalize(root).expect("the walk's own root resolves");
+    let canonical_root: PathBuf =
+        std::fs::canonicalize(root).expect("the walk's own root resolves");
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
+        for entry in std::fs::read_dir(&directory)
+            .expect("a readable source directory")
+            .flatten()
+        {
             let path: PathBuf = entry.path();
             // The entry's own type, so a link is seen as a link.
             let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
             if kind.is_symlink() {
                 let target: PathBuf = std::fs::canonicalize(&path).unwrap_or_default();
-                let uses_record: bool = directory.file_name().is_some_and(|name| return name == "uses") && target.starts_with(canonical_root.as_path()) && target.is_dir();
+                let uses_record: bool = directory
+                    .file_name()
+                    .is_some_and(|name| return name == "uses")
+                    && target.starts_with(canonical_root.as_path())
+                    && target.is_dir();
                 assert!(
                     uses_record,
                     "{} is a symbolic link that is not a `uses` link to a folder below {}; this guard cannot prove what it reads, so it refuses rather than skipping it",
@@ -189,7 +232,12 @@ fn files_below(root: &Path, extensions: &[&str]) -> Vec<String> {
                 pending.push(path);
                 continue;
             }
-            let extension: String = path.extension().map(|text| { return text.to_string_lossy().into_owned(); }).unwrap_or_default();
+            let extension: String = path
+                .extension()
+                .map(|text| {
+                    return text.to_string_lossy().into_owned();
+                })
+                .unwrap_or_default();
             if extensions.contains(&extension.as_str()) {
                 let relative: &Path = path.strip_prefix(root).expect("a path below the root");
                 found.push(relative.to_string_lossy().replace('\\', "/"));
@@ -204,13 +252,18 @@ fn files_below(root: &Path, extensions: &[&str]) -> Vec<String> {
 /// which is how the release sources are told apart here.
 fn is_test_file(relative: &str) -> bool {
     let name: &str = relative.rsplit('/').next().unwrap_or(relative);
-    return name.ends_with("_tests.rs") || name.contains("test_support") || relative.starts_with("testing/") || relative.starts_with("binary/");
+    return name.ends_with("_tests.rs")
+        || name.contains("test_support")
+        || relative.starts_with("testing/")
+        || relative.starts_with("binary/");
 }
 
 /// The source root of this package,
 /// `src/native`.
 fn native_root() -> PathBuf {
-    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("native");
 }
 
 /// The code lines of a text:
@@ -220,8 +273,13 @@ fn code_lines(text: &str) -> Vec<(usize, &str)> {
     return text
         .lines()
         .enumerate()
-        .filter(|(_, line)| { let trimmed: &str = line.trim_start(); return !trimmed.is_empty() && !trimmed.starts_with("//"); })
-        .map(|(index, line)| { return (index + 1, line); })
+        .filter(|(_, line)| {
+            let trimmed: &str = line.trim_start();
+            return !trimmed.is_empty() && !trimmed.starts_with("//");
+        })
+        .map(|(index, line)| {
+            return (index + 1, line);
+        })
         .collect();
 }
 
@@ -231,10 +289,17 @@ fn code_lines(text: &str) -> Vec<(usize, &str)> {
 fn the_unit_templates_have_no_install_section() {
     let root: PathBuf = native_root().join("service").join("service_units");
     let templates: Vec<String> = files_below(root.as_path(), &["socket", "service"]);
-    assert!(templates.len() >= 2, "the socket and the service template are found: {templates:?}");
+    assert!(
+        templates.len() >= 2,
+        "the socket and the service template are found: {templates:?}"
+    );
     for name in templates {
         let text: String = std::fs::read_to_string(root.join(name.as_str())).expect("a template");
-        assert_eq!(lines_that_start_at_login(text.as_str()), Vec::<String>::new(), "{name}");
+        assert_eq!(
+            lines_that_start_at_login(text.as_str()),
+            Vec::<String>::new(),
+            "{name}"
+        );
     }
 }
 
@@ -243,7 +308,16 @@ fn the_unit_templates_have_no_install_section() {
 ///  want of looking.
 #[test]
 fn the_detector_finds_every_install_line_and_skips_comments() {
-    for bad in ["[Install]", "WantedBy=default.target", "RequiredBy=sockets.target", "UpheldBy=x.target", "Also=y.socket", "Alias=z.service", "DefaultInstance=a", "  wantedby=sockets.target"] {
+    for bad in [
+        "[Install]",
+        "WantedBy=default.target",
+        "RequiredBy=sockets.target",
+        "UpheldBy=x.target",
+        "Also=y.socket",
+        "Alias=z.service",
+        "DefaultInstance=a",
+        "  wantedby=sockets.target",
+    ] {
         let text: String = format!("[Unit]\nDescription=x\n{bad}\n");
         assert_eq!(lines_that_start_at_login(text.as_str()).len(), 1, "{bad}");
     }
@@ -266,15 +340,32 @@ fn a_link_that_is_not_a_uses_folder_link_is_refused() {
     std::fs::create_dir(&elsewhere).expect("the folder the uses link names");
     std::fs::write(sources.join("inside.service"), "[Unit]\n").expect("a template");
     std::fs::create_dir(sources.join("uses")).expect("the uses folder");
-    std::os::unix::fs::symlink(&elsewhere, sources.join("uses").join("elsewhere")).expect("a uses link to a folder below the root");
-    assert_eq!(files_below(root.as_path(), &["service"]), vec![String::from("sources/inside.service")], "a uses link to a folder below the root is skipped");
-    std::os::unix::fs::symlink(sources.join("inside.service"), sources.join("linked.service")).expect("a link to a file");
-    let refused: Result<Vec<String>, Box<dyn std::any::Any + Send>> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return files_below(root.as_path(), &["service"]); }));
+    std::os::unix::fs::symlink(&elsewhere, sources.join("uses").join("elsewhere"))
+        .expect("a uses link to a folder below the root");
+    assert_eq!(
+        files_below(root.as_path(), &["service"]),
+        vec![String::from("sources/inside.service")],
+        "a uses link to a folder below the root is skipped"
+    );
+    std::os::unix::fs::symlink(
+        sources.join("inside.service"),
+        sources.join("linked.service"),
+    )
+    .expect("a link to a file");
+    let refused: Result<Vec<String>, Box<dyn std::any::Any + Send>> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            return files_below(root.as_path(), &["service"]);
+        }));
     let message: &str = match &refused {
-        Err(payload) => payload.downcast_ref::<String>().map_or("", |text| { return text.as_str(); }),
+        Err(payload) => payload.downcast_ref::<String>().map_or("", |text| {
+            return text.as_str();
+        }),
         Ok(files) => panic!("a link to a file is refused rather than skipped silently: {files:?}"),
     };
-    assert!(message.contains("linked.service") && message.contains("symbolic link"), "the link is named: {message}");
+    assert!(
+        message.contains("linked.service") && message.contains("symbolic link"),
+        "the link is named: {message}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -296,24 +387,35 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
         if is_test_file(relative.as_str()) {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
+        let text: String =
+            std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
         for (number, line) in code_lines(text.as_str()) {
             for forbidden in FORBIDDEN_IN_CODE {
-                let boot_start: bool = is_the_boot_start_exception(relative.as_str(), line, forbidden);
+                let boot_start: bool =
+                    is_the_boot_start_exception(relative.as_str(), line, forbidden);
                 if line.contains(forbidden) && !boot_start {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
             }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
-            let excused: bool = ALLOWED_CODE.iter().any(|(file, allowed_text)| { return *file == relative && line.contains(allowed_text); });
+            let excused: bool = ALLOWED_CODE.iter().any(|(file, allowed_text)| {
+                return *file == relative && line.contains(allowed_text);
+            });
             if wants && !excused {
                 found.push(format!("{relative}:{number}: a wants or requires folder"));
             }
         }
     }
     assert_eq!(found, Vec::<String>::new());
-    let provision: String = std::fs::read_to_string(root.join("service").join("service_provision_earlier_service_retirement.rs")).expect("retirement of the earlier service");
-    assert!(provision.contains("sockets.target.wants"), "the exception is still needed; remove it from the list when the code goes");
+    let provision: String = std::fs::read_to_string(
+        root.join("service")
+            .join("service_provision_earlier_service_retirement.rs"),
+    )
+    .expect("retirement of the earlier service");
+    assert!(
+        provision.contains("sockets.target.wants"),
+        "the exception is still needed; remove it from the list when the code goes"
+    );
 }
 
 /// The wrapper's client of the manager calls only the members on the list:
@@ -329,16 +431,27 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
         if is_test_file(relative.as_str()) {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
+        let text: String =
+            std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
         for (_, line) in code_lines(text.as_str()) {
-            let Some(at) = line.find("member: \"") else { continue };
+            let Some(at) = line.find("member: \"") else {
+                continue;
+            };
             let rest: &str = &line[at + "member: \"".len()..];
             let name: &str = rest.split('"').next().unwrap_or("");
             called.push(name.to_string());
         }
     }
-    assert!(called.len() >= ALLOWED_MEMBERS.len() - 1, "the client's targets are found: {called:?}");
-    let outside: Vec<&String> = called.iter().filter(|name| { return !ALLOWED_MEMBERS.contains(&name.as_str()); }).collect();
+    assert!(
+        called.len() >= ALLOWED_MEMBERS.len() - 1,
+        "the client's targets are found: {called:?}"
+    );
+    let outside: Vec<&String> = called
+        .iter()
+        .filter(|name| {
+            return !ALLOWED_MEMBERS.contains(&name.as_str());
+        })
+        .collect();
     assert!(outside.is_empty(), "members outside the list: {outside:?}");
 }
 
@@ -354,7 +467,9 @@ fn asks_the_manager_for_a_reload(line: &str) -> bool {
     // What: the line with every `ExecReload` taken out, so a unit text's own key is not read as a request.
     let outside_a_unit_text: String = line.replace("ExecReload", "");
     // What: the three spellings left are the member, the quoted call and the shell's own reply to a new unit file.
-    return outside_a_unit_text.contains("Reload") || outside_a_unit_text.contains("\"reload\"") || outside_a_unit_text.contains("daemon-reload");
+    return outside_a_unit_text.contains("Reload")
+        || outside_a_unit_text.contains("\"reload\"")
+        || outside_a_unit_text.contains("daemon-reload");
 }
 
 /// What:
@@ -392,17 +507,27 @@ fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
         if is_test_file(relative.as_str()) {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
+        let text: String =
+            std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
         for (number, line) in code_lines(text.as_str()) {
             if asks_the_manager_for_a_reload(line) {
                 found.push(format!("{relative}:{number}: {line}"));
             }
         }
     }
-    assert_eq!(found, Vec::<String>::new(), "nothing of this wrapper may make the manager read every unit it holds");
+    assert_eq!(
+        found,
+        Vec::<String>::new(),
+        "nothing of this wrapper may make the manager read every unit it holds"
+    );
     // What: The list the members are checked against is the reason a `Reload` member cannot be added, so it is checked
     //       while the absence is.
-    assert!(!ALLOWED_MEMBERS.iter().any(|member| { return member.contains("Reload"); }), "a reload is no member this wrapper may call: {ALLOWED_MEMBERS:?}");
+    assert!(
+        !ALLOWED_MEMBERS.iter().any(|member| {
+            return member.contains("Reload");
+        }),
+        "a reload is no member this wrapper may call: {ALLOWED_MEMBERS:?}"
+    );
 }
 
 /// What:
@@ -419,15 +544,51 @@ fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
 fn the_boot_start_exception_is_one_file_and_one_target() {
     let elsewhere: &str = "service/service_instance.rs";
     for file in UNIT_TEXTS_INSTALLED_AT_BOOT {
-        let text: String = std::fs::read_to_string(native_root().join(file)).expect("a unit text file");
-        assert!(text.contains("[Install]") && text.contains(BOOT_TARGET_LINE), "the exception is still needed in {file}; remove it from the list when the file goes");
-        assert!(is_the_boot_start_exception(file, "String::from(\"[Install]\")", "[Install]"), "{file}");
-        assert!(is_the_boot_start_exception(file, "String::from(\"WantedBy=multi-user.target\")", "WantedBy="), "{file}");
-        assert!(!is_the_boot_start_exception(file, "String::from(\"WantedBy=graphical.target\")", "WantedBy="), "{file}");
-        assert!(!is_the_boot_start_exception(file, "String::from(\"RequiredBy=x.target\")", "RequiredBy="), "{file}");
+        let text: String =
+            std::fs::read_to_string(native_root().join(file)).expect("a unit text file");
+        assert!(
+            text.contains("[Install]") && text.contains(BOOT_TARGET_LINE),
+            "the exception is still needed in {file}; remove it from the list when the file goes"
+        );
+        assert!(
+            is_the_boot_start_exception(file, "String::from(\"[Install]\")", "[Install]"),
+            "{file}"
+        );
+        assert!(
+            is_the_boot_start_exception(
+                file,
+                "String::from(\"WantedBy=multi-user.target\")",
+                "WantedBy="
+            ),
+            "{file}"
+        );
+        assert!(
+            !is_the_boot_start_exception(
+                file,
+                "String::from(\"WantedBy=graphical.target\")",
+                "WantedBy="
+            ),
+            "{file}"
+        );
+        assert!(
+            !is_the_boot_start_exception(
+                file,
+                "String::from(\"RequiredBy=x.target\")",
+                "RequiredBy="
+            ),
+            "{file}"
+        );
     }
-    assert!(!is_the_boot_start_exception(elsewhere, "String::from(\"[Install]\")", "[Install]"));
-    assert!(!is_the_boot_start_exception(elsewhere, "String::from(\"WantedBy=multi-user.target\")", "WantedBy="));
+    assert!(!is_the_boot_start_exception(
+        elsewhere,
+        "String::from(\"[Install]\")",
+        "[Install]"
+    ));
+    assert!(!is_the_boot_start_exception(
+        elsewhere,
+        "String::from(\"WantedBy=multi-user.target\")",
+        "WantedBy="
+    ));
 }
 
 /// What:
@@ -440,10 +601,23 @@ fn the_boot_start_exception_is_one_file_and_one_target() {
 ///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`).
 #[test]
 fn the_reload_detector_refuses_every_spelling_of_a_manager_reload() {
-    for planted in ["member: \"Reload\"", "member: \"DaemonReload\"", "call(\"reload\")", "Command::new(\"systemctl\").arg(\"daemon-reload\")", "args([\"daemon-reload\"])"] {
+    for planted in [
+        "member: \"Reload\"",
+        "member: \"DaemonReload\"",
+        "call(\"reload\")",
+        "Command::new(\"systemctl\").arg(\"daemon-reload\")",
+        "args([\"daemon-reload\"])",
+    ] {
         assert!(asks_the_manager_for_a_reload(planted), "{planted}");
     }
-    for a_unit_text_line in ["format!(\"ExecReload={reconcile}\")", "line.starts_with(\"ExecReload=\")", "UnitTextRefusal::MissingLine { line: \"ExecReload=\", unit: BOOT_GATE_UNIT_NAME }"] {
-        assert!(!asks_the_manager_for_a_reload(a_unit_text_line), "{a_unit_text_line}");
+    for a_unit_text_line in [
+        "format!(\"ExecReload={reconcile}\")",
+        "line.starts_with(\"ExecReload=\")",
+        "UnitTextRefusal::MissingLine { line: \"ExecReload=\", unit: BOOT_GATE_UNIT_NAME }",
+    ] {
+        assert!(
+            !asks_the_manager_for_a_reload(a_unit_text_line),
+            "{a_unit_text_line}"
+        );
     }
 }

@@ -16,13 +16,23 @@
 //! ```
 
 /// The wait under control.
-use super::{REFERENCE_LOCK_POLL, Waiting, wait_out_the_reference_locks};
+use super::{
+    REFERENCE_LOCK_POLL,
+    Waiting,
+    wait_out_the_reference_locks,
+};
 /// A judgement that takes any lock as old enough and plants the processes it judges.
 use crate::stale_ref_lock_killed_git::judge;
 /// Its own disposable directory.
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A Git directory of this control's own.
 fn git_directory(name: &str) -> (PathBuf, PathBuf) {
@@ -37,7 +47,10 @@ fn git_directory(name: &str) -> (PathBuf, PathBuf) {
 fn blocked(outcome: Waiting) -> String {
     return match outcome {
         Waiting::Gone => panic!("nothing stands, so the write may be tried again"),
-        Waiting::Blocked { words, .. } => words,
+        Waiting::Blocked {
+            words,
+            ..
+        } => words,
     };
 }
 
@@ -52,11 +65,28 @@ fn a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it
     let (root, git_dir) = git_directory("reference-lock-left");
     let lock: PathBuf = git_dir.join("refs/heads/main.lock");
     std::fs::write(&lock, "").expect("the lock a killed Git leaves");
-    let words: String = blocked(wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &judge(), Instant::now()));
-    assert!(lock.exists(), "a lock nothing proves gone is never removed: {}", lock.display());
-    assert!(words.contains(lock.display().to_string().as_str()), "the lock is named: {words}");
-    assert!(words.contains("rm -- "), "the command that clears it is given: {words}");
-    assert!(words.contains("Nothing proves that a Git process still holds the lock"), "the words say what is not known: {words}");
+    let words: String = blocked(wait_out_the_reference_locks(
+        std::slice::from_ref(&git_dir),
+        &judge(),
+        Instant::now(),
+    ));
+    assert!(
+        lock.exists(),
+        "a lock nothing proves gone is never removed: {}",
+        lock.display()
+    );
+    assert!(
+        words.contains(lock.display().to_string().as_str()),
+        "the lock is named: {words}"
+    );
+    assert!(
+        words.contains("rm -- "),
+        "the command that clears it is given: {words}"
+    );
+    assert!(
+        words.contains("Nothing proves that a Git process still holds the lock"),
+        "the words say what is not known: {words}"
+    );
     remove(root.as_path());
 }
 
@@ -85,16 +115,40 @@ fn a_lock_a_live_process_has_open_is_named_and_left() {
     let descriptors: PathBuf = PathBuf::from(format!("/proc/{holder_pid}/fd"));
     let started: Instant = Instant::now();
     while !std::fs::read_dir(descriptors.as_path()).is_ok_and(|entries| {
-        return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock; }); });
+        return entries.flatten().any(|entry| {
+            return std::fs::read_link(entry.path()).is_ok_and(|target| {
+                return target == lock;
+            });
+        });
     }) {
-        assert!(started.elapsed() < Duration::from_secs(30), "the holder opened the lock");
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "the holder opened the lock"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    let seeing: crate::stale_ref_locks::Judge = crate::stale_ref_locks::Judge { scan_scope: Some(vec![holder_pid]), ..judge() };
-    let words: String = blocked(wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &seeing, Instant::now()));
-    assert!(lock.exists(), "the lock of a live holder is never removed: {}", lock.display());
-    assert!(words.contains(lock.display().to_string().as_str()), "the lock is named: {words}");
-    assert!(words.contains("A program is using the lock"), "the words say a program has it open: {words}");
+    let seeing: crate::stale_ref_locks::Judge = crate::stale_ref_locks::Judge {
+        scan_scope: Some(vec![holder_pid]),
+        ..judge()
+    };
+    let words: String = blocked(wait_out_the_reference_locks(
+        std::slice::from_ref(&git_dir),
+        &seeing,
+        Instant::now(),
+    ));
+    assert!(
+        lock.exists(),
+        "the lock of a live holder is never removed: {}",
+        lock.display()
+    );
+    assert!(
+        words.contains(lock.display().to_string().as_str()),
+        "the lock is named: {words}"
+    );
+    assert!(
+        words.contains("A program is using the lock"),
+        "the words say a program has it open: {words}"
+    );
     let _killed = holder.kill();
     let _reaped = holder.wait();
     remove(root.as_path());
@@ -112,8 +166,12 @@ fn a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again() {
     let (root, git_dir) = git_directory("reference-staging-orphan");
     let staging: PathBuf = git_dir.join("packed-refs.new");
     std::fs::write(&staging, "").expect("the staging file a killed Git leaves");
-    let outcome: Waiting = wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &judge(), Instant::now());
-    assert!(matches!(outcome, Waiting::Gone), "the staging file is removed on its proof");
+    let outcome: Waiting =
+        wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &judge(), Instant::now());
+    assert!(
+        matches!(outcome, Waiting::Gone),
+        "the staging file is removed on its proof"
+    );
     assert!(!staging.exists(), "the staging file is gone");
     remove(root.as_path());
 }
@@ -128,9 +186,13 @@ fn a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again() {
 fn nothing_standing_costs_no_wait() {
     let (root, git_dir) = git_directory("reference-lock-none");
     let began: Instant = Instant::now();
-    let outcome: Waiting = wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &judge(), began);
+    let outcome: Waiting =
+        wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &judge(), began);
     assert!(matches!(outcome, Waiting::Gone));
-    assert!(began.elapsed() < REFERENCE_LOCK_POLL * 10, "nothing standing is answered at once");
+    assert!(
+        began.elapsed() < REFERENCE_LOCK_POLL * 10,
+        "nothing standing is answered at once"
+    );
     remove(root.as_path());
 }
 
@@ -147,10 +209,20 @@ fn a_young_lock_is_looked_at_again_until_the_deadline_and_then_named() {
     std::fs::write(&lock, "").expect("the lock a live Git has just made");
     // The judge of this process waits out the real margin before judging; a deadline already past ends the wait at once.
     let began: Instant = Instant::now();
-    let outcome: Waiting = wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &crate::stale_ref_locks::Judge::here(), began + Duration::from_millis(60));
-    assert!(began.elapsed() < Duration::from_secs(5), "the wait ends at its deadline");
+    let outcome: Waiting = wait_out_the_reference_locks(
+        std::slice::from_ref(&git_dir),
+        &crate::stale_ref_locks::Judge::here(),
+        began + Duration::from_millis(60),
+    );
+    assert!(
+        began.elapsed() < Duration::from_secs(5),
+        "the wait ends at its deadline"
+    );
     let words: String = blocked(outcome);
-    assert!(words.contains(lock.display().to_string().as_str()), "a lock that is still young at the deadline is named: {words}");
+    assert!(
+        words.contains(lock.display().to_string().as_str()),
+        "a lock that is still young at the deadline is named: {words}"
+    );
     assert!(lock.exists(), "nothing is removed");
     remove(root.as_path());
 }

@@ -23,21 +23,28 @@
 //! const changes = parseRawChanges(await git(['diff-tree', '-r', '-z', '--raw', '--no-renames', '--no-abbrev', old, next]));
 //! ```
 
-/// Running real Git for a blob hash,
-/// on either face.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 /// The one file look of each read handed to the blocking pool,
 /// so a disk that makes it wait holds no worker of the runtime
 /// (`doc/planning/git-policy-cli-full-tokio.md`,
 /// "Blocking files,
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::transaction_git_awaiting::run_git_checked_awaiting;
 /// The process's one runtime,
 /// entered once by each synchronous face.
 use crate::lazy_runtime::run_on_runtime;
+/// Running real Git for a blob hash,
+/// on either face.
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One path the merge changes,
 /// with the mode and blob it has on each side.
@@ -112,7 +119,9 @@ pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<Change>, String> {
             return Err(format!("the difference entry {text:?} has no path"));
         };
         if !header.starts_with(b":") || parts.len() < 5 {
-            return Err(format!("the difference entry {text:?} is not in the raw format"));
+            return Err(format!(
+                "the difference entry {text:?} is not in the raw format"
+            ));
         }
         changes.push(Change {
             path: path.to_vec(),
@@ -231,7 +240,10 @@ pub fn file_identity(_location: &Path) -> Option<FileIdentity> {
 /// ```ts
 /// join(root, bytesToPath(path))
 /// ```
-pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
+pub fn worktree_path(
+    root: &Path,
+    path: &[u8],
+) -> PathBuf {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
@@ -260,7 +272,11 @@ pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
 /// ```ts
 /// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
 /// ```
-pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
+pub fn worktree_state(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+) -> Result<WorktreeState, String> {
     return match run_on_runtime(worktree_state_awaiting(context, root, path)) {
         Ok(found) => found,
         Err(refusal) => Err(format!("{refusal}")),
@@ -279,7 +295,11 @@ pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<
 /// ```ts
 /// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
 /// ```
-pub async fn worktree_state_awaiting(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
+pub async fn worktree_state_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+) -> Result<WorktreeState, String> {
     return state_of_file_awaiting(context, root, path, worktree_path(root, path).as_path()).await;
 }
 
@@ -297,20 +317,41 @@ pub async fn worktree_state_awaiting(context: &GitContext, root: &Path, path: &[
 /// ```ts
 /// async function stateOfFile({ context, root, path, location }): Promise<WorktreeState>;
 /// ```
-pub async fn state_of_file_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
+pub async fn state_of_file_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    location: &Path,
+) -> Result<WorktreeState, String> {
     // The look at the entry is a file call that can wait on a disk, a lock or a mount, so a job of the blocking pool makes it.
     let looked_at: PathBuf = location.to_path_buf();
-    let metadata: std::fs::Metadata = match run_blocking_job_within_the_budget(move || return std::fs::symlink_metadata(looked_at.as_path())).await {
+    let metadata: std::fs::Metadata = match run_blocking_job_within_the_budget(move || {
+        return std::fs::symlink_metadata(looked_at.as_path());
+    })
+    .await
+    {
         Ok(Ok(found)) => found,
-        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
-        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(WorktreeState::Missing),
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(WorktreeState::Missing);
+        }
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotADirectory => {
+            return Ok(WorktreeState::Missing);
+        }
         Ok(Err(error)) => return Err(format!("{} could not be read: {error}", location.display())),
         // The system gave the pool no thread, so the entry was not read and this is not the answer "missing".
-        Err(refused) => return Err(format!("{} could not be read: {refused}", location.display())),
+        Err(refused) => {
+            return Err(format!(
+                "{} could not be read: {refused}",
+                location.display()
+            ));
+        }
     };
     if metadata.file_type().is_symlink() {
         let object: String = the_objects_a_link_hashes_to_awaiting(context, root, location).await?;
-        return Ok(WorktreeState::Content { object, mode: String::from(SYMBOLIC_LINK_MODE) });
+        return Ok(WorktreeState::Content {
+            object,
+            mode: String::from(SYMBOLIC_LINK_MODE),
+        });
     }
     if !metadata.is_file() {
         return Ok(WorktreeState::Other);
@@ -354,15 +395,29 @@ const SYMBOLIC_LINK_MODE: &str = "120000";
 /// ```ts
 /// async function theObjectsALinkHashesTo(context, root, location): Promise<string>; // hash-object --no-filters --stdin < readlink(location)
 /// ```
-pub async fn the_objects_a_link_hashes_to_awaiting(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
+pub async fn the_objects_a_link_hashes_to_awaiting(
+    context: &GitContext,
+    root: &Path,
+    location: &Path,
+) -> Result<String, String> {
     // Reading what a link points at is a file call that can wait on a disk, so a job of the blocking pool makes it.
     let read_at: PathBuf = location.to_path_buf();
-    let target: PathBuf = match run_blocking_job_within_the_budget(move || return std::fs::read_link(read_at.as_path())).await {
+    let target: PathBuf = match run_blocking_job_within_the_budget(move || {
+        return std::fs::read_link(read_at.as_path());
+    })
+    .await
+    {
         Ok(Ok(read)) => read,
         Ok(Err(error)) => return Err(format!("{} could not be read: {error}", location.display())),
-        Err(refused) => return Err(format!("{} could not be read: {refused}", location.display())),
+        Err(refused) => {
+            return Err(format!(
+                "{} could not be read: {refused}",
+                location.display()
+            ));
+        }
     };
-    let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
+    let mut request: GitRequest =
+        GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
     request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
     let output: GitOutput = match run_git_checked_awaiting(context, &request).await {
         Ok(done) => done,
@@ -424,14 +479,18 @@ fn mode_of_file(_metadata: &std::fs::Metadata) -> &'static str {
 /// ```ts
 /// function theRepositoryRecordsFileModes(context, root): boolean; // git config --bool core.filemode !== 'false'
 /// ```
-pub fn the_repository_records_file_modes(context: &GitContext, root: &Path) -> bool {
+pub fn the_repository_records_file_modes(
+    context: &GitContext,
+    root: &Path,
+) -> bool {
     return match run_on_runtime(the_repository_records_file_modes_awaiting(context, root)) {
         Ok(found) => found,
         // A read the runtime refused proves nothing, so the strict answer is kept.
         Err(refusal) => {
             crate::diagnostic_log::debug(
                 "theRepositoryRecordsFileModes",
-                format!("core.filemode could not be read, so it counts as recorded: {refusal}").as_str(),
+                format!("core.filemode could not be read, so it counts as recorded: {refusal}")
+                    .as_str(),
             );
             true
         }
@@ -449,7 +508,10 @@ pub fn the_repository_records_file_modes(context: &GitContext, root: &Path) -> b
 /// ```ts
 /// async function theRepositoryRecordsFileModes(context, root): Promise<boolean>;
 /// ```
-pub async fn the_repository_records_file_modes_awaiting(context: &GitContext, root: &Path) -> bool {
+pub async fn the_repository_records_file_modes_awaiting(
+    context: &GitContext,
+    root: &Path,
+) -> bool {
     let request: GitRequest = GitRequest::new(root, &["config", "--bool", "core.filemode"]);
     let Ok(output) = run_git_checked_awaiting(context, &request).await else {
         return true;
@@ -489,9 +551,17 @@ mod tests;
 /// ```ts
 /// function aDirectoriesFilesAreAllDeletedByTheMerge({ change, changes, root }): boolean; // every entry below the directory is a deleted change or a directory of them
 /// ```
-pub fn the_directory_holds_only_what_the_merge_deletes(change: &Change, changes: &[Change], root: &Path) -> bool {
+pub fn the_directory_holds_only_what_the_merge_deletes(
+    change: &Change,
+    changes: &[Change],
+    root: &Path,
+) -> bool {
     let location: PathBuf = worktree_path(root, change.path.as_slice());
-    return every_entry_below_is_one_the_merge_deletes(change.path.as_slice(), changes, location.as_path());
+    return every_entry_below_is_one_the_merge_deletes(
+        change.path.as_slice(),
+        changes,
+        location.as_path(),
+    );
 }
 
 /// What:
@@ -519,7 +589,11 @@ pub fn the_directory_holds_only_what_the_merge_deletes(change: &Change, changes:
 /// ```ts
 /// function everyEntryBelowIsOneTheMergeDeletes(prefix, changes, directory): boolean; // each child: a deleted change, or a directory whose every entry is
 /// ```
-fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change], directory: &Path) -> bool {
+fn every_entry_below_is_one_the_merge_deletes(
+    prefix: &[u8],
+    changes: &[Change],
+    directory: &Path,
+) -> bool {
     let listing: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(found) => found,
         Err(_) => return false,
@@ -567,7 +641,10 @@ fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change],
 /// ```ts
 /// function oneChangeDeletes(changes, path): boolean; // changes.some((other) => other.path === path && other.existed() && !other.existsAfter())
 /// ```
-fn one_change_deletes(changes: &[Change], path: &[u8]) -> bool {
+fn one_change_deletes(
+    changes: &[Change],
+    path: &[u8],
+) -> bool {
     for other in changes {
         if other.path == path && other.existed() && !other.exists_after() {
             return true;
@@ -587,7 +664,10 @@ fn one_change_deletes(changes: &[Change], path: &[u8]) -> bool {
 /// ```ts
 /// function theMergeDeletesAPathBelow(prefix, changes): boolean; // changes.some((other) => other.path.startsWith(`${prefix}/`) && other.existed() && !other.existsAfter())
 /// ```
-fn the_merge_deletes_a_path_below(prefix: &[u8], changes: &[Change]) -> bool {
+fn the_merge_deletes_a_path_below(
+    prefix: &[u8],
+    changes: &[Change],
+) -> bool {
     let mut slash: Vec<u8> = prefix.to_vec();
     slash.push(b'/');
     for other in changes {

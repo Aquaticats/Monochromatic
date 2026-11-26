@@ -35,8 +35,14 @@
 //! ```
 
 use crate::service_protocol::LandedCapture;
-use std::collections::{HashMap, VecDeque};
-use std::path::{Path, PathBuf};
+use std::collections::{
+    HashMap,
+    VecDeque,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many landed commits are remembered for one worktree;
 /// older ones are forgotten,
@@ -91,12 +97,24 @@ impl CaptureMemory {
     /// ```ts
     /// memory.recordLanded(commonDir, worktree, commit, captured)
     /// ```
-    pub fn record_landed(&mut self, common_dir: &Path, worktree: &Path, commit: &str, captured: u64) {
+    pub fn record_landed(
+        &mut self,
+        common_dir: &Path,
+        worktree: &Path,
+        commit: &str,
+        captured: u64,
+    ) {
         if captured == 0 {
             return;
         }
-        let entries: &mut VecDeque<LandedCapture> = self.by_worktree.entry((common_dir.to_path_buf(), worktree.to_path_buf())).or_default();
-        entries.push_back(LandedCapture { commit: commit.to_string(), captured });
+        let entries: &mut VecDeque<LandedCapture> = self
+            .by_worktree
+            .entry((common_dir.to_path_buf(), worktree.to_path_buf()))
+            .or_default();
+        entries.push_back(LandedCapture {
+            commit: commit.to_string(),
+            captured,
+        });
         while entries.len() > REMEMBERED {
             entries.pop_front();
         }
@@ -113,8 +131,15 @@ impl CaptureMemory {
     /// ```ts
     /// memory.remembered(commonDir, worktree)
     /// ```
-    pub fn remembered(&self, common_dir: &Path, worktree: &Path) -> Vec<LandedCapture> {
-        return match self.by_worktree.get(&(common_dir.to_path_buf(), worktree.to_path_buf())) {
+    pub fn remembered(
+        &self,
+        common_dir: &Path,
+        worktree: &Path,
+    ) -> Vec<LandedCapture> {
+        return match self
+            .by_worktree
+            .get(&(common_dir.to_path_buf(), worktree.to_path_buf()))
+        {
             Some(entries) => entries.iter().cloned().collect(),
             None => Vec::new(),
         };

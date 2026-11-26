@@ -11,7 +11,10 @@
 //! ```
 
 /// Import the error under test.
-use super::{CandidateError, CandidateFailure};
+use super::{
+    CandidateError,
+    CandidateFailure,
+};
 
 /// Printing yields exactly the stored message,
 ///  and the cause is kept beside it.

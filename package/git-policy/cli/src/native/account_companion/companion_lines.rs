@@ -26,7 +26,10 @@
 //! for (const line of verdict.lines()) console.error(line);
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+};
 use super::companion_settings::Settings;
 use super::companion_steps::CompanionStep;
 use std::time::Duration;
@@ -161,7 +164,9 @@ impl CompanionVerdict {
     pub fn lines(&self) -> Vec<String> {
         return match self {
             CompanionVerdict::Passed | CompanionVerdict::NotRun => Vec::new(),
-            CompanionVerdict::Skipped { skip } => vec![
+            CompanionVerdict::Skipped {
+                skip,
+            } => vec![
                 format!(
                     "account companion skipped: {} answered {} (errno {}); user namespaces are unavailable here",
                     skip.call.name(),
@@ -170,7 +175,9 @@ impl CompanionVerdict {
                 ),
                 skip.settings.line(),
             ],
-            CompanionVerdict::Refused { refusal } => vec![refusal.line()],
+            CompanionVerdict::Refused {
+                refusal,
+            } => vec![refusal.line()],
         };
     }
 
@@ -197,37 +204,59 @@ fn answered(failure: Failure) -> String {
     if failure.errno == super::companion_calls::NO_ERRNO {
         return format!("{} (no errno)", failure.call.name());
     }
-    return format!("{} ({}, errno {})", failure.call.name(), CompanionCall::errno_word(failure.errno), failure.errno);
+    return format!(
+        "{} ({}, errno {})",
+        failure.call.name(),
+        CompanionCall::errno_word(failure.errno),
+        failure.errno
+    );
 }
 
 impl Refusal {
     /// The line this refusal prints.
     pub fn line(&self) -> String {
         return match self {
-            Refusal::ArmFailed { step, failure } => format!(
+            Refusal::ArmFailed {
+                step,
+                failure,
+            } => format!(
                 "managed add refused: the account companion's {} failed: {}; this slot takes {THE_FALLBACK_ROUTE}.",
                 step.name(),
                 answered(*failure)
             ),
-            Refusal::Deadline { deadline } => format!(
+            Refusal::Deadline {
+                deadline,
+            } => format!(
                 "managed add refused: the account companion did not answer within its deadline ({} ms); this slot takes {THE_FALLBACK_ROUTE}.",
                 deadline.as_millis()
             ),
-            Refusal::ChildSignaled { step_in_flight, signal } => format!(
+            Refusal::ChildSignaled {
+                step_in_flight,
+                signal,
+            } => format!(
                 "managed add refused: the account companion's {} failed: the child (signal {signal}); this slot takes {THE_FALLBACK_ROUTE}.",
                 step_in_flight.name()
             ),
-            Refusal::NoStatusLine { step_in_flight } => format!(
+            Refusal::NoStatusLine {
+                step_in_flight,
+            } => format!(
                 "managed add refused: the account companion's {} failed: the status pipe (no status line); this slot takes {THE_FALLBACK_ROUTE}.",
                 step_in_flight.name()
             ),
-            Refusal::ForkRefused { refusals, errno } => format!(
+            Refusal::ForkRefused {
+                refusals,
+                errno,
+            } => format!(
                 "managed add refused: the account companion's start failed: fork (errno {errno}) after {refusals} refusals in the wrapper's start budget; this slot takes {THE_FALLBACK_ROUTE}."
             ),
-            Refusal::PipeRefused { errno } => format!(
+            Refusal::PipeRefused {
+                errno,
+            } => format!(
                 "managed add refused: the account companion's start failed: pipe2 (errno {errno}); this slot takes {THE_FALLBACK_ROUTE}."
             ),
-            Refusal::Scratch { message } => {
+            Refusal::Scratch {
+                message,
+            } => {
                 format!("managed add refused: the account companion's scratch failed: {message}")
             }
         };

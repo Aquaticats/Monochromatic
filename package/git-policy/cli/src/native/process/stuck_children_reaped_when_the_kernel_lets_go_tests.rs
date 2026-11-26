@@ -3,13 +3,21 @@
 //! and the number a raw fork leaves behind.
 
 use super::*;
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// A child of a shell command line whose streams go nowhere,
 /// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn quiet(line: &str) -> Child {
     let mut command = Command::new("/bin/sh");
-    command.arg("-c").arg(line).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .arg("-c")
+        .arg(line)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return crate::test_support::spawn_owned(&mut command).expect("the stand-in starts");
 }
 
@@ -44,13 +52,20 @@ fn a_child_kept_for_a_reaper_is_collected_when_it_ends() {
     let began = std::time::Instant::now();
     reap_soon(child);
     // The call returns at once: the command never waits for the child here.
-    assert!(began.elapsed() < std::time::Duration::from_millis(100), "reap_soon waited for the child: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() < std::time::Duration::from_millis(100),
+        "reap_soon waited for the child: {:?}",
+        began.elapsed()
+    );
     // The record is gone once the reaper has collected the child, and no zombie of that number is left.
     let deadline = std::time::Instant::now() + COLLECTION_PATIENCE;
     while still_listed(pid) && std::time::Instant::now() < deadline {
         std::thread::sleep(LOOK_AGAIN);
     }
-    assert!(!still_listed(pid), "the child handed to a reaper was never collected");
+    assert!(
+        !still_listed(pid),
+        "the child handed to a reaper was never collected"
+    );
 }
 
 /// What:
@@ -71,12 +86,19 @@ fn a_number_handed_to_a_reaper_is_collected_when_it_ends() {
     drop(child);
     let began = std::time::Instant::now();
     reap_soon_pid(pid);
-    assert!(began.elapsed() < std::time::Duration::from_millis(100), "reap_soon_pid waited for the child: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() < std::time::Duration::from_millis(100),
+        "reap_soon_pid waited for the child: {:?}",
+        began.elapsed()
+    );
     let deadline = std::time::Instant::now() + COLLECTION_PATIENCE;
     while still_listed(pid) && std::time::Instant::now() < deadline {
         std::thread::sleep(LOOK_AGAIN);
     }
-    assert!(!still_listed(pid), "the child whose number was handed to a reaper was never collected");
+    assert!(
+        !still_listed(pid),
+        "the child whose number was handed to a reaper was never collected"
+    );
 }
 
 /// What:
@@ -98,13 +120,29 @@ fn a_child_and_a_number_whose_reaper_could_not_start_are_kept_and_collected_late
     drop(numbered);
     keep(Nowait::Child(child));
     keep(Nowait::Pid(number_pid));
-    assert_eq!(waiting_count(), 2, "the child and the number a refused reaper would have lost are not kept");
+    assert_eq!(
+        waiting_count(),
+        2,
+        "the child and the number a refused reaper would have lost are not kept"
+    );
     drain_the_registry();
     let deadline = std::time::Instant::now() + COLLECTION_PATIENCE;
-    while (still_listed(child_pid) || still_listed(number_pid)) && std::time::Instant::now() < deadline {
+    while (still_listed(child_pid) || still_listed(number_pid))
+        && std::time::Instant::now() < deadline
+    {
         std::thread::sleep(LOOK_AGAIN);
     }
-    assert_eq!(waiting_count(), 0, "the kept children were not taken by the reaper");
-    assert!(!still_listed(child_pid), "the kept child was never collected");
-    assert!(!still_listed(number_pid), "the kept number was never collected");
+    assert_eq!(
+        waiting_count(),
+        0,
+        "the kept children were not taken by the reaper"
+    );
+    assert!(
+        !still_listed(child_pid),
+        "the kept child was never collected"
+    );
+    assert!(
+        !still_listed(number_pid),
+        "the kept number was never collected"
+    );
 }

@@ -26,7 +26,10 @@
 /// an inode and a change time in whole milliseconds.
 use crate::index_lock_evidence::LockMetadata;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which term a later read of the armed path answers differently.
@@ -121,7 +124,9 @@ struct PutBackWhenDropped(Option<(MetadataArm, Phase)>);
 impl Drop for PutBackWhenDropped {
     fn drop(&mut self) {
         let held: Option<(MetadataArm, Phase)> = self.0.take();
-        ARM.with(|cell| { *cell.borrow_mut() = held; });
+        ARM.with(|cell| {
+            *cell.borrow_mut() = held;
+        });
     }
 }
 
@@ -137,8 +142,13 @@ impl Drop for PutBackWhenDropped {
 /// ```ts
 /// try { arm.set(it); body(); } finally { arm.putBack(); }
 /// ```
-pub(crate) fn with_arm<T>(arm: MetadataArm, body: impl FnOnce() -> T) -> T {
-    let put_back: PutBackWhenDropped = PutBackWhenDropped(ARM.with(|cell| { return cell.replace(Some((arm, Phase::Judging))); }));
+pub(crate) fn with_arm<T>(
+    arm: MetadataArm,
+    body: impl FnOnce() -> T,
+) -> T {
+    let put_back: PutBackWhenDropped = PutBackWhenDropped(ARM.with(|cell| {
+        return cell.replace(Some((arm, Phase::Judging)));
+    }));
     let ended: T = body();
     drop(put_back);
     return ended;
@@ -177,7 +187,10 @@ pub(crate) fn the_locks_name_is_gone() {
 /// ```ts
 /// const striped = armed(path, statx(path)); // the arm's term changed on the later read
 /// ```
-pub(crate) fn armed(path: &Path, found: Option<LockMetadata>) -> Option<LockMetadata> {
+pub(crate) fn armed(
+    path: &Path,
+    found: Option<LockMetadata>,
+) -> Option<LockMetadata> {
     return ARM.with(|cell| {
         let held = cell.borrow();
         let Some((arm, phase)) = held.as_ref() else {
@@ -201,7 +214,9 @@ pub(crate) fn armed(path: &Path, found: Option<LockMetadata>) -> Option<LockMeta
             match arm.later {
                 Some(Changed::Device) => answered.device = answered.device.wrapping_add(1),
                 Some(Changed::Inode) => answered.inode = answered.inode.wrapping_add(1),
-                Some(Changed::ChangeTime) => { answered.ctime_ms -= 1; }
+                Some(Changed::ChangeTime) => {
+                    answered.ctime_ms -= 1;
+                }
                 None => {}
             }
         }

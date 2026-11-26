@@ -91,19 +91,40 @@ pub fn conflicts_of_merge_tree(stdout: &[u8]) -> (String, Vec<Conflict>) {
         if field.is_empty() {
             break;
         }
-        let Some((facts, path)) = split_once(field, b'\t') else { continue };
+        let Some((facts, path)) = split_once(field, b'\t') else {
+            continue;
+        };
         let words: Vec<&[u8]> = facts.split(is_space_byte).collect();
-        let [mode_bytes, oid_bytes, stage_bytes] = words.as_slice() else { continue };
-        let (Ok(mode_text), Ok(oid_text), Ok(stage_text)) = (std::str::from_utf8(mode_bytes), std::str::from_utf8(oid_bytes), std::str::from_utf8(stage_bytes)) else { continue };
-        let (Ok(mode), Ok(stage)) = (u32::from_str_radix(mode_text, 8), stage_text.parse::<u8>()) else { continue };
+        let [mode_bytes, oid_bytes, stage_bytes] = words.as_slice() else {
+            continue;
+        };
+        let (Ok(mode_text), Ok(oid_text), Ok(stage_text)) = (
+            std::str::from_utf8(mode_bytes),
+            std::str::from_utf8(oid_bytes),
+            std::str::from_utf8(stage_bytes),
+        ) else {
+            continue;
+        };
+        let (Ok(mode), Ok(stage)) = (u32::from_str_radix(mode_text, 8), stage_text.parse::<u8>())
+        else {
+            continue;
+        };
         if !by_path.contains_key(path) {
             order.push(path.to_vec());
         }
         let conflict: &mut Conflict = match by_path.entry(path.to_vec()) {
             std::collections::btree_map::Entry::Occupied(known) => known.into_mut(),
-            std::collections::btree_map::Entry::Vacant(slot) => slot.insert(Conflict { path: path.to_vec(), base: None, ours: None, theirs: None }),
+            std::collections::btree_map::Entry::Vacant(slot) => slot.insert(Conflict {
+                path: path.to_vec(),
+                base: None,
+                ours: None,
+                theirs: None,
+            }),
         };
-        let side: Option<Stage> = Some(Stage { mode, oid: oid_text.to_owned() });
+        let side: Option<Stage> = Some(Stage {
+            mode,
+            oid: oid_text.to_owned(),
+        });
         match stage {
             BASE_STAGE => conflict.base = side,
             OURS_STAGE => conflict.ours = side,
@@ -121,7 +142,10 @@ pub fn conflicts_of_merge_tree(stdout: &[u8]) -> (String, Vec<Conflict>) {
 }
 
 /// The text before the first `separator` and the text after it.
-pub fn split_once(bytes: &[u8], separator: u8) -> Option<(&[u8], &[u8])> {
+pub fn split_once(
+    bytes: &[u8],
+    separator: u8,
+) -> Option<(&[u8], &[u8])> {
     let mut found: Option<usize> = None;
     for (position, byte) in bytes.iter().enumerate() {
         if *byte == separator {

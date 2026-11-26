@@ -37,15 +37,21 @@
 /// published when it started,
 /// and the descriptor that names it for good.
 use crate::child_number_told_at_start::ChildNumber;
-/// The processes below the step,
-/// read for the stop.
-use crate::process_tree::descendants_of_read;
-/// One process of that tree.
-use crate::process_tree::TreeMember;
 /// The signal that ends the step,
 /// what it came to,
 /// and whether the step is still there.
-use crate::member_signalled_through_its_pidfd::{Delivered, has_ended, kill_members, signal_through, unended_in};
+use crate::member_signalled_through_its_pidfd::{
+    Delivered,
+    has_ended,
+    kill_members,
+    signal_through,
+    unended_in,
+};
+/// One process of that tree.
+use crate::process_tree::TreeMember;
+/// The processes below the step,
+/// read for the stop.
+use crate::process_tree::descendants_of_read;
 
 /// What:
 ///  What the ceiling came to when it came.
@@ -93,13 +99,17 @@ thread_local! {
 /// Plant what the next walk below the step answers.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) fn plant_what_the_walk_finds(members: Vec<TreeMember>) {
-    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(Some(members)); });
+    PLANTED_WALK.with(|planted| {
+        *planted.borrow_mut() = Some(Some(members));
+    });
 }
 
 /// Plant a walk that could not be made at all.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) fn refuse_the_next_walk() {
-    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(None); });
+    PLANTED_WALK.with(|planted| {
+        *planted.borrow_mut() = Some(None);
+    });
 }
 
 /// The processes below the step:
@@ -108,7 +118,9 @@ pub(crate) fn refuse_the_next_walk() {
 #[cfg(target_os = "linux")]
 fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
     #[cfg(test)]
-    if let Some(planted) = PLANTED_WALK.with(|planted| { return planted.borrow_mut().take(); }) {
+    if let Some(planted) = PLANTED_WALK.with(|planted| {
+        return planted.borrow_mut().take();
+    }) {
         return planted;
     }
     return descendants_of_read(number);
@@ -158,7 +170,11 @@ pub struct TheCeiling {
 pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     let Some(number) = step.number() else {
         // A step that never started has nothing to end, and nothing is concluded about it.
-        return TheCeiling { came: CeilingCame::Unknown, below_listed: true, below_unended: 0 };
+        return TheCeiling {
+            came: CeilingCame::Unknown,
+            below_listed: true,
+            below_unended: 0,
+        };
     };
     // What:
     //  A start the kernel refused a descriptor for names nothing here for good,
@@ -172,13 +188,21 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
     //  the wait that owns the step ends the child it holds (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`),
     //  so a ceiling is never lost with this answer.
     let Some(descriptor) = step.descriptor() else {
-        return TheCeiling { came: CeilingCame::Unknown, below_listed: true, below_unended: 0 };
+        return TheCeiling {
+            came: CeilingCame::Unknown,
+            below_listed: true,
+            below_unended: 0,
+        };
     };
     let walked: Option<Vec<TreeMember>> = walk_below(number);
     let below_listed: bool = walked.is_some();
     if has_ended(descriptor) {
         // The step ended while its children were being read, so that read proves nothing and nothing from it is signalled.
-        return TheCeiling { came: CeilingCame::TheStepEnded, below_listed, below_unended: 0 };
+        return TheCeiling {
+            came: CeilingCame::TheStepEnded,
+            below_listed,
+            below_unended: 0,
+        };
     }
     // The step is signalled whatever the walk came to: the descriptor names it, and a walk that could not be made says
     // nothing about it (finding 2 of the fourth review).
@@ -196,7 +220,11 @@ pub fn ceiling_came(step: &ChildNumber) -> TheCeiling {
         Delivered::Gone => CeilingCame::TheStepEnded,
         Delivered::Unproven => CeilingCame::Unknown,
     };
-    return TheCeiling { came, below_listed, below_unended };
+    return TheCeiling {
+        came,
+        below_listed,
+        below_unended,
+    };
 }
 
 /// Controls stay out of the release executable.

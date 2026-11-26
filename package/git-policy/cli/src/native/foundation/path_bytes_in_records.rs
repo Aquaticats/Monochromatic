@@ -19,8 +19,14 @@
 //! record.gitDir = path.toString(); record.gitDirHex = Buffer.from(path).toString('hex')
 //! ```
 
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The end of the second field of a path:
@@ -115,7 +121,9 @@ pub fn bytes_of_hex(hex: &str) -> Option<Vec<u8>> {
 /// ```
 pub fn path_of_hex(hex: &str) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStringExt;
-    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes_of_hex(hex)?)));
+    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes_of_hex(
+        hex,
+    )?)));
 }
 
 /// What:
@@ -156,11 +164,16 @@ pub fn text_in_one_line(path: &Path) -> Option<&str> {
 /// ```ts
 /// const pathOfTwoFields = (bytes, text) => bytes === undefined ? text : (pathOfHex(bytes) ?? damaged())
 /// ```
-pub fn path_of_the_two_fields(bytes: Option<&str>, text: Option<&str>) -> Result<Option<PathBuf>, String> {
+pub fn path_of_the_two_fields(
+    bytes: Option<&str>,
+    text: Option<&str>,
+) -> Result<Option<PathBuf>, String> {
     if let Some(hexadecimal) = bytes {
         return match path_of_hex(hexadecimal) {
             Some(path) => Ok(Some(path)),
-            None => Err(String::from("the field of bytes is not the bytes of a path")),
+            None => Err(String::from(
+                "the field of bytes is not the bytes of a path",
+            )),
         };
     }
     return Ok(text.map(PathBuf::from));
@@ -179,7 +192,11 @@ pub fn path_of_the_two_fields(bytes: Option<&str>, text: Option<&str>) -> Result
 /// ```ts
 /// fields[key] = path.toString(); fields[key + HEX_SUFFIX] = pathBytesHex(path);
 /// ```
-pub fn write_field(fields: &mut Map<String, Value>, key: &str, path: &Path) {
+pub fn write_field(
+    fields: &mut Map<String, Value>,
+    key: &str,
+    path: &Path,
+) {
     fields.insert(String::from(key), Value::from(path.display().to_string()));
     fields.insert(format!("{key}{HEX_SUFFIX}"), Value::from(hex_of_path(path)));
 }
@@ -199,7 +216,10 @@ pub fn write_field(fields: &mut Map<String, Value>, key: &str, path: &Path) {
 /// ```ts
 /// const readPathField = (record, key) => record[key + HEX_SUFFIX] !== undefined ? pathOfHex(record[key + HEX_SUFFIX]) : record[key];
 /// ```
-pub fn read_field(value: &Value, key: &str) -> Result<PathBuf, String> {
+pub fn read_field(
+    value: &Value,
+    key: &str,
+) -> Result<PathBuf, String> {
     match value.get(format!("{key}{HEX_SUFFIX}")) {
         Some(Value::String(hex)) => {
             return match path_of_hex(hex.as_str()) {
@@ -232,10 +252,16 @@ pub fn read_field(value: &Value, key: &str) -> Result<PathBuf, String> {
 /// ```ts
 /// const field = (key, path) => isText(path) ? `"${key}":${JSON.stringify(text)}` : `"${key}${HEX_SUFFIX}":"${hex}"`;
 /// ```
-pub fn field_fragment(key: &str, path: &[u8]) -> String {
+pub fn field_fragment(
+    key: &str,
+    path: &[u8],
+) -> String {
     return match std::str::from_utf8(path) {
         Ok(text) => format!("\"{key}\":{}", crate::json_record::quote(text)),
-        Err(_not_text) => format!("\"{key}{HEX_SUFFIX}\":{}", crate::json_record::quote(hex_of_bytes(path).as_str())),
+        Err(_not_text) => format!(
+            "\"{key}{HEX_SUFFIX}\":{}",
+            crate::json_record::quote(hex_of_bytes(path).as_str())
+        ),
     };
 }
 
@@ -254,7 +280,10 @@ pub fn field_fragment(key: &str, path: &[u8]) -> String {
 /// ```ts
 /// const list = (key, paths) => paths.every(isText) ? `"${key}":${JSON.stringify(texts)}` : `"${key}${HEX_SUFFIX}":${JSON.stringify(hexes)}`;
 /// ```
-pub fn list_fragment(key: &str, paths: &[Vec<u8>]) -> String {
+pub fn list_fragment(
+    key: &str,
+    paths: &[Vec<u8>],
+) -> String {
     let mut all_text: Vec<&str> = Vec::with_capacity(paths.len());
     let mut every_name_is_text: bool = true;
     for path in paths {
@@ -294,7 +323,10 @@ pub fn list_fragment(key: &str, paths: &[Vec<u8>]) -> String {
 /// ```ts
 /// const readPathList = (record, key) => record[key + HEX_SUFFIX] !== undefined ? decodeEach(record[key + HEX_SUFFIX]) : texts(record[key]);
 /// ```
-pub fn read_path_list(value: &Value, key: &str) -> Option<Vec<Vec<u8>>> {
+pub fn read_path_list(
+    value: &Value,
+    key: &str,
+) -> Option<Vec<Vec<u8>>> {
     if let Some(hexadecimal) = value.get(format!("{key}{HEX_SUFFIX}")) {
         let mut paths: Vec<Vec<u8>> = Vec::with_capacity(hexadecimal.as_array()?.len());
         for item in hexadecimal.as_array()? {
@@ -320,7 +352,10 @@ pub fn read_path_list(value: &Value, key: &str) -> Option<Vec<Vec<u8>>> {
 /// ```ts
 /// const readPathField = (record, key) => record[key + HEX_SUFFIX] !== undefined ? bytesOfHex(record[key + HEX_SUFFIX]) : Buffer.from(record[key]);
 /// ```
-pub fn read_path_field(value: &Value, key: &str) -> Option<Vec<u8>> {
+pub fn read_path_field(
+    value: &Value,
+    key: &str,
+) -> Option<Vec<u8>> {
     if let Some(hexadecimal) = value.get(format!("{key}{HEX_SUFFIX}")) {
         return bytes_of_hex(hexadecimal.as_str()?);
     }

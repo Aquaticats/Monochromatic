@@ -29,14 +29,33 @@
 //! expect(adoptAt({ runningAsRoot: false, effectiveUser: 1000 })).toEqual({ refused: 'not-root' });
 //! ```
 
-use super::{AdoptFailure, BETWEEN_THE_TWO_LISTINGS, adopt_at, recorded_slots};
+use super::{
+    AdoptFailure,
+    BETWEEN_THE_TWO_LISTINGS,
+    adopt_at,
+    recorded_slots,
+};
 use crate::test_support::fixture;
-use crate::worktree_clone_mount::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use crate::worktree_clone_mount::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+};
 use crate::worktree_clone_mount::parent_adoption_decision::AdoptionRefusal;
-use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, SlotState};
+use crate::worktree_clone_mount::parent_adoption_facts::{
+    BindingState,
+    SlotState,
+};
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
-use crate::worktree_clone_mount::{HeldWorktreesParent, PARENT_RECORD_NAME, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, WHEN_THE_STORE_IS_LISTED, hold_the_worktrees_parent};
+use crate::worktree_clone_mount::{
+    HeldWorktreesParent,
+    PARENT_RECORD_NAME,
+    SLOT_IDENTITY_STORE_PATH,
+    STORE_HEADER,
+    StoredIdentity,
+    WHEN_THE_STORE_IS_LISTED,
+    hold_the_worktrees_parent,
+};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use std::path::Path;
 use std::path::PathBuf;
@@ -61,21 +80,41 @@ fn fixture_checkout(name: &str) -> Fixture {
     let checkout: PathBuf = root.join("checkout");
     let parent: PathBuf = checkout.join(".claude/worktrees");
     std::fs::create_dir_all(&parent).expect("the worktrees parent");
-    return Fixture { checkout, parent, store: root.join("slot-identities") };
+    return Fixture {
+        checkout,
+        parent,
+        store: root.join("slot-identities"),
+    };
 }
 
 /// The identity of the folder at `path`,
 /// read from its descriptor.
 fn identity_of(path: &Path) -> CloneFolderIdentity {
-    return CloneFolderIdentity::capture(&std::fs::File::open(path).expect("a folder to read")).expect("an identity");
+    return CloneFolderIdentity::capture(&std::fs::File::open(path).expect("a folder to read"))
+        .expect("an identity");
 }
 
 /// Write a store folder recording `parent` and the slot `name` as `slot`.
-fn write_store(path: &Path, parent: &CloneFolderIdentity, name: &str, slot: &CloneFolderIdentity) {
+fn write_store(
+    path: &Path,
+    parent: &CloneFolderIdentity,
+    name: &str,
+    slot: &CloneFolderIdentity,
+) {
     std::fs::create_dir_all(path).expect("the store folder fixture");
-    let parent_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Parent(parent.clone()).encode());
+    let parent_text: String = format!(
+        "{STORE_HEADER}\n{}\n",
+        StoredIdentity::Parent(parent.clone()).encode()
+    );
     std::fs::write(path.join(PARENT_RECORD_NAME), parent_text).expect("the parent record fixture");
-    let slot_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Slot { name: name.to_string(), identity: slot.clone() }.encode());
+    let slot_text: String = format!(
+        "{STORE_HEADER}\n{}\n",
+        StoredIdentity::Slot {
+            name: name.to_string(),
+            identity: slot.clone()
+        }
+        .encode()
+    );
     std::fs::write(path.join(name), slot_text).expect("the slot record fixture");
 }
 
@@ -83,8 +122,10 @@ fn write_store(path: &Path, parent: &CloneFolderIdentity, name: &str, slot: &Clo
 /// read by the mode's own reader,
 /// with the held parent folder.
 fn slots_and_bindings(built: &Fixture) -> (Vec<SlotState>, Vec<BindingState>) {
-    let held: HeldWorktreesParent = hold_the_worktrees_parent(built.checkout.as_path()).expect("the walk holds the recreated parent");
-    let store: SlotIdentityStore = SlotIdentityStore::open(built.store.as_path()).expect("the fixture store opens");
+    let held: HeldWorktreesParent = hold_the_worktrees_parent(built.checkout.as_path())
+        .expect("the walk holds the recreated parent");
+    let store: SlotIdentityStore =
+        SlotIdentityStore::open(built.store.as_path()).expect("the fixture store opens");
     let names: Vec<String> = store.slot_names().expect("the fixture store lists");
     return recorded_slots(Some(&held), &store, names.as_slice()).expect("the recorded slots read");
 }
@@ -94,7 +135,11 @@ fn slots_and_bindings(built: &Fixture) -> (Vec<SlotState>, Vec<BindingState>) {
 /// so no number here is one a control made up.
 fn request(built: &Fixture) -> AdoptRequest {
     let identified: CloneFolderIdentity = identity_of(&built.parent);
-    return AdoptRequest { checkout: built.checkout.clone(), device: identified.device, inode: identified.inode };
+    return AdoptRequest {
+        checkout: built.checkout.clone(),
+        device: identified.device,
+        inode: identified.inode,
+    };
 }
 
 /// A caller that is not root is refused before the store is opened,
@@ -102,16 +147,32 @@ fn request(built: &Fixture) -> AdoptRequest {
 #[test]
 fn a_caller_that_is_not_root_is_refused_before_the_store_is_read() {
     let built: Fixture = fixture_checkout("adopt-not-root");
-    let refusal: AdoptFailure = adopt_at(&request(&built), Path::new(SLOT_IDENTITY_STORE_PATH), false, 1000)
-        .expect_err("a caller that is not root records nothing");
-    assert_eq!(refusal, AdoptFailure::NotRoot { effective_user: 1000 });
+    let refusal: AdoptFailure = adopt_at(
+        &request(&built),
+        Path::new(SLOT_IDENTITY_STORE_PATH),
+        false,
+        1000,
+    )
+    .expect_err("a caller that is not root records nothing");
+    assert_eq!(
+        refusal,
+        AdoptFailure::NotRoot {
+            effective_user: 1000
+        }
+    );
     let message: String = refusal.message();
     assert!(
-        message.starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        message.starts_with(&format!(
+            "{}: ",
+            crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name()
+        )),
         "the refusal opens with the words: {message}"
     );
     assert!(message.contains("effective user is 1000"), "{message}");
-    assert!(message.contains("Nothing was read or recorded"), "{message}");
+    assert!(
+        message.contains("Nothing was read or recorded"),
+        "{message}"
+    );
 }
 
 /// Every refusal names what an administrator fixes next,
@@ -124,31 +185,51 @@ fn every_refusal_names_its_cause_and_the_way_forward() {
     let store: PathBuf = PathBuf::from(SLOT_IDENTITY_STORE_PATH);
     let cases: Vec<(AdoptFailure, &str)> = vec![
         (
-            AdoptFailure::Store(StoreRefusal::Unreadable { path: store.clone(), reason: String::from("the file is not there") }),
+            AdoptFailure::Store(StoreRefusal::Unreadable {
+                path: store.clone(),
+                reason: String::from("the file is not there"),
+            }),
             "could not be read",
         ),
-        (AdoptFailure::NoParentRecord { path: store.clone() }, "holds no record"),
+        (
+            AdoptFailure::NoParentRecord {
+                path: store.clone(),
+            },
+            "holds no record",
+        ),
         (
             AdoptFailure::Decision(AdoptionRefusal::Identity {
                 field: CloneFolderField::Inode,
                 identified,
-                held
+                held,
             }),
             "Nothing was recorded",
         ),
         (
-            AdoptFailure::Write(StoreRefusal::Unreadable { path: store, reason: String::from("the folder is gone") }),
+            AdoptFailure::Write(StoreRefusal::Unreadable {
+                path: store,
+                reason: String::from("the folder is gone"),
+            }),
             "unchanged",
         ),
     ];
     for (refusal, expected) in cases {
         let message: String = refusal.message();
         assert!(
-            message.starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+            message.starts_with(&format!(
+                "{}: ",
+                crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name()
+            )),
             "{refusal:?} opens with the words every root-mode refusal opens with: {message}"
         );
-        assert!(message.contains(expected), "{refusal:?} should say {expected}: {message}");
-        assert!(message.contains("Ways forward"), "{refusal:?} should say what to do next: {message}");
+        assert!(
+            message.contains(expected),
+            "{refusal:?} should say {expected}: {message}"
+        );
+        assert!(
+            message.contains("Ways forward"),
+            "{refusal:?} should say what to do next: {message}"
+        );
     }
 }
 
@@ -168,12 +249,28 @@ fn a_recorded_slot_with_no_folder_is_an_unresolved_binding() {
     let (slots, bindings) = slots_and_bindings(&built);
     assert!(slots.is_empty(), "no slot survives here: {slots:?}");
     assert_eq!(bindings.len(), 1, "{bindings:?}");
-    let BindingState::Unresolved { what, reason } = &bindings[0] else {
-        panic!("a recorded slot with no folder is an unresolved binding, and this is {:?}", bindings[0]);
+    let BindingState::Unresolved {
+        what,
+        reason,
+    } = &bindings[0]
+    else {
+        panic!(
+            "a recorded slot with no folder is an unresolved binding, and this is {:?}",
+            bindings[0]
+        );
     };
-    assert!(what.contains("`one`"), "the sentence names the slot: {what}");
-    assert!(reason.contains("holds nothing at that slot"), "the sentence names the missing folder: {reason}");
-    assert!(reason.contains("recovery:"), "the sentence names the way forward: {reason}");
+    assert!(
+        what.contains("`one`"),
+        "the sentence names the slot: {what}"
+    );
+    assert!(
+        reason.contains("holds nothing at that slot"),
+        "the sentence names the missing folder: {reason}"
+    );
+    assert!(
+        reason.contains("recovery:"),
+        "the sentence names the way forward: {reason}"
+    );
 }
 
 /// What:
@@ -192,12 +289,28 @@ fn a_slot_name_that_is_no_folder_is_an_unresolved_binding() {
     let (slots, bindings) = slots_and_bindings(&built);
     assert!(slots.is_empty(), "no slot survives here: {slots:?}");
     assert_eq!(bindings.len(), 1, "{bindings:?}");
-    let BindingState::Unresolved { what, reason } = &bindings[0] else {
-        panic!("a slot name that is no folder is an unresolved binding, and this is {:?}", bindings[0]);
+    let BindingState::Unresolved {
+        what,
+        reason,
+    } = &bindings[0]
+    else {
+        panic!(
+            "a slot name that is no folder is an unresolved binding, and this is {:?}",
+            bindings[0]
+        );
     };
-    assert!(what.contains("`one`"), "the sentence names the slot: {what}");
-    assert!(reason.contains("could not be read"), "the sentence names the folder: {reason}");
-    assert!(!reason.contains("holds nothing at that slot"), "a file at the name is no missing folder: {reason}");
+    assert!(
+        what.contains("`one`"),
+        "the sentence names the slot: {what}"
+    );
+    assert!(
+        reason.contains("could not be read"),
+        "the sentence names the folder: {reason}"
+    );
+    assert!(
+        !reason.contains("holds nothing at that slot"),
+        "a file at the name is no missing folder: {reason}"
+    );
 }
 
 /// What:
@@ -215,19 +328,22 @@ fn a_slot_folder_that_is_its_record_agrees_and_a_changed_one_differs() {
     let parent: CloneFolderIdentity = identity_of(&built.parent);
     write_store(&built.store, &parent, "one", &identity_of(&slot));
     let (slots, bindings) = slots_and_bindings(&built);
-    assert_eq!(slots, vec![SlotState::Agrees { slot: String::from("one") }]);
+    assert_eq!(
+        slots,
+        vec![SlotState::Agrees {
+            slot: String::from("one")
+        }]
+    );
     assert!(bindings.is_empty(), "{bindings:?}");
     write_store(&built.store, &parent, "one", &parent);
     let (changed_slots, changed_bindings) = slots_and_bindings(&built);
     assert!(changed_bindings.is_empty(), "{changed_bindings:?}");
     assert_eq!(
         changed_slots,
-        vec![
-            SlotState::Differs {
-                slot: String::from("one"),
-                field: CloneFolderField::Inode
-            }
-        ]
+        vec![SlotState::Differs {
+            slot: String::from("one"),
+            field: CloneFolderField::Inode
+        }]
     );
 }
 
@@ -261,8 +377,14 @@ fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
     let surviving: PathBuf = built.parent.join("one");
     std::fs::create_dir(surviving.as_path()).expect("a surviving slot folder");
     let parent: CloneFolderIdentity = identity_of(&built.parent);
-    write_store(&built.store, &parent, "one", &identity_of(surviving.as_path()));
-    let parent_before: Vec<u8> = std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes");
+    write_store(
+        &built.store,
+        &parent,
+        "one",
+        &identity_of(surviving.as_path()),
+    );
+    let parent_before: Vec<u8> =
+        std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes");
     let appeared: PathBuf = built.store.clone();
     let appeared_slot: PathBuf = built.parent.join("two");
     let listings: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::default();
@@ -274,19 +396,41 @@ fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
     });
     BETWEEN_THE_TWO_LISTINGS.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move || {
-            std::fs::create_dir(appeared_slot.as_path()).expect("a slot folder appears with the record");
+            std::fs::create_dir(appeared_slot.as_path())
+                .expect("a slot folder appears with the record");
             let slot_text: String = format!(
                 "{STORE_HEADER}\n{}\n",
-                StoredIdentity::Slot { name: String::from("two"), identity: identity_of(appeared_slot.as_path()) }.encode()
+                StoredIdentity::Slot {
+                    name: String::from("two"),
+                    identity: identity_of(appeared_slot.as_path())
+                }
+                .encode()
             );
-            std::fs::write(appeared.join("two"), slot_text).expect("the slot's record is published in the window");
+            std::fs::write(appeared.join("two"), slot_text)
+                .expect("the slot's record is published in the window");
         }));
     });
-    let refusal: AdoptFailure = adopt_at(&request(&built), built.store.as_path(), true, 0).expect_err("a slot appeared between the two listings");
-    BETWEEN_THE_TWO_LISTINGS.with(|hook| { *hook.borrow_mut() = None });
-    WHEN_THE_STORE_IS_LISTED.with(|hook| { *hook.borrow_mut() = None });
-    assert_eq!(listings.load(std::sync::atomic::Ordering::SeqCst), 2, "the adoption lists the folder exactly twice: once for the set it decides on and the staging names it removes, and once before it publishes");
-    assert!(matches!(refusal, AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { ref slot }) if slot == "two"), "{refusal:?}");
-    assert!(refusal.message().contains("`two`"), "the slot is named: {}", refusal.message());
-    assert_eq!(std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes"), parent_before, "a refused adoption publishes nothing");
+    let refusal: AdoptFailure = adopt_at(&request(&built), built.store.as_path(), true, 0)
+        .expect_err("a slot appeared between the two listings");
+    BETWEEN_THE_TWO_LISTINGS.with(|hook| *hook.borrow_mut() = None);
+    WHEN_THE_STORE_IS_LISTED.with(|hook| *hook.borrow_mut() = None);
+    assert_eq!(
+        listings.load(std::sync::atomic::Ordering::SeqCst),
+        2,
+        "the adoption lists the folder exactly twice: once for the set it decides on and the staging names it removes, and once before it publishes"
+    );
+    assert!(
+        matches!(refusal, AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { ref slot }) if slot == "two"),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal.message().contains("`two`"),
+        "the slot is named: {}",
+        refusal.message()
+    );
+    assert_eq!(
+        std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes"),
+        parent_before,
+        "a refused adoption publishes nothing"
+    );
 }

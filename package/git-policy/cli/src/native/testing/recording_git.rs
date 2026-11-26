@@ -11,11 +11,18 @@
 
 /// The fixture root,
 ///  the real-Git paths and the isolating overlay.
-use crate::test_support::{REAL_GIT, executable, isolated_overlay};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    isolated_overlay,
+};
 /// The Git context the production runners take.
 use crate::transaction_git::GitContext;
 /// Borrowed and owned paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A Git context whose executable logs its arguments to a file in `root` and then runs the real Git,
@@ -31,12 +38,18 @@ use std::path::{Path, PathBuf};
 pub(crate) fn recording_context(root: &Path) -> (GitContext, PathBuf) {
     let log: PathBuf = root.join("git-starts.log");
     let shim: PathBuf = root.join("recording-git");
-    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {REAL_GIT} \"$@\"\n", log.display());
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {REAL_GIT} \"$@\"\n",
+        log.display()
+    );
     executable(shim.as_path(), script.as_bytes());
     let context: GitContext = GitContext {
         real_git: shim,
         // The in-process readers are off: the recorder exists to see the Git starts of the process path.
-        overlay: isolated_overlay().into_iter().chain(crate::repo_read_hook::switch_off()).collect(),
+        overlay: isolated_overlay()
+            .into_iter()
+            .chain(crate::repo_read_hook::switch_off())
+            .collect(),
         global_prefix: Vec::new(),
         common_dir: None,
     };
@@ -70,7 +83,8 @@ pub(crate) fn recorded_starts(log: &Path) -> Vec<String> {
 ///  `check_symref` returns 1 where it dies;
 /// `diff.c` sets `exit_with_status`,
 /// no renames and an early quit for `--quiet`.
-const RESULT_CHANGING_COMMANDS: [&str; 4] = ["rev-parse", "symbolic-ref", "diff-index", "diff-files"];
+const RESULT_CHANGING_COMMANDS: [&str; 4] =
+    ["rev-parse", "symbolic-ref", "diff-index", "diff-files"];
 
 /// What:
 ///  The recorded starts that carry `--quiet` or `-q` as a whole argument,
@@ -90,8 +104,12 @@ pub(crate) fn quiet_starts(log: &Path) -> Vec<String> {
     let mut quiet: Vec<String> = Vec::new();
     for start in recorded_starts(log) {
         let words: Vec<&str> = start.split(' ').collect();
-        let carries: bool = words.iter().any(|word| { return *word == "--quiet" || *word == "-q"; });
-        let probe: bool = words.iter().any(|word| { return RESULT_CHANGING_COMMANDS.contains(word); });
+        let carries: bool = words.iter().any(|word| {
+            return *word == "--quiet" || *word == "-q";
+        });
+        let probe: bool = words.iter().any(|word| {
+            return RESULT_CHANGING_COMMANDS.contains(word);
+        });
         if carries && !probe {
             quiet.push(start);
         }

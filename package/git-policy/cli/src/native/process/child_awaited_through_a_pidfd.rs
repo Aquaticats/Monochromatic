@@ -23,11 +23,23 @@
 //! ```
 
 use crate::bounded_push::STOP_GRACE;
-use crate::member_signalled_through_its_pidfd::{Delivered, kill_members};
-use crate::process_tree::{TreeMember, descendants_of_read};
+use crate::member_signalled_through_its_pidfd::{
+    Delivered,
+    kill_members,
+};
+use crate::process_tree::{
+    TreeMember,
+    descendants_of_read,
+};
 use std::os::fd::OwnedFd;
-use std::process::{Child, ExitStatus};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    ExitStatus,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 use tokio::io::Interest;
 use tokio::io::unix::AsyncFd;
 
@@ -86,19 +98,30 @@ pub fn adopt(child: Child) -> OwnedChild {
 
 /// `adopt` with a failure injected after the start,
 /// for the controls of the invariant.
-pub fn adopt_with(child: Child, injected: InjectedFailure) -> OwnedChild {
+pub fn adopt_with(
+    child: Child,
+    injected: InjectedFailure,
+) -> OwnedChild {
     let watch: Option<AsyncFd<OwnedFd>> = open_watch(&child, injected);
-    return OwnedChild { child: Some(child), watch };
+    return OwnedChild {
+        child: Some(child),
+        watch,
+    };
 }
 
 /// The pidfd of `child` registered with the reactor,
 /// or nothing when either step fails (or `injected` says it does).
-fn open_watch(child: &Child, injected: InjectedFailure) -> Option<AsyncFd<OwnedFd>> {
+fn open_watch(
+    child: &Child,
+    injected: InjectedFailure,
+) -> Option<AsyncFd<OwnedFd>> {
     if injected == InjectedFailure::PidfdOpen {
         return None;
     }
-    let pid: rustix::process::Pid = rustix::process::Pid::from_raw(i32::try_from(child.id()).ok()?)?;
-    let descriptor: OwnedFd = rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()).ok()?;
+    let pid: rustix::process::Pid =
+        rustix::process::Pid::from_raw(i32::try_from(child.id()).ok()?)?;
+    let descriptor: OwnedFd =
+        rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()).ok()?;
     if injected == InjectedFailure::Registration {
         return None;
     }
@@ -141,7 +164,9 @@ impl OwnedChild {
     pub async fn wait(&mut self) -> std::io::Result<ExitStatus> {
         loop {
             let Some(child) = self.child.as_mut() else {
-                return Err(std::io::Error::other("the child was already reaped or handed over"));
+                return Err(std::io::Error::other(
+                    "the child was already reaped or handed over",
+                ));
             };
             if let Some(status) = child.try_wait()? {
                 self.child = None;
@@ -198,7 +223,8 @@ impl OwnedChild {
     pub fn end_and_reap(&mut self) -> bool {
         if let Some(mut child) = self.child.take() {
             // A kill of an exited child fails harmlessly; the wait reaps either way.
-            let _asked: std::io::Result<()> = crate::child_waited_for_within_a_ceiling::kill(&mut child);
+            let _asked: std::io::Result<()> =
+                crate::child_waited_for_within_a_ceiling::kill(&mut child);
             let began: Instant = Instant::now();
             loop {
                 match child.try_wait() {
@@ -238,7 +264,8 @@ impl OwnedChild {
     /// ```
     pub fn end_with_the_processes_it_started(&mut self) -> bool {
         // The tree is read before the leader is signalled: a child's link to its parent is gone once the parent has exited.
-        let walked: Option<Vec<TreeMember>> = i32::try_from(self.id()).ok().and_then(descendants_of_read);
+        let walked: Option<Vec<TreeMember>> =
+            i32::try_from(self.id()).ok().and_then(descendants_of_read);
         // The leader is signalled by `end_and_reap`, which owns the grace after that signal and answers whether it took.
         let _below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
         return self.end_and_reap();
@@ -256,7 +283,10 @@ impl OwnedChild {
     /// const child = owned.intoStd();
     /// ```
     pub fn into_std(mut self) -> Child {
-        return self.child.take().expect("the child is still owned: it was neither reaped nor handed over");
+        return self
+            .child
+            .take()
+            .expect("the child is still owned: it was neither reaped nor handed over");
     }
 }
 

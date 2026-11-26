@@ -3,7 +3,11 @@
 //! or that whether it was made is not known,
 //! and it never uses an implementation term.
 
-use crate::service_messages::{ClientFailure, NOTHING_CHANGED, render};
+use crate::service_messages::{
+    ClientFailure,
+    NOTHING_CHANGED,
+    render,
+};
 
 /// What:
 ///  A commit the service gave up after the person interrupted it says that it was not made,
@@ -13,7 +17,11 @@ use crate::service_messages::{ClientFailure, NOTHING_CHANGED, render};
 ///  and the owner's words for a commit that is not made are that nothing lands later by itself.
 #[test]
 fn an_interrupted_commit_says_it_was_not_made() {
-    let failure: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, sender: None, blocker: None };
+    let failure: ClientFailure = ClientFailure::Interrupted {
+        signal: libc::SIGINT,
+        sender: None,
+        blocker: None,
+    };
     let words: String = render(&failure);
     assert!(words.contains("interrupted with signal 2"), "{words}");
     assert!(words.contains("it was not made"), "{words}");
@@ -29,8 +37,13 @@ fn an_interrupted_commit_says_it_was_not_made() {
 ///  and a second one after a quoted notice reads as a mistake.
 #[test]
 fn the_notice_it_waited_for_is_quoted_once() {
-    let blocker: String = String::from("monochromatic-git-policy-cli: it waits for another program's index.lock.\n");
-    let failure: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGTERM, sender: Some(4242), blocker: Some(blocker) };
+    let blocker: String =
+        String::from("monochromatic-git-policy-cli: it waits for another program's index.lock.\n");
+    let failure: ClientFailure = ClientFailure::Interrupted {
+        signal: libc::SIGTERM,
+        sender: Some(4242),
+        blocker: Some(blocker),
+    };
     let words: String = render(&failure);
     assert!(words.contains("It was waiting for: monochromatic-git-policy-cli: it waits for another program's index.lock."), "{words}");
     assert!(!words.contains(".."), "one full stop, not two: {words}");
@@ -43,11 +56,26 @@ fn the_notice_it_waited_for_is_quoted_once() {
 ///   A commit that may be on the branch is never reported as one that was not made.
 #[test]
 fn an_unconfirmed_withdrawal_says_the_result_is_not_known() {
-    let failure: ClientFailure = ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: Some(String::from("the service has been inside a write for 21 minutes")) };
+    let failure: ClientFailure = ClientFailure::InterruptedNotKnown {
+        signal: libc::SIGINT,
+        sender: None,
+        blocker: Some(String::from(
+            "the service has been inside a write for 21 minutes",
+        )),
+    };
     let words: String = render(&failure);
-    assert!(words.contains("it is not known whether the commit was made"), "{words}");
-    assert!(words.contains("git log -1") && words.contains("git status"), "{words}");
-    assert!(words.contains("the service has been inside a write for 21 minutes"), "{words}");
+    assert!(
+        words.contains("it is not known whether the commit was made"),
+        "{words}"
+    );
+    assert!(
+        words.contains("git log -1") && words.contains("git status"),
+        "{words}"
+    );
+    assert!(
+        words.contains("the service has been inside a write for 21 minutes"),
+        "{words}"
+    );
 }
 
 /// What:

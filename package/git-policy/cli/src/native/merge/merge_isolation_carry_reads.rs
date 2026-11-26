@@ -20,8 +20,15 @@
 
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry::git_cwd;
-use crate::merge_isolation_changes::{Change, worktree_path};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::merge_isolation_changes::{
+    Change,
+    worktree_path,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::ffi::OsString;
 use std::path::Path;
@@ -57,11 +64,18 @@ fn git_start_failure(error: std::io::Error) -> String {
 /// ```ts
 /// async function runBytesAwaiting(context, root, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
 /// ```
-pub(crate) async fn run_bytes_awaiting(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
+pub(crate) async fn run_bytes_awaiting(
+    context: &GitContext,
+    root: &Path,
+    arguments: &[OsString],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, String> {
     let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
     request.arguments = arguments.to_vec();
     request.input = input;
-    return run_git_awaiting(context, &request).await.map_err(git_start_failure);
+    return run_git_awaiting(context, &request)
+        .await
+        .map_err(git_start_failure);
 }
 
 /// One path spelled for a Git argument.
@@ -86,13 +100,27 @@ pub(crate) fn path_argument(path: &[u8]) -> OsString {
 /// ```ts
 /// async function fileFormAwaiting(context, root, path, oid): Promise<Uint8Array>;
 /// ```
-pub(crate) async fn file_form_awaiting(context: &GitContext, root: &Path, path: &[u8], oid: &str) -> Result<Vec<u8>, String> {
+pub(crate) async fn file_form_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    oid: &str,
+) -> Result<Vec<u8>, String> {
     let mut named: OsString = OsString::from("--path=");
     named.push(path_argument(path));
-    let arguments: Vec<OsString> = vec![OsString::from("cat-file"), OsString::from("--filters"), named, OsString::from(oid)];
+    let arguments: Vec<OsString> = vec![
+        OsString::from("cat-file"),
+        OsString::from("--filters"),
+        named,
+        OsString::from(oid),
+    ];
     let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !output.succeeded() {
-        return Err(format!("the bytes of {} could not be read: {}", String::from_utf8_lossy(path), output.error_text()));
+        return Err(format!(
+            "the bytes of {} could not be read: {}",
+            String::from_utf8_lossy(path),
+            output.error_text()
+        ));
     }
     return Ok(output.stdout);
 }
@@ -108,11 +136,22 @@ pub(crate) async fn file_form_awaiting(context: &GitContext, root: &Path, path: 
 /// ```ts
 /// async function rawBytesAwaiting(context, root, oid): Promise<Uint8Array>;
 /// ```
-pub(crate) async fn raw_bytes_awaiting(context: &GitContext, root: &Path, oid: &str) -> Result<Vec<u8>, String> {
-    let arguments: Vec<OsString> = vec![OsString::from("cat-file"), OsString::from("blob"), OsString::from(oid)];
+pub(crate) async fn raw_bytes_awaiting(
+    context: &GitContext,
+    root: &Path,
+    oid: &str,
+) -> Result<Vec<u8>, String> {
+    let arguments: Vec<OsString> = vec![
+        OsString::from("cat-file"),
+        OsString::from("blob"),
+        OsString::from(oid),
+    ];
     let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !output.succeeded() {
-        return Err(format!("the bytes this merge carries could not be read: {}", output.error_text()));
+        return Err(format!(
+            "the bytes this merge carries could not be read: {}",
+            output.error_text()
+        ));
     }
     return Ok(output.stdout);
 }
@@ -129,7 +168,11 @@ pub(crate) async fn raw_bytes_awaiting(context: &GitContext, root: &Path, oid: &
 /// ```ts
 /// async function indexEntryAwaiting(context, root, path): Promise<{ mode, oid } | null>;
 /// ```
-pub(crate) async fn index_entry_awaiting(context: &GitContext, root: &Path, path: &[u8]) -> Result<Option<(String, String)>, String> {
+pub(crate) async fn index_entry_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+) -> Result<Option<(String, String)>, String> {
     let mut arguments: Vec<OsString> = vec![
         OsString::from("ls-files"),
         OsString::from("--stage"),
@@ -142,12 +185,18 @@ pub(crate) async fn index_entry_awaiting(context: &GitContext, root: &Path, path
         return Err(format!("git ls-files failed: {}", output.error_text()));
     }
     for field in output.stdout.split(is_nul) {
-        let Some(split) = field.iter().position(is_a_tab) else { continue };
+        let Some(split) = field.iter().position(is_a_tab) else {
+            continue;
+        };
         let header: String = String::from_utf8_lossy(&field[..split]).into_owned();
         let parts: Vec<&str> = header.split(' ').collect();
-        let [mode, oid, stage] = parts.as_slice() else { continue };
+        let [mode, oid, stage] = parts.as_slice() else {
+            continue;
+        };
         if *stage != "0" {
-            return Err(String::from("the index holds an unmerged entry for a path this merge carries"));
+            return Err(String::from(
+                "the index holds an unmerged entry for a path this merge carries",
+            ));
         }
         return Ok(Some((String::from(*mode), String::from(*oid))));
     }
@@ -169,7 +218,12 @@ pub(crate) async fn index_entry_awaiting(context: &GitContext, root: &Path, path
 /// ```ts
 /// async function changesBetween(context, root, oldOid, newOid): Promise<Change[]>;
 /// ```
-pub fn changes_between(context: &GitContext, root: &Path, old_oid: &str, new_oid: &str) -> Result<Vec<Change>, String> {
+pub fn changes_between(
+    context: &GitContext,
+    root: &Path,
+    old_oid: &str,
+    new_oid: &str,
+) -> Result<Vec<Change>, String> {
     return match run_on_runtime(changes_between_awaiting(context, root, old_oid, new_oid)) {
         Ok(found) => found,
         Err(refusal) => Err(format!("{refusal}")),
@@ -187,7 +241,12 @@ pub fn changes_between(context: &GitContext, root: &Path, old_oid: &str, new_oid
 /// ```ts
 /// async function changesBetweenAwaiting(context, root, oldOid, newOid): Promise<Change[]>;
 /// ```
-pub async fn changes_between_awaiting(context: &GitContext, root: &Path, old_oid: &str, new_oid: &str) -> Result<Vec<Change>, String> {
+pub async fn changes_between_awaiting(
+    context: &GitContext,
+    root: &Path,
+    old_oid: &str,
+    new_oid: &str,
+) -> Result<Vec<Change>, String> {
     let arguments: Vec<OsString> = vec![
         OsString::from("diff-tree"),
         OsString::from("-r"),

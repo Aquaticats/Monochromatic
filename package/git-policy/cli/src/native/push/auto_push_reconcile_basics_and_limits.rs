@@ -23,25 +23,37 @@
 //! export function wasRejectedAsStale(output: string): boolean;
 //! ```
 
-use crate::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, git_command, git_output_awaiting, run_query, run_query_awaiting,
-};
+use crate::auto_push_destination::Destination;
 /// The synchronous reading of a start's output,
 /// which only the controls that compare the two faces still ask.
 #[cfg(test)]
 use crate::auto_push_single_flight::git_output;
-use crate::bounded_push::{STOP_GRACE, run_bounded_push_awaiting};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+    git_command,
+    git_output_awaiting,
+    run_query,
+    run_query_awaiting,
+};
 /// The synchronous push of the fetch,
 /// which only the control that compares the two faces still asks.
 #[cfg(test)]
 use crate::bounded_push::run_bounded_push;
+use crate::bounded_push::{
+    STOP_GRACE,
+    run_bounded_push_awaiting,
+};
 use crate::bounded_query::QueryOutput;
-use crate::push_deadline_and_patience_settings::push_patience;
-use crate::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
-use crate::inner_git_words::record_text;
-use std::ffi::OsString;
-use crate::auto_push_destination::Destination;
 use crate::diagnostic_log::debug;
+use crate::inner_git_words::record_text;
+use crate::journald_native::{
+    CLIENT_IDENTIFIER,
+    IDENTIFIER,
+};
+use crate::push_deadline_and_patience_settings::push_patience;
+use std::ffi::OsString;
 /// Tag used for diagnostics from this module.
 pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
 
@@ -52,7 +64,8 @@ pub const RECONCILE_LINE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push
 /// Start of the line that explains why a rejected push stays unpublished;
 /// the generic "run `git push`" note is then
 /// wrong advice and is not printed.
-pub const RECONCILE_FAILED_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: not published: ";
+pub const RECONCILE_FAILED_PREFIX: &str =
+    "monochromatic-git-policy-cli: auto-push: not published: ";
 
 /// What:
 ///  The start of every line a push report adds under this label.
@@ -105,7 +118,12 @@ pub fn was_rejected_as_stale(output: &str) -> bool {
 /// ```ts
 /// { exitCode: 1, output: `${previous}\n${RECONCILE_FAILED_PREFIX}${reason}` }
 /// ```
-pub(crate) fn unpublished(failed_prefix: &str, previous: &str, exit_code: i64, reason: &str) -> PushAttempt {
+pub(crate) fn unpublished(
+    failed_prefix: &str,
+    previous: &str,
+    exit_code: i64,
+    reason: &str,
+) -> PushAttempt {
     return PushAttempt {
         exit_code: if exit_code == 0 { 1 } else { exit_code },
         signal: None,
@@ -239,17 +257,31 @@ const PRIVATE_FETCH_NAMESPACE: &str = "refs/cli-git/auto-push/";
 /// ```
 #[cfg(test)]
 pub(crate) fn sweep_private_fetch_refs(git: &PushGit) -> Result<(), SingleFlightError> {
-    let listed = run_query(git, &argv(&["for-each-ref", "--format=%(refname)", PRIVATE_FETCH_NAMESPACE]))?;
+    let listed = run_query(
+        git,
+        &argv(&[
+            "for-each-ref",
+            "--format=%(refname)",
+            PRIVATE_FETCH_NAMESPACE,
+        ]),
+    )?;
     if listed.code != Some(0) {
-        debug(TAG, "the private fetch refs could not be listed; the fetch goes on without the sweep");
+        debug(
+            TAG,
+            "the private fetch refs could not be listed; the fetch goes on without the sweep",
+        );
         return Ok(());
     }
     let ours: u32 = std::process::id();
     for line in String::from_utf8_lossy(&listed.stdout).lines() {
         let name: &str = line.trim();
-        let Some(number) = name.strip_prefix(PRIVATE_FETCH_PREFIX) else { continue };
+        let Some(number) = name.strip_prefix(PRIVATE_FETCH_PREFIX) else {
+            continue;
+        };
         // A name this release did not write is not scaffolding it can judge.
-        let Ok(pid) = number.parse::<u32>() else { continue };
+        let Ok(pid) = number.parse::<u32>() else {
+            continue;
+        };
         if pid != ours && process_is_alive(u64::from(pid)) {
             continue;
         }
@@ -261,7 +293,9 @@ pub(crate) fn sweep_private_fetch_refs(git: &PushGit) -> Result<(), SingleFlight
 /// Whether the process number `pid` still names a process,
 /// as the owner records of a transaction ask.
 pub(crate) fn process_is_alive(pid: u64) -> bool {
-    let Ok(number) = i64::try_from(pid) else { return false };
+    let Ok(number) = i64::try_from(pid) else {
+        return false;
+    };
     return crate::process_identity::signal_probe(number).unwrap_or(true);
 }
 
@@ -292,20 +326,28 @@ pub(crate) fn fetch_remote_tip(
     sweep_private_fetch_refs(git)?;
     let private_ref = format!("{PRIVATE_FETCH_PREFIX}{}", std::process::id());
     let refspec = format!("+{}:{private_ref}", destination.merge_ref);
-    let arguments = argv(&[
-        "fetch",
-        "--no-tags",
-        &destination.remote,
-        &refspec,
-    ]);
+    let arguments = argv(&["fetch", "--no-tags", &destination.remote, &refspec]);
     // No low-speed abort of the wrapper's own is added (`bounded_push.rs`): the fetch waits while its connection is open.
     let command = git_command(git, &arguments);
-    let fetched = run_bounded_push(command, push_patience(&git.environment), STOP_GRACE, git.environment.as_slice())?;
+    let fetched = run_bounded_push(
+        command,
+        push_patience(&git.environment),
+        STOP_GRACE,
+        git.environment.as_slice(),
+    )?;
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
     // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
+    record_text(
+        &[
+            "fetch",
+            "--no-tags",
+            destination.remote.as_str(),
+            refspec.as_str(),
+        ],
+        fetched.output.as_str(),
+    );
     let tip = git_output(
         git,
         &argv(&[
@@ -333,9 +375,20 @@ pub(crate) fn fetch_remote_tip(
 /// for (const ref of await listing) if (!isAlive(pidOf(ref)) || pidOf(ref) === process.pid) await updateRef(['-d', ref]);
 /// ```
 pub async fn sweep_private_fetch_refs_awaiting(git: &PushGit) -> Result<(), SingleFlightError> {
-    let listed = run_query_awaiting(git, &argv(&["for-each-ref", "--format=%(refname)", PRIVATE_FETCH_NAMESPACE])).await?;
+    let listed = run_query_awaiting(
+        git,
+        &argv(&[
+            "for-each-ref",
+            "--format=%(refname)",
+            PRIVATE_FETCH_NAMESPACE,
+        ]),
+    )
+    .await?;
     if listed.code != Some(0) {
-        debug(TAG, "the private fetch refs could not be listed; the fetch goes on without the sweep");
+        debug(
+            TAG,
+            "the private fetch refs could not be listed; the fetch goes on without the sweep",
+        );
         return Ok(());
     }
     let ours: u32 = std::process::id();
@@ -357,13 +410,20 @@ pub async fn sweep_private_fetch_refs_awaiting(git: &PushGit) -> Result<(), Sing
 /// ```ts
 /// listing.split('\n').map((line) => line.trim()).filter((name) => !foreignOrUnnamed(name, ours));
 /// ```
-fn refs_to_sweep(listing: &[u8], ours: u32) -> Vec<String> {
+fn refs_to_sweep(
+    listing: &[u8],
+    ours: u32,
+) -> Vec<String> {
     let mut sweepable: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(listing).lines() {
         let name: &str = line.trim();
-        let Some(number) = name.strip_prefix(PRIVATE_FETCH_PREFIX) else { continue };
+        let Some(number) = name.strip_prefix(PRIVATE_FETCH_PREFIX) else {
+            continue;
+        };
         // A name this release did not write is not scaffolding it can judge.
-        let Ok(pid) = number.parse::<u32>() else { continue };
+        let Ok(pid) = number.parse::<u32>() else {
+            continue;
+        };
         if pid != ours && process_is_alive(u64::from(pid)) {
             continue;
         }
@@ -394,20 +454,29 @@ pub async fn fetch_remote_tip_awaiting(
     sweep_private_fetch_refs_awaiting(git).await?;
     let private_ref = format!("{PRIVATE_FETCH_PREFIX}{}", std::process::id());
     let refspec = format!("+{}:{private_ref}", destination.merge_ref);
-    let arguments = argv(&[
-        "fetch",
-        "--no-tags",
-        &destination.remote,
-        &refspec,
-    ]);
+    let arguments = argv(&["fetch", "--no-tags", &destination.remote, &refspec]);
     // No low-speed abort of the wrapper's own is added (`bounded_push.rs`): the fetch waits while its connection is open.
     let command = git_command(git, &arguments);
-    let fetched = run_bounded_push_awaiting(command, push_patience(&git.environment), STOP_GRACE, git.environment.as_slice()).await?;
+    let fetched = run_bounded_push_awaiting(
+        command,
+        push_patience(&git.environment),
+        STOP_GRACE,
+        git.environment.as_slice(),
+    )
+    .await?;
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
     // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
+    record_text(
+        &[
+            "fetch",
+            "--no-tags",
+            destination.remote.as_str(),
+            refspec.as_str(),
+        ],
+        fetched.output.as_str(),
+    );
     let tip = git_output_awaiting(
         git,
         &argv(&[
@@ -436,5 +505,9 @@ pub async fn fetch_remote_tip_awaiting(
 /// const identifier = explicit ? 'monochromatic-git-policy-cli' : 'cli-git-service';
 /// ```
 pub fn journal_identifier(explicit: bool) -> &'static str {
-    return if explicit { CLIENT_IDENTIFIER } else { IDENTIFIER };
+    return if explicit {
+        CLIENT_IDENTIFIER
+    } else {
+        IDENTIFIER
+    };
 }

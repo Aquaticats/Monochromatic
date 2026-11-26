@@ -12,11 +12,17 @@
 //! type ClientConfig = { activation: Activation; startWait: number; keepFresh?: FreshScratch; managerWatch?: ManagerWatch; ... }
 //! ```
 
+use crate::service_instance::{
+    service_unit_instance,
+    socket_unit_instance,
+};
 use crate::service_messages::Platform;
-use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision::ProvisionHost;
-use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use crate::service_server::Bind;
+use crate::systemd_dbus::{
+    Bus,
+    EXCHANGE_WAIT,
+};
 use std::time::Duration;
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
@@ -214,8 +220,13 @@ pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
 /// keeping the two apart is what lets the client ask for the start instead of waiting
 /// out a service nothing will start.
 ///
-pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> ManagerAnswer {
-    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return ManagerAnswer::Unreachable };
+pub(crate) fn unit_state(
+    bus: &std::path::Path,
+    unit: &str,
+) -> ManagerAnswer {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else {
+        return ManagerAnswer::Unreachable;
+    };
     return match connection.active_state(unit) {
         Ok(Some(state)) => ManagerAnswer::State(state),
         Ok(None) => ManagerAnswer::NotHeld,
@@ -225,8 +236,13 @@ pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> ManagerAnswer {
 
 /// Asks the manager to start `unit`;
 /// whether the request was taken.
-pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
-    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+pub(crate) fn start_unit(
+    bus: &std::path::Path,
+    unit: &str,
+) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else {
+        return false;
+    };
     return connection.start_unit(unit).is_ok();
 }
 
@@ -234,16 +250,26 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
 /// whether the request was taken.
 /// A unit that failed too often is refused as "repeated too quickly" until this
 /// is asked.
-pub(crate) fn reset_failed_unit(bus: &std::path::Path, unit: &str) -> bool {
-    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+pub(crate) fn reset_failed_unit(
+    bus: &std::path::Path,
+    unit: &str,
+) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else {
+        return false;
+    };
     return connection.reset_failed(unit).is_ok();
 }
 
 /// Asks the manager to stop `unit` and start it again;
 /// whether the request was taken.
 /// A unit the manager reports `active` whose program stopped inside its own process is repaired by no start.
-pub(crate) fn restart_unit(bus: &std::path::Path, unit: &str) -> bool {
-    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+pub(crate) fn restart_unit(
+    bus: &std::path::Path,
+    unit: &str,
+) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else {
+        return false;
+    };
     return connection.restart_unit(unit).is_ok();
 }
 

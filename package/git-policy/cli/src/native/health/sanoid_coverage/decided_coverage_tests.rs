@@ -18,7 +18,16 @@
 //! expect(generatedText(decision)).toContain('[tank/home]\n  recursive = yes\n');
 //! ```
 
-use super::{ExclusionMount, GENERATED_HEADER, RECURSIVE_ROOT, TEMPLATE, decided_coverage, exclusion_section, generated_text, sections_of};
+use super::{
+    ExclusionMount,
+    GENERATED_HEADER,
+    RECURSIVE_ROOT,
+    TEMPLATE,
+    decided_coverage,
+    exclusion_section,
+    generated_text,
+    sections_of,
+};
 
 /// The host's decision keeps the design's ancestor and template.
 #[test]
@@ -36,7 +45,11 @@ fn the_decision_keeps_the_designs_ancestor_and_template() {
 #[test]
 fn the_nine_exclusions_stand_in_the_designs_order() {
     let decision = decided_coverage();
-    let names: Vec<&str> = decision.exclusions.iter().map(|exclusion| return exclusion.dataset.as_str()).collect();
+    let names: Vec<&str> = decision
+        .exclusions
+        .iter()
+        .map(|exclusion| return exclusion.dataset.as_str())
+        .collect();
     assert_eq!(
         names,
         vec![
@@ -51,8 +64,16 @@ fn the_nine_exclusions_stand_in_the_designs_order() {
             "zpcachyos/nosnap/git-worktree-probe",
         ]
     );
-    let unmounted: Vec<&str> = decision.exclusions.iter().filter(|exclusion| return exclusion.mount == ExclusionMount::Unmounted).map(|exclusion| return exclusion.dataset.as_str()).collect();
-    assert_eq!(unmounted, vec!["zpcachyos/nosnap", "zpcachyos/nosnap/git-worktree-probe"]);
+    let unmounted: Vec<&str> = decision
+        .exclusions
+        .iter()
+        .filter(|exclusion| return exclusion.mount == ExclusionMount::Unmounted)
+        .map(|exclusion| return exclusion.dataset.as_str())
+        .collect();
+    assert_eq!(
+        unmounted,
+        vec!["zpcachyos/nosnap", "zpcachyos/nosnap/git-worktree-probe"]
+    );
 }
 
 /// Every exclusion is one the decision names,
@@ -80,8 +101,18 @@ fn the_ancestors_section_stands_first_and_writes_recursion() {
 fn every_exclusions_section_writes_autosnap_no() {
     let sections = sections_of(&decided_coverage());
     for section in &sections[1..] {
-        assert_eq!(section.settings.len(), 1, "{} writes one setting", section.dataset);
-        assert_eq!(section.value_of("autosnap"), Some("no"), "{} turns its snapshots off", section.dataset);
+        assert_eq!(
+            section.settings.len(),
+            1,
+            "{} writes one setting",
+            section.dataset
+        );
+        assert_eq!(
+            section.value_of("autosnap"),
+            Some("no"),
+            "{} turns its snapshots off",
+            section.dataset
+        );
     }
 }
 
@@ -94,18 +125,37 @@ fn the_generated_text_is_the_header_and_the_sections_in_order() {
     let text: String = generated_text(&decision);
     assert!(text.starts_with(GENERATED_HEADER), "{text}");
     assert!(text.contains("# Use yes, not zfs."));
-    let ancestor_at: usize = text.find("[zpcachyos/ROOT/cos/home]\n  use_template = home\n  recursive = yes\n").expect("the ancestor section is written");
+    let ancestor_at: usize = text
+        .find("[zpcachyos/ROOT/cos/home]\n  use_template = home\n  recursive = yes\n")
+        .expect("the ancestor section is written");
     for exclusion in &decision.exclusions {
         let header: String = format!("[{}]\n  autosnap = no\n", exclusion.dataset);
-        assert_eq!(text.matches(header.as_str()).count(), 1, "{} is written once", exclusion.dataset);
-        let at: usize = text.find(header.as_str()).expect("the exclusion is written");
-        assert!(ancestor_at < at, "the ancestor stands before {}", exclusion.dataset);
+        assert_eq!(
+            text.matches(header.as_str()).count(),
+            1,
+            "{} is written once",
+            exclusion.dataset
+        );
+        let at: usize = text
+            .find(header.as_str())
+            .expect("the exclusion is written");
+        assert!(
+            ancestor_at < at,
+            "the ancestor stands before {}",
+            exclusion.dataset
+        );
     }
 }
 
 /// One exclusion's section is the correction text a person adds.
 #[test]
 fn one_exclusions_section_is_the_text_a_person_adds() {
-    assert_eq!(exclusion_section("tank/nosnap/npm").dataset, "tank/nosnap/npm");
-    assert_eq!(exclusion_section("tank/nosnap/npm").value_of("autosnap"), Some("no"));
+    assert_eq!(
+        exclusion_section("tank/nosnap/npm").dataset,
+        "tank/nosnap/npm"
+    );
+    assert_eq!(
+        exclusion_section("tank/nosnap/npm").value_of("autosnap"),
+        Some("no")
+    );
 }

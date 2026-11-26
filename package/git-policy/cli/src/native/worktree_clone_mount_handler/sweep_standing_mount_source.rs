@@ -158,7 +158,10 @@ pub(crate) enum MountSourceAnswer {
 /// ```
 pub(crate) trait MountSourceByNumber {
     /// The source the mount with this unique number reports now.
-    fn source_of(&self, unique_mount_number: Option<u64>) -> MountSourceAnswer;
+    fn source_of(
+        &self,
+        unique_mount_number: Option<u64>,
+    ) -> MountSourceAnswer;
 }
 
 /// What:
@@ -182,45 +185,79 @@ pub(crate) trait MountSourceByNumber {
 pub(crate) struct KernelMountSource;
 
 impl MountSourceByNumber for KernelMountSource {
-    fn source_of(&self, unique_mount_number: Option<u64>) -> MountSourceAnswer {
+    fn source_of(
+        &self,
+        unique_mount_number: Option<u64>,
+    ) -> MountSourceAnswer {
         let Some(number) = STATMOUNT_NUMBER else {
-            return MountSourceAnswer::NoAnswer(String::from("this architecture declares no statmount(2) number in this build"));
+            return MountSourceAnswer::NoAnswer(String::from(
+                "this architecture declares no statmount(2) number in this build",
+            ));
         };
         let Some(mount_number) = unique_mount_number else {
-            return MountSourceAnswer::NoAnswer(String::from("this kernel gave no unique mount number for the slot"));
+            return MountSourceAnswer::NoAnswer(String::from(
+                "this kernel gave no unique mount number for the slot",
+            ));
         };
-        let request: MountNumberRequest =
-            MountNumberRequest { size: MOUNT_NUMBER_REQUEST_BYTES, flags_or_descriptor: 0, mount_number, fields: STATMOUNT_MOUNT_ROOT | STATMOUNT_SOURCE };
+        let request: MountNumberRequest = MountNumberRequest {
+            size: MOUNT_NUMBER_REQUEST_BYTES,
+            flags_or_descriptor: 0,
+            mount_number,
+            fields: STATMOUNT_MOUNT_ROOT | STATMOUNT_SOURCE,
+        };
         let mut buffer: Vec<u8> = vec![0_u8; STATMOUNT_HEADER_BYTES + MAXIMUM_SOURCE_BYTES];
         // SAFETY: the request and the buffer are this call's own, both outlive it, the buffer is writable for the length
         // passed, and `statmount` writes only into that buffer. The flags argument is zero, which the call documents as
         // the only value it takes today.
-        let answered: libc::c_long = unsafe { libc::syscall(number, &request as *const MountNumberRequest, buffer.as_mut_ptr(), buffer.len(), 0_u32) };
+        let answered: libc::c_long = unsafe {
+            libc::syscall(
+                number,
+                &request as *const MountNumberRequest,
+                buffer.as_mut_ptr(),
+                buffer.len(),
+                0_u32,
+            )
+        };
         if answered < 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
-            return MountSourceAnswer::NoAnswer(format!("statmount(2) for mount {mount_number} answered {error}"));
+            return MountSourceAnswer::NoAnswer(format!(
+                "statmount(2) for mount {mount_number} answered {error}"
+            ));
         }
         let mask: u64 = number_at(&buffer, MASK_AT);
         if mask & STATMOUNT_SOURCE == 0 {
-            return MountSourceAnswer::NoAnswer(String::from("this kernel does not report a mount's source, which statmount(2) gained in Linux 6.13"));
+            return MountSourceAnswer::NoAnswer(String::from(
+                "this kernel does not report a mount's source, which statmount(2) gained in Linux 6.13",
+            ));
         }
         let root: &str = match string_at(&buffer, field_at(&buffer, MOUNT_ROOT_AT) as usize) {
             Some(root) => root,
-            None => return MountSourceAnswer::NoAnswer(String::from("the answer's root string runs past the buffer")),
+            None => {
+                return MountSourceAnswer::NoAnswer(String::from(
+                    "the answer's root string runs past the buffer",
+                ));
+            }
         };
         if root != THE_ROOT_OF_A_DATASETS_OWN_MOUNT {
-            return MountSourceAnswer::NoAnswer(format!("the answer's root is `{root}`, so this build reads the header of another layout"));
+            return MountSourceAnswer::NoAnswer(format!(
+                "the answer's root is `{root}`, so this build reads the header of another layout"
+            ));
         }
         return match string_at(&buffer, field_at(&buffer, SOURCE_AT) as usize) {
             Some(source) => MountSourceAnswer::Source(String::from(source)),
-            None => MountSourceAnswer::NoAnswer(String::from("the answer's source string runs past the buffer")),
+            None => MountSourceAnswer::NoAnswer(String::from(
+                "the answer's source string runs past the buffer",
+            )),
         };
     }
 }
 
 /// One little-endian number of `bytes` at `offset`,
 /// or zero when the answer is shorter than that.
-fn number_at(bytes: &[u8], offset: usize) -> u64 {
+fn number_at(
+    bytes: &[u8],
+    offset: usize,
+) -> u64 {
     let mut value: u64 = 0;
     for index in 0..bytes.len().saturating_sub(offset).min(8) {
         value |= u64::from(bytes[offset + index]) << (8 * index);
@@ -230,13 +267,19 @@ fn number_at(bytes: &[u8], offset: usize) -> u64 {
 
 /// One little-endian 32-bit field of `bytes` at `offset`,
 /// or zero when the answer is shorter than that.
-fn field_at(bytes: &[u8], offset: usize) -> u32 {
+fn field_at(
+    bytes: &[u8],
+    offset: usize,
+) -> u32 {
     return u32::try_from(number_at(bytes, offset) & 0xffff_ffff).unwrap_or(0);
 }
 
 /// The text at `offset` in the strings part of an answer,
 /// or nothing when it runs past the buffer or is not text.
-fn string_at(bytes: &[u8], offset: usize) -> Option<&str> {
+fn string_at(
+    bytes: &[u8],
+    offset: usize,
+) -> Option<&str> {
     let start: usize = STATMOUNT_HEADER_BYTES.checked_add(offset)?;
     let rest: &[u8] = bytes.get(start..)?;
     let end: usize = rest.iter().position(|byte| return *byte == 0)?;

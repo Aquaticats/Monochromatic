@@ -40,12 +40,27 @@
 //! const outcome = checkCloneState({ readings, stagingBinds }); // pass | finding('state'|'staging') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use super::staging_folder_checks::StagingBind;
-use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, SlotReadings};
 use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
-use crate::worktree_clone_slot_state::slot_state_report::{NO_DATASET, SlotStateReport, report_of};
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    SlotReadings,
+};
+use crate::worktree_clone_slot_state::slot_state_report::{
+    NO_DATASET,
+    SlotStateReport,
+    report_of,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -82,7 +97,10 @@ pub struct CloneStateFacts {
 /// ```ts
 /// const folder = stagedAt(facts, cloneDataset); // PathBuf | undefined
 /// ```
-fn staged_at(facts: &CloneStateFacts, clone: &str) -> Option<PathBuf> {
+fn staged_at(
+    facts: &CloneStateFacts,
+    clone: &str,
+) -> Option<PathBuf> {
     for bind in &facts.staging_binds {
         if bind.source == clone {
             return Some(bind.mount_point.clone());
@@ -113,8 +131,15 @@ fn described(report: &SlotStateReport) -> String {
     } else {
         format!("the clone `{}` in pool `{}`", report.dataset, report.pool)
     };
-    let evidence: String = if report.evidence.is_empty() { String::new() } else { format!("; {}", report.evidence.join("; ")) };
-    return format!("{}: {dataset}{evidence}; next safe action: {}", report.state, report.next_safe_action);
+    let evidence: String = if report.evidence.is_empty() {
+        String::new()
+    } else {
+        format!("; {}", report.evidence.join("; "))
+    };
+    return format!(
+        "{}: {dataset}{evidence}; next safe action: {}",
+        report.state, report.next_safe_action
+    );
 }
 
 /// What:
@@ -141,7 +166,10 @@ pub fn check_clone_state(facts: &CloneStateFacts) -> CheckOutcome {
     let report: SlotStateReport = report_of(&facts.readings);
     let clone: Option<&str> = match &facts.readings.binding {
         BindingReading::Record(record) => Some(record.clone_dataset.as_str()),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => None,
+        BindingReading::Absent
+        | BindingReading::Unreadable {
+            ..
+        } => None,
     };
     if let Some(dataset) = clone
         && let Some(folder) = staged_at(facts, dataset)
@@ -160,12 +188,39 @@ pub fn check_clone_state(facts: &CloneStateFacts) -> CheckOutcome {
         }
     }
     return match classify_slot(&facts.readings) {
-        SlotRouteState::MountedManagedClone { .. } => pass(described(&report)),
-        SlotRouteState::KnownUnmountedClone { .. } => pass(described(&report)),
+        SlotRouteState::MountedManagedClone {
+            ..
+        } => pass(described(&report)),
+        SlotRouteState::KnownUnmountedClone {
+            ..
+        } => pass(described(&report)),
         SlotRouteState::NotAManagedClone => pass(described(&report)),
-        SlotRouteState::PendingAdd { .. } => finding("phase", format!("the slot `{}` holds an unfinished add: {}", report.slot, described(&report))),
-        SlotRouteState::PendingRemoval { .. } => finding("plan", format!("the slot `{}` holds a removal in flight: {}", report.slot, described(&report))),
-        SlotRouteState::CannotProve { reason } => unknown(format!("the state of the slot `{}` cannot be proved: {reason}", report.slot)),
+        SlotRouteState::PendingAdd {
+            ..
+        } => finding(
+            "phase",
+            format!(
+                "the slot `{}` holds an unfinished add: {}",
+                report.slot,
+                described(&report)
+            ),
+        ),
+        SlotRouteState::PendingRemoval {
+            ..
+        } => finding(
+            "plan",
+            format!(
+                "the slot `{}` holds a removal in flight: {}",
+                report.slot,
+                described(&report)
+            ),
+        ),
+        SlotRouteState::CannotProve {
+            reason,
+        } => unknown(format!(
+            "the state of the slot `{}` cannot be proved: {reason}",
+            report.slot
+        )),
     };
 }
 

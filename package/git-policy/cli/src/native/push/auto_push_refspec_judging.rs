@@ -53,11 +53,16 @@ pub(crate) struct Refspec {
 /// function parseRefspec(text: string): Refspec | undefined;
 /// ```
 pub(crate) fn parse_refspec(text: &str) -> Option<Refspec> {
-
     if let Some(source) = text.strip_prefix('^') {
-        let negative_ok = source.starts_with("refs/") && !source.contains(':') && star_count(source) <= 1;
+        let negative_ok =
+            source.starts_with("refs/") && !source.contains(':') && star_count(source) <= 1;
         if negative_ok {
-            return Some(Refspec { negative: true, source: source.to_owned(), destination: None, pattern: star_count(source) == 1 });
+            return Some(Refspec {
+                negative: true,
+                source: source.to_owned(),
+                destination: None,
+                pattern: star_count(source) == 1,
+            });
         }
         return None;
     }
@@ -74,7 +79,12 @@ pub(crate) fn parse_refspec(text: &str) -> Option<Refspec> {
     if star_count(source) > 1 || !sides_agree {
         return None;
     }
-    return Some(Refspec { negative: false, source: source.to_owned(), destination: destination.map(str::to_owned), pattern });
+    return Some(Refspec {
+        negative: false,
+        source: source.to_owned(),
+        destination: destination.map(str::to_owned),
+        pattern,
+    });
 }
 
 /// How many `*` the side of a refspec holds.
@@ -97,7 +107,10 @@ pub(crate) fn side_outside_refs(destination: Option<&str>) -> bool {
 /// ```ts
 /// function capture(pattern: string, name: string): string | undefined;
 /// ```
-pub(crate) fn capture<'a>(pattern: &str, name: &'a str) -> Option<&'a str> {
+pub(crate) fn capture<'a>(
+    pattern: &str,
+    name: &'a str,
+) -> Option<&'a str> {
     let (prefix, suffix) = pattern.split_once('*')?;
     let middle = name.strip_prefix(prefix)?.strip_suffix(suffix)?;
     return Some(middle);
@@ -109,7 +122,10 @@ pub(crate) fn capture<'a>(pattern: &str, name: &'a str) -> Option<&'a str> {
 /// ```ts
 /// function excludes(negative: Refspec, name: string): boolean;
 /// ```
-pub(crate) fn excludes(negative: &Refspec, name: &str) -> bool {
+pub(crate) fn excludes(
+    negative: &Refspec,
+    name: &str,
+) -> bool {
     if negative.pattern {
         return capture(&negative.source, name).is_some();
     }
@@ -148,7 +164,12 @@ pub(crate) enum Judged {
 /// ```ts
 /// function judge({ branchRef, refspecs, localRefs }): Judged;
 /// ```
-pub(crate) fn judge(branch_ref: &str, remote: &str, refspecs: &[String], local_refs: &[String]) -> Judged {
+pub(crate) fn judge(
+    branch_ref: &str,
+    remote: &str,
+    refspecs: &[String],
+    local_refs: &[String],
+) -> Judged {
     let mut items: Vec<Refspec> = Vec::new();
     for text in refspecs {
         match parse_refspec(text) {
@@ -210,7 +231,10 @@ pub(crate) fn judge(branch_ref: &str, remote: &str, refspecs: &[String], local_r
 
 /// Where the first pattern refspec sends the local ref `name`,
 /// or nothing when no pattern matches it.
-pub(crate) fn mapped_destination(items: &[Refspec], name: &str) -> Option<String> {
+pub(crate) fn mapped_destination(
+    items: &[Refspec],
+    name: &str,
+) -> Option<String> {
     for item in items {
         if item.negative || !item.pattern {
             continue;

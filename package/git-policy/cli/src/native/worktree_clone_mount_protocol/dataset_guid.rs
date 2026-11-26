@@ -59,14 +59,21 @@ impl DatasetGuidRefusal {
     /// naming the value and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            DatasetGuidRefusal::NotDigits { value } => format!(
+            DatasetGuidRefusal::NotDigits {
+                value,
+            } => format!(
                 "`{value}` is not a dataset GUID: a GUID here is one or more decimal digits, with no sign, space or prefix. Nothing was filed, read or matched under it. Ways forward: read the number as `zfs get -H -o value guid <dataset>` prints it."
             ),
-            DatasetGuidRefusal::LeadingZero { value } => format!(
+            DatasetGuidRefusal::LeadingZero {
+                value,
+            } => format!(
                 "`{value}` begins with a zero, and a canonical dataset GUID has no leading zero, so two spellings would name one receipt. Nothing was filed, read or matched under it. Ways forward: write the number without leading zeros."
             ),
-            DatasetGuidRefusal::TooLarge { value } => format!(
-                "`{value}` is larger than the largest dataset GUID this kernel can report ({}). Nothing was filed, read or matched under it. Ways forward: read the GUID again with `zfs get -H -o value guid <dataset>`.", u64::MAX
+            DatasetGuidRefusal::TooLarge {
+                value,
+            } => format!(
+                "`{value}` is larger than the largest dataset GUID this kernel can report ({}). Nothing was filed, read or matched under it. Ways forward: read the GUID again with `zfs get -H -o value guid <dataset>`.",
+                u64::MAX
             ),
         };
     }
@@ -98,15 +105,23 @@ impl DatasetGuid {
     /// begins with a zero or does not fit 64 bits.
     pub fn parse(text: &str) -> Result<Self, DatasetGuidRefusal> {
         if text.is_empty() || !text.bytes().all(|byte| return byte.is_ascii_digit()) {
-            return Err(DatasetGuidRefusal::NotDigits { value: String::from(text) });
+            return Err(DatasetGuidRefusal::NotDigits {
+                value: String::from(text),
+            });
         }
         if text.len() > 1 && text.starts_with('0') {
-            return Err(DatasetGuidRefusal::LeadingZero { value: String::from(text) });
+            return Err(DatasetGuidRefusal::LeadingZero {
+                value: String::from(text),
+            });
         }
         let Ok(value) = text.parse::<u64>() else {
-            return Err(DatasetGuidRefusal::TooLarge { value: String::from(text) });
+            return Err(DatasetGuidRefusal::TooLarge {
+                value: String::from(text),
+            });
         };
-        return Ok(DatasetGuid { value });
+        return Ok(DatasetGuid {
+            value,
+        });
     }
 
     /// The number itself.

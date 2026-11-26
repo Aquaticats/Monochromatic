@@ -38,5 +38,8 @@ fn recorded_sides_round_trip_in_git_form() {
 fn damaged_records_are_not_read() {
     assert_eq!(ResolveUndo::read(b"a\x00zz\x000\x000\x00", 20), None);
     assert_eq!(ResolveUndo::read(b"a\x00100644\x000\x00", 20), None);
-    assert_eq!(ResolveUndo::read(b"a\x00100644\x000\x000\x00short", 20), None);
+    assert_eq!(
+        ResolveUndo::read(b"a\x00100644\x000\x000\x00short", 20),
+        None
+    );
 }

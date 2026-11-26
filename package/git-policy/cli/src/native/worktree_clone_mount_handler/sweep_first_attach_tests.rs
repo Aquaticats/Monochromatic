@@ -13,9 +13,19 @@
 //! recorder.record(claim, outcome);
 //! ```
 
-use super::{FirstAttachRecorder, LiveFirstAttach};
-use crate::start_probe::first_attach_record::{ATTACHED, FirstAttachOutcome, FirstAttachPlace};
-use crate::start_probe::probe_fingerprint::{BOOT_ID_PATH, ProbeFingerprint};
+use super::{
+    FirstAttachRecorder,
+    LiveFirstAttach,
+};
+use crate::start_probe::first_attach_record::{
+    ATTACHED,
+    FirstAttachOutcome,
+    FirstAttachPlace,
+};
+use crate::start_probe::probe_fingerprint::{
+    BOOT_ID_PATH,
+    ProbeFingerprint,
+};
 use std::path::PathBuf;
 
 /// The time the outcome is written at is the recorder's own,
@@ -38,18 +48,38 @@ fn the_release_recorder_claims_writes_the_boot_and_publishes_one_outcome() {
     let directory: PathBuf = crate::test_support::fixture("sweep-first-attach");
     let place: FirstAttachPlace = FirstAttachPlace::at(directory.clone());
     let recorder: LiveFirstAttach = LiveFirstAttach::at(place.clone());
-    let claim = recorder.claim().expect("this boot's name is free in a fresh directory");
-    let started: String = std::fs::read_to_string(place.path().as_path()).expect("the started record is there");
-    let boot: String = std::fs::read_to_string(BOOT_ID_PATH).expect("this boot's identity reads").trim().to_string();
-    assert!(started.contains(&format!("boot {boot}")), "the started record pins this boot: {started}");
+    let claim = recorder
+        .claim()
+        .expect("this boot's name is free in a fresh directory");
+    let started: String =
+        std::fs::read_to_string(place.path().as_path()).expect("the started record is there");
+    let boot: String = std::fs::read_to_string(BOOT_ID_PATH)
+        .expect("this boot's identity reads")
+        .trim()
+        .to_string();
+    assert!(
+        started.contains(&format!("boot {boot}")),
+        "the started record pins this boot: {started}"
+    );
     assert!(started.contains("state started"), "{started}");
     recorder.record(&claim, &outcome());
-    let finished: String = std::fs::read_to_string(place.path().as_path()).expect("the outcome is there");
-    assert!(finished.contains(&format!("outcome {ATTACHED}")), "{finished}");
+    let finished: String =
+        std::fs::read_to_string(place.path().as_path()).expect("the outcome is there");
+    assert!(
+        finished.contains(&format!("outcome {ATTACHED}")),
+        "{finished}"
+    );
     assert!(finished.contains("mount 41"), "{finished}");
-    assert!(finished.contains(&format!("boot {boot}")), "the outcome keeps this boot: {finished}");
+    assert!(
+        finished.contains(&format!("boot {boot}")),
+        "the outcome keeps this boot: {finished}"
+    );
     assert!(finished.contains("state finished"), "{finished}");
-    assert!(ProbeFingerprint::read(&crate::start_probe::probe_fingerprint::FingerprintPaths::live()).is_ok(), "the running fingerprint reads on this machine");
+    assert!(
+        ProbeFingerprint::read(&crate::start_probe::probe_fingerprint::FingerprintPaths::live())
+            .is_ok(),
+        "the running fingerprint reads on this machine"
+    );
 }
 
 /// A second process claims nothing,
@@ -61,8 +91,13 @@ fn a_second_recorder_claims_nothing() {
     let first: LiveFirstAttach = LiveFirstAttach::at(place.clone());
     let second: LiveFirstAttach = LiveFirstAttach::at(place.clone());
     let _claim = first.claim().expect("the first recorder wins the name");
-    let before: String = std::fs::read_to_string(place.path().as_path()).expect("the started record is there");
-    assert!(second.claim().is_none(), "the second recorder claims nothing");
-    let after: String = std::fs::read_to_string(place.path().as_path()).expect("the record still reads");
+    let before: String =
+        std::fs::read_to_string(place.path().as_path()).expect("the started record is there");
+    assert!(
+        second.claim().is_none(),
+        "the second recorder claims nothing"
+    );
+    let after: String =
+        std::fs::read_to_string(place.path().as_path()).expect("the record still reads");
     assert_eq!(before, after, "a refused claim changed nothing");
 }

@@ -19,21 +19,31 @@
 /// Errors of the candidate layer.
 use crate::candidate_error::CandidateError;
 /// The prediction entry point and the request kinds.
-use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PreparedCandidates,
+    prepare_candidates,
+};
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
-/// The discarding-command forms.
-use crate::rule_linked_worktree::GuardedCommand;
 /// What one abort form would discard besides the operation's own state.
 use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
+/// The discarding-command forms.
+use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::DirtyScope;
 use crate::transaction_git::GitContext;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The variable that names the index a Git child reads.
 const INDEX_FILE_VARIABLE: &str = "GIT_INDEX_FILE";
@@ -68,7 +78,11 @@ impl<F: RepositoryFacts> PrivateIndexFacts<F> {
     /// ```ts
     /// createPrivateIndexFacts({ indexPath, objectDirectory });
     /// ```
-    pub fn new(inner: F, index: &Path, object_directory: &Path) -> Self {
+    pub fn new(
+        inner: F,
+        index: &Path,
+        object_directory: &Path,
+    ) -> Self {
         return PrivateIndexFacts {
             inner,
             private: private_entries(index, object_directory),
@@ -84,7 +98,11 @@ impl<F: RepositoryFacts> PrivateIndexFacts<F> {
     /// ```ts
     /// facts = createPrivateIndexFacts({ indexPath: replayIndexPath, objectDirectory });
     /// ```
-    pub fn use_index(&mut self, index: &Path, object_directory: &Path) {
+    pub fn use_index(
+        &mut self,
+        index: &Path,
+        object_directory: &Path,
+    ) {
         self.private = private_entries(index, object_directory);
     }
 }
@@ -98,9 +116,15 @@ impl<F: RepositoryFacts> PrivateIndexFacts<F> {
 /// ```ts
 /// ({ GIT_INDEX_FILE: indexPath, GIT_OBJECT_DIRECTORY: objectDirectory })
 /// ```
-fn private_entries(index: &Path, object_directory: &Path) -> Vec<(OsString, OsString)> {
+fn private_entries(
+    index: &Path,
+    object_directory: &Path,
+) -> Vec<(OsString, OsString)> {
     return vec![
-        (OsString::from(INDEX_FILE_VARIABLE), index.as_os_str().to_os_string()),
+        (
+            OsString::from(INDEX_FILE_VARIABLE),
+            index.as_os_str().to_os_string(),
+        ),
         (
             OsString::from(OBJECT_DIRECTORY_VARIABLE),
             object_directory.as_os_str().to_os_string(),
@@ -117,23 +141,38 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.index_vs_head();
     }
 
-    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+    fn staged_selection(
+        &mut self,
+        pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String> {
         return self.inner.staged_selection(pathspecs);
     }
 
-    fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
+    fn worktree_dirty(
+        &mut self,
+        scope: DirtyScope,
+    ) -> Result<bool, String> {
         return self.inner.worktree_dirty(scope);
     }
 
-    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        revision: &OsStr,
+    ) -> Result<Vec<String>, String> {
         return self.inner.untracked_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String> {
         return self.inner.clean_deleted_paths(arguments);
     }
 
@@ -145,11 +184,17 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.sequencer_state();
     }
 
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String> {
         return self.inner.abort_discard(command);
     }
 
-    fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
+    fn remote_guess_creates_branch(
+        &mut self,
+        target: &OsStr,
+    ) -> Result<bool, String> {
         return self.inner.remote_guess_creates_branch(target);
     }
 
@@ -157,7 +202,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.main_worktree_root();
     }
 
-    fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
+    fn candidates(
+        &mut self,
+        request: &CandidateRequest,
+    ) -> Result<PreparedCandidates, CandidateError> {
         let context: GitContext = self.inner.transaction_context();
         let mut overlay: Vec<(OsString, OsString)> = context.overlay.clone();
         overlay.extend(self.private.iter().cloned());
@@ -188,23 +236,38 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).index_vs_head();
     }
 
-    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+    fn staged_selection(
+        &mut self,
+        pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String> {
         return (**self).staged_selection(pathspecs);
     }
 
-    fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
+    fn worktree_dirty(
+        &mut self,
+        scope: DirtyScope,
+    ) -> Result<bool, String> {
         return (**self).worktree_dirty(scope);
     }
 
-    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String> {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        revision: &OsStr,
+    ) -> Result<Vec<String>, String> {
         return (**self).untracked_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String> {
         return (**self).clean_deleted_paths(arguments);
     }
 
@@ -216,11 +279,17 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).sequencer_state();
     }
 
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String> {
         return (**self).abort_discard(command);
     }
 
-    fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
+    fn remote_guess_creates_branch(
+        &mut self,
+        target: &OsStr,
+    ) -> Result<bool, String> {
         return (**self).remote_guess_creates_branch(target);
     }
 
@@ -228,7 +297,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).main_worktree_root();
     }
 
-    fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
+    fn candidates(
+        &mut self,
+        request: &CandidateRequest,
+    ) -> Result<PreparedCandidates, CandidateError> {
         return (**self).candidates(request);
     }
 

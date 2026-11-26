@@ -2,9 +2,16 @@
 //! a start the system refuses leaves the pool's closure queued,
 //! and what that closure may do is what these controls pin.
 
-use crate::no_threads_child_test_support::{let_threads_start_again, ran_in_child, refuse_threads_again};
-use crate::test_support::{fixture, remove};
 use super::remove_tree_split;
+use crate::no_threads_child_test_support::{
+    let_threads_start_again,
+    ran_in_child,
+    refuse_threads_again,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What a later writer put at the stage path survives the walk that was queued before its start was refused.
@@ -34,16 +41,21 @@ fn a_walk_queued_before_its_start_was_refused_never_deletes_data_written_after_t
     std::fs::write(stage.join("old"), b"old").expect("old stage entry");
 
     refuse_threads_again().expect("refuse the walk its thread");
-    remove_tree_split(stage.as_path()).expect("the removal walks in turn where no thread can start");
+    remove_tree_split(stage.as_path())
+        .expect("the removal walks in turn where no thread can start");
     assert!(!stage.exists(), "the walk in turn removes the stage");
 
     std::fs::create_dir_all(stage.as_path()).expect("a later writer's directory");
     let later: PathBuf = stage.join("written-after-the-removal-returned");
-    std::fs::write(later.as_path(), b"what a later writer put there").expect("a later writer's file");
+    std::fs::write(later.as_path(), b"what a later writer put there")
+        .expect("a later writer's file");
 
     let_threads_start_again().expect("a thread becomes free for the queued walk");
     let drained = crate::lazy_runtime::run_on_runtime(crate::blocking_job::run_blocking_job(|| ()));
-    assert!(matches!(drained, Ok(Ok(()))), "one blocking job ran after the refusal, so the queue was drained: {drained:?}");
+    assert!(
+        matches!(drained, Ok(Ok(()))),
+        "one blocking job ran after the refusal, so the queue was drained: {drained:?}"
+    );
     assert!(
         later.exists(),
         "the walk queued before the removal walked in turn deleted data a later writer put there"

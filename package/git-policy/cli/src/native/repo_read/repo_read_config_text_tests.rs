@@ -5,7 +5,11 @@
 //! the reader declines.
 
 use super::*;
-use crate::test_support::{fixture, git_output, remove};
+use crate::test_support::{
+    fixture,
+    git_output,
+    remove,
+};
 use std::path::Path;
 
 /// Every spelling the controls feed both readers;
@@ -47,13 +51,27 @@ const CORPUS: &[&str] = &[
 /// as `key`,
 /// `key\nvalue` pieces,
 /// or `None` when Git refuses the file.
-fn from_git(directory: &Path, file: &Path) -> Option<Vec<Vec<u8>>> {
-    let output = git_output(directory, &["config", "--file", file.to_str().expect("UTF-8 path"), "--list", "-z"]);
+fn from_git(
+    directory: &Path,
+    file: &Path,
+) -> Option<Vec<Vec<u8>>> {
+    let output = git_output(
+        directory,
+        &[
+            "config",
+            "--file",
+            file.to_str().expect("UTF-8 path"),
+            "--list",
+            "-z",
+        ],
+    );
     if !output.status.success() {
         return None;
     }
     let mut pieces: Vec<Vec<u8>> = Vec::new();
-    for piece in output.stdout.split(|byte| { return *byte == 0; }) {
+    for piece in output.stdout.split(|byte| {
+        return *byte == 0;
+    }) {
         if !piece.is_empty() {
             pieces.push(piece.to_vec());
         }
@@ -87,14 +105,24 @@ fn the_reader_agrees_with_git_or_declines() {
         let git_view = from_git(root.as_path(), file.as_path());
         if let Some(entries) = parse_config_text(text.as_bytes()) {
             answered += 1;
-            assert_eq!(Some(spelled(entries.as_slice())), git_view, "corpus {index}: {text:?}");
+            assert_eq!(
+                Some(spelled(entries.as_slice())),
+                git_view,
+                "corpus {index}: {text:?}"
+            );
         }
         if git_view.is_none() {
-            assert!(parse_config_text(text.as_bytes()).is_none(), "corpus {index} is refused by Git but read: {text:?}");
+            assert!(
+                parse_config_text(text.as_bytes()).is_none(),
+                "corpus {index} is refused by Git but read: {text:?}"
+            );
         }
     }
     // Positive control: the reader must answer the plain files, or the loop above proves nothing.
-    assert!(answered * 2 > CORPUS.len(), "the reader declined too much of the corpus to prove anything");
+    assert!(
+        answered * 2 > CORPUS.len(),
+        "the reader declined too much of the corpus to prove anything"
+    );
     remove(root.as_path());
 }
 
@@ -110,9 +138,22 @@ fn a_nul_in_a_value_is_declined() {
 /// but the plain keys must be read.
 #[test]
 fn plain_repository_keys_are_read() {
-    let entries = parse_config_text(b"[core]\n\tbare = false\n[remote \"origin\"]\n\turl = u\n").expect("plain file");
-    assert_eq!(parse_bool(last_entry(entries.as_slice(), "core.bare").and_then(|entry| { return entry.value.as_deref(); })), Some(false));
-    assert_eq!(last_entry(entries.as_slice(), "remote.origin.url").and_then(|entry| { return entry.value.clone(); }), Some(b"u".to_vec()));
+    let entries = parse_config_text(b"[core]\n\tbare = false\n[remote \"origin\"]\n\turl = u\n")
+        .expect("plain file");
+    assert_eq!(
+        parse_bool(
+            last_entry(entries.as_slice(), "core.bare").and_then(|entry| {
+                return entry.value.as_deref();
+            })
+        ),
+        Some(false)
+    );
+    assert_eq!(
+        last_entry(entries.as_slice(), "remote.origin.url").and_then(|entry| {
+            return entry.value.clone();
+        }),
+        Some(b"u".to_vec())
+    );
 }
 
 /// Boolean spellings Git accepts are read,

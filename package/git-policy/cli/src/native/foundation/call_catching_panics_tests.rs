@@ -22,5 +22,8 @@ fn a_call_that_panics_gives_back_the_payload() {
         panic!("{state} failed");
     }
     let payload = call_catching_panics("the call", refuse).expect_err("the call panicked");
-    assert_eq!(payload.downcast_ref::<String>().map(String::as_str), Some("the call failed"));
+    assert_eq!(
+        payload.downcast_ref::<String>().map(String::as_str),
+        Some("the call failed")
+    );
 }

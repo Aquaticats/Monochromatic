@@ -33,7 +33,10 @@ use std::ffi::c_int;
 /// const packed = (signal: number, sender?: number): bigint => BigInt(signal) | (sender === undefined ? 0n : BigInt(sender + 1) << 32n);
 /// ```
 #[cfg(unix)]
-pub(crate) fn packed(signal: c_int, sender: Option<i32>) -> u64 {
+pub(crate) fn packed(
+    signal: c_int,
+    sender: Option<i32>,
+) -> u64 {
     let low: u64 = u64::from(u32::try_from(signal).unwrap_or(0));
     let high: u64 = match sender {
         Some(pid) => u64::from(u32::try_from(pid).unwrap_or(0)) + 1,
@@ -60,7 +63,14 @@ pub(crate) fn unpacked(word: u64) -> Option<(c_int, Option<i32>)> {
         return None;
     }
     let high: u64 = word >> 32;
-    return Some((signal, if high == 0 { None } else { i32::try_from(high - 1).ok() }));
+    return Some((
+        signal,
+        if high == 0 {
+            None
+        } else {
+            i32::try_from(high - 1).ok()
+        },
+    ));
 }
 
 /// The packing is controlled beside this file,

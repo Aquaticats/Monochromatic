@@ -9,13 +9,19 @@
 //! ```
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
+use crate::blocking_jobs_within_the_budget::a_controls_answer::{
+    AStatesAnswer,
+    state_the_answer,
+};
 use std::os::unix::fs::PermissionsExt as _;
 
 /// Runs one note's job to its end on a runtime of this thread,
 /// which is the thread the control states its answer on.
 fn run(noted: impl std::future::Future<Output = ClaimWatch>) -> ClaimWatch {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     return runtime.block_on(noted);
 }
 
@@ -38,21 +44,38 @@ fn a_note_given_no_answer_is_tried_again_after_the_loops_pause() {
     // A journal directory this person may not write in, so the write itself fails: the review's own case is a note the started
     //  job could not write, which the caller's copy of the watch has no way to record.
     let note_directory: std::path::PathBuf = crate::test_support::fixture("a-note-given-no-answer");
-    std::fs::set_permissions(note_directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a journal nobody may write in");
+    std::fs::set_permissions(
+        note_directory.as_path(),
+        std::fs::Permissions::from_mode(0o500),
+    )
+    .expect("a journal nobody may write in");
     let watch: ClaimWatch = ClaimWatch::restored(note_directory.as_path(), None);
-    assert!(!watch.needs_retry(), "a watch whose notes were all read owes nothing before the write");
+    assert!(
+        !watch.needs_retry(),
+        "a watch whose notes were all read owes nothing before the write"
+    );
     let git_dir: std::path::PathBuf = std::path::PathBuf::from("/srv/repo/.git");
     let _stated = state_the_answer(AStatesAnswer::NoAnswer);
     let kept: ClaimWatch = run(remember_awaiting(watch, git_dir.as_path()));
     let retried: bool = kept.needs_retry();
-    std::fs::set_permissions(note_directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the journal is writable again");
-    assert!(retried, "a note that gave no answer is tried again, so the loop keeps a retry for it in its schedule");
+    std::fs::set_permissions(
+        note_directory.as_path(),
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .expect("the journal is writable again");
+    assert!(
+        retried,
+        "a note that gave no answer is tried again, so the loop keeps a retry for it in its schedule"
+    );
 }
 
 /// Runs any awaited step to its end on a runtime of this thread,
 /// which is the thread a control states its answer on.
 fn run_any<Awaited: std::future::Future>(awaited: Awaited) -> Awaited::Output {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     return runtime.block_on(awaited);
 }
 
@@ -95,13 +118,28 @@ fn a_saved_plan() -> crate::push_retry_store::StoredPlan {
 fn a_plan_a_start_could_not_read_is_read_again_and_tried() {
     let root: PathBuf = crate::test_support::fixture("a-plan-read-again");
     let saved: crate::push_retry_store::StoredPlan = a_saved_plan();
-    crate::push_retry_store::save(root.as_path(), &saved).expect("the plan an earlier service promised");
+    crate::push_retry_store::save(root.as_path(), &saved)
+        .expect("the plan an earlier service promised");
     let unread: PushRetries = PushRetries::unread(Duration::from_secs(10), root.as_path());
-    assert!(unread.needs_restore(), "a start whose read gave no answer has the plan to read");
+    assert!(
+        unread.needs_restore(),
+        "a start whose read gave no answer has the plan to read"
+    );
     let (kept, found): (PushRetries, Vec<PathBuf>) = run_any(restore_the_plan(unread));
-    assert_eq!(found, vec![saved.git_dir.clone()], "the repository the plan names is looked at");
-    assert!(!kept.needs_restore(), "the plan was read, so the loop keeps no wake for reading it again");
-    assert!(kept.next_wait(saved.git_dir.as_path(), Instant::now()).is_some(), "and the push an earlier service promised is tried");
+    assert_eq!(
+        found,
+        vec![saved.git_dir.clone()],
+        "the repository the plan names is looked at"
+    );
+    assert!(
+        !kept.needs_restore(),
+        "the plan was read, so the loop keeps no wake for reading it again"
+    );
+    assert!(
+        kept.next_wait(saved.git_dir.as_path(), Instant::now())
+            .is_some(),
+        "and the push an earlier service promised is tried"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -123,9 +161,19 @@ fn a_plan_given_no_thread_for_its_second_read_keeps_its_read_pending() {
     let unread: PushRetries = PushRetries::unread(Duration::from_secs(10), root.as_path());
     let _refused = state_the_answer(AStatesAnswer::NotRun);
     let (kept, found): (PushRetries, Vec<PathBuf>) = run_any(restore_the_plan(unread));
-    assert!(found.is_empty(), "nothing was read, so no repository is looked at by this step");
-    assert!(kept.needs_restore(), "the plan is still unread, so the loop reads it after its pause");
-    assert_eq!(kept.restore_pause(), Duration::from_secs(10), "a refusal that promises nothing ran does not grow the pause");
+    assert!(
+        found.is_empty(),
+        "nothing was read, so no repository is looked at by this step"
+    );
+    assert!(
+        kept.needs_restore(),
+        "the plan is still unread, so the loop reads it after its pause"
+    );
+    assert_eq!(
+        kept.restore_pause(),
+        Duration::from_secs(10),
+        "a refusal that promises nothing ran does not grow the pause"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -149,20 +197,38 @@ fn a_note_retry_that_outlasted_its_ceiling_is_owed_again_after_a_longer_pause() 
     std::fs::create_dir_all(root.as_path()).expect("the journal directory");
     let first: Duration = Duration::from_secs(10);
     let watch: ClaimWatch = ClaimWatch::unread(root.as_path(), None);
-    assert_eq!(watch.pause(first), first, "the first retry is made after the first pause");
+    assert_eq!(
+        watch.pause(first),
+        first,
+        "the first retry is made after the first pause"
+    );
     let (kept, found): (ClaimWatch, Vec<PathBuf>) = {
         let _stated = state_the_answer(AStatesAnswer::NoAnswer);
         run_any(retry_awaiting(watch))
     };
-    assert!(found.is_empty(), "nothing was read, so no repository is looked at by this step");
-    assert!(kept.needs_retry(), "the notes are still owed, so the loop keeps a wake for them");
-    assert_eq!(kept.pause(first), first * 2, "the retry that outlasted its ceiling doubles the pause before the next one");
+    assert!(
+        found.is_empty(),
+        "nothing was read, so no repository is looked at by this step"
+    );
+    assert!(
+        kept.needs_retry(),
+        "the notes are still owed, so the loop keeps a wake for them"
+    );
+    assert_eq!(
+        kept.pause(first),
+        first * 2,
+        "the retry that outlasted its ceiling doubles the pause before the next one"
+    );
     // A refusal promises that nothing ran, so it holds no place and the pause it had stays.
     let refused: ClaimWatch = ClaimWatch::unread(root.as_path(), None);
     let (after_a_refusal, _none): (ClaimWatch, Vec<PathBuf>) = {
         let _refused = state_the_answer(AStatesAnswer::NotRun);
         run_any(retry_awaiting(refused))
     };
-    assert_eq!(after_a_refusal.pause(first), first, "a refusal that promises nothing ran does not grow the pause");
+    assert_eq!(
+        after_a_refusal.pause(first),
+        first,
+        "a refusal that promises nothing ran does not grow the pause"
+    );
     crate::test_support::remove(root.as_path());
 }

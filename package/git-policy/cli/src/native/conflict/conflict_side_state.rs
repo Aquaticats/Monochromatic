@@ -20,7 +20,6 @@ use crate::repo_read_index::IndexEntry;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-
 /// An operation that stops with conflicts and waits for them to be settled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Operation {

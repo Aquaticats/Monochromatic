@@ -3,8 +3,21 @@
 //! driven through a real `git commit` of a rename.
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
-use super::commit::{git_text, remove_settled, run_commit, wrapped_commit};
-use super::support::{Fixture, Observed, fixture, git, observe, repository, stderr_of};
+use super::commit::{
+    git_text,
+    remove_settled,
+    run_commit,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -28,16 +41,32 @@ fn a_rename_of_known_content_lands_and_a_rename_with_a_changed_byte_does_not() {
     )
     .expect("configuration");
     git(&fixture, repo.as_path(), &["add", "--all"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
-    let base: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
-    let blob: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim().to_owned();
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    let base: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    let blob: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD:a.txt"])
+        .trim()
+        .to_owned();
     // A pure rename.
     std::fs::create_dir(repo.join("moved")).expect("moved directory");
     git(&fixture, repo.as_path(), &["mv", "a.txt", "moved/a.txt"]);
     let landed: Observed = observe(
-        wrapped_commit(&fixture, repo.as_path(), &["commit", "--no-only", "--message=rename"])
-            .env("MONOCHROMATIC_VERBOSE", "true"),
+        wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--no-only", "--message=rename"],
+        )
+        .env("MONOCHROMATIC_VERBOSE", "true"),
         b"",
     );
     let text: String = stderr_of(&landed);
@@ -47,19 +76,45 @@ fn a_rename_of_known_content_lands_and_a_rename_with_a_changed_byte_does_not() {
     );
     assert!(text.contains(decision.as_str()), "{text}");
     assert!(!text.contains(needle.as_str()), "{text}");
-    assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), base);
+    assert_ne!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
+        base
+    );
     // The same rename with one byte changed is new content, so it is scanned and stops the commit.
-    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     std::fs::create_dir(repo.join("again")).expect("again directory");
-    git(&fixture, repo.as_path(), &["mv", "moved/a.txt", "again/a.txt"]);
-    std::fs::write(repo.join("again/a.txt"), body.replacen("first", "firsT", 1).as_bytes()).expect("edit");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["mv", "moved/a.txt", "again/a.txt"],
+    );
+    std::fs::write(
+        repo.join("again/a.txt"),
+        body.replacen("first", "firsT", 1).as_bytes(),
+    )
+    .expect("edit");
     git(&fixture, repo.as_path(), &["add", "--", "again/a.txt"]);
-    let stopped: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--no-only", "--message=edit"]);
+    let stopped: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--no-only", "--message=edit"],
+    );
     let stopped_text: String = stderr_of(&stopped);
     assert_eq!(stopped.code, Some(1), "{stopped_text}");
-    assert!(stopped_text.contains("security/forbidden-strings/forbidden-string"), "{stopped_text}");
-    assert!(stopped_text.contains("Forbidden string matched at line 2"), "{stopped_text}");
+    assert!(
+        stopped_text.contains("security/forbidden-strings/forbidden-string"),
+        "{stopped_text}"
+    );
+    assert!(
+        stopped_text.contains("Forbidden string matched at line 2"),
+        "{stopped_text}"
+    );
     assert!(!stopped_text.contains(needle.as_str()), "{stopped_text}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), head);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
+        head
+    );
     remove_settled(&fixture);
 }

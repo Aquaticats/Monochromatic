@@ -16,7 +16,12 @@
 
 /// The reader,
 /// the decoder and the failure type.
-use super::{ManifestFacts, read_manifest_facts, shape, strict_text};
+use super::{
+    ManifestFacts,
+    read_manifest_facts,
+    shape,
+    strict_text,
+};
 use crate::dependent_version_content::PolicyIncomplete;
 
 /// The path every case reads.

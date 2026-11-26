@@ -29,7 +29,10 @@ use crate::diagnostic_log::warn;
 use serde_json::to_string as json_string;
 /// `OsStr` is borrowed operating-system text,
 /// and `Path`/`PathBuf` are filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// Environment variable arming one phase marker.
@@ -223,7 +226,10 @@ pub struct PhaseSignalError {
 /// Message text naming the variable,
 /// the quoted value and the accepted forms.
 impl std::fmt::Display for PhaseSignalError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // A value that cannot be quoted as JSON text is shown in Rust's debug quoting.
         let quoted: String = match json_string(self.value.as_str()) {
             Ok(text) => text,
@@ -237,7 +243,7 @@ impl std::fmt::Display for PhaseSignalError {
             formatter,
             "{PHASE_SIGNAL_VARIABLE}={quoted} is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {}.",
             phases.join(", ")
-        )
+        );
     }
 }
 
@@ -263,10 +269,15 @@ pub enum PhaseMarkerError {
 
 /// Message text of either failure.
 impl std::fmt::Display for PhaseMarkerError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             PhaseMarkerError::Malformed(error) => return write!(formatter, "{error}"),
-            PhaseMarkerError::Io(error) => return write!(formatter, "transaction phase marker failed: {error}"),
+            PhaseMarkerError::Io(error) => {
+                return write!(formatter, "transaction phase marker failed: {error}");
+            }
         }
     }
 }
@@ -301,7 +312,9 @@ fn lossy_text(text: std::ffi::OsString) -> String {
 /// const refusalOf = (value: string) => new PhaseSignalError(value);
 /// ```
 fn refusal_of(value: &str) -> PhaseSignalError {
-    return PhaseSignalError { value: value.to_string() };
+    return PhaseSignalError {
+        value: value.to_string(),
+    };
 }
 
 /// What:
@@ -426,7 +439,10 @@ fn kill_self() -> ! {
 ///
 /// # Errors
 /// An I/O error of kind `NotFound` when the directory of the pause no longer exists.
-fn await_release(directory: &Path, release: &Path) -> Result<(), PhaseMarkerError> {
+fn await_release(
+    directory: &Path,
+    release: &Path,
+) -> Result<(), PhaseMarkerError> {
     return await_release_within(directory, release, PHASE_PATIENCE);
 }
 
@@ -438,19 +454,30 @@ fn await_release(directory: &Path, release: &Path) -> Result<(), PhaseMarkerErro
 /// # Errors
 /// As `await_release`,
 /// and `TimedOut` when the release file did not come in time.
-fn await_release_within(directory: &Path, release: &Path, patience: Duration) -> Result<(), PhaseMarkerError> {
+fn await_release_within(
+    directory: &Path,
+    release: &Path,
+    patience: Duration,
+) -> Result<(), PhaseMarkerError> {
     let began: std::time::Instant = std::time::Instant::now();
     while !release.exists() {
         if began.elapsed() >= patience {
             return Err(PhaseMarkerError::Io(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
-                format!("nothing released the pause in {} within {} seconds", directory.display(), patience.as_secs()),
+                format!(
+                    "nothing released the pause in {} within {} seconds",
+                    directory.display(),
+                    patience.as_secs()
+                ),
             )));
         }
         if !directory.exists() {
             return Err(PhaseMarkerError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("the directory {} of the pause is gone, so nothing can release it", directory.display()),
+                format!(
+                    "the directory {} of the pause is gone, so nothing can release it",
+                    directory.display()
+                ),
             )));
         }
         std::thread::sleep(RELEASE_POLL);
@@ -489,11 +516,17 @@ pub(crate) fn reach_with_value(
     };
     warn(
         "transactionPhase",
-        &format!("{PHASE_SIGNAL_VARIABLE} reached {stem}: {:?}", signal.action),
+        &format!(
+            "{PHASE_SIGNAL_VARIABLE} reached {stem}: {:?}",
+            signal.action
+        ),
     );
     if let Some(directory) = signal.directory.as_deref() {
-        std::fs::write(directory.join(format!("{stem}.reached")), std::process::id().to_string())
-            .map_err(PhaseMarkerError::Io)?;
+        std::fs::write(
+            directory.join(format!("{stem}.reached")),
+            std::process::id().to_string(),
+        )
+        .map_err(PhaseMarkerError::Io)?;
     }
     match signal.action {
         PhaseAction::Kill => kill_self(),
@@ -515,9 +548,13 @@ pub(crate) fn reach_with_value(
 /// ```ts
 /// await reachTransactionPhase({ phase: 'merge-intent' });
 /// ```
-pub fn reach_transaction_phase(phase: Phase, occurrence: Option<u64>) -> Result<(), PhaseMarkerError> {
+pub fn reach_transaction_phase(
+    phase: Phase,
+    occurrence: Option<u64>,
+) -> Result<(), PhaseMarkerError> {
     // The marker a control armed, which a release build never reads.
-    let value: Option<String> = crate::test_only_switches::value(PHASE_SIGNAL_VARIABLE).map(lossy_text);
+    let value: Option<String> =
+        crate::test_only_switches::value(PHASE_SIGNAL_VARIABLE).map(lossy_text);
     return reach_with_value(value.as_deref(), phase, occurrence);
 }
 

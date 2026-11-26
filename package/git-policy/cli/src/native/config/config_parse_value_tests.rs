@@ -14,7 +14,10 @@
 
 /// Import the parser under test and the rejection helpers shared with the structural controls.
 use super::parse_config;
-use super::tests::{assert_rejections, rejection};
+use super::tests::{
+    assert_rejections,
+    rejection,
+};
 
 /// Concurrency sections reject wrong shapes,
 ///  unknown nested keys and out-of-range numbers.

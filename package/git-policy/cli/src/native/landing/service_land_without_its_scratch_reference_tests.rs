@@ -19,18 +19,47 @@
 //! plantTheRefusal(); expect(await landBatch(built)).toEqual([{ landed }]); expect(announced()).toContain('your commit was made'); expect(catFile(commit)).toBe('commit');
 //! ```
 
+use super::tests::{
+    World,
+    built_request,
+    request,
+    world,
+};
 use super::*;
-use super::tests::{World, built_request, request, world};
-use crate::service_index_lock::{Announce, Announcer};
-use crate::service_scratch_ref_of_a_dropped_batch::{kept_ref, scratch_ref};
-use crate::test_support::{git, git_output, git_text, remove, while_test_lives};
-use crate::transaction_git::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    kept_ref,
+    scratch_ref,
+};
+use crate::test_support::{
+    git,
+    git_output,
+    git_text,
+    remove,
+    while_test_lives,
+};
+use crate::transaction_git::{
+    EXTRA_WAIT_FOR_THIS_THREAD,
+    STEP_CEILING_FOR_THIS_THREAD,
+};
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, SystemTime};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// What:
 ///  The lines a landing announces to its clients,
@@ -46,7 +75,10 @@ use std::time::{Duration, SystemTime};
 struct Announced(RefCell<Vec<String>>);
 
 impl Announcer for Announced {
-    fn announce(&self, note: Announce) {
+    fn announce(
+        &self,
+        note: Announce,
+    ) {
         if let Announce::Waiting(line) = note {
             self.0.borrow_mut().push(line);
         }
@@ -78,25 +110,50 @@ const THE_LINE: &str = "your commit was made";
 /// and give the thread its shipped bound back afterwards,
 /// whatever `run` did.
 fn with_a_short_wait<T>(run: impl FnOnce() -> T) -> T {
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ONE_SECOND)); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(A_TENTH)); });
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(ONE_SECOND));
+    });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(A_TENTH));
+    });
     let ended: T = run();
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
     return ended;
 }
 
 /// Lands one batch of one commit Git built,
 /// with every line it announces,
 /// and answers what the landing said and the lines.
-fn land_one_built(world: &World, built: &CommitRequest, short_wait: bool) -> (Result<Vec<Outcome>, FailureCode>, Vec<String>) {
+fn land_one_built(
+    world: &World,
+    built: &CommitRequest,
+    short_wait: bool,
+) -> (Result<Vec<Outcome>, FailureCode>, Vec<String>) {
     let announced: Announced = Announced(RefCell::new(Vec::new()));
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return match short_wait {
-            true => with_a_short_wait(|| { return land_batch_announcing(&world.context, 1, std::slice::from_ref(built), &announced); }),
-            false => land_batch_announcing(&world.context, 1, std::slice::from_ref(built), &announced),
-        };
-    });
+    let landed: Result<Vec<Outcome>, FailureCode> =
+        crate::landing_state_carried_by_its_task::in_a_landing(|| {
+            return match short_wait {
+                true => with_a_short_wait(|| {
+                    return land_batch_announcing(
+                        &world.context,
+                        1,
+                        std::slice::from_ref(built),
+                        &announced,
+                    );
+                }),
+                false => land_batch_announcing(
+                    &world.context,
+                    1,
+                    std::slice::from_ref(built),
+                    &announced,
+                ),
+            };
+        });
     let lines: Vec<String> = announced.0.borrow().clone();
     return (landed, lines);
 }
@@ -104,13 +161,22 @@ fn land_one_built(world: &World, built: &CommitRequest, short_wait: bool) -> (Re
 /// The commit the batch built,
 /// as the single landed outcome names it,
 /// and the lines said about it.
-fn landed_commit(landed: &Result<Vec<Outcome>, FailureCode>, lines: &[String]) -> String {
+fn landed_commit(
+    landed: &Result<Vec<Outcome>, FailureCode>,
+    lines: &[String],
+) -> String {
     match landed {
         Ok(outcomes) => match outcomes.as_slice() {
-            [Outcome::Landed { commit }] => return commit.clone(),
+            [
+                Outcome::Landed {
+                    commit,
+                },
+            ] => return commit.clone(),
             other => panic!("the commit is made: {other:?}; the lines were {lines:?}"),
         },
-        Err(code) => panic!("the commit is made, and the landing answered {code:?}; the lines were {lines:?}"),
+        Err(code) => panic!(
+            "the commit is made, and the landing answered {code:?}; the lines were {lines:?}"
+        ),
     }
 }
 
@@ -133,22 +199,39 @@ fn a_commit_whose_reference_a_lock_keeps_from_being_written_is_made() {
     let world: World = world("service-land-without-its-reference-locked");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
-    std::fs::create_dir_all(world.repo.join(".git/refs/worktree/cli-git-service")).expect("the reference's folder");
+    std::fs::create_dir_all(world.repo.join(".git/refs/worktree/cli-git-service"))
+        .expect("the reference's folder");
     let lock: PathBuf = world.repo.join(".git/refs/worktree/cli-git-service/1.lock");
     std::fs::File::create(lock.as_path()).expect("the lock another writer holds");
     let (landed, lines) = land_one_built(&world, &built, false);
     let commit: String = landed_commit(&landed, lines.as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let surviving: std::process::Output =
+        git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
     let said: String = lines.join("");
     remove(world.root.as_path());
     assert_eq!(branch, commit, "the branch names the commit the batch made");
-    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
-    assert!(said.contains("refs/worktree/cli-git-service/1"), "the line names the reference that was not written: {said}");
-    assert!(said.contains("The branch names the commit now"), "a landed commit says the branch names it: {said}");
-    assert!(!said.contains("was not made"), "nothing says the commit was not made: {said}");
+    assert!(
+        surviving.status.success(),
+        "the commit survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
+    assert!(
+        said.contains("refs/worktree/cli-git-service/1"),
+        "the line names the reference that was not written: {said}"
+    );
+    assert!(
+        said.contains("The branch names the commit now"),
+        "a landed commit says the branch names it: {said}"
+    );
+    assert!(
+        !said.contains("was not made"),
+        "nothing says the commit was not made: {said}"
+    );
 }
 
 /// What:
@@ -171,22 +254,48 @@ fn a_commit_whose_reference_a_lock_keeps_from_being_written_is_made() {
 fn a_reference_another_command_wrote_is_neither_replaced_nor_removed() {
     let world: World = world("service-land-without-its-reference-taken");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let competing_built: CommitRequest = built_request(&world, "competing", "competing.txt", &[base.as_str()]);
-    let competing: String = competing_built.commit.clone().expect("the competing commit");
+    let competing_built: CommitRequest =
+        built_request(&world, "competing", "competing.txt", &[base.as_str()]);
+    let competing: String = competing_built
+        .commit
+        .clone()
+        .expect("the competing commit");
     let scratch: String = scratch_ref(1);
-    git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), competing.as_str()]);
+    git(
+        world.repo.as_path(),
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            scratch.as_str(),
+            competing.as_str(),
+        ],
+    );
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let (landed, lines) = land_one_built(&world, &built, false);
     let commit: String = landed_commit(&landed, lines.as_slice());
     let still: String = git_text(world.repo.as_path(), &["rev-parse", scratch.as_str()]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", competing.as_str()]);
+    let surviving: std::process::Output = git_output(
+        world.repo.as_path(),
+        &["cat-file", "-e", competing.as_str()],
+    );
     let said: String = lines.join("");
     remove(world.root.as_path());
     assert_ne!(commit, competing, "the batch made its own commit");
-    assert_eq!(still, competing, "the reference another command wrote is untouched");
-    assert!(surviving.status.success(), "the commit that reference names survives a maintenance that drops what no reference names");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
+    assert_eq!(
+        still, competing,
+        "the reference another command wrote is untouched"
+    );
+    assert!(
+        surviving.status.success(),
+        "the commit that reference names survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
 }
 
 /// What:
@@ -206,15 +315,20 @@ fn a_reference_store_that_refuses_the_write_leaves_the_commit_made() {
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let references: PathBuf = world.repo.join(".git/refs/worktree");
     std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a folder that refuses writes");
     let (landed, lines) = land_one_built(&world, &built, false);
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the folder takes writes again");
     let commit: String = landed_commit(&landed, lines.as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let said: String = lines.join("");
     remove(world.root.as_path());
     assert_eq!(branch, commit, "the branch names the commit the batch made");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
 }
 
 /// What:
@@ -235,7 +349,10 @@ fn a_write_whose_wait_ended_before_the_write_did_leaves_the_commit_made() {
     // The repository names a shared-file mode, even the one that shares nothing, which is one of the settings whose write the
     //  landing leaves to Git (`side_reference_written_here.rs`): this control is about the wait for Git's write of the batch's
     //  own reference, so that write must be Git's and not the landing's own.
-    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
+    git(
+        world.repo.as_path(),
+        &["config", "core.sharedRepository", "false"],
+    );
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
@@ -246,19 +363,34 @@ fn a_write_whose_wait_ended_before_the_write_did_leaves_the_commit_made() {
         real = crate::test_support::REAL_GIT,
     );
     std::fs::write(program.as_path(), script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     world.context.git.real_git = program;
     let (landed, lines) = land_one_built(&world, &built, true);
-    assert_eq!(landed_commit(&landed, lines.as_slice()), commit, "the commit the wait left standing is the one the batch made");
+    assert_eq!(
+        landed_commit(&landed, lines.as_slice()),
+        commit,
+        "the commit the wait left standing is the one the batch made"
+    );
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let surviving: std::process::Output =
+        git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
     let said: String = lines.join("");
     remove(world.root.as_path());
     assert_eq!(branch, commit, "the branch names the commit the batch made");
-    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
-    assert!(said.contains("stopped waiting for the write"), "the line says which wait ended: {said}");
+    assert!(
+        surviving.status.success(),
+        "the commit survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
+    assert!(
+        said.contains("stopped waiting for the write"),
+        "the line says which wait ended: {said}"
+    );
 }
 
 /// What:
@@ -281,21 +413,39 @@ fn a_batch_whose_import_could_not_write_its_reference_lands_its_commits() {
     let change: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
     let references: PathBuf = world.repo.join(".git/refs/worktree");
     std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a folder that refuses writes");
     let announced: Announced = Announced(RefCell::new(Vec::new()));
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return land_batch_announcing(&world.context, 1, std::slice::from_ref(&change), &announced);
-    });
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
+    let landed: Result<Vec<Outcome>, FailureCode> =
+        crate::landing_state_carried_by_its_task::in_a_landing(|| {
+            return land_batch_announcing(
+                &world.context,
+                1,
+                std::slice::from_ref(&change),
+                &announced,
+            );
+        });
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the folder takes writes again");
     let commit: String = landed_commit(&landed, announced.0.borrow().as_slice());
     let branch: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let surviving: std::process::Output =
+        git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
     let said: String = announced.0.borrow().join("");
     remove(world.root.as_path());
-    assert_eq!(branch, commit, "the branch names the commit the import made");
-    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
+    assert_eq!(
+        branch, commit,
+        "the branch names the commit the import made"
+    );
+    assert!(
+        surviving.status.success(),
+        "the commit survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
     assert!(
         !said.contains("fast-import statistics"),
         "the line names the refusal and not the import's own statistics report, which is twenty lines no person reads: {said}"
@@ -324,7 +474,10 @@ fn a_commit_whose_reference_the_write_proved_is_told_nothing_new() {
     let said: String = lines.join("");
     remove(world.root.as_path());
     assert_eq!(branch, commit, "the branch names the commit the batch made");
-    assert!(!said.contains(THE_LINE), "nothing is said about a protection that was in place: {said}");
+    assert!(
+        !said.contains(THE_LINE),
+        "nothing is said about a protection that was in place: {said}"
+    );
 }
 
 /// What:
@@ -349,25 +502,51 @@ fn a_held_commit_whose_reference_was_never_written_is_kept_on_its_kept_name() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
-    std::fs::create_dir_all(world.repo.join(".git/refs/worktree/cli-git-service")).expect("the reference's folder");
-    std::fs::File::create(world.repo.join(".git/refs/worktree/cli-git-service/1.lock").as_path()).expect("the lock another writer holds");
+    std::fs::create_dir_all(world.repo.join(".git/refs/worktree/cli-git-service"))
+        .expect("the reference's folder");
+    std::fs::File::create(
+        world
+            .repo
+            .join(".git/refs/worktree/cli-git-service/1.lock")
+            .as_path(),
+    )
+    .expect("the lock another writer holds");
     let lock: PathBuf = world.repo.join(".git/refs/heads/main.lock");
-    let planted: std::fs::File = std::fs::File::create(lock.as_path()).expect("the lock a killed Git leaves");
-    planted.set_modified(SystemTime::now() - LOCK_AGE).expect("the lock's age");
+    let planted: std::fs::File =
+        std::fs::File::create(lock.as_path()).expect("the lock a killed Git leaves");
+    planted
+        .set_modified(SystemTime::now() - LOCK_AGE)
+        .expect("the lock's age");
     let (landed, lines) = land_one_built(&world, &built, false);
     let outcomes: Vec<Outcome> = landed.expect("the commit is made and held");
-    assert!(matches!(outcomes.as_slice(), [Outcome::Held { .. }]), "{outcomes:?}");
+    assert!(
+        matches!(outcomes.as_slice(), [Outcome::Held { .. }]),
+        "{outcomes:?}"
+    );
     let kept: String = git_text(world.repo.as_path(), &["rev-parse", kept_ref(1).as_str()]);
     git(world.repo.as_path(), &["gc", "--prune=now"]);
-    let surviving: std::process::Output = git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    let surviving: std::process::Output =
+        git_output(world.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
     let said: String = lines.join("");
     std::fs::remove_file(lock.as_path()).expect("the holder lets go");
     crate::service_durable::drain();
     remove(world.root.as_path());
-    assert_eq!(kept, commit, "the commit held behind the lock is kept on its kept reference");
-    assert!(surviving.status.success(), "the held commit survives a maintenance that drops what no reference names");
-    assert!(said.contains(THE_LINE), "the person is told the commit was made: {said}");
-    assert!(said.contains("The branch has not moved yet"), "the line says the branch has not moved, because this batch is held: {said}");
+    assert_eq!(
+        kept, commit,
+        "the commit held behind the lock is kept on its kept reference"
+    );
+    assert!(
+        surviving.status.success(),
+        "the held commit survives a maintenance that drops what no reference names"
+    );
+    assert!(
+        said.contains(THE_LINE),
+        "the person is told the commit was made: {said}"
+    );
+    assert!(
+        said.contains("The branch has not moved yet"),
+        "the line says the branch has not moved, because this batch is held: {said}"
+    );
     assert!(
         !said.contains("The branch names the commit now"),
         "nothing claims that a branch which has not moved names the commit: {said}"
@@ -396,7 +575,8 @@ fn a_git_whose_second_import_is_ended_by_a_signal(world: &World) -> PathBuf {
         real = crate::test_support::REAL_GIT,
     );
     std::fs::write(program.as_path(), script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     return program;
 }
 
@@ -412,10 +592,23 @@ fn a_git_whose_second_import_is_ended_by_a_signal(world: &World) -> PathBuf {
 /// ```ts
 /// const made = commitTree(tree, '-p', head, '-m', message); updateRef('refs/heads/main', made); return made
 /// ```
-fn another_command_commits(repo: &Path, message: &str) -> String {
+fn another_command_commits(
+    repo: &Path,
+    message: &str,
+) -> String {
     let tree: String = git_text(repo, &["rev-parse", "HEAD^{tree}"]);
     let head: String = git_text(repo, &["rev-parse", "HEAD"]);
-    let made: String = git_text(repo, &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", message]);
+    let made: String = git_text(
+        repo,
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            head.as_str(),
+            "-m",
+            message,
+        ],
+    );
     git(repo, &["update-ref", "refs/heads/main", made.as_str()]);
     return made;
 }
@@ -450,7 +643,8 @@ fn a_marks_file_an_earlier_attempt_wrote_does_not_land_its_commits_on_a_new_base
     // The batch's own reference cannot be written, so the first attempt exports its marks and is refused at its reference.
     let references: PathBuf = world.repo.join(".git/refs/worktree");
     std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a folder that refuses writes");
     // Another command lands its commit between this batch's objects and its branch write, once.
     let repo: PathBuf = world.repo.clone();
     let other: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
@@ -464,24 +658,44 @@ fn a_marks_file_an_earlier_attempt_wrote_does_not_land_its_commits_on_a_new_base
         }
     }));
     world.context.git.real_git = a_git_whose_second_import_is_ended_by_a_signal(&world);
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
-    });
-    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
+    let landed: Result<Vec<Outcome>, FailureCode> =
+        crate::landing_state_carried_by_its_task::in_a_landing(|| {
+            return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+        });
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the folder takes writes again");
     let named: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let marks: PathBuf = world.context.journal.join("marks-1");
     let marks_left: bool = marks.exists();
-    let their_commit: String = other.lock().expect("the record").clone().expect("the other command committed");
-    let theirs_kept: bool = git_output(world.repo.as_path(), &["merge-base", "--is-ancestor", their_commit.as_str(), "HEAD"]).status.success();
+    let their_commit: String = other
+        .lock()
+        .expect("the record")
+        .clone()
+        .expect("the other command committed");
+    let theirs_kept: bool = git_output(
+        world.repo.as_path(),
+        &["merge-base", "--is-ancestor", their_commit.as_str(), "HEAD"],
+    )
+    .status
+    .success();
     remove(world.root.as_path());
     assert!(
         landed.is_err(),
         "a batch whose own import was ended is not landed from a marks file an earlier attempt wrote: {landed:?}; the branch names {named}, \
 and the commit another command landed ({their_commit}) is still on it: {theirs_kept}"
     );
-    assert!(theirs_kept, "the commit another command landed is still on the branch");
-    assert_eq!(named, their_commit, "the branch still names the commit another command landed");
-    assert!(!marks_left, "no marks file outlives the attempt that read it");
+    assert!(
+        theirs_kept,
+        "the commit another command landed is still on the branch"
+    );
+    assert_eq!(
+        named, their_commit,
+        "the branch still names the commit another command landed"
+    );
+    assert!(
+        !marks_left,
+        "no marks file outlives the attempt that read it"
+    );
 }
 
 /// What:
@@ -498,7 +712,11 @@ and the commit another command landed ({their_commit}) is still on it: {theirs_k
 /// ```ts
 /// const fromAnotherBase = script({ on: 'fast-import', pipe: (stream) => stream.replace(`from ${old}`, `from ${older}`) })
 /// ```
-fn a_git_that_imports_from_another_base(world: &World, old: &str, older: &str) -> PathBuf {
+fn a_git_that_imports_from_another_base(
+    world: &World,
+    old: &str,
+    older: &str,
+) -> PathBuf {
     let program: PathBuf = world.root.join("git-that-imports-from-another-base");
     let script: String = format!(
         "#!/bin/sh\ncase \" $* \" in\n  *\" fast-import \"*) sed \"s|^from {old}$|from {older}|\" | '{real}' \"$@\"; exit $?;;\nesac\nexec '{real}' \"$@\"\n",
@@ -507,7 +725,8 @@ fn a_git_that_imports_from_another_base(world: &World, old: &str, older: &str) -
         real = crate::test_support::REAL_GIT,
     );
     std::fs::write(program.as_path(), script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     return program;
 }
 
@@ -529,16 +748,34 @@ fn an_import_whose_commits_stand_on_another_base_is_not_landed() {
     let mut world: World = world("service-land-without-its-reference-other-base");
     let older: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
-    let base: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", older.as_str(), "-m", "the base this attempt finds"]);
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    let base: String = git_text(
+        world.repo.as_path(),
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            older.as_str(),
+            "-m",
+            "the base this attempt finds",
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", base.as_str()],
+    );
     let mine: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
-    world.context.git.real_git = a_git_that_imports_from_another_base(&world, base.as_str(), older.as_str());
-    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
-    });
+    world.context.git.real_git =
+        a_git_that_imports_from_another_base(&world, base.as_str(), older.as_str());
+    let landed: Result<Vec<Outcome>, FailureCode> =
+        crate::landing_state_carried_by_its_task::in_a_landing(|| {
+            return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+        });
     let named: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     remove(world.root.as_path());
-    assert!(landed.is_err(), "a batch whose first commit stands on another base is not landed: {landed:?}");
+    assert!(
+        landed.is_err(),
+        "a batch whose first commit stands on another base is not landed: {landed:?}"
+    );
     assert_eq!(named, base, "the branch is where the batch found it");
 }
 
@@ -564,11 +801,19 @@ fn a_batch_that_will_not_land_says_nothing_about_a_commit_it_did_not_make() {
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(program.as_path(), script.as_str()).expect("the program");
-    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("executable");
     world.context.git.real_git = program;
     let (landed, lines) = land_one_built(&world, &built, false);
     let said: String = lines.join("");
     remove(world.root.as_path());
-    assert_eq!(landed.err(), Some(FailureCode::ReferenceLocked), "the branch write Git refused answers the batch; the lines were {said}");
-    assert!(!said.contains(THE_LINE), "no line says a commit that did not land was made: {said}");
+    assert_eq!(
+        landed.err(),
+        Some(FailureCode::ReferenceLocked),
+        "the branch write Git refused answers the batch; the lines were {said}"
+    );
+    assert!(
+        !said.contains(THE_LINE),
+        "no line says a commit that did not land was made: {said}"
+    );
 }

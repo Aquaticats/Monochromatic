@@ -35,7 +35,10 @@
 /// ```ts
 /// function isInsideTheWorktree(worktree: string, directory: string): boolean;
 /// ```
-pub fn is_inside_the_worktree(worktree: &std::path::Path, directory: &std::path::Path) -> bool {
+pub fn is_inside_the_worktree(
+    worktree: &std::path::Path,
+    directory: &std::path::Path,
+) -> bool {
     if !directory.starts_with(worktree) {
         return false;
     }

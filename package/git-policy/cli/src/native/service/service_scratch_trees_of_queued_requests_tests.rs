@@ -19,14 +19,22 @@
 //! ```
 
 /// The record under control.
-use super::{is_held, note, release};
-use std::path::{Path, PathBuf};
+use super::{
+    is_held,
+    note,
+    release,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A tree of the wrapper's own name,
 /// as a collection sees it inside the repository scratch directory.
 fn tree(attempt: u32) -> PathBuf {
-    return Path::new("/nowhere/.git/monochromatic-git-policy-cli-scratch")
-        .join(format!("monochromatic-git-policy-cli-service-0a1b2c3d-{attempt}"));
+    return Path::new("/nowhere/.git/monochromatic-git-policy-cli-scratch").join(format!(
+        "monochromatic-git-policy-cli-service-0a1b2c3d-{attempt}"
+    ));
 }
 
 /// The request identity the controls of one record's race use.
@@ -38,10 +46,16 @@ const A_SEND_AGAIN: &str = "a-request-sent-again";
 fn a_request_holds_its_tree_until_the_service_is_done_with_it() {
     let first: PathBuf = tree(0);
     note("a-request", first.as_path());
-    assert!(is_held(first.as_path()), "the tree the request named is held");
+    assert!(
+        is_held(first.as_path()),
+        "the tree the request named is held"
+    );
     assert!(!is_held(tree(1).as_path()), "another attempt's tree is not");
     release("a-request");
-    assert!(!is_held(first.as_path()), "the tree goes back to the age rule with the request");
+    assert!(
+        !is_held(first.as_path()),
+        "the tree goes back to the age rule with the request"
+    );
 }
 
 /// A command that prepared again sends the same identity with a new attempt's tree,
@@ -49,15 +63,28 @@ fn a_request_holds_its_tree_until_the_service_is_done_with_it() {
 /// the send of the attempt it left stays noted until its own release arrives.
 #[test]
 fn a_second_send_of_one_request_holds_only_the_tree_it_names() {
-    let sent_relatively: PathBuf = Path::new("monochromatic-git-policy-cli-service-7d8e9f0a-0").to_path_buf();
+    let sent_relatively: PathBuf =
+        Path::new("monochromatic-git-policy-cli-service-7d8e9f0a-0").to_path_buf();
     note("a-request", sent_relatively.as_path());
     note("a-request", tree(1).as_path());
-    assert!(is_held(tree(1).as_path()), "the tree the second send names is held");
-    assert!(!is_held(sent_relatively.as_path()), "the tree of the attempt it left is not");
+    assert!(
+        is_held(tree(1).as_path()),
+        "the tree the second send names is held"
+    );
+    assert!(
+        !is_held(sent_relatively.as_path()),
+        "the tree of the attempt it left is not"
+    );
     release("a-request");
-    assert!(is_held(tree(1).as_path()), "one release is one send's end, and the other send still reads this tree");
+    assert!(
+        is_held(tree(1).as_path()),
+        "one release is one send's end, and the other send still reads this tree"
+    );
     release("a-request");
-    assert!(!is_held(tree(1).as_path()), "the last send's release gives the tree back to the age rule");
+    assert!(
+        !is_held(tree(1).as_path()),
+        "the last send's release gives the tree back to the age rule"
+    );
 }
 
 /// What:
@@ -83,9 +110,15 @@ fn a_release_after_the_next_send_keeps_the_tree_that_send_names() {
     note(A_SEND_AGAIN, left.as_path());
     note(A_SEND_AGAIN, retried.as_path());
     release(A_SEND_AGAIN);
-    assert!(is_held(retried.as_path()), "the attempt still queued keeps its tree out of a collection's reach");
+    assert!(
+        is_held(retried.as_path()),
+        "the attempt still queued keeps its tree out of a collection's reach"
+    );
     release(A_SEND_AGAIN);
-    assert!(!is_held(retried.as_path()), "the release of that attempt gives its tree back to the age rule");
+    assert!(
+        !is_held(retried.as_path()),
+        "the release of that attempt gives its tree back to the age rule"
+    );
 }
 
 /// What:
@@ -108,9 +141,15 @@ fn a_request_sent_twice_with_one_tree_holds_it_until_both_sends_are_over() {
     note(A_SEND_AGAIN, sent.as_path());
     note(A_SEND_AGAIN, sent.as_path());
     release(A_SEND_AGAIN);
-    assert!(is_held(sent.as_path()), "the send still queued keeps the tree its landing reads");
+    assert!(
+        is_held(sent.as_path()),
+        "the send still queued keeps the tree its landing reads"
+    );
     release(A_SEND_AGAIN);
-    assert!(!is_held(sent.as_path()), "the release of the last send gives the tree back");
+    assert!(
+        !is_held(sent.as_path()),
+        "the release of the last send gives the tree back"
+    );
 }
 
 /// Releasing one request says nothing about the trees another request holds.
@@ -122,8 +161,14 @@ fn releasing_one_request_keeps_the_trees_another_request_holds() {
     note("mine", mine.as_path());
     note("theirs", theirs.as_path());
     release("mine");
-    assert!(!is_held(mine.as_path()), "the released request holds nothing");
-    assert!(is_held(theirs.as_path()), "the other request still lands on its tree");
+    assert!(
+        !is_held(mine.as_path()),
+        "the released request holds nothing"
+    );
+    assert!(
+        is_held(theirs.as_path()),
+        "the other request still lands on its tree"
+    );
     release("theirs");
 }
 
@@ -132,6 +177,9 @@ fn releasing_one_request_keeps_the_trees_another_request_holds() {
 #[test]
 fn a_path_with_no_file_name_is_no_tree_to_hold() {
     note("root", Path::new("/"));
-    assert!(!is_held(Path::new("/")), "a directory that names no entry is not a tree");
+    assert!(
+        !is_held(Path::new("/")),
+        "a directory that names no entry is not a tree"
+    );
     release("root");
 }

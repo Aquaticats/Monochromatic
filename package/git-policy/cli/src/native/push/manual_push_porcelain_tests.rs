@@ -32,8 +32,22 @@ fn every_kind_of_line_reads_as_the_report_says() {
         .collect();
     assert_eq!(kinds[0], ("refs/heads/topic", &RemoteBefore::Absent, None));
     assert_eq!(kinds[1], ("refs/tags/v1", &RemoteBefore::Absent, None));
-    assert_eq!(kinds[2], ("refs/heads/main", &RemoteBefore::Known(old.clone()), Some(new.as_str())));
-    assert_eq!(kinds[3], ("refs/heads/x", &RemoteBefore::Known(new.clone()), Some(old.as_str())));
+    assert_eq!(
+        kinds[2],
+        (
+            "refs/heads/main",
+            &RemoteBefore::Known(old.clone()),
+            Some(new.as_str())
+        )
+    );
+    assert_eq!(
+        kinds[3],
+        (
+            "refs/heads/x",
+            &RemoteBefore::Known(new.clone()),
+            Some(old.as_str())
+        )
+    );
     assert_eq!(kinds[4], ("refs/heads/gone", &RemoteBefore::Unknown, None));
     assert_eq!(updates[4].from, "", "a deletion has no local side");
     assert_eq!(kinds[5], ("refs/heads/y", &RemoteBefore::Unknown, None));
@@ -55,18 +69,31 @@ fn up_to_date_refs_are_left_out_and_destinations_are_separate() {
 #[test]
 fn text_outside_the_format_is_refused() {
     let refusal: String = parse_porcelain("no tab here\n").expect_err("a line outside the format");
-    assert!(refusal.contains("no tab here"), "the message names the line: {refusal}");
+    assert!(
+        refusal.contains("no tab here"),
+        "the message names the line: {refusal}"
+    );
     assert!(parse_porcelain("To x\n*\tno-colon\t[new branch]\n").is_err());
-    assert!(parse_porcelain("*\ta:b\t[new branch]\n").is_err(), "a line before any destination");
+    assert!(
+        parse_porcelain("*\ta:b\t[new branch]\n").is_err(),
+        "a line before any destination"
+    );
     assert_eq!(parse_porcelain("").expect("empty output"), Vec::new());
 }
 
 /// A source that holds a colon is split from its destination at the last colon.
 #[test]
 fn a_source_with_a_colon_keeps_it() {
-    let output: &str = "To /srv/origin.git\n*\t:/unique message:refs/heads/new\t[new branch]\nDone\n";
+    let output: &str =
+        "To /srv/origin.git\n*\t:/unique message:refs/heads/new\t[new branch]\nDone\n";
     let blocks: Vec<PorcelainBlock> = parse_porcelain(output).expect("parses");
-    assert_eq!((blocks[0].updates[0].from.as_str(), blocks[0].updates[0].to.as_str()), (":/unique message", "refs/heads/new"));
+    assert_eq!(
+        (
+            blocks[0].updates[0].from.as_str(),
+            blocks[0].updates[0].to.as_str()
+        ),
+        (":/unique message", "refs/heads/new")
+    );
 }
 
 /// The line Git adds when the push would set an upstream is skipped,

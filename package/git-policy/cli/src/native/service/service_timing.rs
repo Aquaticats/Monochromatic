@@ -23,15 +23,34 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
-use crate::service_durable_syncs::{SyncFigure, syncs_held, syncs_waited_count, syncs_word};
-use crate::service_index_found::WaitNotes;
-use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
+use crate::journald_native::{
+    Delivery,
+    MESSAGE_LIMIT,
+    Priority,
+    Sink,
+    StreamWriter,
+    cut,
+    one_line,
+};
 use crate::lfs_output_mask::mask_url_secrets_text;
 use crate::quiet_ledger::longest_healthy;
-use crate::transaction_step_durations::{StepFigure, steps_word};
+use crate::service_durable_syncs::{
+    SyncFigure,
+    syncs_held,
+    syncs_waited_count,
+    syncs_word,
+};
+use crate::service_index_found::WaitNotes;
+use crate::transaction_step_durations::{
+    StepFigure,
+    steps_word,
+};
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The prefix of every line the service writes,
 /// which `journalctl` shows after the unit name.
@@ -112,8 +131,13 @@ impl LandTiming {
     /// the check for removed
     ///  content,
     /// and the rest of what `reads_split` names one by one.
-    pub fn reads(&self, landing: Duration) -> Duration {
-        return landing.saturating_sub(self.lock_wait + self.objects + self.journal + self.ref_update + self.index_update);
+    pub fn reads(
+        &self,
+        landing: Duration,
+    ) -> Duration {
+        return landing.saturating_sub(
+            self.lock_wait + self.objects + self.journal + self.ref_update + self.index_update,
+        );
     }
 }
 
@@ -165,7 +189,15 @@ pub struct ReadSplit {
 impl ReadSplit {
     /// Every named read added together.
     pub fn total(&self) -> Duration {
-        return self.config + self.branch + self.parents + self.changed + self.content + self.witness + self.conclusion + self.owed + self.follow;
+        return self.config
+            + self.branch
+            + self.parents
+            + self.changed
+            + self.content
+            + self.witness
+            + self.conclusion
+            + self.owed
+            + self.follow;
     }
 }
 
@@ -330,7 +362,13 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 /// ```ts
 /// waitLine(seq, repository, total, notes, taken) // 'waited batch=7 repository=/repo result=taken ...' | undefined
 /// ```
-pub fn wait_line(seq: u64, repository: &Path, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+pub fn wait_line(
+    seq: u64,
+    repository: &Path,
+    total: Duration,
+    notes: &WaitNotes,
+    taken: bool,
+) -> Option<String> {
     if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
         return None;
     }
@@ -380,10 +418,16 @@ pub fn index_update_ms_of(line: &str) -> Option<u64> {
 /// ```ts
 /// Number(new RegExp(` ${key}=(\\d+)`).exec(line)?.[1])
 /// ```
-fn digits_after_key(line: &str, key: &str) -> Option<u64> {
+fn digits_after_key(
+    line: &str,
+    key: &str,
+) -> Option<u64> {
     let word: String = format!(" {key}=");
     let from: usize = line.find(word.as_str())? + word.len();
-    let digits: String = line[from..].chars().take_while(char::is_ascii_digit).collect();
+    let digits: String = line[from..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
     return digits.parse::<u64>().ok();
 }
 
@@ -402,7 +446,11 @@ fn digits_after_key(line: &str, key: &str) -> Option<u64> {
 /// `answered request=${JSON.stringify(id)} outcome=${outcome} queued_ms=${queued} ...`
 /// ```
 pub fn answered_line(answered: &Answered<'_>) -> String {
-    let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    let mut holder: String = answered
+        .landing
+        .lock_holder
+        .as_ref()
+        .map_or_else(String::new, holder_field);
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} repository={:?} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
@@ -459,14 +507,24 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
 /// the protocol,
 /// its process and the worktree
 ///  instance it serves.
-pub fn started_line(release: &str, protocol: u32, instance: Option<&str>) -> String {
-    return format!("started release={release:?} protocol={protocol} pid={} instance={}", std::process::id(), instance.unwrap_or("any"));
+pub fn started_line(
+    release: &str,
+    protocol: u32,
+    instance: Option<&str>,
+) -> String {
+    return format!(
+        "started release={release:?} protocol={protocol} pid={} instance={}",
+        std::process::id(),
+        instance.unwrap_or("any")
+    );
 }
 
 /// The line for a retire message:
 /// a client of another release found this service and asked it to finish its batch and exit.
 pub fn retire_line(release: &str) -> String {
-    return format!("retire requested by a client; this service is release {release:?} and exits after its batch");
+    return format!(
+        "retire requested by a client; this service is release {release:?} and exits after its batch"
+    );
 }
 
 /// What:
@@ -549,8 +607,15 @@ impl ExitReason {
 
 /// The line for the service's own exit,
 /// with the time it ran since it began serving.
-pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
-    return format!("exiting reason={} uptime_ms={}", reason.word(), uptime.as_millis());
+pub fn exit_line(
+    reason: ExitReason,
+    uptime: Duration,
+) -> String {
+    return format!(
+        "exiting reason={} uptime_ms={}",
+        reason.word(),
+        uptime.as_millis()
+    );
 }
 
 /// The wall clock in whole milliseconds since the Unix epoch,
@@ -578,7 +643,10 @@ pub fn wall_millis() -> u128 {
 /// ```ts
 /// `${LOG_PREFIX}${line} at_ms=${Date.now()}\n`
 /// ```
-pub fn stamped_line(line: &str, at_ms: u128) -> String {
+pub fn stamped_line(
+    line: &str,
+    at_ms: u128,
+) -> String {
     return format!("{LOG_PREFIX}{line} at_ms={at_ms}\n");
 }
 
@@ -638,7 +706,10 @@ pub fn sink() -> &'static Sink {
 
 /// Names the release and instance every later entry carries as `CLI_GIT_RELEASE` and `CLI_GIT_INSTANCE`;
 /// the first call wins.
-pub fn set_context(release: &str, instance: Option<&str>) {
+pub fn set_context(
+    release: &str,
+    instance: Option<&str>,
+) {
     let mut fields: Vec<(&'static str, String)> = vec![("CLI_GIT_RELEASE", release.to_string())];
     if let Some(name) = instance {
         fields.push(("CLI_GIT_INSTANCE", name.to_string()));
@@ -665,7 +736,11 @@ pub fn set_context(release: &str, instance: Option<&str>) {
 /// ```ts
 /// logEntry('warning', 'cannot listen', [['CLI_GIT_REQUEST_ID', id]])
 /// ```
-pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
+pub fn log_entry(
+    priority: Priority,
+    line: &str,
+    fields: &[(&str, String)],
+) -> Delivery {
     let at_ms: u128 = wall_millis();
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
@@ -694,7 +769,13 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     //  FIFO drops is what the stream would have dropped anyway (`journald_native.rs`).
     if sink().on_stream() || in_service() {
         let mut never_waits: StreamWriter = StreamWriter::stderr();
-        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut never_waits);
+        return sink().deliver(
+            priority,
+            message.as_str(),
+            all.as_slice(),
+            text.as_str(),
+            &mut never_waits,
+        );
     }
     // The wrapper's own standard error, where a person reads it, is written by a thread of its own, for the same reason: a
     //  command that waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12
@@ -703,7 +784,13 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) {
         Delivery::Stderr
     } else {
-        sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
+        sink().deliver(
+            priority,
+            message.as_str(),
+            all.as_slice(),
+            text.as_str(),
+            &mut std::io::stderr(),
+        )
     };
 }
 

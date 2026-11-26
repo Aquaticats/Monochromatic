@@ -54,43 +54,80 @@
 //! if (watch.expired) throw new Error(`${waitingFor} showed no sign of work for ${limit} seconds`);
 //! ```
 
-/// The longest quiet gap of each step,
-/// kept for the timing records.
-use crate::quiet_ledger;
-/// The flag the watcher raises when a wait crossed the bound,
-/// read by the waiting thread.
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-/// The marks the waiting thread sends the watcher task;
-/// the task owns every other piece of state.
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-/// The lock files a stopped step leaves.
-use crate::stopped_git_locks::LockLedger;
-/// The watcher task,
-/// started on the process's runtime.
-use crate::lazy_runtime::spawn_on_runtime;
-use tokio::task::JoinHandle;
-/// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
-pub use crate::child_watch_clock_marks_and_stopping::{WatchTerms, grace_for};
-use crate::child_watch_clock_marks_and_stopping::{Mark, WatchFlags};
-use crate::child_watch_task_loop_and_notice::watch_loop;
-pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, EndedByStop, NotKnown, StepBound, ended_by_the_stop, is_ceiling, is_ended_by_stop, is_not_known, not_known_text, refused_while_stopping};
+use crate::child_watch_clock_marks_and_stopping::{
+    Mark,
+    WatchFlags,
+};
+pub use crate::child_watch_clock_marks_and_stopping::{
+    WatchTerms,
+    grace_for,
+};
 /// The one-shot run of a watched step,
 /// which is where a caller starts a command under a watch.
-pub use crate::child_watch_one_shot_run::{output_watched, output_watched_stopping, output_watched_within, output_watched_within_for_a_stop, reader_subject};
-/// The sentence a quiet step is reported with,
-/// kept beside the other wordings of a watch's ending.
-pub use crate::child_watch_step_bounds_and_errors::watched_timeout_text;
-/// The sentence for a step whose watcher could not exist,
-/// kept beside the other wordings of a watch's ending.
-pub use crate::child_watch_step_bounds_and_errors::no_watcher_text;
-use crate::child_watch_running_task::{RunningWatcher, WATCHER_END_BOUND, running_watcher_of};
+pub use crate::child_watch_one_shot_run::{
+    output_watched,
+    output_watched_stopping,
+    output_watched_within,
+    output_watched_within_for_a_stop,
+    reader_subject,
+};
 /// The refusal a control arms,
 /// which only a control build can reach.
 #[cfg(test)]
 pub(crate) use crate::child_watch_running_task::refuse_the_next_left_running_waiter;
-
+use crate::child_watch_running_task::{
+    RunningWatcher,
+    WATCHER_END_BOUND,
+    running_watcher_of,
+};
+/// The sentence for a step whose watcher could not exist,
+/// kept beside the other wordings of a watch's ending.
+pub use crate::child_watch_step_bounds_and_errors::no_watcher_text;
+/// The sentence a quiet step is reported with,
+/// kept beside the other wordings of a watch's ending.
+pub use crate::child_watch_step_bounds_and_errors::watched_timeout_text;
+pub use crate::child_watch_step_bounds_and_errors::{
+    CeilingReached,
+    EndedByStop,
+    NotKnown,
+    StepBound,
+    ended_by_the_stop,
+    is_ceiling,
+    is_ended_by_stop,
+    is_not_known,
+    not_known_text,
+    refused_while_stopping,
+};
+use crate::child_watch_task_loop_and_notice::watch_loop;
+/// The watcher task,
+/// started on the process's runtime.
+use crate::lazy_runtime::spawn_on_runtime;
+/// The longest quiet gap of each step,
+/// kept for the timing records.
+use crate::quiet_ledger;
+/// The lock files a stopped step leaves.
+use crate::stopped_git_locks::LockLedger;
+/// The flag the watcher raises when a wait crossed the bound,
+/// read by the waiting thread.
+use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
+/// Time spans and the monotonic clock.
+use std::time::{
+    Duration,
+    Instant,
+};
+/// The marks the waiting thread sends the watcher task;
+/// the task owns every other piece of state.
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
+use tokio::task::JoinHandle;
 
 /// What:
 ///  The watcher of one child process.
@@ -159,7 +196,11 @@ impl ChildWatch {
     /// Start watching `pid`,
     /// a child that holds no Git lock:
     /// see `start_with_locks`.
-    pub fn start(waiting_for: &str, pid: u32, terms: WatchTerms) -> Self {
+    pub fn start(
+        waiting_for: &str,
+        pid: u32,
+        terms: WatchTerms,
+    ) -> Self {
         return Self::start_with_locks(waiting_for, pid, terms, LockLedger::none());
     }
 
@@ -171,7 +212,12 @@ impl ChildWatch {
     ///  A watch whose task cannot run (the runtime has no worker thread) watches nothing,
     /// and the waits it marks run unannounced and
     ///  unended.
-    pub fn start_with_locks(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger) -> Self {
+    pub fn start_with_locks(
+        waiting_for: &str,
+        pid: u32,
+        terms: WatchTerms,
+        locks: LockLedger,
+    ) -> Self {
         return Self::start_under_stop(waiting_for, pid, terms, locks, None);
     }
 
@@ -187,8 +233,21 @@ impl ChildWatch {
     /// ```ts
     /// ChildWatch.startUnderStop(waitingFor, pid, terms, locks, work.takeArm())
     /// ```
-    pub fn start_under_stop(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger, stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>) -> Self {
-        return Self::start_when_a_task_may_run(waiting_for, pid, terms, locks, stop, crate::lazy_runtime::tasks_can_run());
+    pub fn start_under_stop(
+        waiting_for: &str,
+        pid: u32,
+        terms: WatchTerms,
+        locks: LockLedger,
+        stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
+    ) -> Self {
+        return Self::start_when_a_task_may_run(
+            waiting_for,
+            pid,
+            terms,
+            locks,
+            stop,
+            crate::lazy_runtime::tasks_can_run(),
+        );
     }
 
     /// What:
@@ -215,7 +274,8 @@ impl ChildWatch {
         stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
         a_task_may_run: bool,
     ) -> Self {
-        let (marks, incoming): (UnboundedSender<Mark>, UnboundedReceiver<Mark>) = unbounded_channel();
+        let (marks, incoming): (UnboundedSender<Mark>, UnboundedReceiver<Mark>) =
+            unbounded_channel();
         let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let longest: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
@@ -236,10 +296,13 @@ impl ChildWatch {
         let limit: Duration = terms.limit;
         // The child is this process's own unreaped child at this moment, so its number is certainly its own: the pin taken here
         //  names that child for good, and every signal of the stop goes through it (the third review's finding 1).
-        let root_pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
+        let root_pin: crate::child_watch_clock_marks_and_stopping::RootPin =
+            crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
         // Whether that pin proves the process decides, later, whether this watch can end the step it watches at all.
-        let could_end_the_step: bool = crate::child_watch_clock_marks_and_stopping::the_root_is_proven(&root_pin);
-        let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+        let could_end_the_step: bool =
+            crate::child_watch_clock_marks_and_stopping::the_root_is_proven(&root_pin);
+        let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) =
+            std::sync::mpsc::channel();
         // The task holds `ended` and drops it however it ends (a panic or an abort included), which `finished` reads as a
         // disconnection.
         let spawned: Option<JoinHandle<()>> = if a_task_may_run {
@@ -263,7 +326,21 @@ impl ChildWatch {
                 Some(refusal)
             }
         };
-        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, left_running_after, ceiling_hit, stopped, unwatched, could_end_the_step };
+        return Self {
+            marks: Some(marks),
+            expired,
+            task,
+            limit,
+            stoppable,
+            longest,
+            ledger_step: None,
+            ceiling,
+            left_running_after,
+            ceiling_hit,
+            stopped,
+            unwatched,
+            could_end_the_step,
+        };
     }
 
     /// Whether nothing watches this child,
@@ -282,11 +359,17 @@ impl ChildWatch {
     /// a watch whose pin proves the process ends the step itself and is given `THE_WATCH_HAS_ITS_ENDING`
     ///  to do it,
     /// while one that can prove nothing ends nothing and leaves the ceiling to that wait.
-    pub fn what_watches_the_step(&self) -> crate::step_output_read_whole_through_pipes::TheWatchOfAStep {
+    pub fn what_watches_the_step(
+        &self
+    ) -> crate::step_output_read_whole_through_pipes::TheWatchOfAStep {
         return match self.unwatched {
             Some(_) => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::NotWatched,
-            None if self.could_end_the_step => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndProven,
-            None => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndUnproven,
+            None if self.could_end_the_step => {
+                crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndProven
+            }
+            None => {
+                crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndUnproven
+            }
         };
     }
 
@@ -297,7 +380,10 @@ impl ChildWatch {
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
-    pub fn kept_as(mut self, step: &str) -> Self {
+    pub fn kept_as(
+        mut self,
+        step: &str,
+    ) -> Self {
         self.ledger_step = Some(String::from(step));
         return self;
     }
@@ -316,8 +402,14 @@ impl ChildWatch {
     ///  whether or not a quiet child may be ended (owner,
     /// 2026-11-03:
     /// "nothing should ever wait forever or indefinitely").
-    pub fn within(self, ceiling: Duration) -> Self {
-        self.ceiling.store(u64::try_from(ceiling.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
+    pub fn within(
+        self,
+        ceiling: Duration,
+    ) -> Self {
+        self.ceiling.store(
+            u64::try_from(ceiling.as_micros()).unwrap_or(u64::MAX - 1),
+            Ordering::Release,
+        );
         return self;
     }
 
@@ -332,8 +424,14 @@ impl ChildWatch {
     ///  the release gate of 0.6.1-alpha.11).
     ///  The watcher says what the waiting thread does,
     /// and it is told here.
-    pub fn stops_waiting_after(&self, after: Duration) {
-        self.left_running_after.store(u64::try_from(after.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
+    pub fn stops_waiting_after(
+        &self,
+        after: Duration,
+    ) {
+        self.left_running_after.store(
+            u64::try_from(after.as_micros()).unwrap_or(u64::MAX - 1),
+            Ordering::Release,
+        );
     }
 
     /// Whether the watcher ended the child because the service was stopped.
@@ -348,7 +446,10 @@ impl ChildWatch {
 
     /// Send one mark;
     /// a watcher that is gone has nothing to be told.
-    fn send(&self, mark: Mark) {
+    fn send(
+        &self,
+        mark: Mark,
+    ) {
         if let Some(marks) = &self.marks {
             // A watcher whose thread did not start, or that panicked, dropped its receiver; the wait runs unwatched.
             let _sent = marks.send(mark);
@@ -385,7 +486,9 @@ impl Drop for ChildWatch {
         if let Some(running) = self.task.take() {
             // The task ends as soon as it reads that the marks are gone (it checks at least every `STOP_POLL`); `finished` reports
             // that as a disconnection. A task that does not end by the bound is stopped, so that nothing waits for it for good.
-            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = running.finished.recv_timeout(WATCHER_END_BOUND) {
+            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                running.finished.recv_timeout(WATCHER_END_BOUND)
+            {
                 running.handle.abort();
             }
         }
@@ -426,7 +529,10 @@ impl ChildWatch {
             // The task ends as soon as it reads that the marks are gone; a task that does not end by the bound is stopped, so that
             // nothing waits for it for good.
             let abort: tokio::task::AbortHandle = running.handle.abort_handle();
-            if tokio::time::timeout(WATCHER_END_BOUND, running.handle).await.is_err() {
+            if tokio::time::timeout(WATCHER_END_BOUND, running.handle)
+                .await
+                .is_err()
+            {
                 abort.abort();
             }
         }

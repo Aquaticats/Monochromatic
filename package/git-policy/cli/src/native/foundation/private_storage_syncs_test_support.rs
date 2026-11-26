@@ -16,9 +16,13 @@
 //! export const syncs = { skipTheDurabilitySyncsHere, isFaithful, recordFileSync, takeFileSyncs, recordDirectorySync, takeDirectorySyncs };
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(true);
 
 /// What:
 ///  Makes this process's durability syncs no-ops,
@@ -97,7 +101,8 @@ thread_local! {
 /// syncedDirectories.push(await realpath(path));
 /// ```
 pub(crate) fn record_directory_sync(path: &Path) {
-    let canonical: PathBuf = std::fs::canonicalize(path).unwrap_or_else(|_| return path.to_path_buf());
+    let canonical: PathBuf =
+        std::fs::canonicalize(path).unwrap_or_else(|_| return path.to_path_buf());
     DIRECTORY_SYNCS.with(|syncs| {
         syncs.borrow_mut().push(canonical);
     });

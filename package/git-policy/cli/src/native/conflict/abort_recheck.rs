@@ -21,7 +21,10 @@
 //! const refusal = recheckBeforeTheCommand(); // a line for stderr, or nothing
 //! ```
 
-use crate::discard_audit::{AuditOutcome, record_audit};
+use crate::discard_audit::{
+    AuditOutcome,
+    record_audit,
+};
 use crate::repository_facts::git_facts;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::transaction_git::GitContext;
@@ -154,10 +157,18 @@ pub fn recheck_before_the_command() -> Option<String> {
         plan.context.global_prefix.as_slice(),
         plan.context.overlay.as_slice(),
     );
-    let crate::abort_discard_guard::AbortVerdict::Refused(text) = crate::abort_discard_guard::judge_abort_discard(&mut facts, plan.command) else {
+    let crate::abort_discard_guard::AbortVerdict::Refused(text) =
+        crate::abort_discard_guard::judge_abort_discard(&mut facts, plan.command)
+    else {
         return None;
     };
-    record_audit(&plan.identity, plan.command, AuditOutcome::Rejected, plan.seen.as_slice(), None);
+    record_audit(
+        &plan.identity,
+        plan.command,
+        AuditOutcome::Rejected,
+        plan.seen.as_slice(),
+        None,
+    );
     return Some(format!("{text}\n  {LATE_WORK}\n"));
 }
 

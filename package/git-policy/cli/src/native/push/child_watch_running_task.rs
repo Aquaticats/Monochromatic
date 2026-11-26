@@ -15,9 +15,15 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 /// The running watcher for a task that started,
 /// or nothing when no thread could run a task.
-pub(crate) fn running_watcher_of(spawned: Option<JoinHandle<()>>, finished: std::sync::mpsc::Receiver<()>) -> Option<RunningWatcher> {
+pub(crate) fn running_watcher_of(
+    spawned: Option<JoinHandle<()>>,
+    finished: std::sync::mpsc::Receiver<()>,
+) -> Option<RunningWatcher> {
     let handle: JoinHandle<()> = spawned?;
-    return Some(RunningWatcher { handle, finished });
+    return Some(RunningWatcher {
+        handle,
+        finished,
+    });
 }
 
 #[cfg(test)]
@@ -29,7 +35,9 @@ thread_local! {
 /// Refuse the next `count` threads that would wait for a step left running.
 #[cfg(test)]
 pub(crate) fn refuse_the_next_left_running_waiter(count: usize) {
-    WAITER_THREAD_REFUSALS.with(|left| { left.set(count); });
+    WAITER_THREAD_REFUSALS.with(|left| {
+        left.set(count);
+    });
 }
 
 /// What:
@@ -50,7 +58,9 @@ pub(crate) fn a_waiter_thread_is_refused_now() -> Option<std::io::Error> {
         left.set(armed.saturating_sub(1));
         return armed > 0;
     }) {
-        return Some(std::io::Error::other("a control refused the thread that waits for a step left running"));
+        return Some(std::io::Error::other(
+            "a control refused the thread that waits for a step left running",
+        ));
     }
     return None;
 }
@@ -74,7 +84,9 @@ pub(crate) fn a_waiter_thread_is_refused_now() -> Option<std::io::Error> {
 /// so the bound is that ceiling plus `STOP_TAIL_ALLOWANCE`:
 /// aborting earlier would cancel the kill of a
 ///  stubborn descendant that holds no pipe.
-pub(crate) const WATCHER_END_BOUND: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING.saturating_add(STOP_TAIL_ALLOWANCE);
+pub(crate) const WATCHER_END_BOUND: Duration =
+    crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING
+        .saturating_add(STOP_TAIL_ALLOWANCE);
 
 /// How long the wait for a watched step's output gives the watch to end the step before that wait ends it itself.
 /// Why:

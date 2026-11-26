@@ -102,7 +102,10 @@ impl RefusedClock {
 
 impl std::fmt::Display for RefusedClock {
     /// One sentence naming the constant and who sizes it.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(
             formatter,
             "the forced removal cannot run: its {} has no value yet, and step 17's build sets one only after the owner decides it or step 22's measurement sizes it",
@@ -151,13 +154,22 @@ impl TimeoutWindow {
         let Some(termination) = TERMINATION_WAIT else {
             return Err(RefusedClock::TerminationWait);
         };
-        return Ok(TimeoutWindow { termination, heartbeat });
+        return Ok(TimeoutWindow {
+            termination,
+            heartbeat,
+        });
     }
 
     /// A window of these two periods,
     /// for a control that needs values the release does not have.
-    pub fn at(termination: Duration, heartbeat: Duration) -> TimeoutWindow {
-        return TimeoutWindow { termination, heartbeat };
+    pub fn at(
+        termination: Duration,
+        heartbeat: Duration,
+    ) -> TimeoutWindow {
+        return TimeoutWindow {
+            termination,
+            heartbeat,
+        };
     }
 
     /// The wait between `SIGTERM` and `SIGKILL`.

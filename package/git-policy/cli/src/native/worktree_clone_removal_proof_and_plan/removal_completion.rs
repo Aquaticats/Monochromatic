@@ -42,29 +42,75 @@
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
-use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::{FreshHolderScan, the_holder_lines};
+use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::{
+    FreshHolderScan,
+    the_holder_lines,
+};
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
-use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{planned_origin_of, record_the_answer, refuse_a_marked_or_replaced_origin, the_remaining_snapshots};
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalClock, RemovalEntry};
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
-    CloneAbsence, DatasetDestroyDevice, HeadDestroyRequest, HeadDestroyed, amend_the_plan, destroy_the_head, push_a_line, settle_the_recorded_names, the_new_own_snapshots,
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_records_end::{RecordsGone, remove_the_removal_records};
-use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::{attempt_the_origin_cleanup, publish_the_origin_record};
-use crate::worktree_clone_removal_proof_and_plan::removal_report::{OriginCleanupDone, TheRemovalDone};
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer};
+use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
+    planned_origin_of,
+    record_the_answer,
+    refuse_a_marked_or_replaced_origin,
+    the_remaining_snapshots,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalClock,
+    RemovalEntry,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    DatasetDestroyDevice,
+    HeadDestroyRequest,
+    HeadDestroyed,
+    amend_the_plan,
+    destroy_the_head,
+    push_a_line,
+    settle_the_recorded_names,
+    the_new_own_snapshots,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::{
+    attempt_the_origin_cleanup,
+    publish_the_origin_record,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_records_end::{
+    RecordsGone,
+    remove_the_removal_records,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_report::{
+    OriginCleanupDone,
+    TheRemovalDone,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_resume::{
+    TheStart,
+    start_the_removal,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
-use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
-use crate::worktree_clone_removal_proof_and_plan::removal_resume::{TheStart, start_the_removal};
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
+    ClaimEnd,
+    RemovalClaim,
+    release_at_the_last_step,
+    take_the_removals_claim,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::plan_requests;
-use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{RequestResult, SnapshotDestroyDevice, send_request};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{
+    RequestResult,
+    SnapshotDestroyDevice,
+    send_request,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -86,7 +132,8 @@ pub struct RemovalCompletion<'a> {
     /// The repository and slot this removal is about.
     pub entry: &'a RemovalEntry<'a>,
     /// The pool reads the proofs make.
-    pub reads: &'a dyn crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads,
+    pub reads:
+        &'a dyn crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads,
     /// The request that takes the clone's mount down.
     pub unmount: &'a dyn RemovalUnmount,
     /// The process facts a new plan or an amendment records.
@@ -128,14 +175,32 @@ pub struct RemovalCompletion<'a> {
 pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalDone, RemovalStop> {
     // Step 1: the claim before any read, so an add or a second removal of this slot meets it here rather than
     // interleaving with this run's records.
-    let mut claim: RemovalClaim = take_the_removals_claim(input.entry.common_dir, input.entry.slot)?;
-    let started: TheStart = start_the_removal(input.entry, input.reads, input.unmount, input.clock, input.probe)?;
-    let folder: PlanFolder = PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: plans_folder(input.entry.common_dir), refusal };
-    })?;
+    let mut claim: RemovalClaim =
+        take_the_removals_claim(input.entry.common_dir, input.entry.slot)?;
+    let started: TheStart = start_the_removal(
+        input.entry,
+        input.reads,
+        input.unmount,
+        input.clock,
+        input.probe,
+    )?;
+    let folder: PlanFolder =
+        PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
+            return RemovalStop::PlanUnreadable {
+                path: plans_folder(input.entry.common_dir),
+                refusal,
+            };
+        })?;
     let mut done: TheRemovalDone = match started {
-        TheStart::Gone { plan, plan_path, lost, pool } => the_head_gone_path(input, folder, plan, plan_path, lost, pool)?,
-        TheStart::Present { entered } => {
+        TheStart::Gone {
+            plan,
+            plan_path,
+            lost,
+            pool,
+        } => the_head_gone_path(input, folder, plan, plan_path, lost, pool)?,
+        TheStart::Present {
+            entered,
+        } => {
             let lost: NamesToBeLost = entered.lost.clone();
             the_head_present_path(input, folder, entered, lost)?
         }
@@ -152,10 +217,18 @@ pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalD
 /// the head destroy,
 /// the origin attempt,
 /// the settle and the records.
-fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, entered: crate::worktree_clone_removal_proof_and_plan::removal_entry::EnteredRemoval, lost: NamesToBeLost) -> Result<TheRemovalDone, RemovalStop> {
+fn the_head_present_path(
+    input: &RemovalCompletion<'_>,
+    folder: PlanFolder,
+    entered: crate::worktree_clone_removal_proof_and_plan::removal_entry::EnteredRemoval,
+    lost: NamesToBeLost,
+) -> Result<TheRemovalDone, RemovalStop> {
     let planned = planned_origin_of(input.entry.slot, &entered);
     if entered.plan.head == HeadWord::Gone {
-        return Err(RemovalStop::ThePlanContradictsThePool { head: String::from(HeadWord::Gone.word()), clone: entered.plan.facts.clone_dataset.clone() });
+        return Err(RemovalStop::ThePlanContradictsThePool {
+            head: String::from(HeadWord::Gone.word()),
+            clone: entered.plan.facts.clone_dataset.clone(),
+        });
     }
     let mut plan: DestructionPlan = entered.plan;
     let plan_path: PathBuf = entered.plan_path;
@@ -168,8 +241,19 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
     // sends what remains in one request per chunk. A name the answer leaves is the next run's:
     // the design retries only after identifying the new own snapshot and reproving the plan,
     // never on an unexplained refusal.
-    send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
-    let after_the_batch: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
+    send_the_remaining(
+        input,
+        &folder,
+        &mut plan,
+        &planned,
+        plan_path.as_path(),
+        pool.as_str(),
+        &mut requests,
+        &mut residual,
+    )?;
+    let after_the_batch: Vec<
+        crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject,
+    > = the_live_snapshots(input, &plan)?;
     settle_the_recorded_names(&mut plan, after_the_batch.as_slice())?;
     let added = the_new_own_snapshots(&plan, after_the_batch.as_slice())?;
     let amended: bool = !added.is_empty();
@@ -181,21 +265,40 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
     if amended {
         // The own snapshot appeared after this run's first enumeration, so every check runs again and
         // the amendment is submitted once. Every name the first request left keeps its line.
-        send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
-        let after_the_amendment: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
+        send_the_remaining(
+            input,
+            &folder,
+            &mut plan,
+            &planned,
+            plan_path.as_path(),
+            pool.as_str(),
+            &mut requests,
+            &mut residual,
+        )?;
+        let after_the_amendment: Vec<
+            crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject,
+        > = the_live_snapshots(input, &plan)?;
         settle_the_recorded_names(&mut plan, after_the_amendment.as_slice())?;
         publish_the_plan(&folder, &plan)?;
     }
     let remaining: Vec<String> = the_names_not_destroyed(&plan);
     if !remaining.is_empty() {
-        return Err(RemovalStop::TheSnapshotsRemain { names: the_states_of(&plan, remaining.as_slice()) });
+        return Err(RemovalStop::TheSnapshotsRemain {
+            names: the_states_of(&plan, remaining.as_slice()),
+        });
     }
     residual = residual.max(refuse_the_holders(input, &plan)?);
     refuse_a_marked_or_replaced_origin(input.check, &planned, &plan)?;
-    let head: HeadDestroyed = destroy_the_head(&mut HeadDestroyRequest { plan: &mut plan, folder: &folder, probe: input.probe, device: input.head })?;
+    let head: HeadDestroyed = destroy_the_head(&mut HeadDestroyRequest {
+        plan: &mut plan,
+        folder: &folder,
+        probe: input.probe,
+        device: input.head,
+    })?;
     let origin: OriginCleanupDone = attempt_the_origin_cleanup(input, &plan)?;
     let settle: SettleAnswer = settle_the_registration(input, &plan)?;
-    let records: RecordsGone = remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
+    let records: RecordsGone =
+        remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
     return Ok(TheRemovalDone {
         slot: String::from(input.entry.slot),
         dataset: plan.facts.clone_dataset.clone(),
@@ -243,7 +346,8 @@ fn send_the_remaining(
     requests: &mut Vec<BatchOutcome>,
     residual: &mut usize,
 ) -> Result<(), RemovalStop> {
-    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, plan)?;
+    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> =
+        the_live_snapshots(input, plan)?;
     settle_the_recorded_names(plan, live.as_slice())?;
     let added = the_new_own_snapshots(plan, live.as_slice())?;
     if !added.is_empty() {
@@ -256,16 +360,29 @@ fn send_the_remaining(
         return Ok(());
     }
     let the_pool: String = String::from(pool);
-    let requested = plan_requests(the_pool.as_str(), remaining.as_slice(), input.budget).map_err(|refusal| {
-        return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
-    })?;
+    let requested = plan_requests(the_pool.as_str(), remaining.as_slice(), input.budget).map_err(
+        |refusal| {
+            return RemovalStop::TheSnapshotSetIsNotSendable {
+                said: refusal.to_string(),
+                sent: requests.len(),
+            };
+        },
+    )?;
     for chunk in requested.chunks() {
         *residual = (*residual).max(refuse_the_holders(input, plan)?);
         refuse_a_marked_or_replaced_origin(input.check, planned, plan)?;
-        let answer: RequestResult = send_request(input.snapshots, the_pool.as_str(), chunk.as_slice()).map_err(|refusal| {
-            return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
-        })?;
-        let RequestResult::Answered(outcome) = answer else { continue };
+        let answer: RequestResult =
+            send_request(input.snapshots, the_pool.as_str(), chunk.as_slice()).map_err(
+                |refusal| {
+                    return RemovalStop::TheSnapshotSetIsNotSendable {
+                        said: refusal.to_string(),
+                        sent: requests.len(),
+                    };
+                },
+            )?;
+        let RequestResult::Answered(outcome) = answer else {
+            continue;
+        };
         record_the_answer(plan, plan_path, &outcome)?;
         publish_the_plan(folder, plan)?;
         requests.push(outcome);
@@ -279,19 +396,47 @@ fn send_the_remaining(
 /// the origin attempt,
 /// the settle,
 /// and the records.
-fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, standing: DestructionPlan, plan_path: PathBuf, lost: NamesToBeLost, _pool: String) -> Result<TheRemovalDone, RemovalStop> {
+fn the_head_gone_path(
+    input: &RemovalCompletion<'_>,
+    folder: PlanFolder,
+    standing: DestructionPlan,
+    plan_path: PathBuf,
+    lost: NamesToBeLost,
+    _pool: String,
+) -> Result<TheRemovalDone, RemovalStop> {
     let mut plan: DestructionPlan = standing;
-    match crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::the_clone_absence(input.probe, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)? {
+    match crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::the_clone_absence(
+        input.probe,
+        plan.facts.clone_dataset.as_str(),
+        plan.facts.clone_guid,
+    )? {
         CloneAbsence::Gone => {}
-        CloneAbsence::There { name, guid } => {
-            return Err(RemovalStop::TheCloneNameWasReused { name, recorded_guid: plan.facts.clone_guid.file_name(), live_guid: guid.file_name() });
+        CloneAbsence::There {
+            name,
+            guid,
+        } => {
+            return Err(RemovalStop::TheCloneNameWasReused {
+                name,
+                recorded_guid: plan.facts.clone_guid.file_name(),
+                live_guid: guid.file_name(),
+            });
         }
-        CloneAbsence::Reused { guid } => {
-            return Err(RemovalStop::TheCloneNameWasReused { name: plan.facts.clone_dataset.clone(), recorded_guid: plan.facts.clone_guid.file_name(), live_guid: guid.file_name() });
+        CloneAbsence::Reused {
+            guid,
+        } => {
+            return Err(RemovalStop::TheCloneNameWasReused {
+                name: plan.facts.clone_dataset.clone(),
+                recorded_guid: plan.facts.clone_guid.file_name(),
+                live_guid: guid.file_name(),
+            });
         }
     }
     for snapshot in plan.named_snapshots() {
-        if plan.current_state(snapshot.name.as_str()).map(|held| return held.outcome == SnapshotOutcome::Destroyed).unwrap_or(false) {
+        if plan
+            .current_state(snapshot.name.as_str())
+            .map(|held| return held.outcome == SnapshotOutcome::Destroyed)
+            .unwrap_or(false)
+        {
             continue;
         }
         push_a_line(&mut plan, &snapshot, SnapshotOutcome::Destroyed, None)?;
@@ -300,7 +445,8 @@ fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, standin
     publish_the_plan(&folder, &plan)?;
     let origin: OriginCleanupDone = attempt_the_origin_cleanup(input, &plan)?;
     let settle: SettleAnswer = settle_the_registration(input, &plan)?;
-    let records: RecordsGone = remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
+    let records: RecordsGone =
+        remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
     return Ok(TheRemovalDone {
         slot: String::from(input.entry.slot),
         dataset: plan.facts.clone_dataset.clone(),
@@ -320,10 +466,22 @@ fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, standin
 
 /// Every live snapshot of the clone,
 /// which is the inventory the absence rule and the amendment read.
-fn the_live_snapshots(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject>, RemovalStop> {
-    return input.reads.snapshots_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid).map_err(|reason| {
-        return RemovalStop::InventoryUnreadable { clone: plan.facts.clone_dataset.clone(), reason };
-    });
+fn the_live_snapshots(
+    input: &RemovalCompletion<'_>,
+    plan: &DestructionPlan,
+) -> Result<
+    Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject>,
+    RemovalStop,
+> {
+    return input
+        .reads
+        .snapshots_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)
+        .map_err(|reason| {
+            return RemovalStop::InventoryUnreadable {
+                clone: plan.facts.clone_dataset.clone(),
+                reason,
+            };
+        });
 }
 
 /// Every name of the plan whose current state is not `destroyed`,
@@ -332,7 +490,12 @@ pub fn the_names_not_destroyed(plan: &DestructionPlan) -> Vec<String> {
     let mut names: Vec<String> = plan
         .named_snapshots()
         .iter()
-        .filter(|snapshot| return plan.current_state(snapshot.name.as_str()).map(|held| return held.outcome != SnapshotOutcome::Destroyed).unwrap_or(true))
+        .filter(|snapshot| {
+            return plan
+                .current_state(snapshot.name.as_str())
+                .map(|held| return held.outcome != SnapshotOutcome::Destroyed)
+                .unwrap_or(true);
+        })
         .map(|snapshot| return snapshot.name.clone())
         .collect();
     names.sort();
@@ -344,17 +507,27 @@ fn the_names_destroyed(plan: &DestructionPlan) -> Vec<String> {
     return plan
         .named_snapshots()
         .iter()
-        .filter(|snapshot| return plan.current_state(snapshot.name.as_str()).map(|held| return held.outcome == SnapshotOutcome::Destroyed).unwrap_or(false))
+        .filter(|snapshot| {
+            return plan
+                .current_state(snapshot.name.as_str())
+                .map(|held| return held.outcome == SnapshotOutcome::Destroyed)
+                .unwrap_or(false);
+        })
         .map(|snapshot| return snapshot.name.clone())
         .collect();
 }
 
 /// The names with the state their history ends on,
 /// which is what a stop prints.
-pub fn the_states_of(plan: &DestructionPlan, names: &[String]) -> Vec<String> {
+pub fn the_states_of(
+    plan: &DestructionPlan,
+    names: &[String],
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for name in names {
-        let state: &str = plan.current_state(name.as_str()).map_or("planned", |held| return held.outcome.word());
+        let state: &str = plan
+            .current_state(name.as_str())
+            .map_or("planned", |held| return held.outcome.word());
         lines.push(format!("{name} ({state})"));
     }
     return lines;
@@ -376,14 +549,23 @@ pub fn the_states_of(plan: &DestructionPlan, names: &[String]) -> Vec<String> {
 /// ```ts
 /// const remaining = theRemainingSnapshots(reads, plan);
 /// ```
-pub fn the_remaining(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<Vec<String>, RemovalStop> {
+pub fn the_remaining(
+    input: &RemovalCompletion<'_>,
+    plan: &DestructionPlan,
+) -> Result<Vec<String>, RemovalStop> {
     return the_remaining_snapshots(input.reads, plan);
 }
 
-fn publish_the_plan(folder: &PlanFolder, plan: &DestructionPlan) -> Result<(), RemovalStop> {
+fn publish_the_plan(
+    folder: &PlanFolder,
+    plan: &DestructionPlan,
+) -> Result<(), RemovalStop> {
     return match folder.publish(plan) {
         Ok(_path) => Ok(()),
-        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer { path: folder.path().join(plan.facts.clone_guid.file_name()), said: refusal.message(folder.path()) }),
+        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer {
+            path: folder.path().join(plan.facts.clone_guid.file_name()),
+            said: refusal.message(folder.path()),
+        }),
     };
 }
 
@@ -402,11 +584,19 @@ fn publish_the_plan(folder: &PlanFolder, plan: &DestructionPlan) -> Result<(), R
 /// ```ts
 /// const unfinished = refuseTheHolders(input, plan);
 /// ```
-fn refuse_the_holders(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<usize, RemovalStop> {
-    let scan = input.holders.holders_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)?;
+fn refuse_the_holders(
+    input: &RemovalCompletion<'_>,
+    plan: &DestructionPlan,
+) -> Result<usize, RemovalStop> {
+    let scan = input
+        .holders
+        .holders_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)?;
     let lines: Vec<String> = the_holder_lines(&scan);
     if !lines.is_empty() {
-        return Err(RemovalStop::HoldersSeeTheClone { holders: lines, incomplete: scan.incomplete.len() });
+        return Err(RemovalStop::HoldersSeeTheClone {
+            holders: lines,
+            incomplete: scan.incomplete.len(),
+        });
     }
     return Ok(scan.incomplete.len());
 }

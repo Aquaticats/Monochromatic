@@ -10,7 +10,10 @@
 //! ```
 
 /// The conversions under test.
-use super::{os_from_path_bytes, path_message_text};
+use super::{
+    os_from_path_bytes,
+    path_message_text,
+};
 
 /// Unix keeps every byte of a name,
 /// invalid UTF-8 included.
@@ -19,8 +22,14 @@ use super::{os_from_path_bytes, path_message_text};
 fn an_operating_system_string_keeps_every_byte() {
     use std::os::unix::ffi::OsStrExt;
     let every: Vec<u8> = (1..=255).collect();
-    assert_eq!(os_from_path_bytes(every.as_slice()).as_bytes(), every.as_slice());
-    assert_eq!(os_from_path_bytes(b"caf\xe9.txt").as_bytes(), b"caf\xe9.txt");
+    assert_eq!(
+        os_from_path_bytes(every.as_slice()).as_bytes(),
+        every.as_slice()
+    );
+    assert_eq!(
+        os_from_path_bytes(b"caf\xe9.txt").as_bytes(),
+        b"caf\xe9.txt"
+    );
     assert_eq!(os_from_path_bytes(b"").as_bytes(), b"");
 }
 

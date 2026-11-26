@@ -17,7 +17,10 @@
 //! forAControl(4); // this process may run four blocking jobs at once, whatever the host says
 //! ```
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The room a control asked for,
 /// or zero when none did.

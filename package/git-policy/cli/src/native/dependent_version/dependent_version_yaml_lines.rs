@@ -81,7 +81,10 @@ pub struct YamlProblem {
 /// ```
 impl YamlProblem {
     /// The problem at `line` for `reason`.
-    pub fn new(line: usize, reason: &str) -> YamlProblem {
+    pub fn new(
+        line: usize,
+        reason: &str,
+    ) -> YamlProblem {
         return YamlProblem {
             line,
             reason: String::from(reason),
@@ -372,7 +375,21 @@ fn refused_indicator(text: &str) -> Option<char> {
     let first: char = text.chars().next()?;
     if matches!(
         first,
-        '!' | '&' | '*' | '|' | '>' | '%' | '@' | '`' | '[' | ']' | '{' | '}' | ',' | '#' | '\'' | '"'
+        '!' | '&'
+            | '*'
+            | '|'
+            | '>'
+            | '%'
+            | '@'
+            | '`'
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | ','
+            | '#'
+            | '\''
+            | '"'
     ) {
         return Some(first);
     }

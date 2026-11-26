@@ -33,11 +33,18 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::fs_beneath::{ObjectId, identity_at, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_at,
+    open_root,
+};
+use crate::plain_file::read_plain_file;
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::worktree_convert_inspection::converting_path;
-use crate::plain_file::read_plain_file;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeConvertLeftoverStage";
@@ -88,8 +95,13 @@ pub fn record_path(worktree: &Path) -> Option<PathBuf> {
 /// ```ts
 /// await recordLeftoverStage(worktree, { original, created });
 /// ```
-pub fn record_leftover_stage(worktree: &Path, stage: &LeftoverStage) {
-    let Some(path) = record_path(worktree) else { return };
+pub fn record_leftover_stage(
+    worktree: &Path,
+    stage: &LeftoverStage,
+) {
+    let Some(path) = record_path(worktree) else {
+        return;
+    };
     let created: String = match stage.created {
         Some(found) => found.encode(),
         None => String::new(),
@@ -121,14 +133,19 @@ pub fn leftover_stage_of(worktree: &Path) -> Option<LeftoverStage> {
     let mut original: Option<ObjectId> = None;
     let mut created: Option<ObjectId> = None;
     for line in text.lines() {
-        let Some((name, value)) = line.split_once('=') else { continue };
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
         match name {
             "original" => original = ObjectId::decode(value),
             "created" if !value.is_empty() => created = ObjectId::decode(value),
             _ => {}
         }
     }
-    return Some(LeftoverStage { original: original?, created });
+    return Some(LeftoverStage {
+        original: original?,
+        created,
+    });
 }
 
 /// What:
@@ -164,11 +181,20 @@ pub fn recorded_stage_of(worktree: &Path) -> Option<ObjectId> {
 /// Drop the record of `worktree`,
 /// which has nothing left to name.
 pub fn forget_leftover_stage(worktree: &Path) {
-    let Some(path) = record_path(worktree) else { return };
+    let Some(path) = record_path(worktree) else {
+        return;
+    };
     match std::fs::remove_file(path.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => warn(TAG, format!("{} cannot be removed ({error}); a later abandon refuses the stage it names", path.display()).as_str()),
+        Err(error) => warn(
+            TAG,
+            format!(
+                "{} cannot be removed ({error}); a later abandon refuses the stage it names",
+                path.display()
+            )
+            .as_str(),
+        ),
     }
 }
 

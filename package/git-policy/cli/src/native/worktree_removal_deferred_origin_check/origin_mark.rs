@@ -28,8 +28,14 @@
 //! if (mark.kind === 'marked') refuse(mark.clones, mark.holds);
 //! ```
 
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{PropertyValue, value_of};
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ReadFailure};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    PropertyValue,
+    value_of,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ReadFailure,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 
 //region The property and its two values
@@ -134,8 +140,12 @@ impl OriginMark {
     pub fn described(&self) -> String {
         return match self {
             OriginMark::Unmarked => format!("`{DEFER_DESTROY_PROPERTY}` reads {MARK_OFF}"),
-            OriginMark::Marked { .. } => format!("`{DEFER_DESTROY_PROPERTY}` reads {MARK_ON}"),
-            OriginMark::Unreadable { said } => format!("`{DEFER_DESTROY_PROPERTY}` could not be read ({said})"),
+            OriginMark::Marked {
+                ..
+            } => format!("`{DEFER_DESTROY_PROPERTY}` reads {MARK_ON}"),
+            OriginMark::Unreadable {
+                said,
+            } => format!("`{DEFER_DESTROY_PROPERTY}` could not be read ({said})"),
         };
     }
 }
@@ -150,7 +160,9 @@ fn holds_of(identity: &DatasetIdentity) -> UserHolds {
     let value: PropertyValue = value_of(&identity.properties, USER_HOLDS_PROPERTY);
     return match value.number() {
         Some(count) => UserHolds::Counted(count),
-        None => UserHolds::Unreadable { said: value.describe(USER_HOLDS_PROPERTY) },
+        None => UserHolds::Unreadable {
+            said: value.describe(USER_HOLDS_PROPERTY),
+        },
     };
 }
 
@@ -171,11 +183,18 @@ pub fn mark_of_reply(identity: &DatasetIdentity) -> OriginMark {
     let value: PropertyValue = value_of(&identity.properties, DEFER_DESTROY_PROPERTY);
     return match value {
         PropertyValue::Number(MARK_OFF) => OriginMark::Unmarked,
-        PropertyValue::Number(MARK_ON) => OriginMark::Marked { clones: identity.stats.dds_num_clones, holds: holds_of(identity) },
-        PropertyValue::Number(other) => OriginMark::Unreadable {
-            said: format!("`{DEFER_DESTROY_PROPERTY}` reads {other}, and a mark is {MARK_OFF} or {MARK_ON}"),
+        PropertyValue::Number(MARK_ON) => OriginMark::Marked {
+            clones: identity.stats.dds_num_clones,
+            holds: holds_of(identity),
         },
-        other => OriginMark::Unreadable { said: other.describe(DEFER_DESTROY_PROPERTY) },
+        PropertyValue::Number(other) => OriginMark::Unreadable {
+            said: format!(
+                "`{DEFER_DESTROY_PROPERTY}` reads {other}, and a mark is {MARK_OFF} or {MARK_ON}"
+            ),
+        },
+        other => OriginMark::Unreadable {
+            said: other.describe(DEFER_DESTROY_PROPERTY),
+        },
     };
 }
 
@@ -195,11 +214,16 @@ pub fn mark_of_reply(identity: &DatasetIdentity) -> OriginMark {
 /// ```ts
 /// const mark = originMark(reader, name);
 /// ```
-pub fn origin_mark(reader: &dyn DatasetReader, name: &str) -> OriginMark {
+pub fn origin_mark(
+    reader: &dyn DatasetReader,
+    name: &str,
+) -> OriginMark {
     let read: Result<DatasetIdentity, ReadFailure> = reader.identity(name);
     return match read {
         Ok(identity) => mark_of_reply(&identity),
-        Err(failure) => OriginMark::Unreadable { said: failure.message() },
+        Err(failure) => OriginMark::Unreadable {
+            said: failure.message(),
+        },
     };
 }
 

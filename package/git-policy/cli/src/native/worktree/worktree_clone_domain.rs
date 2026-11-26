@@ -23,10 +23,16 @@
 //! const refusal = cloneDomainRefusal(cloneSideOf(source), cloneSideOf(target)); // throws the reason
 //! ```
 
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use crate::fs_mount_options::read_mount_facts;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What the clone rung reads about one side of a reflink:
@@ -101,10 +107,19 @@ fn clone_side_of(path: &Path) -> CloneSide {
     let kind: FilesystemKind = filesystem_kind(path).unwrap_or(FilesystemKind::Other);
     let device: Option<u64> = device_of_path(path);
     let mount_source: Option<String> = match kind {
-        FilesystemKind::Btrfs | FilesystemKind::Zfs => read_mount_facts(path).ok().flatten().map(|facts| { return facts.source; }),
+        FilesystemKind::Btrfs | FilesystemKind::Zfs => {
+            read_mount_facts(path).ok().flatten().map(|facts| {
+                return facts.source;
+            })
+        }
         FilesystemKind::Overlayfs | FilesystemKind::Other => None,
     };
-    return CloneSide { path: path.to_path_buf(), kind, device, mount_source };
+    return CloneSide {
+        path: path.to_path_buf(),
+        kind,
+        device,
+        mount_source,
+    };
 }
 
 /// What:
@@ -151,12 +166,21 @@ pub(crate) fn clone_write_target((destination, parent): (&Path, &Path)) -> PathB
 /// ```ts
 /// const unclonableAsked = ([source, target], may) => !may(target) ? `${target} cannot receive a clone` : !may(source) ? `${source} cannot give one` : undefined;
 /// ```
-pub(crate) fn unclonable_filesystem_asked((source, target): (&Path, &Path), may: &mut dyn FnMut(&Path) -> bool) -> Option<String> {
+pub(crate) fn unclonable_filesystem_asked(
+    (source, target): (&Path, &Path),
+    may: &mut dyn FnMut(&Path) -> bool,
+) -> Option<String> {
     if !may(target) {
-        return Some(format!("{} would receive the clones and its filesystem does not share data blocks between files", target.display()));
+        return Some(format!(
+            "{} would receive the clones and its filesystem does not share data blocks between files",
+            target.display()
+        ));
     }
     if !may(source) {
-        return Some(format!("{} holds the files to clone and its filesystem does not share data blocks between files", source.display()));
+        return Some(format!(
+            "{} holds the files to clone and its filesystem does not share data blocks between files",
+            source.display()
+        ));
     }
     return None;
 }
@@ -193,7 +217,10 @@ pub(crate) fn clone_domain_refusal_of((source, target): (&Path, &Path)) -> Optio
 /// ```ts
 /// function cloneDomainRefusal(source: CloneSide, target: CloneSide): string | undefined;
 /// ```
-fn clone_domain_refusal(source: &CloneSide, target: &CloneSide) -> Option<String> {
+fn clone_domain_refusal(
+    source: &CloneSide,
+    target: &CloneSide,
+) -> Option<String> {
     if source.kind != target.kind {
         return Some(different_filesystems(source, target));
     }
@@ -205,8 +232,15 @@ fn clone_domain_refusal(source: &CloneSide, target: &CloneSide) -> Option<String
 }
 
 /// The refusal of two paths that are not on one filesystem.
-fn different_filesystems(source: &CloneSide, target: &CloneSide) -> String {
-    return format!("{} and {} are on different filesystems", source.path.display(), target.path.display());
+fn different_filesystems(
+    source: &CloneSide,
+    target: &CloneSide,
+) -> String {
+    return format!(
+        "{} and {} are on different filesystems",
+        source.path.display(),
+        target.path.display()
+    );
 }
 
 /// What:
@@ -220,7 +254,10 @@ fn different_filesystems(source: &CloneSide, target: &CloneSide) -> String {
 /// ```ts
 /// const oneMountSource = (source, target) => source.mountSource && source.mountSource === target.mountSource ? undefined : differentFilesystems(source, target);
 /// ```
-fn one_mount_source(source: &CloneSide, target: &CloneSide) -> Option<String> {
+fn one_mount_source(
+    source: &CloneSide,
+    target: &CloneSide,
+) -> Option<String> {
     if source.mount_source.is_some() && source.mount_source == target.mount_source {
         return None;
     }
@@ -239,11 +276,22 @@ fn one_mount_source(source: &CloneSide, target: &CloneSide) -> Option<String> {
 /// ```ts
 /// const oneDevice = (source, target) => source.device && source.device === target.device ? undefined : differentFilesystems(source, target);
 /// ```
-fn one_device(source: &CloneSide, target: &CloneSide) -> Option<String> {
+fn one_device(
+    source: &CloneSide,
+    target: &CloneSide,
+) -> Option<String> {
     let (Some(one), Some(other)) = (source.device, target.device) else {
-        return Some(format!("{} and {} cannot both be examined, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+        return Some(format!(
+            "{} and {} cannot both be examined, so a reflink between them cannot be proven",
+            source.path.display(),
+            target.path.display()
+        ));
     };
-    return if one == other { None } else { Some(different_filesystems(source, target)) };
+    return if one == other {
+        None
+    } else {
+        Some(different_filesystems(source, target))
+    };
 }
 
 /// What:
@@ -264,12 +312,26 @@ fn one_device(source: &CloneSide, target: &CloneSide) -> Option<String> {
 /// ```ts
 /// const oneZfsDataset = (source, target) => source.mountSource === target.mountSource && source.device === target.device ? undefined : unproven(source, target);
 /// ```
-fn one_zfs_dataset(source: &CloneSide, target: &CloneSide) -> Option<String> {
-    let (Some(source_name), Some(target_name)) = (source.mount_source.as_deref(), target.mount_source.as_deref()) else {
-        return Some(format!("the ZFS dataset holding {} or {} cannot be named from the mount table, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+fn one_zfs_dataset(
+    source: &CloneSide,
+    target: &CloneSide,
+) -> Option<String> {
+    let (Some(source_name), Some(target_name)) = (
+        source.mount_source.as_deref(),
+        target.mount_source.as_deref(),
+    ) else {
+        return Some(format!(
+            "the ZFS dataset holding {} or {} cannot be named from the mount table, so a reflink between them cannot be proven",
+            source.path.display(),
+            target.path.display()
+        ));
     };
     let (Some(source_device), Some(target_device)) = (source.device, target.device) else {
-        return Some(format!("the device of {} or {} cannot be read, so a reflink between them cannot be proven", source.path.display(), target.path.display()));
+        return Some(format!(
+            "the device of {} or {} cannot be read, so a reflink between them cannot be proven",
+            source.path.display(),
+            target.path.display()
+        ));
     };
     if source_name == target_name && source_device == target_device {
         return None;

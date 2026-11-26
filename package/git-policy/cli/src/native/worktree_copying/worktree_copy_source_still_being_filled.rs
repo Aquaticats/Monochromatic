@@ -32,13 +32,26 @@
 
 use crate::diagnostic_log::debug;
 use crate::json_record::quote;
-use crate::worktree_add_binding::{Recorded, decode_record};
+use crate::worktree_add_binding::{
+    Recorded,
+    decode_record,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_journal::{journal_owner_is_dead, journal_root, read_pending_journals};
+use crate::worktree_copy_journal::{
+    journal_owner_is_dead,
+    journal_root,
+    read_pending_journals,
+};
 use crate::worktree_copy_owner::token_owner_is_dead;
-use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, claim_names};
+use crate::worktree_copy_stage_claim::{
+    DESTINATION_SUFFIX,
+    claim_names,
+};
 use crate::worktree_copy_stage_claim_reaping::read_claim;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The copy that has not finished filling one source,
@@ -150,10 +163,11 @@ pub fn source_is_still_being_filled_around(
             continue;
         };
         // A claim of a live owner is its add still running; a dead owner's add never finished, so both hold the copy back.
-        let unfinished: UnfinishedCopy = match token_owner_is_dead(owner.as_deref(), claim.as_path())? {
-            true => UnfinishedCopy::Interrupted,
-            false => UnfinishedCopy::Running,
-        };
+        let unfinished: UnfinishedCopy =
+            match token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+                true => UnfinishedCopy::Interrupted,
+                false => UnfinishedCopy::Running,
+            };
         debug(
             "worktreeCopySource",
             format!(
@@ -189,11 +203,14 @@ pub fn source_is_still_being_filled_around(
     // A copy that ended before it was whole leaves its record and nothing else: no claim and no journal stand beside it,
     // so the record is the only sign that this source holds less than its own source ignores. A copy staged from it would
     // carry that state on as a success. Its owner still running means the install is in progress, as a journal would say.
-    if let Some(unfinished) = crate::worktree_copy_unfilled_record::standing_record_of(common_dir, source_root)? {
-        let copy: UnfinishedCopy = match token_owner_is_dead(unfinished.owner.as_deref(), unfinished.path.as_path())? {
-            true => UnfinishedCopy::LeftUnfilled,
-            false => UnfinishedCopy::Running,
-        };
+    if let Some(unfinished) =
+        crate::worktree_copy_unfilled_record::standing_record_of(common_dir, source_root)?
+    {
+        let copy: UnfinishedCopy =
+            match token_owner_is_dead(unfinished.owner.as_deref(), unfinished.path.as_path())? {
+                true => UnfinishedCopy::LeftUnfilled,
+                false => UnfinishedCopy::Running,
+            };
         debug(
             "worktreeCopySource",
             format!(
@@ -222,7 +239,10 @@ pub fn source_is_still_being_filled_around(
 /// ```ts
 /// canonicalize(recorded) === sourceRoot
 /// ```
-fn names_root(recorded: &Path, source_root: &Path) -> bool {
+fn names_root(
+    recorded: &Path,
+    source_root: &Path,
+) -> bool {
     // `let-else` keeps the deleted destination out of the comparison; nothing can be copied from a path that is gone.
     let Ok(canonical) = std::fs::canonicalize(recorded) else {
         return false;
@@ -269,13 +289,23 @@ pub(crate) fn claim_destination(claim: &Path) -> Option<PathBuf> {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${destination} was made, but it received no ignored-state copy, because ${source} ...`
 /// ```
-pub fn source_still_being_filled_notice(destination: &Path, source: &Path, unfinished: UnfinishedCopy) -> String {
+pub fn source_still_being_filled_notice(
+    destination: &Path,
+    source: &Path,
+    unfinished: UnfinishedCopy,
+) -> String {
     let shown_destination: String = quote(destination.to_string_lossy().as_ref());
     let shown_source: String = quote(source.to_string_lossy().as_ref());
     let why: String = match unfinished {
-        UnfinishedCopy::Running => format!("because {shown_source} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished"),
-        UnfinishedCopy::Interrupted => format!("because the ignored-state copy of {shown_source} was interrupted before it finished, so its ignored files are only partly there. Once a command has completed that copy"),
-        UnfinishedCopy::LeftUnfilled => format!("because the ignored-state copy of {shown_source} ended before it was whole, and {shown_source} holds less than its own source ignores until the record of that copy is settled. Once that worktree is whole"),
+        UnfinishedCopy::Running => format!(
+            "because {shown_source} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished"
+        ),
+        UnfinishedCopy::Interrupted => format!(
+            "because the ignored-state copy of {shown_source} was interrupted before it finished, so its ignored files are only partly there. Once a command has completed that copy"
+        ),
+        UnfinishedCopy::LeftUnfilled => format!(
+            "because the ignored-state copy of {shown_source} ended before it was whole, and {shown_source} holds less than its own source ignores until the record of that copy is settled. Once that worktree is whole"
+        ),
     };
     return format!(
         "monochromatic-git-policy-cli: {shown_destination} was made, but it received no ignored-state copy, {why}, `git worktree remove {shown_destination}` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"

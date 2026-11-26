@@ -3,15 +3,43 @@
 
 use crate::claim_time::ClaimTime;
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_work::{CLAIM_LEASE, SERVICE_KINDS, Verdict};
+use crate::service_work::{
+    CLAIM_LEASE,
+    SERVICE_KINDS,
+    Verdict,
+};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
-use crate::service_work_handlers_replanning_and_acceptance::{MAX_TRIES, Replanning, WorkHandlers, tell_about_given_up, work_directory};
-use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, enqueue, id_of_entry, state_directory};
+use crate::service_work_handlers_replanning_and_acceptance::{
+    MAX_TRIES,
+    Replanning,
+    WorkHandlers,
+    tell_about_given_up,
+    work_directory,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    PENDING,
+    WorkItem,
+    enqueue,
+    id_of_entry,
+    state_directory,
+};
 use crate::work_item_recovery::requeue_expired;
 use crate::worktree_remove_hand_over::removal_item;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU32,
+    Ordering,
+};
 
 /// A handler whose subvolume delete answers one verdict every time it is asked,
 /// and counts the times it was asked.
@@ -24,19 +52,31 @@ struct OneVerdict {
 }
 
 impl WorkHandlers for OneVerdict {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+    fn subvolume_delete(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         let attempt: u32 = self.asked.fetch_add(1, Ordering::SeqCst) + 1;
         return (self.said)(attempt);
     }
@@ -71,7 +111,10 @@ struct Queued {
 /// ```ts
 /// const queued = (name, said) => { fixture(name); enqueue(removalItem(53)); return { common, work, id, handlers }; }
 /// ```
-fn queued(name: &str, said: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> Queued {
+fn queued(
+    name: &str,
+    said: impl Fn(u32) -> Verdict + Send + Sync + 'static,
+) -> Queued {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
     let parent_path: PathBuf = root.join("parent");
@@ -80,13 +123,26 @@ fn queued(name: &str, said: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> 
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 53);
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record");
-    return Queued { root, common, work, id: item.id(), handlers: OneVerdict { said: Box::new(said), asked: AtomicU32::new(0) } };
+    return Queued {
+        root,
+        common,
+        work,
+        id: item.id(),
+        handlers: OneVerdict {
+            said: Box::new(said),
+            asked: AtomicU32::new(0),
+        },
+    };
 }
 
 /// Drain whatever `queued` holds,
 /// through the service's own drain.
 fn drained(queued: &Queued) {
-    let mut replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let mut replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
     crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(
         queued.common.as_path(),
         &queued.handlers,
@@ -104,14 +160,19 @@ fn drained(queued: &Queued) {
 /// a state its name is in,
 /// or `claimed`,
 /// whose file names carry the reading of the claim as well as the id.
-fn settled_in(work: &Path, id: &str) -> &'static str {
+fn settled_in(
+    work: &Path,
+    id: &str,
+) -> &'static str {
     for state in [PENDING, DONE, FAILED] {
         if state_directory(work, state).join(id).is_file() {
             return state;
         }
     }
     let claimed: bool = std::fs::read_dir(state_directory(work, CLAIMED)).is_ok_and(|entries| {
-        return entries.flatten().any(|entry| { return id_of_entry(entry.file_name().to_string_lossy().as_ref()) == id; });
+        return entries.flatten().any(|entry| {
+            return id_of_entry(entry.file_name().to_string_lossy().as_ref()) == id;
+        });
     });
     return if claimed { CLAIMED } else { "no state" };
 }
@@ -137,10 +198,20 @@ fn settled_in(work: &Path, id: &str) -> &'static str {
 /// ```
 #[test]
 fn a_retryable_deletion_keeps_its_claim_and_is_not_settled_as_a_failure() {
-    let queued: Queued = queued("settling-retry-keeps-its-claim", |_attempt: u32| { return Verdict::Retry(String::from("a transient failure of the destroy")); });
+    let queued: Queued = queued("settling-retry-keeps-its-claim", |_attempt: u32| {
+        return Verdict::Retry(String::from("a transient failure of the destroy"));
+    });
     drained(&queued);
-    assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 1, "the attempt the verdict answered is the one that ran");
-    assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), CLAIMED, "a retryable answer is not a failure and is not done, so the claim is kept");
+    assert_eq!(
+        queued.handlers.asked.load(Ordering::SeqCst),
+        1,
+        "the attempt the verdict answered is the one that ran"
+    );
+    assert_eq!(
+        settled_in(queued.work.as_path(), queued.id.as_str()),
+        CLAIMED,
+        "a retryable answer is not a failure and is not done, so the claim is kept"
+    );
     remove(queued.root.as_path());
 }
 
@@ -166,20 +237,45 @@ fn a_retryable_deletion_keeps_its_claim_and_is_not_settled_as_a_failure() {
 #[test]
 fn a_retryable_deletion_whose_claim_ran_out_is_queued_again_and_the_next_attempt_deletes_it() {
     let queued: Queued = queued("settling-retry-then-done", |attempt: u32| {
-        return if attempt == 1 { Verdict::Retry(String::from("a transient failure of the destroy")) } else { Verdict::Done };
+        return if attempt == 1 {
+            Verdict::Retry(String::from("a transient failure of the destroy"))
+        } else {
+            Verdict::Done
+        };
     });
     drained(&queued);
-    assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), CLAIMED, "the first attempt keeps its claim");
+    assert_eq!(
+        settled_in(queued.work.as_path(), queued.id.as_str()),
+        CLAIMED,
+        "the first attempt keeps its claim"
+    );
     let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2);
     assert_eq!(
-        requeue_expired(queued.work.as_path(), &after_the_lease, CLAIM_LEASE, MAX_TRIES),
+        requeue_expired(
+            queued.work.as_path(),
+            &after_the_lease,
+            CLAIM_LEASE,
+            MAX_TRIES
+        ),
         1,
         "the claim whose lease ran out is taken back, which is the retry the answer asked for"
     );
-    assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), PENDING, "the record waits for the round that follows");
+    assert_eq!(
+        settled_in(queued.work.as_path(), queued.id.as_str()),
+        PENDING,
+        "the record waits for the round that follows"
+    );
     drained(&queued);
-    assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 2, "the record is tried again after a retryable verdict");
-    assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), DONE, "the attempt that followed deleted the subvolume and the record is done");
+    assert_eq!(
+        queued.handlers.asked.load(Ordering::SeqCst),
+        2,
+        "the record is tried again after a retryable verdict"
+    );
+    assert_eq!(
+        settled_in(queued.work.as_path(), queued.id.as_str()),
+        DONE,
+        "the attempt that followed deleted the subvolume and the record is done"
+    );
     remove(queued.root.as_path());
 }
 
@@ -200,15 +296,31 @@ fn a_retryable_deletion_whose_claim_ran_out_is_queued_again_and_the_next_attempt
 fn the_other_verdicts_keep_the_state_they_had() {
     let cases: [(Verdict, &str); 3] = [
         (Verdict::Done, DONE),
-        (Verdict::Failed(String::from("this mount does not allow the destroy")), FAILED),
-        (Verdict::Skipped(String::from("the record names no subvolume")), DONE),
+        (
+            Verdict::Failed(String::from("this mount does not allow the destroy")),
+            FAILED,
+        ),
+        (
+            Verdict::Skipped(String::from("the record names no subvolume")),
+            DONE,
+        ),
     ];
     for (verdict, state) in cases {
         let answered: Verdict = verdict.clone();
-        let queued: Queued = queued("settling-other-verdicts", move |_attempt: u32| { return answered.clone(); });
+        let queued: Queued = queued("settling-other-verdicts", move |_attempt: u32| {
+            return answered.clone();
+        });
         drained(&queued);
-        assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 1, "{verdict:?} is settled by the attempt that answered it");
-        assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), state, "{verdict:?} is settled in {state}");
+        assert_eq!(
+            queued.handlers.asked.load(Ordering::SeqCst),
+            1,
+            "{verdict:?} is settled by the attempt that answered it"
+        );
+        assert_eq!(
+            settled_in(queued.work.as_path(), queued.id.as_str()),
+            state,
+            "{verdict:?} is settled in {state}"
+        );
         remove(queued.root.as_path());
     }
 }
@@ -231,16 +343,33 @@ fn a_given_up_relink_leaves_a_notice_naming_the_command() {
     let git_dir: PathBuf = root.join(".git");
     std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
     let worktree: PathBuf = root.join("the worktree");
-    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
-        root: worktree.clone(),
-        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
-        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
-    };
-    let item: WorkItem = crate::package_repair_relink::item_of(git_dir.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
-    assert!(tell_about_given_up(git_dir.as_path(), std::slice::from_ref(&item)), "the person was not told");
+    let entry: crate::package_repair_relink::RelinkEntry =
+        crate::package_repair_relink::RelinkEntry {
+            root: worktree.clone(),
+            search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+            tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+        };
+    let item: WorkItem = crate::package_repair_relink::item_of(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
+    assert!(
+        tell_about_given_up(git_dir.as_path(), std::slice::from_ref(&item)),
+        "the person was not told"
+    );
     let lines: Vec<String> = crate::package_repair_relink_notice::take_notices(git_dir.as_path());
-    assert_eq!(lines.len(), 1, "one notice per record given up on: {lines:?}");
-    assert!(lines[0].contains("pnpm --dir "), "the notice names no command: {lines:?}");
+    assert_eq!(
+        lines.len(),
+        1,
+        "one notice per record given up on: {lines:?}"
+    );
+    assert!(
+        lines[0].contains("pnpm --dir "),
+        "the notice names no command: {lines:?}"
+    );
     remove(root.as_path());
 }
 
@@ -251,26 +380,45 @@ struct RelinkRetries {
 }
 
 impl WorkHandlers for RelinkRetries {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn relink(&self, _item: &WorkItem) -> Verdict {
+    fn relink(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Retry(self.said.clone());
     }
 }
 
 /// Drain whatever the common directory holds once.
-fn drained_once(common: &Path, handlers: &RelinkRetries) {
-    let mut replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+fn drained_once(
+    common: &Path,
+    handlers: &RelinkRetries,
+) {
+    let mut replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
     crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(
         common,
         handlers,
@@ -311,34 +459,80 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
     std::fs::create_dir_all(admin.as_path()).expect("registration");
     // A registration of this repository: the pointer to its own Git directory, and that directory's back-links to the
     //  worktree and to the repository, which is what a command in the worktree and the notice's target both read.
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
-    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("pointer");
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", worktree.join(".git").display()),
+    )
+    .expect("the back-link");
     std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
-    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
-        root: worktree.clone(),
-        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
-        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
-    };
-    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    let entry: crate::package_repair_relink::RelinkEntry =
+        crate::package_repair_relink::RelinkEntry {
+            root: worktree.clone(),
+            search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+            tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+        };
+    let item: WorkItem = crate::package_repair_relink::item_of(
+        common.as_path(),
+        worktree.as_path(),
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
-    let handlers: RelinkRetries = RelinkRetries { said: String::from("pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE") };
+    let handlers: RelinkRetries = RelinkRetries {
+        said: String::from("pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE"),
+    };
     // Every attempt is tried and the claim it keeps is taken back until the record's tries run out, which is where the
     //  service gives it up and tells the person.
     let mut given_up: Vec<WorkItem> = Vec::new();
     for _attempt in 1..=MAX_TRIES {
         drained_once(common.as_path(), &handlers);
         let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2);
-        let recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &after_the_lease, CLAIM_LEASE, MAX_TRIES, &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(common.as_path()));
+        let recovered = crate::work_item_recovery::requeue_expired_reporting_telling(
+            work.as_path(),
+            &after_the_lease,
+            CLAIM_LEASE,
+            MAX_TRIES,
+            &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(common.as_path()),
+        );
         given_up.extend(recovered.given_up);
     }
-    assert_eq!(given_up.len(), 1, "the record whose tries ran out is given up on once");
+    assert_eq!(
+        given_up.len(),
+        1,
+        "the record whose tries ran out is given up on once"
+    );
     let notices: Vec<String> = crate::package_repair_relink_notice::take_notices(admin.as_path());
-    assert_eq!(notices.len(), 1, "one notice waits in the relinked worktree's own Git directory: {notices:?}");
-    assert!(notices[0].contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."), "the notice does not quote the reason: {notices:?}");
-    assert!(crate::package_repair_relink_notice::take_notices(common.as_path()).is_empty(), "the notice was left in the Git directory of the worktree whose command added it");
+    assert_eq!(
+        notices.len(),
+        1,
+        "one notice waits in the relinked worktree's own Git directory: {notices:?}"
+    );
+    assert!(
+        notices[0]
+            .contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."),
+        "the notice does not quote the reason: {notices:?}"
+    );
+    assert!(
+        crate::package_repair_relink_notice::take_notices(common.as_path()).is_empty(),
+        "the notice was left in the Git directory of the worktree whose command added it"
+    );
     // The reason the notice quoted is not kept once the record it belongs to has settled.
-    assert!(!work_directory(common.as_path()).parent().expect("the wrapper's folder").join("relink-failures").join(item.id()).is_file(), "the reason of a settled record is left behind");
+    assert!(
+        !work_directory(common.as_path())
+            .parent()
+            .expect("the wrapper's folder")
+            .join("relink-failures")
+            .join(item.id())
+            .is_file(),
+        "the reason of a settled record is left behind"
+    );
     remove(root.as_path());
 }
 
@@ -378,14 +572,23 @@ fn a_push_the_recovery_gives_up_on_gives_up_the_programs_it_held() {
         transport: true,
     };
     enqueue(work.as_path(), &last_try).expect("the record is queued");
-    let _claimed = crate::work_item::claim_next(work.as_path(), &ClaimTime::read()).expect("a claim").expect("the record");
+    let _claimed = crate::work_item::claim_next(work.as_path(), &ClaimTime::read())
+        .expect("a claim")
+        .expect("the record");
     crate::service_push_programs_held_in_memory::remember(
         last_try.git_dir.as_path(),
         last_try.id().as_str(),
-        crate::service_push_programs_held_in_memory::of(&[(std::ffi::OsString::from("PATH"), std::ffi::OsString::from("/opt/git-lfs/bin:/usr/bin"))]),
+        crate::service_push_programs_held_in_memory::of(&[(
+            std::ffi::OsString::from("PATH"),
+            std::ffi::OsString::from("/opt/git-lfs/bin:/usr/bin"),
+        )]),
     );
     assert!(
-        crate::service_push_programs_held_in_memory::held(last_try.git_dir.as_path(), last_try.id().as_str()).is_some(),
+        crate::service_push_programs_held_in_memory::held(
+            last_try.git_dir.as_path(),
+            last_try.id().as_str()
+        )
+        .is_some(),
         "the positive control: the record was given the values of the command that asked for its push"
     );
     let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2);
@@ -396,8 +599,20 @@ fn a_push_the_recovery_gives_up_on_gives_up_the_programs_it_held() {
         MAX_TRIES,
         &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(common.as_path()),
     );
-    assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the recovery gave the record up");
-    assert_eq!(crate::service_push_programs_held_in_memory::held(last_try.git_dir.as_path(), last_try.id().as_str()),
+    assert_eq!(
+        recovered
+            .given_up
+            .iter()
+            .map(WorkItem::id)
+            .collect::<Vec<String>>(),
+        vec![last_try.id()],
+        "the recovery gave the record up"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(
+            last_try.git_dir.as_path(),
+            last_try.id().as_str()
+        ),
         None,
         "a record nothing will run again keeps no value of the command that asked for its push"
     );
@@ -461,24 +676,49 @@ fn given_up_relink_scene(name: &str) -> RelinkScene {
     std::fs::create_dir_all(admin.as_path()).expect("registration");
     // A registration of this repository: the pointer to its own Git directory, and that directory's back-links to the
     //  worktree and to the repository, which is what a command in the worktree and the notice's target both read.
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
-    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("pointer");
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", worktree.join(".git").display()),
+    )
+    .expect("the back-link");
     std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
-    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
-        root: worktree.clone(),
-        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
-        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
-    };
-    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    let entry: crate::package_repair_relink::RelinkEntry =
+        crate::package_repair_relink::RelinkEntry {
+            root: worktree.clone(),
+            search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+            tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+        };
+    let item: WorkItem = crate::package_repair_relink::item_of(
+        common.as_path(),
+        worktree.as_path(),
+        &entry,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
-    return RelinkScene { root, common, admin, item, work, passes: std::cell::Cell::new(0) };
+    return RelinkScene {
+        root,
+        common,
+        admin,
+        item,
+        work,
+        passes: std::cell::Cell::new(0),
+    };
 }
 
 impl RelinkScene {
     /// One attempt of the relink and the claim it keeps taken back,
     /// read at a clock further ahead than every pass before it.
-    fn attempt(&self, handlers: &RelinkRetries) -> crate::work_item_recovery::Recovered {
+    fn attempt(
+        &self,
+        handlers: &RelinkRetries,
+    ) -> crate::work_item_recovery::Recovered {
         drained_once(self.common.as_path(), handlers);
         let passes: u32 = self.passes.get() + 1;
         self.passes.set(passes);
@@ -488,27 +728,40 @@ impl RelinkScene {
             &after_the_lease,
             CLAIM_LEASE,
             MAX_TRIES,
-            &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(self.common.as_path()),
+            &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(
+                self.common.as_path(),
+            ),
         );
     }
 
     /// The record's own attempts, up to the claim the give-up pass takes.
-    fn drive_to_the_last_claim(&self, handlers: &RelinkRetries) {
+    fn drive_to_the_last_claim(
+        &self,
+        handlers: &RelinkRetries,
+    ) {
         for _attempt in 1..MAX_TRIES {
             let recovered: crate::work_item_recovery::Recovered = self.attempt(handlers);
-            assert!(recovered.given_up.is_empty(), "the record is not given up on before its last try");
+            assert!(
+                recovered.given_up.is_empty(),
+                "the record is not given up on before its last try"
+            );
         }
     }
 
     /// Where the record stands, as the directory it is in.
     fn state(&self) -> &'static str {
         for state in [PENDING, DONE, FAILED] {
-            if state_directory(self.work.as_path(), state).join(self.item.id()).is_file() {
+            if state_directory(self.work.as_path(), state)
+                .join(self.item.id())
+                .is_file()
+            {
                 return state;
             }
         }
         for state in ["claimed", "recovering"] {
-            let Ok(entries) = std::fs::read_dir(state_directory(self.work.as_path(), state)) else { continue };
+            let Ok(entries) = std::fs::read_dir(state_directory(self.work.as_path(), state)) else {
+                continue;
+            };
             for entry in entries.flatten() {
                 if id_of_entry(entry.file_name().to_string_lossy().as_ref()) == self.item.id() {
                     return state;
@@ -520,7 +773,10 @@ impl RelinkScene {
 
     /// The reason kept beside the record, as a command asks for it.
     fn kept_reason(&self) -> Option<String> {
-        return crate::package_repair_relink_failure::recall(self.item.git_dir.as_path(), self.item.id().as_str());
+        return crate::package_repair_relink_failure::recall(
+            self.item.git_dir.as_path(),
+            self.item.id().as_str(),
+        );
     }
 
     /// The notices a command in the worktree would read now, taken as it takes them.
@@ -551,29 +807,64 @@ impl RelinkScene {
 #[test]
 fn a_give_up_killed_between_the_words_and_the_move_settles_on_the_next_pass_with_the_same_words() {
     let scene: RelinkScene = given_up_relink_scene("relink-give-up-killed");
-    let handlers: RelinkRetries = RelinkRetries { said: String::from(THE_REASON) };
+    let handlers: RelinkRetries = RelinkRetries {
+        said: String::from(THE_REASON),
+    };
     scene.drive_to_the_last_claim(&handlers);
     // The kill this control makes: the pass writes the words and stops before the move, which is the state a process
     //  killed at that instruction leaves.
-    crate::work_item_recovery::KILLED_AFTER_THE_WORDS.with(|flag: &std::cell::Cell<bool>| flag.set(true));
+    crate::work_item_recovery::KILLED_AFTER_THE_WORDS
+        .with(|flag: &std::cell::Cell<bool>| flag.set(true));
     let interrupted: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
-    crate::work_item_recovery::KILLED_AFTER_THE_WORDS.with(|flag: &std::cell::Cell<bool>| flag.set(false));
+    crate::work_item_recovery::KILLED_AFTER_THE_WORDS
+        .with(|flag: &std::cell::Cell<bool>| flag.set(false));
     assert_eq!(interrupted.moved, 0, "the killed pass moved nothing");
-    assert!(interrupted.given_up.is_empty(), "the killed pass reported nothing given up");
-    assert_eq!(scene.state(), "recovering", "a killed pass leaves the record where it took it");
-    assert_eq!(scene.kept_reason().as_deref(), Some(THE_REASON), "the reason died with the killed pass, and the next pass has nothing to quote");
+    assert!(
+        interrupted.given_up.is_empty(),
+        "the killed pass reported nothing given up"
+    );
+    assert_eq!(
+        scene.state(),
+        "recovering",
+        "a killed pass leaves the record where it took it"
+    );
+    assert_eq!(
+        scene.kept_reason().as_deref(),
+        Some(THE_REASON),
+        "the reason died with the killed pass, and the next pass has nothing to quote"
+    );
     let first: Vec<String> = scene.notices();
-    assert_eq!(first.len(), 1, "the killed pass wrote one notice: {first:?}");
-    assert!(first[0].contains(THE_REASON), "the first notice quotes the reason: {first:?}");
+    assert_eq!(
+        first.len(),
+        1,
+        "the killed pass wrote one notice: {first:?}"
+    );
+    assert!(
+        first[0].contains(THE_REASON),
+        "the first notice quotes the reason: {first:?}"
+    );
     // The next pass, which is the one the recovery promises.
     let settled: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
-    assert_eq!(settled.moved, 1, "the pass after the kill settles the record");
+    assert_eq!(
+        settled.moved, 1,
+        "the pass after the kill settles the record"
+    );
     assert_eq!(scene.state(), FAILED, "the record reached `failed`");
-    assert_eq!(scene.kept_reason(), None, "the reason is taken back once the record is where nothing reads it again");
+    assert_eq!(
+        scene.kept_reason(),
+        None,
+        "the reason is taken back once the record is where nothing reads it again"
+    );
     let shown: Vec<String> = scene.notices();
     assert_eq!(shown.len(), 1, "the person reads one notice: {shown:?}");
-    assert!(shown[0].contains(THE_REASON), "the words the person reads are the ones the first pass wrote: {shown:?}");
-    assert!(!shown[0].contains("no tool's answer was kept"), "the person is told a tool answered: {shown:?}");
+    assert!(
+        shown[0].contains(THE_REASON),
+        "the words the person reads are the ones the first pass wrote: {shown:?}"
+    );
+    assert!(
+        !shown[0].contains("no tool's answer was kept"),
+        "the person is told a tool answered: {shown:?}"
+    );
     remove(scene.root.as_path());
 }
 
@@ -594,24 +885,49 @@ fn a_give_up_killed_between_the_words_and_the_move_settles_on_the_next_pass_with
 #[test]
 fn a_give_up_whose_move_to_failed_fails_settles_on_the_next_pass_with_the_same_words() {
     let scene: RelinkScene = given_up_relink_scene("relink-give-up-move-fails");
-    let handlers: RelinkRetries = RelinkRetries { said: String::from(THE_REASON) };
+    let handlers: RelinkRetries = RelinkRetries {
+        said: String::from(THE_REASON),
+    };
     scene.drive_to_the_last_claim(&handlers);
     // The move this control makes fail: the directory it moves into is not there, which is what a failed rename leaves
     //  behind and what a full disk does to the record that would have moved.
-    std::fs::remove_dir(state_directory(scene.work.as_path(), FAILED)).expect("the failed directory is taken away");
+    std::fs::remove_dir(state_directory(scene.work.as_path(), FAILED))
+        .expect("the failed directory is taken away");
     let failed_move: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
     assert_eq!(failed_move.moved, 0, "a move that fails settles nothing");
-    assert_eq!(scene.state(), "recovering", "the record stays where the taker left it");
-    assert_eq!(scene.kept_reason().as_deref(), Some(THE_REASON), "the reason was taken back before the record got to where nothing reads it again");
+    assert_eq!(
+        scene.state(),
+        "recovering",
+        "the record stays where the taker left it"
+    );
+    assert_eq!(
+        scene.kept_reason().as_deref(),
+        Some(THE_REASON),
+        "the reason was taken back before the record got to where nothing reads it again"
+    );
     // What a later pass has once the disk can take the record again.
-    std::fs::create_dir_all(state_directory(scene.work.as_path(), FAILED)).expect("the failed directory is back");
+    std::fs::create_dir_all(state_directory(scene.work.as_path(), FAILED))
+        .expect("the failed directory is back");
     let settled: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
-    assert_eq!(settled.moved, 1, "the pass after the failed move settles the record");
+    assert_eq!(
+        settled.moved, 1,
+        "the pass after the failed move settles the record"
+    );
     assert_eq!(scene.state(), FAILED, "the record reached `failed`");
     let shown: Vec<String> = scene.notices();
     assert_eq!(shown.len(), 1, "the person reads one notice: {shown:?}");
-    assert!(shown[0].contains(THE_REASON), "the notice the person reads quotes the reason: {shown:?}");
-    assert!(!shown[0].contains("no tool's answer was kept"), "the notice claims no answer was kept: {shown:?}");
-    assert_eq!(scene.kept_reason(), None, "the reason is taken back once the record settled");
+    assert!(
+        shown[0].contains(THE_REASON),
+        "the notice the person reads quotes the reason: {shown:?}"
+    );
+    assert!(
+        !shown[0].contains("no tool's answer was kept"),
+        "the notice claims no answer was kept: {shown:?}"
+    );
+    assert_eq!(
+        scene.kept_reason(),
+        None,
+        "the reason is taken back once the record settled"
+    );
     remove(scene.root.as_path());
 }

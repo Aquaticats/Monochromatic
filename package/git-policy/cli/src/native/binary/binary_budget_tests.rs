@@ -21,14 +21,40 @@
 //! absence is known (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`,
 //! `src/native/testing/strace_the_controls_run_under.rs`).
 
-use super::budget_trace::{Counts, TRACED_CALLS, count};
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::strace::{strace_available_or_acknowledged, strace_program};
-use super::support::{Fixture, REAL_GIT, direct, fixture, git, repository};
+use super::budget_trace::{
+    Counts,
+    TRACED_CALLS,
+    count,
+};
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    remove_settled,
+    wrapped_commit,
+};
+use super::strace::{
+    strace_available_or_acknowledged,
+    strace_program,
+};
+use super::support::{
+    Fixture,
+    REAL_GIT,
+    direct,
+    fixture,
+    git,
+    repository,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 //region budgets: the one place the numbers live
 // The ratchet rule: lower a number whenever a commit gets cheaper, and never raise one without a recorded reason in
@@ -221,7 +247,11 @@ const WARM: Budget = Budget {
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 0,
-    git_syncs: &[("index-pack", 0), ("multi-pack-index write", 0), ("pack-objects", 0)],
+    git_syncs: &[
+        ("index-pack", 0),
+        ("multi-pack-index write", 0),
+        ("pack-objects", 0),
+    ],
 };
 //endregion
 
@@ -257,7 +287,10 @@ enum Scenario {
 /// which may or may not have started when the trace ends and would make the
 ///  counts differ from run to run;
 /// in the foreground its children belong to the commit and are counted with it.
-fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
+fn prepared_repository(
+    fixture: &Fixture,
+    scenario: Scenario,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("budget"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
@@ -265,37 +298,79 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     match scenario {
         Scenario::NoHooks => {}
         Scenario::WorktreeConfig => {
-            git(fixture, repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
-            std::fs::write(repo.join(".git/config.worktree"), b"[user]\n\tname = Only Here\n").expect("config.worktree");
+            git(
+                fixture,
+                repo.as_path(),
+                &["config", "extensions.worktreeConfig", "true"],
+            );
+            std::fs::write(
+                repo.join(".git/config.worktree"),
+                b"[user]\n\tname = Only Here\n",
+            )
+            .expect("config.worktree");
         }
         Scenario::MonitorOn => {
-            git(fixture, repo.as_path(), &["config", "core.fsmonitor", "true"]);
+            git(
+                fixture,
+                repo.as_path(),
+                &["config", "core.fsmonitor", "true"],
+            );
             // As for the warm scenario:
             // the first commit is not traced,
             // and it is the one that starts the monitor daemon,
             // which
             //  would otherwise stay in the trace as a child that never ends.
-            let first: Output = wrapped_commit(fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"])
-                .output()
-                .expect("the first wrapped commit runs");
-            assert_eq!(first.status.code(), Some(0), "the first wrapped commit: {}", String::from_utf8_lossy(&first.stderr));
+            let first: Output = wrapped_commit(
+                fixture,
+                repo.as_path(),
+                &["commit", "--quiet", "--message=first", "--", "a.txt"],
+            )
+            .output()
+            .expect("the first wrapped commit runs");
+            assert_eq!(
+                first.status.code(),
+                Some(0),
+                "the first wrapped commit: {}",
+                String::from_utf8_lossy(&first.stderr)
+            );
             std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
         }
         Scenario::ConfiguredHook => {
-            git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
+            git(
+                fixture,
+                repo.as_path(),
+                &["config", "hook.early.event", "post-commit"],
+            );
             let log: String = format!("echo ran >> '{}'", fixture.root.join("hook.log").display());
-            git(fixture, repo.as_path(), &["config", "hook.early.command", log.as_str()]);
+            git(
+                fixture,
+                repo.as_path(),
+                &["config", "hook.early.command", log.as_str()],
+            );
         }
         Scenario::Warm => {
             // The first wrapped commit is not traced; it creates what a first commit creates.
-            let first: Output = wrapped_commit(fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"])
-                .output()
-                .expect("the first wrapped commit runs");
-            assert_eq!(first.status.code(), Some(0), "the first wrapped commit: {}", String::from_utf8_lossy(&first.stderr));
+            let first: Output = wrapped_commit(
+                fixture,
+                repo.as_path(),
+                &["commit", "--quiet", "--message=first", "--", "a.txt"],
+            )
+            .output()
+            .expect("the first wrapped commit runs");
+            assert_eq!(
+                first.status.code(),
+                Some(0),
+                "the first wrapped commit: {}",
+                String::from_utf8_lossy(&first.stderr)
+            );
             std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
         }
         Scenario::Amend => {
-            git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base", "--", "a.txt"]);
+            git(
+                fixture,
+                repo.as_path(),
+                &["commit", "--quiet", "--message=base", "--", "a.txt"],
+            );
             std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
         }
     }
@@ -309,7 +384,10 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
 /// one `--quiet` suppresses only the attach and
 ///  personality messages,
 /// and `binary_budget_trace` reads a line only when it begins with a process ID and a traced call.
-fn traced(inner: &Command, trace: &Path) -> Command {
+fn traced(
+    inner: &Command,
+    trace: &Path,
+) -> Command {
     let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
@@ -345,7 +423,10 @@ fn observed_figures(counts: &Counts) -> Figures {
     for (name, seen) in &counts.other_starts {
         figures.insert(format!("starts of {name}"), *seen);
     }
-    figures.insert(String::from("sync calls by the wrapper"), counts.wrapper_syncs);
+    figures.insert(
+        String::from("sync calls by the wrapper"),
+        counts.wrapper_syncs,
+    );
     for (name, seen) in &counts.git_syncs {
         figures.insert(format!("sync calls by git {name}"), *seen);
     }
@@ -357,7 +438,10 @@ fn observed_figures(counts: &Counts) -> Figures {
 
 /// The figures a budget allows;
 /// `other_starts` is its list after the filesystem adjustment.
-fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
+fn budget_figures(
+    budget: &Budget,
+    other_starts: &[(&str, usize)],
+) -> Figures {
     let mut figures: Figures = Figures::new();
     for (name, allowed) in budget.git_starts {
         figures.insert(format!("starts of git {name}"), *allowed);
@@ -365,7 +449,10 @@ fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
     for (name, allowed) in other_starts {
         figures.insert(format!("starts of {name}"), *allowed);
     }
-    figures.insert(String::from("sync calls by the wrapper"), budget.wrapper_syncs);
+    figures.insert(
+        String::from("sync calls by the wrapper"),
+        budget.wrapper_syncs,
+    );
     for (name, allowed) in budget.git_syncs {
         figures.insert(format!("sync calls by git {name}"), *allowed);
     }
@@ -375,7 +462,10 @@ fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
 /// One line for each figure that differs,
 /// naming what it counts;
 /// a figure missing on one side counts as zero there.
-fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
+fn differences(
+    budgeted: &Figures,
+    observed: &Figures,
+) -> Vec<String> {
     let mut keys: Vec<&String> = budgeted.keys().chain(observed.keys()).collect();
     keys.sort();
     keys.dedup();
@@ -384,8 +474,14 @@ fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
         let allowed: usize = budgeted.get(key).copied().unwrap_or(0);
         let seen: usize = observed.get(key).copied().unwrap_or(0);
         if allowed != seen {
-            let unlisted: &str = if budgeted.contains_key(key) { "" } else { " (not in the budget)" };
-            lines.push(format!("  {key}: observed {seen}, budget {allowed}{unlisted}"));
+            let unlisted: &str = if budgeted.contains_key(key) {
+                ""
+            } else {
+                " (not in the budget)"
+            };
+            lines.push(format!(
+                "  {key}: observed {seen}, budget {allowed}{unlisted}"
+            ));
         }
     }
     return lines;
@@ -404,42 +500,87 @@ impl Drop for StopsMonitor<'_> {
         if self.started {
             // No daemon running is not a failure of the control,
             // and stopping it is the whole job.
-            let _stopped = direct(self.fixture).current_dir(self.repo.as_path()).args(["fsmonitor--daemon", "stop"]).output();
+            let _stopped = direct(self.fixture)
+                .current_dir(self.repo.as_path())
+                .args(["fsmonitor--daemon", "stop"])
+                .output();
         }
     }
 }
 
 /// Run the scenario's commit under `strace` and require its counts to equal `budget`.
-fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
+fn require_budget(
+    label: &str,
+    scenario: Scenario,
+    budget: &Budget,
+) {
     if !strace_available_or_acknowledged(label) {
         return;
     }
     let fixture: Fixture = fixture(format!("budget-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, scenario);
-    let stops: StopsMonitor<'_> = StopsMonitor { fixture: &fixture, repo: repo.clone(), started: matches!(scenario, Scenario::MonitorOn) };
+    let stops: StopsMonitor<'_> = StopsMonitor {
+        fixture: &fixture,
+        repo: repo.clone(),
+        started: matches!(scenario, Scenario::MonitorOn),
+    };
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::MonitorOn | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks
+        | Scenario::WorktreeConfig
+        | Scenario::MonitorOn
+        | Scenario::ConfiguredHook
+        | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
-    let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
+    let run: Output = traced(&inner, trace.as_path())
+        .output()
+        .expect("strace starts");
     // The repository starts with one commit; the warm scenario adds an untraced one before the traced commit.
-    let commits: &str = if matches!(scenario, Scenario::Warm | Scenario::MonitorOn) { "3" } else { "2" };
+    let commits: &str = if matches!(scenario, Scenario::Warm | Scenario::MonitorOn) {
+        "3"
+    } else {
+        "2"
+    };
     // Positive controls: a commit that stopped early would show a flatteringly small trace.
-    assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), commits, "{label}: commits");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{label}: the commit failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(),
+        commits,
+        "{label}: commits"
+    );
     if matches!(scenario, Scenario::ConfiguredHook) {
-        assert!(!fixture.root.join("hook.log").exists(), "{label}: the configured hook must not have run");
+        assert!(
+            !fixture.root.join("hook.log").exists(),
+            "{label}: the configured hook must not have run"
+        );
     }
     assert_nothing_left(&fixture, repo.as_path());
     let text: String = std::fs::read_to_string(&trace).expect("trace");
-    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
-    let version: String = String::from_utf8_lossy(&Command::new(REAL_GIT).arg("--version").output().expect("git --version").stdout)
-        .trim()
-        .to_string();
-    let differing: Vec<String> =
-        differences(&budget_figures(budget, budget.other_starts), &observed_figures(&counts));
+    let counts: Counts = count(
+        text.as_str(),
+        fixture.root.to_str().expect("UTF-8 root"),
+        REAL_GIT,
+    );
+    let version: String = String::from_utf8_lossy(
+        &Command::new(REAL_GIT)
+            .arg("--version")
+            .output()
+            .expect("git --version")
+            .stdout,
+    )
+    .trim()
+    .to_string();
+    let differing: Vec<String> = differences(
+        &budget_figures(budget, budget.other_starts),
+        &observed_figures(&counts),
+    );
     assert!(
         differing.is_empty(),
         "{label} ({version}): the counts differ from the budget in binary_budget_tests.rs. A saving lowers the constant; \
@@ -491,7 +632,11 @@ fn a_commit_with_core_fsmonitor_true_costs_what_one_without_costs() {
 /// A commit in a repository with a configured hook starts and syncs exactly what the budget names.
 #[test]
 fn a_commit_with_a_configured_hook_stays_within_its_budget() {
-    require_budget("configured-hook", Scenario::ConfiguredHook, &CONFIGURED_HOOK);
+    require_budget(
+        "configured-hook",
+        Scenario::ConfiguredHook,
+        &CONFIGURED_HOOK,
+    );
 }
 
 /// The second wrapped commit of a repository starts and syncs exactly what the budget names.
@@ -516,26 +661,53 @@ fn an_amending_commit_stays_within_its_budget() {
 ///  variable in the environment `entry.rs` builds,
 /// once per executable,
 /// and keeps it in the user's cache directory.
-fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Counts {
+fn traced_commit_with_the_system_file(
+    label: &str,
+    learned_before: bool,
+) -> Counts {
     let fixture: Fixture = fixture(format!("budget-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
     let system_file_in_play = |command: &mut Command| {
         command.env_remove("GIT_CONFIG_NOSYSTEM");
     };
     if learned_before {
-        let mut first: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"]);
+        let mut first: Command = wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=first", "--", "a.txt"],
+        );
         system_file_in_play(&mut first);
         let done: Output = first.output().expect("the first wrapped commit runs");
-        assert_eq!(done.status.code(), Some(0), "{label}: {}", String::from_utf8_lossy(&done.stderr));
+        assert_eq!(
+            done.status.code(),
+            Some(0),
+            "{label}: {}",
+            String::from_utf8_lossy(&done.stderr)
+        );
         std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
     }
     let trace: PathBuf = fixture.root.join("trace.txt");
-    let mut inner: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]);
+    let mut inner: Command = wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=x", "--", "a.txt"],
+    );
     system_file_in_play(&mut inner);
-    let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
-    assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
+    let run: Output = traced(&inner, trace.as_path())
+        .output()
+        .expect("strace starts");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{label}: the commit failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
     let text: String = std::fs::read_to_string(&trace).expect("trace");
-    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
+    let counts: Counts = count(
+        text.as_str(),
+        fixture.root.to_str().expect("UTF-8 root"),
+        REAL_GIT,
+    );
     remove_settled(&fixture);
     return counts;
 }
@@ -547,47 +719,117 @@ fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Coun
 /// asked once.
 #[test]
 fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
-    if !strace_available_or_acknowledged("the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer") {
+    if !strace_available_or_acknowledged(
+        "the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer",
+    ) {
         return;
     }
-    let read_only: [&str; 9] = ["config", "diff", "diff-index", "diff-tree", "for-each-ref", "ls-files", "remote", "show", "symbolic-ref"];
+    let read_only: [&str; 9] = [
+        "config",
+        "diff",
+        "diff-index",
+        "diff-tree",
+        "for-each-ref",
+        "ls-files",
+        "remote",
+        "show",
+        "symbolic-ref",
+    ];
     for (label, learned_before) in [("system-file-cold", false), ("system-file-warm", true)] {
         let counts: Counts = traced_commit_with_the_system_file(label, learned_before);
         for name in read_only {
-            let allowed: usize = NO_HOOKS.git_starts.iter().find(|(known, _)| { return *known == name; }).map_or(0, |(_, allowed)| { return *allowed; });
-            assert_eq!(counts.git_starts.get(name).copied().unwrap_or(0), allowed, "{label}: starts of git {name}\n{}", counts.commands.join("\n"));
+            let allowed: usize = NO_HOOKS
+                .git_starts
+                .iter()
+                .find(|(known, _)| {
+                    return *known == name;
+                })
+                .map_or(0, |(_, allowed)| {
+                    return *allowed;
+                });
+            assert_eq!(
+                counts.git_starts.get(name).copied().unwrap_or(0),
+                allowed,
+                "{label}: starts of git {name}\n{}",
+                counts.commands.join("\n")
+            );
         }
         // The wrapper also asks Git for the author and committer identities (`git var GIT_AUTHOR_IDENT`); only the question about
         //  the system file counts here.
-        let asked: usize = counts.commands.iter().filter(|command| { return command.contains("var GIT_CONFIG_SYSTEM"); }).count();
-        assert_eq!(asked, usize::from(!learned_before), "{label}: starts of git var GIT_CONFIG_SYSTEM\n{}", counts.commands.join("\n"));
+        let asked: usize = counts
+            .commands
+            .iter()
+            .filter(|command| {
+                return command.contains("var GIT_CONFIG_SYSTEM");
+            })
+            .count();
+        assert_eq!(
+            asked,
+            usize::from(!learned_before),
+            "{label}: starts of git var GIT_CONFIG_SYSTEM\n{}",
+            counts.commands.join("\n")
+        );
     }
 }
 
 /// How many times Git was started for `var`,
 /// whichever variable it was asked for.
 fn var_starts(counts: &Counts) -> usize {
-    return counts.git_starts.iter().filter(|(name, _)| { return name.starts_with("var"); }).map(|(_, seen)| { return *seen; }).sum();
+    return counts
+        .git_starts
+        .iter()
+        .filter(|(name, _)| {
+            return name.starts_with("var");
+        })
+        .map(|(_, seen)| {
+            return *seen;
+        })
+        .sum();
 }
 
 /// Runs the wrapped commit under `strace`,
 /// with a service listening for it,
 /// and returns what the trace shows.
-fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
+fn traced_through_the_service(
+    label: &str,
+    detached: bool,
+) -> (Counts, Output) {
     let fixture: Fixture = fixture(format!("budget-service-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
     if detached {
-        git(&fixture, repo.as_path(), &["checkout", "--quiet", "--detach"]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["checkout", "--quiet", "--detach"],
+        );
     }
     let name: String = format!("budget-{label}-{}", std::process::id());
     let mut service = super::service_commit::start(&fixture, name.as_str());
-    let mut inner: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]);
-    inner.env("XDG_RUNTIME_DIR", super::service_commit::runtime_for(name.as_str()));
+    let mut inner: Command = wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=x", "--", "a.txt"],
+    );
+    inner.env(
+        "XDG_RUNTIME_DIR",
+        super::service_commit::runtime_for(name.as_str()),
+    );
     let trace: PathBuf = fixture.root.join("trace.txt");
-    let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
-    assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
+    let run: Output = traced(&inner, trace.as_path())
+        .output()
+        .expect("strace starts");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{label}: the commit failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
     let text: String = std::fs::read_to_string(&trace).expect("trace");
-    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
+    let counts: Counts = count(
+        text.as_str(),
+        fixture.root.to_str().expect("UTF-8 root"),
+        REAL_GIT,
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
@@ -602,11 +844,18 @@ fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
 ///  message or an identity.
 #[test]
 fn a_commit_the_service_declines_starts_no_git_for_an_identity() {
-    if !strace_available_or_acknowledged("a_commit_the_service_declines_starts_no_git_for_an_identity") {
+    if !strace_available_or_acknowledged(
+        "a_commit_the_service_declines_starts_no_git_for_an_identity",
+    ) {
         return;
     }
     let (taken, _) = traced_through_the_service("taken", false);
-    assert_eq!(var_starts(&taken), 2, "the committer and the author: {:?}", taken.commands);
+    assert_eq!(
+        var_starts(&taken),
+        2,
+        "the committer and the author: {:?}",
+        taken.commands
+    );
     let (declined, _) = traced_through_the_service("declined", true);
     assert_eq!(var_starts(&declined), 0, "{:?}", declined.commands);
 }

@@ -28,9 +28,17 @@
 //! const outcome = checkRegistration(facts); // pass | finding('registration') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use super::handler_checks::PathState;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One slot's registration,
@@ -99,16 +107,39 @@ pub fn check_registration(facts: &RegistrationFacts) -> CheckOutcome {
                 ),
             );
         }
-        PathState::Unreadable { why } => {
-            return unknown(format!("the Git registration {path} that the record of `{}` names could not be looked at ({why}), so whether it stands is unproved", facts.slot));
+        PathState::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "the Git registration {path} that the record of `{}` names could not be looked at ({why}), so whether it stands is unproved",
+                facts.slot
+            ));
         }
-        PathState::File { .. } => {
-            return finding("registration", format!("the record filed under `{}` names the Git registration {path}, and a file stands there rather than the registration directory Git writes", facts.slot));
+        PathState::File {
+            ..
+        } => {
+            return finding(
+                "registration",
+                format!(
+                    "the record filed under `{}` names the Git registration {path}, and a file stands there rather than the registration directory Git writes",
+                    facts.slot
+                ),
+            );
         }
-        PathState::WrongKind { found } => {
-            return finding("registration", format!("the record filed under `{}` names the Git registration {path}, and {found} stands there rather than the registration directory Git writes", facts.slot));
+        PathState::WrongKind {
+            found,
+        } => {
+            return finding(
+                "registration",
+                format!(
+                    "the record filed under `{}` names the Git registration {path}, and {found} stands there rather than the registration directory Git writes",
+                    facts.slot
+                ),
+            );
         }
-        PathState::Directory { .. } => {}
+        PathState::Directory {
+            ..
+        } => {}
     }
     let Some(gitdir) = &facts.gitdir else {
         return finding(
@@ -120,7 +151,9 @@ pub fn check_registration(facts: &RegistrationFacts) -> CheckOutcome {
         );
     };
     if same_path(gitdir, &facts.slot_git) {
-        return pass(format!("the Git registration {path} stands and its `gitdir` names the slot's own .git, so `git worktree` lists this worktree"));
+        return pass(format!(
+            "the Git registration {path} stands and its `gitdir` names the slot's own .git, so `git worktree` lists this worktree"
+        ));
     }
     return finding(
         "registration",
@@ -152,8 +185,12 @@ pub fn check_registration(facts: &RegistrationFacts) -> CheckOutcome {
 /// ```ts
 /// const same = samePath('/repo//.claude/worktrees/topic/.git', '/repo/.claude/worktrees/topic/.git'); // true
 /// ```
-fn same_path(left: &Path, right: &Path) -> bool {
-    return crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(left) == crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(right);
+fn same_path(
+    left: &Path,
+    right: &Path,
+) -> bool {
+    return crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(left)
+        == crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(right);
 }
 
 /// Controls stay out of the release executable.

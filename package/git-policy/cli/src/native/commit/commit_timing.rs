@@ -28,39 +28,84 @@
 //! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-commit-timing.jsonl'), JSON.stringify(timing) + '\n');
 //! ```
 
-use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
-/// Why this commit did not land,
-/// which the record states beside how it went and what it exited with.
-use crate::commit_stop_reason::{CommitStopReason, stop_json};
-use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
-/// The preparation's own work,
-/// by name,
-/// as its sites note it.
-use crate::prepare_work_spans::{PrepareSpan, drain_spans, spans_json};
-use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, prepare_parts_json};
-/// The build's own stretches,
-/// by name,
-/// kept apart from the preparation's so neither reading is read as the other.
-use crate::commit_build_part_durations::{build_parts_json, drain_build_parts};
-use crate::time_spent_outside_the_phases::{OutsideThePhases, outside_the_phases};
 /// How much of a command's total the record names,
 /// which the record's own methods answer with.
 pub use crate::commit_accounting::Accounting;
+/// The build's own stretches,
+/// by name,
+/// kept apart from the preparation's so neither reading is read as the other.
+use crate::commit_build_part_durations::{
+    build_parts_json,
+    drain_build_parts,
+};
+use crate::commit_index_builds::{
+    IndexBuild,
+    drain_index_builds,
+    index_builds_json,
+};
+use crate::commit_prepare_part_durations::{
+    PreparePart,
+    drain_prepare_parts,
+    prepare_parts_json,
+};
+/// Why this commit did not land,
+/// which the record states beside how it went and what it exited with.
+use crate::commit_stop_reason::{
+    CommitStopReason,
+    stop_json,
+};
 use crate::common_directory_of_a_git_directory::common_directory_of;
-/// What the notice of the scratch `git commit` saw while the step ran,
-/// one entry per build.
-use crate::scratch_commit_step::{ScratchStepFacts, drain_scratch_steps, scratch_steps_json};
 use crate::diagnostic_log::debug;
+use crate::iso_time::now_iso;
+use crate::json_record::{
+    quote,
+    string_array,
+};
 use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
 use crate::log_lines_appended_without_a_lock::append_line;
-use crate::iso_time::now_iso;
-use crate::json_record::{quote, string_array};
-use crate::quiet_ledger::{drain, longest_healthy, object_json};
-use crate::transaction_step_durations::{StepFigure, drain_steps, steps_json};
+/// The preparation's own work,
+/// by name,
+/// as its sites note it.
+use crate::prepare_work_spans::{
+    PrepareSpan,
+    drain_spans,
+    spans_json,
+};
+use crate::quiet_ledger::{
+    drain,
+    longest_healthy,
+    object_json,
+};
+/// What the notice of the scratch `git commit` saw while the step ran,
+/// one entry per build.
+use crate::scratch_commit_step::{
+    ScratchStepFacts,
+    drain_scratch_steps,
+    scratch_steps_json,
+};
 use crate::service_instance::instance_of;
-use crate::service_protocol::{LandingFigures, RELEASE};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use crate::service_protocol::{
+    LandingFigures,
+    RELEASE,
+};
+use crate::time_spent_outside_the_phases::{
+    OutsideThePhases,
+    outside_the_phases,
+};
+use crate::transaction_step_durations::{
+    StepFigure,
+    drain_steps,
+    steps_json,
+};
+use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// A full file moves aside to the next free generation
@@ -80,7 +125,12 @@ const TAG: &str = "commitTiming";
 /// with the waits that reaching cost,
 /// the words a waiting notice said of a foreign index holder,
 /// and the word this release writes for a service that announced no release.
-pub use crate::commit_reach_trace::{UNANNOUNCED, ReachTrace, holder_kind_after, holder_kind_of};
+pub use crate::commit_reach_trace::{
+    ReachTrace,
+    UNANNOUNCED,
+    holder_kind_after,
+    holder_kind_of,
+};
 
 /// What:
 ///  What the client did to hand one request to the service and get its answer.
@@ -163,14 +213,21 @@ fn null_word() -> String {
 /// const landingJson = (l) => l === null ? 'null' : JSON.stringify({ lockHoldMs: l.lockHoldMs, queuedBehind: l.queuedBehind, readsMs: l.readsMs, reads: Object.fromEntries(l.reads), syncs: l.syncs });
 /// ```
 fn landing_json(landing: Option<&LandingFigures>) -> String {
-    let Some(figures) = landing else { return null_word() };
+    let Some(figures) = landing else {
+        return null_word();
+    };
     let mut reads: Vec<String> = Vec::new();
     for (name, ms) in &figures.reads {
         reads.push(format!("{}:{ms}", quote(name.as_str())));
     }
     let mut syncs: Vec<String> = Vec::new();
     for sync in &figures.syncs {
-        syncs.push(format!("{{\"what\":{},\"waited\":{},\"ms\":{}}}", quote(sync.what.as_str()), sync.waited, sync.ms));
+        syncs.push(format!(
+            "{{\"what\":{},\"waited\":{},\"ms\":{}}}",
+            quote(sync.what.as_str()),
+            sync.waited,
+            sync.ms
+        ));
     }
     return format!(
         "{{\"lockHoldMs\":{},\"queuedBehind\":{},\"readsMs\":{},\"reads\":{{{}}},\"syncs\":[{}]}}",
@@ -422,8 +479,15 @@ impl CommitTiming {
 
     /// Names the worktree whose Git directory the command found;
     /// a command outside a repository writes no record.
-    pub fn place_at(&mut self, git_dir: &Path) {
-        self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_directory_of(git_dir), instance: instance_of(git_dir) });
+    pub fn place_at(
+        &mut self,
+        git_dir: &Path,
+    ) {
+        self.place = Some(Place {
+            git_dir: git_dir.to_path_buf(),
+            common_dir: common_directory_of(git_dir),
+            instance: instance_of(git_dir),
+        });
     }
 
     /// What:
@@ -490,7 +554,9 @@ impl CommitTiming {
     /// timing.closeAnOpenBuild();
     /// ```
     pub fn close_an_open_build(&mut self) {
-        let Some(began) = self.build_began.take() else { return };
+        let Some(began) = self.build_began.take() else {
+            return;
+        };
         self.build += began.elapsed();
     }
 
@@ -527,7 +593,9 @@ impl CommitTiming {
     /// timing.closeTheClosing();
     /// ```
     pub fn close_the_closing(&mut self) {
-        let Some(began) = self.closing_began.take() else { return };
+        let Some(began) = self.closing_began.take() else {
+            return;
+        };
         self.closing += began.elapsed();
     }
 
@@ -544,13 +612,22 @@ impl CommitTiming {
     /// ```ts
     /// const { named, unnamed } = timing.accounting(total);
     /// ```
-    pub fn accounting(&self, total: Duration) -> Accounting {
+    pub fn accounting(
+        &self,
+        total: Duration,
+    ) -> Accounting {
         let unnamed: Duration = self.other(total);
-        return Accounting { named: total.saturating_sub(unnamed), unnamed };
+        return Accounting {
+            named: total.saturating_sub(unnamed),
+            unnamed,
+        };
     }
 
     /// What the phases leave uncovered out of `total`.
-    fn other(&self, total: Duration) -> Duration {
+    fn other(
+        &self,
+        total: Duration,
+    ) -> Duration {
         let covered: Duration = self.route
             + self.prepare
             + self.build
@@ -575,12 +652,25 @@ impl CommitTiming {
     /// ```ts
     /// JSON.stringify(record) + '\n'
     /// ```
-    pub fn line(&self, total: Duration, exit_code: i32) -> String {
+    pub fn line(
+        &self,
+        total: Duration,
+        exit_code: i32,
+    ) -> String {
         let place: Option<&Place> = self.place.as_ref();
         let branch: String = self.reference.as_deref().map_or_else(null_word, quote);
-        let answered_by: String = self.submit.reach.answered_by.as_deref().map_or_else(null_word, quote);
+        let answered_by: String = self
+            .submit
+            .reach
+            .answered_by
+            .as_deref()
+            .map_or_else(null_word, quote);
         let request: String = self.request.as_deref().map_or_else(null_word, quote);
-        let level: &str = if self.outcome == "stopped" { "warn" } else { "info" };
+        let level: &str = if self.outcome == "stopped" {
+            "warn"
+        } else {
+            "info"
+        };
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
@@ -660,8 +750,13 @@ impl CommitTiming {
     /// ```ts
     /// recordTiming(timing, exitCode)
     /// ```
-    pub fn finish(&self, exit_code: i32) {
-        let Some(place) = self.place.as_ref() else { return };
+    pub fn finish(
+        &self,
+        exit_code: i32,
+    ) {
+        let Some(place) = self.place.as_ref() else {
+            return;
+        };
         let target: PathBuf = place.common_dir.join(TIMING_FILE);
         // The ledger holds what this command's Git steps and tools showed; the record takes it and the next command starts empty.
         let mut with_quiet: CommitTiming = self.clone();
@@ -679,7 +774,13 @@ impl CommitTiming {
         with_quiet.scratch_steps = drain_scratch_steps();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
-            debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));
+            debug(
+                TAG,
+                &format!(
+                    "the timing record could not be written to {}: {error}",
+                    target.display()
+                ),
+            );
         }
     }
 }

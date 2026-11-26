@@ -1,11 +1,26 @@
 //! Controls for added-path worktree completion on disposable worktrees.
 
 use super::*;
-use crate::worktree_completion_file_inspection::{identity_of, open_nonblocking};
-use crate::test_support::{fixture, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
+use crate::worktree_completion_file_inspection::{
+    identity_of,
+    open_nonblocking,
+};
 
 /// A record for `path` moving from `original` to `intended` content.
-fn record(repo: &Path, path: &str, original: &[u8], intended: &[u8], git_mode: &str) -> AddedPath {
+fn record(
+    repo: &Path,
+    path: &str,
+    original: &[u8],
+    intended: &[u8],
+    git_mode: &str,
+) -> AddedPath {
     let original_oid: String = hash(repo, original);
     let intended_oid: String = hash(repo, intended);
     return AddedPath {
@@ -17,7 +32,10 @@ fn record(repo: &Path, path: &str, original: &[u8], intended: &[u8], git_mode: &
 }
 
 /// Write a blob and return its ID.
-fn hash(repo: &Path, bytes: &[u8]) -> String {
+fn hash(
+    repo: &Path,
+    bytes: &[u8],
+) -> String {
     let file: PathBuf = repo.join(".git").join("blob-input");
     std::fs::write(&file, bytes).expect("blob input");
     let oid: String = git_text(repo, &["hash-object", "-w", file.to_str().expect("UTF-8")]);
@@ -27,7 +45,10 @@ fn hash(repo: &Path, bytes: &[u8]) -> String {
 
 /// Set Unix permission bits.
 #[cfg(unix)]
-fn chmod(path: &Path, mode: u32) {
+fn chmod(
+    path: &Path,
+    mode: u32,
+) {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).expect("chmod");
 }
@@ -275,11 +296,17 @@ fn completion_rewrites_only_originals() {
 #[test]
 fn identity_reads_times_as_nanoseconds_since_the_epoch() {
     use std::os::unix::fs::MetadataExt;
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{
+        Duration,
+        UNIX_EPOCH,
+    };
     let root: PathBuf = fixture("worktree-completion-identity");
     let file: PathBuf = root.join("timed.txt");
     std::fs::write(&file, b"timed").expect("file");
-    let handle: std::fs::File = std::fs::OpenOptions::new().write(true).open(&file).expect("open");
+    let handle: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .expect("open");
     handle
         .set_modified(UNIX_EPOCH + Duration::new(1_700_000_000, 123_456_789))
         .expect("modified");
@@ -287,7 +314,8 @@ fn identity_reads_times_as_nanoseconds_since_the_epoch() {
     let metadata: std::fs::Metadata = std::fs::metadata(&file).expect("metadata");
     let identity: WorktreeFileIdentity = identity_of(&metadata);
     assert_eq!(identity.modified, 1_700_000_000_123_456_789);
-    let changed: i128 = i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
+    let changed: i128 =
+        i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
     assert_eq!(identity.changed, changed);
     assert_eq!(identity.size, 5);
     remove(root.as_path());
@@ -297,7 +325,10 @@ fn identity_reads_times_as_nanoseconds_since_the_epoch() {
 ///  A socket path is limited to about a hundred bytes and a fixture under the build directory is longer than that,
 ///  so on Linux the bind goes through the open directory's descriptor.
 #[cfg(target_os = "linux")]
-fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+fn bind_socket_in(
+    directory: &Path,
+    name: &str,
+) -> std::os::unix::net::UnixListener {
     use std::os::fd::AsRawFd;
     let handle: std::fs::File = std::fs::File::open(directory).expect("directory handle");
     let short: PathBuf = PathBuf::from(format!("/proc/self/fd/{}/{name}", handle.as_raw_fd()));
@@ -306,7 +337,10 @@ fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListe
 
 /// Binds a socket named `name` inside `directory` by its plain path.
 #[cfg(all(unix, not(target_os = "linux")))]
-fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+fn bind_socket_in(
+    directory: &Path,
+    name: &str,
+) -> std::os::unix::net::UnixListener {
     return std::os::unix::net::UnixListener::bind(directory.join(name)).expect("socket");
 }
 
@@ -338,7 +372,8 @@ fn a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened() {
 fn an_error_that_is_not_a_conflict_fails_the_inspection() {
     let root: PathBuf = fixture("worktree-completion-long-name");
     let long: PathBuf = root.join("x".repeat(300));
-    let error = inspect_worktree_file(long.as_path(), "100644", b"a", b"b").expect_err("name too long");
+    let error =
+        inspect_worktree_file(long.as_path(), "100644", b"a", b"b").expect_err("name too long");
     assert!(!is_conflict_error(&error), "{error:?}");
     remove(root.as_path());
 }

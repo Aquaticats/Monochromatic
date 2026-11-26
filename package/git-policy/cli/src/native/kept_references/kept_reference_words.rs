@@ -32,8 +32,15 @@ use std::time::Duration;
 /// ```ts
 /// const counted = (count, noun) => `${noun}${count === 1 ? '' : 's'}`;
 /// ```
-pub fn counted(count: u128, noun: &str) -> String {
-    return if count == 1 { String::from(noun) } else { format!("{noun}s") };
+pub fn counted(
+    count: u128,
+    noun: &str,
+) -> String {
+    return if count == 1 {
+        String::from(noun)
+    } else {
+        format!("{noun}s")
+    };
 }
 
 /// What:
@@ -53,10 +60,18 @@ pub fn age_words(milliseconds: u128) -> String {
     let hours: u128 = (milliseconds / (60 * 60 * 1000)) % 24;
     let minutes: u128 = (milliseconds / (60 * 1000)) % 60;
     if days > 0 {
-        return format!("{days} {} {hours} {}", counted(days, "day"), counted(hours, "hour"));
+        return format!(
+            "{days} {} {hours} {}",
+            counted(days, "day"),
+            counted(hours, "hour")
+        );
     }
     if hours > 0 {
-        return format!("{hours} {} {minutes} {}", counted(hours, "hour"), counted(minutes, "minute"));
+        return format!(
+            "{hours} {} {minutes} {}",
+            counted(hours, "hour"),
+            counted(minutes, "minute")
+        );
     }
     return format!("{minutes} {}", counted(minutes, "minute"));
 }

@@ -27,13 +27,24 @@ fn a_scan() -> HolderScan {
         nonce: RequestNonce::parse("00112233445566778899aabbccddeeff").expect("a nonce"),
         own_namespace: Some(String::from("mnt:[4026532000]")),
         namespaces_scanned: 3,
-        own_mounts: vec![HeldMount { mount_id: 40, root: PathBuf::from("/"), mount_point: PathBuf::from("/home/user/Mono/.claude/worktrees/fix-flaky-test") }],
+        own_mounts: vec![HeldMount {
+            mount_id: 40,
+            root: PathBuf::from("/"),
+            mount_point: PathBuf::from("/home/user/Mono/.claude/worktrees/fix-flaky-test"),
+        }],
         holders: vec![NamespaceHolder {
             namespace: String::from("mnt:[4026532001]"),
             task: PathBuf::from("/proc/1234"),
-            mounts: vec![HeldMount { mount_id: 41, root: PathBuf::from("/"), mount_point: PathBuf::from("/srv/holder") }],
+            mounts: vec![HeldMount {
+                mount_id: 41,
+                root: PathBuf::from("/"),
+                mount_point: PathBuf::from("/srv/holder"),
+            }],
         }],
-        incomplete: vec![IncompleteRead::NamespaceLinkUnreadable { thread: PathBuf::from("/proc/999/task/999"), reason: String::from("permission denied") }],
+        incomplete: vec![IncompleteRead::NamespaceLinkUnreadable {
+            thread: PathBuf::from("/proc/999/task/999"),
+            reason: String::from("permission denied"),
+        }],
         time: String::from("2026-11-25T09:12:44-05:00"),
     };
 }

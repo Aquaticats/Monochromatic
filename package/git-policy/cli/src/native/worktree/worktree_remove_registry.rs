@@ -21,9 +21,18 @@
 //! const registration = registrationOf({ commonDir, target, operand }); // throws the reason Git must decide
 //! ```
 
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The registration of one linked worktree in the repository the command runs in.
@@ -66,7 +75,10 @@ fn without_newline(text: &[u8]) -> &[u8] {
 /// ```ts
 /// function lastComponentsStart(candidate: Uint8Array, operand: Uint8Array): number | undefined;
 /// ```
-fn last_components_start(candidate: &[u8], operand: &[u8]) -> Option<usize> {
+fn last_components_start(
+    candidate: &[u8],
+    operand: &[u8],
+) -> Option<usize> {
     if operand.is_empty() || operand.len() > candidate.len() {
         return None;
     }
@@ -89,8 +101,13 @@ fn last_components_start(candidate: &[u8], operand: &[u8]) -> Option<usize> {
 /// ```ts
 /// function endsWithName(candidate: string, operand: string): boolean;
 /// ```
-fn ends_with_name(candidate: &[u8], operand: &[u8]) -> bool {
-    let Some(start) = last_components_start(candidate, operand) else { return false };
+fn ends_with_name(
+    candidate: &[u8],
+    operand: &[u8],
+) -> bool {
+    let Some(start) = last_components_start(candidate, operand) else {
+        return false;
+    };
     return candidate[start..].eq(operand);
 }
 
@@ -107,8 +124,13 @@ fn ends_with_name(candidate: &[u8], operand: &[u8]) -> bool {
 /// ```ts
 /// function endsWithNameIgnoringCase(candidate: string, operand: string): boolean;
 /// ```
-fn ends_with_name_ignoring_case(candidate: &[u8], operand: &[u8]) -> bool {
-    let Some(start) = last_components_start(candidate, operand) else { return false };
+fn ends_with_name_ignoring_case(
+    candidate: &[u8],
+    operand: &[u8],
+) -> bool {
+    let Some(start) = last_components_start(candidate, operand) else {
+        return false;
+    };
     return candidate[start..].eq_ignore_ascii_case(operand);
 }
 
@@ -159,23 +181,42 @@ struct RegisteredPath {
 /// ```ts
 /// function registeredPaths(commonDir: string): RegisteredPath[];
 /// ```
-fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<RegisteredPath>, String> {
+fn registered_paths(
+    common_dir: &Path,
+    worktrees: &Path,
+) -> Result<Vec<RegisteredPath>, String> {
     let mut paths: Vec<RegisteredPath> = Vec::new();
     let main: &[u8] = common_dir.as_os_str().as_bytes();
-    paths.push(RegisteredPath { id: None, path: main.strip_suffix(b"/.git").unwrap_or(main).to_vec() });
+    paths.push(RegisteredPath {
+        id: None,
+        path: main.strip_suffix(b"/.git").unwrap_or(main).to_vec(),
+    });
     let listing = match std::fs::read_dir(worktrees) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(paths),
-        Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
+        Err(error) => {
+            return Err(format!(
+                "the registrations in {} cannot be listed ({error})",
+                worktrees.display()
+            ));
+        }
     };
     for found in listing {
         let entry: std::fs::DirEntry = match found {
             Ok(listed) => listed,
-            Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
+            Err(error) => {
+                return Err(format!(
+                    "the registrations in {} cannot be listed ({error})",
+                    worktrees.display()
+                ));
+            }
         };
         // A registration Git would skip is skipped here too: one whose record is missing, unreadable, no regular file Git writes,
         //  or larger than a record. A named pipe at the name would wait inside `open(2)` for a writer that may never come.
-        let Ok(text) = crate::worktree_registration_proof::read_record_here(entry.path().join("gitdir").as_path(), "a registration's back-link") else {
+        let Ok(text) = crate::worktree_registration_proof::read_record_here(
+            entry.path().join("gitdir").as_path(),
+            "a registration's back-link",
+        ) else {
             continue;
         };
         let trimmed: &[u8] = text.trim_ascii_end();
@@ -188,9 +229,15 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Registere
         } else {
             // A relative record is relative to the administrative directory.
             let joined: PathBuf = entry.path().join(OsStr::from_bytes(path));
-            std::fs::canonicalize(joined.as_path()).unwrap_or(joined).into_os_string().into_vec()
+            std::fs::canonicalize(joined.as_path())
+                .unwrap_or(joined)
+                .into_os_string()
+                .into_vec()
         };
-        paths.push(RegisteredPath { id: Some(entry.file_name()), path: spelled });
+        paths.push(RegisteredPath {
+            id: Some(entry.file_name()),
+            path: spelled,
+        });
     }
     return Ok(paths);
 }
@@ -214,7 +261,10 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Registere
 /// ```ts
 /// function pathGitPicksForOperand(commonDir: string, operand: string): string | undefined;
 /// ```
-pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<PathBuf> {
+pub fn path_git_picks_for_operand(
+    common_dir: &Path,
+    operand: &OsStr,
+) -> Option<PathBuf> {
     let worktrees: PathBuf = common_dir.join("worktrees");
     let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path()).ok()?;
     let mut picked: Option<&[u8]> = None;
@@ -249,25 +299,50 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 /// ```ts
 /// function registeredWorktree(args: { commonDir: string; target: string }): Registration; // throws the reason
 /// ```
-pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registration, String> {
+pub fn registered_worktree(
+    common_dir: &Path,
+    target: &Path,
+) -> Result<Registration, String> {
     let pointer_path: PathBuf = target.join(".git");
     // The pointer is read without waiting for a writer: a named pipe at its name would hold a removal for ever
     //  (`SPEC.md`, "Every wait has a bound").
-    let pointer: Vec<u8> = match crate::worktree_registration_proof::read_record_here(pointer_path.as_path(), "the worktree's pointer") {
+    let pointer: Vec<u8> = match crate::worktree_registration_proof::read_record_here(
+        pointer_path.as_path(),
+        "the worktree's pointer",
+    ) {
         Ok(bytes) => bytes,
-        Err(refusal) => return Err(format!("{}, so this is no linked worktree", refusal.into_words())),
+        Err(refusal) => {
+            return Err(format!(
+                "{}, so this is no linked worktree",
+                refusal.into_words()
+            ));
+        }
     };
     let line: &[u8] = without_newline(pointer.as_slice());
     let Some(named) = line.strip_prefix(b"gitdir: ") else {
-        return Err(format!("{} does not start with `gitdir: `", pointer_path.display()));
+        return Err(format!(
+            "{} does not start with `gitdir: `",
+            pointer_path.display()
+        ));
     };
     let admin: PathBuf = match std::fs::canonicalize(target.join(OsStr::from_bytes(named))) {
         Ok(resolved) => resolved,
-        Err(error) => return Err(format!("the administrative directory {} that {} names cannot be resolved ({error})", String::from_utf8_lossy(named), pointer_path.display())),
+        Err(error) => {
+            return Err(format!(
+                "the administrative directory {} that {} names cannot be resolved ({error})",
+                String::from_utf8_lossy(named),
+                pointer_path.display()
+            ));
+        }
     };
     let worktrees: PathBuf = match std::fs::canonicalize(common_dir.join("worktrees")) {
         Ok(resolved) => resolved,
-        Err(error) => return Err(format!("{} cannot be resolved ({error}), so this repository has no linked worktree", common_dir.join("worktrees").display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be resolved ({error}), so this repository has no linked worktree",
+                common_dir.join("worktrees").display()
+            ));
+        }
     };
     if admin.parent() != Some(worktrees.as_path()) {
         return Err(format!(
@@ -281,17 +356,35 @@ pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registrat
         return Err(format!("{} has no name", admin.display()));
     };
     let id: OsString = admin_name.to_os_string();
-    let gitdir_text: Vec<u8> = match crate::worktree_registration_proof::read_record_here(admin.join("gitdir").as_path(), "the registration's back-link") {
+    let gitdir_text: Vec<u8> = match crate::worktree_registration_proof::read_record_here(
+        admin.join("gitdir").as_path(),
+        "the registration's back-link",
+    ) {
         Ok(bytes) => bytes,
         Err(refusal) => return Err(refusal.into_words()),
     };
-    let recorded: PathBuf = PathBuf::from(OsStr::from_bytes(without_newline(gitdir_text.as_slice())));
+    let recorded: PathBuf =
+        PathBuf::from(OsStr::from_bytes(without_newline(gitdir_text.as_slice())));
     // The registration may spell this worktree through a symbolic link or relative to itself; the question is which file it names.
-    let recorded_pointer: PathBuf = if recorded.is_absolute() { recorded.clone() } else { admin.join(recorded.as_path()) };
+    let recorded_pointer: PathBuf = if recorded.is_absolute() {
+        recorded.clone()
+    } else {
+        admin.join(recorded.as_path())
+    };
     if !crate::real_git_candidate::same_file(recorded_pointer.as_path(), pointer_path.as_path()) {
-        return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded_pointer.display(), pointer_path.display()));
+        return Err(format!(
+            "{} records {}, not {}",
+            admin.join("gitdir").display(),
+            recorded_pointer.display(),
+            pointer_path.display()
+        ));
     }
-    return Ok(Registration { id, admin, worktrees, gitdir_text });
+    return Ok(Registration {
+        id,
+        admin,
+        worktrees,
+        gitdir_text,
+    });
 }
 
 /// What:
@@ -308,9 +401,14 @@ pub fn registered_worktree(common_dir: &Path, target: &Path) -> Result<Registrat
 /// ```ts
 /// function registrationOf(args: { commonDir: string; target: string; operand: string }): Registration; // throws the reason
 /// ```
-pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Result<Registration, String> {
+pub fn registration_of(
+    common_dir: &Path,
+    target: &Path,
+    operand: &OsStr,
+) -> Result<Registration, String> {
     let registration: Registration = registered_worktree(common_dir, target)?;
-    let registered: Vec<RegisteredPath> = registered_paths(common_dir, registration.worktrees.as_path())?;
+    let registered: Vec<RegisteredPath> =
+        registered_paths(common_dir, registration.worktrees.as_path())?;
     for other in registered {
         // The registration this removal deletes is the worktree's own and the answer Git gives for it; every other one
         // that Git's suffix match could take the name for is a second worktree to Git, even when its path names the same

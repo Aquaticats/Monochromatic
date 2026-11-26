@@ -5,25 +5,54 @@
 //! both histories reach the remote and the active worktree stays byte-identical.
 
 use super::*;
-use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
-use crate::auto_push_single_flight::PushGit;
-use crate::auto_push_reconcile_basics_and_limits::{fetch_remote_tip, fetch_remote_tip_awaiting, is_ancestor, is_ancestor_awaiting};
+use crate::auto_push::{
+    AutoPushOutcome,
+    AutoPushResult,
+    PUSH_FAILED_NOTE,
+    push_once,
+};
+use crate::auto_push_reconcile_basics_and_limits::{
+    fetch_remote_tip,
+    fetch_remote_tip_awaiting,
+    is_ancestor,
+    is_ancestor_awaiting,
+};
 use crate::auto_push_reconcile_branch_advance::status_differs;
-use crate::auto_push_reconcile_merge_commit::{common_dir_of, common_dir_of_awaiting, signs_commits, signs_commits_awaiting};
 use crate::auto_push_reconcile_merge_commit::PushRunner;
+use crate::auto_push_reconcile_merge_commit::{
+    common_dir_of,
+    common_dir_of_awaiting,
+    signs_commits,
+    signs_commits_awaiting,
+};
+use crate::auto_push_single_flight::PushGit;
 use crate::merge_second_pass::GitRunner;
 use crate::merge_second_pass::tests::await_it;
-use crate::test_support::{fixture, git, git_output, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// A function-like value with the right shape is a merge push in these controls:
 /// the shipped callers write a small struct that holds the state.
-impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError> + Send> MergePusher for Push {
-    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError> + Send> MergePusher
+    for Push
+{
+    fn push_merge(
+        &mut self,
+        destination: &Destination,
+        merge_oid: &str,
+    ) -> Result<PushAttempt, SingleFlightError> {
         return self(destination, merge_oid);
     }
 }
@@ -43,10 +72,19 @@ impl crate::auto_push_reconcile_branch_advance::BranchMove for SwitchThenMove {
         branch_ref: &'a str,
         local: &'a str,
         merge_oid: &'a str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<Result<(), String>, SingleFlightError>>
+                + Send
+                + 'a,
+        >,
+    > {
         return Box::pin(async move {
             git(&self.local, &["switch", "--quiet", "topic"]);
-            return crate::auto_push_reconcile_branch_advance::move_the_named_branch(git_ref, branch_ref, local, merge_oid).await;
+            return crate::auto_push_reconcile_branch_advance::move_the_named_branch(
+                git_ref, branch_ref, local, merge_oid,
+            )
+            .await;
         });
     }
 }
@@ -99,7 +137,10 @@ fn push_git(root: &Path) -> PushGit {
 
 /// The text Git printed for a read-only query,
 /// trimmed.
-fn text_of(directory: &Path, arguments: &[&str]) -> String {
+fn text_of(
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     return String::from_utf8_lossy(&git(directory, arguments).stdout)
         .trim()
         .to_owned();
@@ -162,7 +203,11 @@ fn scenario(name: &str) -> Scenario {
 
 /// Change one file in the other clone,
 /// commit it and publish it.
-fn advance_remote(scenario: &Scenario, file: &str, text: &str) {
+fn advance_remote(
+    scenario: &Scenario,
+    file: &str,
+    text: &str,
+) {
     git(&scenario.other, &["fetch", "--quiet", "origin"]);
     git(
         &scenario.other,
@@ -178,7 +223,11 @@ fn advance_remote(scenario: &Scenario, file: &str, text: &str) {
 }
 
 /// Change one file in the repository under test and commit only that file.
-fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
+fn commit_local(
+    scenario: &Scenario,
+    file: &str,
+    text: &str,
+) -> String {
     std::fs::write(scenario.local.join(file), text).expect("local change");
     git(
         &scenario.local,
@@ -195,18 +244,40 @@ fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
 }
 
 /// Push `main` of the repository under test the way the service does and capture the text it prints.
-fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
+fn run(
+    scenario: &Scenario,
+    landed: &str,
+) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect("auto-push");
+    let result = push_once(
+        &push_git(&scenario.local),
+        "refs/heads/main",
+        landed,
+        &[],
+        &[],
+        &mut err,
+    )
+    .expect("auto-push");
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
 /// Push `main` of the repository under test and return the failure the service would report,
 /// which a push that cannot
 /// even compute its merge ends with.
-fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
+fn run_error(
+    scenario: &Scenario,
+    landed: &str,
+) -> SingleFlightError {
     let mut err: Vec<u8> = Vec::new();
-    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect_err("the failure is returned");
+    return push_once(
+        &push_git(&scenario.local),
+        "refs/heads/main",
+        landed,
+        &[],
+        &[],
+        &mut err,
+    )
+    .expect_err("the failure is returned");
 }
 
 /// What a consumer of the worktree can observe:
@@ -225,7 +296,10 @@ fn worktree_snapshot(local: &Path) -> (String, Vec<u8>, Vec<u8>, Vec<u8>) {
 /// fetch ref,
 /// while the count is at most `limit`:
 /// the push that follows then finds a remote that moved again.
-fn advancing_hook(scenario: &Scenario, limit: u32) -> PathBuf {
+fn advancing_hook(
+    scenario: &Scenario,
+    limit: u32,
+) -> PathBuf {
     let hooks = scenario.root.join("hooks");
     let counter = scenario.root.join("counter");
     std::fs::create_dir_all(&hooks).expect("hooks");
@@ -247,8 +321,18 @@ fn advancing_hook(scenario: &Scenario, limit: u32) -> PathBuf {
     std::fs::write(&hook, script).expect("hook");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
     // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
-    git(&scenario.local, &["config", "hook.control.event", "reference-transaction"]);
-    git(&scenario.local, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
+    git(
+        &scenario.local,
+        &["config", "hook.control.event", "reference-transaction"],
+    );
+    git(
+        &scenario.local,
+        &[
+            "config",
+            "hook.control.command",
+            hook.to_str().expect("utf-8"),
+        ],
+    );
     return counter;
 }
 
@@ -340,8 +424,14 @@ fn the_reconcile_fetch_sets_no_low_speed_abort() {
     let mut coordinator = push_git(&s.local);
     coordinator.real_git = stand_in;
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
-    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
+    let result =
+        push_once(&coordinator, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
+    assert_eq!(
+        result.outcome,
+        AutoPushOutcome::Pushed,
+        "{}",
+        String::from_utf8_lossy(&err)
+    );
     assert_eq!(
         std::fs::read_to_string(&record).expect("the fetch ran"),
         "|\n",
@@ -395,7 +485,10 @@ fn an_amended_published_commit_is_merged_when_nothing_conflicts() {
     );
     let merged = text_of(&s.remote, &["rev-parse", "main"]);
     assert_eq!(
-        text_of(&s.remote, &["rev-list", "--parents", "--max-count=1", "main"]),
+        text_of(
+            &s.remote,
+            &["rev-list", "--parents", "--max-count=1", "main"]
+        ),
         format!("{merged} {amended} {remote_before}")
     );
     assert_eq!(text_of(&s.remote, &["show", "main:a.txt"]), "remote");
@@ -421,7 +514,10 @@ fn an_amend_that_conflicts_with_the_published_commit_is_reported() {
     git(&s.other, &["fetch", "--quiet", "origin"]);
     git(&s.other, &["merge", "--quiet", "--ff-only", "origin/main"]);
     std::fs::write(s.other.join("b.txt"), "third\n").expect("remote change");
-    git(&s.other, &["commit", "--quiet", "-m", "remote b", "--", "b.txt"]);
+    git(
+        &s.other,
+        &["commit", "--quiet", "-m", "remote b", "--", "b.txt"],
+    );
     git(&s.other, &["push", "--quiet", "origin", "main"]);
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
     let amended = text_of(&s.local, &["rev-parse", "HEAD"]);
@@ -544,7 +640,10 @@ fn a_push_remote_other_than_the_upstream_is_reconciled_against_the_push_remote()
     );
     let merged = text_of(&s.remote, &["rev-parse", "main"]);
     assert_eq!(
-        text_of(&s.remote, &["rev-list", "--parents", "--max-count=1", "main"]),
+        text_of(
+            &s.remote,
+            &["rev-list", "--parents", "--max-count=1", "main"]
+        ),
         format!("{merged} {landed} {remote_before}")
     );
     assert!(err.contains("mirror/main had new commits"), "{err}");
@@ -598,8 +697,13 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         " ! [rejected]        main -> main (non-fast-forward)"
     ));
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), refused.clone())
-            .expect("reconcile"),
+        reconcile_divergent_push(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip_of_local(&s),
+            refused.clone()
+        )
+        .expect("reconcile"),
         refused
     );
     let stale = PushAttempt {
@@ -608,8 +712,13 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         output: " ! [rejected] v1 -> v1".to_owned(),
     };
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/tags/v1", &tip_of_local(&s), stale.clone())
-            .expect("reconcile"),
+        reconcile_divergent_push(
+            &push_git(&s.local),
+            "refs/tags/v1",
+            &tip_of_local(&s),
+            stale.clone()
+        )
+        .expect("reconcile"),
         stale,
         "a ref that is not a branch has no upstream to merge"
     );
@@ -619,7 +728,10 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
 #[test]
 fn an_unpublished_attempt_never_reports_success_and_keeps_a_real_exit_code() {
     let from_zero = unpublished(RECONCILE_FAILED_PREFIX, "before", 0, "reason");
-    assert_eq!(from_zero.exit_code, 1, "a failure must not carry exit code zero");
+    assert_eq!(
+        from_zero.exit_code, 1,
+        "a failure must not carry exit code zero"
+    );
     assert_eq!(
         from_zero.output,
         format!("before\n{RECONCILE_FAILED_PREFIX}reason")
@@ -633,7 +745,10 @@ fn an_unpublished_attempt_never_reports_success_and_keeps_a_real_exit_code() {
 /// The destination the reconcile would fetch from,
 /// as `remote merge_ref`,
 /// or nothing.
-fn destination_of(scenario: &Scenario, branch_ref: &str) -> Option<String> {
+fn destination_of(
+    scenario: &Scenario,
+    branch_ref: &str,
+) -> Option<String> {
     return read_destination(&push_git(&scenario.local), branch_ref)
         .expect("destination")
         .map(|destination| {
@@ -696,7 +811,10 @@ fn a_push_remote_that_differs_from_the_upstream_is_the_destination() {
 #[test]
 fn push_default_decides_which_ref_is_the_destination() {
     let s = scenario("ar-dest-modes");
-    git(&s.local, &["branch", "--quiet", "--track", "feature", "origin/main"]);
+    git(
+        &s.local,
+        &["branch", "--quiet", "--track", "feature", "origin/main"],
+    );
     let cases = [
         ("current", Some("origin refs/heads/feature")),
         ("upstream", Some("origin refs/heads/main")),
@@ -723,7 +841,10 @@ fn push_default_decides_which_ref_is_the_destination() {
 #[test]
 fn simple_pushes_by_name_to_a_push_remote_and_to_the_tracked_ref_otherwise() {
     let s = scenario("ar-dest-simple");
-    git(&s.local, &["branch", "--quiet", "--track", "feature", "origin/main"]);
+    git(
+        &s.local,
+        &["branch", "--quiet", "--track", "feature", "origin/main"],
+    );
     assert_eq!(
         destination_of(&s, "refs/heads/feature").as_deref(),
         Some("origin refs/heads/main")
@@ -747,7 +868,11 @@ fn a_configured_push_refspec_has_no_destination() {
     let s = scenario("ar-dest-refspec");
     git(
         &s.local,
-        &["config", "remote.origin.push", "refs/heads/main:refs/heads/elsewhere"],
+        &[
+            "config",
+            "remote.origin.push",
+            "refs/heads/main:refs/heads/elsewhere",
+        ],
     );
     assert_eq!(destination_of(&s, "refs/heads/main"), None);
     remove(&s.root);
@@ -761,7 +886,10 @@ fn a_branch_that_tracks_a_local_branch_has_no_destination() {
     git(&s.local, &["branch", "--quiet", "--track", "topic", "main"]);
     git(&s.local, &["config", "push.default", "upstream"]);
     assert_eq!(
-        text_of(&s.local, &["rev-parse", "--symbolic-full-name", "topic@{push}"]),
+        text_of(
+            &s.local,
+            &["rev-parse", "--symbolic-full-name", "topic@{push}"]
+        ),
         "refs/heads/main",
         "the push query must agree with the upstream, or the remote check is not what decides"
     );
@@ -782,7 +910,10 @@ fn an_upstream_outside_the_heads_has_no_destination() {
             "+refs/notes/*:refs/remotes/origin/notes/*",
         ],
     );
-    git(&s.local, &["update-ref", "refs/remotes/origin/notes/x", "HEAD"]);
+    git(
+        &s.local,
+        &["update-ref", "refs/remotes/origin/notes/x", "HEAD"],
+    );
     git(&s.local, &["config", "branch.main.merge", "refs/notes/x"]);
     assert_eq!(destination_of(&s, "refs/heads/main"), None);
     remove(&s.root);
@@ -800,8 +931,13 @@ fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
         signal: None,
         output: " ! [rejected]        main -> main (fetch first)".to_owned(),
     };
-    let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone())
-        .expect("reconcile");
+    let returned = reconcile_divergent_push(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip_of_local(&s),
+        rejected.clone(),
+    )
+    .expect("reconcile");
     assert_eq!(returned, rejected);
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "");
@@ -816,7 +952,10 @@ fn unrelated_histories_are_merged() {
     let s = scenario("ar-unrelated");
     git(&s.local, &["checkout", "--quiet", "--orphan", "island"]);
     git(&s.local, &["rm", "--quiet", "--force", "-r", "."]);
-    git(&s.local, &["commit", "--quiet", "--allow-empty", "-m", "island"]);
+    git(
+        &s.local,
+        &["commit", "--quiet", "--allow-empty", "-m", "island"],
+    );
     let island = text_of(&s.local, &["rev-parse", "HEAD"]);
     let main = text_of(&s.local, &["rev-parse", "main"]);
     let merged = commit_merge(&push_git(&s.local), &island, &main, "message")
@@ -824,7 +963,10 @@ fn unrelated_histories_are_merged() {
         .expect("no conflict")
         .oid;
     assert_eq!(
-        text_of(&s.local, &["rev-list", "--parents", "--max-count=1", &merged]),
+        text_of(
+            &s.local,
+            &["rev-list", "--parents", "--max-count=1", &merged]
+        ),
         format!("{merged} {island} {main}")
     );
     remove(&s.root);
@@ -848,17 +990,31 @@ fn a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling() {
     std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
     std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
     git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
-    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(
+        &s.local,
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "a rule that names a driver and the file it owns",
+        ],
+    );
     git(&s.local, &["push", "--quiet", "origin", "main"]);
     // The driver writes for ever, which is progress the stall window can never call a stall.
-    let driver: String = format!("sh -c 'while :; do printf x > {}; sleep 0.05; done'", scratch.display());
+    let driver: String = format!(
+        "sh -c 'while :; do printf x > {}; sleep 0.05; done'",
+        scratch.display()
+    );
     git(&s.local, &["config", "merge.stall.driver", driver.as_str()]);
     advance_remote(&s, "driver.txt", "remote\n");
     let island: String = commit_local(&s, "driver.txt", "local\n");
     git(&s.local, &["fetch", "--quiet", "origin"]);
     let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
     let mut git_under_test: PushGit = push_git(&s.local);
-    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE), OsString::from("2")));
+    git_under_test.environment.push((
+        OsString::from(crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE),
+        OsString::from("2"),
+    ));
     let started: std::time::Instant = std::time::Instant::now();
     let answer = commit_merge(&git_under_test, &island, &main, "message");
     let waited: std::time::Duration = started.elapsed();
@@ -866,12 +1022,33 @@ fn a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling() {
         Err(error) => format!("{error}"),
         Ok(_) => String::from("the merge was made"),
     };
-    assert!(said.contains("was still running at its 2-second ceiling"), "the ceiling that stopped it is named: {said}");
-    assert!(said.contains("Nothing was changed"), "the words say what was not touched: {said}");
-    assert!(waited < std::time::Duration::from_secs(60), "the wait ends at the ceiling and its grace, not never: {waited:?}");
-    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
-    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), island, "the commit is kept and nothing was committed");
-    assert_eq!(std::fs::read(s.local.join("driver.txt")).expect("the file"), b"local\n".to_vec(), "the worktree was not touched");
+    assert!(
+        said.contains("was still running at its 2-second ceiling"),
+        "the ceiling that stopped it is named: {said}"
+    );
+    assert!(
+        said.contains("Nothing was changed"),
+        "the words say what was not touched: {said}"
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(60),
+        "the wait ends at the ceiling and its grace, not never: {waited:?}"
+    );
+    assert_eq!(
+        text_of(&s.local, &["for-each-ref", "refs/cli-git"]),
+        "",
+        "no merge ref is left"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "HEAD"]),
+        island,
+        "the commit is kept and nothing was committed"
+    );
+    assert_eq!(
+        std::fs::read(s.local.join("driver.txt")).expect("the file"),
+        b"local\n".to_vec(),
+        "the worktree was not touched"
+    );
     remove(&s.root);
 }
 
@@ -893,16 +1070,30 @@ fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
     std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
     std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
     git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
-    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(
+        &s.local,
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "a rule that names a driver and the file it owns",
+        ],
+    );
     git(&s.local, &["push", "--quiet", "origin", "main"]);
     // The driver waits for input that never arrives.
-    git(&s.local, &["config", "merge.stall.driver", "sh -c 'sleep 300'"]);
+    git(
+        &s.local,
+        &["config", "merge.stall.driver", "sh -c 'sleep 300'"],
+    );
     advance_remote(&s, "driver.txt", "remote\n");
     let island: String = commit_local(&s, "driver.txt", "local\n");
     git(&s.local, &["fetch", "--quiet", "origin"]);
     let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
     let mut git_under_test: PushGit = push_git(&s.local);
-    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE), OsString::from("1")));
+    git_under_test.environment.push((
+        OsString::from(crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE),
+        OsString::from("1"),
+    ));
     let started: std::time::Instant = std::time::Instant::now();
     let answer = commit_merge(&git_under_test, &island, &main, "message");
     let waited: std::time::Duration = started.elapsed();
@@ -910,10 +1101,23 @@ fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
         Err(error) => format!("{error}"),
         Ok(_) => String::from("the merge was committed"),
     };
-    assert!(said.contains("could not be run"), "the stopped command is named with its reason: {said}");
-    assert!(said.contains("showed no sign of work"), "the wait that stopped it is the meter's: {said}");
-    assert!(waited < std::time::Duration::from_secs(60), "the wait ends within the window and its grace, not never: {waited:?}");
-    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    assert!(
+        said.contains("could not be run"),
+        "the stopped command is named with its reason: {said}"
+    );
+    assert!(
+        said.contains("showed no sign of work"),
+        "the wait that stopped it is the meter's: {said}"
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(60),
+        "the wait ends within the window and its grace, not never: {waited:?}"
+    );
+    assert_eq!(
+        text_of(&s.local, &["for-each-ref", "refs/cli-git"]),
+        "",
+        "no merge ref is left"
+    );
     remove(&s.root);
 }
 
@@ -942,15 +1146,34 @@ fn a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file(
     std::fs::write(s.other.join(".gitattributes"), "data.txt merge=binary\n").expect("the rule");
     std::fs::write(s.other.join("data.txt"), corpus("md1b", "theirs")).expect("their edit");
     git(&s.other, &["add", "--", ".gitattributes", "data.txt"]);
-    git(&s.other, &["commit", "--quiet", "-m", "a rule and the edit it owns"]);
+    git(
+        &s.other,
+        &["commit", "--quiet", "-m", "a rule and the edit it owns"],
+    );
     git(&s.other, &["push", "--quiet", "origin", "main"]);
-    let island: String = commit_local(&s, "data.txt", String::from_utf8_lossy(corpus("md1b", "ours").as_slice()).into_owned().as_str());
+    let island: String = commit_local(
+        &s,
+        "data.txt",
+        String::from_utf8_lossy(corpus("md1b", "ours").as_slice())
+            .into_owned()
+            .as_str(),
+    );
     git(&s.local, &["fetch", "--quiet", "origin"]);
     let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
     let answer = commit_merge(&push_git(&s.local), &island, &main, "message").expect("git");
-    let Err(paths) = answer else { panic!("the rule the merge introduces excludes the file") };
-    assert_eq!(paths, vec![String::from("data.txt")], "the excluded path is the one reported");
-    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    let Err(paths) = answer else {
+        panic!("the rule the merge introduces excludes the file")
+    };
+    assert_eq!(
+        paths,
+        vec![String::from("data.txt")],
+        "the excluded path is the one reported"
+    );
+    assert_eq!(
+        text_of(&s.local, &["for-each-ref", "refs/cli-git"]),
+        "",
+        "no merge ref is left"
+    );
     remove(&s.root);
 }
 
@@ -958,7 +1181,10 @@ fn a_rule_the_remote_introduces_keeps_the_reconcile_merge_from_merging_the_file(
 /// it reads the payload,
 /// answers the status line Git waits for and prints a placeholder signature,
 /// so no key or keyring is involved.
-fn sign_commits_with_stand_in(scenario: &Scenario, status: u32) {
+fn sign_commits_with_stand_in(
+    scenario: &Scenario,
+    status: u32,
+) {
     let program = scenario.root.join("stand-in-gpg");
     let script = format!(
         "#!/bin/sh\ncat > /dev/null\n[ {status} -eq 0 ] || exit {status}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nplaceholder\\n-----END PGP SIGNATURE-----\\n'\n"
@@ -973,7 +1199,10 @@ fn sign_commits_with_stand_in(scenario: &Scenario, status: u32) {
 }
 
 /// Whether the commit `oid` of the remote carries a signature header.
-fn is_signed(scenario: &Scenario, oid: &str) -> bool {
+fn is_signed(
+    scenario: &Scenario,
+    oid: &str,
+) -> bool {
     return text_of(&scenario.remote, &["cat-file", "commit", oid]).contains("\ngpgsig ");
 }
 
@@ -1059,10 +1288,18 @@ fn fetched_remote_tip(scenario: &Scenario) -> String {
 }
 
 /// Run the fast-forward of the repository under test from its current tip to `target`.
-fn advance(scenario: &Scenario, target: &str) -> Result<bool, String> {
+fn advance(
+    scenario: &Scenario,
+    target: &str,
+) -> Result<bool, String> {
     let local = text_of(&scenario.local, &["rev-parse", "HEAD"]);
-    return advance_local_branch(&push_git(&scenario.local), "refs/heads/main", &local, target)
-        .expect("git");
+    return advance_local_branch(
+        &push_git(&scenario.local),
+        "refs/heads/main",
+        &local,
+        target,
+    )
+    .expect("git");
 }
 
 /// A clean worktree on the pushed branch follows the published merge,
@@ -1086,7 +1323,10 @@ fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
         "remote\n"
     );
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "");
-    assert!(err.contains("main and the worktree were fast-forwarded"), "{err}");
+    assert!(
+        err.contains("main and the worktree were fast-forwarded"),
+        "{err}"
+    );
     assert!(!err.contains("unchanged"), "{err}");
     remove(&s.root);
 }
@@ -1134,10 +1374,15 @@ fn the_fast_forward_moves_a_clean_checkout_to_the_target() {
 ///  and a kill between Git's checkout and its ref update leaves a merge with no intent.
 #[test]
 fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("push::auto_push_reconcile::tests::the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "push::auto_push_reconcile::tests::the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text",
+    ) {
         return;
     }
-    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, list_merge_intents};
+    use crate::merge_isolation_journal::{
+        MERGE_INTENT_DIRECTORY,
+        list_merge_intents,
+    };
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::PermissionsExt as _;
@@ -1166,12 +1411,29 @@ fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
     let mut watching: PushGit = push_git(repo.as_path());
     watching.real_git = shim;
-    let _moved: () = await_it(crate::auto_push_reconcile_branch_advance::fast_forward_recorded(&watching, "refs/heads/main", old.as_str(), target.as_str(), &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE))
-        .expect("git")
-        .expect("the branch and the checkout moved");
-    assert_eq!(std::fs::read_to_string(seen.as_path()).expect("the stand-in looked"), "present\n", "the record is in the worktree's own Git directory");
+    let _moved: () = await_it(
+        crate::auto_push_reconcile_branch_advance::fast_forward_recorded(
+            &watching,
+            "refs/heads/main",
+            old.as_str(),
+            target.as_str(),
+            &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+        ),
+    )
+    .expect("git")
+    .expect("the branch and the checkout moved");
+    assert_eq!(
+        std::fs::read_to_string(seen.as_path()).expect("the stand-in looked"),
+        "present\n",
+        "the record is in the worktree's own Git directory"
+    );
     assert_eq!(text_of(&repo, &["rev-parse", "HEAD"]), target);
-    assert!(list_merge_intents(repo.join(".git").as_path()).expect("listing").is_empty(), "the record goes with the settled merge");
+    assert!(
+        list_merge_intents(repo.join(".git").as_path())
+            .expect("listing")
+            .is_empty(),
+        "the record goes with the settled merge"
+    );
     remove(root.as_path());
 }
 
@@ -1213,13 +1475,8 @@ fn a_branch_that_moved_after_the_landing_is_not_fast_forwarded() {
     advance_remote(&s, "a.txt", "remote\n");
     let target = fetched_remote_tip(&s);
     let before = text_of(&s.local, &["rev-parse", "HEAD"]);
-    let result = advance_local_branch(
-        &push_git(&s.local),
-        "refs/heads/main",
-        &target,
-        &target,
-    )
-    .expect("git");
+    let result = advance_local_branch(&push_git(&s.local), "refs/heads/main", &target, &target)
+        .expect("git");
     assert_eq!(
         result,
         Err(String::from("the branch moved after the commit landed"))
@@ -1375,11 +1632,9 @@ fn an_untracked_file_the_target_would_overwrite_is_kept() {
     std::fs::write(s.local.join("new.txt"), "mine\n").expect("untracked");
     let result = advance(&s, &target);
     assert!(
-        result
-            .as_ref()
-            .is_err_and(|reason| {
-                return reason.starts_with("Git refused the fast-forward: ");
-            }),
+        result.as_ref().is_err_and(|reason| {
+            return reason.starts_with("Git refused the fast-forward: ");
+        }),
         "{result:?}"
     );
     assert_eq!(
@@ -1415,11 +1670,9 @@ fn a_target_that_is_not_a_fast_forward_is_refused() {
     let landed = commit_local(&s, "b.txt", "local\n");
     let result = advance(&s, &target);
     assert!(
-        result
-            .as_ref()
-            .is_err_and(|reason| {
-                return reason.starts_with("Git refused the fast-forward: ");
-            }),
+        result.as_ref().is_err_and(|reason| {
+            return reason.starts_with("Git refused the fast-forward: ");
+        }),
         "{result:?}"
     );
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), landed);
@@ -1538,7 +1791,11 @@ fn a_failed_attempt_between_two_reconciles_does_not_stop_the_next_one() {
 /// first moves the remote branch from the other clone:
 /// the race behind GH006.
 /// Returns the file that counts the hook's runs.
-fn declining_remote_hook(scenario: &Scenario, declines: u32, advance: bool) -> PathBuf {
+fn declining_remote_hook(
+    scenario: &Scenario,
+    declines: u32,
+    advance: bool,
+) -> PathBuf {
     let counter = scenario.root.join("receive-counter");
     let git_without_hook_environment = "env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_QUARANTINE_PATH \
                                         -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES git";
@@ -1600,7 +1857,11 @@ fn a_protected_branch_refusal_while_the_remote_is_behind_is_reported_as_it_came(
     let landed = commit_local(&s, "b.txt", "local\n");
     let (result, err) = run(&s, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
-    assert!(result.shown.contains("[remote rejected]"), "{}", result.shown);
+    assert!(
+        result.shown.contains("[remote rejected]"),
+        "{}",
+        result.shown
+    );
     assert!(err.contains(PUSH_FAILED_NOTE), "{err}");
     assert!(!err.contains(RECONCILE_LINE_PREFIX), "{err}");
     assert_eq!(hook_runs(&counter), 1);
@@ -1621,7 +1882,11 @@ fn a_refusal_of_the_merge_by_an_unmoved_remote_ends_the_attempts() {
     let landed = commit_local(&s, "b.txt", "local\n");
     let (result, err) = run(&s, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
-    assert!(result.shown.contains("[remote rejected]"), "{}", result.shown);
+    assert!(
+        result.shown.contains("[remote rejected]"),
+        "{}",
+        result.shown
+    );
     assert!(!err.contains("during each of"), "{err}");
     assert_eq!(hook_runs(&counter), 1);
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "");
@@ -1658,25 +1923,51 @@ fn a_branch_whose_upstream_has_another_name_is_the_one_the_message_names() {
     // The README's case: a branch created from the tracked ref, whose own name differs from it.
     git(&s.local, &["switch", "--quiet", "-c", "feature"]);
     git(&s.local, &["config", "branch.feature.remote", "origin"]);
-    git(&s.local, &["config", "branch.feature.merge", "refs/heads/main"]);
+    git(
+        &s.local,
+        &["config", "branch.feature.merge", "refs/heads/main"],
+    );
     let landed = commit_local(&s, "b.txt", "local\n");
     let mut published: String = String::new();
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        published = merge_oid.to_owned();
-        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
-    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", false, &mut push_merge));
+    let mut push_merge =
+        |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            published = merge_oid.to_owned();
+            git(
+                &s.local,
+                &[
+                    "push",
+                    "--quiet",
+                    "origin",
+                    &format!("{merge_oid}:{}", destination.merge_ref),
+                ],
+            );
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
+    let attempt = finished(integrate_for(
+        &s,
+        &landed,
+        Some("refs/heads/feature"),
+        "refs/heads/main",
+        false,
+        &mut push_merge,
+    ));
     assert_eq!(attempt.exit_code, 0, "{attempt:?}");
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
     let mut lines = message.lines();
-    assert_eq!(lines.next(), Some("Merge origin/main into feature"), "{message}");
+    assert_eq!(
+        lines.next(),
+        Some("Merge origin/main into feature"),
+        "{message}"
+    );
     assert!(message.contains("Published to origin/main."), "{message}");
-    assert!(message.contains("because origin/main advanced after the commit landed."), "{message}");
+    assert!(
+        message.contains("because origin/main advanced after the commit landed."),
+        "{message}"
+    );
     remove(&s.root);
 }
 
@@ -1696,25 +1987,54 @@ fn the_published_line_names_the_push_destination_and_no_tracking_relation() {
     // The review's sequence: the branch tracks its own remote branch, and the push goes to another ref.
     git(&s.local, &["switch", "--quiet", "-c", "feature"]);
     git(&s.local, &["config", "branch.feature.remote", "origin"]);
-    git(&s.local, &["config", "branch.feature.merge", "refs/heads/feature"]);
+    git(
+        &s.local,
+        &["config", "branch.feature.merge", "refs/heads/feature"],
+    );
     let landed = commit_local(&s, "b.txt", "local\n");
     let mut published: String = String::new();
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        published = merge_oid.to_owned();
-        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
-    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    let mut push_merge =
+        |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            published = merge_oid.to_owned();
+            git(
+                &s.local,
+                &[
+                    "push",
+                    "--quiet",
+                    "origin",
+                    &format!("{merge_oid}:{}", destination.merge_ref),
+                ],
+            );
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
+    let attempt = finished(integrate_for(
+        &s,
+        &landed,
+        Some("refs/heads/feature"),
+        "refs/heads/main",
+        true,
+        &mut push_merge,
+    ));
     assert_eq!(attempt.exit_code, 0, "{attempt:?}");
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
-    assert_eq!(message.lines().next(), Some("Merge origin/main into feature"), "{message}");
+    assert_eq!(
+        message.lines().next(),
+        Some("Merge origin/main into feature"),
+        "{message}"
+    );
     assert!(message.contains("Published to origin/main."), "{message}");
-    assert!(!message.contains("tracks"), "the message states no tracking relation: {message}");
-    assert_eq!(text_of(&s.remote, &["log", "-1", "--format=%s", "main"]), "Merge origin/main into feature");
+    assert!(
+        !message.contains("tracks"),
+        "the message states no tracking relation: {message}"
+    );
+    assert_eq!(
+        text_of(&s.remote, &["log", "-1", "--format=%s", "main"]),
+        "Merge origin/main into feature"
+    );
     remove(&s.root);
 }
 
@@ -1726,19 +2046,39 @@ fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
     advance_remote(&s, "a.txt", "remote\n");
     let landed = commit_local(&s, "b.txt", "local\n");
     let mut published: String = String::new();
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        published = merge_oid.to_owned();
-        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
-    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/main"), "refs/heads/main", false, &mut push_merge));
+    let mut push_merge =
+        |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            published = merge_oid.to_owned();
+            git(
+                &s.local,
+                &[
+                    "push",
+                    "--quiet",
+                    "origin",
+                    &format!("{merge_oid}:{}", destination.merge_ref),
+                ],
+            );
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
+    let attempt = finished(integrate_for(
+        &s,
+        &landed,
+        Some("refs/heads/main"),
+        "refs/heads/main",
+        false,
+        &mut push_merge,
+    ));
     assert_eq!(attempt.exit_code, 0, "{attempt:?}");
     let message: String = text_of(&s.local, &["log", "-1", "--format=%B", published.as_str()]);
-    assert_eq!(message.lines().next(), Some("Merge origin/main into main"), "{message}");
+    assert_eq!(
+        message.lines().next(),
+        Some("Merge origin/main into main"),
+        "{message}"
+    );
     assert!(!message.contains("Published to"), "{message}");
     remove(&s.root);
 }
@@ -1755,14 +2095,30 @@ fn a_conflict_is_reported_against_the_branch_the_merge_was_into() {
     advance_remote(&s, "a.txt", "remote\n");
     git(&s.local, &["switch", "--quiet", "-c", "feature"]);
     let landed = commit_local(&s, "a.txt", "local\n");
-    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        panic!("a conflicting merge publishes nothing");
-    };
-    let attempt = finished(integrate_for(&s, &landed, Some("refs/heads/feature"), "refs/heads/main", true, &mut push_merge));
+    let mut push_merge =
+        |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            panic!("a conflicting merge publishes nothing");
+        };
+    let attempt = finished(integrate_for(
+        &s,
+        &landed,
+        Some("refs/heads/feature"),
+        "refs/heads/main",
+        true,
+        &mut push_merge,
+    ));
     assert_ne!(attempt.exit_code, 0, "{attempt:?}");
-    assert!(attempt.output.contains("merging origin/main into feature"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("merging origin/main into feature"),
+        "{}",
+        attempt.output
+    );
     assert!(!attempt.output.contains("into main"), "{}", attempt.output);
-    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), text_of(&s.local, &["rev-parse", "origin/main"]), "nothing was published");
+    assert_eq!(
+        text_of(&s.remote, &["rev-parse", "main"]),
+        text_of(&s.local, &["rev-parse", "origin/main"]),
+        "nothing was published"
+    );
     remove(&s.root);
 }
 
@@ -1773,7 +2129,14 @@ fn integrate(
     explicit: bool,
     push_merge: &mut dyn MergePusher,
 ) -> Integrated {
-    return integrate_for(scenario, landed, Some("refs/heads/main"), "refs/heads/main", explicit, push_merge);
+    return integrate_for(
+        scenario,
+        landed,
+        Some("refs/heads/main"),
+        "refs/heads/main",
+        explicit,
+        push_merge,
+    );
 }
 
 /// Run the shared reconcile loop for the branch `branch_ref`,
@@ -1834,27 +2197,33 @@ fn failing_merge_push_while_the_remote_moves(
     advance_remote(&s, "a.txt", "remote\n");
     let landed = commit_local(&s, "b.txt", "local\n");
     let mut pushes: u32 = 0;
-    let mut push_merge = |_destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        pushes += 1;
-        if pushes == 1 {
-            // The remote moved after the first fetch, and the first merge push failed with `first_output`.
-            advance_remote(&s, "c.txt", "moved\n");
+    let mut push_merge =
+        |_destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            pushes += 1;
+            if pushes == 1 {
+                // The remote moved after the first fetch, and the first merge push failed with `first_output`.
+                advance_remote(&s, "c.txt", "moved\n");
+                return Ok(PushAttempt {
+                    exit_code: 1,
+                    signal: None,
+                    output: first_output.to_owned(),
+                });
+            }
+            git(
+                &s.local,
+                &[
+                    "push",
+                    "--quiet",
+                    "origin",
+                    &format!("{merge_oid}:refs/heads/main"),
+                ],
+            );
             return Ok(PushAttempt {
-                exit_code: 1,
+                exit_code: 0,
                 signal: None,
-                output: first_output.to_owned(),
+                output: String::new(),
             });
-        }
-        git(
-            &s.local,
-            &["push", "--quiet", "origin", &format!("{merge_oid}:refs/heads/main")],
-        );
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
+        };
     let attempt = finished(integrate(&s, &landed, explicit, &mut push_merge));
     let delivered = text_of(&s.remote, &["show", "main:b.txt"]) == "local";
     remove(&s.root);
@@ -1873,14 +2242,15 @@ fn an_explicit_push_whose_commit_the_remote_already_contains_stands_down() {
     advance_remote(&s, "a.txt", "remote\n");
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
     let mut pushes: u32 = 0;
-    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        pushes += 1;
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
+    let mut push_merge =
+        |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            pushes += 1;
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
     let integrated = integrate(&s, &landed, true, &mut push_merge);
     let Integrated::NotDivergent(attempt) = integrated else {
         panic!("an explicit push must stand down when the remote contains its commit");
@@ -1903,7 +2273,11 @@ fn an_auto_push_whose_merge_push_fails_for_another_reason_is_not_retried() {
     );
     assert_eq!(pushes, 1, "the failure is final");
     assert_eq!(attempt.exit_code, 1);
-    assert!(attempt.output.contains("a pre-push hook declined"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("a pre-push hook declined"),
+        "{}",
+        attempt.output
+    );
     assert!(!delivered, "nothing was published");
 }
 
@@ -1953,18 +2327,35 @@ fn an_explicit_push_whose_merge_push_is_refused_as_stale_is_retried() {
 // Why: the owner decided on 2026-11-03 that the wrapper's unattended merges use the same second pass and log every part.
 
 /// A stored corpus file of the word-level merge.
-fn corpus(name: &str, extension: &str) -> Vec<u8> {
-    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
-        .expect("a corpus file");
+fn corpus(
+    name: &str,
+    extension: &str,
+) -> Vec<u8> {
+    return std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/native/merge/word_merge_corpus")
+            .join(format!("{name}.{extension}")),
+    )
+    .expect("a corpus file");
 }
 
 /// Publish the corpus input's base as `file`,
 /// so the local clone and the remote start from it.
-fn start_from_corpus(s: &Scenario, input: &str, file: &str) {
+fn start_from_corpus(
+    s: &Scenario,
+    input: &str,
+    file: &str,
+) {
     if let Some(parent) = s.other.join(file).parent() {
         std::fs::create_dir_all(parent).expect("directories");
     }
-    advance_remote(s, file, String::from_utf8(corpus(input, "base")).expect("UTF-8").as_str());
+    advance_remote(
+        s,
+        file,
+        String::from_utf8(corpus(input, "base"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     git(&s.local, &["pull", "--quiet", "--ff-only"]);
 }
 
@@ -1974,15 +2365,43 @@ fn start_from_corpus(s: &Scenario, input: &str, file: &str) {
 fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
     let s = scenario("ar-word");
     start_from_corpus(&s, "md1b", "notes.md");
-    advance_remote(&s, "notes.md", String::from_utf8(corpus("md1b", "ours")).expect("UTF-8").as_str());
-    let landed = commit_local(&s, "notes.md", String::from_utf8(corpus("md1b", "theirs")).expect("UTF-8").as_str());
+    advance_remote(
+        &s,
+        "notes.md",
+        String::from_utf8(corpus("md1b", "ours"))
+            .expect("UTF-8")
+            .as_str(),
+    );
+    let landed = commit_local(
+        &s,
+        "notes.md",
+        String::from_utf8(corpus("md1b", "theirs"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     let (result, err) = run(&s, &landed);
-    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    assert_eq!(
+        (result.outcome, result.exit_code),
+        (AutoPushOutcome::Pushed, 0),
+        "{err}"
+    );
     let published = text_of(&s.remote, &["show", "main:notes.md"]);
-    assert_eq!(published.as_bytes(), String::from_utf8(corpus("md1b", "word.out")).expect("UTF-8").trim_end().as_bytes());
-    assert!(err.contains("word-level merge") && err.contains("notes.md"), "{err}");
+    assert_eq!(
+        published.as_bytes(),
+        String::from_utf8(corpus("md1b", "word.out"))
+            .expect("UTF-8")
+            .trim_end()
+            .as_bytes()
+    );
+    assert!(
+        err.contains("word-level merge") && err.contains("notes.md"),
+        "{err}"
+    );
     let message = text_of(&s.remote, &["log", "--max-count=1", "--format=%B", "main"]);
-    assert!(message.contains("word-level merge") && message.contains("notes.md"), "the merge commit lists the part: {message}");
+    assert!(
+        message.contains("word-level merge") && message.contains("notes.md"),
+        "the merge commit lists the part: {message}"
+    );
     remove(&s.root);
 }
 
@@ -2002,7 +2421,9 @@ fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
     let s = scenario("ar-word-large");
     // The answer holds the shared text around the one conflict, so shared text past the cap makes the answer larger than
     // the cap; the margin is the region, the marker lines and the text the push reports around them.
-    let shared: usize = usize::try_from(crate::bounded_push::MAX_PUSH_OUTPUT).expect("the cap is a size") + 512 * 1024;
+    let shared: usize = usize::try_from(crate::bounded_push::MAX_PUSH_OUTPUT)
+        .expect("the cap is a size")
+        + 512 * 1024;
     let mut base: String = String::new();
     while base.len() <= shared {
         base.push_str(format!("a line of the shared text {}\n", base.len()).as_str());
@@ -2010,7 +2431,8 @@ fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
     let tail: &str = "alpha one\n";
     base.push_str(tail);
     assert!(
-        u64::try_from(base.len()).expect("the fixture's size") < crate::merge_second_pass::LARGEST_STAGE_BYTES,
+        u64::try_from(base.len()).expect("the fixture's size")
+            < crate::merge_second_pass::LARGEST_STAGE_BYTES,
         "the fixture is a stage the pass takes"
     );
     let both: &str = base.strip_suffix(tail).expect("the tail is there");
@@ -2020,11 +2442,25 @@ fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
     advance_remote(&s, "big.md", format!("{both}ALPHA one\n").as_str());
     let landed: String = commit_local(&s, "big.md", format!("{both}alpha uno\n").as_str());
     let (result, err) = run(&s, &landed);
-    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    assert_eq!(
+        (result.outcome, result.exit_code),
+        (AutoPushOutcome::Pushed, 0),
+        "{err}"
+    );
     let published: String = text_of(&s.remote, &["show", "main:big.md"]);
-    assert!(published.starts_with(both), "the shared text is published whole: {} bytes", published.len());
-    assert!(published.trim_end().ends_with("ALPHA uno"), "the merged line is the word merge of both edits");
-    assert!(err.contains("word-level merge") && err.contains("big.md"), "{err}");
+    assert!(
+        published.starts_with(both),
+        "the shared text is published whole: {} bytes",
+        published.len()
+    );
+    assert!(
+        published.trim_end().ends_with("ALPHA uno"),
+        "the merged line is the word merge of both edits"
+    );
+    assert!(
+        err.contains("word-level merge") && err.contains("big.md"),
+        "{err}"
+    );
     remove(&s.root);
 }
 
@@ -2072,17 +2508,41 @@ fn a_merge_of_many_small_regions_is_word_merged_and_published() {
     advance_remote(&s, "many.txt", theirs.as_str());
     let landed: String = commit_local(&s, "many.txt", ours.as_str());
     let (result, err) = run(&s, &landed);
-    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    assert_eq!(
+        (result.outcome, result.exit_code),
+        (AutoPushOutcome::Pushed, 0),
+        "{err}"
+    );
     let published: String = text_of(&s.remote, &["show", "main:many.txt"]);
     // Every conflict is one word of the first side's line and one of the second side's, so the merge is both edits.
-    assert_eq!(published.matches("ALPHA uno ").count(), CONFLICTS, "every region is the word merge of its two edits");
-    assert!(!published.contains("alpha one ") && !published.contains("alpha uno ") && !published.contains("ALPHA one "), "no line of a side is left unmerged");
+    assert_eq!(
+        published.matches("ALPHA uno ").count(),
+        CONFLICTS,
+        "every region is the word merge of its two edits"
+    );
+    assert!(
+        !published.contains("alpha one ")
+            && !published.contains("alpha uno ")
+            && !published.contains("ALPHA one "),
+        "no line of a side is left unmerged"
+    );
     // The merge commit lists every part, and the list is past what the kernel takes as one argument, so the message
     // could not have been a `-m` argument of the commit.
     let message: String = text_of(&s.remote, &["log", "--max-count=1", "--format=%B", "main"]);
-    assert_eq!(message.matches("word-level merge: many.txt: part ").count(), CONFLICTS, "the merge commit lists every part");
-    assert!(message.len() > KERNEL_ARGUMENT_BYTES, "the message is past one argument: {} bytes against {KERNEL_ARGUMENT_BYTES}", message.len());
-    assert!(err.contains("word-level merge") && err.contains("many.txt"), "{err}");
+    assert_eq!(
+        message.matches("word-level merge: many.txt: part ").count(),
+        CONFLICTS,
+        "the merge commit lists every part"
+    );
+    assert!(
+        message.len() > KERNEL_ARGUMENT_BYTES,
+        "the message is past one argument: {} bytes against {KERNEL_ARGUMENT_BYTES}",
+        message.len()
+    );
+    assert!(
+        err.contains("word-level merge") && err.contains("many.txt"),
+        "{err}"
+    );
     remove(&s.root);
 }
 
@@ -2092,14 +2552,29 @@ fn a_merge_of_many_small_regions_is_word_merged_and_published() {
 fn a_both_append_conflict_stays_unpublished_after_the_second_pass() {
     let s = scenario("ar-word-append");
     start_from_corpus(&s, "md2", "notes.md");
-    advance_remote(&s, "notes.md", String::from_utf8(corpus("md2", "ours")).expect("UTF-8").as_str());
+    advance_remote(
+        &s,
+        "notes.md",
+        String::from_utf8(corpus("md2", "ours"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
-    let landed = commit_local(&s, "notes.md", String::from_utf8(corpus("md2", "theirs")).expect("UTF-8").as_str());
+    let landed = commit_local(
+        &s,
+        "notes.md",
+        String::from_utf8(corpus("md2", "theirs"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     let (result, err) = run(&s, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
     assert!(err.contains("conflicts in: notes.md"), "{err}");
-    assert!(!err.contains("word-level merge"), "nothing was merged: {err}");
+    assert!(
+        !err.contains("word-level merge"),
+        "nothing was merged: {err}"
+    );
     remove(&s.root);
 }
 
@@ -2111,15 +2586,28 @@ fn one_unresolved_file_keeps_the_whole_merge_unpublished() {
     let s = scenario("ar-word-one-file");
     start_from_corpus(&s, "md1b", "notes.md");
     advance_remote(&s, "a.txt", "remote\n");
-    advance_remote(&s, "notes.md", String::from_utf8(corpus("md1b", "ours")).expect("UTF-8").as_str());
+    advance_remote(
+        &s,
+        "notes.md",
+        String::from_utf8(corpus("md1b", "ours"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
     std::fs::write(s.local.join("a.txt"), "local\n").expect("a.txt");
     std::fs::write(s.local.join("notes.md"), corpus("md1b", "theirs")).expect("notes.md");
-    git(&s.local, &["commit", "--quiet", "--all", "-m", "local both"]);
+    git(
+        &s.local,
+        &["commit", "--quiet", "--all", "-m", "local both"],
+    );
     let landed = text_of(&s.local, &["rev-parse", "HEAD"]);
     let (result, err) = run(&s, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
-    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "nothing is published when any file conflicts");
+    assert_eq!(
+        text_of(&s.remote, &["rev-parse", "main"]),
+        remote_before,
+        "nothing is published when any file conflicts"
+    );
     assert!(err.contains("conflicts in: a.txt"), "{err}");
     remove(&s.root);
 }
@@ -2129,21 +2617,44 @@ fn one_unresolved_file_keeps_the_whole_merge_unpublished() {
 fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
     let s = scenario("ar-union");
     std::fs::create_dir_all(s.other.join("doc/handover")).expect("directories");
-    std::fs::write(s.other.join(".gitattributes"), "doc/handover/*.md merge=union\n").expect("attributes");
+    std::fs::write(
+        s.other.join(".gitattributes"),
+        "doc/handover/*.md merge=union\n",
+    )
+    .expect("attributes");
     git(&s.other, &["add", ".gitattributes"]);
     git(&s.other, &["commit", "--quiet", "-m", "attributes"]);
     git(&s.other, &["push", "--quiet", "origin", "main"]);
     git(&s.local, &["pull", "--quiet", "--ff-only"]);
     start_from_corpus(&s, "md2", "doc/handover/log.md");
-    advance_remote(&s, "doc/handover/log.md", String::from_utf8(corpus("md2", "ours")).expect("UTF-8").as_str());
-    let landed = commit_local(&s, "doc/handover/log.md", String::from_utf8(corpus("md2", "theirs")).expect("UTF-8").as_str());
+    advance_remote(
+        &s,
+        "doc/handover/log.md",
+        String::from_utf8(corpus("md2", "ours"))
+            .expect("UTF-8")
+            .as_str(),
+    );
+    let landed = commit_local(
+        &s,
+        "doc/handover/log.md",
+        String::from_utf8(corpus("md2", "theirs"))
+            .expect("UTF-8")
+            .as_str(),
+    );
     // The checkout the merge is asked from does not hold the attributes file (another branch, or a deletion not committed).
     std::fs::remove_file(s.local.join(".gitattributes")).expect("remove the attributes file");
     git(&s.local, &["rm", "--quiet", "--cached", ".gitattributes"]);
     let (result, err) = run(&s, &landed);
-    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    assert_eq!(
+        (result.outcome, result.exit_code),
+        (AutoPushOutcome::Pushed, 0),
+        "{err}"
+    );
     let published = text_of(&s.remote, &["show", "main:doc/handover/log.md"]);
-    assert!(published.contains("Ours risk.") && published.contains("Theirs question."), "{published}");
+    assert!(
+        published.contains("Ours risk.") && published.contains("Theirs question."),
+        "{published}"
+    );
     remove(&s.root);
 }
 
@@ -2151,7 +2662,10 @@ fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
 /// a push a person typed journals as the wrapper.
 #[test]
 fn the_journal_identifier_follows_who_runs_the_reconcile() {
-    assert_eq!(journal_identifier(false), "monochromatic-git-policy-cli-service");
+    assert_eq!(
+        journal_identifier(false),
+        "monochromatic-git-policy-cli-service"
+    );
     assert_eq!(journal_identifier(true), "monochromatic-git-policy-cli");
 }
 //endregion
@@ -2181,16 +2695,48 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let mut git = push_git(&s.local);
     git.real_git = context.real_git.clone();
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
-    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
+    let result =
+        push_once(&git, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
+    assert_eq!(
+        (result.outcome, result.exit_code),
+        (AutoPushOutcome::Pushed, 0),
+        "{}",
+        String::from_utf8_lossy(&err)
+    );
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
-    let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
+    let named = |word: &str| -> usize {
+        return starts
+            .iter()
+            .filter(|start| {
+                return start.split(' ').any(|argument| {
+                    return argument == word;
+                });
+            })
+            .count();
+    };
     assert_eq!(named("fetch"), 1, "one fetch: {starts:?}");
     // The move of the branch names it: an ancestry check, the two-way update of the checkout and a compare-and-swap ref write.
-    assert_eq!(named("read-tree"), 1, "one update of the checkout: {starts:?}");
-    let moves: Vec<&String> = starts.iter().filter(|start| { return start.contains("fast-forward refs/heads/main to the published reconcile merge"); }).collect();
-    assert_eq!(moves.len(), 1, "one update of the branch, named: {starts:?}");
-    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    assert_eq!(
+        named("read-tree"),
+        1,
+        "one update of the checkout: {starts:?}"
+    );
+    let moves: Vec<&String> = starts
+        .iter()
+        .filter(|start| {
+            return start.contains("fast-forward refs/heads/main to the published reconcile merge");
+        })
+        .collect();
+    assert_eq!(
+        moves.len(),
+        1,
+        "one update of the branch, named: {starts:?}"
+    );
+    assert_eq!(
+        crate::recording_git::quiet_starts(log.as_path()),
+        Vec::<String>::new(),
+        "no start carries --quiet or -q"
+    );
     remove(&s.root);
 }
 
@@ -2205,14 +2751,34 @@ fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     let landed = commit_local(&s, "b.txt", "local\n");
     let entries = crate::service_timing::capture::entries_of(|| {
         let (result, err) = run(&s, &landed);
-        assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+        assert_eq!(
+            (result.outcome, result.exit_code),
+            (AutoPushOutcome::Pushed, 0),
+            "{err}"
+        );
     });
     let said = |command: &str| -> Vec<&crate::service_timing::capture::Captured> {
-        return entries.iter().filter(|entry| { return entry.message.contains(format!("git {command}").as_str()) && entry.message.contains(" said: "); }).collect();
+        return entries
+            .iter()
+            .filter(|entry| {
+                return entry.message.contains(format!("git {command}").as_str())
+                    && entry.message.contains(" said: ");
+            })
+            .collect();
     };
-    assert_eq!(said("fetch --no-tags").len(), 1, "Git's report of the fetched branch: {entries:?}");
-    let reflog: String = text_of(&s.local, &["reflog", "show", "--format=%gs", "refs/heads/main"]);
-    assert!(reflog.contains("fast-forward refs/heads/main to the published reconcile merge"), "the move is in the branch's reflog: {reflog}");
+    assert_eq!(
+        said("fetch --no-tags").len(),
+        1,
+        "Git's report of the fetched branch: {entries:?}"
+    );
+    let reflog: String = text_of(
+        &s.local,
+        &["reflog", "show", "--format=%gs", "refs/heads/main"],
+    );
+    assert!(
+        reflog.contains("fast-forward refs/heads/main to the published reconcile merge"),
+        "the move is in the branch's reflog: {reflog}"
+    );
     remove(&s.root);
 }
 
@@ -2250,15 +2816,33 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     racing.real_git = shim;
     let result = advance_local_branch(&racing, "refs/heads/main", &old, &target).expect("git");
     assert!(marker.exists(), "the race was played");
-    let Err(reason) = result else { panic!("the move lost the race, so it is not reported as done") };
+    let Err(reason) = result else {
+        panic!("the move lost the race, so it is not reported as done")
+    };
     assert!(reason.contains("Git refused the fast-forward"), "{reason}");
     let winner = text_of(&s.local, &["rev-parse", "HEAD"]);
-    assert_eq!(text_of(&s.local, &["log", "-1", "--format=%s", "HEAD"]), "meanwhile");
+    assert_eq!(
+        text_of(&s.local, &["log", "-1", "--format=%s", "HEAD"]),
+        "meanwhile"
+    );
     assert_ne!(winner, old);
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
-    assert_ne!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "a.txt is not the published merge's");
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the checkout matches the branch"
+    );
+    assert_ne!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "remote\n",
+        "a.txt is not the published merge's"
+    );
     assert!(s.local.join("z.txt").exists());
-    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    assert_eq!(
+        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges"))
+            .map_or(0, Iterator::count),
+        0,
+        "no record is left"
+    );
     remove(&s.root);
 }
 
@@ -2271,12 +2855,20 @@ fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported
     let root: PathBuf = crate::test_support::fixture("reconcile-no-input-thread");
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let git: PushGit = push_git(repo.as_path());
-    let runner: PushRunner<'_> = PushRunner { git: &git };
-    let positive = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect("positive control: the command runs with a thread");
+    let runner: PushRunner<'_> = PushRunner {
+        git: &git,
+    };
+    let positive = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None))
+        .expect("positive control: the command runs with a thread");
     assert_eq!(positive.code, Some(0));
     let _refused = crate::scoped_start::RefusedStarts::here();
-    let reported: String = await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None)).expect_err("no thread to give it its input");
-    assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
+    let reported: String =
+        await_it(runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None))
+            .expect_err("no thread to give it its input");
+    assert!(
+        reported.contains("no thread could be started") && reported.contains("hash-object"),
+        "{reported}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -2299,17 +2891,34 @@ fn a_second_pass_command_that_stalls_is_stopped_and_named() {
     let root: PathBuf = crate::test_support::fixture("reconcile-stalled-second-pass");
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let shim: PathBuf = root.join("stalled-git");
-    std::fs::write(&shim, format!("#!/bin/sh\nexec sleep {}\n", STALLED_STAND_IN_SLEEP.as_secs()).as_str()).expect("stand-in");
+    std::fs::write(
+        &shim,
+        format!(
+            "#!/bin/sh\nexec sleep {}\n",
+            STALLED_STAND_IN_SLEEP.as_secs()
+        )
+        .as_str(),
+    )
+    .expect("stand-in");
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
     let mut git: PushGit = push_git(repo.as_path());
     git.real_git = shim;
-    git.environment.push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALLED_WINDOW)));
-    let runner: PushRunner<'_> = PushRunner { git: &git };
+    git.environment.push((
+        OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE),
+        OsString::from(STALLED_WINDOW),
+    ));
+    let runner: PushRunner<'_> = PushRunner {
+        git: &git,
+    };
     let began: std::time::Instant = std::time::Instant::now();
-    let reported: String = await_it(runner.run(&["merge-tree", "--write-tree"], None, None)).expect_err("a stalled command is stopped, not waited out");
+    let reported: String = await_it(runner.run(&["merge-tree", "--write-tree"], None, None))
+        .expect_err("a stalled command is stopped, not waited out");
     let waited: Duration = began.elapsed();
     assert!(reported.contains("merge-tree"), "{reported}");
-    assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
+    assert!(
+        waited < STALLED_STAND_IN_SLEEP,
+        "the command was stopped at its window: {reported}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -2327,17 +2936,40 @@ fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
     git(&s.local, &["branch", "topic"]);
     // The person's `git switch topic` finishes in the window: after the checks, before the move.
-    let interposed = SwitchThenMove { local: s.local.clone() };
-    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &interposed)).expect("git");
-    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    let interposed = SwitchThenMove {
+        local: s.local.clone(),
+    };
+    let moved: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+            &interposed,
+        ),
+    )
+    .expect("git");
+    assert_eq!(
+        moved,
+        Ok(false),
+        "the branch this command checked follows the merge"
+    );
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/topic"]),
+        tip,
+        "the branch the person switched to is not moved"
+    );
     assert_eq!(
         text_of(&s.local, &["status", "--porcelain=v1"]),
         "",
         "the checkout the person switched to holds no staged change of the merge"
     );
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "it shows the commit its branch names");
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "base\n",
+        "it shows the commit its branch names"
+    );
     remove(&s.root);
 }
 
@@ -2360,16 +2992,42 @@ fn a_switch_in_the_window_to_a_branch_at_the_merge_is_not_put_back() {
     git(&s.local, &["branch", "topic", target.as_str()]);
     // The switch lands in the instant between the look at the checkout and the write of its files.
     let switching = std::path::PathBuf::from(&s.local);
-    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
-        git(&switching, &["switch", "--quiet", "topic"]);
-    });
-    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
+    let _played =
+        crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+            git(&switching, &["switch", "--quiet", "topic"]);
+        });
+    let moved: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+            &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+        ),
+    )
+    .expect("git");
     drop(_played);
-    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(
+        moved,
+        Ok(false),
+        "the branch this command checked follows the merge"
+    );
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), target, "the branch the person switched to is not moved");
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "its checkout holds no staged reversal of the merge");
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "and its files are the merge's");
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/topic"]),
+        target,
+        "the branch the person switched to is not moved"
+    );
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "its checkout holds no staged reversal of the merge"
+    );
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "remote\n",
+        "and its files are the merge's"
+    );
     remove(&s.root);
 }
 
@@ -2390,25 +3048,60 @@ fn a_switch_in_the_window_keeps_a_staged_edit_the_merge_does_not_touch() {
     // The branch the person switches to changes only b.txt, which the merge does not touch.
     git(&s.local, &["switch", "--quiet", "--create", "topic"]);
     std::fs::write(s.local.join("b.txt"), "topic\n").expect("the branch's own b.txt");
-    git(&s.local, &["commit", "--quiet", "-m", "topic changes b.txt", "--", "b.txt"]);
+    git(
+        &s.local,
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "topic changes b.txt",
+            "--",
+            "b.txt",
+        ],
+    );
     git(&s.local, &["switch", "--quiet", "main"]);
     let switching = std::path::PathBuf::from(&s.local);
     // In the window: the switch, then an intentional reversal of b.txt that the person stages.
-    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
-        git(&switching, &["switch", "--quiet", "topic"]);
-        std::fs::write(switching.join("b.txt"), "base\n").expect("the reversal of b.txt");
-        git(&switching, &["add", "--", "b.txt"]);
-    });
-    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
+    let _played =
+        crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+            git(&switching, &["switch", "--quiet", "topic"]);
+            std::fs::write(switching.join("b.txt"), "base\n").expect("the reversal of b.txt");
+            git(&switching, &["add", "--", "b.txt"]);
+        });
+    let moved: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+            &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+        ),
+    )
+    .expect("git");
     drop(_played);
-    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
-    assert_eq!(std::fs::read_to_string(s.local.join("b.txt")).expect("b.txt"), "base\n", "the person's staged reversal of b.txt is still there");
     assert_eq!(
-        text_of(&s.local, &["diff", "--cached", "--name-only", "--", "b.txt"]),
+        moved,
+        Ok(false),
+        "the branch this command checked follows the merge"
+    );
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("b.txt")).expect("b.txt"),
+        "base\n",
+        "the person's staged reversal of b.txt is still there"
+    );
+    assert_eq!(
+        text_of(
+            &s.local,
+            &["diff", "--cached", "--name-only", "--", "b.txt"]
+        ),
         "b.txt",
         "and it is still staged"
     );
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "while the merge's own path is put back");
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "base\n",
+        "while the merge's own path is put back"
+    );
     remove(&s.root);
 }
 
@@ -2425,16 +3118,42 @@ fn a_switch_in_the_window_to_another_commit_is_put_back_to_that_commit() {
     // The branch the person switches to is this repository's own tip, whose files are not the merge's.
     git(&s.local, &["branch", "topic", tip.as_str()]);
     let switching = std::path::PathBuf::from(&s.local);
-    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
-        git(&switching, &["switch", "--quiet", "topic"]);
-    });
-    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
+    let _played =
+        crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+            git(&switching, &["switch", "--quiet", "topic"]);
+        });
+    let moved: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+            &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+        ),
+    )
+    .expect("git");
     drop(_played);
-    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(
+        moved,
+        Ok(false),
+        "the branch this command checked follows the merge"
+    );
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the merge's files were put back to that branch's own commit");
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "which is the tree that branch names");
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/topic"]),
+        tip,
+        "the branch the person switched to is not moved"
+    );
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the merge's files were put back to that branch's own commit"
+    );
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "base\n",
+        "which is the tree that branch names"
+    );
     remove(&s.root);
 }
 
@@ -2447,15 +3166,35 @@ fn a_leaked_private_fetch_ref_is_swept_and_a_live_ones_kept() {
     advance_remote(&s, "a.txt", "remote\n");
     let target = fetched_remote_tip(&s);
     // No process can have this number, so the ref is one a killed instance left.
-    let leaked: String = format!("{}4294967294", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX);
+    let leaked: String = format!(
+        "{}4294967294",
+        crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX
+    );
     git(&s.local, &["update-ref", leaked.as_str(), target.as_str()]);
-    let mut living: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a live process to name");
-    let live_ref: String = format!("{}{}", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX, living.id());
-    git(&s.local, &["update-ref", live_ref.as_str(), target.as_str()]);
-    crate::auto_push_reconcile_basics_and_limits::sweep_private_fetch_refs(&push_git(&s.local)).expect("the sweep");
+    let mut living: std::process::Child = std::process::Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .expect("a live process to name");
+    let live_ref: String = format!(
+        "{}{}",
+        crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX,
+        living.id()
+    );
+    git(
+        &s.local,
+        &["update-ref", live_ref.as_str(), target.as_str()],
+    );
+    crate::auto_push_reconcile_basics_and_limits::sweep_private_fetch_refs(&push_git(&s.local))
+        .expect("the sweep");
     let left: String = text_of(&s.local, &["for-each-ref", "refs/cli-git"]);
-    assert!(!left.contains(leaked.as_str()), "the ref of a dead instance is gone: {left}");
-    assert!(left.contains(live_ref.as_str()), "the ref of a live process is kept: {left}");
+    assert!(
+        !left.contains(leaked.as_str()),
+        "the ref of a dead instance is gone: {left}"
+    );
+    assert!(
+        left.contains(live_ref.as_str()),
+        "the ref of a live process is kept: {left}"
+    );
     let _killed = living.kill();
     let _reaped = living.wait();
     remove(&s.root);
@@ -2477,12 +3216,25 @@ fn the_awaited_questions_of_the_reconcile_answer_what_the_synchronous_ones_answe
     let context: PushGit = push_git(&scenario.local);
     let behind: String = text_of(&scenario.local, &["rev-parse", "HEAD"]);
     let ahead: String = text_of(&scenario.other, &["rev-parse", "HEAD"]);
-    let destination = Destination { remote: String::from("origin"), merge_ref: String::from("refs/heads/main") };
-    for (ancestor, descendant) in [(behind.as_str(), ahead.as_str()), (ahead.as_str(), behind.as_str()), (behind.as_str(), behind.as_str())] {
+    let destination = Destination {
+        remote: String::from("origin"),
+        merge_ref: String::from("refs/heads/main"),
+    };
+    for (ancestor, descendant) in [
+        (behind.as_str(), ahead.as_str()),
+        (ahead.as_str(), behind.as_str()),
+        (behind.as_str(), behind.as_str()),
+    ] {
         let synchronous = is_ancestor(&context, ancestor, descendant);
         let (awaited, _ticks): (Result<Option<bool>, SingleFlightError>, u32) =
-            crate::ticker_beside_a_wait::with_a_ticker_beside(is_ancestor_awaiting(&context, ancestor, descendant));
-        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{ancestor} {descendant}");
+            crate::ticker_beside_a_wait::with_a_ticker_beside(is_ancestor_awaiting(
+                &context, ancestor, descendant,
+            ));
+        assert_eq!(
+            format!("{awaited:?}"),
+            format!("{synchronous:?}"),
+            "{ancestor} {descendant}"
+        );
         let common = common_dir_of(&context);
         let (awaited_common, _common_ticks): (Result<PathBuf, SingleFlightError>, u32) =
             crate::ticker_beside_a_wait::with_a_ticker_beside(common_dir_of_awaiting(&context));
@@ -2494,14 +3246,28 @@ fn the_awaited_questions_of_the_reconcile_answer_what_the_synchronous_ones_answe
         let synchronous = signs_commits(&context);
         let (awaited, _ticks): (Result<bool, SingleFlightError>, u32) =
             crate::ticker_beside_a_wait::with_a_ticker_beside(signs_commits_awaiting(&context));
-        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{value}");
+        assert_eq!(
+            format!("{awaited:?}"),
+            format!("{synchronous:?}"),
+            "{value}"
+        );
     }
     // The same remote tip is fetched by both faces, and each leaves no private ref behind.
     let synchronous = fetch_remote_tip(&context, &destination);
     let (awaited, _ticks): (Result<Result<String, PushAttempt>, SingleFlightError>, u32) =
-        crate::ticker_beside_a_wait::with_a_ticker_beside(fetch_remote_tip_awaiting(&context, &destination));
+        crate::ticker_beside_a_wait::with_a_ticker_beside(fetch_remote_tip_awaiting(
+            &context,
+            &destination,
+        ));
     assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"));
-    let left: String = text_of(&scenario.local, &["for-each-ref", "--format=%(refname)", "refs/cli-git/auto-push/"]);
+    let left: String = text_of(
+        &scenario.local,
+        &[
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/cli-git/auto-push/",
+        ],
+    );
     assert_eq!(left, "");
     remove(&scenario.root);
 }
@@ -2528,22 +3294,41 @@ fn the_awaited_advance_of_the_branch_moves_it_from_a_task() {
     .expect("the runtime runs the work");
     let refusal: String = match refused {
         Err(error) => format!("{error}"),
-        Ok(moved) => panic!("the synchronous face cannot start Git inside the runtime, and it answered {moved:?}"),
+        Ok(moved) => panic!(
+            "the synchronous face cannot start Git inside the runtime, and it answered {moved:?}"
+        ),
     };
-    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), tip, "the refused face moved nothing");
-    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
-        &push_git(&s.local),
-        "refs/heads/main",
-        &tip,
-        &target,
-    ))
+    assert!(
+        refusal.contains("was asked for from inside itself"),
+        "{refusal}"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        tip,
+        "the refused face moved nothing"
+    );
+    let moved: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+        ),
+    )
     .expect("git");
     assert_eq!(moved, Ok(false), "a clean worktree follows the merge");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), target);
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n");
-    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "remote\n"
+    );
+    assert_eq!(
+        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges"))
+            .map_or(0, Iterator::count),
+        0,
+        "no record is left"
+    );
     remove(&s.root);
 }
 
@@ -2568,19 +3353,35 @@ fn a_fast_forward_that_loses_the_race_in_a_task_settles_its_record_from_a_thread
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
     let mut racing = push_git(&s.local);
     racing.real_git = shim;
-    let result: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
-        &racing,
-        "refs/heads/main",
-        &old,
-        &target,
-    ))
+    let result: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+            &racing,
+            "refs/heads/main",
+            &old,
+            &target,
+        ),
+    )
     .expect("git");
     assert!(marker.exists(), "the race was played");
-    let Err(reason) = result else { panic!("the move lost the race, so it is not reported as done") };
+    let Err(reason) = result else {
+        panic!("the move lost the race, so it is not reported as done")
+    };
     assert!(reason.contains("Git refused the fast-forward"), "{reason}");
-    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), text_of(&s.local, &["rev-parse", "refs/heads/main"]));
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
-    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "the record was settled");
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "HEAD"]),
+        text_of(&s.local, &["rev-parse", "refs/heads/main"])
+    );
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the checkout matches the branch"
+    );
+    assert_eq!(
+        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges"))
+            .map_or(0, Iterator::count),
+        0,
+        "the record was settled"
+    );
     remove(&s.root);
 }
 
@@ -2600,32 +3401,71 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     };
     let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
     let refused = crate::lazy_runtime::run_on_runtime(async {
-        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone());
+        return reconcile_divergent_push(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip_of_local(&s),
+            rejected.clone(),
+        );
     })
     .expect("the runtime runs the work");
     let refusal: String = match refused {
         Err(error) => format!("{error}"),
-        Ok(attempt) => panic!("the synchronous reconcile cannot start Git inside the runtime, and it answered {attempt:?}"),
+        Ok(attempt) => panic!(
+            "the synchronous reconcile cannot start Git inside the runtime, and it answered {attempt:?}"
+        ),
     };
-    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
-    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "the refused face published nothing");
-    let attempt: PushAttempt = await_it(crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting(
-        &push_git(&s.local),
-        "refs/heads/main",
-        &tip_of_local(&s),
-        rejected,
-    ))
+    assert!(
+        refusal.contains("was asked for from inside itself"),
+        "{refusal}"
+    );
+    assert_eq!(
+        text_of(&s.remote, &["rev-parse", "main"]),
+        remote_before,
+        "the refused face published nothing"
+    );
+    let attempt: PushAttempt = await_it(
+        crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip_of_local(&s),
+            rejected,
+        ),
+    )
     .expect("git");
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
-    assert!(attempt.output.contains("was published"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("was published"),
+        "{}",
+        attempt.output
+    );
     let published: String = text_of(&s.remote, &["rev-parse", "main"]);
-    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published, "the branch and its checkout follow the merge");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), published);
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "");
-    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private ref is left");
-    assert_ne!(published, landed, "the published tip is the merge, not the landed commit");
     assert_eq!(
-        text_of(&s.local, &["rev-list", "--parents", "-n", "1", published.as_str()]).split(' ').count(),
+        text_of(&s.local, &["rev-parse", "HEAD"]),
+        published,
+        "the branch and its checkout follow the merge"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        published
+    );
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "");
+    assert_eq!(
+        text_of(&s.local, &["for-each-ref", "refs/cli-git"]),
+        "",
+        "no private ref is left"
+    );
+    assert_ne!(
+        published, landed,
+        "the published tip is the merge, not the landed commit"
+    );
+    assert_eq!(
+        text_of(
+            &s.local,
+            &["rev-list", "--parents", "-n", "1", published.as_str()]
+        )
+        .split(' ')
+        .count(),
         3,
         "the published commit is a merge"
     );
@@ -2662,20 +3502,30 @@ fn a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it() {
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
     let mut racing = push_git(&s.local);
     racing.real_git = shim;
-    let result: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
-        &racing,
-        "refs/heads/main",
-        &old,
-        &target,
-    ))
+    let result: Result<bool, String> = await_it(
+        crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+            &racing,
+            "refs/heads/main",
+            &old,
+            &target,
+        ),
+    )
     .expect("git");
-    assert!(result.is_ok(), "the refused move was settled by the recovery, so the advance reports it done: {result:?}");
+    assert!(
+        result.is_ok(),
+        "the refused move was settled by the recovery, so the advance reports it done: {result:?}"
+    );
     assert_eq!(
-        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count),
+        std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges"))
+            .map_or(0, Iterator::count),
         0,
         "the record is settled by the task itself, so the next command is not stopped for the merge"
     );
-    assert_ne!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), old, "the branch moved to the settled merge");
+    assert_ne!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        old,
+        "the branch moved to the settled merge"
+    );
     remove(&s.root);
 }
 
@@ -2698,37 +3548,63 @@ fn a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_insid
     advance_remote(&s, "a.txt", "remote\n");
     let landed = commit_local(&s, "b.txt", "local\n");
     let mut pushed_on: Option<std::thread::ThreadId> = None;
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        // The synchronous face of a read-only query, which the planner of the person's own push also asks.
-        let read = crate::auto_push_single_flight::run_query(
-            &push_git(&s.local),
-            &argv(&["rev-parse", "--verify", "HEAD^{commit}"]),
-        )
-        .expect("the merge push of a command outside the runtime may start Git where it runs");
-        assert_eq!(read.code, Some(0), "{}", String::from_utf8_lossy(&read.stderr));
-        pushed_on = Some(std::thread::current().id());
-        git(
-            &s.local,
-            &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)],
-        );
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
+    let mut push_merge =
+        |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            // The synchronous face of a read-only query, which the planner of the person's own push also asks.
+            let read = crate::auto_push_single_flight::run_query(
+                &push_git(&s.local),
+                &argv(&["rev-parse", "--verify", "HEAD^{commit}"]),
+            )
+            .expect("the merge push of a command outside the runtime may start Git where it runs");
+            assert_eq!(
+                read.code,
+                Some(0),
+                "{}",
+                String::from_utf8_lossy(&read.stderr)
+            );
+            pushed_on = Some(std::thread::current().id());
+            git(
+                &s.local,
+                &[
+                    "push",
+                    "--quiet",
+                    "origin",
+                    &format!("{merge_oid}:{}", destination.merge_ref),
+                ],
+            );
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
     let attempt = finished(integrate(&s, &landed, false, &mut push_merge));
     assert_eq!(attempt.exit_code, 0, "{attempt:?}");
-    assert!(attempt.output.contains("was published"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("was published"),
+        "{}",
+        attempt.output
+    );
     assert_ne!(
         pushed_on,
         Some(std::thread::current().id()),
         "the merge push ran on a thread of its own, never on the thread that waits for the loop"
     );
     let published: String = text_of(&s.remote, &["rev-parse", "main"]);
-    assert_ne!(published, landed, "the published tip is the merge, not the landed commit");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), published, "the branch follows the merge");
-    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published, "the checkout follows the merge");
+    assert_ne!(
+        published, landed,
+        "the published tip is the merge, not the landed commit"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        published,
+        "the branch follows the merge"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "HEAD"]),
+        published,
+        "the checkout follows the merge"
+    );
     remove(&s.root);
 }
 
@@ -2743,14 +3619,15 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
     let landed = commit_local(&s, "b.txt", "local\n");
     let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
     let mut pushes: u32 = 0;
-    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        pushes += 1;
-        return Ok(PushAttempt {
-            exit_code: 0,
-            signal: None,
-            output: String::new(),
-        });
-    };
+    let mut push_merge =
+        |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+            pushes += 1;
+            return Ok(PushAttempt {
+                exit_code: 0,
+                signal: None,
+                output: String::new(),
+            });
+        };
     let refused = crate::scoped_start::RefusedStarts::here();
     let integrated = integrate(&s, &landed, false, &mut push_merge);
     drop(refused);
@@ -2760,16 +3637,41 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
     assert_eq!(attempt.exit_code, 1, "{attempt:?}");
     assert!(attempt.output.contains("[rejected]"), "{}", attempt.output);
     assert_eq!(pushes, 0, "no merge was pushed");
-    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "nothing was published");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), landed, "the branch did not move");
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the worktree was not touched");
-    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private fetch ref was left");
+    assert_eq!(
+        text_of(&s.remote, &["rev-parse", "main"]),
+        remote_before,
+        "nothing was published"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        landed,
+        "the branch did not move"
+    );
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the worktree was not touched"
+    );
+    assert_eq!(
+        text_of(&s.local, &["for-each-ref", "refs/cli-git"]),
+        "",
+        "no private fetch ref was left"
+    );
     remove(&s.root);
 }
 
 /// Whether `ancestor` is one of `descendant`'s own commits.
-fn holds_commit(s: &Scenario, ancestor: &str, descendant: &str) -> bool {
-    return git_output(&s.local, &["merge-base", "--is-ancestor", ancestor, descendant]).status.success();
+fn holds_commit(
+    s: &Scenario,
+    ancestor: &str,
+    descendant: &str,
+) -> bool {
+    return git_output(
+        &s.local,
+        &["merge-base", "--is-ancestor", ancestor, descendant],
+    )
+    .status
+    .success();
 }
 
 /// What:
@@ -2797,12 +3699,28 @@ fn a_commit_that_lands_after_the_reading_is_not_published_by_the_reconcile() {
         signal: None,
         output: String::from(" ! [rejected]        main -> main (fetch first)"),
     };
-    let attempt: PushAttempt = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", pinned.as_str(), rejected)
-        .expect("the reconcile runs");
+    let attempt: PushAttempt = reconcile_divergent_push(
+        &push_git(&s.local),
+        "refs/heads/main",
+        pinned.as_str(),
+        rejected,
+    )
+    .expect("the reconcile runs");
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
     let published: String = text_of(&s.remote, &["rev-parse", "main"]);
-    assert!(holds_commit(&s, pinned.as_str(), published.as_str()), "the commit the push was allowed to send is published: {}", attempt.output);
-    assert!(!holds_commit(&s, racing.as_str(), published.as_str()), "BUG: the merge published the commit whose own gate had not answered");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), racing, "the branch that moved is left where it is");
+    assert!(
+        holds_commit(&s, pinned.as_str(), published.as_str()),
+        "the commit the push was allowed to send is published: {}",
+        attempt.output
+    );
+    assert!(
+        !holds_commit(&s, racing.as_str(), published.as_str()),
+        "BUG: the merge published the commit whose own gate had not answered"
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        racing,
+        "the branch that moved is left where it is"
+    );
     remove(&s.root);
 }

@@ -27,7 +27,16 @@ fn plain_names_are_slot_names() {
 /// a leading dot and any whitespace or control character are refused.
 #[test]
 fn every_other_name_is_refused_with_its_reason() {
-    for name in ["", ".", "..", "a/b", ".hidden", "two words", "tab\there", "line\nbreak"] {
+    for name in [
+        "",
+        ".",
+        "..",
+        "a/b",
+        ".hidden",
+        "two words",
+        "tab\there",
+        "line\nbreak",
+    ] {
         let reason: Option<String> = slot_name_refusal(name);
         assert!(reason.is_some(), "{name}");
         assert!(!reason.unwrap_or_default().is_empty());

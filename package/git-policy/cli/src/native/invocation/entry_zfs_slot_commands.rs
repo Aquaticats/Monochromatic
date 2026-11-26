@@ -29,13 +29,26 @@ use crate::action::Action;
 use crate::forwarded_command::ResolvedCommand;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_add_plan::start_directory;
-use crate::worktree_clone_link_repair::live_link_report::{repair_paths, the_links_report};
-use crate::worktree_clone_move_refusal::{ManagedMoveRefusal, refuse_move_of_a_bound_slot};
-use crate::worktree_clone_prune_pointer::prune_guard::{PruneGuard, PruneRefusal, guard_the_prune};
 use crate::worktree_clone_link_repair::link_report_lines;
+use crate::worktree_clone_link_repair::live_link_report::{
+    repair_paths,
+    the_links_report,
+};
+use crate::worktree_clone_move_refusal::{
+    ManagedMoveRefusal,
+    refuse_move_of_a_bound_slot,
+};
+use crate::worktree_clone_prune_pointer::prune_guard::{
+    PruneGuard,
+    PruneRefusal,
+    guard_the_prune,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The one refusal status a command that changed nothing ends in.
@@ -62,7 +75,10 @@ fn worktree_subcommand(command: &ResolvedCommand) -> Option<&[u8]> {
     if command.word() != b"worktree" {
         return None;
     }
-    let first: &OsString = command.region().iter().find(|token| return !token.as_encoded_bytes().starts_with(b"-"))?;
+    let first: &OsString = command
+        .region()
+        .iter()
+        .find(|token| return !token.as_encoded_bytes().starts_with(b"-"))?;
     return Some(first.as_encoded_bytes());
 }
 
@@ -99,14 +115,23 @@ fn prune_removes_nothing(command: &ResolvedCommand) -> bool {
 /// ```ts
 /// const ending = moveRefusalOf(command, commonDir); // undefined leaves the move to Git
 /// ```
-pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<Action> {
+pub fn move_refusal_of(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+    current: Option<&Path>,
+) -> Option<Action> {
     // Every forwarded command asks, so the move word is read before the working directory is.
     if worktree_subcommand(command) != Some(b"move") {
         return None;
     }
     let common: &Path = common_dir?;
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
-    let source = crate::worktree_move_source::parse_move_source(command.arguments.as_slice(), command.subcommand_index, start.as_path(), Some(common))?;
+    let source = crate::worktree_move_source::parse_move_source(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+        Some(common),
+    )?;
     let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common, source.source.as_path())?;
     return Some(Action::Exit {
         code: REFUSAL_STATUS,
@@ -129,7 +154,11 @@ pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>, cur
 /// ```ts
 /// const ending = beforeAPrune(command, commonDir, stderr); // undefined lets the prune run
 /// ```
-pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stderr: &mut String) -> Option<Action> {
+pub fn before_a_prune(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+    stderr: &mut String,
+) -> Option<Action> {
     let common: &Path = common_dir?;
     if worktree_subcommand(command) != Some(b"prune") || prune_removes_nothing(command) {
         return None;
@@ -145,7 +174,10 @@ pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stde
     let mut refusal: String = String::new();
     for refused in guard.refused.iter() {
         match refused {
-            PruneRefusal::Record { message, .. } => {
+            PruneRefusal::Record {
+                message,
+                ..
+            } => {
                 refusal.push_str(message.as_str());
                 refusal.push('\n');
             }
@@ -161,7 +193,11 @@ pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stde
         "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again; {}.\n",
         crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     ));
-    return Some(Action::Exit { code: REFUSAL_STATUS, stdout: String::new(), stderr: refusal });
+    return Some(Action::Exit {
+        code: REFUSAL_STATUS,
+        stdout: String::new(),
+        stderr: refusal,
+    });
 }
 
 /// What:
@@ -176,22 +212,37 @@ pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stde
 /// ```ts
 /// beforeARepair(command, commonDir, start, stderr);
 /// ```
-pub fn before_a_repair(command: &ResolvedCommand, common_dir: Option<&Path>, stderr: &mut String, current: Option<&Path>) {
+pub fn before_a_repair(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+    stderr: &mut String,
+    current: Option<&Path>,
+) {
     let Some(common) = common_dir else {
         return;
     };
     // Every forwarded command asks, so the repair word is read before the working directory is.
-    let repair: bool = command.word() == b"worktree" && command.arguments.get(command.subcommand_index + 1).is_some_and(|token| return token.as_encoded_bytes() == b"repair");
+    let repair: bool = command.word() == b"worktree"
+        && command
+            .arguments
+            .get(command.subcommand_index + 1)
+            .is_some_and(|token| return token.as_encoded_bytes() == b"repair");
     if !repair {
         return;
     }
     let Some(started_in) = current else {
         return;
     };
-    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], started_in) else {
+    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], started_in)
+    else {
         return;
     };
-    let paths: Vec<PathBuf> = repair_paths(command.arguments.as_slice(), command.subcommand_index, start.as_path(), Some(common));
+    let paths: Vec<PathBuf> = repair_paths(
+        command.arguments.as_slice(),
+        command.subcommand_index,
+        start.as_path(),
+        Some(common),
+    );
     for path in paths {
         let Some(report) = the_links_report(common, path.as_path(), &LiveMountedDatasets) else {
             continue;

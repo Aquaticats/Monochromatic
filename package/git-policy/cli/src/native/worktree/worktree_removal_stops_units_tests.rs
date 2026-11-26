@@ -4,10 +4,24 @@
 //! and a refused removal leaves them alone.
 
 use super::*;
-use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_instance::{
+    SOCKET_DIRECTORY,
+    instance_of,
+    service_unit_instance,
+    socket_path,
+    socket_unit_instance,
+};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_of_removed_worktrees::{note_path, record_worktree};
-use crate::test_support::{fixture, git, remove, repository};
+use crate::service_units_of_removed_worktrees::{
+    note_path,
+    record_worktree,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 
 /// A repository with one linked worktree whose instance has a socket,
 /// and the runtime and state directories that hold it.
@@ -22,32 +36,57 @@ struct Fixture {
 fn fixture_with_units(name: &str) -> Fixture {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let runtime: PathBuf = root.join("run");
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
     let state: PathBuf = root.join("state");
     std::fs::create_dir_all(&state).expect("state directory");
     let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
-    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
-    return Fixture { root, runtime, state, common, worktree };
+    let common: PathBuf =
+        std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
+    return Fixture {
+        root,
+        runtime,
+        state,
+        common,
+        worktree,
+    };
 }
 
 impl Fixture {
     fn plan(&self) -> RemovePlan {
-        return RemovePlan { target: self.worktree.clone(), operand: self.worktree.clone().into_os_string(), force: false };
+        return RemovePlan {
+            target: self.worktree.clone(),
+            operand: self.worktree.clone().into_os_string(),
+            force: false,
+        };
     }
 
     fn folders(&self) -> UnitFolders<'_> {
-        return UnitFolders { runtime_dir: self.runtime.as_path(), state_dir: Some(self.state.as_path()) };
+        return UnitFolders {
+            runtime_dir: self.runtime.as_path(),
+            state_dir: Some(self.state.as_path()),
+        };
     }
 
     /// The service journal of an instance,
     /// as the unit's `--journal` names it,
     /// holding the records a service that committed leaves,
     /// all of them older than any client of them can look.
-    fn journal_of(&self, instance: &str) -> PathBuf {
-        let wrapper_state: PathBuf = self.state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
-        let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), instance);
+    fn journal_of(
+        &self,
+        instance: &str,
+    ) -> PathBuf {
+        let wrapper_state: PathBuf = self
+            .state
+            .join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+        let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+            wrapper_state.as_path(),
+            instance,
+        );
         std::fs::create_dir_all(journal.join("busy")).expect("journal folder");
         std::fs::write(journal.join("1.done"), b"seq=1\n").expect("a finished batch");
         crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
@@ -60,7 +99,8 @@ impl Fixture {
 #[test]
 fn the_instance_is_read_from_the_registration_before_the_removal() {
     let fixture: Fixture = fixture_with_units("removal-units-before");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
     assert_eq!(about.instance, instance_of(about.git_dir.as_path()));
     assert!(about.git_dir.starts_with(fixture.common.join("worktrees")));
     remove(fixture.root.as_path());
@@ -71,7 +111,11 @@ fn the_instance_is_read_from_the_registration_before_the_removal() {
 fn a_directory_that_is_no_registration_names_no_instance() {
     let fixture: Fixture = fixture_with_units("removal-units-unregistered");
     let stranger: PathBuf = fixture.root.join("main");
-    let plan: RemovePlan = RemovePlan { target: stranger.clone(), operand: stranger.into_os_string(), force: false };
+    let plan: RemovePlan = RemovePlan {
+        target: stranger.clone(),
+        operand: stranger.into_os_string(),
+        force: false,
+    };
     assert_eq!(before_removal(fixture.common.as_path(), &plan), None);
     remove(fixture.root.as_path());
 }
@@ -81,14 +125,37 @@ fn a_directory_that_is_no_registration_names_no_instance() {
 #[test]
 fn a_removed_worktrees_units_are_stopped_after_the_removal() {
     let fixture: Fixture = fixture_with_units("removal-units-removed");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
-    let stopped: bool = stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped");
+    let stopped: bool =
+        stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped");
     assert!(stopped);
-    assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(about.instance.as_str())), format!("stop {}", service_unit_instance(about.instance.as_str()))]);
-    assert!(!socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the stopped socket's file is removed");
+    assert_eq!(
+        recorder.stops(),
+        vec![
+            format!("stop {}", socket_unit_instance(about.instance.as_str())),
+            format!("stop {}", service_unit_instance(about.instance.as_str()))
+        ]
+    );
+    assert!(
+        !socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the stopped socket's file is removed"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -102,13 +169,29 @@ fn a_removed_worktrees_units_are_stopped_after_the_removal() {
 #[test]
 fn a_removed_worktrees_journal_goes_with_its_units() {
     let fixture: Fixture = fixture_with_units("removal-units-journal");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
-    assert!(!journal.exists(), "the journal of the removed worktree is removed with its units");
+    assert!(
+        !journal.exists(),
+        "the journal of the removed worktree is removed with its units"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -124,24 +207,66 @@ fn a_removed_worktrees_journal_goes_with_its_units() {
 #[test]
 fn a_removal_whose_service_may_still_run_keeps_the_journal_and_the_files_that_name_it() {
     let fixture: Fixture = fixture_with_units("removal-units-still-running");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(
+        fixture.runtime.as_path(),
+        about.instance.as_str(),
+        about.git_dir.as_path(),
+    )
+    .expect("note");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut running: Recorder = Recorder::default();
-    running.report_state_of(service_unit_instance(about.instance.as_str()).as_str(), Some("active"));
+    running.report_state_of(
+        service_unit_instance(about.instance.as_str()).as_str(),
+        Some("active"),
+    );
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut running).expect("stopped"));
-    assert!(journal.exists(), "the journal of a service that may still write to it stays");
-    assert!(note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note stays, so the next sweep finds the instance");
-    assert!(socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the socket file stays with the note");
+    assert!(
+        journal.exists(),
+        "the journal of a service that may still write to it stays"
+    );
+    assert!(
+        note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the note stays, so the next sweep finds the instance"
+    );
+    assert!(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the socket file stays with the note"
+    );
     // The service ends, and the next sweep finishes what this removal could not.
     let mut ended: Recorder = Recorder::default();
-    ended.report_state_of(service_unit_instance(about.instance.as_str()).as_str(), Some("inactive"));
+    ended.report_state_of(
+        service_unit_instance(about.instance.as_str()).as_str(),
+        Some("inactive"),
+    );
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut ended).expect("stopped"));
-    assert!(!journal.exists(), "the journal goes once the manager reports its service gone");
-    assert!(!note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note goes with it on that sweep");
-    assert!(!socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the socket file goes with it on that sweep");
+    assert!(
+        !journal.exists(),
+        "the journal goes once the manager reports its service gone"
+    );
+    assert!(
+        !note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the note goes with it on that sweep"
+    );
+    assert!(
+        !socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the socket file goes with it on that sweep"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -156,18 +281,45 @@ fn a_removal_whose_service_may_still_run_keeps_the_journal_and_the_files_that_na
 #[test]
 fn a_removal_that_leaves_unresolved_work_keeps_the_journal_and_names_it() {
     let fixture: Fixture = fixture_with_units("removal-units-unresolved");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(
+        fixture.runtime.as_path(),
+        about.instance.as_str(),
+        about.git_dir.as_path(),
+    )
+    .expect("note");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
     let intent: PathBuf = journal.join("7.intent");
     std::fs::write(intent.as_path(), b"seq=7\n").expect("a batch that did not land");
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
-    assert!(journal.exists(), "the journal of a batch that did not land stays whole");
-    assert!(intent.exists(), "the record of the batch that did not land stays");
-    assert!(!note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note goes, because the person is told about the journal");
+    assert!(
+        journal.exists(),
+        "the journal of a batch that did not land stays whole"
+    );
+    assert!(
+        intent.exists(),
+        "the record of the batch that did not land stays"
+    );
+    assert!(
+        !note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(),
+        "the note goes, because the person is told about the journal"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -181,16 +333,41 @@ fn a_removal_that_leaves_unresolved_work_keeps_the_journal_and_names_it() {
 #[test]
 fn a_removal_takes_the_journal_of_landed_batches_and_the_remembered_repository() {
     let fixture: Fixture = fixture_with_units("removal-units-remembered");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(
+        fixture.runtime.as_path(),
+        about.instance.as_str(),
+        about.git_dir.as_path(),
+    )
+    .expect("note");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
-    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), fixture.root.display().to_string().as_bytes()).expect("the repository the service remembered");
+    std::fs::write(
+        journal.join(crate::service_rules_precompile::REMEMBERED_FILE),
+        fixture.root.display().to_string().as_bytes(),
+    )
+    .expect("the repository the service remembered");
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
-    assert!(!journal.exists(), "the journal of landed batches and the remembered repository goes with its units");
+    assert!(
+        !journal.exists(),
+        "the journal of landed batches and the remembered repository goes with its units"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -203,16 +380,40 @@ fn a_removal_takes_the_journal_of_landed_batches_and_the_remembered_repository()
 #[test]
 fn a_removal_takes_the_journal_of_a_claim_watch_that_names_only_that_worktree() {
     let fixture: Fixture = fixture_with_units("removal-units-watch-gone");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(
+        fixture.runtime.as_path(),
+        about.instance.as_str(),
+        about.git_dir.as_path(),
+    )
+    .expect("note");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
-    crate::service_units_fixture_test_support::write_a_claim_watch_note(journal.as_path(), about.git_dir.as_path());
+    crate::service_units_fixture_test_support::write_a_claim_watch_note(
+        journal.as_path(),
+        about.git_dir.as_path(),
+    );
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
-    assert!(!journal.exists(), "a claim watch of the removed worktree carries no work");
+    assert!(
+        !journal.exists(),
+        "a claim watch of the removed worktree carries no work"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -225,18 +426,46 @@ fn a_removal_takes_the_journal_of_a_claim_watch_that_names_only_that_worktree() 
 #[test]
 fn a_removal_keeps_the_journal_of_a_batch_that_did_not_land_beside_what_it_would_discard() {
     let fixture: Fixture = fixture_with_units("removal-units-unlanded-beside-discards");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(
+        fixture.runtime.as_path(),
+        about.instance.as_str(),
+        about.git_dir.as_path(),
+    )
+    .expect("note");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let journal: PathBuf = fixture.journal_of(about.instance.as_str());
     std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
-    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), fixture.root.display().to_string().as_bytes()).expect("the repository the service remembered");
-    crate::service_units_fixture_test_support::write_a_claim_watch_note(journal.as_path(), about.git_dir.as_path());
+    std::fs::write(
+        journal.join(crate::service_rules_precompile::REMEMBERED_FILE),
+        fixture.root.display().to_string().as_bytes(),
+    )
+    .expect("the repository the service remembered");
+    crate::service_units_fixture_test_support::write_a_claim_watch_note(
+        journal.as_path(),
+        about.git_dir.as_path(),
+    );
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
     assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
-    assert!(journal.join("7.intent").exists(), "the record of the commit that has not landed stays");
+    assert!(
+        journal.join("7.intent").exists(),
+        "the record of the commit that has not landed stays"
+    );
     assert!(journal.exists(), "a journal that holds work is kept whole");
     remove(fixture.root.as_path());
 }
@@ -246,10 +475,16 @@ fn a_removal_keeps_the_journal_of_a_batch_that_did_not_land_beside_what_it_would
 #[test]
 fn a_refused_removal_leaves_the_units_alone() {
     let fixture: Fixture = fixture_with_units("removal-units-refused");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    std::fs::write(
+        socket_path(fixture.runtime.as_path(), about.instance.as_str()),
+        b"listening",
+    )
+    .expect("socket file");
     let mut recorder: Recorder = Recorder::default();
-    let stopped: bool = stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("nothing to stop");
+    let stopped: bool = stop_units_after_removal(&about, &fixture.folders(), &mut recorder)
+        .expect("nothing to stop");
     assert!(!stopped);
     assert!(recorder.stops().is_empty(), "{:?}", recorder.stops());
     remove(fixture.root.as_path());
@@ -267,28 +502,59 @@ fn a_refused_removal_leaves_the_units_alone() {
 fn a_removal_left_to_git_still_stops_the_units_of_the_removed_worktree() {
     let root: PathBuf = fixture("removal-units-left-to-git");
     let main: PathBuf = repository(root.as_path(), "main");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"],
+    );
     // The second worktree moves and a link is left at its old name, so two registrations name the topic directory.
     std::fs::rename(root.join("TOPIC"), root.join("upper-kept")).expect("move the second worktree");
-    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC")).expect("leave a link at the old name");
+    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC"))
+        .expect("leave a link at the old name");
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
     let runtime: PathBuf = root.join("run");
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
     let state: PathBuf = root.join("state");
     std::fs::create_dir_all(&state).expect("state directory");
-    let plan: RemovePlan = RemovePlan { target: topic.clone(), operand: topic.clone().into_os_string(), force: false };
+    let plan: RemovePlan = RemovePlan {
+        target: topic.clone(),
+        operand: topic.clone().into_os_string(),
+        force: false,
+    };
     // Git's suffix match finds two registrations for this name, so the wrapper leaves the removal to Git.
-    assert!(crate::worktree_remove_registry::registration_of(common.as_path(), topic.as_path(), plan.operand.as_os_str()).is_err());
-    let about: WorktreeAboutToGo = before_removal(common.as_path(), &plan).expect("the registration names the units");
+    assert!(
+        crate::worktree_remove_registry::registration_of(
+            common.as_path(),
+            topic.as_path(),
+            plan.operand.as_os_str()
+        )
+        .is_err()
+    );
+    let about: WorktreeAboutToGo =
+        before_removal(common.as_path(), &plan).expect("the registration names the units");
     let socket: PathBuf = socket_path(runtime.as_path(), about.instance.as_str());
     std::fs::write(socket.as_path(), b"listening").expect("socket file");
-    git(main.as_path(), &["worktree", "remove", topic.to_str().expect("text")]);
+    git(
+        main.as_path(),
+        &["worktree", "remove", topic.to_str().expect("text")],
+    );
     let mut recorder: Recorder = Recorder::default();
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime.as_path(), state_dir: Some(state.as_path()) };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: runtime.as_path(),
+        state_dir: Some(state.as_path()),
+    };
     assert!(stop_units_after_removal(&about, &folders, &mut recorder).expect("stopped"));
-    assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(about.instance.as_str())), format!("stop {}", service_unit_instance(about.instance.as_str()))]);
+    assert_eq!(
+        recorder.stops(),
+        vec![
+            format!("stop {}", socket_unit_instance(about.instance.as_str())),
+            format!("stop {}", service_unit_instance(about.instance.as_str()))
+        ]
+    );
     assert!(!socket.exists(), "the stopped socket's file is removed");
     remove(root.as_path());
 }
@@ -297,10 +563,22 @@ fn a_removal_left_to_git_still_stops_the_units_of_the_removed_worktree() {
 #[test]
 fn a_worktree_that_never_had_units_costs_the_manager_nothing() {
     let fixture: Fixture = fixture_with_units("removal-units-none");
-    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
-    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let about: WorktreeAboutToGo =
+        before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    git(
+        fixture.common.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            fixture.worktree.to_str().expect("text"),
+        ],
+    );
     let mut recorder: Recorder = Recorder::default();
-    assert!(!stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("nothing to stop"));
+    assert!(
+        !stop_units_after_removal(&about, &fixture.folders(), &mut recorder)
+            .expect("nothing to stop")
+    );
     assert!(recorder.stops().is_empty());
     remove(fixture.root.as_path());
 }

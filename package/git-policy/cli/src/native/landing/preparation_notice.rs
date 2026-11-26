@@ -50,15 +50,22 @@ use crate::work_awaited_within_a_ceiling::write_within;
 /// deliverNotice(`${note}\n`);
 /// ```
 pub(crate) fn deliver_notice(text: String) -> bool {
-    let delivered: Option<std::io::Result<()>> = write_within(WARNING_WRITE_CEILING, StandardErrorDescriptor, text);
+    let delivered: Option<std::io::Result<()>> =
+        write_within(WARNING_WRITE_CEILING, StandardErrorDescriptor, text);
     return match delivered {
         Some(Ok(())) => true,
         Some(Err(error)) => {
-            debug("prepare", format!("the notice could not be written: {error}").as_str());
+            debug(
+                "prepare",
+                format!("the notice could not be written: {error}").as_str(),
+            );
             false
         }
         None => {
-            debug("prepare", format!("the notice was not written within {WARNING_WRITE_CEILING:?}").as_str());
+            debug(
+                "prepare",
+                format!("the notice was not written within {WARNING_WRITE_CEILING:?}").as_str(),
+            );
             false
         }
     };

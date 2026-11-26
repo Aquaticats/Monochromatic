@@ -49,7 +49,8 @@ pub const ORIGIN_SNAPSHOT_PREFIX: &str = "git-worktree-clone-origin-";
 pub const ORIGIN_SNAPSHOT_NONCE_DIGITS: usize = 32;
 
 /// The bytes of one record's file name.
-pub const ORIGIN_CLEANUP_NAME_BYTES: usize = ORIGIN_SNAPSHOT_PREFIX.len() + ORIGIN_SNAPSHOT_NONCE_DIGITS;
+pub const ORIGIN_CLEANUP_NAME_BYTES: usize =
+    ORIGIN_SNAPSHOT_PREFIX.len() + ORIGIN_SNAPSHOT_NONCE_DIGITS;
 
 /// The plan's keys in the order its record writes them.
 ///

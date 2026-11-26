@@ -18,8 +18,17 @@
 //! expect(readSweepNonce(withNudge('0'.repeat(32)), clone).kind).toBe('nudge');
 //! ```
 
-use super::{NudgeReading, NudgeRefusal, parse_sweep_nonce, read_sweep_nonce, sweep_nonce_text};
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{NONCE_HEX_DIGITS, SWEEP_NONCE_PROPERTY};
+use super::{
+    NudgeReading,
+    NudgeRefusal,
+    parse_sweep_nonce,
+    read_sweep_nonce,
+    sweep_nonce_text,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    NONCE_HEX_DIGITS,
+    SWEEP_NONCE_PROPERTY,
+};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
@@ -30,7 +39,10 @@ const CLONE: &str = "zpcachyos/nosnap/clones/one";
 const PARENT: &str = "zpcachyos/nosnap/clones";
 
 /// A property reply with one sweep-nonce value and source.
-fn properties_with(value: &str, source: &str) -> NvList {
+fn properties_with(
+    value: &str,
+    source: &str,
+) -> NvList {
     let mut pair: NvList = NvList::new();
     pair.add_str("value", value);
     pair.add_str("source", source);
@@ -51,7 +63,10 @@ fn a_local_nonce_is_a_nudge_and_carries_no_operation() {
     assert_eq!(nonce.as_str(), digits);
     let text: String = sweep_nonce_text(&nonce);
     assert_eq!(text, digits);
-    assert!(!text.contains("mount"), "a nudge names no operation: {text}");
+    assert!(
+        !text.contains("mount"),
+        "a nudge names no operation: {text}"
+    );
     assert!(!text.contains(':'), "a nudge has no fields: {text}");
 }
 
@@ -61,7 +76,9 @@ fn an_inherited_nonce_is_ignored() {
     let properties: NvList = properties_with("0".repeat(NONCE_HEX_DIGITS).as_str(), PARENT);
     assert_eq!(
         read_sweep_nonce(Some(&properties), CLONE),
-        NudgeReading::Inherited { from: String::from(PARENT) }
+        NudgeReading::Inherited {
+            from: String::from(PARENT)
+        }
     );
 }
 
@@ -76,7 +93,11 @@ fn an_intent_text_in_the_nudge_property_is_refused() {
         panic!("the intent text is not a nudge: {reading:?}");
     };
     assert!(matches!(refusal, NudgeRefusal::Nonce(_)), "{refusal:?}");
-    assert!(refusal.message().contains("never a mount instruction"), "{}", refusal.message());
+    assert!(
+        refusal.message().contains("never a mount instruction"),
+        "{}",
+        refusal.message()
+    );
 }
 
 /// A short value,
@@ -84,13 +105,24 @@ fn an_intent_text_in_the_nudge_property_is_refused() {
 /// refused before any digit is read.
 #[test]
 fn every_other_length_is_refused() {
-    for length in [0, 1, NONCE_HEX_DIGITS - 1, NONCE_HEX_DIGITS + 1, NONCE_HEX_DIGITS * 2] {
+    for length in [
+        0,
+        1,
+        NONCE_HEX_DIGITS - 1,
+        NONCE_HEX_DIGITS + 1,
+        NONCE_HEX_DIGITS * 2,
+    ] {
         let text: String = "0".repeat(length);
         let refusal = parse_sweep_nonce(text.as_str()).expect_err("only one length is a nudge");
         let NudgeRefusal::Nonce(cause) = refusal else {
             panic!("the cause is the nonce");
         };
-        assert_eq!(cause, crate::worktree_clone_mount_protocol::request_nonce::NonceRefusal::Length { found: length });
+        assert_eq!(
+            cause,
+            crate::worktree_clone_mount_protocol::request_nonce::NonceRefusal::Length {
+                found: length
+            }
+        );
     }
 }
 
@@ -100,7 +132,11 @@ fn an_unreadable_property_is_refused() {
     let mut properties: NvList = NvList::new();
     properties.add_str(SWEEP_NONCE_PROPERTY, "0".repeat(NONCE_HEX_DIGITS).as_str());
     let reading: NudgeReading = read_sweep_nonce(Some(&properties), CLONE);
-    assert!(matches!(reading, NudgeReading::Refused(NudgeRefusal::Property(_))), "{reading:?}");
-    let nonce: RequestNonce = RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str()).expect("the all-zero nonce is valid");
+    assert!(
+        matches!(reading, NudgeReading::Refused(NudgeRefusal::Property(_))),
+        "{reading:?}"
+    );
+    let nonce: RequestNonce = RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str())
+        .expect("the all-zero nonce is valid");
     assert_eq!(sweep_nonce_text(&nonce).len(), NONCE_HEX_DIGITS);
 }

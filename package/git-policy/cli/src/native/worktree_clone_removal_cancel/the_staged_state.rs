@@ -25,12 +25,30 @@
 //! const settled = staged.settle(guid); // { kind: 'no-staged-folder' } | { kind: 'removed' } | { kind: 'kept'; step; said }
 //! ```
 
-use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, parse_mount_table};
+use crate::fs_mount_options::{
+    MOUNTINFO_PATH,
+    MountFacts,
+    parse_mount_table,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_unmount::staging_claim::{CLAIM_FOLDER, staging_claim_path};
-use crate::worktree_clone_unmount::staging_cleanup::{CleanupOutcome, CleanupRequest, clean_up_staging_folder, the_account_cache};
-use crate::worktree_clone_unmount::staging_folder_name::{staging_folder_name, staging_record_name};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_unmount::staging_claim::{
+    CLAIM_FOLDER,
+    staging_claim_path,
+};
+use crate::worktree_clone_unmount::staging_cleanup::{
+    CleanupOutcome,
+    CleanupRequest,
+    clean_up_staging_folder,
+    the_account_cache,
+};
+use crate::worktree_clone_unmount::staging_folder_name::{
+    staging_folder_name,
+    staging_record_name,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What became of one clone's staged state.
@@ -91,7 +109,10 @@ impl StagedSettlement {
 /// ```
 pub trait TheStagedFolder {
     /// Settle this clone's staged state on the answer that put the clone back.
-    fn settle(&self, clone_guid: DatasetGuid) -> StagedSettlement;
+    fn settle(
+        &self,
+        clone_guid: DatasetGuid,
+    ) -> StagedSettlement;
 }
 
 /// What:
@@ -116,7 +137,10 @@ pub struct LiveTheStagedFolder<'a> {
 }
 
 impl TheStagedFolder for LiveTheStagedFolder<'_> {
-    fn settle(&self, clone_guid: DatasetGuid) -> StagedSettlement {
+    fn settle(
+        &self,
+        clone_guid: DatasetGuid,
+    ) -> StagedSettlement {
         let folder_name: String = staging_folder_name(clone_guid);
         let record_name: String = staging_record_name(clone_guid);
         let claim_path: PathBuf = staging_claim_path(self.common_dir, clone_guid);
@@ -134,7 +158,15 @@ impl TheStagedFolder for LiveTheStagedFolder<'_> {
         let claim_folder: PathBuf = self.common_dir.join(CLAIM_FOLDER);
         let claim_directory: std::fs::File = match std::fs::File::open(claim_folder.as_path()) {
             Ok(folder) => folder,
-            Err(error) => return kept("claim-folder", format!("the claim folder {} could not be held ({error})", claim_folder.display())),
+            Err(error) => {
+                return kept(
+                    "claim-folder",
+                    format!(
+                        "the claim folder {} could not be held ({error})",
+                        claim_folder.display()
+                    ),
+                );
+            }
         };
         let mounts = || return this_process_mounts();
         let request: CleanupRequest<'_> = CleanupRequest {
@@ -153,15 +185,33 @@ impl TheStagedFolder for LiveTheStagedFolder<'_> {
 /// One cleanup's outcome as the settlement the report reads.
 fn of_the_cleanup(outcome: CleanupOutcome) -> StagedSettlement {
     return match outcome {
-        CleanupOutcome::Removed { record, claim } => StagedSettlement::Removed { record, claim },
+        CleanupOutcome::Removed {
+            record,
+            claim,
+        } => StagedSettlement::Removed {
+            record,
+            claim,
+        },
         CleanupOutcome::ReleasedNoFolder => StagedSettlement::ReleasedNoFolder,
-        CleanupOutcome::Kept { step, said } => StagedSettlement::Retained { step, said },
+        CleanupOutcome::Kept {
+            step,
+            said,
+        } => StagedSettlement::Retained {
+            step,
+            said,
+        },
     };
 }
 
 /// One kept folder.
-fn kept(step: &str, said: String) -> StagedSettlement {
-    return StagedSettlement::Retained { step: String::from(step), said };
+fn kept(
+    step: &str,
+    said: String,
+) -> StagedSettlement {
+    return StagedSettlement::Retained {
+        step: String::from(step),
+        said,
+    };
 }
 
 /// This process's mount table,
@@ -170,7 +220,10 @@ fn this_process_mounts() -> Vec<MountFacts> {
     let text: Vec<u8> = match std::fs::read(MOUNTINFO_PATH) {
         Ok(text) => text,
         Err(error) => {
-            crate::diagnostic_log::debug(TAG, format!("the mount table {MOUNTINFO_PATH} could not be read ({error})").as_str());
+            crate::diagnostic_log::debug(
+                TAG,
+                format!("the mount table {MOUNTINFO_PATH} could not be read ({error})").as_str(),
+            );
             return Vec::new();
         }
     };

@@ -25,19 +25,48 @@
 //! ```
 
 use crate::fs_beneath::handle_path;
-use crate::subvolume_arguments::{MIGRATE_RISK_NOTICE, MigrateMode};
+use crate::subvolume_arguments::{
+    MIGRATE_RISK_NOTICE,
+    MigrateMode,
+};
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
-use crate::subvolume_lock::{release_all, token_of};
-use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
-use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
-use crate::subvolume_rollback_stage::stage_is_not_a_subvolume;
-use crate::subvolume_rollback_subvolume_removal::{remove_if_present, remove_subvolume_tree};
+use crate::subvolume_lock::{
+    release_all,
+    token_of,
+};
+use crate::subvolume_preflight::{
+    INSTALLED_ROOT,
+    Refusal,
+    remove_old_refusals,
+    rollback_refusals,
+};
 use crate::subvolume_remove::remove_tree;
+use crate::subvolume_rollback_identity::{
+    PairLook,
+    PinnedRoot,
+    installed_identity_refusal,
+    object_form,
+    pair_refusal,
+    pin_root,
+    pinned_root_moved,
+    resumed_old_tree_refusal,
+    shown_left_out,
+    uncarried_cause,
+    uncarried_remedy,
+};
+use crate::subvolume_rollback_stage::stage_is_not_a_subvolume;
+use crate::subvolume_rollback_subvolume_removal::{
+    remove_if_present,
+    remove_subvolume_tree,
+};
 use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether an unfinished rollback has already exchanged the trees back:
 /// the journal recorded `rollback-swap` beginning and the checkout is not a subvolume.
@@ -51,14 +80,21 @@ use std::path::{Path, PathBuf};
 /// const swapped = journal.hasBegun('rollback-swap') && !isSubvolumeRoot(root);
 /// ```
 fn trees_are_already_swapped_back(run: &Run<'_>) -> bool {
-    return run.journal.has_begun("rollback-swap") && !run.platform.is_subvolume_root(run.layout.root.as_path()).unwrap_or(false);
+    return run.journal.has_begun("rollback-swap")
+        && !run
+            .platform
+            .is_subvolume_root(run.layout.root.as_path())
+            .unwrap_or(false);
 }
 
 /// The refusal of a rollback whose old tree is gone,
 /// which nothing can restore.
 fn old_tree_missing(run: &Run<'_>) -> Refusal {
     return Refusal {
-        cause: format!("the migration is recorded as exchanged, but the old tree {} is missing, so there is nothing to restore", run.layout.old_path.display()),
+        cause: format!(
+            "the migration is recorded as exchanged, but the old tree {} is missing, so there is nothing to restore",
+            run.layout.old_path.display()
+        ),
         remedy: String::from(
             "If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy.",
         ),
@@ -73,13 +109,19 @@ fn old_tree_is_a_link(run: &Run<'_>) -> Option<Refusal> {
         return None;
     }
     return Some(Refusal {
-        cause: format!("{} is a symbolic link, and the command deletes only a directory it moved itself", run.layout.old_path.display()),
+        cause: format!(
+            "{} is a symbolic link, and the command deletes only a directory it moved itself",
+            run.layout.old_path.display()
+        ),
         remedy: String::from("Inspect it and delete it by hand."),
     });
 }
 
 /// The refusal of a deletion while files this user may not read exist only in the old tree.
-fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> Option<Refusal> {
+fn unreadable_only_in_the_old_tree(
+    run: &Run<'_>,
+    discard_unreadable: bool,
+) -> Option<Refusal> {
     if run.unreadable.is_empty() || discard_unreadable {
         return None;
     }
@@ -90,7 +132,9 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
             run.layout.old_path.display(),
             run.layout.unreadable_path.display()
         ),
-        remedy: String::from("Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --remove-old to delete them with the old tree."),
+        remedy: String::from(
+            "Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --remove-old to delete them with the old tree.",
+        ),
     });
 }
 
@@ -113,7 +157,11 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// ```ts
 /// const refusals = refusalsOfTheMode(run, mode, discardUnreadable);
 /// ```
-pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable: bool) -> Vec<Refusal> {
+pub fn refusals_of_the_mode(
+    run: &Run<'_>,
+    mode: MigrateMode,
+    discard_unreadable: bool,
+) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = match mode {
         MigrateMode::Rollback => rollback_refusals(run.layout, &run.journal),
         MigrateMode::RemoveOld => remove_old_refusals(run.layout, &run.journal),
@@ -126,7 +174,10 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
         MigrateMode::Rollback => {
             // The real rollback reaches `swap_back` only when the journal records the exchange as done; before it there is
             // no old tree yet, and that state is the one the rollback finishes by deleting the staged subvolume.
-            if run.journal.is_done("exchange") && !trees_are_already_swapped_back(run) && !run.layout.old_path.exists() {
+            if run.journal.is_done("exchange")
+                && !trees_are_already_swapped_back(run)
+                && !run.layout.old_path.exists()
+            {
                 found.push(old_tree_missing(run));
             }
             if let Some(refusal) = stage_is_not_a_subvolume(run) {
@@ -159,13 +210,22 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
 /// ```ts
 /// const refusal = carryBackLeftOut(run, carried, discardLeftOut);
 /// ```
-fn carry_back_left_out(run: &Run<'_>, carried: &SyncStats, discard_left_out: bool) -> Option<Refusal> {
+fn carry_back_left_out(
+    run: &Run<'_>,
+    carried: &SyncStats,
+    discard_left_out: bool,
+) -> Option<Refusal> {
     if discard_left_out || (carried.left_out.is_empty() && carried.conflicts.is_empty()) {
         return None;
     }
     let mut parts: Vec<String> = Vec::new();
     if !carried.left_out.is_empty() {
-        parts.push(format!("{} entr(ies) that {} lacks ({})", carried.left_out.len(), run.layout.old_path.display(), shown_left_out(carried.left_out.iter())));
+        parts.push(format!(
+            "{} entr(ies) that {} lacks ({})",
+            carried.left_out.len(),
+            run.layout.old_path.display(),
+            shown_left_out(carried.left_out.iter())
+        ));
     }
     if !carried.conflicts.is_empty() {
         parts.push(format!(
@@ -176,7 +236,12 @@ fn carry_back_left_out(run: &Run<'_>, carried: &SyncStats, discard_left_out: boo
         ));
     }
     return Some(Refusal {
-        cause: format!("{} did not reach {}: {} (this rollback deletes the new subvolume with them)", run.layout.root.display(), run.layout.old_path.display(), parts.join("; ")),
+        cause: format!(
+            "{} did not reach {}: {} (this rollback deletes the new subvolume with them)",
+            run.layout.root.display(),
+            run.layout.old_path.display(),
+            parts.join("; ")
+        ),
         remedy: String::from(
             "Copy anything you want to keep out of the new subvolume first. If what the original tree keeps there is there on purpose, pass --discard-left-out together with --rollback to delete the new subvolume with it; you can also delete the new subvolume yourself.",
         ),
@@ -207,8 +272,17 @@ fn carry_back_left_out(run: &Run<'_>, carried: &SyncStats, discard_left_out: boo
 /// ```ts
 /// const refused = await swapBack(run);
 /// ```
-fn swap_back(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
-    return swap_back_seamed(run, discard_unreadable, discard_left_out, &mut nothing_at_all);
+fn swap_back(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return swap_back_seamed(
+        run,
+        discard_unreadable,
+        discard_left_out,
+        &mut nothing_at_all,
+    );
 }
 
 /// What:
@@ -228,7 +302,12 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool
 /// ```ts
 /// swapBackSeamed(run, discardUnreadable, beforeExchange);
 /// ```
-fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, before_exchange: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
+fn swap_back_seamed(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+    before_exchange: &mut dyn FnMut(),
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
@@ -237,7 +316,8 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         // A resumed rollback renames what the old tree's name holds to the new subvolume's name and then deletes it, so that
         // object must be the one the journal recorded installing: a kill alone leaves this state, and a directory the person
         // put there while the command was down is theirs.
-        if let Some(refusal) = resumed_old_tree_refusal(run, old_path.as_path(), new_path.as_path()) {
+        if let Some(refusal) = resumed_old_tree_refusal(run, old_path.as_path(), new_path.as_path())
+        {
             return Ok(Some(vec![refusal]));
         }
     }
@@ -245,15 +325,28 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         if !old_path.exists() {
             return Ok(Some(vec![old_tree_missing(run)]));
         }
-        let carried: SyncStats = run.pass_unrecorded("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
+        let carried: SyncStats = run.pass_unrecorded(
+            "carry back (files newer in the new root)",
+            root.as_path(),
+            old_path.as_path(),
+            false,
+            true,
+        )?;
         if !carried.unreadable.is_empty() && !discard_unreadable {
             let mut shown: Vec<String> = Vec::new();
             for path in carried.unreadable.iter().take(10) {
                 shown.push(path.display().to_string());
             }
             return Ok(Some(vec![Refusal {
-                cause: format!("{} file(s) that this user may not read exist only in the new subvolume {} and cannot be carried back: {}", carried.unreadable.len(), root.display(), shown.join(", ")),
-                remedy: String::from("Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --rollback to delete them with the new subvolume."),
+                cause: format!(
+                    "{} file(s) that this user may not read exist only in the new subvolume {} and cannot be carried back: {}",
+                    carried.unreadable.len(),
+                    root.display(),
+                    shown.join(", ")
+                ),
+                remedy: String::from(
+                    "Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --rollback to delete them with the new subvolume.",
+                ),
             }]));
         }
         if let Some(refusal) = carry_back_left_out(run, &carried, discard_left_out) {
@@ -262,7 +355,8 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         run.checkpoint("rollback-before-exchange")?;
         before_exchange();
         // The last look before the exchange, and the identities it reads are what the exchange must produce.
-        let before: (Option<String>, Option<String>) = (object_form(root.as_path()), object_form(old_path.as_path()));
+        let before: (Option<String>, Option<String>) =
+            (object_form(root.as_path()), object_form(old_path.as_path()));
         let installed: Option<&str> = run.journal.value(INSTALLED_ROOT);
         if let Some(refusal) = pair_refusal(PairLook {
             root: root.as_path(),
@@ -279,10 +373,16 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         run.checkpoint("rollback-after-swap")?;
         // An exchange of names can take a directory put there in the moment before it, so what went where is read back: a
         // wrong one is exchanged back and nothing is deleted.
-        let after: (Option<String>, Option<String>) = (object_form(root.as_path()), object_form(old_path.as_path()));
+        let after: (Option<String>, Option<String>) =
+            (object_form(root.as_path()), object_form(old_path.as_path()));
         if after.0 != before.1 || after.1 != before.0 {
-            let undone: Result<(), crate::fs_primitive_error::PrimitiveError> = run.platform.exchange(root.as_path(), old_path.as_path());
-            let note: &str = if undone.is_ok() { "The exchange was undone" } else { "The exchange could not be undone, so read the paths named here before you run anything else" };
+            let undone: Result<(), crate::fs_primitive_error::PrimitiveError> =
+                run.platform.exchange(root.as_path(), old_path.as_path());
+            let note: &str = if undone.is_ok() {
+                "The exchange was undone"
+            } else {
+                "The exchange could not be undone, so read the paths named here before you run anything else"
+            };
             return Ok(Some(vec![Refusal {
                 cause: format!(
                     "{} and {} did not exchange their directories: they held {} and {}, and after the exchange they hold {} and {}. {note}.",
@@ -293,12 +393,18 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
                     after.0.as_deref().unwrap_or("a name that leads nowhere"),
                     after.1.as_deref().unwrap_or("a name that leads nowhere")
                 ),
-                remedy: String::from("Check both paths, move the directory the migration installed back to the checkout's path, and run the command again. Nothing was deleted."),
+                remedy: String::from(
+                    "Check both paths, move the directory the migration installed back to the checkout's path, and run the command again. Nothing was deleted.",
+                ),
             }]));
         }
     }
     if old_path.exists() && !new_path.exists() {
-        MigrateError::from_io_result(std::fs::rename(&old_path, &new_path), "rename", old_path.as_path())?;
+        MigrateError::from_io_result(
+            std::fs::rename(&old_path, &new_path),
+            "rename",
+            old_path.as_path(),
+        )?;
     }
     run.checkpoint("rollback-after-rename")?;
     run.journal.mark("exchange", "rolled-back")?;
@@ -323,7 +429,11 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
 /// ```ts
 /// const refused = await rollback(run);
 /// ```
-pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn rollback(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let refusals: Vec<Refusal> = rollback_refusals(run.layout, &run.journal);
     if !refusals.is_empty() {
         return Ok(Some(refusals));
@@ -333,9 +443,19 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
-    if run.journal.has_begun("exchange") && !run.journal.is_done("exchange") && run.platform.is_subvolume_root(root.as_path()).unwrap_or(false) {
+    if run.journal.has_begun("exchange")
+        && !run.journal.is_done("exchange")
+        && run
+            .platform
+            .is_subvolume_root(root.as_path())
+            .unwrap_or(false)
+    {
         if new_path.exists() && !old_path.exists() {
-            MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
+            MigrateError::from_io_result(
+                std::fs::rename(&new_path, &old_path),
+                "rename",
+                new_path.as_path(),
+            )?;
         }
         run.journal.mark("exchange", "done")?;
     }
@@ -350,7 +470,9 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
     let token: String = token_of(&run.journal);
     release_all(root.as_path(), token.as_str())?;
     // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
-    if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
+    if run.journal.state("exchange") == Some("rolled-back")
+        && !run.journal.is_done("rollback-indexes")
+    {
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
         //  stops, because each of them is a fact about an index that was looked at.
@@ -382,7 +504,13 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {
-        run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());
+        run.line(
+            format!(
+                "deleting the new subvolume {} (nested subvolumes first)",
+                new_path.display()
+            )
+            .as_str(),
+        );
         remove_subvolume_tree(run, new_path.as_path())?;
     }
     run.journal.delete()?;
@@ -408,12 +536,28 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
 /// ```ts
 /// await carryLateWrites(run, pinned, shown);
 /// ```
-fn carry_late_writes(run: &mut Run<'_>, destination: &Path, shown: &Path) -> Result<(), MigrateError> {
+fn carry_late_writes(
+    run: &mut Run<'_>,
+    destination: &Path,
+    shown: &Path,
+) -> Result<(), MigrateError> {
     let old_path: PathBuf = run.layout.old_path.clone();
     let since: i64 = run.journal.seconds_of("catchup").unwrap_or(i64::MAX);
-    let stats: SyncStats = run.pass_late("late writes (files written to the old tree after the catch-up)", old_path.as_path(), destination, since)?;
+    let stats: SyncStats = run.pass_late(
+        "late writes (files written to the old tree after the catch-up)",
+        old_path.as_path(),
+        destination,
+        since,
+    )?;
     if stats.files_copied > 0 || !stats.conflicts.is_empty() {
-        run.line(format!("{} file(s) written to the old tree after the catch-up were carried into {}", stats.files_copied, shown.display()).as_str());
+        run.line(
+            format!(
+                "{} file(s) written to the old tree after the catch-up were carried into {}",
+                stats.files_copied,
+                shown.display()
+            )
+            .as_str(),
+        );
     }
     return Ok(());
 }
@@ -438,8 +582,17 @@ fn carry_late_writes(run: &mut Run<'_>, destination: &Path, shown: &Path) -> Res
 /// ```ts
 /// const refused = await removeOldTree(run, { discardUnreadable, discardLeftOut });
 /// ```
-pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
-    return remove_old_tree_seamed(run, discard_unreadable, discard_left_out, &mut nothing_at_all);
+pub fn remove_old_tree(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return remove_old_tree_seamed(
+        run,
+        discard_unreadable,
+        discard_left_out,
+        &mut nothing_at_all,
+    );
 }
 
 /// A step that does nothing,
@@ -460,13 +613,22 @@ fn nothing_at_all() {}
 /// ```ts
 /// removeOldTreeSeamed(run, flags, afterPinned);
 /// ```
-pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, after_pinned: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn remove_old_tree_seamed(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+    after_pinned: &mut dyn FnMut(),
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
     let old_path: PathBuf = run.layout.old_path.clone();
     let mut pinned: Option<PinnedRoot> = None;
     if refusals.is_empty() {
         // The examination of the old tree is what the preview also reads, so a path that cannot be examined is an error here.
-        MigrateError::from_io_result(std::fs::symlink_metadata(&old_path), "examine", old_path.as_path())?;
+        MigrateError::from_io_result(
+            std::fs::symlink_metadata(&old_path),
+            "examine",
+            old_path.as_path(),
+        )?;
         if let Some(refusal) = old_tree_is_a_link(run) {
             return Ok(Some(vec![refusal]));
         }
@@ -487,16 +649,30 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     {
         return Ok(Some(vec![refusal]));
     }
-    if refusals.is_empty() && (!run.left_out.is_empty() || !run.conflicts.is_empty()) && !discard_left_out {
-        refusals.push(Refusal { cause: uncarried_cause(run), remedy: uncarried_remedy() });
+    if refusals.is_empty()
+        && (!run.left_out.is_empty() || !run.conflicts.is_empty())
+        && !discard_left_out
+    {
+        refusals.push(Refusal {
+            cause: uncarried_cause(run),
+            remedy: uncarried_remedy(),
+        });
     }
-    if refusals.is_empty() && let Some(refusal) = unreadable_only_in_the_old_tree(run, discard_unreadable) {
+    if refusals.is_empty()
+        && let Some(refusal) = unreadable_only_in_the_old_tree(run, discard_unreadable)
+    {
         refusals.push(refusal);
     }
     if !refusals.is_empty() {
         return Ok(Some(refusals));
     }
-    run.line(format!("deleting {} (every file is unlinked; this can take minutes)", old_path.display()).as_str());
+    run.line(
+        format!(
+            "deleting {} (every file is unlinked; this can take minutes)",
+            old_path.display()
+        )
+        .as_str(),
+    );
     MigrateError::from_io_result(remove_tree(&old_path), "delete", old_path.as_path())?;
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;

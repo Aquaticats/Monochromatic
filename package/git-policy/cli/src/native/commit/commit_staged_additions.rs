@@ -21,10 +21,15 @@
 //! git diff-index --cached --raw --no-abbrev -z --diff-filter=A <base> -- <pathspecs>
 //! ```
 
+use crate::path_bytes::os_from_path_bytes;
 use crate::private_index_request::caller_pathspec_request;
 use crate::private_index_request::indexed_request;
-use crate::path_bytes::os_from_path_bytes;
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    run_git_checked,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -101,7 +106,10 @@ pub fn staged_additions_selected(
     .map(OsString::from)
     .collect();
     arguments.extend(pathspecs.iter().cloned());
-    let output: GitOutput = run_git_checked(context, &caller_pathspec_request(context, cwd, &arguments, Some(real_index), None))?;
+    let output: GitOutput = run_git_checked(
+        context,
+        &caller_pathspec_request(context, cwd, &arguments, Some(real_index), None),
+    )?;
     return parse_raw_additions(output.stdout.as_slice());
 }
 
@@ -132,7 +140,9 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// const unreadableRecord = () => new GitFailure('git diff-index returned a record that could not be read.');
 /// ```
 fn unreadable_record() -> GitFailure {
-    return GitFailure(String::from("git diff-index returned a record that could not be read."));
+    return GitFailure(String::from(
+        "git diff-index returned a record that could not be read.",
+    ));
 }
 
 /// What:
@@ -196,16 +206,24 @@ pub fn carry_additions(
     additions: &[StagedAddition],
 ) -> Result<(), GitFailure> {
     for chunk in additions.chunks(ENTRIES_PER_START) {
-        let mut arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("--add")];
+        let mut arguments: Vec<OsString> =
+            vec![OsString::from("update-index"), OsString::from("--add")];
         for addition in chunk {
-            let mut entry: OsString = OsString::from(format!("{},{},", addition.mode, addition.oid));
+            let mut entry: OsString =
+                OsString::from(format!("{},{},", addition.mode, addition.oid));
             entry.push(os_from_path_bytes(addition.path.as_slice()));
             arguments.push(OsString::from("--cacheinfo"));
             arguments.push(entry);
         }
         run_git_checked(
             context,
-            &indexed_request(context, cwd, &arguments, Some(private_index), Some(object_directory)),
+            &indexed_request(
+                context,
+                cwd,
+                &arguments,
+                Some(private_index),
+                Some(object_directory),
+            ),
         )?;
     }
     return Ok(());
@@ -225,7 +243,10 @@ pub fn carry_additions(
 /// ```ts
 /// nul ? text.split('\0') : text.split('\n').map(unquoteIfQuoted)
 /// ```
-pub fn pathspecs_of_file(bytes: &[u8], nul_separated: bool) -> Option<Vec<OsString>> {
+pub fn pathspecs_of_file(
+    bytes: &[u8],
+    nul_separated: bool,
+) -> Option<Vec<OsString>> {
     let separator: u8 = if nul_separated { 0 } else { b'\n' };
     let mut records: Vec<&[u8]> = Vec::new();
     // Every separator ends a piece and the rest after the last one is a piece too, as `split` yields them.
@@ -247,7 +268,11 @@ pub fn pathspecs_of_file(bytes: &[u8], nul_separated: bool) -> Option<Vec<OsStri
     }
     let mut pathspecs: Vec<OsString> = Vec::new();
     for record in records {
-        let element: &[u8] = if nul_separated { record } else { record.strip_suffix(b"\r").unwrap_or(record) };
+        let element: &[u8] = if nul_separated {
+            record
+        } else {
+            record.strip_suffix(b"\r").unwrap_or(record)
+        };
         if element.is_empty() {
             return None;
         }
@@ -331,7 +356,10 @@ fn unquote_c_style(quoted: &[u8]) -> Option<Vec<u8>> {
 /// failure.message.includes('ignored by one of your .gitignore files') ? withRemedy(failure) : failure
 /// ```
 pub fn explain_ignored_refusal(failure: GitFailure) -> GitFailure {
-    if !failure.0.contains("ignored by one of your .gitignore files") {
+    if !failure
+        .0
+        .contains("ignored by one of your .gitignore files")
+    {
         return failure;
     }
     return GitFailure(format!(

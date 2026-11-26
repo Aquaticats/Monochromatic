@@ -27,10 +27,21 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_add_binding::{Binding, Recorded, binding_still_holds, decode_record};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::worktree_add_binding::{
+    Binding,
+    Recorded,
+    binding_still_holds,
+    decode_record,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+};
 use crate::worktree_copy_journal::write_atomic_unsynced;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name of the binding record inside a stage container.
 /// Why it sits beside the payload:
@@ -58,7 +69,10 @@ pub const STAGE_BINDING_NAME: &str = "registration";
 /// ```ts
 /// await recordStageBinding(container, binding);
 /// ```
-pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), WorktreeCopyError> {
+pub fn record_stage_binding(
+    container: &Path,
+    binding: &Binding,
+) -> Result<(), WorktreeCopyError> {
     let path: PathBuf = container.join(STAGE_BINDING_NAME);
     return write_atomic_unsynced(path.as_path(), binding.encode().as_bytes(), "stage binding");
 }
@@ -107,10 +121,14 @@ pub fn stage_binding_reading(container: &Path) -> Result<Option<BindingFile>, Wo
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-            return Ok(Some(BindingFile::Unreadable { reason: String::from("its bytes are not text") }));
+            return Ok(Some(BindingFile::Unreadable {
+                reason: String::from("its bytes are not text"),
+            }));
         }
         Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => {
-            return Ok(Some(BindingFile::Unreadable { reason: String::from("it is not one plain file") }));
+            return Ok(Some(BindingFile::Unreadable {
+                reason: String::from("it is not one plain file"),
+            }));
         }
         Err(error) => {
             let message: String = format!(
@@ -122,7 +140,9 @@ pub fn stage_binding_reading(container: &Path) -> Result<Option<BindingFile>, Wo
     };
     return match decode_record(text.as_str()) {
         Some(Recorded::Registered(binding)) => Ok(Some(BindingFile::Recorded(binding))),
-        _ => Ok(Some(BindingFile::Unreadable { reason: String::from("it is not a registration this release writes") })),
+        _ => Ok(Some(BindingFile::Unreadable {
+            reason: String::from("it is not a registration this release writes"),
+        })),
     };
 }
 
@@ -177,7 +197,10 @@ pub fn stage_binding(container: &Path) -> Result<Option<Binding>, WorktreeCopyEr
 /// ```ts
 /// await verifyStageBinding({ commonDir, binding }); // throws a reason
 /// ```
-pub fn verify_stage_binding(common_dir: &Path, binding: &Binding) -> Result<(), String> {
+pub fn verify_stage_binding(
+    common_dir: &Path,
+    binding: &Binding,
+) -> Result<(), String> {
     return binding_still_holds(common_dir, binding);
 }
 

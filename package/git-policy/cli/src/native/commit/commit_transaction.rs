@@ -22,7 +22,10 @@
 //! const selection = decideSelection(region, conclusion);
 //! ```
 
-use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 use crate::candidate_prediction::CandidateRequest;
 use crate::capture_invocation::InvocationCapture;
 use crate::command_commit::CommitRegion;
@@ -30,22 +33,31 @@ use crate::commit_facts::PrivateIndexFacts;
 use crate::config_schema::CliGitConfig;
 use crate::diagnostics::EngineFailureCode;
 use crate::effective_target::ToolCacheDirectory;
-use crate::path_bytes::os_from_path_bytes;
 use crate::markdown_linter::embedded_linter;
-use crate::policy_checks::{ShippedChecks, shipped_checks};
-use crate::policy_forbidden_strings::default_scanner_settings;
-use crate::policy_markdown::markdown_state;
+use crate::path_bytes::os_from_path_bytes;
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
 use crate::policy_content::LifecycleContent;
 use crate::policy_convergence::Convergence;
 use crate::policy_events::PolicyEvent;
+use crate::policy_forbidden_strings::default_scanner_settings;
+use crate::policy_markdown::markdown_state;
 use crate::repository_facts::RepositoryFacts;
-use crate::transaction_git::{GitContext, GitFailure};
-use crate::transaction_journal::{Base, Conclusion, TransactionMode};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
+use crate::transaction_journal::{
+    Base,
+    Conclusion,
+    TransactionMode,
+};
 use crate::transaction_phase::PhaseMarkerError;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::path::Path;
-
 
 /// What:
 ///  Everything the invocation fixes before the transaction starts.
@@ -143,14 +155,12 @@ impl From<GitFailure> for TransactionStop {
     }
 }
 
-
 impl From<PhaseMarkerError> for TransactionStop {
     /// A malformed test marker fails the transaction.
     fn from(failure: PhaseMarkerError) -> Self {
         return failed(failure.to_string());
     }
 }
-
 
 /// What:
 ///  A transaction failure with the generic code.
@@ -250,7 +260,10 @@ pub struct Selection {
 /// ```ts
 /// const mode = region.hasNoOnlyFlag || concludesSequencer || readOnlySelection || region.hasAllFlag || (!selectsPaths) ? 'index' : 'explicit-path';
 /// ```
-pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Selection {
+pub fn decide_selection(
+    region: &CommitRegion,
+    conclusion: Conclusion,
+) -> Selection {
     let read_only: bool = region.include || region.interactive || region.patch;
     let selects_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
     // Named paths never conclude another session's unfinished merge or stopped cherry-pick: real Git refuses them there as a
@@ -258,7 +271,9 @@ pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Select
     //  "Merges and commits never fail"). Real Git takes named paths during a revert and concludes it with them, which stays.
     let paths_only: bool = selects_paths && !read_only && !region.all && region.only != Some(false);
     let refused_by_git: bool = matches!(conclusion, Conclusion::Merge | Conclusion::CherryPick);
-    let concludes_sequencer: bool = conclusion != Conclusion::None && conclusion != Conclusion::Amend && !(paths_only && refused_by_git);
+    let concludes_sequencer: bool = conclusion != Conclusion::None
+        && conclusion != Conclusion::Amend
+        && !(paths_only && refused_by_git);
     let staged_all: bool = region.all && !selects_paths && !read_only && region.only != Some(true);
     let index_mode: bool = region.only == Some(false)
         || concludes_sequencer
@@ -270,7 +285,11 @@ pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Select
         read_only,
         selects_paths,
         staged_all,
-        mode: if index_mode { TransactionMode::Index } else { TransactionMode::ExplicitPath },
+        mode: if index_mode {
+            TransactionMode::Index
+        } else {
+            TransactionMode::ExplicitPath
+        },
     };
 }
 
@@ -297,8 +316,12 @@ pub fn private_checks<'a, F: RepositoryFacts>(
 ) -> ShippedChecks<PrivateIndexFacts<&'a mut F>> {
     // The scanner settings and the Markdown linter move to the rebuilt checks; the originals are placeholders that
     // nothing reads again, because the rebuilt checks run every policy of this transaction.
-    let scanner_settings = std::mem::replace(&mut checks.scanner_settings, default_scanner_settings());
-    let markdown = std::mem::replace(&mut checks.markdown, markdown_state(Box::new(embedded_linter())));
+    let scanner_settings =
+        std::mem::replace(&mut checks.scanner_settings, default_scanner_settings());
+    let markdown = std::mem::replace(
+        &mut checks.markdown,
+        markdown_state(Box::new(embedded_linter())),
+    );
     let arguments: Vec<OsString> = checks.arguments.clone();
     let allowed_worktree_dirs: Vec<ToolCacheDirectory> = checks.allowed_worktree_dirs.clone();
     let start: crate::start_directory::StartDirectory = checks.start_directory.clone();
@@ -328,7 +351,9 @@ pub fn private_checks<'a, F: RepositoryFacts>(
 /// ```
 pub fn settled_passes(convergence: &Convergence) -> u64 {
     return match convergence {
-        Convergence::Settled { changed_passes } => *changed_passes as u64,
+        Convergence::Settled {
+            changed_passes,
+        } => *changed_passes as u64,
         _ => 0,
     };
 }
@@ -345,7 +370,10 @@ pub fn settled_passes(convergence: &Convergence) -> u64 {
 /// ```ts
 /// createPrivateIndexFacts({ paths: candidatePaths, baseRevision })
 /// ```
-pub fn staged_at_base(base: Option<ObjectId>, paths: &[Vec<u8>]) -> CandidateRequest {
+pub fn staged_at_base(
+    base: Option<ObjectId>,
+    paths: &[Vec<u8>],
+) -> CandidateRequest {
     let mut pathspecs: Vec<OsString> = Vec::new();
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
@@ -373,7 +401,9 @@ pub fn base_object(capture: &InvocationCapture) -> Result<Option<ObjectId>, Tran
         Base::Unborn => Ok(None),
         Base::Commit(oid) => match parse_object_id(oid.as_bytes()) {
             Some(found) => Ok(Some(found)),
-            None => Err(failed(format!("the preparation base {oid} is not an object name"))),
+            None => Err(failed(format!(
+                "the preparation base {oid} is not an object name"
+            ))),
         },
     };
 }

@@ -26,11 +26,19 @@
 //! const outcome = checkCheckoutPropagation(row); // pass | finding('propagation') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The root a mount of the dataset's own root shows,
 /// which a bind of a subtree shows deeper.
@@ -94,7 +102,10 @@ pub struct NestedMount {
 fn the_checkout_row(facts: &MountCheckFacts) -> Result<&MountFacts, Vec<&MountFacts>> {
     let mut held: Vec<&MountFacts> = Vec::new();
     for row in &facts.rows {
-        if row.filesystem_type == ZFS_FILE_SYSTEM_TYPE && row.source == facts.checkout_dataset && row.mount_point == facts.checkout_path {
+        if row.filesystem_type == ZFS_FILE_SYSTEM_TYPE
+            && row.source == facts.checkout_dataset
+            && row.mount_point == facts.checkout_path
+        {
             held.push(row);
         }
     }
@@ -123,17 +134,41 @@ pub fn check_checkout_mount(facts: &MountCheckFacts) -> CheckOutcome {
     return match the_checkout_row(facts) {
         Ok(row) => {
             if row.root != Path::new(THE_DATASETS_OWN_ROOT) {
-                return finding("root", format!("the row at {expected} shows {} of `{}` rather than the dataset's own root, so it is a bind of a subtree", row.root.display(), facts.checkout_dataset));
+                return finding(
+                    "root",
+                    format!(
+                        "the row at {expected} shows {} of `{}` rather than the dataset's own root, so it is a bind of a subtree",
+                        row.root.display(),
+                        facts.checkout_dataset
+                    ),
+                );
             }
-            pass(format!("`{}` is mounted at {expected} (mount id {}) and this caller's table holds it", facts.checkout_dataset, row.mount_id))
+            pass(format!(
+                "`{}` is mounted at {expected} (mount id {}) and this caller's table holds it",
+                facts.checkout_dataset, row.mount_id
+            ))
         }
         Err(held) if held.is_empty() => finding(
             "checkout-mount",
-            format!("no zfs row in this caller's table mounts `{}` at {expected}", facts.checkout_dataset),
+            format!(
+                "no zfs row in this caller's table mounts `{}` at {expected}",
+                facts.checkout_dataset
+            ),
         ),
         Err(held) => {
-            let ids: Vec<String> = held.iter().map(|row| return row.mount_id.to_string()).collect();
-            finding("checkout-mount", format!("{} rows mount `{}` at {expected} (mount ids {}) and the route needs exactly one", held.len(), facts.checkout_dataset, ids.join(", ")))
+            let ids: Vec<String> = held
+                .iter()
+                .map(|row| return row.mount_id.to_string())
+                .collect();
+            finding(
+                "checkout-mount",
+                format!(
+                    "{} rows mount `{}` at {expected} (mount ids {}) and the route needs exactly one",
+                    held.len(),
+                    facts.checkout_dataset,
+                    ids.join(", ")
+                ),
+            )
         }
     };
 }
@@ -176,17 +211,25 @@ fn sharing_fields(row: &MountFacts) -> Vec<&str> {
 /// ```
 pub fn check_checkout_propagation(facts: &MountCheckFacts) -> CheckOutcome {
     let Ok(row) = the_checkout_row(facts) else {
-        return unknown(String::from("the checkout's own row is not in this caller's table exactly once, so its propagation is unproved"));
+        return unknown(String::from(
+            "the checkout's own row is not in this caller's table exactly once, so its propagation is unproved",
+        ));
     };
     let sharing: Vec<&str> = sharing_fields(row);
     if sharing.is_empty() {
-        return pass(format!("the checkout's mount (id {}) is private", row.mount_id));
+        return pass(format!(
+            "the checkout's mount (id {}) is private",
+            row.mount_id
+        ));
     }
     let path: String = row.mount_point.display().to_string();
     return finding(
         "propagation",
-        format!("the checkout's mount is not private ({}), and the route needs a mount no other namespace receives; set it back with `mount --make-rprivate {path}` after the mount is made", sharing.join(", ")),
-    )
+        format!(
+            "the checkout's mount is not private ({}), and the route needs a mount no other namespace receives; set it back with `mount --make-rprivate {path}` after the mount is made",
+            sharing.join(", ")
+        ),
+    );
 }
 
 /// What:
@@ -206,10 +249,15 @@ pub fn nested_mounts(facts: &MountCheckFacts) -> Vec<NestedMount> {
         if row.filesystem_type != ZFS_FILE_SYSTEM_TYPE {
             continue;
         }
-        if !row.mount_point.starts_with(facts.checkout_path.as_path()) || row.mount_point == facts.checkout_path {
+        if !row.mount_point.starts_with(facts.checkout_path.as_path())
+            || row.mount_point == facts.checkout_path
+        {
             continue;
         }
-        nested.push(NestedMount { dataset: row.source.clone(), mount_point: row.mount_point.clone() });
+        nested.push(NestedMount {
+            dataset: row.source.clone(),
+            mount_point: row.mount_point.clone(),
+        });
     }
     return nested;
 }
@@ -229,7 +277,11 @@ pub fn nested_mounts(facts: &MountCheckFacts) -> Vec<NestedMount> {
 /// ```ts
 /// const verdict = reachability(row, parentById, checkoutId);
 /// ```
-fn reachability(row: &MountFacts, parents: &BTreeMap<u64, u64>, checkout_id: u64) -> Reachability {
+fn reachability(
+    row: &MountFacts,
+    parents: &BTreeMap<u64, u64>,
+    checkout_id: u64,
+) -> Reachability {
     let mut current: u64 = row.mount_id;
     let mut steps: usize = 0;
     while steps <= parents.len() {
@@ -244,7 +296,9 @@ fn reachability(row: &MountFacts, parents: &BTreeMap<u64, u64>, checkout_id: u64
         current = *parent;
         steps += 1;
     }
-    return Reachability::Incomplete { mount_id: current };
+    return Reachability::Incomplete {
+        mount_id: current,
+    };
 }
 
 /// What one nested row's ancestor chain proved.
@@ -277,25 +331,46 @@ enum Reachability {
 /// ```
 pub fn check_nested_reachability(facts: &MountCheckFacts) -> CheckOutcome {
     let Ok(checkout) = the_checkout_row(facts) else {
-        return unknown(String::from("the checkout's own row is not in this caller's table exactly once, so no nested mount can be judged"));
+        return unknown(String::from(
+            "the checkout's own row is not in this caller's table exactly once, so no nested mount can be judged",
+        ));
     };
     let mut parents: BTreeMap<u64, u64> = BTreeMap::new();
     let mut paths: BTreeMap<&Path, Vec<u64>> = BTreeMap::new();
     for row in &facts.rows {
         parents.insert(row.mount_id, row.parent_id);
         if row.mount_point.starts_with(facts.checkout_path.as_path()) {
-            paths.entry(row.mount_point.as_path()).or_default().push(row.mount_id);
+            paths
+                .entry(row.mount_point.as_path())
+                .or_default()
+                .push(row.mount_id);
         }
     }
     for (path, ids) in &paths {
         if ids.len() > 1 {
             return finding(
                 "path",
-                format!("{} rows are mounted at {} (mount ids {}), so the earlier one is hidden by the later and no path reaches it", ids.len(), path.display(), ids.iter().map(u64::to_string).collect::<Vec<String>>().join(", ")),
+                format!(
+                    "{} rows are mounted at {} (mount ids {}), so the earlier one is hidden by the later and no path reaches it",
+                    ids.len(),
+                    path.display(),
+                    ids.iter()
+                        .map(u64::to_string)
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ),
             );
         }
     }
-    let nested: Vec<&MountFacts> = facts.rows.iter().filter(|row| return row.filesystem_type == ZFS_FILE_SYSTEM_TYPE && row.mount_point.starts_with(facts.checkout_path.as_path()) && row.mount_point != facts.checkout_path).collect();
+    let nested: Vec<&MountFacts> = facts
+        .rows
+        .iter()
+        .filter(|row| {
+            return row.filesystem_type == ZFS_FILE_SYSTEM_TYPE
+                && row.mount_point.starts_with(facts.checkout_path.as_path())
+                && row.mount_point != facts.checkout_path;
+        })
+        .collect();
     let mut incomplete: Vec<String> = Vec::new();
     for row in &nested {
         match reachability(row, &parents, checkout.mount_id) {
@@ -303,16 +378,32 @@ pub fn check_nested_reachability(facts: &MountCheckFacts) -> CheckOutcome {
             Reachability::Orphaned => {
                 return finding(
                     "reachability",
-                    format!("`{}` at {} hangs from the tree the checkout's mount replaced, so no path from the checkout reaches it (mount id {})", row.source, row.mount_point.display(), row.mount_id),
+                    format!(
+                        "`{}` at {} hangs from the tree the checkout's mount replaced, so no path from the checkout reaches it (mount id {})",
+                        row.source,
+                        row.mount_point.display(),
+                        row.mount_id
+                    ),
                 );
             }
-            Reachability::Incomplete { mount_id } => incomplete.push(format!("{} (mount id {mount_id})", row.mount_point.display())),
+            Reachability::Incomplete {
+                mount_id,
+            } => incomplete.push(format!(
+                "{} (mount id {mount_id})",
+                row.mount_point.display()
+            )),
         }
     }
     if !incomplete.is_empty() {
-        return unknown(format!("the ancestor chain of {} loops inside the table, so its reachability is unproved", incomplete.join(", ")));
+        return unknown(format!(
+            "the ancestor chain of {} loops inside the table, so its reachability is unproved",
+            incomplete.join(", ")
+        ));
     }
-    return pass(format!("{} dataset(s) mounted under the checkout path are reachable through its mount", nested.len()));
+    return pass(format!(
+        "{} dataset(s) mounted under the checkout path are reachable through its mount",
+        nested.len()
+    ));
 }
 
 /// Controls stay out of the release executable.

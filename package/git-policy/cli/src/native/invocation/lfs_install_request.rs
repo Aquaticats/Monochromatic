@@ -51,7 +51,15 @@ fn boolean_value(text: &str) -> Option<bool> {
 /// so a `=value` after one of them is a value `strconv.ParseBool` reads.
 /// `--file` (`:99`) is the one string option and takes a path instead,
 /// and `--help` is cobra's own.
-const BOOLEAN_OPTIONS: [&str; 7] = ["force", "local", "manual", "skip-repo", "skip-smudge", "system", "worktree"];
+const BOOLEAN_OPTIONS: [&str; 7] = [
+    "force",
+    "local",
+    "manual",
+    "skip-repo",
+    "skip-smudge",
+    "system",
+    "worktree",
+];
 
 /// The short forms of the booleans `--force`,
 /// `--local`,
@@ -123,7 +131,9 @@ impl InstallRefusal {
     fn reason(&self) -> String {
         return match self {
             InstallRefusal::Word(word) => format!("its flag parser rejects `{word}`"),
-            InstallRefusal::FileWithoutPath => String::from("`--file` needs a path and none followed it"),
+            InstallRefusal::FileWithoutPath => {
+                String::from("`--file` needs a path and none followed it")
+            }
             InstallRefusal::SeveralDestinations => String::from(
                 "only one of `--local`, `--system`, `--worktree` and `--file` can be specified, and this command asks \
                  for more than one",
@@ -316,7 +326,8 @@ impl InstallRequest {
     ///  (`commands/command_install.go:44-59`),
     ///  so the notice needs that same count and not merely the scope it picks first.
     fn destinations(&self) -> usize {
-        let flags: usize = usize::from(self.local) + usize::from(self.worktree) + usize::from(self.system);
+        let flags: usize =
+            usize::from(self.local) + usize::from(self.worktree) + usize::from(self.system);
         return flags + usize::from(self.file.is_some());
     }
 
@@ -370,7 +381,10 @@ impl InstallRequest {
     ///  and goes right after `install` when the caller wrote none.
     ///  A word after `--` is no option,
     /// so a word there that looks like one is not the option.
-    pub(super) fn skip_repo_insertion(&self, install_index: usize) -> Option<usize> {
+    pub(super) fn skip_repo_insertion(
+        &self,
+        install_index: usize,
+    ) -> Option<usize> {
         return match self.skip_repo_at {
             Some(at) => (!self.skip_repo_on).then_some(at + 1),
             None => Some(install_index + 1),
@@ -393,12 +407,19 @@ impl InstallRequest {
     ///  so a later word this reading refuses would be named as the reason for a refusal git-lfs never made there.
     ///  A count of destinations is decided only after every word is read,
     ///  so there any word this reading does not name may come first.
-    pub(super) fn named_reason(&self, refusal: &InstallRefusal) -> Option<String> {
+    pub(super) fn named_reason(
+        &self,
+        refusal: &InstallRefusal,
+    ) -> Option<String> {
         let unread_first: bool = match refusal {
             InstallRefusal::SeveralDestinations => self.unread_option,
-            InstallRefusal::Word(_) | InstallRefusal::FileWithoutPath => self.unread_option_before_refusal,
+            InstallRefusal::Word(_) | InstallRefusal::FileWithoutPath => {
+                self.unread_option_before_refusal
+            }
         };
-        return (!unread_first).then(|| { return refusal.reason(); });
+        return (!unread_first).then(|| {
+            return refusal.reason();
+        });
     }
 
     /// What:
@@ -416,7 +437,12 @@ impl InstallRequest {
     /// ```ts
     /// function readLongOption(request: InstallRequest, at: number, name: string, typed: string): InstallRefusal | undefined
     /// ```
-    fn read_long_option(&mut self, at: usize, name: &str, typed: &str) -> Option<InstallRefusal> {
+    fn read_long_option(
+        &mut self,
+        at: usize,
+        name: &str,
+        typed: &str,
+    ) -> Option<InstallRefusal> {
         let (option, given): (&str, Option<&str>) = match name.split_once('=') {
             Some((option, given)) => (option, Some(given)),
             None => (name, None),
@@ -431,7 +457,9 @@ impl InstallRequest {
         {
             return Some(InstallRefusal::Word(typed.to_owned()));
         }
-        let on: bool = given.is_none_or(|spelled| { return boolean_value(spelled) == Some(true); });
+        let on: bool = given.is_none_or(|spelled| {
+            return boolean_value(spelled) == Some(true);
+        });
         match option {
             "local" => self.local = on,
             "worktree" => self.worktree = on,
@@ -467,7 +495,11 @@ impl InstallRequest {
     /// ```ts
     /// function readShortGroup(request: InstallRequest, letters: string, typed: string): InstallRefusal | undefined
     /// ```
-    fn read_short_group(&mut self, letters: &str, typed: &str) -> Option<InstallRefusal> {
+    fn read_short_group(
+        &mut self,
+        letters: &str,
+        typed: &str,
+    ) -> Option<InstallRefusal> {
         let mut remaining: &str = letters;
         while let Some(letter) = remaining.chars().next() {
             let after: &str = remaining.strip_prefix(letter).unwrap_or_default();
@@ -518,7 +550,10 @@ impl InstallRequest {
     /// for (let index = installIndex + 1; index < args.length; index += 1) { if (args[index] === '--') break; /* long option, short group, --file */ }
     /// return request
     /// ```
-    pub(super) fn read(arguments: &[OsString], install_index: usize) -> InstallRequest {
+    pub(super) fn read(
+        arguments: &[OsString],
+        install_index: usize,
+    ) -> InstallRequest {
         let mut request: InstallRequest = InstallRequest::default();
         let mut index: usize = install_index + 1;
         while let Some(word) = arguments.get(index) {
@@ -529,7 +564,9 @@ impl InstallRequest {
                 break;
             }
             let refusal: Option<InstallRefusal> = if let Some(path) = text.strip_prefix("--file=") {
-                request.file = (!path.is_empty()).then(|| { return path.to_owned(); });
+                request.file = (!path.is_empty()).then(|| {
+                    return path.to_owned();
+                });
                 None
             } else if text == "--file" {
                 match arguments.get(index) {
@@ -543,7 +580,9 @@ impl InstallRequest {
                 }
             } else if let Some(name) = text.strip_prefix("--") {
                 request.read_long_option(at, name, text.as_str())
-            } else if let Some(letters) = text.strip_prefix('-').filter(|letters| { return !letters.starts_with('-'); }) {
+            } else if let Some(letters) = text.strip_prefix('-').filter(|letters| {
+                return !letters.starts_with('-');
+            }) {
                 request.read_short_group(letters, text.as_str())
             } else {
                 None

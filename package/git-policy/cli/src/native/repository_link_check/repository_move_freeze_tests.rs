@@ -4,7 +4,10 @@
 //! and a manifest the thaw renamed aside covers nothing.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A state folder holding a manifest of two frozen subvolumes (the runner's rows:
 /// UUID,
@@ -25,11 +28,21 @@ fn state_with_manifest(name: &str) -> PathBuf {
 #[test]
 fn a_repository_under_a_frozen_subvolume_is_covered_and_a_neighbour_is_not() {
     let state: PathBuf = state_with_manifest("freeze-covers");
-    for covered in ["/work/Monochromatic", "/work/Monochromatic/.claude/worktrees/a", "/work/Monochromatic/package/x"] {
-        assert!(freeze_covers(state.as_path(), Path::new(covered)), "{covered} is covered");
+    for covered in [
+        "/work/Monochromatic",
+        "/work/Monochromatic/.claude/worktrees/a",
+        "/work/Monochromatic/package/x",
+    ] {
+        assert!(
+            freeze_covers(state.as_path(), Path::new(covered)),
+            "{covered} is covered"
+        );
     }
     for outside in ["/work/Monochromatic2", "/work", "/elsewhere/Monochromatic"] {
-        assert!(!freeze_covers(state.as_path(), Path::new(outside)), "{outside} is not covered");
+        assert!(
+            !freeze_covers(state.as_path(), Path::new(outside)),
+            "{outside} is not covered"
+        );
     }
     remove(state.as_path());
 }
@@ -39,10 +52,23 @@ fn a_repository_under_a_frozen_subvolume_is_covered_and_a_neighbour_is_not() {
 #[test]
 fn without_a_manifest_or_after_the_thaw_nothing_is_covered() {
     let state: PathBuf = fixture("freeze-none");
-    assert!(!freeze_covers(state.as_path(), Path::new("/work/Monochromatic")), "no manifest");
+    assert!(
+        !freeze_covers(state.as_path(), Path::new("/work/Monochromatic")),
+        "no manifest"
+    );
     std::fs::write(state.join(FREEZE_MANIFEST_NAME), b"\xff\xfe not a table").expect("garbage");
-    assert!(!freeze_covers(state.as_path(), Path::new("/work/Monochromatic")), "a manifest that is not a table");
-    std::fs::rename(state.join(FREEZE_MANIFEST_NAME), state.join("freeze-manifest.tsv.thawed-1")).expect("renamed aside");
-    assert!(!freeze_covers(state.as_path(), Path::new("/work/Monochromatic")), "renamed aside by the thaw");
+    assert!(
+        !freeze_covers(state.as_path(), Path::new("/work/Monochromatic")),
+        "a manifest that is not a table"
+    );
+    std::fs::rename(
+        state.join(FREEZE_MANIFEST_NAME),
+        state.join("freeze-manifest.tsv.thawed-1"),
+    )
+    .expect("renamed aside");
+    assert!(
+        !freeze_covers(state.as_path(), Path::new("/work/Monochromatic")),
+        "renamed aside by the thaw"
+    );
     remove(state.as_path());
 }

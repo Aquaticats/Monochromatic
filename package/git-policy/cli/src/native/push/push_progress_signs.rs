@@ -51,7 +51,10 @@ pub fn inodes_of(member: &TreeMember) -> (i32, Vec<u64>) {
 
 /// The start time the kernel recorded for one process of the tree,
 /// which tells a holder from a later process the kernel gave its number.
-pub fn start_time_of(members: &[TreeMember], pid: i32) -> u64 {
+pub fn start_time_of(
+    members: &[TreeMember],
+    pid: i32,
+) -> u64 {
     for member in members {
         if member.pid == pid {
             return member.started;

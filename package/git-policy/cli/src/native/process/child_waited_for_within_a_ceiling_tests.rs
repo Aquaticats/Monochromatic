@@ -3,8 +3,14 @@
 //! by the thread that owns it.
 
 use super::*;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control lets its own steps run before it reports that something was not ended.
 const CONTROL_BOUND: Duration = Duration::from_secs(10);
@@ -13,7 +19,12 @@ const CONTROL_BOUND: Duration = Duration::from_secs(10);
 /// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn quiet(line: &str) -> Child {
     let mut command = Command::new("/bin/sh");
-    command.arg("-c").arg(line).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .arg("-c")
+        .arg(line)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return crate::test_support::spawn_owned(&mut command).expect("the stand-in starts");
 }
 
@@ -43,12 +54,19 @@ fn a_child_that_never_ends_is_ended_and_reaped_at_its_ceiling() {
     let child: Child = quiet("sleep 30");
     let pid: u32 = child.id();
     let began: Instant = Instant::now();
-    let failure: std::io::Error = wait_within(child, Duration::from_millis(300)).expect_err("the ceiling ends the child");
+    let failure: std::io::Error =
+        wait_within(child, Duration::from_millis(300)).expect_err("the ceiling ends the child");
     let waited: Duration = began.elapsed();
     let left: bool = recorded(pid);
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(waited < CONTROL_BOUND, "the ceiling ended the child: {waited:?}");
-    assert!(!left, "the child the ceiling ended was reaped, so no zombie is left behind");
+    assert!(
+        waited < CONTROL_BOUND,
+        "the ceiling ended the child: {waited:?}"
+    );
+    assert!(
+        !left,
+        "the child the ceiling ended was reaped, so no zombie is left behind"
+    );
 }
 
 /// What:
@@ -77,18 +95,31 @@ fn a_child_that_cannot_be_ended_is_left_running_and_says_so() {
     let pid: u32 = child.id();
     a_control_refuses_the_next_kill();
     let began: Instant = Instant::now();
-    let failure: std::io::Error = wait_within(child, Duration::from_millis(200)).expect_err("the ceiling ends the wait");
+    let failure: std::io::Error =
+        wait_within(child, Duration::from_millis(200)).expect_err("the ceiling ends the wait");
     let waited: Duration = began.elapsed();
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(left_running_when_the_ceiling_was_reached(&failure), "the wait did not say the child was left running");
+    assert!(
+        left_running_when_the_ceiling_was_reached(&failure),
+        "the wait did not say the child was left running"
+    );
     // The grace is the stop's own, and the wait ends with it rather than with the child.
-    assert!(waited >= STOP_GRACE, "the wait did not give the child the stop's grace: {waited:?}");
-    assert!(waited < STOP_GRACE + CONTROL_BOUND, "the wait outlasted the grace: {waited:?}");
+    assert!(
+        waited >= STOP_GRACE,
+        "the wait did not give the child the stop's grace: {waited:?}"
+    );
+    assert!(
+        waited < STOP_GRACE + CONTROL_BOUND,
+        "the wait outlasted the grace: {waited:?}"
+    );
     assert!(recorded(pid), "the premise: the child could not be ended");
     // The child ends by itself, and the thread it was handed to collects it: no zombie of that number is left.
     let reaping: Instant = Instant::now();
     while recorded(pid) && reaping.elapsed() < CONTROL_BOUND {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(!recorded(pid), "the child the wait left running was collected by the thread that watches it");
+    assert!(
+        !recorded(pid),
+        "the child the wait left running was collected by the thread that watches it"
+    );
 }

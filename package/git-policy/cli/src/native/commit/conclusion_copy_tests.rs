@@ -1,17 +1,35 @@
 //! Controls for the preparation-time conclusion copy.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// A bare shadow repository in the fixture,
 /// with the given ref backend.
-fn bare_shadow(root: &Path, name: &str, ref_format: &str) -> PathBuf {
+fn bare_shadow(
+    root: &Path,
+    name: &str,
+    ref_format: &str,
+) -> PathBuf {
     let shadow: PathBuf = root.join(name);
     let format_argument: String = format!("--ref-format={ref_format}");
     git(
         root,
-        &["init", "--bare", "--quiet", "--template=", format_argument.as_str(), name],
+        &[
+            "init",
+            "--bare",
+            "--quiet",
+            "--template=",
+            format_argument.as_str(),
+            name,
+        ],
     );
     return shadow;
 }
@@ -36,15 +54,28 @@ fn present_entries_are_copied_and_absent_ones_skipped() {
         RefFormat::Files,
     )
     .expect("copy");
-    assert_eq!(std::fs::read_to_string(shadow.join("SQUASH_MSG")).expect("shadow"), "squash\n");
     assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("SQUASH_MSG")).expect("copy"),
+        std::fs::read_to_string(shadow.join("SQUASH_MSG")).expect("shadow"),
+        "squash\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join("SQUASH_MSG")
+        )
+        .expect("copy"),
         "squash\n"
     );
     assert!(std::fs::symlink_metadata(shadow.join("MERGE_HEAD")).is_err());
     // A files-backend repository keeps no conclusion name in its ref store, so the record names nothing and is not written.
     assert!(
-        std::fs::symlink_metadata(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME)).is_err(),
+        std::fs::symlink_metadata(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join(STORE_RECORD_FILENAME)
+        )
+        .is_err(),
         "a record that names nothing is not written"
     );
     remove(root.as_path());
@@ -71,7 +102,11 @@ fn a_merge_conclusion_copies_its_entries_without_flushing_the_disk() {
     let root: PathBuf = fixture("conclusion-copy-no-flush");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let git_dir: PathBuf = repo.join(".git");
-    std::fs::write(git_dir.join("MERGE_HEAD"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n").expect("merge head");
+    std::fs::write(
+        git_dir.join("MERGE_HEAD"),
+        "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n",
+    )
+    .expect("merge head");
     std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'side'\n").expect("merge message");
     std::fs::write(git_dir.join("MERGE_MODE"), "\n").expect("merge mode");
     let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
@@ -88,10 +123,21 @@ fn a_merge_conclusion_copies_its_entries_without_flushing_the_disk() {
     )
     .expect("copy");
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert!(synced.is_empty(), "nothing of a merge conclusion's copy is flushed: {synced:?}");
-    assert_eq!(std::fs::read_to_string(shadow.join("MERGE_HEAD")).expect("shadow"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n");
+    assert!(
+        synced.is_empty(),
+        "nothing of a merge conclusion's copy is flushed: {synced:?}"
+    );
     assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("MERGE_HEAD")).expect("copy"),
+        std::fs::read_to_string(shadow.join("MERGE_HEAD")).expect("shadow"),
+        "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join("MERGE_HEAD")
+        )
+        .expect("copy"),
         "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n"
     );
     remove(root.as_path());
@@ -124,9 +170,17 @@ fn a_files_copy_names_nothing_in_the_store_so_it_writes_no_record_and_syncs_no_f
     )
     .expect("copy");
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert!(synced.is_empty(), "nothing in the copy is flushed: {synced:?}");
     assert!(
-        std::fs::symlink_metadata(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME)).is_err(),
+        synced.is_empty(),
+        "nothing in the copy is flushed: {synced:?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join(STORE_RECORD_FILENAME)
+        )
+        .is_err(),
         "the record names nothing, so it is not written"
     );
     remove(root.as_path());
@@ -143,8 +197,19 @@ fn a_reftable_copy_keeps_the_record_and_its_flush() {
     let root: PathBuf = fixture("conclusion-copy-reftable-names-nothing");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repo");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "reftable");
     let transaction: PathBuf = root.join("transaction");
     std::fs::create_dir(&transaction).expect("transaction");
@@ -158,10 +223,18 @@ fn a_reftable_copy_keeps_the_record_and_its_flush() {
         RefFormat::Reftable,
     )
     .expect("copy");
-    let record: PathBuf = transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME);
-    assert_eq!(std::fs::read_to_string(record.as_path()).expect("record"), "{}\n");
+    let record: PathBuf = transaction
+        .join(CONCLUSION_COPY_DIRECTORY)
+        .join(STORE_RECORD_FILENAME);
+    assert_eq!(
+        std::fs::read_to_string(record.as_path()).expect("record"),
+        "{}\n"
+    );
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert!(synced.contains(&record), "the reftable record is flushed: {synced:?}");
+    assert!(
+        synced.contains(&record),
+        "the reftable record is flushed: {synced:?}"
+    );
     remove(root.as_path());
 }
 
@@ -187,12 +260,18 @@ fn sequencer_is_copied_recursively() {
     )
     .expect("copy");
     assert_eq!(
-        std::fs::read_to_string(shadow.join("sequencer").join("nested").join("head")).expect("shadow nested"),
+        std::fs::read_to_string(shadow.join("sequencer").join("nested").join("head"))
+            .expect("shadow nested"),
         "x\n"
     );
     assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("sequencer").join("todo"))
-            .expect("copy todo"),
+        std::fs::read_to_string(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join("sequencer")
+                .join("todo")
+        )
+        .expect("copy todo"),
         "pick abc\n"
     );
     remove(root.as_path());
@@ -204,12 +283,27 @@ fn reftable_store_held_pseudoref_is_copied_through_the_ref_store() {
     let root: PathBuf = fixture("conclusion-copy-reftable");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repo");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     git(repo.as_path(), &["update-ref", "AUTO_MERGE", head.as_str()]);
     let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "reftable");
-    std::fs::write(shadow.join("objects").join("info").join("alternates"), format!("{}\n", repo.join(".git").join("objects").display())).expect("alternates");
+    std::fs::write(
+        shadow.join("objects").join("info").join("alternates"),
+        format!("{}\n", repo.join(".git").join("objects").display()),
+    )
+    .expect("alternates");
     let transaction: PathBuf = root.join("transaction");
     std::fs::create_dir(&transaction).expect("transaction");
     copy_conclusion_state(
@@ -221,10 +315,17 @@ fn reftable_store_held_pseudoref_is_copied_through_the_ref_store() {
         RefFormat::Reftable,
     )
     .expect("copy");
-    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "AUTO_MERGE"]), head);
     assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME))
-            .expect("record"),
+        git_text(shadow.as_path(), &["rev-parse", "AUTO_MERGE"]),
+        head
+    );
+    assert_eq!(
+        std::fs::read_to_string(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join(STORE_RECORD_FILENAME)
+        )
+        .expect("record"),
         format!("{{\"AUTO_MERGE\":\"{head}\"}}\n")
     );
     remove(root.as_path());
@@ -304,7 +405,11 @@ fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
     let _earlier = crate::private_storage::take_file_syncs();
     crate::private_storage::write_private_file(control.as_path(), b"control\n").expect("control");
     let control_syncs: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert_eq!(control_syncs, vec![control], "the durable writer flushes what it publishes");
+    assert_eq!(
+        control_syncs,
+        vec![control],
+        "the durable writer flushes what it publishes"
+    );
     copy_conclusion_state(
         &git_context(),
         repo.as_path(),
@@ -315,7 +420,10 @@ fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
     )
     .expect("copy");
     let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert!(synced.is_empty(), "a merge's copies are published without a flush: {synced:?}");
+    assert!(
+        synced.is_empty(),
+        "a merge's copies are published without a flush: {synced:?}"
+    );
     for name in ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "AUTO_MERGE"] {
         assert_eq!(
             std::fs::read_to_string(shadow.join(name)).expect("shadow copy"),
@@ -323,7 +431,8 @@ fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
             "the shadow holds {name} as the worktree does"
         );
         assert_eq!(
-            std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(name)).expect("comparison copy"),
+            std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(name))
+                .expect("comparison copy"),
             std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
             "the transaction holds {name} as the worktree does"
         );
@@ -358,8 +467,13 @@ fn only_a_conclusion_with_something_to_copy_gets_a_copies_directory() {
     )
     .expect("copy");
     assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("sequencer").join("todo"))
-            .expect("copied sequencer"),
+        std::fs::read_to_string(
+            transaction
+                .join(CONCLUSION_COPY_DIRECTORY)
+                .join("sequencer")
+                .join("todo")
+        )
+        .expect("copied sequencer"),
         "pick abc\n"
     );
     remove(root.as_path());

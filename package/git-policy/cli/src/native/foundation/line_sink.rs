@@ -27,13 +27,19 @@
 /// ```
 pub trait LineSink {
     /// Say one line.
-    fn say(&mut self, text: &str);
+    fn say(
+        &mut self,
+        text: &str,
+    );
 }
 
 /// A list of text is a sink that keeps every line in the order it was said,
 /// for the places that report the lines after the work.
 impl LineSink for Vec<String> {
-    fn say(&mut self, text: &str) {
+    fn say(
+        &mut self,
+        text: &str,
+    ) {
         self.push(text.to_string());
     }
 }

@@ -41,7 +41,19 @@ use std::path::PathBuf;
 /// The words one invocation is read as:
 /// the mode words,
 /// the options each mode takes and the usage text.
-pub use super::handler_mode_words::{CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION, ROOT_MODE_FILE_PLACEHOLDER, VERSION_WORD, usage};
+pub use super::handler_mode_words::{
+    CHECKOUT_OPTION,
+    DATASET_OPTION,
+    DEVICE_OPTION,
+    HELP_WORD,
+    INODE_OPTION,
+    MODE_WORDS,
+    NONCE_OPTION,
+    REPLACE_OPTION,
+    ROOT_MODE_FILE_PLACEHOLDER,
+    VERSION_WORD,
+    usage,
+};
 
 /// Why one invocation could not be read as a mode.
 pub use super::handler_mode_argument_refusals::ArgumentRefusal;
@@ -207,7 +219,9 @@ pub fn parse(arguments: &[OsString]) -> Result<HandlerMode, ArgumentRefusal> {
     let mut words: Vec<&str> = Vec::with_capacity(arguments.len());
     for (place, argument) in arguments.iter().enumerate() {
         let Some(word) = argument.to_str() else {
-            return Err(ArgumentRefusal::NotText { place: place + 1 });
+            return Err(ArgumentRefusal::NotText {
+                place: place + 1,
+            });
         };
         words.push(word);
     }
@@ -217,29 +231,45 @@ pub fn parse(arguments: &[OsString]) -> Result<HandlerMode, ArgumentRefusal> {
     return match first {
         HELP_WORD => match words.len() {
             1 => Ok(HandlerMode::Help),
-            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+            _ => Err(ArgumentRefusal::UnexpectedArgument {
+                word: words[1].to_string(),
+            }),
         },
         VERSION_WORD => match words.len() {
             1 => Ok(HandlerMode::Version),
-            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+            _ => Err(ArgumentRefusal::UnexpectedArgument {
+                word: words[1].to_string(),
+            }),
         },
         "boot-reconcile" => match words.len() {
             1 => Ok(HandlerMode::BootReconcile),
-            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+            _ => Err(ArgumentRefusal::UnexpectedArgument {
+                word: words[1].to_string(),
+            }),
         },
         "start-probe" => match words.len() {
             1 => Ok(HandlerMode::StartProbe),
-            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+            _ => Err(ArgumentRefusal::UnexpectedArgument {
+                word: words[1].to_string(),
+            }),
         },
         "shutdown-unmount" => match words.len() {
             1 => Ok(HandlerMode::ShutdownUnmount),
-            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+            _ => Err(ArgumentRefusal::UnexpectedArgument {
+                word: words[1].to_string(),
+            }),
         },
         "holder-scan" => parse_holder_scan(&words[1..]).map(HandlerMode::HolderScan),
-        "adopt-worktree-parent" => parse_adoption(&words[1..]).map(HandlerMode::AdoptWorktreeParent),
+        "adopt-worktree-parent" => {
+            parse_adoption(&words[1..]).map(HandlerMode::AdoptWorktreeParent)
+        }
         "record-checkout" => parse_record_checkout(&words[1..]).map(HandlerMode::RecordCheckout),
-        "mount-path-descendant" => parse_mount_path_descendant(&words[1..]).map(HandlerMode::MountPathDescendant),
-        other => Err(ArgumentRefusal::UnknownMode { word: other.to_string() }),
+        "mount-path-descendant" => {
+            parse_mount_path_descendant(&words[1..]).map(HandlerMode::MountPathDescendant)
+        }
+        other => Err(ArgumentRefusal::UnknownMode {
+            word: other.to_string(),
+        }),
     };
 }
 
@@ -287,27 +317,39 @@ fn parse_adoption(words: &[&str]) -> Result<AdoptRequest, ArgumentRefusal> {
             CHECKOUT_OPTION => (AdoptionOption::Checkout, CHECKOUT_OPTION),
             DEVICE_OPTION => (AdoptionOption::Device, DEVICE_OPTION),
             INODE_OPTION => (AdoptionOption::Inode, INODE_OPTION),
-            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+            other => {
+                return Err(ArgumentRefusal::UnexpectedArgument {
+                    word: other.to_string(),
+                });
+            }
         };
         let Some(value) = words.get(index + 1).copied() else {
-            return Err(ArgumentRefusal::MissingValue { option: name });
+            return Err(ArgumentRefusal::MissingValue {
+                option: name,
+            });
         };
         match known {
             AdoptionOption::Checkout => {
                 if given_checkout.is_some() {
-                    return Err(ArgumentRefusal::RepeatedOption { option: name });
+                    return Err(ArgumentRefusal::RepeatedOption {
+                        option: name,
+                    });
                 }
                 given_checkout = Some(PathBuf::from(value));
             }
             AdoptionOption::Device => {
                 if given_device.is_some() {
-                    return Err(ArgumentRefusal::RepeatedOption { option: name });
+                    return Err(ArgumentRefusal::RepeatedOption {
+                        option: name,
+                    });
                 }
                 given_device = Some(decimal_count(name, value)?);
             }
             AdoptionOption::Inode => {
                 if given_inode.is_some() {
-                    return Err(ArgumentRefusal::RepeatedOption { option: name });
+                    return Err(ArgumentRefusal::RepeatedOption {
+                        option: name,
+                    });
                 }
                 given_inode = Some(decimal_count(name, value)?);
             }
@@ -315,15 +357,25 @@ fn parse_adoption(words: &[&str]) -> Result<AdoptRequest, ArgumentRefusal> {
         index += 2;
     }
     let Some(checkout) = given_checkout else {
-        return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: CHECKOUT_OPTION,
+        });
     };
     let Some(device) = given_device else {
-        return Err(ArgumentRefusal::MissingOption { option: DEVICE_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: DEVICE_OPTION,
+        });
     };
     let Some(inode) = given_inode else {
-        return Err(ArgumentRefusal::MissingOption { option: INODE_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: INODE_OPTION,
+        });
     };
-    return Ok(AdoptRequest { checkout, device, inode });
+    return Ok(AdoptRequest {
+        checkout,
+        device,
+        inode,
+    });
 }
 
 /// What:
@@ -348,14 +400,22 @@ fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRef
         let option: &str = match words[index] {
             DATASET_OPTION => DATASET_OPTION,
             NONCE_OPTION => NONCE_OPTION,
-            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+            other => {
+                return Err(ArgumentRefusal::UnexpectedArgument {
+                    word: other.to_string(),
+                });
+            }
         };
         let Some(value) = words.get(index + 1).copied() else {
-            return Err(ArgumentRefusal::MissingValue { option });
+            return Err(ArgumentRefusal::MissingValue {
+                option,
+            });
         };
         if option == DATASET_OPTION {
             if dataset.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option });
+                return Err(ArgumentRefusal::RepeatedOption {
+                    option,
+                });
             }
             check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName {
                 mode: "holder-scan",
@@ -366,16 +426,27 @@ fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRef
             dataset = Some(String::from(value));
         } else {
             if nonce.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option });
+                return Err(ArgumentRefusal::RepeatedOption {
+                    option,
+                });
             }
-            nonce = Some(RequestNonce::parse(value).map_err(|refusal| return ArgumentRefusal::Nonce { reason: refusal.message() })?);
+            nonce = Some(RequestNonce::parse(value).map_err(|refusal| {
+                return ArgumentRefusal::Nonce {
+                    reason: refusal.message(),
+                };
+            })?);
         }
         index += 2;
     }
     let Some(given_dataset) = dataset else {
-        return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: DATASET_OPTION,
+        });
     };
-    return Ok(HolderScanInvocation { dataset: given_dataset, nonce });
+    return Ok(HolderScanInvocation {
+        dataset: given_dataset,
+        nonce,
+    });
 }
 
 /// What:
@@ -401,31 +472,48 @@ fn parse_record_checkout(words: &[&str]) -> Result<RecordCheckoutRequest, Argume
         let option: &str = match words[index] {
             CHECKOUT_OPTION => CHECKOUT_OPTION,
             REPLACE_OPTION => REPLACE_OPTION,
-            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+            other => {
+                return Err(ArgumentRefusal::UnexpectedArgument {
+                    word: other.to_string(),
+                });
+            }
         };
         let Some(value) = words.get(index + 1).copied() else {
-            return Err(ArgumentRefusal::MissingValue { option });
+            return Err(ArgumentRefusal::MissingValue {
+                option,
+            });
         };
         if option == CHECKOUT_OPTION {
             if checkout.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option });
+                return Err(ArgumentRefusal::RepeatedOption {
+                    option,
+                });
             }
             checkout = Some(PathBuf::from(value));
         } else {
             if replace.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option });
+                return Err(ArgumentRefusal::RepeatedOption {
+                    option,
+                });
             }
             if value.is_empty() {
-                return Err(ArgumentRefusal::MissingValue { option });
+                return Err(ArgumentRefusal::MissingValue {
+                    option,
+                });
             }
             replace = Some(String::from(value));
         }
         index += 2;
     }
     let Some(given_checkout) = checkout else {
-        return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: CHECKOUT_OPTION,
+        });
     };
-    return Ok(RecordCheckoutRequest { checkout: given_checkout, replace });
+    return Ok(RecordCheckoutRequest {
+        checkout: given_checkout,
+        replace,
+    });
 }
 
 /// What:
@@ -440,19 +528,29 @@ fn parse_record_checkout(words: &[&str]) -> Result<RecordCheckoutRequest, Argume
 /// ```ts
 /// const request = parseMountPathDescendant(['--dataset', 'zpcachyos/nosnap/vm-builder-output']);
 /// ```
-fn parse_mount_path_descendant(words: &[&str]) -> Result<MountPathDescendantRequest, ArgumentRefusal> {
+fn parse_mount_path_descendant(
+    words: &[&str]
+) -> Result<MountPathDescendantRequest, ArgumentRefusal> {
     let mut dataset: Option<String> = None;
     let mut index: usize = 0;
     while index < words.len() {
         let option: &str = match words[index] {
             DATASET_OPTION => DATASET_OPTION,
-            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+            other => {
+                return Err(ArgumentRefusal::UnexpectedArgument {
+                    word: other.to_string(),
+                });
+            }
         };
         let Some(value) = words.get(index + 1).copied() else {
-            return Err(ArgumentRefusal::MissingValue { option });
+            return Err(ArgumentRefusal::MissingValue {
+                option,
+            });
         };
         if dataset.is_some() {
-            return Err(ArgumentRefusal::RepeatedOption { option });
+            return Err(ArgumentRefusal::RepeatedOption {
+                option,
+            });
         }
         check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName {
             mode: "mount-path-descendant",
@@ -464,9 +562,13 @@ fn parse_mount_path_descendant(words: &[&str]) -> Result<MountPathDescendantRequ
         index += 2;
     }
     let Some(given_dataset) = dataset else {
-        return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
+        return Err(ArgumentRefusal::MissingOption {
+            option: DATASET_OPTION,
+        });
     };
-    return Ok(MountPathDescendantRequest { dataset: given_dataset });
+    return Ok(MountPathDescendantRequest {
+        dataset: given_dataset,
+    });
 }
 
 /// What:
@@ -482,12 +584,21 @@ fn parse_mount_path_descendant(words: &[&str]) -> Result<MountPathDescendantRequ
 /// ```ts
 /// const count = decimalCount('--device', '66306'); // throws on '0x10' or '-1'
 /// ```
-fn decimal_count(option: &'static str, text: &str) -> Result<u64, ArgumentRefusal> {
+fn decimal_count(
+    option: &'static str,
+    text: &str,
+) -> Result<u64, ArgumentRefusal> {
     if text.is_empty() || !text.bytes().all(|byte| return byte.is_ascii_digit()) {
-        return Err(ArgumentRefusal::OptionNotACount { option, text: text.to_string() });
+        return Err(ArgumentRefusal::OptionNotACount {
+            option,
+            text: text.to_string(),
+        });
     }
     let Ok(count) = text.parse::<u64>() else {
-        return Err(ArgumentRefusal::OptionNotACount { option, text: text.to_string() });
+        return Err(ArgumentRefusal::OptionNotACount {
+            option,
+            text: text.to_string(),
+        });
     };
     return Ok(count);
 }

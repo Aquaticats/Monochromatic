@@ -23,16 +23,43 @@
 //!  (a Kimi K3.1 Pro review of the jam-fix integration,
 //! its finding that a settled held batch is left out of the report).
 
-use crate::held_commit_record::{Held, Holding, hold};
+use crate::held_commit_record::{
+    Held,
+    Holding,
+    hold,
+};
 use crate::owed_index_update;
 use crate::service_fault::hooks;
-use crate::service_journal::{Intent, OPEN_EXTENSION, Recovery, batch_path, parse_intent, write_intent, write_start};
-use crate::service_land::{LandContext, recover};
-use crate::service_land_finish::{Handled, RecoveryReport};
+use crate::service_journal::{
+    Intent,
+    OPEN_EXTENSION,
+    Recovery,
+    batch_path,
+    parse_intent,
+    write_intent,
+    write_start,
+};
+use crate::service_land::{
+    LandContext,
+    recover,
+};
+use crate::service_land_finish::{
+    Handled,
+    RecoveryReport,
+};
 use crate::service_land_start::witness_of;
-use crate::test_support::{fixture, git, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file the held commit changes.
 const THE_HELD_FILE: &str = "held.txt";
@@ -81,12 +108,19 @@ fn world(name: &str) -> World {
     std::fs::create_dir_all(journal.as_path()).expect("the journal");
     let git_dir: PathBuf = repo.join(".git");
     let context: LandContext = LandContext {
-        git: GitContext { common_dir: Some(git_dir), ..crate::test_support::git_context() },
+        git: GitContext {
+            common_dir: Some(git_dir),
+            ..crate::test_support::git_context()
+        },
         journal,
         on_objects_written: None,
         lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
-    return World { root, repo, context };
+    return World {
+        root,
+        repo,
+        context,
+    };
 }
 
 /// The commit the branch names.
@@ -121,13 +155,28 @@ fn held_batch(world: &World) -> Held {
     let base: String = head_of(repo.as_path());
     std::fs::write(repo.join(THE_HELD_FILE), b"the held edit\n").expect("the held edit");
     git(repo.as_path(), &["add", "--", THE_HELD_FILE]);
-    git(repo.as_path(), &["commit", "--quiet", "--message", THE_HELD_SUBJECT]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message", THE_HELD_SUBJECT],
+    );
     let held_commit: String = head_of(repo.as_path());
     // The branch write was refused, so the commit is only on the batch's own side reference and the branch stayed where it was.
-    git(repo.as_path(), &["update-ref", "--no-deref", crate::held_commit_settle::kept_reference(SEQ).as_str(), held_commit.as_str()]);
-    git(repo.as_path(), &["reset", "--hard", "--quiet", base.as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            crate::held_commit_settle::kept_reference(SEQ).as_str(),
+            held_commit.as_str(),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["reset", "--hard", "--quiet", base.as_str()],
+    );
     // The person's worktree still holds the bytes the commit captured.
-    std::fs::write(repo.join(THE_HELD_FILE), b"the held edit\n").expect("the edit stays in the worktree");
+    std::fs::write(repo.join(THE_HELD_FILE), b"the held edit\n")
+        .expect("the edit stays in the worktree");
     let intent: Intent = Intent {
         seq: SEQ,
         repository: repo.clone(),
@@ -146,7 +195,12 @@ fn held_batch(world: &World) -> Held {
         transports: Vec::new(),
     };
     write_intent(world.context.journal.as_path(), &intent).expect("the intent");
-    write_start(world.context.journal.as_path(), SEQ, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
+    write_start(
+        world.context.journal.as_path(),
+        SEQ,
+        &witness_of(intent.index.as_path()).expect("the index file"),
+    )
+    .expect("the witness");
     // The landing writes the record of the index update it will owe before it moves the branch, so it is here whether or not the
     //  branch write was refused.
     owed_index_update::write(&owed_index_update::of_intent(&intent));
@@ -167,7 +221,12 @@ fn held_batch(world: &World) -> Held {
 
 /// The intent the journal holds open for batch `seq`.
 fn open_intent(world: &World) -> Option<Intent> {
-    let text: String = std::fs::read_to_string(batch_path(world.context.journal.as_path(), SEQ, OPEN_EXTENSION)).ok()?;
+    let text: String = std::fs::read_to_string(batch_path(
+        world.context.journal.as_path(),
+        SEQ,
+        OPEN_EXTENSION,
+    ))
+    .ok()?;
     return parse_intent(text.as_str());
 }
 
@@ -194,9 +253,23 @@ fn a_restart_that_replayed_a_held_commit_keeps_the_index_update_it_owes() {
     let world: World = world("land-finish-held-replayed");
     let held: Held = held_batch(&world);
     // The branch moved while the reference lock stood, and the replayed commit has to go on top of it.
-    std::fs::write(world.repo.join(THE_OTHER_FILE), b"the other session's file\n").expect("the other session's file");
+    std::fs::write(
+        world.repo.join(THE_OTHER_FILE),
+        b"the other session's file\n",
+    )
+    .expect("the other session's file");
     git(world.repo.as_path(), &["add", "--", THE_OTHER_FILE]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--message", THE_OTHER_SUBJECT, "--", THE_OTHER_FILE]);
+    git(
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--message",
+            THE_OTHER_SUBJECT,
+            "--",
+            THE_OTHER_FILE,
+        ],
+    );
     let moved: String = head_of(world.repo.as_path());
     // The index install is the step another program holding `index.lock` leaves unfinished, and Git cannot be made to fail
     //  there on demand, so a control names the point (`service_fault.rs`).
@@ -206,17 +279,48 @@ fn a_restart_that_replayed_a_held_commit_keeps_the_index_update_it_owes() {
     let owed: PathBuf = owed_index_update::path_of(world.repo.join(".git").as_path(), SEQ);
     let fresh: Option<Intent> = open_intent(&world);
     let said: String = format!("{reports:?}");
-    assert!(owed.exists(), "the index update the landed commit owes is kept: {} ({said})", owed.display());
-    let named: Option<String> = fresh.as_ref().map(|intent| { return intent.new.clone(); });
-    assert!(named.is_some(), "the batch's intent stays open and names the commit the branch took: {said}");
-    assert_ne!(named.as_deref(), Some(held.new.as_str()), "the intent names the commit the settlement replayed, not the one it started from");
-    assert_eq!(subjects(world.repo.as_path()), format!("{THE_HELD_SUBJECT}\n{THE_OTHER_SUBJECT}\ninitial"), "the held commit landed on the branch as it moved");
-    assert_ne!(head_of(world.repo.as_path()), moved, "the branch names the replayed commit");
+    assert!(
+        owed.exists(),
+        "the index update the landed commit owes is kept: {} ({said})",
+        owed.display()
+    );
+    let named: Option<String> = fresh.as_ref().map(|intent| {
+        return intent.new.clone();
+    });
+    assert!(
+        named.is_some(),
+        "the batch's intent stays open and names the commit the branch took: {said}"
+    );
+    assert_ne!(
+        named.as_deref(),
+        Some(held.new.as_str()),
+        "the intent names the commit the settlement replayed, not the one it started from"
+    );
+    assert_eq!(
+        subjects(world.repo.as_path()),
+        format!("{THE_HELD_SUBJECT}\n{THE_OTHER_SUBJECT}\ninitial"),
+        "the held commit landed on the branch as it moved"
+    );
+    assert_ne!(
+        head_of(world.repo.as_path()),
+        moved,
+        "the branch names the replayed commit"
+    );
     // The next restart finds the batch where the settlement left it, finishes the index update it owes, and marks it done.
     let afterwards: Vec<RecoveryReport> = recover(&world.context);
-    assert!(!owed.exists(), "the owed record goes once its update is installed: {afterwards:?}");
-    assert!(open_intent(&world).is_none(), "the intent is marked done once nothing is owed: {afterwards:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing");
+    assert!(
+        !owed.exists(),
+        "the owed record goes once its update is installed: {afterwards:?}"
+    );
+    assert!(
+        open_intent(&world).is_none(),
+        "the intent is marked done once nothing is owed: {afterwards:?}"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "the index shows the landing"
+    );
 }
 
 /// What:
@@ -243,17 +347,26 @@ fn a_hold_the_restart_finishes_is_reported_as_finished() {
     let reports: Vec<RecoveryReport> = recover(&world.context);
     assert_eq!(
         reports,
-        vec![
-            RecoveryReport {
-                seq: SEQ,
-                repository: world.repo.clone(),
-                decision: Recovery::Finish,
-                handled: Handled::Finished,
-            },
-        ],
+        vec![RecoveryReport {
+            seq: SEQ,
+            repository: world.repo.clone(),
+            decision: Recovery::Finish,
+            handled: Handled::Finished,
+        },],
         "the batch this restart landed and finished is reported"
     );
-    assert_eq!(head_of(world.repo.as_path()), held.new, "the report is about a batch whose branch really moved");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing");
-    assert!(!crate::held_commit_record::path_of(world.repo.join(".git").as_path(), SEQ).exists(), "nothing of the hold is left");
+    assert_eq!(
+        head_of(world.repo.as_path()),
+        held.new,
+        "the report is about a batch whose branch really moved"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "the index shows the landing"
+    );
+    assert!(
+        !crate::held_commit_record::path_of(world.repo.join(".git").as_path(), SEQ).exists(),
+        "nothing of the hold is left"
+    );
 }

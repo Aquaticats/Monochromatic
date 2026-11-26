@@ -25,11 +25,14 @@ fn config_records_keep_the_last_value_and_read_a_bare_key_as_true() {
         b"gc.auto\n1024\0maintenance.autodetach\ntrue\0maintenance.autodetach\nfalse\0gc.autodetach\0",
     )
     .expect("ASCII records");
-    assert_eq!(parsed, config(&[
-        ("gc.auto", "1024"),
-        ("maintenance.autodetach", "false"),
-        ("gc.autodetach", "true"),
-    ]));
+    assert_eq!(
+        parsed,
+        config(&[
+            ("gc.auto", "1024"),
+            ("maintenance.autodetach", "false"),
+            ("gc.autodetach", "true"),
+        ])
+    );
 }
 
 /// Empty config output parses to no keys,
@@ -37,7 +40,10 @@ fn config_records_keep_the_last_value_and_read_a_bare_key_as_true() {
 #[test]
 fn empty_config_output_parses_to_no_keys() {
     assert_eq!(parse_config_records(b"").expect("empty"), BTreeMap::new());
-    assert_eq!(parse_config_records(b"\0\0").expect("only separators"), BTreeMap::new());
+    assert_eq!(
+        parse_config_records(b"\0\0").expect("only separators"),
+        BTreeMap::new()
+    );
 }
 
 /// Config output that is not UTF-8 is refused,

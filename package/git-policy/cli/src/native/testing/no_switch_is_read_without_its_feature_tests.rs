@@ -22,25 +22,70 @@
 //! ```
 #![cfg(not(feature = "test-only-switches"))]
 
-use crate::add_route_plan::{HOLD_STEP_VARIABLE, HOLD_UNTIL_VARIABLE, STOP_AFTER_VARIABLE, Stops};
-use crate::account_companion::companion_deadline::{COMPANION_DEADLINE, TEST_DEADLINE_VARIABLE, the_deadline};
-use crate::account_companion::companion_test_switch::{Switch, TEST_SWITCH_VARIABLE as COMPANION_SWITCH_VARIABLE, from_environment as the_companion_switch_from_environment};
+use crate::account_companion::companion_deadline::{
+    COMPANION_DEADLINE,
+    TEST_DEADLINE_VARIABLE,
+    the_deadline,
+};
+use crate::account_companion::companion_test_switch::{
+    Switch,
+    TEST_SWITCH_VARIABLE as COMPANION_SWITCH_VARIABLE,
+    from_environment as the_companion_switch_from_environment,
+};
+use crate::add_route_plan::{
+    HOLD_STEP_VARIABLE,
+    HOLD_UNTIL_VARIABLE,
+    STOP_AFTER_VARIABLE,
+    Stops,
+};
 use crate::journald_native::TEST_SOCKET_VARIABLE;
-use crate::lazy_runtime::{SLOW_BUILD_VARIABLE, the_pause_a_control_asks_for};
-use crate::lock_birth_times::{BIRTH_TIME_VARIABLE, BirthTimes, times_in_force};
-use crate::start_probe::probe_test_switch::{
-    KEEP_DESCRIPTOR_VARIABLE, TEST_SWITCH_VARIABLE as PROBE_SWITCH_VARIABLE, keep_descriptor_from_environment,
-    test_switch_from_environment,
+use crate::lazy_runtime::{
+    SLOW_BUILD_VARIABLE,
+    the_pause_a_control_asks_for,
+};
+use crate::lock_birth_times::{
+    BIRTH_TIME_VARIABLE,
+    BirthTimes,
+    times_in_force,
+};
+use crate::push_deadline_and_patience_settings::{
+    CONNECTED_WINDOW_VARIABLE,
+    connected_window,
+};
+use crate::runtime_probe::{
+    RUNTIME_PROBE_VARIABLE,
+    is_requested,
+};
+use crate::service_fault::{
+    FAULT_VARIABLE,
+    FIRST_BATCH_VARIABLE,
+    QUEUED_DIRECTORY_VARIABLE,
+    pinned_first_batch,
+    queued,
+    reach,
+};
+use crate::service_warm_request_control_window::{
+    PARK_VARIABLE,
+    the_answer_waits_where_a_control_says,
 };
 use crate::start_probe::TestSwitch;
-use crate::push_deadline_and_patience_settings::{CONNECTED_WINDOW_VARIABLE, connected_window};
-use crate::runtime_probe::{RUNTIME_PROBE_VARIABLE, is_requested};
-use crate::service_fault::{FAULT_VARIABLE, FIRST_BATCH_VARIABLE, QUEUED_DIRECTORY_VARIABLE, pinned_first_batch, queued, reach};
-use crate::service_warm_request_control_window::{PARK_VARIABLE, the_answer_waits_where_a_control_says};
-use crate::transaction_phase::{PHASE_SIGNAL_VARIABLE, Phase, reach_transaction_phase};
+use crate::start_probe::probe_test_switch::{
+    KEEP_DESCRIPTOR_VARIABLE,
+    TEST_SWITCH_VARIABLE as PROBE_SWITCH_VARIABLE,
+    keep_descriptor_from_environment,
+    test_switch_from_environment,
+};
+use crate::transaction_phase::{
+    PHASE_SIGNAL_VARIABLE,
+    Phase,
+    reach_transaction_phase,
+};
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// The variable that tells the child it is the child.
@@ -122,60 +167,122 @@ fn the_answers_a_build_without_the_feature_gives() {
 
     asking(QUEUED_DIRECTORY_VARIABLE);
     // The queue directory the parent made for this run, read as the control's own name for it.
-    let queue: PathBuf = PathBuf::from(std::env::var_os(QUEUED_DIRECTORY_VARIABLE).expect("the queue directory this control set"));
+    let queue: PathBuf = PathBuf::from(
+        std::env::var_os(QUEUED_DIRECTORY_VARIABLE).expect("the queue directory this control set"),
+    );
     queued("request-1");
-    let left: usize = std::fs::read_dir(queue.as_path()).expect("the queue directory").count();
-    assert_eq!(left, 0, "a release build wrote {left} queued-request files for {QUEUED_DIRECTORY_VARIABLE}");
+    let left: usize = std::fs::read_dir(queue.as_path())
+        .expect("the queue directory")
+        .count();
+    assert_eq!(
+        left, 0,
+        "a release build wrote {left} queued-request files for {QUEUED_DIRECTORY_VARIABLE}"
+    );
 
     asking(FIRST_BATCH_VARIABLE);
-    assert_eq!(pinned_first_batch(), None, "a release build read {FIRST_BATCH_VARIABLE}");
+    assert_eq!(
+        pinned_first_batch(),
+        None,
+        "a release build read {FIRST_BATCH_VARIABLE}"
+    );
 
     asking(TEST_SOCKET_VARIABLE);
     // The address an entry goes to: a released run reaches nothing here, because a unit-test build that was given no
     // switch names no socket at all, and a build that read the switch would name the one this run was given.
-    assert_eq!(crate::client_journal::target(), None, "a release build read {TEST_SOCKET_VARIABLE}");
+    assert_eq!(
+        crate::client_journal::target(),
+        None,
+        "a release build read {TEST_SOCKET_VARIABLE}"
+    );
 
     asking(PARK_VARIABLE);
-    let park: PathBuf = the_park_a_control_names(Path::new(&std::env::var_os(PARK_VARIABLE).expect("the park folder this control set")));
+    let park: PathBuf = the_park_a_control_names(Path::new(
+        &std::env::var_os(PARK_VARIABLE).expect("the park folder this control set"),
+    ));
     let found: bool = the_answer_waits_where_a_control_says(true);
     assert!(found, "a released run answers the look's own answer, true");
-    assert!(!answered_beside(park.as_path()).exists(), "a release build read {PARK_VARIABLE} and wrote its answered file");
+    assert!(
+        !answered_beside(park.as_path()).exists(),
+        "a release build read {PARK_VARIABLE} and wrote its answered file"
+    );
 
     asking(STOP_AFTER_VARIABLE);
     // No switch at all, which is what every add of a released run reads.
-    assert_eq!(Stops::from_environment(), Ok(Stops::none()), "a release build read an add switch");
+    assert_eq!(
+        Stops::from_environment(),
+        Ok(Stops::none()),
+        "a release build read an add switch"
+    );
 
     asking(RUNTIME_PROBE_VARIABLE);
     // The environment a command was started with, holding the variable a control sets.
-    let probe_environment: Vec<(OsString, OsString)> = vec![(OsString::from(RUNTIME_PROBE_VARIABLE), OsString::from("1"))];
-    assert!(!is_requested(probe_environment.as_slice()), "a release build read {RUNTIME_PROBE_VARIABLE}");
+    let probe_environment: Vec<(OsString, OsString)> =
+        vec![(OsString::from(RUNTIME_PROBE_VARIABLE), OsString::from("1"))];
+    assert!(
+        !is_requested(probe_environment.as_slice()),
+        "a release build read {RUNTIME_PROBE_VARIABLE}"
+    );
 
     asking(PROBE_SWITCH_VARIABLE);
-    assert_eq!(test_switch_from_environment(), TestSwitch::None, "a release build read {PROBE_SWITCH_VARIABLE}");
+    assert_eq!(
+        test_switch_from_environment(),
+        TestSwitch::None,
+        "a release build read {PROBE_SWITCH_VARIABLE}"
+    );
 
     asking(KEEP_DESCRIPTOR_VARIABLE);
-    assert!(!keep_descriptor_from_environment(), "a release build read {KEEP_DESCRIPTOR_VARIABLE}");
+    assert!(
+        !keep_descriptor_from_environment(),
+        "a release build read {KEEP_DESCRIPTOR_VARIABLE}"
+    );
 
     asking(CONNECTED_WINDOW_VARIABLE);
-    let window_environment: Vec<(OsString, OsString)> = vec![(OsString::from(CONNECTED_WINDOW_VARIABLE), OsString::from("1"))];
-    assert_eq!(connected_window(window_environment.as_slice()), CONNECTED_PUSH_QUIET_WINDOW, "a release build read {CONNECTED_WINDOW_VARIABLE}");
+    let window_environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from(CONNECTED_WINDOW_VARIABLE),
+        OsString::from("1"),
+    )];
+    assert_eq!(
+        connected_window(window_environment.as_slice()),
+        CONNECTED_PUSH_QUIET_WINDOW,
+        "a release build read {CONNECTED_WINDOW_VARIABLE}"
+    );
 
     asking(SLOW_BUILD_VARIABLE);
-    assert_eq!(the_pause_a_control_asks_for(), Duration::ZERO, "a release build read {SLOW_BUILD_VARIABLE}");
+    assert_eq!(
+        the_pause_a_control_asks_for(),
+        Duration::ZERO,
+        "a release build read {SLOW_BUILD_VARIABLE}"
+    );
 
     asking(PHASE_SIGNAL_VARIABLE);
     // The marker would end this process; returning at all is the answer.
-    let reached: Result<(), crate::transaction_phase::PhaseMarkerError> = reach_transaction_phase(Phase::MergeIntent, None);
-    assert!(reached.is_ok(), "a release build read {PHASE_SIGNAL_VARIABLE}: {reached:?}");
+    let reached: Result<(), crate::transaction_phase::PhaseMarkerError> =
+        reach_transaction_phase(Phase::MergeIntent, None);
+    assert!(
+        reached.is_ok(),
+        "a release build read {PHASE_SIGNAL_VARIABLE}: {reached:?}"
+    );
 
     asking(BIRTH_TIME_VARIABLE);
-    assert_eq!(times_in_force(), BirthTimes::Recorded, "a release build read {BIRTH_TIME_VARIABLE}");
+    assert_eq!(
+        times_in_force(),
+        BirthTimes::Recorded,
+        "a release build read {BIRTH_TIME_VARIABLE}"
+    );
 
     asking(TEST_DEADLINE_VARIABLE);
-    assert_eq!(the_deadline(true), COMPANION_DEADLINE, "a release build read {TEST_DEADLINE_VARIABLE}");
+    assert_eq!(
+        the_deadline(true),
+        COMPANION_DEADLINE,
+        "a release build read {TEST_DEADLINE_VARIABLE}"
+    );
 
     asking(COMPANION_SWITCH_VARIABLE);
-    assert_eq!(the_companion_switch_from_environment(), Switch::None, "a release build read {COMPANION_SWITCH_VARIABLE}");
+    assert_eq!(
+        the_companion_switch_from_environment(),
+        Switch::None,
+        "a release build read {COMPANION_SWITCH_VARIABLE}"
+    );
 }
 
 /// What:
@@ -191,18 +298,27 @@ fn the_answers_a_build_without_the_feature_gives() {
 /// ```ts
 /// const armed: [string, string][] = [[FAULT_VARIABLE, 'after-intent'], /* … */];
 /// ```
-fn every_switch_a_control_arms(queue: &Path, park_folder: &Path) -> Vec<(&'static str, OsString)> {
+fn every_switch_a_control_arms(
+    queue: &Path,
+    park_folder: &Path,
+) -> Vec<(&'static str, OsString)> {
     // One pair per test-only variable, as the name and the value the child's environment carries.
     let pairs: Vec<(&str, OsString)> = vec![
         (THE_CHILD, OsString::from("1")),
         (FAULT_VARIABLE, OsString::from(A_FAULT_POINT)),
         (QUEUED_DIRECTORY_VARIABLE, queue.as_os_str().to_os_string()),
         (FIRST_BATCH_VARIABLE, OsString::from("7")),
-        (TEST_SOCKET_VARIABLE, OsString::from("@the-socket-this-run-names")),
+        (
+            TEST_SOCKET_VARIABLE,
+            OsString::from("@the-socket-this-run-names"),
+        ),
         (PARK_VARIABLE, park_folder.as_os_str().to_os_string()),
         (STOP_AFTER_VARIABLE, OsString::from("claim")),
         (HOLD_STEP_VARIABLE, OsString::from("slot")),
-        (HOLD_UNTIL_VARIABLE, OsString::from("the-file-this-run-waits-for")),
+        (
+            HOLD_UNTIL_VARIABLE,
+            OsString::from("the-file-this-run-waits-for"),
+        ),
         (RUNTIME_PROBE_VARIABLE, OsString::from("1")),
         (PROBE_SWITCH_VARIABLE, OsString::from("disabled")),
         (KEEP_DESCRIPTOR_VARIABLE, OsString::from("1")),
@@ -235,9 +351,12 @@ fn a_build_without_the_feature_reads_no_test_only_switch() {
     let park_folder: PathBuf = crate::test_support::fixture("release-ignores-switches-park");
     // The release file a parking control would wait for, left at once so a build that parked its answer here returns
     // rather than holding the control open.
-    let release: PathBuf = answered_beside(the_park_a_control_names(park_folder.as_path()).as_path()).with_extension("release");
+    let release: PathBuf =
+        answered_beside(the_park_a_control_names(park_folder.as_path()).as_path())
+            .with_extension("release");
     std::fs::write(release.as_path(), b"").expect("the control's release file");
-    let owned: Vec<(&'static str, OsString)> = every_switch_a_control_arms(queue.as_path(), park_folder.as_path());
+    let owned: Vec<(&'static str, OsString)> =
+        every_switch_a_control_arms(queue.as_path(), park_folder.as_path());
     // The pairs as `ChildTest` takes them: each name is the constant's own text, and each value is lent from `owned`.
     let mut environment: Vec<(&str, &std::ffi::OsStr)> = Vec::new();
     for (name, value) in owned.iter() {

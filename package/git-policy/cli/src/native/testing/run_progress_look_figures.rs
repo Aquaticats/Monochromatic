@@ -49,7 +49,10 @@ pub(crate) struct TaskFigures {
 /// ```ts
 /// const taskNumber = (process: number, task: number) => (BigInt(process) << 32n) | BigInt(task);
 /// ```
-pub(crate) fn task_number(process: i32, task: i32) -> u64 {
+pub(crate) fn task_number(
+    process: i32,
+    task: i32,
+) -> u64 {
     let process_figure: u64 = u64::try_from(process).unwrap_or(0);
     let task_figure: u64 = u64::try_from(task).unwrap_or(0);
     return (process_figure << 32) | task_figure;

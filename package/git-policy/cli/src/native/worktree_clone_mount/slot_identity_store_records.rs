@@ -19,8 +19,8 @@
 //! ```
 
 use super::clone_folder_identity::CloneFolderIdentity;
-use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::StoreRefusal;
+use super::slot_name::slot_name_refusal;
 use std::path::Path;
 
 /// The store's first line:
@@ -29,7 +29,8 @@ use std::path::Path;
 /// Version 2 is the folder:
 /// one file per slot,
 /// and `.parent` for the parent folder.
-pub const STORE_HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 2";
+pub const STORE_HEADER: &str =
+    "# monochromatic-git-policy-cli worktree clone slot identities, version 2";
 
 /// The name `.claude/worktrees`'s record is filed under,
 /// the only name this layout reserves.
@@ -99,7 +100,10 @@ impl StoredIdentity {
     pub fn key(&self) -> &str {
         return match self {
             StoredIdentity::Parent(_identity) => PARENT_KEY,
-            StoredIdentity::Slot { name, .. } => name.as_str(),
+            StoredIdentity::Slot {
+                name,
+                ..
+            } => name.as_str(),
         };
     }
 
@@ -107,8 +111,17 @@ impl StoredIdentity {
     /// without the newline.
     pub fn encode(&self) -> String {
         return match self {
-            StoredIdentity::Parent(identity) => format!("{PARENT_KIND}{FIELD_SEPARATOR}{PARENT_KEY}{FIELD_SEPARATOR}{}", identity.encode()),
-            StoredIdentity::Slot { name, identity } => format!("{SLOT_KIND}{FIELD_SEPARATOR}{name}{FIELD_SEPARATOR}{}", identity.encode()),
+            StoredIdentity::Parent(identity) => format!(
+                "{PARENT_KIND}{FIELD_SEPARATOR}{PARENT_KEY}{FIELD_SEPARATOR}{}",
+                identity.encode()
+            ),
+            StoredIdentity::Slot {
+                name,
+                identity,
+            } => format!(
+                "{SLOT_KIND}{FIELD_SEPARATOR}{name}{FIELD_SEPARATOR}{}",
+                identity.encode()
+            ),
         };
     }
 }
@@ -133,7 +146,11 @@ impl StoredIdentity {
 /// a second record line,
 /// a record that is not one this module wrote,
 /// or a record whose key is not the name it is filed under.
-pub(super) fn parse_one_record(path: &Path, text: &str, filed_under: &str) -> Result<StoredIdentity, StoreRefusal> {
+pub(super) fn parse_one_record(
+    path: &Path,
+    text: &str,
+    filed_under: &str,
+) -> Result<StoredIdentity, StoreRefusal> {
     let mut header_seen: bool = false;
     let mut record: Option<StoredIdentity> = None;
     for (index, line) in text.lines().enumerate() {
@@ -143,7 +160,13 @@ pub(super) fn parse_one_record(path: &Path, text: &str, filed_under: &str) -> Re
         }
         if !header_seen {
             if line != STORE_HEADER {
-                return Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("the first line must be this file's own header, `{STORE_HEADER}`") });
+                return Err(StoreRefusal::Line {
+                    path: path.to_path_buf(),
+                    number,
+                    reason: format!(
+                        "the first line must be this file's own header, `{STORE_HEADER}`"
+                    ),
+                });
             }
             header_seen = true;
             continue;
@@ -152,49 +175,110 @@ pub(super) fn parse_one_record(path: &Path, text: &str, filed_under: &str) -> Re
             continue;
         }
         if record.is_some() {
-            return Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: String::from("a record file holds exactly one record line, and this line holds a second") });
+            return Err(StoreRefusal::Line {
+                path: path.to_path_buf(),
+                number,
+                reason: String::from(
+                    "a record file holds exactly one record line, and this line holds a second",
+                ),
+            });
         }
         record = Some(parse_record_line(path, number, line)?);
     }
     if !header_seen {
-        return Err(StoreRefusal::Line { path: path.to_path_buf(), number: 1, reason: format!("the file is empty: it must start with `{STORE_HEADER}`") });
+        return Err(StoreRefusal::Line {
+            path: path.to_path_buf(),
+            number: 1,
+            reason: format!("the file is empty: it must start with `{STORE_HEADER}`"),
+        });
     }
     let Some(parsed) = record else {
-        return Err(StoreRefusal::Line { path: path.to_path_buf(), number: 1, reason: String::from("the file holds a header and no record line") });
+        return Err(StoreRefusal::Line {
+            path: path.to_path_buf(),
+            number: 1,
+            reason: String::from("the file holds a header and no record line"),
+        });
     };
     check_filed_under(path, filed_under, &parsed)?;
     return Ok(parsed);
 }
 
 /// Whether the record's own key is the name its file is filed under.
-fn check_filed_under(path: &Path, filed_under: &str, record: &StoredIdentity) -> Result<(), StoreRefusal> {
+fn check_filed_under(
+    path: &Path,
+    filed_under: &str,
+    record: &StoredIdentity,
+) -> Result<(), StoreRefusal> {
     let matches: bool = match record {
         StoredIdentity::Parent(_identity) => filed_under == PARENT_RECORD_NAME,
-        StoredIdentity::Slot { name, .. } => name.as_str() == filed_under,
+        StoredIdentity::Slot {
+            name,
+            ..
+        } => name.as_str() == filed_under,
     };
     if matches {
         return Ok(());
     }
-    return Err(StoreRefusal::RecordUnderAnotherName { path: path.to_path_buf(), filed_under: filed_under.to_string(), recorded: record.key().to_string() });
+    return Err(StoreRefusal::RecordUnderAnotherName {
+        path: path.to_path_buf(),
+        filed_under: filed_under.to_string(),
+        recorded: record.key().to_string(),
+    });
 }
 
 /// One record from one line.
-fn parse_record_line(path: &Path, number: usize, line: &str) -> Result<StoredIdentity, StoreRefusal> {
+fn parse_record_line(
+    path: &Path,
+    number: usize,
+    line: &str,
+) -> Result<StoredIdentity, StoreRefusal> {
     let fields: Vec<&str> = line.split(FIELD_SEPARATOR).collect();
     if fields.len() != 3 {
-        return Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("a record holds three space-separated fields, and this line holds {}", fields.len()) });
+        return Err(StoreRefusal::Line {
+            path: path.to_path_buf(),
+            number,
+            reason: format!(
+                "a record holds three space-separated fields, and this line holds {}",
+                fields.len()
+            ),
+        });
     }
-    let identity: CloneFolderIdentity = CloneFolderIdentity::decode(fields[2]).ok_or_else(|| return StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("`{}` is not a recorded folder identity", fields[2]) })?;
+    let identity: CloneFolderIdentity =
+        CloneFolderIdentity::decode(fields[2]).ok_or_else(|| {
+            return StoreRefusal::Line {
+                path: path.to_path_buf(),
+                number,
+                reason: format!("`{}` is not a recorded folder identity", fields[2]),
+            };
+        })?;
     return match fields[0] {
         PARENT_KIND if fields[1] == PARENT_KEY => Ok(StoredIdentity::Parent(identity)),
-        PARENT_KIND => Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("a parent record's key is `{PARENT_KEY}`, and this line holds `{}`", fields[1]) }),
+        PARENT_KIND => Err(StoreRefusal::Line {
+            path: path.to_path_buf(),
+            number,
+            reason: format!(
+                "a parent record's key is `{PARENT_KEY}`, and this line holds `{}`",
+                fields[1]
+            ),
+        }),
         SLOT_KIND => {
             if let Some(reason) = slot_name_refusal(fields[1]) {
-                return Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("`{}` is no slot name: {reason}", fields[1]) });
+                return Err(StoreRefusal::Line {
+                    path: path.to_path_buf(),
+                    number,
+                    reason: format!("`{}` is no slot name: {reason}", fields[1]),
+                });
             }
-            Ok(StoredIdentity::Slot { name: fields[1].to_string(), identity })
+            Ok(StoredIdentity::Slot {
+                name: fields[1].to_string(),
+                identity,
+            })
         }
-        other => Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("`{other}` is neither `{PARENT_KIND}` nor `{SLOT_KIND}`") }),
+        other => Err(StoreRefusal::Line {
+            path: path.to_path_buf(),
+            number,
+            reason: format!("`{other}` is neither `{PARENT_KIND}` nor `{SLOT_KIND}`"),
+        }),
     };
 }
 /// Whether `name` is a dot name:
@@ -222,9 +306,15 @@ pub fn is_known_staging_name(name: &str) -> bool {
     let Some(rest) = name.strip_prefix('.') else {
         return false;
     };
-    if rest.len() == STAGING_NAME_DIGITS && rest.chars().all(|digit| return digit.is_ascii_digit() || ('a'..='f').contains(&digit)) {
+    if rest.len() == STAGING_NAME_DIGITS
+        && rest
+            .chars()
+            .all(|digit| return digit.is_ascii_digit() || ('a'..='f').contains(&digit))
+    {
         return true;
     }
-    let inner: Option<&str> = name.strip_prefix(PARENT_STAGING_PREFIX).and_then(|after_the_prefix| return after_the_prefix.strip_suffix(PARENT_STAGING_SUFFIX));
+    let inner: Option<&str> = name
+        .strip_prefix(PARENT_STAGING_PREFIX)
+        .and_then(|after_the_prefix| return after_the_prefix.strip_suffix(PARENT_STAGING_SUFFIX));
     return inner.is_some_and(|random| return !random.is_empty());
 }

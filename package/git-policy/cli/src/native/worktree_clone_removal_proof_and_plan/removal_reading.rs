@@ -42,7 +42,10 @@
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::PlanSnapshot;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, prepare_the_removal};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalEntry,
+    prepare_the_removal,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 
@@ -96,7 +99,8 @@ impl RemovalReading {
     /// const lines = reading.lines();
     /// ```
     pub fn lines(&self) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::with_capacity(self.lost.snapshots.len() + self.lost.bookmarks.len() + 3);
+        let mut lines: Vec<String> =
+            Vec::with_capacity(self.lost.snapshots.len() + self.lost.bookmarks.len() + 3);
         lines.push(format!(
             "the lineage proof a removal makes passed without writing anything: the clone `{}` (GUID `{}`, creation transaction group {}) is the one the add recorded and descends from the origin snapshot `{}` (GUID `{}`, creation transaction group {}).",
             self.clone,
@@ -135,7 +139,10 @@ impl RemovalReading {
 /// ```ts
 /// const reading = readTheRemoval(entry, reads);
 /// ```
-pub fn read_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<RemovalReading, RemovalStop> {
+pub fn read_the_removal(
+    entry: &RemovalEntry<'_>,
+    reads: &dyn RemovalPoolReads,
+) -> Result<RemovalReading, RemovalStop> {
     let prepared = prepare_the_removal(entry, reads)?;
     let identities = &prepared.proven.identities;
     return Ok(RemovalReading {

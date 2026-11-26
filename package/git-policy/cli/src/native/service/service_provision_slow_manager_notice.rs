@@ -24,7 +24,10 @@
 //! const notice = SlowManagerNotice.arm('monochromatic-git-policy-cli@abc.socket'); /* the calls */ notice.finish();
 //! ```
 
-use std::sync::mpsc::{RecvTimeoutError, Sender};
+use std::sync::mpsc::{
+    RecvTimeoutError,
+    Sender,
+};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -53,7 +56,10 @@ pub const SLOW_MANAGER_NOTICE_AFTER: Duration = Duration::from_secs(1);
 /// ```ts
 /// slowManagerNotice('monochromatic-git-policy-cli@abc.socket', 1) // 'monochromatic-git-policy-cli: the service manager ...'
 /// ```
-pub fn slow_manager_notice(unit: &str, waited: Duration) -> String {
+pub fn slow_manager_notice(
+    unit: &str,
+    waited: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the service manager has not answered for {} seconds while the commit service of this worktree is set up ({unit}); a busy machine takes that long over this worktree's own units, and this commit goes on as soon as it answers.",
         waited.as_secs()
@@ -91,22 +97,34 @@ impl SlowManagerNotice {
     /// Arms the line about a slow manager for the calls that follow until the guard ends.
     pub(crate) fn arm(unit: &str) -> Self {
         let named: String = unit.to_string();
-        return Self::arm_saying(move || crate::service_warn!("{}", slow_manager_notice(named.as_str(), SLOW_MANAGER_NOTICE_AFTER)));
+        return Self::arm_saying(move || {
+            crate::service_warn!(
+                "{}",
+                slow_manager_notice(named.as_str(), SLOW_MANAGER_NOTICE_AFTER)
+            )
+        });
     }
 
     /// Arms what is said for those calls,
     /// so a control reads it on the thread that says it.
     pub(crate) fn arm_saying(saying: impl FnOnce() + Send + 'static) -> Self {
-        let (stop, waiting): (Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+        let (stop, waiting): (Sender<()>, std::sync::mpsc::Receiver<()>) =
+            std::sync::mpsc::channel();
         let thread: Option<JoinHandle<()>> = std::thread::Builder::new()
             .name(String::from("provision notice"))
             .spawn(move || {
-                if matches!(waiting.recv_timeout(SLOW_MANAGER_NOTICE_AFTER), Err(RecvTimeoutError::Timeout)) {
+                if matches!(
+                    waiting.recv_timeout(SLOW_MANAGER_NOTICE_AFTER),
+                    Err(RecvTimeoutError::Timeout)
+                ) {
                     saying();
                 }
             })
             .ok();
-        return Self { stop: Some(stop), thread };
+        return Self {
+            stop: Some(stop),
+            thread,
+        };
     }
 }
 

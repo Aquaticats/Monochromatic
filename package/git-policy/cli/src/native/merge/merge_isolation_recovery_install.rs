@@ -18,16 +18,33 @@
 
 use crate::inner_git_words::record_words;
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_changes::{Change, worktree_path};
-use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk};
+use crate::merge_isolation_changes::{
+    Change,
+    worktree_path,
+};
+use crate::merge_isolation_recovery_steps::{
+    Installed,
+    Judged,
+    MergeRefusal,
+    RecoveryPlace,
+    Standing,
+    TakenOnDisk,
+};
 use crate::merge_isolation_take_asides::{
-    Take, finish_asides_awaiting, put_back_awaiting, restore_what_git_did_not_write_awaiting, take_aside_awaiting,
+    Take,
+    finish_asides_awaiting,
+    put_back_awaiting,
+    restore_what_git_did_not_write_awaiting,
+    take_aside_awaiting,
 };
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The refusal for a merge whose files changed after it judged them.
 ///
@@ -35,7 +52,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// `A merge in ${root} was interrupted, and these files changed after this command judged them: ${paths}. ...`
 /// ```
-fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
+fn changed_after_judging(
+    root: &Path,
+    paths: &[String],
+) -> RecoveryError {
     return RecoveryError(format!(
         "A merge in {} was interrupted while Git updated these files, and they changed after this command judged them: {}. \
          Nothing was changed by this command and the merge is still unfinished; writing the merge over them would have \
@@ -57,7 +77,10 @@ fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
 /// ```ts
 /// [...written, ...deleted];
 /// ```
-fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<TakenOnDisk> {
+fn everything_taken(
+    written: &[TakenOnDisk],
+    deleted: &[TakenOnDisk],
+) -> Vec<TakenOnDisk> {
     let mut all: Vec<TakenOnDisk> = Vec::with_capacity(written.len() + deleted.len());
     for entry in written.iter().chain(deleted.iter()) {
         all.push(TakenOnDisk {
@@ -115,7 +138,11 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
     // Whether the index may be written now, and why not: `merge_isolation_recovery_index_lock.rs`.
-    if !crate::merge_isolation_recovery_index_lock::may_write(place.git_dir.as_path(), installed_before, out) {
+    if !crate::merge_isolation_recovery_index_lock::may_write(
+        place.git_dir.as_path(),
+        installed_before,
+        out,
+    ) {
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
@@ -139,11 +166,32 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
             //  anyone's to set aside; the deletions empty it before the checkout writes the file.
             continue;
         }
-        match take_aside_awaiting(place, root, change.path.as_slice(), location.as_path(), judged, transaction_id).await {
+        match take_aside_awaiting(
+            place,
+            root,
+            change.path.as_slice(),
+            location.as_path(),
+            judged,
+            transaction_id,
+        )
+        .await
+        {
             Ok(Take::Nothing) => {}
-            Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
-            Ok(Take::Aside { aside, taken, expected }) => {
-                let entry: TakenOnDisk = TakenOnDisk { location, path: change.path.clone(), aside, taken, expected };
+            Ok(Take::Changed) => {
+                changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned())
+            }
+            Ok(Take::Aside {
+                aside,
+                taken,
+                expected,
+            }) => {
+                let entry: TakenOnDisk = TakenOnDisk {
+                    location,
+                    path: change.path.clone(),
+                    aside,
+                    taken,
+                    expected,
+                };
                 if change.exists_after() {
                     taken_writes.push(entry);
                 } else {
@@ -153,28 +201,41 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
             Err(failure) => {
                 // A take that stops must not leave the files it already took under their private names; the one it stopped on is
                 //  in the failure, because the rename came before the read that failed.
-                let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
+                let left: Vec<String> =
+                    put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
                 let mut refusal: String = failure.error.0;
                 if !left.is_empty() {
-                    refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
+                    refusal.push_str(
+                        format!(" Files that could not be put back: {}", left.join(", ")).as_str(),
+                    );
                 }
-                let began: bool = installed_before || failure.stranded.is_some() || !left.is_empty();
-                return Err(MergeRefusal { error: RecoveryError(refusal), began });
+                let began: bool =
+                    installed_before || failure.stranded.is_some() || !left.is_empty();
+                return Err(MergeRefusal {
+                    error: RecoveryError(refusal),
+                    began,
+                });
             }
         }
     }
     if !changed.is_empty() {
-        let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
+        let left: Vec<String> =
+            put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
-        return Err(MergeRefusal { error: RecoveryError(refusal), began: installed_before || !left.is_empty() });
+        return Err(MergeRefusal {
+            error: RecoveryError(refusal),
+            began: installed_before || !left.is_empty(),
+        });
     }
     let mut index_input: Vec<u8> = Vec::new();
     for change in changes {
         if change.exists_after() {
-            index_input.extend_from_slice(format!("{} {}\t", change.new_mode, change.new_oid).as_bytes());
+            index_input
+                .extend_from_slice(format!("{} {}\t", change.new_mode, change.new_oid).as_bytes());
         } else {
-            index_input.extend_from_slice(format!("0 {}\t", "0".repeat(change.old_oid.len())).as_bytes());
+            index_input
+                .extend_from_slice(format!("0 {}\t", "0".repeat(change.old_oid.len())).as_bytes());
         }
         index_input.extend_from_slice(change.path.as_slice());
         index_input.push(0);
@@ -183,8 +244,12 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     update.input = Some(index_input);
     if let Err(error) = run_git_checked_awaiting(&place.git, &update).await {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
-        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: installed_before || !left.is_empty() });
+        let left: Vec<String> =
+            put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
+        return Err(MergeRefusal {
+            error: RecoveryError(error.to_string()),
+            began: installed_before || !left.is_empty(),
+        });
     }
     // From here the index holds the merge's entries, so a command that stops must not go on reading the checkout.
     let began: bool = true;
@@ -207,7 +272,10 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
         deletions.push(worktree_path(root, change.path.as_slice()));
     }
     if let Err(error) = finish_asides_awaiting(place, root, &taken_deletions, out).await {
-        return Err(MergeRefusal { error, began });
+        return Err(MergeRefusal {
+            error,
+            began,
+        });
     }
     for location in &deletions {
         remove_empty_parents(root, location.as_path());
@@ -220,10 +288,17 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
         let checked_out = match run_git_checked_awaiting(&place.git, &checkout).await {
             Ok(done) => done,
             Err(error) => {
-                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write_awaiting(place, root, &taken_writes, out).await;
+                let restored: Result<(), RecoveryError> =
+                    restore_what_git_did_not_write_awaiting(place, root, &taken_writes, out).await;
                 return Err(match restored {
-                    Ok(()) => MergeRefusal { error: RecoveryError(error.to_string()), began },
-                    Err(left) => MergeRefusal { error: RecoveryError(format!("{error} ({})", left.0)), began },
+                    Ok(()) => MergeRefusal {
+                        error: RecoveryError(error.to_string()),
+                        began,
+                    },
+                    Err(left) => MergeRefusal {
+                        error: RecoveryError(format!("{error} ({})", left.0)),
+                        began,
+                    },
                 });
             }
         };
@@ -235,7 +310,10 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     //  put back, because real Git writes the file with its own mode and this command does what Git does
     //  (`SPEC.md`, "Carry edits forward").
     if let Err(error) = finish_asides_awaiting(place, root, &taken_writes, out).await {
-        return Err(MergeRefusal { error, began });
+        return Err(MergeRefusal {
+            error,
+            began,
+        });
     }
     return Ok(Installed::Written);
 }
@@ -262,10 +340,21 @@ pub fn install_entries(
     transaction_id: &str,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    return match run_on_runtime(install_entries_awaiting(place, root, changes, judgements, installed_before, transaction_id, out)) {
+    return match run_on_runtime(install_entries_awaiting(
+        place,
+        root,
+        changes,
+        judgements,
+        installed_before,
+        transaction_id,
+        out,
+    )) {
         Ok(found) => found,
         // The runtime refused before anything was written, so nothing of the merge is in the checkout.
-        Err(refusal) => Err(MergeRefusal { error: RecoveryError(format!("{refusal}")), began: installed_before }),
+        Err(refusal) => Err(MergeRefusal {
+            error: RecoveryError(format!("{refusal}")),
+            began: installed_before,
+        }),
     };
 }
 
@@ -281,7 +370,10 @@ pub fn install_entries(
 /// ```ts
 /// for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
 /// ```
-pub fn remove_empty_parents(root: &Path, file: &Path) {
+pub fn remove_empty_parents(
+    root: &Path,
+    file: &Path,
+) {
     let mut directory: Option<&Path> = file.parent();
     while let Some(current) = directory {
         if current == root || !current.starts_with(root) || std::fs::remove_dir(current).is_err() {

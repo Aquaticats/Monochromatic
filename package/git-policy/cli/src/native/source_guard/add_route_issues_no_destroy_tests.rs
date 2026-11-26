@@ -32,7 +32,12 @@
 use std::path::Path;
 
 use super::blocking_code_off_the_runtime_tests::read_the_code_of;
-use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
+use crate::source_scan_tests::{
+    CrateRoot,
+    classified_sources,
+    real_roots,
+    source_root,
+};
 
 /// The folder whose release files may not name a destroying entry,
 /// which is the add's own.
@@ -59,11 +64,36 @@ struct DestroyingEntry {
 /// attempt and the snapshot batch's request,
 /// because the add must reach none of them.
 const THE_DESTROYING_ENTRIES: [DestroyingEntry; 5] = [
-    DestroyingEntry { name: "destroy_the_head", declaring_file: "worktree_clone_removal_proof_and_plan/removal_head_destroy.rs", declaration: "pub fn destroy_the_head(", what: "destroys the verified clone" },
-    DestroyingEntry { name: "send_request", declaring_file: "worktree_clone_snapshot_batch/snapshot_batch_send.rs", declaration: "pub fn send_request(", what: "sends a snapshot set's destroy request to the pool" },
-    DestroyingEntry { name: "attempt_the_cleanup", declaring_file: "worktree_clone_origin_cleanup/origin_cleanup_attempt.rs", declaration: "pub fn attempt_the_cleanup(", what: "destroys an origin snapshot" },
-    DestroyingEntry { name: "destroy_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_destruction.rs", declaration: "pub fn destroy_the_removal(", what: "sends the removal's snapshot batch and destroys what it planned" },
-    DestroyingEntry { name: "complete_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_completion.rs", declaration: "pub fn complete_the_removal(", what: "destroys the removal's snapshots and the clone" },
+    DestroyingEntry {
+        name: "destroy_the_head",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_head_destroy.rs",
+        declaration: "pub fn destroy_the_head(",
+        what: "destroys the verified clone",
+    },
+    DestroyingEntry {
+        name: "send_request",
+        declaring_file: "worktree_clone_snapshot_batch/snapshot_batch_send.rs",
+        declaration: "pub fn send_request(",
+        what: "sends a snapshot set's destroy request to the pool",
+    },
+    DestroyingEntry {
+        name: "attempt_the_cleanup",
+        declaring_file: "worktree_clone_origin_cleanup/origin_cleanup_attempt.rs",
+        declaration: "pub fn attempt_the_cleanup(",
+        what: "destroys an origin snapshot",
+    },
+    DestroyingEntry {
+        name: "destroy_the_removal",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_destruction.rs",
+        declaration: "pub fn destroy_the_removal(",
+        what: "sends the removal's snapshot batch and destroys what it planned",
+    },
+    DestroyingEntry {
+        name: "complete_the_removal",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_completion.rs",
+        declaration: "pub fn complete_the_removal(",
+        what: "destroys the removal's snapshots and the clone",
+    },
 ];
 
 /// What one scan of the release tree answers:
@@ -77,15 +107,20 @@ struct Scan {
 }
 
 /// One scan over the crate's release sources.
-fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, String> {
+fn scan_the_release_tree(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Scan, String> {
     let mut names: Vec<String> = Vec::new();
     let mut declared: Vec<&'static str> = Vec::new();
     for file in classified_sources(root, roots)? {
         if file.test_only {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(file.path.as_str())).map_err(|error| return format!("{} cannot be read: {error}", file.path))?;
-        let read = read_the_code_of(text.as_str()).map_err(|error| return format!("{} cannot be read as code: {error}", file.path))?;
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
+            .map_err(|error| return format!("{} cannot be read: {error}", file.path))?;
+        let read = read_the_code_of(text.as_str())
+            .map_err(|error| return format!("{} cannot be read as code: {error}", file.path))?;
         let code: String = read.masked.join("\n");
         for entry in THE_DESTROYING_ENTRIES {
             if file.path == entry.declaring_file && code.contains(entry.declaration) {
@@ -96,7 +131,10 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
             }
         }
     }
-    return Ok(Scan { names, declared });
+    return Ok(Scan {
+        names,
+        declared,
+    });
 }
 
 /// What:
@@ -112,7 +150,8 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
 #[test]
 fn the_add_route_issues_no_destroy() {
     let root = source_root();
-    let scan: Scan = scan_the_release_tree(root.as_path(), real_roots().as_slice()).expect("the crate's release source tree reads");
+    let scan: Scan = scan_the_release_tree(root.as_path(), real_roots().as_slice())
+        .expect("the crate's release source tree reads");
     for entry in THE_DESTROYING_ENTRIES {
         assert!(
             scan.declared.contains(&entry.name),
@@ -134,6 +173,10 @@ fn the_add_route_issues_no_destroy() {
 #[test]
 fn every_banned_entry_says_what_it_destroys() {
     for entry in THE_DESTROYING_ENTRIES {
-        assert!(!entry.what.is_empty(), "`{}` says what it destroys for a reader of a failure", entry.name);
+        assert!(
+            !entry.what.is_empty(),
+            "`{}` says what it destroys for a reader of a failure",
+            entry.name
+        );
     }
 }

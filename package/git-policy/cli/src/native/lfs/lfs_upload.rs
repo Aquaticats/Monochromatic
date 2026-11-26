@@ -28,40 +28,87 @@
 
 /// The attempt record,
 /// the coordinator's Git and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+};
+/// One job of the process's bound on blocking work,
+/// for the filesystem lookups a task may not make.
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The deadline,
 /// the grace and the push runner,
 /// the wait a stalled child is ended by,
 /// the least traffic the upload's connection must carry,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_minimum_rate_bytes, push_patience, run_bounded_push_naming,
+    STOP_GRACE,
+    STOPPED_EXIT_CODE,
+    StopCause,
+    command_label,
+    connected_window,
+    push_minimum_rate_bytes,
+    push_patience,
+    run_bounded_push_naming,
     wait_until_done_noting,
+};
+/// The child held until it is reaped,
+/// awaited on its pidfd.
+use crate::child_awaited_through_a_pidfd::{
+    OwnedChild,
+    adopt,
 };
 /// The invocation's environment values,
 /// merged with the overlay its children run under.
-use crate::child_environment::{environment_value, environment_with_overlay};
+use crate::child_environment::{
+    environment_value,
+    environment_with_overlay,
+};
+/// How a child ended,
+/// as a status.
+use crate::forwarding::{
+    ChildOutcome,
+    exit_code,
+    outcome_of,
+};
+/// The process's runtime,
+/// which this synchronous face enters.
+use crate::lazy_runtime::run_on_runtime;
 /// The caller's own command-line configuration,
 /// as the variables the child reads.
 pub use crate::lfs_command_line_configuration::child_configuration_variables;
-/// How a child ended,
-/// as a status.
-use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
+/// The masked head of the program's own words,
+/// and the hosts a text names.
+use crate::lfs_output_mask::{
+    MaskedHead,
+    hosts_in,
+    mask_url_secrets_within,
+};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{find_program, start_failed_message};
+use crate::lfs_pre_push::{
+    find_program,
+    start_failed_message,
+};
 /// The folders searched and the refusal that names them.
-use crate::lfs_program_search::{ProgramSearch, missing_program_message};
+use crate::lfs_program_search::{
+    ProgramSearch,
+    missing_program_message,
+};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
-    MAX_RELAYED_BYTES, capture_failed_message, explanation_after_failure, failed_upload, guard_failed_message, missing_program_attempt,
-    start_failed_attempt, stopped_upload_tail, stopped_upload_words,
+    MAX_RELAYED_BYTES,
+    capture_failed_message,
+    explanation_after_failure,
+    failed_upload,
+    guard_failed_message,
+    missing_program_attempt,
+    start_failed_attempt,
+    stopped_upload_tail,
+    stopped_upload_words,
 };
-/// The masked head of the program's own words,
-/// and the hosts a text names.
-use crate::lfs_output_mask::{MaskedHead, hosts_in, mask_url_secrets_within};
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -69,35 +116,37 @@ use crate::scratch_location::scratch_file;
 /// which starts it and hands it over still published.
 use crate::signal_relay::SignalGuard;
 use crate::signal_relay_relayed_child::RelayedChild;
-/// The child held until it is reaped,
-/// awaited on its pidfd.
-use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
-/// The locks a stopped child leaves,
-/// none of which the upload claims.
-use crate::stopped_git_locks::LockLedger;
 /// The end of a stopped child,
 /// and the wait a push's patience lets pass.
 use crate::stop_of_a_push_and_sweep_of_its_locks::stop_push;
-/// The process's runtime,
-/// which this synchronous face enters.
-use crate::lazy_runtime::run_on_runtime;
+/// The locks a stopped child leaves,
+/// none of which the upload claims.
+use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// Owned OS text for arguments.
 use std::ffi::OsString;
+/// Reading the captured standard error back.
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+};
 /// The real Git whose directory leads `PATH`.
 use std::path::Path;
-/// One job of the process's bound on blocking work,
-/// for the filesystem lookups a task may not make.
-use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The child and its standard error.
-use std::process::{Command, ExitStatus, Stdio};
-/// Reading the captured standard error back.
-use std::io::{Read, Seek, SeekFrom};
+use std::process::{
+    Command,
+    ExitStatus,
+    Stdio,
+};
 
 /// `PATH` with the directory of the real Git first,
 /// so a `git` that `git-lfs` starts is the real Git and never the
 ///  wrapper (Git does the same for the hooks it starts).
-fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Path) -> OsString {
+fn path_with_real_git_first(
+    environment: &[(OsString, OsString)],
+    real_git: &Path,
+) -> OsString {
     let existing: OsString = environment_value(environment, "PATH").unwrap_or_default();
     let mut directories: Vec<std::path::PathBuf> = Vec::new();
     if let Some(directory) = real_git.parent() {
@@ -106,7 +155,6 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
     directories.extend(std::env::split_paths(existing.as_os_str()));
     return std::env::join_paths(directories).unwrap_or(existing);
 }
-
 
 /// Why a run with captured standard error did not produce an outcome.
 enum CaptureError {
@@ -205,12 +253,13 @@ fn run_with_captured_stderr(
         Ok(installed) => installed,
         Err(why) => return Err(CaptureError::Guard(why.to_string())),
     };
-    let ended: UploadEnd = match run_on_runtime(await_upload(command, &guard, &captured, environment)) {
-        Ok(Ok(finished)) => finished,
-        Ok(Err(RunError::Start(why))) => return Err(CaptureError::Start(why)),
-        Ok(Err(RunError::Wait(why))) => return Err(CaptureError::Guard(why)),
-        Err(refusal) => return Err(CaptureError::Guard(refusal.to_string())),
-    };
+    let ended: UploadEnd =
+        match run_on_runtime(await_upload(command, &guard, &captured, environment)) {
+            Ok(Ok(finished)) => finished,
+            Ok(Err(RunError::Start(why))) => return Err(CaptureError::Start(why)),
+            Ok(Err(RunError::Wait(why))) => return Err(CaptureError::Guard(why)),
+            Err(refusal) => return Err(CaptureError::Guard(refusal.to_string())),
+        };
     let relayed: Vec<u8> = match relayed_head(&mut captured) {
         Ok(text) => text,
         Err(error) => return Err(CaptureError::Scratch(error.to_string())),
@@ -243,7 +292,10 @@ fn relayed_head(captured: &mut std::fs::File) -> std::io::Result<Vec<u8>> {
     // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
     // One byte past the cap is read, so the read itself says whether more was printed than is relayed.
     captured.seek(SeekFrom::Start(0))?;
-    captured.by_ref().take(MAX_RELAYED_BYTES + 1).read_to_end(&mut bytes)?;
+    captured
+        .by_ref()
+        .take(MAX_RELAYED_BYTES + 1)
+        .read_to_end(&mut bytes)?;
     let head: MaskedHead = mask_url_secrets_within(bytes.as_slice(), MAX_RELAYED_BYTES);
     let mut relayed: Vec<u8> = head.text;
     if head.cut {
@@ -303,11 +355,16 @@ async fn await_upload(
         //  error says what to fix, and the file's name says which file it is.
         Err(error) => {
             let program: String = command.get_program().to_string_lossy().into_owned();
-            return Err(RunError::Start(start_failed_message(program.as_str(), error.to_string().as_str())));
+            return Err(RunError::Start(start_failed_message(
+                program.as_str(),
+                error.to_string().as_str(),
+            )));
         }
         Ok(started) => started,
     };
-    let started: std::process::Child = relayed.take_child().expect("the child was handed over once");
+    let started: std::process::Child = relayed
+        .take_child()
+        .expect("the child was handed over once");
     let mut child: OwnedChild = adopt(started);
     let label: String = command_label(command);
     let mut waits: Vec<crate::push_progress::WaitReport> = Vec::new();
@@ -370,9 +427,15 @@ pub fn run_upload_interactive(
     overlay: &[(OsString, OsString)],
     diagnostics: &mut dyn std::io::Write,
 ) -> Option<i32> {
-    let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str(), directory) else {
+    let Some(program) = find_program(
+        environment_value(environment, "PATH")
+            .unwrap_or_default()
+            .as_os_str(),
+        directory,
+    ) else {
         // Terminal output error: the exit status already carries the refusal.
-        let _written = diagnostics.write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
+        let _written = diagnostics
+            .write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
         return Some(1);
     };
     if plan.submodules {
@@ -401,24 +464,27 @@ pub fn run_upload_interactive(
             for (name, value) in overlay.iter().cloned().chain(carried.iter().cloned()) {
                 command.env(name, value);
             }
-            let (ended, relayed): (UploadEnd, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
-                Ok(finished) => finished,
-                Err(CaptureError::Scratch(why)) => {
-                    // Terminal output error: the exit status already carries the refusal.
-                    let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
-                    return Some(1);
-                }
-                Err(CaptureError::Start(why)) => {
-                    // Terminal output error: see above.
-                    let _written = diagnostics.write_all(why.as_bytes());
-                    return Some(1);
-                }
-                Err(CaptureError::Guard(why)) => {
-                    // Terminal output error: see above.
-                    let _written = diagnostics.write_all(guard_failed_message(why.as_str()).as_bytes());
-                    return Some(1);
-                }
-            };
+            let (ended, relayed): (UploadEnd, Vec<u8>) =
+                match run_with_captured_stderr(&mut command, environment) {
+                    Ok(finished) => finished,
+                    Err(CaptureError::Scratch(why)) => {
+                        // Terminal output error: the exit status already carries the refusal.
+                        let _written =
+                            diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
+                        return Some(1);
+                    }
+                    Err(CaptureError::Start(why)) => {
+                        // Terminal output error: see above.
+                        let _written = diagnostics.write_all(why.as_bytes());
+                        return Some(1);
+                    }
+                    Err(CaptureError::Guard(why)) => {
+                        // Terminal output error: see above.
+                        let _written =
+                            diagnostics.write_all(guard_failed_message(why.as_str()).as_bytes());
+                        return Some(1);
+                    }
+                };
             // Terminal output error: the program's own words are advisory; the exit status carries the result.
             let _relayed = diagnostics.write_all(relayed.as_slice());
             // The explanation is a paragraph of its own: a program that ended without a last line break must not have it
@@ -434,7 +500,12 @@ pub fn run_upload_interactive(
                     //  after a second one.
                     let server: Option<String> = upload_server_of(plan, relayed.as_slice());
                     let _written = diagnostics.write_all(
-                        format!("{} {}\n", stopped_upload_words(&cause, server.as_deref()), stopped_upload_tail()).as_bytes(),
+                        format!(
+                            "{} {}\n",
+                            stopped_upload_words(&cause, server.as_deref()),
+                            stopped_upload_tail()
+                        )
+                        .as_bytes(),
                     );
                     return Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1));
                 }
@@ -448,7 +519,12 @@ pub fn run_upload_interactive(
             };
             // Terminal output error: see above.
             let _written = diagnostics.write_all(
-                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice()).as_bytes(),
+                explanation_after_failure(
+                    description.as_str(),
+                    remote.as_os_str(),
+                    relayed.as_slice(),
+                )
+                .as_bytes(),
             );
             return Some(code);
         }
@@ -478,7 +554,10 @@ pub fn run_upload_interactive(
 /// ```ts
 /// const named = hostsIn(text)[0]; named === plan.lfsServer || plan.lfsServer === undefined ? named ?? plan.lfsServer : plan.lfsServer
 /// ```
-fn upload_server_of(plan: &UploadPlan, relayed: &[u8]) -> Option<String> {
+fn upload_server_of(
+    plan: &UploadPlan,
+    relayed: &[u8],
+) -> Option<String> {
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the host search matters here.
     let shown: String = String::from_utf8_lossy(relayed).into_owned();
     let from_program: Option<String> = hosts_in(shown.as_str()).into_iter().next();
@@ -526,19 +605,34 @@ pub fn submodule_notice() -> String {
 /// ```ts
 /// const attempt = await runBoundedPush({ command: gitLfs(plan), deadlineMs }); return attempt.exitCode ? withExplanation(attempt) : undefined;
 /// ```
-pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
+pub fn run_upload_bounded(
+    git: &PushGit,
+    plan: &UploadPlan,
+) -> Result<Option<PushAttempt>, SingleFlightError> {
     let Some(commands) = upload_commands(git, plan) else {
-        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(
+            git.environment.as_slice(),
+        ))));
     };
     for (remote, command) in commands {
         // The lookup already found the program, so a start the system refused is not a missing program: its own error says why.
         let program: String = command.get_program().to_string_lossy().into_owned();
-        let attempt: PushAttempt =
-            match run_bounded_push_naming(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice(), plan.lfs_server.as_deref()) {
-                Ok(finished) => finished,
-                Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
-                Err(other) => return Err(other),
-            };
+        let attempt: PushAttempt = match run_bounded_push_naming(
+            command,
+            push_patience(git.environment.as_slice()),
+            STOP_GRACE,
+            git.environment.as_slice(),
+            plan.lfs_server.as_deref(),
+        ) {
+            Ok(finished) => finished,
+            Err(SingleFlightError::Start(error)) => {
+                return Ok(Some(start_failed_attempt(
+                    program.as_str(),
+                    error.to_string().as_str(),
+                )));
+            }
+            Err(other) => return Err(other),
+        };
         if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
@@ -561,25 +655,44 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
 /// ```ts
 /// for (const command of uploadCommands(git, plan)) { const attempt = await runBoundedPushAwaiting(command); if (attempt.exitCode) return explained(attempt); }
 /// ```
-pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
+pub async fn run_upload_bounded_awaiting(
+    git: &PushGit,
+    plan: &UploadPlan,
+) -> Result<Option<PushAttempt>, SingleFlightError> {
     // The lookup of `git-lfs` on the caller's `PATH` asks the filesystem, so it is a job of the blocking pool and never the
     //  task that other work of the round shares (`run_blocking_job_within_the_budget`).
     let looked_up: PushGit = git.clone();
     let planned: UploadPlan = plan.clone();
-    let Some(commands) = run_blocking_job_within_the_budget(move || { return upload_commands(&looked_up, &planned); })
-        .await
-        .map_err(refused_job)?
+    let Some(commands) = run_blocking_job_within_the_budget(move || {
+        return upload_commands(&looked_up, &planned);
+    })
+    .await
+    .map_err(refused_job)?
     else {
-        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(
+            git.environment.as_slice(),
+        ))));
     };
     for (remote, command) in commands {
         let program: String = command.get_program().to_string_lossy().into_owned();
-        let attempt: PushAttempt =
-            match crate::bounded_push::run_bounded_push_awaiting_naming(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice(), plan.lfs_server.as_deref()).await {
-                Ok(finished) => finished,
-                Err(SingleFlightError::Start(error)) => return Ok(Some(start_failed_attempt(program.as_str(), error.to_string().as_str()))),
-                Err(other) => return Err(other),
-            };
+        let attempt: PushAttempt = match crate::bounded_push::run_bounded_push_awaiting_naming(
+            command,
+            push_patience(git.environment.as_slice()),
+            STOP_GRACE,
+            git.environment.as_slice(),
+            plan.lfs_server.as_deref(),
+        )
+        .await
+        {
+            Ok(finished) => finished,
+            Err(SingleFlightError::Start(error)) => {
+                return Ok(Some(start_failed_attempt(
+                    program.as_str(),
+                    error.to_string().as_str(),
+                )));
+            }
+            Err(other) => return Err(other),
+        };
         if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
             return Ok(Some(failed));
         }
@@ -599,20 +712,29 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
 /// ```ts
 /// const program = findProgram(env.PATH); if (!program) return undefined; return plan.remotes.flatMap((remote) => plan.runs(remote).map((args) => [remote, command(program, args)]));
 /// ```
-fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<(OsString, Command)>> {
-    let program = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str(), git.cwd.as_path())?;
+fn upload_commands(
+    git: &PushGit,
+    plan: &UploadPlan,
+) -> Option<Vec<(OsString, Command)>> {
+    let program = find_program(
+        environment_value(git.environment.as_slice(), "PATH")
+            .unwrap_or_default()
+            .as_os_str(),
+        git.cwd.as_path(),
+    )?;
     let mut commands: Vec<(OsString, Command)> = Vec::new();
     for remote in &plan.remotes {
         for arguments in plan.runs(remote.as_os_str()) {
             let mut command: Command = Command::new(&program);
-            command
-                .current_dir(&git.cwd)
-                .env_clear();
+            command.current_dir(&git.cwd).env_clear();
             for (name, value) in &git.environment {
                 command.env(name, value);
             }
             command
-                .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
+                .env(
+                    "PATH",
+                    path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()),
+                )
                 .args(arguments.as_slice());
             // The destination travels beside its command, so a failure can name the server that asked without searching the
             //  argument list again.

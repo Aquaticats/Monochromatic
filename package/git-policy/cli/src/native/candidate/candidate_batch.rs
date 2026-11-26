@@ -23,9 +23,15 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the validated object name and its parser.
-use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 /// What:
 ///  `BufRead` is the trait (interface) of buffered byte sources:
 ///  it adds
@@ -39,7 +45,10 @@ use crate::candidate_object::{ObjectId, parse_object_id};
 /// ```ts
 /// import type { Readable } from 'node:stream';
 /// ```
-use std::io::{BufRead, Read};
+use std::io::{
+    BufRead,
+    Read,
+};
 
 /// How many bytes one bounded read of an object larger than the ceiling keeps in memory:
 ///  a buffer of its own,
@@ -155,7 +164,10 @@ pub enum BatchReply {
 /// ```ts
 /// function replyFailure(failure: CandidateFailure, detail: string): CandidateError;
 /// ```
-fn reply_failure(failure: CandidateFailure, detail: &str) -> CandidateError {
+fn reply_failure(
+    failure: CandidateFailure,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
         format!(
@@ -384,7 +396,10 @@ pub const CONTENT_CEILING: usize = 32 * 1024 * 1024;
 /// ```ts
 /// async function readContent(stream: Readable, size: number): Promise<Buffer>;
 /// ```
-fn read_content(stream: &mut dyn BufRead, size: usize) -> Result<Vec<u8>, CandidateError> {
+fn read_content(
+    stream: &mut dyn BufRead,
+    size: usize,
+) -> Result<Vec<u8>, CandidateError> {
     let mut bytes: Vec<u8> = Vec::new();
     // `&mut *stream` re-lends the source, so `stream` stays usable for the terminator below.
     if let Err(error) = (&mut *stream).take(size as u64).read_to_end(&mut bytes) {
@@ -531,7 +546,11 @@ pub fn read_batch_reply_within(
                 "ended before the declared object size",
             ));
         }
-        return Ok(BatchReply::TooLarge { object, kind, size });
+        return Ok(BatchReply::TooLarge {
+            object,
+            kind,
+            size,
+        });
     }
     let bytes: Vec<u8> = read_content(stream, size)?;
     return Ok(BatchReply::Found {

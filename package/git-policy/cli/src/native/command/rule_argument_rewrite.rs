@@ -47,7 +47,11 @@ pub enum ArgumentRewrite {
 /// ```ts
 /// const result = [...args.slice(0, at), ...inserted, ...args.slice(at)];
 /// ```
-pub fn insert_tokens(arguments: &[OsString], at: usize, inserted: &[&str]) -> Vec<OsString> {
+pub fn insert_tokens(
+    arguments: &[OsString],
+    at: usize,
+    inserted: &[&str],
+) -> Vec<OsString> {
     // `with_capacity` reserves room for the known final length.
     let mut result: Vec<OsString> =
         Vec::<OsString>::with_capacity(arguments.len() + inserted.len());

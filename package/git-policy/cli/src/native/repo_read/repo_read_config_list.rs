@@ -19,10 +19,24 @@
 //! const entries = listConfig({ commonDir, gitDir, scope, variables }); // undefined: ask Git
 //! ```
 
-use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, last_variable, read_following};
-use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_config_text};
+use crate::repo_read_config_scan::{
+    ScopeEnvironment,
+    include_target,
+    is_include_key,
+    last_variable,
+    read_following,
+};
+use crate::repo_read_config_text::{
+    ConfigEntry,
+    last_entry,
+    parse_bool,
+    parse_config_text,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many nested includes are followed;
 /// Git's own limit.
@@ -46,7 +60,13 @@ pub struct ListedEntry {
 /// Append the entries of the file at `path` and,
 /// in place,
 /// of every file it includes.
-fn add_file(path: &Path, scope: &'static str, home: Option<&Path>, depth: usize, listed: &mut Vec<ListedEntry>) -> Option<()> {
+fn add_file(
+    path: &Path,
+    scope: &'static str,
+    home: Option<&Path>,
+    depth: usize,
+    listed: &mut Vec<ListedEntry>,
+) -> Option<()> {
     if depth > INCLUDE_DEPTH_LIMIT {
         return None;
     }
@@ -62,7 +82,10 @@ fn add_file(path: &Path, scope: &'static str, home: Option<&Path>, depth: usize,
         } else {
             None
         };
-        listed.push(ListedEntry { scope, entry });
+        listed.push(ListedEntry {
+            scope,
+            entry,
+        });
         if let Some(target) = include {
             add_file(target.as_path(), scope, home, depth + 1, listed)?;
         }
@@ -105,17 +128,32 @@ pub fn canonical_key(key: &str) -> Option<String> {
         Some(text) => text.contains('\n'),
         None => false,
     };
-    if !is_plain_key_part(section) || !is_plain_key_part(name) || !name.as_bytes()[0].is_ascii_alphabetic() || middle_has_newline {
+    if !is_plain_key_part(section)
+        || !is_plain_key_part(name)
+        || !name.as_bytes()[0].is_ascii_alphabetic()
+        || middle_has_newline
+    {
         return None;
     }
     return Some(match middle {
-        Some(subsection) => format!("{}.{subsection}.{}", section.to_ascii_lowercase(), name.to_ascii_lowercase()),
-        None => format!("{}.{}", section.to_ascii_lowercase(), name.to_ascii_lowercase()),
+        Some(subsection) => format!(
+            "{}.{subsection}.{}",
+            section.to_ascii_lowercase(),
+            name.to_ascii_lowercase()
+        ),
+        None => format!(
+            "{}.{}",
+            section.to_ascii_lowercase(),
+            name.to_ascii_lowercase()
+        ),
     });
 }
 
 /// Append the `GIT_CONFIG_COUNT` entries of `variables` under the scope `command`.
-fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEntry>) -> Option<()> {
+fn add_environment(
+    variables: &[(OsString, OsString)],
+    listed: &mut Vec<ListedEntry>,
+) -> Option<()> {
     if last_variable(variables, "GIT_CONFIG_PARAMETERS").is_some() {
         return None;
     }
@@ -128,9 +166,16 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
     }
     for index in 0..count {
         let key: OsString = last_variable(variables, format!("GIT_CONFIG_KEY_{index}").as_str())?;
-        let value: OsString = last_variable(variables, format!("GIT_CONFIG_VALUE_{index}").as_str())?;
-        let entry: ConfigEntry = ConfigEntry { key: canonical_key(key.to_str()?)?, value: Some(value.as_encoded_bytes().to_vec()) };
-        listed.push(ListedEntry { scope: "command", entry });
+        let value: OsString =
+            last_variable(variables, format!("GIT_CONFIG_VALUE_{index}").as_str())?;
+        let entry: ConfigEntry = ConfigEntry {
+            key: canonical_key(key.to_str()?)?,
+            value: Some(value.as_encoded_bytes().to_vec()),
+        };
+        listed.push(ListedEntry {
+            scope: "command",
+            entry,
+        });
     }
     return Some(());
 }
@@ -150,7 +195,12 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
 /// ```ts
 /// function listConfig(commonDir: string, gitDir: string, scope: ScopeEnvironment, variables: [string, string][]): ListedEntry[] | undefined;
 /// ```
-pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, variables: &[(OsString, OsString)]) -> Option<Vec<ListedEntry>> {
+pub fn list_config(
+    common_dir: &Path,
+    git_dir: &Path,
+    scope: &ScopeEnvironment,
+    variables: &[(OsString, OsString)],
+) -> Option<Vec<ListedEntry>> {
     if scope.unresolvable {
         return None;
     }
@@ -160,7 +210,13 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
     }
     let start: usize = listed.len();
     let common_file: PathBuf = common_dir.join("config");
-    add_file(common_file.as_path(), "local", scope.home.as_deref(), 0, &mut listed)?;
+    add_file(
+        common_file.as_path(),
+        "local",
+        scope.home.as_deref(),
+        0,
+        &mut listed,
+    )?;
     let mut local: Vec<ConfigEntry> = Vec::new();
     for item in &listed[start..] {
         local.push(item.entry.clone());
@@ -169,8 +225,10 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
     // entry only an include supplies is left to Git.
     let direct_text: Vec<u8> = read_following(common_file.as_path())??;
     let direct: Vec<ConfigEntry> = parse_config_text(direct_text.as_slice())?;
-    let listed_switch: Option<&ConfigEntry> = last_entry(local.as_slice(), "extensions.worktreeconfig");
-    let direct_switch: Option<&ConfigEntry> = last_entry(direct.as_slice(), "extensions.worktreeconfig");
+    let listed_switch: Option<&ConfigEntry> =
+        last_entry(local.as_slice(), "extensions.worktreeconfig");
+    let direct_switch: Option<&ConfigEntry> =
+        last_entry(direct.as_slice(), "extensions.worktreeconfig");
     if listed_switch != direct_switch {
         return None;
     }
@@ -182,7 +240,13 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
         && parse_bool(switch.value.as_deref())?
         && versioned
     {
-        add_file(git_dir.join("config.worktree").as_path(), "worktree", scope.home.as_deref(), 0, &mut listed)?;
+        add_file(
+            git_dir.join("config.worktree").as_path(),
+            "worktree",
+            scope.home.as_deref(),
+            0,
+            &mut listed,
+        )?;
     }
     add_environment(variables, &mut listed)?;
     return Some(listed);

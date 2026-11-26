@@ -14,7 +14,18 @@
 //! const facts = healthyFacts(); facts.tree.datasets[0].autoSnapshot = 'true'; // one field moved
 //! ```
 
-use crate::health::sanoid_coverage::{ConfigRefusal, CoverageDecision, CoverageFacts, Exclusion, ExclusionMount, MeasuredDataset, MeasuredTree, ReadConfig, SpaceGuardFacts, read_sanoid_conf};
+use crate::health::sanoid_coverage::{
+    ConfigRefusal,
+    CoverageDecision,
+    CoverageFacts,
+    Exclusion,
+    ExclusionMount,
+    MeasuredDataset,
+    MeasuredTree,
+    ReadConfig,
+    SpaceGuardFacts,
+    read_sanoid_conf,
+};
 
 /// The recursive ancestor the controls use.
 pub(crate) const ROOT: &str = "tank/home";
@@ -45,18 +56,42 @@ pub(crate) const CONFIG_PATH: &str = "/fixture/etc/sanoid/sanoid.conf";
 /// with fixture names.
 pub(crate) fn test_decision() -> CoverageDecision {
     let exclusions: Vec<Exclusion> = vec![
-        Exclusion { dataset: String::from(CACHE), mount: ExclusionMount::Path },
-        Exclusion { dataset: String::from(CONTAINER), mount: ExclusionMount::Unmounted },
-        Exclusion { dataset: String::from(NPM), mount: ExclusionMount::Path },
-        Exclusion { dataset: String::from(PROBE), mount: ExclusionMount::Unmounted },
+        Exclusion {
+            dataset: String::from(CACHE),
+            mount: ExclusionMount::Path,
+        },
+        Exclusion {
+            dataset: String::from(CONTAINER),
+            mount: ExclusionMount::Unmounted,
+        },
+        Exclusion {
+            dataset: String::from(NPM),
+            mount: ExclusionMount::Path,
+        },
+        Exclusion {
+            dataset: String::from(PROBE),
+            mount: ExclusionMount::Unmounted,
+        },
     ];
-    return CoverageDecision { recursive_root: String::from(ROOT), template: String::from("home"), exclusions };
+    return CoverageDecision {
+        recursive_root: String::from(ROOT),
+        template: String::from("home"),
+        exclusions,
+    };
 }
 
 /// One dataset's measured facts,
 /// with the marker the decision writes unless a control moves it.
-pub(crate) fn a_dataset(name: &str, mountpoint: Option<&str>, marker: Option<&str>) -> MeasuredDataset {
-    return MeasuredDataset { name: String::from(name), mountpoint: mountpoint.map(String::from), auto_snapshot: marker.map(String::from) };
+pub(crate) fn a_dataset(
+    name: &str,
+    mountpoint: Option<&str>,
+    marker: Option<&str>,
+) -> MeasuredDataset {
+    return MeasuredDataset {
+        name: String::from(name),
+        mountpoint: mountpoint.map(String::from),
+        auto_snapshot: marker.map(String::from),
+    };
 }
 
 /// The measured tree of the decisions above,
@@ -76,8 +111,15 @@ pub(crate) fn healthy_tree() -> MeasuredTree {
 
 /// One dataset of a tree,
 /// so a control moves exactly that field.
-pub(crate) fn dataset_in<'a>(tree: &'a mut MeasuredTree, name: &str) -> &'a mut MeasuredDataset {
-    return tree.datasets.iter_mut().find(|dataset| return dataset.name == name).expect("the fixture holds this dataset");
+pub(crate) fn dataset_in<'a>(
+    tree: &'a mut MeasuredTree,
+    name: &str,
+) -> &'a mut MeasuredDataset {
+    return tree
+        .datasets
+        .iter_mut()
+        .find(|dataset| return dataset.name == name)
+        .expect("the fixture holds this dataset");
 }
 
 /// A configuration text from section names and their settings,
@@ -98,11 +140,15 @@ pub(crate) fn config_text(sections: &[(&str, &[(&str, &str)])]) -> String {
 /// the ancestor first and every exclusion after it.
 pub(crate) fn healthy_config_text() -> String {
     let decision: CoverageDecision = test_decision();
-    let mut sections: Vec<(&str, Vec<(&str, &str)>)> = vec![(ROOT, vec![("use_template", "home"), ("recursive", "yes")])];
+    let mut sections: Vec<(&str, Vec<(&str, &str)>)> =
+        vec![(ROOT, vec![("use_template", "home"), ("recursive", "yes")])];
     for exclusion in &decision.exclusions {
         sections.push((exclusion.dataset.as_str(), vec![("autosnap", "no")]));
     }
-    let borrowed: Vec<(&str, &[(&str, &str)])> = sections.iter().map(|(dataset, settings)| return (*dataset, settings.as_slice())).collect();
+    let borrowed: Vec<(&str, &[(&str, &str)])> = sections
+        .iter()
+        .map(|(dataset, settings)| return (*dataset, settings.as_slice()))
+        .collect();
     return config_text(borrowed.as_slice());
 }
 
@@ -112,12 +158,27 @@ pub(crate) fn healthy_facts() -> CoverageFacts {
 }
 
 /// The healthy tree with one configuration text.
-pub(crate) fn facts_of(tree: MeasuredTree, text: &str) -> CoverageFacts {
+pub(crate) fn facts_of(
+    tree: MeasuredTree,
+    text: &str,
+) -> CoverageFacts {
     let config: Result<ReadConfig, ConfigRefusal> = read_sanoid_conf(text);
-    return CoverageFacts { decision: test_decision(), tree, config_path: String::from(CONFIG_PATH), config, store_path: String::from(STORE) };
+    return CoverageFacts {
+        decision: test_decision(),
+        tree,
+        config_path: String::from(CONFIG_PATH),
+        config,
+        store_path: String::from(STORE),
+    };
 }
 
 /// What a space guard reads on the healthy machine.
 pub(crate) fn decided_guard() -> SpaceGuardFacts {
-    return SpaceGuardFacts { configured_dataset: String::from(ROOT), pruned_prefix: String::from("autosnap_"), recursive: false, decision: test_decision(), tree: healthy_tree() };
+    return SpaceGuardFacts {
+        configured_dataset: String::from(ROOT),
+        pruned_prefix: String::from("autosnap_"),
+        recursive: false,
+        decision: test_decision(),
+        tree: healthy_tree(),
+    };
 }

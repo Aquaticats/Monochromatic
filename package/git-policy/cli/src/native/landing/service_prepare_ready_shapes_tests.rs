@@ -19,7 +19,10 @@
 /// and the place it is made.
 use super::Scratch;
 use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -45,13 +48,22 @@ fn the_commit_removes_only_the_tree_no_service_took() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let mut handed: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
+    let mut handed: Scratch =
+        Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
     let tree: PathBuf = handed.0.clone();
     handed.held_by_the_service(true);
     drop(handed);
-    assert!(tree.exists(), "the command that handed it over must not remove it: {}", tree.display());
+    assert!(
+        tree.exists(),
+        "the command that handed it over must not remove it: {}",
+        tree.display()
+    );
     drop(Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree again"));
-    assert!(!tree.exists(), "a tree no service took is removed by the command: {}", tree.display());
+    assert!(
+        !tree.exists(),
+        "a tree no service took is removed by the command: {}",
+        tree.display()
+    );
     remove(root.as_path());
 }
 
@@ -62,8 +74,18 @@ fn the_scratch_tree_is_made_where_the_sweep_covers_it() {
     let root: PathBuf = fixture("ready-shapes-scratch-made");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
-    let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
-    assert_eq!(scratch.0, common.join(REPOSITORY_SCRATCH_NAME).join("monochromatic-git-policy-cli-service-0a1b2c3d"));
+    let scratch: Scratch = Scratch::make(
+        common.as_path(),
+        common.as_path(),
+        "monochromatic-git-policy-cli-service-0a1b2c3d",
+    )
+    .expect("the scratch tree");
+    assert_eq!(
+        scratch.0,
+        common
+            .join(REPOSITORY_SCRATCH_NAME)
+            .join("monochromatic-git-policy-cli-service-0a1b2c3d")
+    );
     drop(scratch);
     remove(root.as_path());
 }
@@ -76,13 +98,21 @@ fn a_second_attempt_starts_from_an_empty_tree() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let first: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
+    let first: Scratch =
+        Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree");
     std::fs::write(first.0.join("commit.index"), b"stale").expect("a file in the tree");
     std::fs::create_dir_all(first.0.join("shadow")).expect("a shadow of the earlier attempt");
     drop(first);
-    let again: Scratch = Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree again");
-    assert!(!again.0.join("commit.index").exists(), "the earlier attempt's index is gone");
-    assert!(!again.0.join("shadow").exists(), "the earlier attempt's shadow is gone");
+    let again: Scratch =
+        Scratch::make(common.as_path(), common.as_path(), name).expect("the scratch tree again");
+    assert!(
+        !again.0.join("commit.index").exists(),
+        "the earlier attempt's index is gone"
+    );
+    assert!(
+        !again.0.join("shadow").exists(),
+        "the earlier attempt's shadow is gone"
+    );
     remove(root.as_path());
 }
 
@@ -97,9 +127,11 @@ fn an_unusable_repository_scratch_directory_falls_back_to_the_git_directory() {
     // A link where the repository scratch directory goes is refused by the privacy check.
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir_all(&elsewhere).expect("elsewhere");
-    std::os::unix::fs::symlink(&elsewhere, git_dir.join(REPOSITORY_SCRATCH_NAME)).expect("a link in place of the directory");
+    std::os::unix::fs::symlink(&elsewhere, git_dir.join(REPOSITORY_SCRATCH_NAME))
+        .expect("a link in place of the directory");
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let scratch: Scratch = Scratch::make(git_dir.as_path(), git_dir.as_path(), name).expect("the scratch tree");
+    let scratch: Scratch =
+        Scratch::make(git_dir.as_path(), git_dir.as_path(), name).expect("the scratch tree");
     assert_eq!(scratch.0, git_dir.join(name));
     drop(scratch);
     remove(root.as_path());
@@ -120,16 +152,32 @@ fn a_made_tree_is_renewed_while_its_command_lives() {
     let root: PathBuf = fixture("ready-shapes-scratch-renewed");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
-    let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
+    let scratch: Scratch = Scratch::make(
+        common.as_path(),
+        common.as_path(),
+        "monochromatic-git-policy-cli-service-0a1b2c3d",
+    )
+    .expect("the scratch tree");
     let named: std::time::Instant = std::time::Instant::now();
-    while !thread_names().iter().any(|name| { return name == "scratch-renewal"; }) {
-        assert!(named.elapsed() < Duration::from_secs(15), "a made tree is renewed while the command lives: {:?}", thread_names());
+    while !thread_names().iter().any(|name| {
+        return name == "scratch-renewal";
+    }) {
+        assert!(
+            named.elapsed() < Duration::from_secs(15),
+            "a made tree is renewed while the command lives: {:?}",
+            thread_names()
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     drop(scratch);
     let began: std::time::Instant = std::time::Instant::now();
-    while thread_names().iter().any(|name| { return name == "scratch-renewal"; }) {
-        assert!(began.elapsed() < Duration::from_secs(15), "the renewal of a released tree stops");
+    while thread_names().iter().any(|name| {
+        return name == "scratch-renewal";
+    }) {
+        assert!(
+            began.elapsed() < Duration::from_secs(15),
+            "the renewal of a released tree stops"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     remove(root.as_path());

@@ -13,17 +13,29 @@
 
 /// Import the sibling modules this lookup combines.
 use crate::config_error::ConfigError;
-use crate::config_file::{LoadedConfig, ignored_legacy_notice, load_repository_config};
+use crate::config_file::{
+    LoadedConfig,
+    ignored_legacy_notice,
+    load_repository_config,
+};
 use crate::config_schema::CliGitConfig;
 use crate::diagnostics::{
-    EngineFailureCode, LEGACY_CONFIG_IGNORED_CODE, render_configuration_warning,
+    EngineFailureCode,
+    LEGACY_CONFIG_IGNORED_CODE,
+    render_configuration_warning,
     render_engine_failure,
 };
-use crate::worktree_identity::{WorktreeIdentity, worktree_root};
+use crate::worktree_identity::{
+    WorktreeIdentity,
+    worktree_root,
+};
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What:
 ///  Load the configuration for the worktree Git reported for this invocation.
@@ -53,7 +65,7 @@ pub fn load_identity_config(identity: &WorktreeIdentity) -> Result<LoadedConfig,
             source: None,
             // `Vec::new()` is the empty owned list.
             ignored_legacy: Vec::<PathBuf>::new(),
-        earlier_name_notice: None,
+            earlier_name_notice: None,
         });
     };
     let loaded: LoadedConfig = load_repository_config(root)?;

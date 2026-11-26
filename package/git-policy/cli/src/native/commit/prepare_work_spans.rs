@@ -119,8 +119,14 @@ pub const POLICY_ENTRY_WRITE: &str = "policy entry write";
 /// ```ts
 /// export const policySpanName = (registryName: string, trigger: string) => `policy ${registryName} at ${trigger}`;
 /// ```
-pub fn policy_span_name(registry_name: &str, trigger: crate::policy_trigger::Trigger) -> String {
-    return format!("policy {registry_name} at {}", crate::policy_trigger::trigger_name(trigger));
+pub fn policy_span_name(
+    registry_name: &str,
+    trigger: crate::policy_trigger::Trigger,
+) -> String {
+    return format!(
+        "policy {registry_name} at {}",
+        crate::policy_trigger::trigger_name(trigger)
+    );
 }
 
 /// What:
@@ -157,7 +163,10 @@ struct Ledger {
 }
 
 /// The steps of this process since a record last took them.
-static SPANS: Mutex<Ledger> = Mutex::new(Ledger { spans: Vec::new(), dropped: 0 });
+static SPANS: Mutex<Ledger> = Mutex::new(Ledger {
+    spans: Vec::new(),
+    dropped: 0,
+});
 
 /// What:
 ///  Keeps one step that has just ended,
@@ -171,9 +180,14 @@ static SPANS: Mutex<Ledger> = Mutex::new(Ledger { spans: Vec::new(), dropped: 0 
 /// ```ts
 /// noteSpan('index copy', 12);
 /// ```
-pub fn note_span(name: &str, took: Duration) {
+pub fn note_span(
+    name: &str,
+    took: Duration,
+) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of spans.
-    let mut ledger = SPANS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut ledger = SPANS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     for span in &mut ledger.spans {
         if span.name == name {
             span.calls += 1;
@@ -208,8 +222,13 @@ pub fn note_span(name: &str, took: Duration) {
 /// const { spans, dropped } = drainSpans();
 /// ```
 pub fn drain_spans() -> (Vec<PrepareSpan>, usize) {
-    let mut ledger = SPANS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    return (std::mem::take(&mut ledger.spans), std::mem::take(&mut ledger.dropped));
+    let mut ledger = SPANS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    return (
+        std::mem::take(&mut ledger.spans),
+        std::mem::take(&mut ledger.dropped),
+    );
 }
 
 /// What:

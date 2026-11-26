@@ -19,7 +19,12 @@
 //! const reader = zfsReader(); const children = childrenOf(reader, 'zpcachyos/…/clones');
 //! ```
 
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DeviceError, ListedObject, ZfsDevice};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DeviceError,
+    ListedObject,
+    ZfsDevice,
+};
 
 /// What:
 ///  How many children one sweep visits before it stops.
@@ -134,7 +139,10 @@ impl ReadFailure {
     /// A failure this route built itself,
     /// with no kernel answer behind it.
     pub fn at(said: String) -> Self {
-        return ReadFailure { said, errno: None };
+        return ReadFailure {
+            said,
+            errno: None,
+        };
     }
 
     /// The failure in words.
@@ -145,12 +153,18 @@ impl ReadFailure {
 
 impl From<String> for ReadFailure {
     fn from(said: String) -> Self {
-        return ReadFailure { said, errno: None };
+        return ReadFailure {
+            said,
+            errno: None,
+        };
     }
 }
 
 impl std::fmt::Display for ReadFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.said.as_str());
     }
 }
@@ -168,11 +182,18 @@ impl std::fmt::Display for ReadFailure {
 /// ```
 pub trait DatasetReader {
     /// One dataset's identity and property reply.
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure>;
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure>;
 
     /// The child of `parent` after `cursor`,
     /// or nothing at the end of the listing.
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String>;
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String>;
 }
 
 /// What:
@@ -200,18 +221,40 @@ impl ZfsDatasetReader {
     /// The device is absent or refuses the open,
     /// which is what a machine without OpenZFS answers.
     pub fn open() -> Result<Self, DeviceError> {
-        return Ok(ZfsDatasetReader { device: ZfsDevice::open()? });
+        return Ok(ZfsDatasetReader {
+            device: ZfsDevice::open()?,
+        });
     }
 }
 
 impl DatasetReader for ZfsDatasetReader {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
-        return self.device.objset_stats(dataset).map_err(|error| return ReadFailure { said: error.to_string(), errno: error.errno() });
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
+        return self.device.objset_stats(dataset).map_err(|error| {
+            return ReadFailure {
+                said: error.to_string(),
+                errno: error.errno(),
+            };
+        });
     }
 
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
-        let listed: Option<ListedObject> = self.device.dataset_list_next(parent, cursor).map_err(|error| return error.to_string())?;
-        return Ok(listed.map(|object| return ListedChild { name: object.name, cursor: object.cursor }));
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
+        let listed: Option<ListedObject> = self
+            .device
+            .dataset_list_next(parent, cursor)
+            .map_err(|error| return error.to_string())?;
+        return Ok(listed.map(|object| {
+            return ListedChild {
+                name: object.name,
+                cursor: object.cursor,
+            };
+        }));
     }
 }
 
@@ -251,10 +294,17 @@ impl ChildrenRefusal {
     /// naming the parent and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            ChildrenRefusal::Read { parent, cursor, reason } => format!(
+            ChildrenRefusal::Read {
+                parent,
+                cursor,
+                reason,
+            } => format!(
                 "the children of the clone parent `{parent}` could not be listed after cursor {cursor} ({reason}), so this sweep stopped there: the clones it already attached keep their mounts, no further clone was attached. Ways forward: check that the parent dataset is imported and mounted as the configuration names it, then run the sweep again from the handler's journal entry."
             ),
-            ChildrenRefusal::TooMany { parent, bound } => format!(
+            ChildrenRefusal::TooMany {
+                parent,
+                bound,
+            } => format!(
                 "the clone parent `{parent}` lists more than the {bound} children one sweep takes, so this sweep stopped: the clones it already attached keep their mounts and no further clone was attached. Ways forward: `zfs list -r -d 1 -H -o name {parent}` shows the children, a child that is no clone is answered by the checks rather than by this bound, and this build's bound is written in `sweep_dataset_reader.rs`."
             ),
         };
@@ -299,21 +349,43 @@ pub struct Listing {
 /// ```ts
 /// const listing = eachChild(reader, parent, (name) => turn(name));
 /// ```
-pub fn each_child(reader: &dyn DatasetReader, parent: &str, visit: &mut impl FnMut(&str)) -> Listing {
+pub fn each_child(
+    reader: &dyn DatasetReader,
+    parent: &str,
+    visit: &mut impl FnMut(&str),
+) -> Listing {
     let mut cursor: u64 = 0;
     let mut seen: usize = 0;
     loop {
         let step: Option<ListedChild> = match reader.next_child(parent, cursor) {
             Ok(step) => step,
-            Err(reason) => return Listing { seen, refusal: Some(ChildrenRefusal::Read { parent: String::from(parent), cursor, reason }) },
+            Err(reason) => {
+                return Listing {
+                    seen,
+                    refusal: Some(ChildrenRefusal::Read {
+                        parent: String::from(parent),
+                        cursor,
+                        reason,
+                    }),
+                };
+            }
         };
         // The end is asked for even at the bound, so a parent holding exactly the bound is listed whole and only one more
         // child refuses.
         let Some(child) = step else {
-            return Listing { seen, refusal: None };
+            return Listing {
+                seen,
+                refusal: None,
+            };
         };
         if seen == MAXIMUM_CHILDREN {
-            return Listing { seen, refusal: Some(ChildrenRefusal::TooMany { parent: String::from(parent), bound: MAXIMUM_CHILDREN }) };
+            return Listing {
+                seen,
+                refusal: Some(ChildrenRefusal::TooMany {
+                    parent: String::from(parent),
+                    bound: MAXIMUM_CHILDREN,
+                }),
+            };
         }
         seen += 1;
         visit(child.name.as_str());

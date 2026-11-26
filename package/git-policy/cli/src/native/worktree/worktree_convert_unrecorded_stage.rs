@@ -15,11 +15,17 @@
 //! const mine = stageIsThisConversions(journal, worktree); // recorded identity, or the empty unrecorded one
 //! ```
 
-use crate::worktree_convert_inspection::converting_path;
-use crate::worktree_convert_journal::{Journal, Phase};
-use crate::worktree_convert_phases::stage_identity_of;
 use crate::subvolume_error::MigrateError;
-use std::path::{Path, PathBuf};
+use crate::worktree_convert_inspection::converting_path;
+use crate::worktree_convert_journal::{
+    Journal,
+    Phase,
+};
+use crate::worktree_convert_phases::stage_identity_of;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether the object at the converting name is the empty stage this conversion made but never recorded,
@@ -39,7 +45,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function ownsUnrecordedStage(journal, worktree): boolean; // creating, no identity, empty directory at the stage name
 /// ```
-pub fn owns_unrecorded_stage(journal: &Journal, worktree: &Path) -> Result<bool, MigrateError> {
+pub fn owns_unrecorded_stage(
+    journal: &Journal,
+    worktree: &Path,
+) -> Result<bool, MigrateError> {
     if journal.new_identity.is_some() || journal.phase != Phase::Creating {
         return Ok(false);
     }
@@ -50,7 +59,6 @@ pub fn owns_unrecorded_stage(journal: &Journal, worktree: &Path) -> Result<bool,
         Err(_unreadable) => Ok(false),
     };
 }
-
 
 /// What:
 ///  Whether the object at the converting name is one this conversion may go on with,
@@ -63,7 +71,10 @@ pub fn owns_unrecorded_stage(journal: &Journal, worktree: &Path) -> Result<bool,
 /// ```ts
 /// function stageIsThisConversions(journal, worktree): boolean { return journal.newIdentity === stageIdentityOf(worktree) || ownsUnrecordedStage(journal, worktree); }
 /// ```
-pub fn stage_is_this_conversions(journal: &Journal, worktree: &Path) -> Result<bool, MigrateError> {
+pub fn stage_is_this_conversions(
+    journal: &Journal,
+    worktree: &Path,
+) -> Result<bool, MigrateError> {
     if journal.new_identity.is_some() && stage_identity_of(worktree)? == journal.new_identity {
         return Ok(true);
     }

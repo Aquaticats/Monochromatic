@@ -71,9 +71,15 @@ pub struct Marked {
 /// # Errors
 ///
 /// The identity error when this process's birth identity cannot be read.
-pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdentityError>) -> Result<String, ProcessIdentityError> {
+pub fn marker_text(
+    seq: u64,
+    identity: &dyn Fn() -> Result<String, ProcessIdentityError>,
+) -> Result<String, ProcessIdentityError> {
     let birth: String = identity()?;
-    return Ok(format!("{LOCK_MARKER}{MARKER_VERSION}{seq} {} {birth}\n", std::process::id()));
+    return Ok(format!(
+        "{LOCK_MARKER}{MARKER_VERSION}{seq} {} {birth}\n",
+        std::process::id()
+    ));
 }
 
 /// What:
@@ -99,19 +105,38 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
     let seq: u64 = parts.next()?.parse::<u64>().ok()?;
     let holder: Option<(i64, String)> = match (parts.next(), parts.next()) {
         (None, None) => None,
-        (Some(pid), Some(birth)) if !birth.is_empty() => Some((pid.parse::<i64>().ok()?, birth.to_string())),
+        (Some(pid), Some(birth)) if !birth.is_empty() => {
+            Some((pid.parse::<i64>().ok()?, birth.to_string()))
+        }
         _ => return None,
     };
     // A marker of this release always names its holder.
     if current && holder.is_none() {
         return None;
     }
-    return Some(Marked { seq, holder, current });
+    return Some(Marked {
+        seq,
+        holder,
+        current,
+    });
 }
 
 pub use crate::service_index_identity::{
-    BOOT_SEPARATOR, HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state, holder_is_elsewhere, holder_state_in, identity_in_view, identity_in_view_on,
-    mark_names_a_gone_holder, own_identity, pid_of_self_stat, current_pid_scope,
+    BOOT_SEPARATOR,
+    HolderState,
+    ReaderView,
+    check_procfs_view,
+    current_pid_scope,
+    holder_is_elsewhere,
+    holder_is_gone,
+    holder_is_running,
+    holder_state,
+    holder_state_in,
+    identity_in_view,
+    identity_in_view_on,
+    mark_names_a_gone_holder,
+    own_identity,
+    pid_of_self_stat,
 };
 
 /// The marker of the file at `path`,
@@ -124,7 +149,11 @@ pub use crate::service_index_identity::{
 /// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
 pub fn marker_of(path: &Path) -> Option<Marked> {
     let mut text: String = String::new();
-    crate::plain_file::open_plain_file(path).ok()?.take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
+    crate::plain_file::open_plain_file(path)
+        .ok()?
+        .take(MARKER_LIMIT)
+        .read_to_string(&mut text)
+        .ok()?;
     return parse_marker(text.as_str());
 }
 
@@ -141,6 +170,9 @@ pub fn marker_of_file(file: &std::fs::File) -> Option<Marked> {
     let mut text: String = String::new();
     // A shared reference reads from the file's own position, which a fresh descriptor has at the start.
     let mut reader: &std::fs::File = file;
-    (&mut reader).take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
+    (&mut reader)
+        .take(MARKER_LIMIT)
+        .read_to_string(&mut text)
+        .ok()?;
     return parse_marker(text.as_str());
 }

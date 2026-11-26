@@ -39,12 +39,28 @@
 //! await queueTheDeleteAgain(commonDir, leaving);           // a record no round owes any more
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+};
 use crate::process_identity::current_birth_identity;
 use crate::service_work::work_directory;
-use crate::work_item::{DONE, FAILED, PENDING, WorkItem, requeue_after_giving_up, state_directory};
-use std::path::{Path, PathBuf};
+use crate::work_item::{
+    DONE,
+    FAILED,
+    PENDING,
+    WorkItem,
+    requeue_after_giving_up,
+    state_directory,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder of the common Git directory that holds one record per subvolume a removal has renamed aside and not yet
 /// proved gone.
@@ -100,7 +116,10 @@ pub struct Leaving {
 
 /// The file one leaving is recorded in,
 /// named by the id of its item so that one leaving is one record.
-fn record_path(common_dir: &Path, id: &str) -> PathBuf {
+fn record_path(
+    common_dir: &Path,
+    id: &str,
+) -> PathBuf {
     return common_dir.join(LEAVINGS_FOLDER).join(id);
 }
 
@@ -119,7 +138,11 @@ fn record_path(common_dir: &Path, id: &str) -> PathBuf {
 /// ```ts
 /// const bytes = (item, owner, tries) => `${owner ? 'owner=' + owner + '\n' : ''}tries=${tries}\n${item.encode()}`;
 /// ```
-fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32) -> Vec<u8> {
+fn bytes_of_the_leaving(
+    item: &WorkItem,
+    owner: Option<&str>,
+    tries: u32,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     if let Some(spelled) = owner {
         bytes.extend_from_slice(format!("{OWNER_PREFIX}{spelled}\n").as_bytes());
@@ -141,13 +164,24 @@ fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32) -> Vec
 /// ```ts
 /// await replacePrivateFile(join(commonDir, LEAVINGS_FOLDER, item.id()), bytes);
 /// ```
-fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, tries: u32) -> Result<(), String> {
+fn write_the_leaving(
+    common_dir: &Path,
+    item: &WorkItem,
+    owner: Option<&str>,
+    tries: u32,
+) -> Result<(), String> {
     let folder: PathBuf = common_dir.join(LEAVINGS_FOLDER);
     if let Err(error) = create_private_directory_all(folder.as_path()) {
-        return Err(format!("the folder {} cannot be made ({error})", folder.display()));
+        return Err(format!(
+            "the folder {} cannot be made ({error})",
+            folder.display()
+        ));
     }
     let path: PathBuf = record_path(common_dir, item.id().as_str());
-    return match replace_private_file_unsynced(path.as_path(), bytes_of_the_leaving(item, owner, tries).as_slice()) {
+    return match replace_private_file_unsynced(
+        path.as_path(),
+        bytes_of_the_leaving(item, owner, tries).as_slice(),
+    ) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
     };
@@ -173,7 +207,10 @@ fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, tr
 /// # Errors
 ///
 /// The words for a command that cannot name itself and for a record that cannot be written.
-pub fn record_a_leaving(common_dir: &Path, item: &WorkItem) -> Result<Leaving, String> {
+pub fn record_a_leaving(
+    common_dir: &Path,
+    item: &WorkItem,
+) -> Result<Leaving, String> {
     let owner: String = match current_birth_identity() {
         Ok(identity) => format!("{}:{identity}", std::process::id()),
         Err(error) => {
@@ -203,9 +240,17 @@ pub fn record_a_leaving(common_dir: &Path, item: &WorkItem) -> Result<Leaving, S
 /// # Errors
 ///
 /// The words for a record that cannot be written.
-pub fn record_a_leaving_with_owner(common_dir: &Path, item: &WorkItem, owner: Option<&str>) -> Result<Leaving, String> {
+pub fn record_a_leaving_with_owner(
+    common_dir: &Path,
+    item: &WorkItem,
+    owner: Option<&str>,
+) -> Result<Leaving, String> {
     write_the_leaving(common_dir, item, owner, 0)?;
-    return Ok(Leaving { owner: owner.map(str::to_owned), tries: 0, item: item.clone() });
+    return Ok(Leaving {
+        owner: owner.map(str::to_owned),
+        tries: 0,
+        item: item.clone(),
+    });
 }
 
 /// What:
@@ -220,13 +265,23 @@ pub fn record_a_leaving_with_owner(common_dir: &Path, item: &WorkItem, owner: Op
 /// ```ts
 /// rm(join(commonDir, LEAVINGS_FOLDER, id));
 /// ```
-pub fn forget_the_leaving(common_dir: &Path, id: &str) {
+pub fn forget_the_leaving(
+    common_dir: &Path,
+    id: &str,
+) {
     let path: PathBuf = record_path(common_dir, id);
     match std::fs::remove_file(path.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => {
-            warn(TAG, format!("{} cannot be removed ({error}); a later command looks at it again", path.display()).as_str());
+            warn(
+                TAG,
+                format!(
+                    "{} cannot be removed ({error}); a later command looks at it again",
+                    path.display()
+                )
+                .as_str(),
+            );
             return;
         }
     }
@@ -248,10 +303,15 @@ pub fn forget_the_leaving(common_dir: &Path, id: &str) {
 /// ```
 pub(crate) fn leaving_records(common_dir: &Path) -> Vec<(String, PathBuf)> {
     let folder: PathBuf = common_dir.join(LEAVINGS_FOLDER);
-    let Ok(listing) = std::fs::read_dir(folder.as_path()) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(folder.as_path()) else {
+        return Vec::new();
+    };
     let mut found: Vec<(String, PathBuf)> = Vec::new();
     for entry in listing.flatten() {
-        found.push((entry.file_name().to_string_lossy().into_owned(), entry.path()));
+        found.push((
+            entry.file_name().to_string_lossy().into_owned(),
+            entry.path(),
+        ));
     }
     return found;
 }
@@ -277,9 +337,13 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
     let mut owner: Option<String> = None;
     let mut tries: u32 = 0;
     loop {
-        let Some(split_at) = rest.iter().position(is_newline) else { break };
+        let Some(split_at) = rest.iter().position(is_newline) else {
+            break;
+        };
         let (line, after): (&[u8], &[u8]) = rest.split_at(split_at);
-        let Ok(text) = std::str::from_utf8(line) else { break };
+        let Ok(text) = std::str::from_utf8(line) else {
+            break;
+        };
         if let Some(spelled) = text.strip_prefix(OWNER_PREFIX) {
             owner = Some(spelled.to_owned());
             rest = after.strip_prefix(b"\n").unwrap_or(after);
@@ -298,9 +362,17 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
     }
     let item: &str = match std::str::from_utf8(rest) {
         Ok(text) => text,
-        Err(_not_text) => return Err(String::from("the record of the delete it names is not text")),
+        Err(_not_text) => {
+            return Err(String::from(
+                "the record of the delete it names is not text",
+            ));
+        }
     };
-    return Ok(Leaving { owner, tries, item: WorkItem::decode(item)? });
+    return Ok(Leaving {
+        owner,
+        tries,
+        item: WorkItem::decode(item)?,
+    });
 }
 
 /// What:
@@ -331,7 +403,10 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
 ///
 /// The words for a folder or a record that cannot be written,
 /// which are the reason no round will look at the leaving.
-pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<(), String> {
+pub fn queue_the_delete_again(
+    common_dir: &Path,
+    leaving: &Leaving,
+) -> Result<(), String> {
     let work: PathBuf = work_directory(common_dir);
     let id: String = leaving.item.id();
     if requeue_after_giving_up(work.as_path(), id.as_str()) {
@@ -340,18 +415,34 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
     }
     let pending: PathBuf = state_directory(work.as_path(), PENDING);
     if let Err(error) = create_private_directory_all(pending.as_path()) {
-        return Err(format!("the folder {} cannot be made ({error})", pending.display()));
+        return Err(format!(
+            "the folder {} cannot be made ({error})",
+            pending.display()
+        ));
     }
-    let again: WorkItem = WorkItem { tries: 0, ..leaving.item.clone() };
-    match crate::private_storage::write_private_file_unsynced(pending.join(id.as_str()).as_path(), again.encode().as_bytes()) {
+    let again: WorkItem = WorkItem {
+        tries: 0,
+        ..leaving.item.clone()
+    };
+    match crate::private_storage::write_private_file_unsynced(
+        pending.join(id.as_str()).as_path(),
+        again.encode().as_bytes(),
+    ) {
         Ok(()) => {}
         // Another command queued the same delete between this one's look and its write, which is the work this one owes done
         // by that command.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-        Err(error) => return Err(format!("{} cannot be written ({error})", pending.join(id.as_str()).display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be written ({error})",
+                pending.join(id.as_str()).display()
+            ));
+        }
     }
-    let _settled_done = std::fs::remove_file(state_directory(work.as_path(), DONE).join(id.as_str()));
-    let _settled_failed = std::fs::remove_file(state_directory(work.as_path(), FAILED).join(id.as_str()));
+    let _settled_done =
+        std::fs::remove_file(state_directory(work.as_path(), DONE).join(id.as_str()));
+    let _settled_failed =
+        std::fs::remove_file(state_directory(work.as_path(), FAILED).join(id.as_str()));
     note_the_attempt(common_dir, leaving);
     return Ok(());
 }
@@ -369,10 +460,22 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
 /// ```ts
 /// await rewriteLeaving({ ...leaving, tries: leaving.tries + 1 });
 /// ```
-fn note_the_attempt(common_dir: &Path, leaving: &Leaving) {
+fn note_the_attempt(
+    common_dir: &Path,
+    leaving: &Leaving,
+) {
     let tries: u32 = leaving.tries.saturating_add(1);
-    if let Err(reason) = write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries) {
-        debug(TAG, format!("{reason}; the delete of {} is queued, and the count of its attempts is not", leaving.item.parent).as_str());
+    if let Err(reason) =
+        write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries)
+    {
+        debug(
+            TAG,
+            format!(
+                "{reason}; the delete of {} is queued, and the count of its attempts is not",
+                leaving.item.parent
+            )
+            .as_str(),
+        );
     }
 }
 

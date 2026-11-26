@@ -26,9 +26,13 @@ use std::time::Duration;
 /// ```ts
 /// const [value, ticks] = await withATickerBeside(future);
 /// ```
-pub(crate) fn with_a_ticker_beside<Value>(future: impl std::future::Future<Output = Value>) -> (Value, u32) {
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+pub(crate) fn with_a_ticker_beside<Value>(
+    future: impl std::future::Future<Output = Value>
+) -> (Value, u32) {
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     let ticks: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let value: Value = runtime.block_on(async {
         let ticker = async {

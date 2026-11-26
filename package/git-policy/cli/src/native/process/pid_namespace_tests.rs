@@ -14,26 +14,40 @@ fn forever_past() -> Duration {
 }
 
 /// A scratch record file whose modification time is `age` in the past.
-fn record_aged(directory: &Path, age: Duration) -> std::path::PathBuf {
+fn record_aged(
+    directory: &Path,
+    age: Duration,
+) -> std::path::PathBuf {
     let path: std::path::PathBuf = directory.join("owner.json");
     let file: File = File::create(path.as_path()).expect("create the record");
-    file.set_modified(SystemTime::now() - age).expect("age the record");
+    file.set_modified(SystemTime::now() - age)
+        .expect("age the record");
     return path;
 }
 
 /// A scratch record file whose modification time is `age` in the future,
 /// which is what a clock that was set back,
 /// a record copied with its time or another machine's clock leaves.
-fn record_from_the_future(directory: &Path, age: Duration) -> std::path::PathBuf {
+fn record_from_the_future(
+    directory: &Path,
+    age: Duration,
+) -> std::path::PathBuf {
     let path: std::path::PathBuf = directory.join("owner-future.json");
     let file: File = File::create(path.as_path()).expect("create the record");
-    file.set_modified(SystemTime::now() + age).expect("move the record's time ahead");
+    file.set_modified(SystemTime::now() + age)
+        .expect("move the record's time ahead");
     return path;
 }
 
 /// The age of a record the clock can measure.
 fn measured_age(path: &Path) -> Duration {
-    let RecordAge::Measured(age) = foreign_record_age(path) else { panic!("{} has a measurable age: {:?}", path.display(), foreign_record_age(path)) };
+    let RecordAge::Measured(age) = foreign_record_age(path) else {
+        panic!(
+            "{} has a measurable age: {:?}",
+            path.display(),
+            foreign_record_age(path)
+        )
+    };
     return age;
 }
 
@@ -52,8 +66,14 @@ fn the_current_namespace_is_named_the_way_the_kernel_names_it() {
 fn only_two_known_and_different_names_are_another_namespace() {
     assert!(is_other_namespace(Some("pid:[1]"), Some("pid:[2]")));
     assert!(!is_other_namespace(Some("pid:[1]"), Some("pid:[1]")));
-    assert!(!is_other_namespace(None, Some("pid:[2]")), "an old record names no namespace");
-    assert!(!is_other_namespace(Some("pid:[1]"), None), "a reader without a namespace cannot tell");
+    assert!(
+        !is_other_namespace(None, Some("pid:[2]")),
+        "an old record names no namespace"
+    );
+    assert!(
+        !is_other_namespace(Some("pid:[1]"), None),
+        "a reader without a namespace cannot tell"
+    );
     assert!(!is_other_namespace(None, None));
 }
 
@@ -66,8 +86,14 @@ fn a_foreign_record_expires_only_after_the_patience() {
     assert!(!age_outlives_patience(measured_age(fresh.as_path())));
     let old: std::path::PathBuf = record_aged(directory.as_path(), forever_past());
     assert!(age_outlives_patience(measured_age(old.as_path())));
-    let nearly: std::path::PathBuf = record_aged(directory.as_path(), FOREIGN_OWNER_PATIENCE - AGE_BESIDE_THE_PATIENCE);
-    assert!(!age_outlives_patience(measured_age(nearly.as_path())), "just inside the patience stays alive");
+    let nearly: std::path::PathBuf = record_aged(
+        directory.as_path(),
+        FOREIGN_OWNER_PATIENCE - AGE_BESIDE_THE_PATIENCE,
+    );
+    assert!(
+        !age_outlives_patience(measured_age(nearly.as_path())),
+        "just inside the patience stays alive"
+    );
 }
 
 /// A record whose time the clock cannot measure says so,
@@ -89,7 +115,12 @@ fn a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_g
         "a record that is not there was finished, not left unreadable"
     );
     assert_eq!(
-        foreign_record_age(directory.join("absent.json").join("under-a-file.json").as_path()),
+        foreign_record_age(
+            directory
+                .join("absent.json")
+                .join("under-a-file.json")
+                .as_path()
+        ),
         RecordAge::Gone,
         "a path under a file that is not a directory names no record either"
     );
@@ -97,9 +128,17 @@ fn a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_g
     let looping: std::path::PathBuf = directory.join("looping.json");
     std::os::unix::fs::symlink(&looping, &looping).expect("a link that names itself");
     let age: RecordAge = foreign_record_age(looping.as_path());
-    assert!(matches!(age, RecordAge::Unreadable(_)), "a record that cannot be looked at is unreadable, not gone: {age:?}");
-    let future: std::path::PathBuf = record_from_the_future(directory.as_path(), Duration::from_secs(7200));
-    assert_eq!(foreign_record_age(future.as_path()), RecordAge::Ahead, "a record from the future has no age");
+    assert!(
+        matches!(age, RecordAge::Unreadable(_)),
+        "a record that cannot be looked at is unreadable, not gone: {age:?}"
+    );
+    let future: std::path::PathBuf =
+        record_from_the_future(directory.as_path(), Duration::from_secs(7200));
+    assert_eq!(
+        foreign_record_age(future.as_path()),
+        RecordAge::Ahead,
+        "a record from the future has no age"
+    );
 }
 
 /// A record of another PID namespace that is gone is finished:
@@ -115,10 +154,16 @@ fn a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_g
 fn a_foreign_record_that_is_gone_is_finished_and_not_refused() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-finished");
     let absent: std::path::PathBuf = directory.join("owner.json");
-    assert_eq!(foreign_owner_standing(Some("pid:[1]"), absent.as_path()), Some(ForeignStanding::Finished));
+    assert_eq!(
+        foreign_owner_standing(Some("pid:[1]"), absent.as_path()),
+        Some(ForeignStanding::Finished)
+    );
     let gone: std::path::PathBuf = record_aged(directory.as_path(), Duration::from_secs(60));
     std::fs::remove_file(gone.as_path()).expect("the owner removes its record");
-    assert_eq!(foreign_owner_standing(Some("pid:[1]"), gone.as_path()), Some(ForeignStanding::Finished));
+    assert_eq!(
+        foreign_owner_standing(Some("pid:[1]"), gone.as_path()),
+        Some(ForeignStanding::Finished)
+    );
 }
 
 /// The shared rule:
@@ -130,18 +175,47 @@ fn a_foreign_owner_is_alive_until_its_record_expires() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-3");
     let fresh: std::path::PathBuf = record_aged(directory.as_path(), Duration::from_secs(60));
     let own: String = current_pid_namespace().expect("namespace");
-    assert_eq!(foreign_owner_standing(Some(own.as_str()), fresh.as_path()), None);
+    assert_eq!(
+        foreign_owner_standing(Some(own.as_str()), fresh.as_path()),
+        None
+    );
     assert_eq!(foreign_owner_standing(None, fresh.as_path()), None);
-    assert_eq!(foreign_owner_standing(Some("pid:[1]"), fresh.as_path()), Some(ForeignStanding::Standing));
+    assert_eq!(
+        foreign_owner_standing(Some("pid:[1]"), fresh.as_path()),
+        Some(ForeignStanding::Standing)
+    );
     let old: std::path::PathBuf = record_aged(directory.as_path(), forever_past());
     // Neither alive nor dead (owner, 2026-11-04, "Refuse and name it (Recommended)"): the record is refused, with what a person needs.
-    let Some(ForeignStanding::Refused(refused)) = foreign_owner_standing(Some("pid:[1]"), old.as_path()) else { panic!("an expired foreign record is refused") };
+    let Some(ForeignStanding::Refused(refused)) =
+        foreign_owner_standing(Some("pid:[1]"), old.as_path())
+    else {
+        panic!("an expired foreign record is refused")
+    };
     let text: String = refused.describe(31337);
     let age_said: String = format!("{} minutes old", forever_past().as_secs() / 60);
-    let patience_said: String = format!("{} minutes after which", FOREIGN_OWNER_PATIENCE.as_secs() / 60);
-    assert!(text.contains("31337") && text.contains("pid:[1]") && text.contains(age_said.as_str()) && text.contains(patience_said.as_str()) && text.contains("rm -- "), "{text}");
-    assert!(text.contains("another container") && text.contains("left running") && text.contains(old.to_string_lossy().as_ref()), "{text}");
-    assert!(matches!(refused.because, ForeignRefusal::PastThePatience(_)), "the refusal names the measured age: {:?}", refused.because);
+    let patience_said: String = format!(
+        "{} minutes after which",
+        FOREIGN_OWNER_PATIENCE.as_secs() / 60
+    );
+    assert!(
+        text.contains("31337")
+            && text.contains("pid:[1]")
+            && text.contains(age_said.as_str())
+            && text.contains(patience_said.as_str())
+            && text.contains("rm -- "),
+        "{text}"
+    );
+    assert!(
+        text.contains("another container")
+            && text.contains("left running")
+            && text.contains(old.to_string_lossy().as_ref()),
+        "{text}"
+    );
+    assert!(
+        matches!(refused.because, ForeignRefusal::PastThePatience(_)),
+        "the refusal names the measured age: {:?}",
+        refused.because
+    );
 }
 
 /// A record whose own time is later than this reader's clock has no age to be alive by:
@@ -155,15 +229,33 @@ fn a_foreign_owner_is_alive_until_its_record_expires() {
 #[cfg(target_os = "linux")]
 fn a_foreign_record_whose_time_is_later_than_the_clock_is_refused_and_named() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-ahead");
-    let future: std::path::PathBuf = record_from_the_future(directory.as_path(), FOREIGN_OWNER_PATIENCE * 3);
-    let Some(ForeignStanding::Refused(refused)) = foreign_owner_standing(Some("pid:[1]"), future.as_path()) else {
-        panic!("a foreign record whose time is ahead of the clock is refused, not taken for a live owner's")
+    let future: std::path::PathBuf =
+        record_from_the_future(directory.as_path(), FOREIGN_OWNER_PATIENCE * 3);
+    let Some(ForeignStanding::Refused(refused)) =
+        foreign_owner_standing(Some("pid:[1]"), future.as_path())
+    else {
+        panic!(
+            "a foreign record whose time is ahead of the clock is refused, not taken for a live owner's"
+        )
     };
     assert_eq!(refused.because, ForeignRefusal::TimeAhead);
     let text: String = refused.describe(31337);
-    assert!(text.contains("31337") && text.contains("pid:[1]") && text.contains(future.to_string_lossy().as_ref()), "{text}");
-    assert!(text.contains("later than this reader's clock") && text.contains("cannot be measured"), "{text}");
-    assert!(text.contains("another container") && text.contains("left running") && text.contains("rm -- "), "{text}");
+    assert!(
+        text.contains("31337")
+            && text.contains("pid:[1]")
+            && text.contains(future.to_string_lossy().as_ref()),
+        "{text}"
+    );
+    assert!(
+        text.contains("later than this reader's clock") && text.contains("cannot be measured"),
+        "{text}"
+    );
+    assert!(
+        text.contains("another container")
+            && text.contains("left running")
+            && text.contains("rm -- "),
+        "{text}"
+    );
 }
 
 /// A record whose time cannot be read is refused the same way,
@@ -179,12 +271,21 @@ fn a_foreign_record_whose_time_cannot_be_read_is_refused_and_a_gone_one_is_finis
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-unreadable");
     let looping: std::path::PathBuf = directory.join("looping.json");
     std::os::unix::fs::symlink(&looping, &looping).expect("a link that names itself");
-    let Some(ForeignStanding::Refused(refused)) = foreign_owner_standing(Some("pid:[1]"), looping.as_path()) else {
+    let Some(ForeignStanding::Refused(refused)) =
+        foreign_owner_standing(Some("pid:[1]"), looping.as_path())
+    else {
         panic!("a record whose time cannot be read is refused")
     };
-    assert!(matches!(refused.because, ForeignRefusal::TimeUnreadable(_)), "{:?}", refused.because);
+    assert!(
+        matches!(refused.because, ForeignRefusal::TimeUnreadable(_)),
+        "{:?}",
+        refused.because
+    );
     let text: String = refused.describe(1);
-    assert!(text.contains("its time cannot be read") && text.contains("rm -- "), "{text}");
+    assert!(
+        text.contains("its time cannot be read") && text.contains("rm -- "),
+        "{text}"
+    );
     let absent: std::path::PathBuf = directory.join("absent.json");
     assert_eq!(
         foreign_owner_standing(Some("pid:[1]"), absent.as_path()),
@@ -198,8 +299,12 @@ fn a_foreign_record_whose_time_cannot_be_read_is_refused_and_a_gone_one_is_finis
 #[test]
 fn the_patience_boundary_is_exclusive() {
     assert!(!age_outlives_patience(FOREIGN_OWNER_PATIENCE));
-    assert!(age_outlives_patience(FOREIGN_OWNER_PATIENCE + Duration::from_nanos(1)));
-    assert!(!age_outlives_patience(FOREIGN_OWNER_PATIENCE - Duration::from_nanos(1)));
+    assert!(age_outlives_patience(
+        FOREIGN_OWNER_PATIENCE + Duration::from_nanos(1)
+    ));
+    assert!(!age_outlives_patience(
+        FOREIGN_OWNER_PATIENCE - Duration::from_nanos(1)
+    ));
 }
 
 /// The patience is derived from the merge's ceiling,
@@ -211,8 +316,15 @@ fn the_patience_boundary_is_exclusive() {
 /// "Two minutes (Recommended)").
 #[test]
 fn the_patience_is_twice_the_merge_ceiling() {
-    assert_eq!(FOREIGN_OWNER_PATIENCE, 2 * crate::wait_ceilings::MERGE_LOCK_CEILING);
-    assert_eq!(FOREIGN_OWNER_PATIENCE, Duration::from_secs(2 * 60), "the owner's two minutes");
+    assert_eq!(
+        FOREIGN_OWNER_PATIENCE,
+        2 * crate::wait_ceilings::MERGE_LOCK_CEILING
+    );
+    assert_eq!(
+        FOREIGN_OWNER_PATIENCE,
+        Duration::from_secs(2 * 60),
+        "the owner's two minutes"
+    );
 }
 
 /// The patience outlasts the longest hold of a lock this repository ever measured

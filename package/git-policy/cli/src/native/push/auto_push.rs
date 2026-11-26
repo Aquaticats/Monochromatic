@@ -20,27 +20,39 @@
 
 /// The reconcile of a push that a moved remote branch rejected,
 /// and the lines it adds to the output.
-use crate::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX};
+use crate::auto_push_reconcile::{
+    RECONCILE_FAILED_PREFIX,
+    RECONCILE_LINE_PREFIX,
+};
 /// The service's Git,
 /// the failed attempt it reports and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+};
 /// The verdicts a post-commit gate kept,
 /// and where they make this push stop.
-use crate::blocked_commit_lines::{branch_name, held_back_line, undecided_line, unanswered_line};
+use crate::blocked_commit_lines::{
+    branch_name,
+    held_back_line,
+    unanswered_line,
+    undecided_line,
+};
+/// The diagnostic log of the wrapper.
+use crate::diagnostic_log::debug;
 use crate::push_held_back_by_a_blocked_commit::WhereThePushStops;
-/// The blocked verdicts of the worktree the push is for.
-use crate::work_item_holding::BlockedVerdict;
 /// The words a failed push that wrote nothing is reported with,
 /// and the making of a record's words.
 use crate::push_retry_failure::record_words;
-/// The diagnostic log of the wrapper.
-use crate::diagnostic_log::debug;
-/// `Write` is the stderr sink the terminal lines go to.
-use std::io::Write;
+/// The blocked verdicts of the worktree the push is for.
+use crate::work_item_holding::BlockedVerdict;
 /// Owned OS text for Git arguments,
 /// which the controls below build their environments from.
 #[cfg(test)]
 use std::ffi::OsString;
+/// `Write` is the stderr sink the terminal lines go to.
+use std::io::Write;
 
 /// Tag used for diagnostics from this module.
 pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
@@ -50,8 +62,7 @@ const REMOTE_LINE_PREFIX: &str = "remote: ";
 
 /// Note printed after every failed push:
 /// the commit stays local.
-pub const PUSH_FAILED_NOTE: &str =
-    "monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
+pub const PUSH_FAILED_NOTE: &str = "monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
 
 /// What Git prints when another process holds the lock of a reference the push updates.
 pub(crate) const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
@@ -131,7 +142,10 @@ pub struct AutoPushResult {
 /// ```ts
 /// function filterPushOutput({ output, exitCode }): string;
 /// ```
-pub fn filter_push_output(output: &str, exit_code: i64) -> String {
+pub fn filter_push_output(
+    output: &str,
+    exit_code: i64,
+) -> String {
     if exit_code != 0 {
         return output.to_owned();
     }
@@ -139,7 +153,10 @@ pub fn filter_push_output(output: &str, exit_code: i64) -> String {
     let refused: bool = output.contains(REFERENCE_LOCK_REFUSAL);
     for line in output.split('\n') {
         let about_the_refusal: bool = refused && line.contains(REFERENCE_LOCK_REFUSAL);
-        if line.starts_with(REMOTE_LINE_PREFIX) || line.starts_with(RECONCILE_LINE_PREFIX) || about_the_refusal {
+        if line.starts_with(REMOTE_LINE_PREFIX)
+            || line.starts_with(RECONCILE_LINE_PREFIX)
+            || about_the_refusal
+        {
             kept.push(line);
         }
     }
@@ -222,10 +239,20 @@ pub(crate) struct Refspec {
 /// ```ts
 /// const refspecOf = (pinned, branchRef, namesTheBranch) => namesTheBranch ? { source: branchRef, set_upstream: true } : { source: pinned, set_upstream: false };
 /// ```
-pub(crate) fn refspec_of(pinned: &str, branch_ref: &str, names_the_branch: bool) -> Refspec {
+pub(crate) fn refspec_of(
+    pinned: &str,
+    branch_ref: &str,
+    names_the_branch: bool,
+) -> Refspec {
     return match names_the_branch {
-        true => Refspec { source: branch_ref.to_owned(), set_upstream: true },
-        false => Refspec { source: pinned.to_owned(), set_upstream: false },
+        true => Refspec {
+            source: branch_ref.to_owned(),
+            set_upstream: true,
+        },
+        false => Refspec {
+            source: pinned.to_owned(),
+            set_upstream: false,
+        },
     };
 }
 
@@ -244,7 +271,11 @@ pub(crate) fn refspec_of(pinned: &str, branch_ref: &str, names_the_branch: bool)
 /// ```ts
 /// const argv = (source, sent) => sent.targets.length === 0 ? ['push', sent.remote] : ['push', ...(setUpstream ? ['--set-upstream'] : []), sent.remote, ...sent.targets.map((target) => `${source}:${target}`)];
 /// ```
-pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> Vec<String> {
+pub(crate) fn push_arguments(
+    source: &str,
+    sent: &Sent,
+    set_upstream: bool,
+) -> Vec<String> {
     if sent.targets.is_empty() {
         return vec![String::from("push"), sent.remote.clone()];
     }
@@ -285,13 +316,19 @@ pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> V
 /// the caller that builds the refspec decides that,
 /// and it may name the branch only while the branch still names this commit
 ///  (`refspec_of`).
-pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, sent_up_to: &str) -> Option<String> {
+pub(crate) fn source_of(
+    stop: &WhereThePushStops,
+    sent: &Sent,
+    sent_up_to: &str,
+) -> Option<String> {
     return match stop {
         WhereThePushStops::Nothing => Some(sent_up_to.to_owned()),
-        WhereThePushStops::Before(stopped) | WhereThePushStops::Undecided(stopped) => match sent.targets.is_empty() {
-            true => None,
-            false => stopped.pushable.clone(),
-        },
+        WhereThePushStops::Before(stopped) | WhereThePushStops::Undecided(stopped) => {
+            match sent.targets.is_empty() {
+                true => None,
+                false => stopped.pushable.clone(),
+            }
+        }
         WhereThePushStops::Unanswered(_) => None,
     };
 }
@@ -310,7 +347,10 @@ pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, sent_up_to: &str)
 /// ```ts
 /// const movedPastThePin = (branchRef, err) => ({ outcome: 'held-back', exitCode: 0, shown: line });
 /// ```
-pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoPushResult {
+pub(crate) fn moved_past_the_pin(
+    branch_ref: &str,
+    err: &mut dyn Write,
+) -> AutoPushResult {
     let line: String = format!(
         "{} moved after this push read it, and `push.default=matching` gives Git no refspec, so nothing was sent; the commit service tries the branch again.",
         branch_name(branch_ref)
@@ -318,7 +358,11 @@ pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoP
     debug(TAG, line.as_str());
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line };
+    return AutoPushResult {
+        outcome: AutoPushOutcome::HeldBack,
+        exit_code: 0,
+        shown: line,
+    };
 }
 
 /// What:
@@ -334,10 +378,17 @@ pub(crate) fn moved_past_the_pin(branch_ref: &str, err: &mut dyn Write) -> AutoP
 /// ```ts
 /// function skippedWith(note: string, err: Writable): Planned;
 /// ```
-pub(crate) fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
+pub(crate) fn skipped_with(
+    note: String,
+    err: &mut dyn Write,
+) -> Planned {
     // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
     let _written = writeln!(err, "{note}");
-    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note });
+    return Planned::Skip(AutoPushResult {
+        outcome: AutoPushOutcome::Skipped,
+        exit_code: 0,
+        shown: note,
+    });
 }
 
 /// What:
@@ -351,17 +402,28 @@ pub(crate) fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
 /// ```ts
 /// const heldBack = (branchRef, stop, err) => ({ outcome: 'held-back', exitCode: 0, shown: line });
 /// ```
-pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: &mut dyn Write) -> AutoPushResult {
+pub(crate) fn held_back_result(
+    branch_ref: &str,
+    stop: &WhereThePushStops,
+    err: &mut dyn Write,
+) -> AutoPushResult {
     let line: String = match stop {
         WhereThePushStops::Nothing => String::new(),
         WhereThePushStops::Before(stopped) => held_back_line(branch_ref, stopped),
         WhereThePushStops::Undecided(stopped) => undecided_line(branch_ref, stopped),
         WhereThePushStops::Unanswered(stopped) => unanswered_line(branch_ref, stopped),
     };
-    debug(TAG, format!("nothing is pushed of {branch_ref}: {line}").as_str());
+    debug(
+        TAG,
+        format!("nothing is pushed of {branch_ref}: {line}").as_str(),
+    );
     // Terminal output error: the line is the only diagnostic of a push that sent nothing.
     let _written = writeln!(err, "{line}");
-    return AutoPushResult { outcome: AutoPushOutcome::HeldBack, exit_code: 0, shown: line };
+    return AutoPushResult {
+        outcome: AutoPushOutcome::HeldBack,
+        exit_code: 0,
+        shown: line,
+    };
 }
 
 /// What:
@@ -415,7 +477,9 @@ pub fn push_once(
     // ```ts
     // const answered = runOnRuntime(pushOnceAwaiting({ git, branchRef, sentUpTo, blocked, undecided, err }))
     // ```
-    let answered = crate::lazy_runtime::run_on_runtime(push_once_awaiting(git, branch_ref, sent_up_to, blocked, undecided, err));
+    let answered = crate::lazy_runtime::run_on_runtime(push_once_awaiting(
+        git, branch_ref, sent_up_to, blocked, undecided, err,
+    ));
     // What:     `match` splits the two shapes that answer has: the push's own answer, or the runtime's refusal.
     // Why:      The two are different error types, and a refusal is the failure the callers already report.
     //
@@ -439,7 +503,9 @@ pub fn push_once(
         // ```ts
         // return { kind: 'error', why: new Error(String(refusal)) };
         // ```
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -461,7 +527,11 @@ pub fn push_once(
 /// ```ts
 /// const ref = (upstream, sent, branchRef) => [sent.remote + '/' + short, 'refs/remotes/' + sent.remote + '/' + short].includes(upstream) && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
 /// ```
-pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, branch_ref: &str) -> Option<&'a str> {
+pub(crate) fn pushed_tracking_ref<'a>(
+    upstream: Option<&'a str>,
+    sent: &Sent,
+    branch_ref: &str,
+) -> Option<&'a str> {
     let of: &'a str = upstream?;
     let target: &String = sent.targets.first()?;
     if sent.targets.len() != 1 || target.as_str() != branch_ref {
@@ -494,7 +564,14 @@ pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, br
 /// ```ts
 /// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, note: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub(crate) fn reported(
+    attempt: PushAttempt,
+    delivered: bool,
+    stop: &WhereThePushStops,
+    branch_ref: &str,
+    note: &str,
+    err: &mut dyn Write,
+) -> Result<AutoPushResult, SingleFlightError> {
     let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,

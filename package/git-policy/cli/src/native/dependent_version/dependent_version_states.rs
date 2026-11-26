@@ -32,13 +32,24 @@
 /// import { readManifestFacts, strictText } from './dependent_version_manifest.ts';
 /// ```
 use crate::dependent_version_content::{
-    PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
+    PlanError,
+    PolicyIncomplete,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 /// Strict decoding and fact extraction of one manifest.
-use crate::dependent_version_manifest::{ManifestFacts, read_manifest_facts, strict_text};
+use crate::dependent_version_manifest::{
+    ManifestFacts,
+    read_manifest_facts,
+    strict_text,
+};
 /// Which tracked paths are manifests,
 /// and their package directories.
-use crate::dependent_version_paths::{is_workspace_manifest_path, package_directory};
+use crate::dependent_version_paths::{
+    is_workspace_manifest_path,
+    package_directory,
+};
 /// The name-to-first-owner table the duplicate check reads.
 use std::collections::HashMap;
 

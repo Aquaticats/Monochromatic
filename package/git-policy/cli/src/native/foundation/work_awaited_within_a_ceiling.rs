@@ -29,8 +29,15 @@
 use std::io::Write;
 // The refusal is a control's stand-in and is no part of the release executable.
 #[cfg(test)]
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+    channel,
+};
 use std::time::Duration;
 
 /// The thread name the jobs of this module carry in a process listing,
@@ -80,7 +87,10 @@ pub enum TheAnswerOfAThreadOfWork<T> {
 /// ```ts
 /// const answered = workWithinReporting(ceiling, () => listDirectory(directory));
 /// ```
-pub fn work_within_reporting<Work, Value>(ceiling: Duration, work: Work) -> TheAnswerOfAThreadOfWork<Value>
+pub fn work_within_reporting<Work, Value>(
+    ceiling: Duration,
+    work: Work,
+) -> TheAnswerOfAThreadOfWork<Value>
 where
     Work: FnOnce() -> Value + Send + 'static,
     Value: Send + 'static,
@@ -91,19 +101,27 @@ where
         return TheAnswerOfAThreadOfWork::NoThreadToStart;
     }
     let (sender, receiver): (std::sync::mpsc::Sender<Value>, Receiver<Value>) = channel::<Value>();
-    let started = std::thread::Builder::new().name(String::from(WORK_THREAD_NAME)).spawn(move || {
-        let value: Value = work();
-        // A caller that stopped waiting is gone with its receiver, and the value goes with the send.
-        let _sent = sender.send(value);
-    });
+    let started = std::thread::Builder::new()
+        .name(String::from(WORK_THREAD_NAME))
+        .spawn(move || {
+            let value: Value = work();
+            // A caller that stopped waiting is gone with its receiver, and the value goes with the send.
+            let _sent = sender.send(value);
+        });
     if started.is_err() {
-        crate::diagnostic_log::debug("workWithin", "the system refused a thread for the job, so it did not run");
+        crate::diagnostic_log::debug(
+            "workWithin",
+            "the system refused a thread for the job, so it did not run",
+        );
         return TheAnswerOfAThreadOfWork::NoThreadToStart;
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(value) => TheAnswerOfAThreadOfWork::Ran(value),
         Err(RecvTimeoutError::Timeout) => {
-            crate::diagnostic_log::debug("workWithin", format!("the job gave no answer within {ceiling:?} and is left behind").as_str());
+            crate::diagnostic_log::debug(
+                "workWithin",
+                format!("the job gave no answer within {ceiling:?} and is left behind").as_str(),
+            );
             TheAnswerOfAThreadOfWork::NoAnswer
         }
         // The job ended without sending: it panicked, and what it did before that is not known here.
@@ -127,7 +145,10 @@ where
 /// ```ts
 /// const value = workWithin(ceiling, () => listDirectory(directory));
 /// ```
-pub fn work_within<Work, Value>(ceiling: Duration, work: Work) -> Option<Value>
+pub fn work_within<Work, Value>(
+    ceiling: Duration,
+    work: Work,
+) -> Option<Value>
 where
     Work: FnOnce() -> Value + Send + 'static,
     Value: Send + 'static,
@@ -198,7 +219,11 @@ impl Drop for ThreadsRefusedForTheControl {
 /// ```ts
 /// const written = writeWithin(WARNING_WRITE_CEILING, standardErrorDescriptor(), line);
 /// ```
-pub fn write_within<Stream: Write + Send + 'static>(ceiling: Duration, stream: Stream, text: String) -> Option<std::io::Result<()>> {
+pub fn write_within<Stream: Write + Send + 'static>(
+    ceiling: Duration,
+    stream: Stream,
+    text: String,
+) -> Option<std::io::Result<()>> {
     return work_within(ceiling, move || {
         let mut target = stream;
         // The stream is flushed only after the line was written, as the callers of this helper always did.

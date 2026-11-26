@@ -20,11 +20,28 @@
 //! ```
 #![cfg(unix)]
 
-use crate::bounded_push::{Patience, StopCause};
-use crate::push_progress::{Clock, Meter, SAMPLE_INTERVAL};
-use std::net::{TcpListener, TcpStream};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use crate::bounded_push::{
+    Patience,
+    StopCause,
+};
+use crate::push_progress::{
+    Clock,
+    Meter,
+    SAMPLE_INTERVAL,
+};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The name the controls give the probe test in order to run it as a process of its own.
 const PROBE_NAME: &str = "push::push_wait_tests::tcp_probe";
@@ -104,7 +121,9 @@ fn die_with_the_parent() {
 /// and then holds or trickles.
 #[test]
 fn tcp_probe() {
-    let Some(port) = std::env::var(PORT_VARIABLE).ok().and_then(|text| { return text.parse::<u16>().ok(); }) else {
+    let Some(port) = std::env::var(PORT_VARIABLE).ok().and_then(|text| {
+        return text.parse::<u16>().ok();
+    }) else {
         return;
     };
     die_with_the_parent();
@@ -114,7 +133,8 @@ fn tcp_probe() {
         std::thread::sleep(HOLD);
         return;
     }
-    let mut stream: TcpStream = TcpStream::connect(("127.0.0.1", port)).expect("the control's listener");
+    let mut stream: TcpStream =
+        TcpStream::connect(("127.0.0.1", port)).expect("the control's listener");
     let mut started: Vec<Child> = Vec::new();
     if let Ok(subcommand) = std::env::var(CHILD_VARIABLE) {
         started.push(spawn_named_child(subcommand.as_str()));
@@ -135,7 +155,10 @@ fn tcp_probe() {
 /// asked to only exist.
 fn spawn_named_child(subcommand: &str) -> Child {
     // The name and the subcommand are what make the process read as `git <subcommand>` in a process listing.
-    let environment: [(&str, &std::ffi::OsStr); 2] = [(PORT_VARIABLE, std::ffi::OsStr::new("0")), (MODE_VARIABLE, std::ffi::OsStr::new("idle"))];
+    let environment: [(&str, &std::ffi::OsStr); 2] = [
+        (PORT_VARIABLE, std::ffi::OsStr::new("0")),
+        (MODE_VARIABLE, std::ffi::OsStr::new("idle")),
+    ];
     let arguments: [&str; 1] = [subcommand];
     return crate::child_test_process::started(crate::child_test_process::ChildTest {
         exact_test: PROBE_NAME,
@@ -151,27 +174,37 @@ fn spawn_named_child(subcommand: &str) -> Child {
 /// Start the probe against a listener's port,
 /// in a mode,
 /// with a child under a Git subcommand's name or none.
-fn start_probe(port: u16, mode: &str, child: Option<&str>) -> Owned {
+fn start_probe(
+    port: u16,
+    mode: &str,
+    child: Option<&str>,
+) -> Owned {
     let port_text: String = port.to_string();
-    let mut environment: Vec<(&str, &std::ffi::OsStr)> =
-        vec![(PORT_VARIABLE, std::ffi::OsStr::new(port_text.as_str())), (MODE_VARIABLE, std::ffi::OsStr::new(mode))];
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> = vec![
+        (PORT_VARIABLE, std::ffi::OsStr::new(port_text.as_str())),
+        (MODE_VARIABLE, std::ffi::OsStr::new(mode)),
+    ];
     if let Some(subcommand) = child {
         environment.push((CHILD_VARIABLE, std::ffi::OsStr::new(subcommand)));
     }
     // The probe connects and holds; nothing it prints is read, so its streams answer nothing.
-    return Owned(crate::child_test_process::started(crate::child_test_process::ChildTest {
-        exact_test: PROBE_NAME,
-        environment: environment.as_slice(),
-        standard_output: Stdio::null(),
-        standard_error: Stdio::null(),
-        ..crate::child_test_process::ChildTest::default()
-    }));
+    return Owned(crate::child_test_process::started(
+        crate::child_test_process::ChildTest {
+            exact_test: PROBE_NAME,
+            environment: environment.as_slice(),
+            standard_output: Stdio::null(),
+            standard_error: Stdio::null(),
+            ..crate::child_test_process::ChildTest::default()
+        },
+    ));
 }
 
 /// The connection the probe made,
 /// taken from the listener.
 fn accepted(listener: &TcpListener) -> TcpStream {
-    listener.set_nonblocking(true).expect("a non-blocking listener");
+    listener
+        .set_nonblocking(true)
+        .expect("a non-blocking listener");
     let began: Instant = Instant::now();
     loop {
         if let Ok((stream, _)) = listener.accept() {
@@ -191,11 +224,19 @@ fn listening() -> (TcpListener, u16) {
 
 /// A push clock with the window of the controls.
 fn push_clock(pid: u32) -> Clock {
-    return Clock::start(pid, Patience::Progress { stall: STALL_WINDOW });
+    return Clock::start(
+        pid,
+        Patience::Progress {
+            stall: STALL_WINDOW,
+        },
+    );
 }
 
 /// Ask the clock until it stops the process or `span` passes.
-fn drive(clock: &mut Clock, span: Duration) -> Option<StopCause> {
+fn drive(
+    clock: &mut Clock,
+    span: Duration,
+) -> Option<StopCause> {
     let began: Instant = Instant::now();
     while began.elapsed() < span {
         if let Some(cause) = clock.check() {
@@ -208,8 +249,13 @@ fn drive(clock: &mut Clock, span: Duration) -> Option<StopCause> {
 
 /// A tree that is stopped only by the stall window stops at it,
 /// with the window in the report.
-fn assert_stalled_at_the_window(cause: Option<StopCause>, began: Instant) {
-    let Some(StopCause::Stalled(report)) = cause else { panic!("a stall, not another limit or none") };
+fn assert_stalled_at_the_window(
+    cause: Option<StopCause>,
+    began: Instant,
+) {
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a stall, not another limit or none")
+    };
     assert_eq!(report.limit, STALL_WINDOW);
     assert!(began.elapsed() >= STALL_WINDOW, "{:?}", began.elapsed());
 }
@@ -228,7 +274,10 @@ fn the_bytes_of_a_socket_are_progress_when_nothing_else_moves() {
     let pid: i32 = i32::try_from(probe.pid()).expect("pid");
     let began: Instant = Instant::now();
     while meter.socket_bytes() == 0 {
-        assert!(began.elapsed() < PATIENCE, "the bytes the probe sent on its socket never counted");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the bytes the probe sent on its socket never counted"
+        );
         std::thread::sleep(SAMPLE_INTERVAL);
         let _progress: bool = meter.sample(pid);
     }
@@ -248,7 +297,9 @@ fn a_push_that_sent_its_pack_and_holds_its_connection_is_waiting_not_stalled() {
     let mut clock: Clock = push_clock(probe.pid());
     let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
     assert!(stopped.is_none(), "the connection is open: the push waits");
-    let waited = clock.wait_report().expect("the wait is reported once the window has run out");
+    let waited = clock
+        .wait_report()
+        .expect("the wait is reported once the window has run out");
     assert!(waited.silent >= STALL_WINDOW, "{waited:?}");
 }
 
@@ -261,12 +312,21 @@ fn a_wait_ends_when_the_connection_closes_and_the_stall_window_runs_again() {
     let probe: Owned = start_probe(port, "connected", Some("send-pack"));
     let held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
-    assert!(drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED).is_none(), "waiting while the connection is open");
+    assert!(
+        drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED).is_none(),
+        "waiting while the connection is open"
+    );
     let closed: Instant = Instant::now();
     drop(held);
     let cause: Option<StopCause> = drive(&mut clock, PATIENCE);
-    let Some(StopCause::Stalled(_)) = cause else { panic!("a stall once the connection is closed") };
-    assert!(closed.elapsed() + SAMPLE_INTERVAL >= STALL_WINDOW, "a full window after the close, not before: {:?}", closed.elapsed());
+    let Some(StopCause::Stalled(_)) = cause else {
+        panic!("a stall once the connection is closed")
+    };
+    assert!(
+        closed.elapsed() + SAMPLE_INTERVAL >= STALL_WINDOW,
+        "a full window after the close, not before: {:?}",
+        closed.elapsed()
+    );
 }
 
 /// A connection that has not yet seen a pack sent (no `send-pack`,
@@ -281,7 +341,10 @@ fn a_connected_push_is_waited_for_before_any_pack_was_sent() {
     let _held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
     let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
-    assert!(stopped.is_none(), "the connection is open: the push waits for the remote");
+    assert!(
+        stopped.is_none(),
+        "the connection is open: the push waits for the remote"
+    );
 }
 
 /// A pack still being made (a `pack-objects` below the push) with the connection open is waited for as well:
@@ -307,7 +370,10 @@ fn a_connected_push_is_not_stopped_for_time_however_long_it_waits() {
     let _held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
     let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED * 2);
-    assert!(stopped.is_none(), "an open connection is waited for however long it takes");
+    assert!(
+        stopped.is_none(),
+        "an open connection is waited for however long it takes"
+    );
 }
 
 /// A tree with no connection at all (a push to a local path,
@@ -315,7 +381,10 @@ fn a_connected_push_is_not_stopped_for_time_however_long_it_waits() {
 /// as before.
 #[test]
 fn a_tree_with_no_connection_is_a_stall() {
-    let owned: Owned = Owned(crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep"));
+    let owned: Owned = Owned(
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("sleep"),
+    );
     let mut clock: Clock = push_clock(owned.pid());
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = drive(&mut clock, PATIENCE);

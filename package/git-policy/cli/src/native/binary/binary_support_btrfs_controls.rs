@@ -19,7 +19,10 @@
 //! ```
 
 use super::support::Fixture;
-use git_policy_cli::fs_kind::{FilesystemKind, filesystem_kind};
+use git_policy_cli::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 
 /// The environment variable that acknowledges "this run has no btrfs fixture root".
 /// The container gate image sets it;
@@ -40,18 +43,26 @@ pub const ABSENT_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGE
 /// ```ts
 /// function onBtrfsOrAcknowledged(fixture: Fixture, control: string): boolean;
 /// ```
-pub fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
+pub fn on_btrfs_or_acknowledged(
+    fixture: &Fixture,
+    control: &str,
+) -> bool {
     let kind: Result<FilesystemKind, _> = filesystem_kind(fixture.root.as_path());
     if kind == Ok(FilesystemKind::Btrfs) {
         return true;
     }
-    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+        return !value.is_empty();
+    });
     assert!(
         acknowledged,
         "the control {control} needs a btrfs fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on \
          btrfs, or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
         fixture.root.display()
     );
-    eprintln!("BTRFS CONTROL NOT RUN: {control} (fixture root {} is on {kind:?}; the host task native:test:host:btrfs covers it)", fixture.root.display());
+    eprintln!(
+        "BTRFS CONTROL NOT RUN: {control} (fixture root {} is on {kind:?}; the host task native:test:host:btrfs covers it)",
+        fixture.root.display()
+    );
     return false;
 }

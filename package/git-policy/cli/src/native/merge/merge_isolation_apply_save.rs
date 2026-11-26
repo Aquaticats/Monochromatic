@@ -33,33 +33,57 @@
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
 /// The failure rendering for a state that cannot be read.
-use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
+use crate::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure_with_hint,
+};
 /// The words a saved merge prints,
 /// and the lines for a save that could not be made or recorded,
 /// built from the bytes the settle left where they are,
 /// and the lines for a merge the branch moved under before it could be saved.
 use crate::merge_isolation_apply_findings::{
-    BytesAfterAFailedMerge, WhyTheMergeIsSaved, a_deferred_save_finding, a_merge_that_could_not_be_kept,
-    a_merge_the_branch_moved_before_its_save, a_merge_the_branch_moved_before_its_save_behind_the_lock,
+    BytesAfterAFailedMerge,
+    WhyTheMergeIsSaved,
+    a_deferred_save_finding,
+    a_merge_that_could_not_be_kept,
+    a_merge_the_branch_moved_before_its_save,
+    a_merge_the_branch_moved_before_its_save_behind_the_lock,
     a_merge_whose_save_could_not_be_recorded,
 };
-/// The intent record,
-/// written once per saved merge,
-/// and the settling of this command's own record before a refusal.
-use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
-use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
-/// The command's own ending.
-use crate::merge_isolation_run_types::{BRANCH_MOVED_EXIT_CODE, Bail, IsolatedMerge, Plan, TAG, refused};
 /// Real Git,
 /// which keeps the commit on the side ref.
 use crate::merge_isolation_git_reads::Session;
-/// One Git command's output.
-use crate::transaction_git::GitOutput;
+/// The intent record,
+/// written once per saved merge,
+/// and the settling of this command's own record before a refusal.
+use crate::merge_isolation_journal::{
+    MergeIntent,
+    write_merge_intent,
+};
+use crate::merge_isolation_recovery::{
+    MergeRecoveryAction,
+    RecoveryPlace,
+    settle_failed_merge,
+};
+/// The command's own ending.
+use crate::merge_isolation_run_types::{
+    BRANCH_MOVED_EXIT_CODE,
+    Bail,
+    IsolatedMerge,
+    Plan,
+    TAG,
+    refused,
+};
 /// A transaction identifier of the record that names the save.
 use crate::random_id::random_uuid;
+/// One Git command's output.
+use crate::transaction_git::GitOutput;
 /// `Path` is a borrowed filesystem path,
 /// and `PathBuf` an owned one.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The clock a side ref's number starts from.
 use std::time::SystemTime;
 
@@ -95,12 +119,26 @@ const SIDE_REF_ATTEMPTS: u128 = 8;
 /// ```ts
 /// keepOnASideRef(session, mergeOid): string | undefined; // update-ref --no-deref refs/cli-git/kept/<ms+n> <oid> 0000...
 /// ```
-fn keep_on_a_side_ref(session: &Session, merge_oid: &str) -> Option<String> {
+fn keep_on_a_side_ref(
+    session: &Session,
+    merge_oid: &str,
+) -> Option<String> {
     let zeros: String = "0".repeat(merge_oid.len());
-    let first: u128 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).ok()?.as_millis();
+    let first: u128 = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
     for step in 0..SIDE_REF_ATTEMPTS {
         let name: String = format!("refs/cli-git/kept/{}", first + step);
-        let made: GitOutput = session.run(&["update-ref", "--no-deref", name.as_str(), merge_oid, zeros.as_str()]).ok()?;
+        let made: GitOutput = session
+            .run(&[
+                "update-ref",
+                "--no-deref",
+                name.as_str(),
+                merge_oid,
+                zeros.as_str(),
+            ])
+            .ok()?;
         if made.succeeded() {
             return Some(name);
         }
@@ -174,7 +212,10 @@ fn branch_word(intent: &MergeIntent) -> String {
 /// ```ts
 /// const moved = git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim() !== intent.oldOid;
 /// ```
-fn the_branch_moved(session: &Session, intent: &MergeIntent) -> bool {
+fn the_branch_moved(
+    session: &Session,
+    intent: &MergeIntent,
+) -> bool {
     let spec: String = match intent.target_ref.as_deref() {
         Some(reference) => format!("{reference}^{{commit}}"),
         None => String::from("HEAD^{commit}"),
@@ -216,22 +257,42 @@ fn refuse_the_moved_branch(
     let branch: String = branch_word(intent);
     return match settle_failed_merge(&place, record, intent, &mut std::io::stderr()) {
         // Nothing of the merge was installed, so the record and the capture are gone and the person's bytes are where they were.
-        Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Err(refused(
+        Ok(
+            MergeRecoveryAction::Discarded
+            | MergeRecoveryAction::BranchMoved
+            | MergeRecoveryAction::SavedBranchMoved,
+        ) => Err(refused(
             BRANCH_MOVED_EXIT_CODE,
             a_merge_the_branch_moved_before_its_save(reference, branch.as_str()),
         )),
         // Another command landed this very merge in the instant this one read the branch, so there is nothing to report but that.
-        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => Ok(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!("monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"),
-        }),
+        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => {
+            Ok(IsolatedMerge::Finished {
+                code: 0,
+                stdout: String::new(),
+                stderr: format!(
+                    "monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"
+                ),
+            })
+        }
         // The lock that stopped the merge stopped the settle too, so the record stays and a later command puts the bytes back.
         Ok(_) => Err(refused(
             BRANCH_MOVED_EXIT_CODE,
-            a_merge_the_branch_moved_before_its_save_behind_the_lock(reference, branch.as_str(), bytes),
+            a_merge_the_branch_moved_before_its_save_behind_the_lock(
+                reference,
+                branch.as_str(),
+                bytes,
+            ),
         )),
-        Err(error) => Err(refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None))),
+        Err(error) => Err(refused(
+            2,
+            render_engine_failure_with_hint(
+                0,
+                EngineFailureCode::ContentUnavailable,
+                error.error.0.as_str(),
+                None,
+            ),
+        )),
     };
 }
 
@@ -251,7 +312,10 @@ pub(crate) fn save_for_a_later_finish(
     if let Some(capture) = plan.carried.as_ref() {
         kept = capture.reference.as_deref();
     }
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared, kept_on: kept };
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared,
+        kept_on: kept,
+    };
     // The branch is read before anything of the save is written: a merge built on a head the branch no longer names can never be
     //  finished by a later command, so saving it would report a merge that never lands (issue 6473).
     if the_branch_moved(session, intent) {
@@ -264,7 +328,14 @@ pub(crate) fn save_for_a_later_finish(
         // A save that cannot be named is not made: the record this command wrote still puts the person's bytes back, and the
         //  merge is theirs to run again.
         Err(error) => {
-            debug(TAG, format!("the merge could not be given an identifier for a later finish: {}", error.0).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the merge could not be given an identifier for a later finish: {}",
+                    error.0
+                )
+                .as_str(),
+            );
             return Ok(the_merge_is_not_saved(reference, lock.as_path(), &bytes));
         }
     };
@@ -273,15 +344,35 @@ pub(crate) fn save_for_a_later_finish(
     };
     later.side_ref = Some(side_ref.clone());
     if let Err(error) = write_merge_intent(plan.git_dir, &later) {
-        debug(TAG, format!("the save of the merge could not be recorded: {error}").as_str());
+        debug(
+            TAG,
+            format!("the save of the merge could not be recorded: {error}").as_str(),
+        );
         return Ok(IsolatedMerge::Finished {
             code: 0,
             stdout: String::new(),
-            stderr: a_merge_whose_save_could_not_be_recorded(reference, lock.as_path(), side_ref.as_str(), plan.new_oid, &bytes),
+            stderr: a_merge_whose_save_could_not_be_recorded(
+                reference,
+                lock.as_path(),
+                side_ref.as_str(),
+                plan.new_oid,
+                &bytes,
+            ),
         });
     }
-    debug(TAG, format!("the merge is saved on {side_ref} beside its first record {}", record.display()).as_str());
-    return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), &why, &bytes) });
+    debug(
+        TAG,
+        format!(
+            "the merge is saved on {side_ref} beside its first record {}",
+            record.display()
+        )
+        .as_str(),
+    );
+    return Ok(IsolatedMerge::Finished {
+        code: 0,
+        stdout: String::new(),
+        stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), &why, &bytes),
+    });
 }
 
 /// What:
@@ -296,6 +387,14 @@ pub(crate) fn save_for_a_later_finish(
 /// ```ts
 /// const notSaved = (reference, lock, bytes) => finished(0, aMergeThatCouldNotBeKept(reference, lock, bytes));
 /// ```
-fn the_merge_is_not_saved(reference: &str, lock: &Path, bytes: &BytesAfterAFailedMerge<'_>) -> IsolatedMerge {
-    return IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_merge_that_could_not_be_kept(reference, lock, bytes) };
+fn the_merge_is_not_saved(
+    reference: &str,
+    lock: &Path,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> IsolatedMerge {
+    return IsolatedMerge::Finished {
+        code: 0,
+        stdout: String::new(),
+        stderr: a_merge_that_could_not_be_kept(reference, lock, bytes),
+    };
 }

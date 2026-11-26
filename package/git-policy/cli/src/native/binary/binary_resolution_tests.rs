@@ -18,15 +18,36 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{
-    Fixture, Observed, REAL_GIT, TIME_BOUND_SECONDS, TIMED_OUT_SIGNAL, bounded, bounded_for, copy_executable, direct,
-    executable, fixture, link_real_git, observe, remove,
+    Fixture,
+    Observed,
+    REAL_GIT,
+    TIME_BOUND_SECONDS,
+    TIMED_OUT_SIGNAL,
+    bounded,
+    bounded_for,
+    copy_executable,
+    direct,
+    executable,
+    fixture,
+    link_real_git,
+    observe,
+    remove,
 };
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Join fixture-relative directories (and absolute ones) into one PATH value.
-fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
+fn path_of(
+    fixture: &Fixture,
+    entries: &[&str],
+) -> OsString {
     let mut path: OsString = OsString::new();
     for entry in entries {
         if !path.is_empty() {
@@ -45,7 +66,11 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
 ///  which is the first line the wrapper passes on.
 ///  The query runs under `bound` seconds, so a Git that never answers ends this control
 ///  with a verdict that names the query and the bound.
-fn git_version_line(fixture: &Fixture, program: &Path, bound: &str) -> String {
+fn git_version_line(
+    fixture: &Fixture,
+    program: &Path,
+    bound: &str,
+) -> String {
     let observed: Observed = observe(
         bounded_for(fixture, program, OsStr::new("/usr/bin:/bin"), bound).arg("--version"),
         b"",
@@ -61,14 +86,21 @@ fn git_version_line(fixture: &Fixture, program: &Path, bound: &str) -> String {
 }
 
 /// Assert that standard output is the Git under test's own version line followed by exactly one banner line.
-fn assert_banner_follows_git_line(fixture: &Fixture, stdout: &[u8]) {
+fn assert_banner_follows_git_line(
+    fixture: &Fixture,
+    stdout: &[u8],
+) {
     let text: String = String::from_utf8_lossy(stdout).into_owned();
     let version: String = git_version_line(fixture, Path::new(REAL_GIT), TIME_BOUND_SECONDS);
     let banner: &str = text
         .strip_prefix(version.as_str())
         .expect("Git's version line comes first");
     assert!(
-        banner.starts_with(concat!("monochromatic-git-policy-cli ", env!("CARGO_PKG_VERSION"), ", shadowing git at /")),
+        banner.starts_with(concat!(
+            "monochromatic-git-policy-cli ",
+            env!("CARGO_PKG_VERSION"),
+            ", shadowing git at /"
+        )),
         "{text}"
     );
     assert_eq!(banner.matches('\n').count(), 1, "{text}");
@@ -258,7 +290,17 @@ fn only_wrappers_on_path_is_a_reported_failure() {
         "{text}"
     );
     for form in ["bin", "hard", "copy-early", "chain"] {
-        assert!(text.contains(fixture.root.join(form).join("git").to_string_lossy().as_ref()), "{form}: {text}");
+        assert!(
+            text.contains(
+                fixture
+                    .root
+                    .join(form)
+                    .join("git")
+                    .to_string_lossy()
+                    .as_ref()
+            ),
+            "{form}: {text}"
+        );
     }
     assert!(text.contains("To fix it, install Git"), "{text}");
     remove(&fixture);
@@ -329,7 +371,10 @@ fn different_wrapper_build_stops_instead_of_looping() {
     assert_eq!(observed.code, Some(2), "{text}");
     assert!(observed.stdout.is_empty());
     assert!(text.contains(other.to_string_lossy().as_ref()), "{text}");
-    assert!(text.contains("was started as Git by a monochromatic-git-policy-cli wrapper"), "{text}");
+    assert!(
+        text.contains("was started as Git by a monochromatic-git-policy-cli wrapper"),
+        "{text}"
+    );
     assert!(text.contains("never runs itself as Git"), "{text}");
     // Known limitation: real Git later on PATH does not rescue the command, because the
     // other build is the first candidate that is not provably this wrapper.

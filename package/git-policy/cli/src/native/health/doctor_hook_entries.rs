@@ -15,18 +15,21 @@
 //! // doctor_hook_entries.ts: one hooks directory, listed and rendered.
 //! ```
 
-/// A missing directory is not a failure;
-/// one that cannot be read is.
-use std::io::ErrorKind;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// The ceiling of each file system read of the report.
-use std::time::Duration;
 /// The ceiling a scan of the report runs under.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
 /// The job of such a read,
 /// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
+/// A missing directory is not a failure;
+/// one that cannot be read is.
+use std::io::ErrorKind;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// The ceiling of each file system read of the report.
+use std::time::Duration;
 
 /// File name suffix of the samples Git installs,
 /// which are never hooks.
@@ -196,12 +199,19 @@ pub fn scan_hooks_directory(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// ```ts
 /// scanHooksDirectoryWith(listEntries, REPORT_SCAN_CEILING, directory);
 /// ```
-pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+pub fn scan_hooks_directory_with(
+    listing: EntryListing,
+    ceiling: Duration,
+    directory: &Path,
+) -> std::io::Result<Vec<PathBuf>> {
     let named: PathBuf = directory.to_path_buf();
     let scanned: Option<std::io::Result<Vec<PathBuf>>> = work_within(ceiling, move || {
         let entries: Vec<PathBuf> = match listing(named.as_path()) {
             Ok(found) => found,
-            Err(error) if error.kind() == ErrorKind::NotFound || error.kind() == ErrorKind::NotADirectory => {
+            Err(error)
+                if error.kind() == ErrorKind::NotFound
+                    || error.kind() == ErrorKind::NotADirectory =>
+            {
                 return Ok(Vec::new());
             }
             Err(error) => return Err(error),
@@ -220,7 +230,10 @@ pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, direc
     let Some(answer) = scanned else {
         return Err(std::io::Error::new(
             ErrorKind::TimedOut,
-            format!("the listing of {} gave no answer within {ceiling:?}", directory.display()),
+            format!(
+                "the listing of {} gave no answer within {ceiling:?}",
+                directory.display()
+            ),
         ));
     };
     return answer;

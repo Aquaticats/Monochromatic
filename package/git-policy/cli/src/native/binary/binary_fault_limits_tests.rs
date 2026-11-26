@@ -37,16 +37,50 @@
 //! for (const limit of range(startsAt, landsAt + 1)) { await runWithLimit({ nofile: limit }, wrappedCommit); await expectRecoveredRepository(); }
 //! ```
 
-use super::commit::{git_text, remove_settled};
-use super::fault::{COMMIT_ARGUMENTS, staged_repository, verify_recovery, verify_recovery_with};
-use super::fault_run::{SWEEP_WIDTH, end_the_pressure, run_unsettled, run_watched, unbounded_wrapper};
-use super::support::{Fixture, FixtureService, LimitKind, ServiceEnd, ServiceLaunch, fixture};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
+use super::fault::{
+    COMMIT_ARGUMENTS,
+    staged_repository,
+    verify_recovery,
+    verify_recovery_with,
+};
+use super::fault_run::{
+    SWEEP_WIDTH,
+    end_the_pressure,
+    run_unsettled,
+    run_watched,
+    unbounded_wrapper,
+};
+use super::support::{
+    Fixture,
+    FixtureService,
+    LimitKind,
+    ServiceEnd,
+    ServiceLaunch,
+    fixture,
+};
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::process::{CommandExt, ExitStatusExt};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::os::unix::process::{
+    CommandExt,
+    ExitStatusExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The unit of the address-space sweeps:
 /// a mebibyte,
@@ -83,18 +117,27 @@ type Limit = (LimitKind, u64, u64);
 /// A limit that lets a person raise it again,
 /// as closing other programs would:
 /// the hard limit stays what it was.
-fn soft(kind: LimitKind, value: u64) -> Limit {
+fn soft(
+    kind: LimitKind,
+    value: u64,
+) -> Limit {
     return (kind, value, kind.current_hard());
 }
 
 /// The wrapper's side of a case:
 /// the limits its process (and the Git processes it starts) runs under.
-fn limited_commit(fixture: &Fixture, repo: &Path, wrapper: &[Limit]) -> Output {
+fn limited_commit(
+    fixture: &Fixture,
+    repo: &Path,
+    wrapper: &[Limit],
+) -> Output {
     let mut command: Command = unbounded_wrapper(fixture, repo, &COMMIT_ARGUMENTS);
     for &(kind, soft_value, hard_value) in wrapper {
         // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
         unsafe {
-            command.pre_exec(move || { return kind.apply(soft_value, hard_value); });
+            command.pre_exec(move || {
+                return kind.apply(soft_value, hard_value);
+            });
         }
     }
     return run_watched(fixture, &mut command);
@@ -109,13 +152,21 @@ fn limited_commit(fixture: &Fixture, repo: &Path, wrapper: &[Limit]) -> Output {
 /// by the abort that a failed allocation ends a
 ///  Rust program with;
 /// a failed run says why.
-pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -> Result<(), String> {
-    let text: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+pub(super) fn check_limited_run(
+    label: &str,
+    output: &Output,
+    may_abort: bool,
+) -> Result<(), String> {
+    let text: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     if let Some(signal) = output.status.signal() {
         if may_abort && matches!(signal, libc::SIGABRT | libc::SIGSEGV | libc::SIGBUS) {
             return Ok(());
         }
-        return Err(format!("{label}: the command was ended by signal {signal}: {text}"));
+        return Err(format!(
+            "{label}: the command was ended by signal {signal}: {text}"
+        ));
     }
     let code: i32 = output.status.code().unwrap_or(-1);
     if !matches!(code, 0 | 1 | 2 | 126 | 127) {
@@ -176,21 +227,35 @@ struct Case {
 /// the repository must recover):
 /// the services are stopped (the manager starts a new one at the next command),
 /// and the repository must recover.
-fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, verify: bool, watched_end: Option<std::time::Duration>) -> Case {
+fn run_case(
+    label: &str,
+    service: &[Limit],
+    wrapper: &[Limit],
+    may_abort: bool,
+    verify: bool,
+    watched_end: Option<std::time::Duration>,
+) -> Case {
     let fixture: Fixture = fixture(label);
     // A service limited to a size at which it aborts before it listens (the limit falls within a signal stack's size below its
     //  mapped size, so its last thread aborts: measured at 174 MiB on 2026-11-07, and the value moves with every build) is not a
     //  failure of this control: `may_abort` already allows an abort at the limit, the commit then lands through a service that
     //  starts afterwards or does not land, and the recovery after it still runs with an unlimited service.
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { limits: service.to_vec(), may_fail_to_start: may_abort && !service.is_empty(), ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        limits: service.to_vec(),
+        may_fail_to_start: may_abort && !service.is_empty(),
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let commits_before: String = commits_of_the_branch(&fixture, repo.as_path());
     let output: Output = limited_commit(&fixture, repo.as_path(), wrapper);
     // The end is read from the process itself, before the pressure ends: what the service wrote about its own end
     //  arrives through a copy thread and says only what it claimed.
-    let service_end: Option<ServiceEnd> =
-        watched_end.map(|bound| { return super::support::wait_for_the_service_to_end(&fixture, repo.as_path(), bound); });
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let service_end: Option<ServiceEnd> = watched_end.map(|bound| {
+        return super::support::wait_for_the_service_to_end(&fixture, repo.as_path(), bound);
+    });
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, may_abort);
     // The pressure ends here, which closes every service's stream; the limited attempt's words are then complete, and
     //  they are read now, because the recovery adds its own lines to the same file and its commit is not this case's.
@@ -198,7 +263,15 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     let limited_log: String = the_service_log_of(&fixture);
     let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = if verify {
-        first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); })
+        first.and_then(|()| {
+            return verify_recovery_with(
+                &fixture,
+                repo.as_path(),
+                label,
+                said.as_str(),
+                run_unsettled,
+            );
+        })
     } else {
         Ok(())
     };
@@ -229,8 +302,13 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
 /// and a service's `answered` line is what the service says it did;
 /// the branch is neither of those,
 /// so a control whose claim is about a commit reads this.
-fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
-    return git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim().to_string();
+fn commits_of_the_branch(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
+    return git_text(fixture, repo, &["rev-list", "--count", "HEAD"])
+        .trim()
+        .to_string();
 }
 
 /// What:
@@ -245,7 +323,8 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 /// and a read made after it holds both,
 /// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
 fn the_service_log_of(fixture: &Fixture) -> String {
-    return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
+    return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE))
+        .unwrap_or_default();
 }
 
 /// What:
@@ -255,9 +334,14 @@ fn the_service_log_of(fixture: &Fixture) -> String {
 ///  Both services append to one file,
 /// so the recovery's successful commit would otherwise be read as the limited attempt's outcome,
 /// which two reviews of this control mistook once already.
-fn the_log_of_the_recovery(limited: &str, whole: &str) -> String {
+fn the_log_of_the_recovery(
+    limited: &str,
+    whole: &str,
+) -> String {
     let Some(added) = whole.strip_prefix(limited) else {
-        return format!("(the recovery's part of the log cannot be told apart from the limited attempt's; the whole log was {whole})");
+        return format!(
+            "(the recovery's part of the log cannot be told apart from the limited attempt's; the whole log was {whole})"
+        );
     };
     return added.to_string();
 }
@@ -279,7 +363,11 @@ fn the_log_of_the_recovery(limited: &str, whole: &str) -> String {
 /// ```ts
 /// const smallest: number | undefined = smallestWorking(3, 1024, (limit) => lands(limit));
 /// ```
-pub(super) fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> Option<u64> {
+pub(super) fn smallest_working(
+    low: u64,
+    high: u64,
+    works: &dyn Fn(u64) -> bool,
+) -> Option<u64> {
     let (mut below, mut above): (u64, u64) = (low, high);
     // Whether a probe of `above` held: the halving only lowers it after one did.
     let mut proven: bool = false;
@@ -313,21 +401,32 @@ fn the_search_answers_only_a_limit_its_own_probe_accepted() {
         probed.lock().expect("the probe list").push(value);
         return false;
     };
-    let answered: Option<u64> = smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &records_and_refuses);
-    assert_eq!(answered, None, "no limit in the search's range let a commit land, so the search answers nothing");
+    let answered: Option<u64> =
+        smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &records_and_refuses);
+    assert_eq!(
+        answered, None,
+        "no limit in the search's range let a commit land, so the search answers nothing"
+    );
     assert!(
-        probed.lock().expect("the probe list").contains(&FURTHEST_DESCRIPTOR_LIMIT_SEARCHED),
+        probed
+            .lock()
+            .expect("the probe list")
+            .contains(&FURTHEST_DESCRIPTOR_LIMIT_SEARCHED),
         "the search says nothing in its range worked, so it must have probed its ceiling"
     );
     // A commit that lands at the ceiling and nowhere below it is a landing, and a control is told so.
-    let only_the_ceiling = |value: u64| -> bool { return value == FURTHEST_DESCRIPTOR_LIMIT_SEARCHED; };
+    let only_the_ceiling = |value: u64| -> bool {
+        return value == FURTHEST_DESCRIPTOR_LIMIT_SEARCHED;
+    };
     assert_eq!(
         smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &only_the_ceiling),
         Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED),
         "the search answers a landing at its own ceiling instead of saying no commit landed"
     );
     // A landing below the ceiling is answered where it starts, not at the ceiling.
-    let half_upwards = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2; };
+    let half_upwards = |value: u64| -> bool {
+        return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2;
+    };
     assert_eq!(
         smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &half_upwards),
         Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2),
@@ -341,7 +440,12 @@ fn the_search_answers_only_a_limit_its_own_probe_accepted() {
 /// `limits_for` gives the
 ///  service's and the wrapper's limits for a value.
 /// Returns how many cases landed their commit and how many did not.
-fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>), may_abort: bool) -> (usize, usize) {
+fn sweep(
+    label: &str,
+    values: &[u64],
+    limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>),
+    may_abort: bool,
+) -> (usize, usize) {
     let failures: Mutex<Vec<String>> = Mutex::new(Vec::new());
     let landed: AtomicUsize = AtomicUsize::new(0);
     let refused: AtomicUsize = AtomicUsize::new(0);
@@ -352,7 +456,14 @@ fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Li
                 let (landings, refusals): (&AtomicUsize, &AtomicUsize) = (&landed, &refused);
                 scope.spawn(move || {
                     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(*value);
-                    let case: Case = run_case(format!("{label}-{value}").as_str(), service.as_slice(), wrapper.as_slice(), may_abort, true, None);
+                    let case: Case = run_case(
+                        format!("{label}-{value}").as_str(),
+                        service.as_slice(),
+                        wrapper.as_slice(),
+                        may_abort,
+                        true,
+                        None,
+                    );
                     if case.landed {
                         landings.fetch_add(1, Ordering::SeqCst);
                     } else {
@@ -366,15 +477,36 @@ fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Li
         });
     }
     let found: Vec<String> = failures.into_inner().expect("failure list");
-    assert!(found.is_empty(), "{} of {} limits left the repository unrecovered:\n{}", found.len(), values.len(), found.join("\n"));
-    return (landed.load(Ordering::SeqCst), refused.load(Ordering::SeqCst));
+    assert!(
+        found.is_empty(),
+        "{} of {} limits left the repository unrecovered:\n{}",
+        found.len(),
+        values.len(),
+        found.join("\n")
+    );
+    return (
+        landed.load(Ordering::SeqCst),
+        refused.load(Ordering::SeqCst),
+    );
 }
 
 /// Whether a commit lands with this side limited to `value`,
 /// for the search for the smallest value that lets it land.
-fn lands_with(label: &str, value: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> bool {
+fn lands_with(
+    label: &str,
+    value: u64,
+    limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>),
+) -> bool {
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(value);
-    return run_case(format!("{label}-probe-{value}").as_str(), service.as_slice(), wrapper.as_slice(), true, false, None).landed;
+    return run_case(
+        format!("{label}-probe-{value}").as_str(),
+        service.as_slice(),
+        wrapper.as_slice(),
+        true,
+        false,
+        None,
+    )
+    .landed;
 }
 
 /// The wrapper keeps `value` descriptors.
@@ -389,12 +521,18 @@ fn service_descriptors(value: u64) -> (Vec<Limit>, Vec<Limit>) {
 
 /// The wrapper has `value` mebibytes of address space.
 fn wrapper_memory(value: u64) -> (Vec<Limit>, Vec<Limit>) {
-    return (Vec::new(), vec![soft(LimitKind::AddressSpace, value * MEBIBYTE)]);
+    return (
+        Vec::new(),
+        vec![soft(LimitKind::AddressSpace, value * MEBIBYTE)],
+    );
 }
 
 /// The service has `value` mebibytes of address space.
 fn service_memory(value: u64) -> (Vec<Limit>, Vec<Limit>) {
-    return (vec![soft(LimitKind::AddressSpace, value * MEBIBYTE)], Vec::new());
+    return (
+        vec![soft(LimitKind::AddressSpace, value * MEBIBYTE)],
+        Vec::new(),
+    );
 }
 
 /// How long a service started under a limit may take to greet a client before it counts as not starting.
@@ -430,15 +568,31 @@ struct StartOutcome {
 /// Only a greeting proves the
 ///  service runs,
 /// and a service that ended without one does not start at this limit.
-fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOutcome {
-    let name: String = format!("cli-git-limit-probe-{}-{limit}-{}", std::process::id(), START_COUNTER.fetch_add(1, Ordering::SeqCst));
+fn start_service_under(
+    kind: LimitKind,
+    limit: u64,
+    directory: &Path,
+) -> StartOutcome {
+    let name: String = format!(
+        "cli-git-limit-probe-{}-{limit}-{}",
+        std::process::id(),
+        START_COUNTER.fetch_add(1, Ordering::SeqCst)
+    );
     let journal: PathBuf = directory.join(name.as_str());
     let mut command: Command = super::support::service_command();
-    command.args(["--journal"]).arg(&journal).args(["--abstract", name.as_str()]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+    command
+        .args(["--journal"])
+        .arg(&journal)
+        .args(["--abstract", name.as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
     let hard: u64 = kind.current_hard();
     // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
     unsafe {
-        command.pre_exec(move || { return kind.apply(limit, hard); });
+        command.pre_exec(move || {
+            return kind.apply(limit, hard);
+        });
     }
     // Owned: the service's idle exit is hours away, and the loop below can end by a failed expectation before the kill.
     let mut child = super::support::spawn_owned(&mut command).expect("the service program starts");
@@ -447,13 +601,20 @@ fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOu
         if child.try_wait().expect("the service's state").is_some() {
             break false;
         }
-        let reached = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
-            .and_then(|address| { return std::os::unix::net::UnixStream::connect_addr(&address); });
+        let reached = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).and_then(
+            |address| {
+                return std::os::unix::net::UnixStream::connect_addr(&address);
+            },
+        );
         if let Ok(stream) = reached {
             let _timeout = stream.set_read_timeout(Some(GREETING_READ));
             let mut line: String = String::new();
             // An empty read is a connection that ended without a greeting: the service went away as it was starting.
-            if std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut line).is_ok_and(|read| { return read > 0; }) {
+            if std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut line)
+                .is_ok_and(|read| {
+                    return read > 0;
+                })
+            {
                 break true;
             }
         }
@@ -469,7 +630,10 @@ fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOu
         let _read = std::io::Read::read_to_string(&mut stream, &mut log);
     }
     let _removed = std::fs::remove_dir_all(&journal);
-    return StartOutcome { greeted, log };
+    return StartOutcome {
+        greeted,
+        log,
+    };
 }
 
 /// Numbers the starts of one test process,
@@ -480,16 +644,25 @@ static START_COUNTER: AtomicUsize = AtomicUsize::new(0);
 /// the sweep of the service's limits begins
 ///  here,
 /// because a service that cannot greet has no commit to fail (the manager reports it as a failed unit).
-fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
+fn smallest_service_limit(
+    kind: LimitKind,
+    high: u64,
+) -> u64 {
     let probes: Fixture = fixture("limit-probe");
     let starts = |limit: u64| -> bool {
-        let applied: u64 = if kind == LimitKind::AddressSpace { limit * MEBIBYTE } else { limit };
+        let applied: u64 = if kind == LimitKind::AddressSpace {
+            limit * MEBIBYTE
+        } else {
+            limit
+        };
         return start_service_under(kind, applied, probes.root.as_path()).greeted;
     };
     let found: Option<u64> = smallest_working(3, high, &starts);
     remove_settled(&probes);
     let Some(smallest): Option<u64> = found else {
-        panic!("the commit service started and greeted no client at any {kind:?} limit from 3 to {high} that the search probed, so this control has no limit to sweep from");
+        panic!(
+            "the commit service started and greeted no client at any {kind:?} limit from 3 to {high} that the search probed, so this control has no limit to sweep from"
+        );
     };
     return smallest;
 }
@@ -498,8 +671,16 @@ fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
 /// evenly spaced,
 /// both ends included,
 /// each once.
-fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
-    let mut values: Vec<u64> = (0..=count).map(|step| { return low + (high - low) * step / count; }).collect();
+fn spread(
+    low: u64,
+    high: u64,
+    count: u64,
+) -> Vec<u64> {
+    let mut values: Vec<u64> = (0..=count)
+        .map(|step| {
+            return low + (high - low) * step / count;
+        })
+        .collect();
     values.dedup();
     return values;
 }
@@ -527,13 +708,32 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
 ///  every limit fails with a message or lands,
 ///  and the repository recovers after each.
 ///  Twice a figure the search measured is the only margin this control states.
-fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> (usize, usize) {
+fn sweep_up_to_the_smallest_landing(
+    label: &str,
+    low: u64,
+    lands_at: u64,
+    limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>),
+) -> (usize, usize) {
     let values: Vec<u64> = (low..=lands_at).collect();
     let (landed, refused): (usize, usize) = sweep(label, values.as_slice(), limits_for, false);
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(lands_at.saturating_mul(2));
-    let alone: Case = run_case(format!("{label}-twice-the-smallest-landing-{lands_at}").as_str(), service.as_slice(), wrapper.as_slice(), false, true, None);
-    assert!(alone.verdict.is_ok(), "twice the smallest landing limit left the repository unrecovered: {:?}", alone.verdict);
-    return (landed + usize::from(alone.landed), refused + usize::from(!alone.landed));
+    let alone: Case = run_case(
+        format!("{label}-twice-the-smallest-landing-{lands_at}").as_str(),
+        service.as_slice(),
+        wrapper.as_slice(),
+        false,
+        true,
+        None,
+    );
+    assert!(
+        alone.verdict.is_ok(),
+        "twice the smallest landing limit left the repository unrecovered: {:?}",
+        alone.verdict
+    );
+    return (
+        landed + usize::from(alone.landed),
+        refused + usize::from(!alone.landed),
+    );
 }
 
 /// What:
@@ -557,7 +757,11 @@ fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits
 /// ```ts
 /// const landsAt = smallestLandingBelowTheCeiling('nofile-wrapper', 3, (limit) => lands(limit)); // number | undefined
 /// ```
-fn smallest_landing_below_the_ceiling(label: &str, low: u64, probe: &dyn Fn(u64) -> bool) -> Option<u64> {
+fn smallest_landing_below_the_ceiling(
+    label: &str,
+    low: u64,
+    probe: &dyn Fn(u64) -> bool,
+) -> Option<u64> {
     let found: Option<u64> = smallest_working(low, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, probe);
     let Some(lands_at): Option<u64> = found else {
         panic!(
@@ -583,13 +787,17 @@ fn smallest_landing_below_the_ceiling(label: &str, low: u64, probe: &dyn Fn(u64)
 ///  (`FURTHEST_DESCRIPTOR_LIMIT_SEARCHED`).
 #[test]
 fn the_landing_search_answers_below_the_ceiling_and_says_so_at_it() {
-    let halfway = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2; };
+    let halfway = |value: u64| -> bool {
+        return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2;
+    };
     assert_eq!(
         smallest_landing_below_the_ceiling("control-probe-below", 3, &halfway),
         Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2),
         "a landing below the search's ceiling is the landing the sweep examines"
     );
-    let at_the_ceiling = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED; };
+    let at_the_ceiling = |value: u64| -> bool {
+        return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED;
+    };
     assert_eq!(
         smallest_landing_below_the_ceiling("control-probe-ceiling", 3, &at_the_ceiling),
         None,
@@ -603,8 +811,11 @@ fn the_landing_search_answers_below_the_ceiling_and_says_so_at_it() {
 #[test]
 #[should_panic(expected = "a commit landed at none of the descriptor limits")]
 fn the_landing_search_names_a_machine_where_no_limit_lands() {
-    let nothing = |_value: u64| -> bool { return false; };
-    let _answered: Option<u64> = smallest_landing_below_the_ceiling("control-probe-none", 3, &nothing);
+    let nothing = |_value: u64| -> bool {
+        return false;
+    };
+    let _answered: Option<u64> =
+        smallest_landing_below_the_ceiling("control-probe-none", 3, &nothing);
 }
 
 /// A descriptor limit of each size on the wrapper,
@@ -614,12 +825,23 @@ fn the_landing_search_names_a_machine_where_no_limit_lands() {
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let Some(lands_at): Option<u64> = smallest_landing_below_the_ceiling("nofile-wrapper", 3, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); }) else {
+    let Some(lands_at): Option<u64> =
+        smallest_landing_below_the_ceiling("nofile-wrapper", 3, &|value| {
+            return lands_with("nofile-wrapper", value, wrapper_descriptors);
+        })
+    else {
         return;
     };
-    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
-    assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
+    let (landed, refused): (usize, usize) =
+        sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
+    assert!(
+        refused > 0,
+        "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})"
+    );
+    assert!(
+        landed > 0,
+        "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)"
+    );
 }
 
 /// A descriptor limit of each size on the commit service,
@@ -630,13 +852,29 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
-    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED);
-    let Some(lands_at): Option<u64> = smallest_landing_below_the_ceiling("nofile-service", starts_at, &|value| { return lands_with("nofile-service", value, service_descriptors); }) else {
+    let starts_at: u64 =
+        smallest_service_limit(LimitKind::OpenFiles, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED);
+    let Some(lands_at): Option<u64> =
+        smallest_landing_below_the_ceiling("nofile-service", starts_at, &|value| {
+            return lands_with("nofile-service", value, service_descriptors);
+        })
+    else {
         return;
     };
-    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-service", starts_at, lands_at, service_descriptors);
-    assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
+    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing(
+        "nofile-service",
+        starts_at,
+        lands_at,
+        service_descriptors,
+    );
+    assert!(
+        refused > 0,
+        "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})"
+    );
+    assert!(
+        landed > 0,
+        "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)"
+    );
 }
 
 /// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`),
@@ -647,10 +885,15 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_re
 /// with the limit at one it cannot.
 fn process_limit_bites() -> bool {
     let mut command: Command = Command::new("/bin/sh");
-    command.args(["-c", "/bin/true && echo started"]).stdin(Stdio::null()).stderr(Stdio::null());
+    command
+        .args(["-c", "/bin/true && echo started"])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null());
     // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
     unsafe {
-        command.pre_exec(|| { return LimitKind::Processes.apply(1, LimitKind::Processes.current_hard()); });
+        command.pre_exec(|| {
+            return LimitKind::Processes.apply(1, LimitKind::Processes.current_hard());
+        });
     }
     let output: Output = command.output().expect("the probe shell starts");
     return !String::from_utf8_lossy(output.stdout.as_slice()).contains("started");
@@ -672,14 +915,26 @@ fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_
     // The service starts first and meets the limit while it serves: a service that cannot start a thread at all has nothing to
     //  answer with, and the manager reports it as a failed unit.
     super::support::service_runtime(&fixture);
-    let services: Vec<u32> = fixture.service.lock().expect("the fixture's service lock").as_ref().map(|started| { return started.process_ids(); }).unwrap_or_default();
+    let services: Vec<u32> = fixture
+        .service
+        .lock()
+        .expect("the fixture's service lock")
+        .as_ref()
+        .map(|started| {
+            return started.process_ids();
+        })
+        .unwrap_or_default();
     assert!(!services.is_empty(), "a service ran");
     let hard: u64 = LimitKind::Processes.current_hard();
     for pid in &services {
-        LimitKind::Processes.lift_for(*pid, 1, hard).expect("a soft limit is lowered");
+        LimitKind::Processes
+            .lift_for(*pid, 1, hard)
+            .expect("a soft limit is lowered");
     }
     let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     if let Err(reason) = check_limited_run("nproc-service", &output, false) {
         panic!("{}", super::fault_run::with_service_log(&fixture, reason));
     }
@@ -687,10 +942,17 @@ fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_
         output.status.code(),
         Some(0),
         "{}",
-        super::fault_run::with_service_log(&fixture, format!("the service could start no thread or process, so the commit cannot have landed: {said}"))
+        super::fault_run::with_service_log(
+            &fixture,
+            format!(
+                "the service could start no thread or process, so the commit cannot have landed: {said}"
+            )
+        )
     );
     for pid in &services {
-        LimitKind::Processes.lift_for(*pid, hard, hard).expect("the soft limit is raised up to the hard limit");
+        LimitKind::Processes
+            .lift_for(*pid, hard, hard)
+            .expect("the soft limit is raised up to the hard limit");
     }
     *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
     if let Err(reason) = verify_recovery(&fixture, repo.as_path(), "nproc-service", said.as_str()) {
@@ -721,9 +983,13 @@ fn a_failure_carries_what_the_fixture_service_logged() {
         super::support::settle_the_service_log(&fixture, super::support::SERVICE_LOG_END_BOUND),
         "the copy of the service's stream must end once the service has, or what a failure carries is a race with a thread"
     );
-    let message: String = super::fault_run::with_service_log(&fixture, String::from("the commit did not land"));
+    let message: String =
+        super::fault_run::with_service_log(&fixture, String::from("the commit did not land"));
     assert!(message.starts_with("the commit did not land"), "{message}");
-    assert!(message.contains("ready"), "the log of the service that started is carried: {message}");
+    assert!(
+        message.contains("ready"),
+        "the log of the service that started is carried: {message}"
+    );
     remove_settled(&fixture);
     drop(repo);
 }
@@ -754,24 +1020,40 @@ fn a_wait_that_gives_up_leaves_the_copy_it_did_not_see_end_to_be_waited_for() {
     let service: FixtureService = super::support::start_fixture_service(&fixture);
     // The test keeps the writing end: nothing but this test can close it.
     let (kept_open, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
-        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe whose copy the test holds open");
+        super::support::kept_stderr_pipe(fixture.root.as_path())
+            .expect("a pipe whose copy the test holds open");
     service.record_a_log_copy(when_the_copy_ends);
     let first: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
-    assert!(!first, "a wait that gave up answered that every copy of the service's words had ended while the test still held one open");
+    assert!(
+        !first,
+        "a wait that gave up answered that every copy of the service's words had ended while the test still held one open"
+    );
     let second: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
-    assert!(!second, "the second wait answered that every copy had ended, for the copy the first wait timed out on: a give-up must leave what it did not see end to be waited for");
+    assert!(
+        !second,
+        "the second wait answered that every copy had ended, for the copy the first wait timed out on: a give-up must leave what it did not see end to be waited for"
+    );
     // The test closes its end, so the copy ends now, and the wait must say so.
     drop(kept_open);
     assert!(
         service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
         "a copy whose writer is closed ends, and a wait made after that must answer that every copy ended"
     );
-    assert!(service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND), "with no copy left to wait for the answer is that every copy ended");
+    assert!(
+        service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
+        "with no copy left to wait for the answer is that every copy ended"
+    );
     // A copier that died before it said anything is not an end either: nothing will ever prove that copy wrote its words.
-    let (never_says_it_ended, gone_without_a_word): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let (never_says_it_ended, gone_without_a_word): (
+        std::sync::mpsc::Sender<()>,
+        std::sync::mpsc::Receiver<()>,
+    ) = std::sync::mpsc::channel();
     drop(never_says_it_ended);
     service.record_a_log_copy(gone_without_a_word);
-    assert!(!service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER), "a copy whose copier died without a word is not an end");
+    assert!(
+        !service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER),
+        "a copy whose copier died without a word is not an end"
+    );
     assert!(
         !service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
         "and no later wait may answer that it ended, because nothing proves that copy wrote what the service said"
@@ -791,14 +1073,19 @@ fn two_waits_on_one_fixture_never_answer_that_a_running_copy_ended() {
     let fixture: Fixture = fixture("log-copies-two-waits");
     let service: FixtureService = super::support::start_fixture_service(&fixture);
     let (kept_open, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
-        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe whose copy the test holds open");
+        super::support::kept_stderr_pipe(fixture.root.as_path())
+            .expect("a pipe whose copy the test holds open");
     service.record_a_log_copy(when_the_copy_ends);
     let together: std::sync::Barrier = std::sync::Barrier::new(TWO_WAITS);
     let answers: Mutex<Vec<bool>> = Mutex::new(Vec::new());
     let waited_on: &FixtureService = &service;
     std::thread::scope(|scope| {
         for _ in 0..TWO_WAITS {
-            let (at_the_seam, collected, waited): (&std::sync::Barrier, &Mutex<Vec<bool>>, &FixtureService) = (&together, &answers, waited_on);
+            let (at_the_seam, collected, waited): (
+                &std::sync::Barrier,
+                &Mutex<Vec<bool>>,
+                &FixtureService,
+            ) = (&together, &answers, waited_on);
             scope.spawn(move || {
                 let _released: std::sync::BarrierWaitResult = at_the_seam.wait();
                 let answered: bool = waited.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
@@ -833,9 +1120,19 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
         eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no start was refused");
         return;
     }
-    let case: Case = run_case("nproc-wrapper", &[], &[soft(LimitKind::Processes, 1)], false, true, None);
+    let case: Case = run_case(
+        "nproc-wrapper",
+        &[],
+        &[soft(LimitKind::Processes, 1)],
+        false,
+        true,
+        None,
+    );
     assert_eq!(case.verdict, Ok(()));
-    assert!(!case.landed, "the wrapper could start no process, so the commit cannot have landed through it");
+    assert!(
+        !case.landed,
+        "the wrapper could start no process, so the commit cannot have landed through it"
+    );
 }
 
 /// What:
@@ -865,15 +1162,31 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 ///  may refuse on any host.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let Some(lands_at): Option<u64> = smallest_working(1, MOST_MEBIBYTES, &|value| { return lands_with("as-wrapper", value, wrapper_memory); }) else {
-        panic!("a commit landed at none of the address-space sizes from 1 to {MOST_MEBIBYTES} MiB that the search probed, so this control has no landing to be close to exhaustion");
+    let Some(lands_at): Option<u64> = smallest_working(1, MOST_MEBIBYTES, &|value| {
+        return lands_with("as-wrapper", value, wrapper_memory);
+    }) else {
+        panic!(
+            "a commit landed at none of the address-space sizes from 1 to {MOST_MEBIBYTES} MiB that the search probed, so this control has no landing to be close to exhaustion"
+        );
     };
     let values: Vec<u64> = spread(1, lands_at, MEMORY_STEPS);
-    let (swept_landed, swept_refused): (usize, usize) = sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
+    let (swept_landed, swept_refused): (usize, usize) =
+        sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
     let room: u64 = lands_at.saturating_add(mebibytes_of_the_search_step_and_one_thread_pair());
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
-    let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true, None);
-    assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
+    let above: Case = run_case(
+        format!("as-wrapper-above-the-smallest-landing-{room}").as_str(),
+        service.as_slice(),
+        wrapper.as_slice(),
+        true,
+        true,
+        None,
+    );
+    assert!(
+        above.verdict.is_ok(),
+        "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}",
+        above.verdict
+    );
     // The case above the boundary carries the landing, so a case that lands no commit there fails here and is not counted
     //  as one more refusal of the sweep: the totals below would hide it while any case of the sweep landed.
     //  The message says what happened in the two facts apart: the branch, which is the commit, and the wrapper, which is
@@ -893,7 +1206,10 @@ what the service wrote while the recovery ran, whose commit is not the one this 
     );
     let landed: usize = swept_landed + usize::from(above.landed);
     let refused: usize = swept_refused + usize::from(!above.landed);
-    assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
+    assert!(
+        refused > 0,
+        "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})"
+    );
     assert!(
         landed > 0,
         "no address-space limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused, and so did {room}, one search step and one thread pair above it)"
@@ -904,9 +1220,19 @@ what the service wrote while the recovery ran, whose commit is not the one this 
 /// in mebibytes rounded up,
 /// read from its status (`VmSize`).
 fn mapped_mebibytes(pid: u32) -> u64 {
-    let status: String = std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
-    let line: &str = status.lines().find(|line| return line.starts_with("VmSize:")).expect("a VmSize line");
-    let kibibytes: u64 = line.trim_start_matches("VmSize:").trim().trim_end_matches("kB").trim().parse().expect("a size");
+    let status: String =
+        std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
+    let line: &str = status
+        .lines()
+        .find(|line| return line.starts_with("VmSize:"))
+        .expect("a VmSize line");
+    let kibibytes: u64 = line
+        .trim_start_matches("VmSize:")
+        .trim()
+        .trim_end_matches("kB")
+        .trim()
+        .parse()
+        .expect("a size");
     return kibibytes.div_ceil(1024);
 }
 
@@ -917,29 +1243,54 @@ fn mapped_mebibytes(pid: u32) -> u64 {
 /// (the service's own heap is mostly free by then,
 /// so the first limits that bite are the ones under which the Git programs it starts for the landing cannot map their own space);
 /// then the pressure ends and the repository must recover.
-fn run_case_lowered(label: &str, step: u64) -> Case {
+fn run_case_lowered(
+    label: &str,
+    step: u64,
+) -> Case {
     let fixture: Fixture = fixture(label);
     let repo: PathBuf = staged_repository(&fixture, "repo");
     // The service starts first and meets the limit while it serves: a limit set before it starts moves the instant it ends
     //  with the size of the build (it aborts before it listens when the limit falls within a signal stack of its mapped size).
     super::support::service_runtime(&fixture);
-    let services: Vec<u32> = fixture.service.lock().expect("the fixture's service lock").as_ref().map(|started| { return started.process_ids(); }).unwrap_or_default();
+    let services: Vec<u32> = fixture
+        .service
+        .lock()
+        .expect("the fixture's service lock")
+        .as_ref()
+        .map(|started| {
+            return started.process_ids();
+        })
+        .unwrap_or_default();
     assert!(!services.is_empty(), "a service ran");
     let hard: u64 = LimitKind::AddressSpace.current_hard();
     for pid in &services {
-        let reserve_mebibytes: u64 = git_policy_cli::runtime_plan::ADDRESS_SPACE_RESERVE_BYTES / MEBIBYTE;
-        let limit: u64 = (mapped_mebibytes(*pid) + reserve_mebibytes) * step / MEMORY_STEPS * MEBIBYTE;
-        LimitKind::AddressSpace.lift_for(*pid, limit, hard).expect("the soft limit of a running service is lowered");
+        let reserve_mebibytes: u64 =
+            git_policy_cli::runtime_plan::ADDRESS_SPACE_RESERVE_BYTES / MEBIBYTE;
+        let limit: u64 =
+            (mapped_mebibytes(*pid) + reserve_mebibytes) * step / MEMORY_STEPS * MEBIBYTE;
+        LimitKind::AddressSpace
+            .lift_for(*pid, limit, hard)
+            .expect("the soft limit of a running service is lowered");
     }
     let commits_before: String = commits_of_the_branch(&fixture, repo.as_path());
     let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, false);
     // The pressure ends here, so the limited attempt's words are complete and are read before the recovery adds its own.
     end_the_pressure(&fixture);
     let limited_log: String = the_service_log_of(&fixture);
     let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
-    let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
+    let judged: Result<(), String> = first.and_then(|()| {
+        return verify_recovery_with(
+            &fixture,
+            repo.as_path(),
+            label,
+            said.as_str(),
+            run_unsettled,
+        );
+    });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
     let status: std::process::ExitStatus = output.status;
@@ -979,9 +1330,16 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     for batch in headrooms.chunks(SWEEP_WIDTH) {
         std::thread::scope(|scope| {
             for headroom in batch {
-                let (collected, landings, refusals): (&Mutex<Vec<String>>, &AtomicUsize, &AtomicUsize) = (&failures, &landed_count, &refused_count);
+                let (collected, landings, refusals): (
+                    &Mutex<Vec<String>>,
+                    &AtomicUsize,
+                    &AtomicUsize,
+                ) = (&failures, &landed_count, &refused_count);
                 scope.spawn(move || {
-                    let case: Case = run_case_lowered(format!("as-service-lowered-{headroom}").as_str(), *headroom);
+                    let case: Case = run_case_lowered(
+                        format!("as-service-lowered-{headroom}").as_str(),
+                        *headroom,
+                    );
                     if case.landed {
                         landings.fetch_add(1, Ordering::SeqCst);
                     } else {
@@ -995,10 +1353,25 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
         });
     }
     let found: Vec<String> = failures.into_inner().expect("failure list");
-    assert!(found.is_empty(), "{} of {} limits left the repository unrecovered:\n{}", found.len(), headrooms.len(), found.join("\n"));
-    let (landed, refused): (usize, usize) = (landed_count.load(Ordering::SeqCst), refused_count.load(Ordering::SeqCst));
-    assert!(refused > 0, "no limit stopped a commit, so the limits tested nothing (steps {headrooms:?})");
-    assert!(landed > 0, "no limit let the commit land, so none was close to exhaustion (steps {headrooms:?})");
+    assert!(
+        found.is_empty(),
+        "{} of {} limits left the repository unrecovered:\n{}",
+        found.len(),
+        headrooms.len(),
+        found.join("\n")
+    );
+    let (landed, refused): (usize, usize) = (
+        landed_count.load(Ordering::SeqCst),
+        refused_count.load(Ordering::SeqCst),
+    );
+    assert!(
+        refused > 0,
+        "no limit stopped a commit, so the limits tested nothing (steps {headrooms:?})"
+    );
+    assert!(
+        landed > 0,
+        "no limit let the commit land, so none was close to exhaustion (steps {headrooms:?})"
+    );
 }
 
 /// What:
@@ -1048,10 +1421,19 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
     let room: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
     let Some(below): Option<u64> = starts_at.checked_sub(room) else {
-        panic!("the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot accept");
+        panic!(
+            "the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot accept"
+        );
     };
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(below);
-    let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true, Some(SERVICE_END_BOUND));
+    let case: Case = run_case(
+        "as-service-below-start",
+        service.as_slice(),
+        wrapper.as_slice(),
+        true,
+        true,
+        Some(SERVICE_END_BOUND),
+    );
     match case.service_end {
         Some(ServiceEnd::Ended(status)) => assert_eq!(
             status.code(),
@@ -1063,7 +1445,10 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
             "the service at {below} MiB still ran {SERVICE_END_BOUND:?} after the commit returned, so nothing shows it ends before it accepts a connection; what it wrote: {}",
             case.limited_log
         ),
-        Some(ServiceEnd::NotServed) => panic!("the fixture served no service for this worktree, so this control has no end to observe: {}", case.limited_log),
+        Some(ServiceEnd::NotServed) => panic!(
+            "the fixture served no service for this worktree, so this control has no end to observe: {}",
+            case.limited_log
+        ),
         None => panic!("this control asked for the service's end and was given none"),
     }
     assert!(
@@ -1071,7 +1456,11 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
         "a service that ended before it accepted a connection cannot have landed a commit, and the commits on the repository's branch were {} before the limited attempt and {} after it; the wrapper ended {} and returned success: {}; its standard error said: {}",
         case.commits_before, case.commits_after, case.status, case.returned_success, case.stderr
     );
-    assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
+    assert_eq!(
+        case.verdict,
+        Ok(()),
+        "the repository must recover with an unlimited service"
+    );
 }
 
 /// What:
@@ -1129,23 +1518,42 @@ fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting()
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
     let room: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
     let Some(below_mebibytes): Option<u64> = starts_at.checked_sub(room) else {
-        panic!("the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot run");
+        panic!(
+            "the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot run"
+        );
     };
     let below: u64 = below_mebibytes * MEBIBYTE;
     let probes: Fixture = fixture("limit-band");
     let outcomes: Vec<StartOutcome> = std::thread::scope(|scope| {
         return scope
             .spawn(|| {
-                super::support::restrict_to_one_cpu().expect("the poll and the services share one processor");
-                return (0..BAND_STARTS).map(|_| { return start_service_under(LimitKind::AddressSpace, below, probes.root.as_path()); }).collect::<Vec<StartOutcome>>();
+                super::support::restrict_to_one_cpu()
+                    .expect("the poll and the services share one processor");
+                return (0..BAND_STARTS)
+                    .map(|_| {
+                        return start_service_under(
+                            LimitKind::AddressSpace,
+                            below,
+                            probes.root.as_path(),
+                        );
+                    })
+                    .collect::<Vec<StartOutcome>>();
             })
             .join()
             .expect("the pinned thread ends");
     });
     remove_settled(&probes);
     for outcome in &outcomes {
-        assert!(outcome.log.contains("ready"), "the service must bind before this limit stops it, or the limit tests nothing: {}", outcome.log);
-        assert!(!outcome.greeted, "a service that ended without running was counted as starting at {below} bytes: {}", outcome.log);
+        assert!(
+            outcome.log.contains("ready"),
+            "the service must bind before this limit stops it, or the limit tests nothing: {}",
+            outcome.log
+        );
+        assert!(
+            !outcome.greeted,
+            "a service that ended without running was counted as starting at {below} bytes: {}",
+            outcome.log
+        );
     }
 }
 
@@ -1162,7 +1570,10 @@ fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting()
 #[test]
 fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
     let fixture: Fixture = fixture("single-cpu");
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { single_cpu: true, ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        single_cpu: true,
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS);
     // SAFETY: the closure calls only `sched_getaffinity` and `sched_setaffinity`.
@@ -1170,8 +1581,16 @@ fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
         command.pre_exec(super::support::restrict_to_one_cpu);
     }
     let output: Output = run_watched(&fixture, &mut command);
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
-    assert_eq!(verify_recovery(&fixture, repo.as_path(), "single-cpu", ""), Ok(()));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert_eq!(
+        verify_recovery(&fixture, repo.as_path(), "single-cpu", ""),
+        Ok(())
+    );
     remove_settled(&fixture);
 }
 
@@ -1198,7 +1617,11 @@ fn a_service_whose_work_thread_is_refused_says_which_limit_refused_it() {
     }
     let probes: Fixture = fixture("nproc-service-work-thread");
     let outcome: StartOutcome = start_service_under(LimitKind::Processes, 1, probes.root.as_path());
-    assert!(!outcome.greeted, "a service that can start no thread greets no client: {}", outcome.log);
+    assert!(
+        !outcome.greeted,
+        "a service that can start no thread greets no client: {}",
+        outcome.log
+    );
     assert!(
         outcome.log.contains("ulimit -u") && outcome.log.contains("pids.max"),
         "the line the service ends with names the limits that refused the thread: {}",

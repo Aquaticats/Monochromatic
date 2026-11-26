@@ -28,18 +28,24 @@
 //! //   === ['cache/nested']  when cache/nested/.git exists
 //! ```
 
+/// `plain_components` reads a Git-printed path as the plain components below the worktree it must be.
+use crate::fs_beneath::plain_components;
 /// The answer Git gave one dry run,
 ///  and what a failed one means.
 use crate::git_metadata::MetadataOutput;
-/// `plain_components` reads a Git-printed path as the plain components below the worktree it must be.
-use crate::fs_beneath::plain_components;
 /// `OsStr`/`OsString` are operating-system text of raw bytes.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `OsStrExt` gives `OsStr::from_bytes`,
 /// because a path is bytes and not text.
 use std::os::unix::ffi::OsStrExt;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The words Git writes before a path its dry run would remove (`msg_would_remove` in `builtin/clean.c`).
 pub const WOULD_REMOVE: &[u8] = b"Would remove ";
@@ -62,7 +68,10 @@ pub const WOULD_REMOVE: &[u8] = b"Would remove ";
 /// ```ts
 /// function dryRunLinesFromAnswer(answer, what: string): Buffer[]; // throws
 /// ```
-pub fn dry_run_lines_from_answer(answer: &MetadataOutput, what: &str) -> Result<Vec<Vec<u8>>, String> {
+pub fn dry_run_lines_from_answer(
+    answer: &MetadataOutput,
+    what: &str,
+) -> Result<Vec<Vec<u8>>, String> {
     if !answer.success {
         // A child ended by a signal reports no exit status: it never said what it does, so its silence is not an
         //  answer about the clean and nothing may be judged from it.
@@ -203,7 +212,10 @@ pub fn nested_repositories_the_clean_deletes(
 /// The route's preflight asks it of a main checkout before its first write, to
 /// decline a source whose copy the fill's clean would leave unproven
 /// (`add_source_the_restore_cannot_prove.rs`).
-pub(crate) fn repositories_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsString>>, String> {
+pub(crate) fn repositories_beneath(
+    worktree_root: &Path,
+    start: &[OsString],
+) -> Result<Vec<Vec<OsString>>, String> {
     let mut found: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
     let mut start_path: PathBuf = worktree_root.to_path_buf();
     for name in start {
@@ -254,7 +266,10 @@ pub(crate) fn repositories_beneath(worktree_root: &Path, start: &[OsString]) -> 
 /// ```ts
 /// const cannotLookInside = (names: string[], error: Error) => `... ${names.join('/')} ... (${error}) ...`;
 /// ```
-fn cannot_look_inside(names: &[OsString], error: &std::io::Error) -> String {
+fn cannot_look_inside(
+    names: &[OsString],
+    error: &std::io::Error,
+) -> String {
     return format!(
         "Git named `{}` among what the clean would delete, and the wrapper could not look inside it for the Git \
          repositories it holds ({error}), so the clean was not judged.",
@@ -310,7 +325,10 @@ fn fewest_components_first(entry: &(Vec<u8>, Vec<OsString>)) -> usize {
 /// ```ts
 /// (names: string[], kept: [Buffer, string[]][]) => kept.some(([, known]) => names.startsWith(known));
 /// ```
-fn is_at_or_below_another(names: &[OsString], kept: &[(Vec<u8>, Vec<OsString>)]) -> bool {
+fn is_at_or_below_another(
+    names: &[OsString],
+    kept: &[(Vec<u8>, Vec<OsString>)],
+) -> bool {
     for (_path, known) in kept {
         if names.starts_with(known.as_slice()) {
             return true;
@@ -331,7 +349,10 @@ fn is_at_or_below_another(names: &[OsString], kept: &[(Vec<u8>, Vec<OsString>)])
 /// ```ts
 /// function directoryBeneath(root: string, names: string[]): string | undefined;
 /// ```
-fn directory_beneath(root: &Path, names: &[OsString]) -> Option<PathBuf> {
+fn directory_beneath(
+    root: &Path,
+    names: &[OsString],
+) -> Option<PathBuf> {
     let mut current: PathBuf = root.to_path_buf();
     for name in names {
         current.push(name);
@@ -401,7 +422,11 @@ fn unquoted(printed: &[u8]) -> Option<Vec<u8>> {
                 let second: u8 = *body.get(index)?;
                 let third: u8 = *body.get(index + 1)?;
                 index += 2;
-                if !second.is_ascii_digit() || !third.is_ascii_digit() || second > b'7' || third > b'7' {
+                if !second.is_ascii_digit()
+                    || !third.is_ascii_digit()
+                    || second > b'7'
+                    || third > b'7'
+                {
                     return None;
                 }
                 (escape - b'0') * 64 + (second - b'0') * 8 + (third - b'0')

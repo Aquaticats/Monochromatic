@@ -22,9 +22,18 @@
 //! const fence = fenceOfTheMeasurementRoute(source); // C, D, or undefined
 //! ```
 
-use crate::worktree_clean::{StatEntry, stored_stats};
-use crate::worktree_clone_conversion_fence::{Fence, refuse_untracked_attributes};
-use crate::worktree_clone_conversion_rules::{ConversionRules, conversion_rules_from_config};
+use crate::worktree_clean::{
+    StatEntry,
+    stored_stats,
+};
+use crate::worktree_clone_conversion_fence::{
+    Fence,
+    refuse_untracked_attributes,
+};
+use crate::worktree_clone_conversion_rules::{
+    ConversionRules,
+    conversion_rules_from_config,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
 
 /// The configuration entries the fence reads its settings from.
@@ -52,15 +61,32 @@ fn config_of(source: &SnapshotSource) -> &[crate::config_snapshot::ConfigEntry] 
 /// function declineWhenConversionCouldApply(source, entries): Fence; // throws the reason
 /// ```
 #[cfg(feature = "measurement-routes")]
-fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatEntry]) -> Result<Fence, String> {
+fn decline_when_conversion_could_apply(
+    source: &SnapshotSource,
+    entries: &[StatEntry],
+) -> Result<Fence, String> {
     let rules: ConversionRules = conversion_rules_from_config(config_of(source));
-    let filter_setting: bool = config_of(source).iter().any(|entry| return entry.key.starts_with("filter."));
+    let filter_setting: bool = config_of(source)
+        .iter()
+        .any(|entry| return entry.key.starts_with("filter."));
     let shared_attributes: bool = source.common_dir.join("info/attributes").exists();
-    let named_attributes: bool = config_of(source).iter().any(|entry| return entry.key == "core.attributesfile");
-    if rules.auto_crlf != crate::worktree_clone_conversion_rules::AutoCrlf::False || filter_setting || shared_attributes || named_attributes || !source.clean.attribute_blobs.is_empty() {
-        return Err(String::from("the source has a conversion setting or an attributes file, and this build declines the rung rather than reading its paths (option C)"));
+    let named_attributes: bool = config_of(source)
+        .iter()
+        .any(|entry| return entry.key == "core.attributesfile");
+    if rules.auto_crlf != crate::worktree_clone_conversion_rules::AutoCrlf::False
+        || filter_setting
+        || shared_attributes
+        || named_attributes
+        || !source.clean.attribute_blobs.is_empty()
+    {
+        return Err(String::from(
+            "the source has a conversion setting or an attributes file, and this build declines the rung rather than reading its paths (option C)",
+        ));
     }
-    return Ok(Fence { git_writes: Vec::new(), carried: entries.len() });
+    return Ok(Fence {
+        git_writes: Vec::new(),
+        carried: entries.len(),
+    });
 }
 
 /// What:
@@ -81,7 +107,10 @@ fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
     for entry in entries {
         git_writes.push(entry.path.clone());
     }
-    return Fence { git_writes, carried: 0 };
+    return Fence {
+        git_writes,
+        carried: 0,
+    };
 }
 
 /// What:
@@ -112,11 +141,15 @@ pub fn fence_of_the_measurement_route(source: &SnapshotSource) -> Option<Result<
         return None;
     }
     let refused: Result<(), String> = refuse_untracked_attributes(source);
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+    let Some(entries) = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    ) else {
         return Some(Err(String::from("the source's index changed shape")));
     };
     return Some(match route.as_str() {
         "all" => refused.and(Ok(all_paths_through_git(entries.as_slice()))),
-        _ => refused.and_then(|()| return decline_when_conversion_could_apply(source, entries.as_slice())),
+        _ => refused
+            .and_then(|()| return decline_when_conversion_could_apply(source, entries.as_slice())),
     });
 }

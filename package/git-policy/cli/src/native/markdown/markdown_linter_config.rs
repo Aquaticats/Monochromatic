@@ -19,9 +19,17 @@
 //! ```
 
 /// Import the selectable rules and their configuration spelling.
-use crate::config_schema::{MarkdownRule, markdown_rule_name};
+use crate::config_schema::{
+    MarkdownRule,
+    markdown_rule_name,
+};
 /// Import the JSONC value model and its emitter.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncValue,
+    emit_jsonc_value,
+};
 /// The files the block selects,
 ///  relative to the linter's working directory,
 ///  the top level.
@@ -51,7 +59,10 @@ fn text(value: &str) -> JsoncValue {
 /// ```ts
 /// const member = (key: string, value: unknown) => [key, value];
 /// ```
-fn member(key: &str, value: JsoncValue) -> JsoncEntry {
+fn member(
+    key: &str,
+    value: JsoncValue,
+) -> JsoncEntry {
     return JsoncEntry {
         key: JsoncKey::from_text(key),
         value,
@@ -70,7 +81,10 @@ fn member(key: &str, value: JsoncValue) -> JsoncEntry {
 /// ```ts
 /// const ruleSettings = (rule, exclude) => ({ severity: 'warn', exclude });
 /// ```
-fn rule_settings(rule: MarkdownRule, exclude: &[String]) -> JsoncValue {
+fn rule_settings(
+    rule: MarkdownRule,
+    exclude: &[String],
+) -> JsoncValue {
     // `match` must name every rule, so a new rule cannot be given the wrong options.
     match rule {
         MarkdownRule::LfsImageUrl => {
@@ -98,7 +112,10 @@ fn rule_settings(rule: MarkdownRule, exclude: &[String]) -> JsoncValue {
 /// ```ts
 /// function oneRuleConfiguration(rules: MarkdownRule[], exclude: string[]): string;
 /// ```
-pub fn one_rule_configuration(rules: &[MarkdownRule], exclude: &[String]) -> String {
+pub fn one_rule_configuration(
+    rules: &[MarkdownRule],
+    exclude: &[String],
+) -> String {
     let mut files: Vec<JsoncValue> = Vec::new();
     for pattern in MARKDOWN_FILE_PATTERNS {
         files.push(text(pattern));

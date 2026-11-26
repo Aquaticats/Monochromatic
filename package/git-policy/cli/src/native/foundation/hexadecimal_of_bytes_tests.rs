@@ -20,11 +20,18 @@ use super::*;
 fn every_byte_keeps_the_two_lowercase_digits_it_had() {
     for value in 0..=u8::MAX {
         let digits: String = hexadecimal_of_byte(value);
-        assert_eq!(digits, format!("{value:02x}"), "byte {value} keeps its spelling");
+        assert_eq!(
+            digits,
+            format!("{value:02x}"),
+            "byte {value} keeps its spelling"
+        );
         assert_eq!(digits.len(), 2, "byte {value} is two digits");
         let mut written: String = String::new();
         write_hexadecimal(&mut written, value);
-        assert_eq!(written, digits, "writing the digits and asking for them agree for byte {value}");
+        assert_eq!(
+            written, digits,
+            "writing the digits and asking for them agree for byte {value}"
+        );
     }
 }
 
@@ -45,9 +52,28 @@ fn every_byte_keeps_the_two_lowercase_digits_it_had() {
 #[test]
 fn a_run_of_bytes_is_each_byte_in_order() {
     assert_eq!(hexadecimal_of_bytes(&[]), "", "an empty run has no digits");
-    assert_eq!(hexadecimal_of_bytes(&[0x00]), "00", "a leading zero is kept");
-    assert_eq!(hexadecimal_of_bytes(&[0x0f, 0x10]), "0f10", "the order of the bytes is the order of the digits");
-    assert_eq!(hexadecimal_of_bytes(&[0xff]), "ff", "the digits are lowercase");
+    assert_eq!(
+        hexadecimal_of_bytes(&[0x00]),
+        "00",
+        "a leading zero is kept"
+    );
+    assert_eq!(
+        hexadecimal_of_bytes(&[0x0f, 0x10]),
+        "0f10",
+        "the order of the bytes is the order of the digits"
+    );
+    assert_eq!(
+        hexadecimal_of_bytes(&[0xff]),
+        "ff",
+        "the digits are lowercase"
+    );
     let bytes: Vec<u8> = (0..=u8::MAX).collect();
-    assert_eq!(hexadecimal_of_bytes(bytes.as_slice()), bytes.iter().map(|byte| return format!("{byte:02x}")).collect::<String>(), "a whole run is the digits of each byte");
+    assert_eq!(
+        hexadecimal_of_bytes(bytes.as_slice()),
+        bytes
+            .iter()
+            .map(|byte| return format!("{byte:02x}"))
+            .collect::<String>(),
+        "a whole run is the digits of each byte"
+    );
 }

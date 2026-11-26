@@ -6,9 +6,12 @@
 //!  and the limits derived from the environment.
 
 use super::*;
-use crate::process_tree::{TreeMember, member_of};
-use std::time::Instant;
+use crate::process_tree::{
+    TreeMember,
+    member_of,
+};
 use crate::stop_of_a_push_and_sweep_of_its_locks::grace_remains;
+use std::time::Instant;
 // The flood look's own test reads the size rule, which the wait's module owns.
 use crate::push_wait_until_done::is_flood;
 use crate::test_support::scratch_environment;
@@ -92,7 +95,16 @@ fn a_non_text_deadline_falls_back_to_the_default() {
 #[test]
 fn a_run_goes_by_its_program_and_its_first_subcommand() {
     let mut push: Command = Command::new("/nonexistent/bin/git");
-    push.args(["-c", "core.example=1", "-C", "/nonexistent/repository", "--no-pager", "push", "origin", "main"]);
+    push.args([
+        "-c",
+        "core.example=1",
+        "-C",
+        "/nonexistent/repository",
+        "--no-pager",
+        "push",
+        "origin",
+        "main",
+    ]);
     assert_eq!(command_label(&push), "git push");
     let mut upload: Command = Command::new("git-lfs");
     upload.args(["push", "--all", "origin"]);
@@ -163,7 +175,10 @@ fn a_push_ended_by_a_signal_keeps_the_signal() {
     )
     .expect("runs");
     assert_eq!(attempt.signal, Some(9));
-    assert_eq!(attempt.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9));
+    assert_eq!(
+        attempt.exit_code,
+        i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9)
+    );
     assert_eq!(attempt.output, "before");
 }
 
@@ -291,7 +306,10 @@ fn an_output_is_a_flood_only_past_the_cap() {
     assert!(!is_flood(MAX_PUSH_OUTPUT, MAX_PUSH_OUTPUT));
     assert!(is_flood(MAX_PUSH_OUTPUT + 1, MAX_PUSH_OUTPUT));
     let larger: u64 = MAX_PUSH_OUTPUT * 4;
-    assert!(!is_flood(MAX_PUSH_OUTPUT + 1, larger), "a ceiling the caller raised is the one that stops the output");
+    assert!(
+        !is_flood(MAX_PUSH_OUTPUT + 1, larger),
+        "a ceiling the caller raised is the one that stops the output"
+    );
     assert!(is_flood(larger + 1, larger));
 }
 
@@ -311,7 +329,9 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
     .expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
     assert!(
-        attempt.output.contains("bytes of output and was stopped. Hint: if a hook or the remote prints this much"),
+        attempt.output.contains(
+            "bytes of output and was stopped. Hint: if a hook or the remote prints this much"
+        ),
         "{}",
         &attempt.output[attempt.output.len().saturating_sub(120)..]
     );
@@ -357,19 +377,39 @@ fn a_child_released_late_is_swept_and_its_lock_stays_named() {
     let lock: std::path::PathBuf = heads.join("late.lock");
     // The child takes its lock and writes the pid file Git writes beside it, then keeps running as the same process.
     let mut command: Command = shell(": > \"$LOCK\"; echo \"pid $$\" > \"$PIDFILE\"; exec sleep 1");
-    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str()).env("PIDFILE", heads.join("late~pid.lock").as_os_str());
-    let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
+    command
+        .current_dir(root.as_path())
+        .env("LOCK", lock.as_os_str())
+        .env("PIDFILE", heads.join("late~pid.lock").as_os_str());
+    let locks: LockLedger =
+        LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let child: Child = command.spawn().expect("start the child");
-    let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
+    let member: TreeMember =
+        member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
     let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping task starts");
-    crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
-    assert!(lock.exists(), "the lock the child left stays: no number in a pid file proves its writer gone");
-    assert!(heads.join("late~pid.lock").exists(), "its pid file stays with it, so the pre-removal words can quote it");
+    crate::lazy_runtime::run_on_runtime(sweeper)
+        .expect("the runtime runs the wait")
+        .expect("the sweeping task ends");
+    assert!(
+        lock.exists(),
+        "the lock the child left stays: no number in a pid file proves its writer gone"
+    );
+    assert!(
+        heads.join("late~pid.lock").exists(),
+        "its pid file stays with it, so the pre-removal words can quote it"
+    );
     // The judgement that this sweep ran is the one the earlier rounds pinned; here the outcome is what the person meets:
     // the lock is still on disk, and the notice of the next command names it with the command that clears it.
     let git_dir: std::path::PathBuf = root.join(".git");
-    let judged = crate::stale_ref_locks::clear_stale_ref_locks(std::slice::from_ref(&git_dir), &crate::stale_ref_lock_killed_git::judge());
-    assert!(judged.notice().contains("rm -- ") && judged.notice().contains("late.lock"), "the notice names the file and the command: {}", judged.notice());
+    let judged = crate::stale_ref_locks::clear_stale_ref_locks(
+        std::slice::from_ref(&git_dir),
+        &crate::stale_ref_lock_killed_git::judge(),
+    );
+    assert!(
+        judged.notice().contains("rm -- ") && judged.notice().contains("late.lock"),
+        "the notice names the file and the command: {}",
+        judged.notice()
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -401,26 +441,57 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends_and_its_lock_stays
     let lock: std::path::PathBuf = heads.join("lingering.lock");
     let mut command: Command = Command::new("true");
     command.current_dir(root.as_path());
-    let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
+    let locks: LockLedger =
+        LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let mut ended: Child = command.spawn().expect("start the collected child");
     // `cat` lives until its input is closed, which the control does when it wants the member to end.
-    let mut lingering: Child = Command::new("cat").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn().expect("start the member");
-    let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
+    let mut lingering: Child = Command::new("cat")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("start the member");
+    let member: TreeMember =
+        member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
     std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
-    std::fs::write(heads.join("lingering~pid.lock"), format!("pid {}\n", member.pid)).expect("the pid file of the member");
+    std::fs::write(
+        heads.join("lingering~pid.lock"),
+        format!("pid {}\n", member.pid),
+    )
+    .expect("the pid file of the member");
     ended.wait().expect("the child is collected");
     std::thread::sleep(HELD_UP_TEST_THREAD);
-    let started = crate::lazy_runtime::run_on_runtime(settle_locks(None, vec![member], locks, Duration::from_millis(100))).expect("the runtime runs the settling");
+    let started = crate::lazy_runtime::run_on_runtime(settle_locks(
+        None,
+        vec![member],
+        locks,
+        Duration::from_millis(100),
+    ))
+    .expect("the runtime runs the settling");
     assert!(lock.exists(), "a tree that still runs is not swept");
     let sweeper = started.expect("the sweep waits for the tree in a task of its own");
     drop(lingering.stdin.take());
     lingering.wait().expect("the member ends");
-    crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
-    assert!(lock.exists(), "the sweep ran once the tree ended and left the lock: no number in a pid file proves its writer gone");
-    assert!(heads.join("lingering~pid.lock").exists(), "its pid file stays with it");
+    crate::lazy_runtime::run_on_runtime(sweeper)
+        .expect("the runtime runs the wait")
+        .expect("the sweeping task ends");
+    assert!(
+        lock.exists(),
+        "the sweep ran once the tree ended and left the lock: no number in a pid file proves its writer gone"
+    );
+    assert!(
+        heads.join("lingering~pid.lock").exists(),
+        "its pid file stays with it"
+    );
     let git_dir: std::path::PathBuf = root.join(".git");
-    let judged = crate::stale_ref_locks::clear_stale_ref_locks(std::slice::from_ref(&git_dir), &crate::stale_ref_lock_killed_git::judge());
-    assert!(judged.notice().contains("rm -- ") && judged.notice().contains("lingering.lock"), "the notice names the file and the command: {}", judged.notice());
+    let judged = crate::stale_ref_locks::clear_stale_ref_locks(
+        std::slice::from_ref(&git_dir),
+        &crate::stale_ref_lock_killed_git::judge(),
+    );
+    assert!(
+        judged.notice().contains("rm -- ") && judged.notice().contains("lingering.lock"),
+        "the notice names the file and the command: {}",
+        judged.notice()
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -436,14 +507,28 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends_and_its_lock_stays
 fn a_push_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look() {
     let attempt: PushAttempt = run_bounded_push_once(
         shell("head -c 4194305 /dev/zero; exec sleep 30"),
-        Patience::Progress { stall: Duration::from_secs(60) },
+        Patience::Progress {
+            stall: Duration::from_secs(60),
+        },
         Duration::from_secs(1),
         crate::test_support::scratch_environment().as_slice(),
     )
     .expect("a push attempt");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the flood look stopped it: {}", attempt.output);
-    assert!(attempt.output.contains("wrote more than"), "the stopped push says why: {}", attempt.output);
-    assert!(!attempt.output.contains("only the whole lines that fit"), "a stopped push is not given an ended run's words: {}", attempt.output);
+    assert_eq!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "the flood look stopped it: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains("wrote more than"),
+        "the stopped push says why: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains("only the whole lines that fit"),
+        "a stopped push is not given an ended run's words: {}",
+        attempt.output
+    );
 }
 
 /// What:
@@ -473,16 +558,42 @@ fn an_ended_push_over_the_cap_keeps_its_status_and_says_its_output_was_cut() {
     let (captured, cut): (String, bool) = read_output(&mut file).expect("read");
     assert!(cut, "the read says the output was longer than the cap");
     // Two real endings: a program that exited by itself, and one a signal ended.
-    let exited: PushAttempt = ended_attempt(std::process::ExitStatus::from_raw(0), kept_output_text(captured.as_str(), cut, "git push"));
-    assert_eq!(exited.exit_code, 0, "the push's own status is kept: {}", exited.output);
+    let exited: PushAttempt = ended_attempt(
+        std::process::ExitStatus::from_raw(0),
+        kept_output_text(captured.as_str(), cut, "git push"),
+    );
+    assert_eq!(
+        exited.exit_code, 0,
+        "the push's own status is kept: {}",
+        exited.output
+    );
     assert_eq!(exited.signal, None, "nothing claims a signal ended it");
     assert!(exited.output.ends_with("the run itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly."), "the attempt says its output was cut: {}", exited.output);
-    assert!(!exited.output.contains("the line the cap ends inside"), "the line the cap ends inside is dropped whole: {}", exited.output);
-    let signalled: PushAttempt = ended_attempt(std::process::ExitStatus::from_raw(9), kept_output_text(captured.as_str(), cut, "git push"));
-    assert_eq!(signalled.signal, Some(9), "a push a signal ended keeps the signal beside the code");
-    assert_eq!(signalled.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9), "and the code is 128 + N");
+    assert!(
+        !exited.output.contains("the line the cap ends inside"),
+        "the line the cap ends inside is dropped whole: {}",
+        exited.output
+    );
+    let signalled: PushAttempt = ended_attempt(
+        std::process::ExitStatus::from_raw(9),
+        kept_output_text(captured.as_str(), cut, "git push"),
+    );
+    assert_eq!(
+        signalled.signal,
+        Some(9),
+        "a push a signal ended keeps the signal beside the code"
+    );
+    assert_eq!(
+        signalled.exit_code,
+        i64::from(crate::forwarding::SIGNAL_EXIT_BASE + 9),
+        "and the code is 128 + N"
+    );
     // A run the flood look stopped is not given the ended run's words.
-    assert!(!kept_output_text(captured.as_str(), false, "git push").contains("only the whole lines that fit"), "a stop keeps the stop's own words");
+    assert!(
+        !kept_output_text(captured.as_str(), false, "git push")
+            .contains("only the whole lines that fit"),
+        "a stop keeps the stop's own words"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -506,13 +617,25 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
         window: CONNECTED_PUSH_QUIET_WINDOW,
     };
     let line: String = wait_line("git push", &report);
-    assert!(line.contains(WAIT_NOTE_PHRASE), "the line names the wait: {line}");
-    assert!(!line.contains("no time limit"), "no promise of an unbounded wait: {line}");
     assert!(
-        line.contains(&format!("{} seconds is stopped as a stall", CONNECTED_PUSH_QUIET_WINDOW.as_secs())),
+        line.contains(WAIT_NOTE_PHRASE),
+        "the line names the wait: {line}"
+    );
+    assert!(
+        !line.contains("no time limit"),
+        "no promise of an unbounded wait: {line}"
+    );
+    assert!(
+        line.contains(&format!(
+            "{} seconds is stopped as a stall",
+            CONNECTED_PUSH_QUIET_WINDOW.as_secs()
+        )),
         "the connected window that ends it is named: {line}"
     );
-    assert!(line.contains("the connection to the remote is open"), "the line says what the connection is to: {line}");
+    assert!(
+        line.contains("the connection to the remote is open"),
+        "the line says what the connection is to: {line}"
+    );
 }
 
 /// What:
@@ -529,27 +652,97 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
 #[test]
 fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting() {
     let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
-    let connected: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
-    assert!(connected.contains("limit=connected"), "the window that fired is named: {connected}");
+    let connected: String = stalled_reason(
+        "git push",
+        &StopReport {
+            window: StopWindow::Connected,
+            limit: window,
+            moved: 12,
+            elapsed: window,
+            carried: 0,
+            minimum: 0,
+        },
+        None,
+    );
     assert!(
-        connected.contains(&format!("{PUSH_DEADLINE_VARIABLE} does not change this window")),
+        connected.contains("limit=connected"),
+        "the window that fired is named: {connected}"
+    );
+    assert!(
+        connected.contains(&format!(
+            "{PUSH_DEADLINE_VARIABLE} does not change this window"
+        )),
         "the setting is named as one that does not move this window: {connected}"
     );
-    assert!(!connected.contains("to allow longer"), "no remedy that cannot work is offered: {connected}");
-    assert!(connected.contains(PUSH_QUEUED_LINE), "the retry that does settle it is named: {connected}");
-    assert!(connected.contains("held its connection to the remote open"), "a stop that knew no server says the remote: {connected}");
-    let named: String = stalled_reason("git push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, Some("127.0.0.1:8080"));
+    assert!(
+        !connected.contains("to allow longer"),
+        "no remedy that cannot work is offered: {connected}"
+    );
+    assert!(
+        connected.contains(PUSH_QUEUED_LINE),
+        "the retry that does settle it is named: {connected}"
+    );
+    assert!(
+        connected.contains("held its connection to the remote open"),
+        "a stop that knew no server says the remote: {connected}"
+    );
+    let named: String = stalled_reason(
+        "git push",
+        &StopReport {
+            window: StopWindow::Connected,
+            limit: window,
+            moved: 12,
+            elapsed: window,
+            carried: 0,
+            minimum: 0,
+        },
+        Some("127.0.0.1:8080"),
+    );
     // The run that held the connection is the one the stop names, so an upload is not reported as a plain push.
-    let upload: String = stalled_reason("git-lfs push", &StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
-    assert!(upload.contains("git-lfs push held its connection"), "the stop names the run that held the connection: {upload}");
-    assert!(!upload.contains("git push held its connection"), "the stop does not pass an upload for a push: {upload}");
+    let upload: String = stalled_reason(
+        "git-lfs push",
+        &StopReport {
+            window: StopWindow::Connected,
+            limit: window,
+            moved: 12,
+            elapsed: window,
+            carried: 0,
+            minimum: 0,
+        },
+        None,
+    );
+    assert!(
+        upload.contains("git-lfs push held its connection"),
+        "the stop names the run that held the connection: {upload}"
+    );
+    assert!(
+        !upload.contains("git push held its connection"),
+        "the stop does not pass an upload for a push: {upload}"
+    );
     assert!(
         named.contains("held its connection to the server `127.0.0.1:8080` open"),
         "a stop names the server the run waited for: {named}"
     );
-    let stalled: String = stalled_reason("git push", &StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window, carried: 0, minimum: 0 }, None);
-    assert!(stalled.contains("limit=stall"), "the window that fired is named: {stalled}");
-    assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");
+    let stalled: String = stalled_reason(
+        "git push",
+        &StopReport {
+            window: StopWindow::Stall,
+            limit: window,
+            moved: 12,
+            elapsed: window,
+            carried: 0,
+            minimum: 0,
+        },
+        None,
+    );
+    assert!(
+        stalled.contains("limit=stall"),
+        "the window that fired is named: {stalled}"
+    );
+    assert!(
+        stalled.contains("to allow longer"),
+        "the setting that moves this window is offered: {stalled}"
+    );
 }
 
 /// What:
@@ -573,20 +766,52 @@ fn a_connected_stop_that_carried_bytes_names_them_and_the_floor_that_judged_them
     let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
     let trickled: String = stalled_reason(
         "git push",
-        &StopReport { window: StopWindow::Connected, limit: window, moved: 900, elapsed: window, carried: 150, minimum: 1024 },
+        &StopReport {
+            window: StopWindow::Connected,
+            limit: window,
+            moved: 900,
+            elapsed: window,
+            carried: 150,
+            minimum: 1024,
+        },
         None,
     );
-    assert!(trickled.contains("carried_bytes=150"), "the bytes carried are named: {trickled}");
-    assert!(trickled.contains("minimum_bytes_per_window=1024"), "the floor is named: {trickled}");
-    assert!(trickled.contains("keepalive"), "a keepalive is named as that kind of traffic: {trickled}");
-    assert!(!trickled.contains("with nothing moving"), "the line does not say nothing moved where bytes did: {trickled}");
-    assert!(trickled.contains(PUSH_MINIMUM_RATE_VARIABLE), "the setting that lets a slower line through is named: {trickled}");
+    assert!(
+        trickled.contains("carried_bytes=150"),
+        "the bytes carried are named: {trickled}"
+    );
+    assert!(
+        trickled.contains("minimum_bytes_per_window=1024"),
+        "the floor is named: {trickled}"
+    );
+    assert!(
+        trickled.contains("keepalive"),
+        "a keepalive is named as that kind of traffic: {trickled}"
+    );
+    assert!(
+        !trickled.contains("with nothing moving"),
+        "the line does not say nothing moved where bytes did: {trickled}"
+    );
+    assert!(
+        trickled.contains(PUSH_MINIMUM_RATE_VARIABLE),
+        "the setting that lets a slower line through is named: {trickled}"
+    );
     let silent: String = stalled_reason(
         "git push",
-        &StopReport { window: StopWindow::Connected, limit: window, moved: 900, elapsed: window, carried: 0, minimum: 1024 },
+        &StopReport {
+            window: StopWindow::Connected,
+            limit: window,
+            moved: 900,
+            elapsed: window,
+            carried: 0,
+            minimum: 1024,
+        },
         None,
     );
-    assert!(silent.contains("with nothing moving"), "a connection that carried nothing says so: {silent}");
+    assert!(
+        silent.contains("with nothing moving"),
+        "a connection that carried nothing says so: {silent}"
+    );
     assert!(
         !silent.contains(PUSH_MINIMUM_RATE_VARIABLE),
         "a server that sent nothing has no line speed to lower, and the floor is the only bound there is: {silent}"
@@ -616,14 +841,36 @@ fn the_words_of_a_wait_name_the_program_once() {
         window: CONNECTED_PUSH_QUIET_WINDOW,
     };
     let words: String = wait_line_words("git push", &report);
-    assert!(!words.contains("monochromatic-git-policy-cli"), "the words carry no program name: {words}");
+    assert!(
+        !words.contains("monochromatic-git-policy-cli"),
+        "the words carry no program name: {words}"
+    );
     let line: String = wait_line("git push", &report);
-    assert_eq!(line.matches("monochromatic-git-policy-cli").count(), 1, "the line names the program once: {line}");
+    assert_eq!(
+        line.matches("monochromatic-git-policy-cli").count(),
+        1,
+        "the line names the program once: {line}"
+    );
     // The diagnostic names this program once in its own prefix and tags the wait itself, so no name is printed twice in a row.
-    let diagnostic: String = crate::diagnostic_log::diagnostic_line("warn", "2026-11-19T00:00:00.000Z", "wait_with_clock", &words);
-    assert_eq!(diagnostic.matches("monochromatic-git-policy-cli").count(), 1, "the diagnostic names the program once: {diagnostic}");
-    assert!(diagnostic.contains("[wait_with_clock]"), "the wait itself is the tag: {diagnostic}");
-    assert!(line.ends_with(words.as_str()), "the line is the words with the name in front: {line}");
+    let diagnostic: String = crate::diagnostic_log::diagnostic_line(
+        "warn",
+        "2026-11-19T00:00:00.000Z",
+        "wait_with_clock",
+        &words,
+    );
+    assert_eq!(
+        diagnostic.matches("monochromatic-git-policy-cli").count(),
+        1,
+        "the diagnostic names the program once: {diagnostic}"
+    );
+    assert!(
+        diagnostic.contains("[wait_with_clock]"),
+        "the wait itself is the tag: {diagnostic}"
+    );
+    assert!(
+        line.ends_with(words.as_str()),
+        "the line is the words with the name in front: {line}"
+    );
 }
 
 /// What:
@@ -655,7 +902,13 @@ fn a_capped_output_keeps_whole_lines_and_says_it_was_cut() {
     let mut file: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
     let (shown, cut): (String, bool) = read_output(&mut file).expect("read");
     assert!(cut, "the read says the output was longer than the cap");
-    assert_eq!(shown, "first line\n", "only the whole line before the cut is kept");
-    assert!(!shown.contains("planted"), "no part of the password survives: {shown}");
+    assert_eq!(
+        shown, "first line\n",
+        "only the whole line before the cut is kept"
+    );
+    assert!(
+        !shown.contains("planted"),
+        "no part of the password survives: {shown}"
+    );
     crate::test_support::remove(root.as_path());
 }

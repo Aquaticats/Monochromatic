@@ -18,12 +18,33 @@
 /// The tokenizer under test,
 ///  its queries and the shared argument builders.
 use super::{
-    Arity, Boundary, DEFAULT_MODE, Occurrence, OptionError, OptionErrorKind, OptionSpec,
-    OptionValue, ParseMode, ParsedOptions, WrapperOccurrence, parse_options, row,
+    Arity,
+    Boundary,
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    OptionValue,
+    ParseMode,
+    ParsedOptions,
+    WrapperOccurrence,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{positional_tokens, value_bytes, without_tokens};
+use crate::command_options_query::{
+    positional_tokens,
+    value_bytes,
+    without_tokens,
+};
 use crate::command_test_support::{
-    ALL, AMEND, MESSAGE, SYNTHETIC_TABLE, assert_table_invariants, os_arguments, parse_synthetic,
+    ALL,
+    AMEND,
+    MESSAGE,
+    SYNTHETIC_TABLE,
+    assert_table_invariants,
+    os_arguments,
+    parse_synthetic,
 };
 use std::ffi::OsString;
 
@@ -44,7 +65,10 @@ const KEEP_UNKNOWN: ParseMode = ParseMode {
 };
 
 /// Tokenize against the incumbent test's two-row table under one mode.
-fn parse(values: &[&str], mode: ParseMode) -> Result<ParsedOptions, OptionError> {
+fn parse(
+    values: &[&str],
+    mode: ParseMode,
+) -> Result<ParsedOptions, OptionError> {
     return parse_options(os_arguments(values).as_slice(), INCUMBENT_TABLE, mode, &[]);
 }
 
@@ -53,7 +77,9 @@ fn message_from_next(token: usize) -> Occurrence {
     return Occurrence {
         id: MESSAGE,
         negated: false,
-        value: Some(OptionValue::Detached { token: token + 1 }),
+        value: Some(OptionValue::Detached {
+            token: token + 1,
+        }),
         token,
     };
 }
@@ -285,8 +311,14 @@ fn finds_wrapper_flags_in_option_position_only() {
     assert_eq!(
         parsed.wrapper,
         vec![
-            WrapperOccurrence { flag: 1, token: 0 },
-            WrapperOccurrence { flag: 0, token: 3 },
+            WrapperOccurrence {
+                flag: 1,
+                token: 0
+            },
+            WrapperOccurrence {
+                flag: 0,
+                token: 3
+            },
         ]
     );
     assert_eq!(positional_tokens(&parsed, arguments.len()), vec![5]);

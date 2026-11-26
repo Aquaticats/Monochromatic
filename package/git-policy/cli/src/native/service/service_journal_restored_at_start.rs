@@ -50,15 +50,29 @@ pub(crate) const THE_READ_AT_A_START: &str = "the-read-at-a-start";
 /// const read = workWithin(ceiling, () => [PushRetries.restored(planDirectory), ClaimWatch.restored(watchDirectory, instance)]);
 /// const [retries, watch] = read ?? [PushRetries.unread(planDirectory), ClaimWatch.unread(watchDirectory, instance)];
 /// ```
-pub fn restored_within(ceiling: Duration, plan_directory: PathBuf, watch_directory: PathBuf, instance: Option<String>) -> (PushRetries, ClaimWatch) {
-    let (plan_of_the_read, watch_of_the_read, instance_of_the_read): (PathBuf, PathBuf, Option<String>) =
-        (plan_directory.clone(), watch_directory.clone(), instance.clone());
+pub fn restored_within(
+    ceiling: Duration,
+    plan_directory: PathBuf,
+    watch_directory: PathBuf,
+    instance: Option<String>,
+) -> (PushRetries, ClaimWatch) {
+    let (plan_of_the_read, watch_of_the_read, instance_of_the_read): (
+        PathBuf,
+        PathBuf,
+        Option<String>,
+    ) = (
+        plan_directory.clone(),
+        watch_directory.clone(),
+        instance.clone(),
+    );
     let restored = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
         // A control holds this read on the thread that runs it, which is this read's own and not the thread that set the hold.
         #[cfg(test)]
         crate::service_fault::hooks::run_on_any_thread(THE_READ_AT_A_START);
-        let retries: PushRetries = PushRetries::restored_from_environment(plan_of_the_read.as_path());
-        let watch: ClaimWatch = ClaimWatch::restored(watch_of_the_read.as_path(), instance_of_the_read.as_deref());
+        let retries: PushRetries =
+            PushRetries::restored_from_environment(plan_of_the_read.as_path());
+        let watch: ClaimWatch =
+            ClaimWatch::restored(watch_of_the_read.as_path(), instance_of_the_read.as_deref());
         return (retries, watch);
     });
     return match restored {
@@ -69,7 +83,10 @@ pub fn restored_within(ceiling: Duration, plan_directory: PathBuf, watch_directo
                 plan_directory.display(),
                 watch_directory.display()
             );
-            (PushRetries::unread_from_environment(plan_directory.as_path()), ClaimWatch::unread(watch_directory.as_path(), instance.as_deref()))
+            (
+                PushRetries::unread_from_environment(plan_directory.as_path()),
+                ClaimWatch::unread(watch_directory.as_path(), instance.as_deref()),
+            )
         }
     };
 }

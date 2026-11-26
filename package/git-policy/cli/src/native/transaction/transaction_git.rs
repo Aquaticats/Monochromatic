@@ -19,51 +19,80 @@
 //! const { stdout } = await runTransactionGit({ gitPath, cwd, args, indexPath, input });
 //! ```
 
+/// The watched run that announces a step that takes long and stops it at the bound.
+use crate::child_class::class_of;
+/// The bound of a step,
+/// which the controls of the steps' bounds still ask.
+#[cfg(test)]
+use crate::child_watch::StepBound;
+use crate::child_watch::{
+    WatchTerms,
+    output_watched_within_for_a_stop,
+};
 /// Building a Git child from an argument array and an overlay.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
 /// the wrapper's own work,
 /// not the person's command.
 use crate::hooks_off::StartOwner;
+/// Private exclusive files for standard input.
+use crate::private_storage::write_exclusive_scratch;
+/// Unique temporary names.
+use crate::random_id::random_uuid;
 use crate::repo_read_hook::try_request;
-/// The watched run that announces a step that takes long and stops it at the bound.
-use crate::child_class::class_of;
-use crate::child_watch::{WatchTerms, output_watched_within_for_a_stop};
-/// The bound of a step,
-/// which the controls of the steps' bounds still ask.
-#[cfg(test)]
-use crate::child_watch::StepBound;
+/// The repository scratch directory the input file is made in.
+use crate::scratch_location::prepare_repository_scratch;
+/// Starts that ride out a short shortage of processes.
+use crate::start_retry::{
+    RefusableStart,
+    START_RETRY_BUDGET,
+    retry_refused_start_with,
+};
 /// The request,
 /// reply and failure types and the text of a command line,
 /// re-exported so `crate::transaction_git::GitRequest`
 ///  and the other paths that name them keep working.
-pub use crate::transaction_git_request_and_reply_types::{GitContext, GitFailure, GitOutput, GitRequest, command_text};
-/// The rules for which steps may be run again or ended,
-/// re-exported under the path they had in this file.
-pub(crate) use crate::transaction_git_step_rerun_and_end_rules::{NO_REFLOG_SETTING, subcommand_of};
-use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
+pub use crate::transaction_git_request_and_reply_types::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    command_text,
+};
 /// The step both faces start,
 /// what it answers once it ended,
 /// and how one start's answer is read.
-use crate::transaction_git_step_about_to_start::{StepAboutToStart, answer_of_a_start, start_failure, step_about_to_start, step_finished, step_is_run_again};
+use crate::transaction_git_step_about_to_start::{
+    StepAboutToStart,
+    answer_of_a_start,
+    start_failure,
+    step_about_to_start,
+    step_finished,
+    step_is_run_again,
+};
 /// The bound a step is given,
 /// which the step's own preparation reads and the controls of the bounds still ask.
 #[cfg(test)]
 use crate::transaction_git_step_bounds::step_bound;
 #[cfg(test)]
-pub(crate) use crate::transaction_git_step_bounds::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
-/// Private exclusive files for standard input.
-use crate::private_storage::write_exclusive_scratch;
-/// The repository scratch directory the input file is made in.
-use crate::scratch_location::prepare_repository_scratch;
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::{RefusableStart, START_RETRY_BUDGET, retry_refused_start_with};
-/// Unique temporary names.
-use crate::random_id::random_uuid;
+pub(crate) use crate::transaction_git_step_bounds::{
+    EXTRA_WAIT_FOR_THIS_THREAD,
+    STEP_CEILING_FOR_THIS_THREAD,
+};
+use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
+/// The rules for which steps may be run again or ended,
+/// re-exported under the path they had in this file.
+pub(crate) use crate::transaction_git_step_rerun_and_end_rules::{
+    NO_REFLOG_SETTING,
+    subcommand_of,
+};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Command` builds a child process;
 ///  `Stdio` configures its streams.
 /// `Command` builds a child process.
@@ -90,7 +119,10 @@ use std::time::Duration;
 /// ```ts
 /// // child.stdin.end(input);
 /// ```
-pub(crate) fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
+pub(crate) fn input_file(
+    bytes: &[u8],
+    common_dir: Option<&Path>,
+) -> std::io::Result<std::fs::File> {
     let Some(common) = common_dir else {
         return Err(std::io::Error::other(
             "monochromatic-git-policy-cli has no repository scratch directory for the input of this Git command: the command was started \
@@ -123,7 +155,10 @@ pub(crate) fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Re
 /// ```ts
 /// spawn(gitPath, args, { cwd, env: { ...withoutUnset(process.env), ...environment, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY } })
 /// ```
-pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Command {
+pub(crate) fn build_command(
+    context: &GitContext,
+    request: &GitRequest,
+) -> Command {
     // `full_arguments` decides which of the caller's global options reach this start, so a request whose
     // pathspecs are the wrapper's own runs without the caller's pathspec modes.
     let arguments: Vec<OsString> = request.full_arguments(context.global_prefix.as_slice());
@@ -209,7 +244,10 @@ fn end_with_the_starting_thread(_command: &mut Command) {}
 /// ```ts
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
-pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+pub fn run_git(
+    context: &GitContext,
+    request: &GitRequest,
+) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
@@ -222,7 +260,12 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
         crate::git_step_failure::clear_failed_step();
     }
     let entered: bool = crate::add_timing::begin_step(label.as_str());
-    let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
+    let output: std::io::Result<GitOutput> = run_git_pausing(
+        context,
+        request,
+        START_RETRY_BUDGET,
+        &mut std::thread::sleep,
+    );
     crate::add_timing::end_step(entered);
     return output;
 }
@@ -241,9 +284,9 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
 /// ```
 pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
     return output.code != Some(0)
-        && String::from_utf8_lossy(output.stderr.as_slice()).contains("Resource temporarily unavailable");
+        && String::from_utf8_lossy(output.stderr.as_slice())
+            .contains("Resource temporarily unavailable");
 }
-
 
 /// What:
 ///  Run one request,
@@ -270,11 +313,18 @@ fn run_git_pausing(
         return run_git_once(context, request);
     }
     let what: String = command_text(&request.arguments);
-    let mut attempt: RefusableGitRun<'_> = RefusableGitRun { context, request, refused: None };
-    let result: std::io::Result<GitOutput> = retry_refused_start_with(what.as_str(), budget, pause, &mut attempt);
+    let mut attempt: RefusableGitRun<'_> = RefusableGitRun {
+        context,
+        request,
+        refused: None,
+    };
+    let result: std::io::Result<GitOutput> =
+        retry_refused_start_with(what.as_str(), budget, pause, &mut attempt);
     match (result, attempt.refused.take()) {
         (Ok(finished), _) => return Ok(finished),
-        (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(last),
+        (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            return Ok(last);
+        }
         (Err(error), _) => return Err(error),
     }
 }
@@ -379,8 +429,17 @@ impl WatchTermsSource for TermsOfRequest<'_> {
 /// ```ts
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
-fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    return run_git_once_with(context, request, &TermsOfRequest { request });
+fn run_git_once(
+    context: &GitContext,
+    request: &GitRequest,
+) -> std::io::Result<GitOutput> {
+    return run_git_once_with(
+        context,
+        request,
+        &TermsOfRequest {
+            request,
+        },
+    );
 }
 
 /// What:
@@ -435,14 +494,17 @@ fn run_git_once_with(
 ) -> std::io::Result<GitOutput> {
     let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms.terms());
     return match first {
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !crate::child_watch::is_ceiling(&error) => {
+        Err(error)
+            if error.kind() == std::io::ErrorKind::TimedOut
+                && may_be_rerun(request)
+                && !crate::child_watch::is_ceiling(&error) =>
+        {
             step_is_run_again(request);
             run_git_watched(context, request, terms.terms())
         }
         other => other,
     };
 }
-
 
 /// How a request names itself in notices and in the sentence of a step that was ended:
 /// the command and the kind of step.
@@ -465,7 +527,11 @@ pub(crate) fn step_subject(request: &GitRequest) -> String {
 /// ```ts
 /// await runWatched({ gitPath, cwd, args, terms, stoppable: mayBeRerun(request) })
 /// ```
-fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms) -> std::io::Result<GitOutput> {
+fn run_git_watched(
+    context: &GitContext,
+    request: &GitRequest,
+    terms: WatchTerms,
+) -> std::io::Result<GitOutput> {
     // What:     `step_about_to_start(...)` makes everything the step needs before it starts: the child command, its input,
     //           the words that name it, its watch terms, its bound and its record.
     // Why:      The awaited face makes the same value, so a step cannot be started with a different bound or a different name.
@@ -502,7 +568,12 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // ```ts
     // return stepFinished(step.ledgerStep, request, step.began, watched);
     // ```
-    return Ok(step_finished(step.ledger_step.as_str(), request, step.began, watched?));
+    return Ok(step_finished(
+        step.ledger_step.as_str(),
+        request,
+        step.began,
+        watched?,
+    ));
 }
 
 /// What:
@@ -536,7 +607,10 @@ pub fn run_git_checked(
 /// ```ts
 /// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
 /// ```
-pub(crate) fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+pub(crate) fn checked_from(
+    outcome: std::io::Result<GitOutput>,
+    arguments: &[OsString],
+) -> Result<GitOutput, GitFailure> {
     let step: String = crate::add_timing::git_step_label(arguments);
     let output: GitOutput = match outcome {
         Ok(finished) => finished,
@@ -546,12 +620,19 @@ pub(crate) fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsS
         }
         Err(error) => {
             crate::git_step_failure::note_failed_step(step.as_str(), None);
-            return Err(GitFailure(format!("{} could not start: {error}", command_text(arguments))));
+            return Err(GitFailure(format!(
+                "{} could not start: {error}",
+                command_text(arguments)
+            )));
         }
     };
     if !output.succeeded() {
         crate::git_step_failure::note_failed_step(step.as_str(), output.code);
-        return Err(GitFailure(format!("{} failed: {}", command_text(arguments), output.error_text())));
+        return Err(GitFailure(format!(
+            "{} failed: {}",
+            command_text(arguments),
+            output.error_text()
+        )));
     }
     return Ok(output);
 }

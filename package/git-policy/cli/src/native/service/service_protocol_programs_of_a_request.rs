@@ -30,15 +30,28 @@ use serde_json::Value;
 /// ```ts
 /// const programsOf = (entry) => ({ transport: entry.transport === true, notText: (entry.not_text ?? []).map(checkName), variables: entry.variables.map(([name, value]) => { if (!CARRIED.includes(name)) throw ...; return [name, value]; }) });
 /// ```
-pub(crate) fn programs_of(entry: &Value) -> Result<crate::service_push_programs_held_in_memory::PushPrograms, String> {
+pub(crate) fn programs_of(
+    entry: &Value
+) -> Result<crate::service_push_programs_held_in_memory::PushPrograms, String> {
     let mut variables: Vec<(String, String)> = Vec::new();
-    for item in entry.get("variables").and_then(Value::as_array).ok_or("the programs carry no list of variables")? {
-        let pair: &Vec<Value> = item.as_array().filter(|pair| { return pair.len() == 2; }).ok_or("a carried variable is not a name and a value")?;
+    for item in entry
+        .get("variables")
+        .and_then(Value::as_array)
+        .ok_or("the programs carry no list of variables")?
+    {
+        let pair: &Vec<Value> = item
+            .as_array()
+            .filter(|pair| {
+                return pair.len() == 2;
+            })
+            .ok_or("a carried variable is not a name and a value")?;
         let (Some(name), Some(value)) = (pair[0].as_str(), pair[1].as_str()) else {
             return Err(String::from("a carried variable is not text"));
         };
         if !crate::service_push_programs_held_in_memory::CARRIED.contains(&name) {
-            return Err(format!("a carried variable this release never carries: {name}"));
+            return Err(format!(
+                "a carried variable this release never carries: {name}"
+            ));
         }
         if value.contains('\0') {
             return Err(String::from("a carried variable holds a NUL"));
@@ -49,15 +62,28 @@ pub(crate) fn programs_of(entry: &Value) -> Result<crate::service_push_programs_
     let mut not_text: Vec<String> = Vec::new();
     if let Some(field) = entry.get("not_text") {
         // A field that is there and is not a list is a line this release cannot read, not an older request.
-        let names: &Vec<Value> = field.as_array().ok_or("the names whose value could not travel are not a list")?;
+        let names: &Vec<Value> = field
+            .as_array()
+            .ok_or("the names whose value could not travel are not a list")?;
         for item in names {
-            let name: &str = item.as_str().ok_or("a name whose value could not travel is not text")?;
+            let name: &str = item
+                .as_str()
+                .ok_or("a name whose value could not travel is not text")?;
             if !crate::service_push_programs_held_in_memory::CARRIED.contains(&name) {
-                return Err(format!("a variable this release never carries was named as one whose value could not travel: {name}"));
+                return Err(format!(
+                    "a variable this release never carries was named as one whose value could not travel: {name}"
+                ));
             }
             not_text.push(String::from(name));
         }
     }
-    let transport: bool = entry.get("transport").and_then(Value::as_bool).unwrap_or(false);
-    return Ok(crate::service_push_programs_held_in_memory::PushPrograms { variables, not_text, transport });
+    let transport: bool = entry
+        .get("transport")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    return Ok(crate::service_push_programs_held_in_memory::PushPrograms {
+        variables,
+        not_text,
+        transport,
+    });
 }

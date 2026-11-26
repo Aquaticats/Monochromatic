@@ -33,19 +33,47 @@
 //! const problems: string[] = await finishInterruptedDestroys(commonDir); // what a person still has to act on
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
-use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
+use crate::fs_beneath::{
+    ObjectId,
+    handle_path,
+    identity_of,
+    open_directory_at,
+    open_root,
+    remove_at,
+};
 use crate::plain_file::read_plain_file;
 use crate::process_identity::process_birth_identity;
-use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::subvolume_remove_walk::{
+    empty_directory,
+    verify_below,
+};
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
-use crate::worktree_removal_interrupted_destroy::{DestroyRecord, RECORD_FOLDER, RECORD_LIMIT, forget_destroy, read_record};
-use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
+use crate::worktree_removal_interrupted_destroy::{
+    DestroyRecord,
+    RECORD_FOLDER,
+    RECORD_LIMIT,
+    forget_destroy,
+    read_record,
+};
+use crate::worktree_removal_rescue::{
+    SNAPSHOT_DIRECTORY,
+    snapshot_one,
+};
 use crate::worktree_removal_snapshot_promotion::promote_snapshot;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalInterruptedDestroy";
@@ -75,13 +103,21 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 /// ```
 pub(crate) fn owner_may_be_running(owner: Option<&String>) -> bool {
     let Some(spelled) = owner else { return true };
-    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
-    let Ok(pid) = spelled_pid.parse::<i64>() else { return true };
+    let Some((spelled_pid, identity)) = spelled.split_once(':') else {
+        return true;
+    };
+    let Ok(pid) = spelled_pid.parse::<i64>() else {
+        return true;
+    };
     return match process_birth_identity(pid) {
         Ok(Some(now)) => now == identity,
         Ok(None) => false,
         Err(error) => {
-            warn(TAG, format!("the process {pid} of a recorded destroy cannot be inspected: {error}").as_str());
+            warn(
+                TAG,
+                format!("the process {pid} of a recorded destroy cannot be inspected: {error}")
+                    .as_str(),
+            );
             true
         }
     };
@@ -107,7 +143,10 @@ pub(crate) fn owner_may_be_running(owner: Option<&String>) -> bool {
 /// ```ts
 /// const report = namedCheckout(admin, target); // undefined when the registration names target
 /// ```
-fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
+fn named_checkout(
+    admin: &Path,
+    target: &Path,
+) -> Option<String> {
     let named: Vec<u8> = match read_plain_file(&admin.join("gitdir"), RECORD_LIMIT) {
         Ok(read) => read,
         // No back-pointer at all is the state the removal being finished leaves when it empties a registration and then
@@ -123,9 +162,15 @@ fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
             ));
         }
     };
-    let recorded: &[u8] = named.strip_suffix(b"\n".as_slice()).unwrap_or(named.as_slice());
+    let recorded: &[u8] = named
+        .strip_suffix(b"\n".as_slice())
+        .unwrap_or(named.as_slice());
     let spelled: PathBuf = PathBuf::from(OsStr::from_bytes(recorded));
-    let resolved: PathBuf = if spelled.is_absolute() { spelled } else { admin.join(spelled) };
+    let resolved: PathBuf = if spelled.is_absolute() {
+        spelled
+    } else {
+        admin.join(spelled)
+    };
     let checkout: Option<&Path> = resolved.parent();
     if checkout == Some(target) {
         return None;
@@ -155,7 +200,13 @@ fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
 /// ```ts
 /// await removeRecordedRegistration(worktrees, id, admin, recorded);
 /// ```
-fn remove_recorded_registration(common_dir: &Path, worktrees: &File, id: &OsStr, admin: &Path, recorded: &ObjectId) -> Result<(), String> {
+fn remove_recorded_registration(
+    common_dir: &Path,
+    worktrees: &File,
+    id: &OsStr,
+    admin: &Path,
+    recorded: &ObjectId,
+) -> Result<(), String> {
     let held: File = match open_directory_at(worktrees, id) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -163,18 +214,38 @@ fn remove_recorded_registration(common_dir: &Path, worktrees: &File, id: &OsStr,
     };
     let found: ObjectId = step_reason(identity_of(&held), admin, "its identity cannot be read")?;
     if found != *recorded {
-        return Err(format!("{} is not the registration the destroy was recorded for, so it is left alone", admin.display()));
+        return Err(format!(
+            "{} is not the registration the destroy was recorded for, so it is left alone",
+            admin.display()
+        ));
     }
     // The snapshots ahead of an add are this program's own and stand in the registration, and the walk below refuses every
     // nested subvolume, so they go first: a removal this program began on an earlier build left them here, and nothing a
     // person put in the registration is touched by this clear.
-    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(common_dir, handle_path(&held).as_path()) {
-        return Err(format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()));
+    if let Err(reason) =
+        clear_the_pools_ahead_of_a_worktree(common_dir, handle_path(&held).as_path())
+    {
+        return Err(format!(
+            "its snapshots ahead of an add cannot be removed ({reason}): {}",
+            admin.display()
+        ));
     }
-    step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
-    step_reason(empty_directory(&held, admin), admin, "its content cannot be removed")?;
+    step_reason(
+        verify_below(&held, admin),
+        admin,
+        "it holds something this command does not delete",
+    )?;
+    step_reason(
+        empty_directory(&held, admin),
+        admin,
+        "its content cannot be removed",
+    )?;
     drop(held);
-    return step_reason(remove_at(worktrees, id, true), admin, "it cannot be removed from its parent");
+    return step_reason(
+        remove_at(worktrees, id, true),
+        admin,
+        "it cannot be removed from its parent",
+    );
 }
 
 /// What:
@@ -188,7 +259,11 @@ fn remove_recorded_registration(common_dir: &Path, worktrees: &File, id: &OsStr,
 /// ```ts
 /// stepReason(outcome, shown, 'its content cannot be removed')
 /// ```
-fn step_reason<T>(outcome: std::io::Result<T>, shown: &Path, what: &str) -> Result<T, String> {
+fn step_reason<T>(
+    outcome: std::io::Result<T>,
+    shown: &Path,
+    what: &str,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(format!("{what} ({error}): {}", shown.display())),
@@ -213,7 +288,9 @@ fn step_reason<T>(outcome: std::io::Result<T>, shown: &Path, what: &str) -> Resu
 pub fn finish_interrupted_destroys(common_dir: &Path) -> Vec<String> {
     let mut problems: Vec<String> = Vec::new();
     let folder: PathBuf = common_dir.join(RECORD_FOLDER);
-    let Ok(listing) = std::fs::read_dir(&folder) else { return problems };
+    let Ok(listing) = std::fs::read_dir(&folder) else {
+        return problems;
+    };
     for entry in listing.flatten() {
         let record: PathBuf = entry.path();
         let id: OsString = entry.file_name();
@@ -224,14 +301,26 @@ pub fn finish_interrupted_destroys(common_dir: &Path) -> Vec<String> {
 
 /// Finish one record,
 /// or say why it stays.
-fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<String>) {
+fn finish_one(
+    common_dir: &Path,
+    record: &Path,
+    id: &OsStr,
+    problems: &mut Vec<String>,
+) {
     // What a directory entry is, before what it holds: a named pipe, a device or a link is not this command's record, and
     // opening one would wait for a writer that never comes, on every wrapped command. `read_plain_file` opens without
     // following a link and without waiting, and refuses anything that is not a plain file.
     let bytes: Vec<u8> = match read_plain_file(record, RECORD_LIMIT) {
         Ok(read) => read,
         Err(error) => {
-            debug(TAG, format!("{} is not a plain record and is left alone ({error})", record.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} is not a plain record and is left alone ({error})",
+                    record.display()
+                )
+                .as_str(),
+            );
             return;
         }
     };
@@ -259,7 +348,14 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
         return;
     }
     if read.target.exists() {
-        debug(TAG, format!("the worktree {} of the recorded destroy is still there, so nothing was destroyed", read.target.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "the worktree {} of the recorded destroy is still there, so nothing was destroyed",
+                read.target.display()
+            )
+            .as_str(),
+        );
         forget_destroy(common_dir, id);
         return;
     }
@@ -314,10 +410,20 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
     // Git removes the `worktrees` directory when the last registration goes; a directory that still holds others stays.
     let _kept = std::fs::remove_dir(worktrees_path.as_path());
     forget_destroy(common_dir, id);
-    debug(TAG, format!("finished the removal of {}: its registration {} is gone", read.target.display(), admin.display()).as_str());
+    debug(
+        TAG,
+        format!(
+            "finished the removal of {}: its registration {} is gone",
+            read.target.display(),
+            admin.display()
+        )
+        .as_str(),
+    );
     // What the snapshot kept is promoted now; a failure leaves it for the settle of the next command, which sees the Git
     // directory gone.
-    let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(crate::service_instance::instance_of(admin.as_path()));
+    let snapshot: PathBuf = common_dir
+        .join(SNAPSHOT_DIRECTORY)
+        .join(crate::service_instance::instance_of(admin.as_path()));
     if snapshot.is_dir() {
         promote_snapshot(common_dir, snapshot.as_path(), problems);
     }

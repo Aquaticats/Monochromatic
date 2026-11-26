@@ -4,9 +4,20 @@
 
 use super::*;
 use crate::commit_build_part_durations::BuildPartClock;
-use crate::shadow_create::{ShadowTemplate, create_shadow_template};
-use crate::test_support::{fixture, git, git_context, remove};
-use std::path::{Path, PathBuf};
+use crate::shadow_create::{
+    ShadowTemplate,
+    create_shadow_template,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A repository with two commits on `main`,
@@ -30,10 +41,16 @@ use std::path::{Path, PathBuf};
 fn repository_of(root: &Path) -> PathBuf {
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     git(repo.as_path(), &["config", "maintenance.auto", "false"]);
     git(repo.as_path(), &["config", "gc.auto", "0"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
@@ -43,17 +60,23 @@ fn repository_of(root: &Path) -> PathBuf {
 /// The facts of a repository's shadow.
 fn template_of(repo: &Path) -> ShadowTemplate {
     let context = git_context();
-    let layout = crate::capture_invocation::capture_invocation_layout(&context, repo, false).expect("layout");
+    let layout = crate::capture_invocation::capture_invocation_layout(&context, repo, false)
+        .expect("layout");
     return ShadowTemplate::of(&context, &layout).expect("template");
 }
 
 /// A shadow of a fixture,
 /// made exactly as a commit makes it,
 /// at a path of the control's choosing.
-fn creation(root: &Path, template: &ShadowTemplate, name: &str) -> PathBuf {
+fn creation(
+    root: &Path,
+    template: &ShadowTemplate,
+    name: &str,
+) -> PathBuf {
     let shadow: PathBuf = root.join(name);
     let mut clock: BuildPartClock = BuildPartClock::begin("test");
-    create_shadow_template(&git_context(), template, shadow.as_path(), &mut clock).expect("creation");
+    create_shadow_template(&git_context(), template, shadow.as_path(), &mut clock)
+        .expect("creation");
     return shadow;
 }
 
@@ -97,13 +120,25 @@ const UNREAD_ENTRY_NAMES: [&str; 4] = [
 ///  and `an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir`
 ///  forces that upkeep in the foreground,
 ///  which is the order that took it.
-fn write_unread_state(root: &Path, repo: &Path) -> PathBuf {
+fn write_unread_state(
+    root: &Path,
+    repo: &Path,
+) -> PathBuf {
     let common: PathBuf = repo.join(".git");
     for name in UNREAD_ENTRY_NAMES {
         std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
     }
     let another: PathBuf = root.join("another");
-    git(repo, &["worktree", "add", "--quiet", "--detach", another.to_str().expect("fixture")]);
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            another.to_str().expect("fixture"),
+        ],
+    );
     return common;
 }
 
@@ -114,7 +149,11 @@ fn a_creation_is_what_a_member_must_be() {
     let repo: PathBuf = repository_of(root.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
-    assert_eq!(refusal(&template, shadow.as_path()).expect("checked"), None, "a creation is a member");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        None,
+        "a creation is a member"
+    );
     remove(root.as_path());
 }
 
@@ -133,9 +172,14 @@ fn a_member_that_is_a_link_to_another_member_is_refused() {
     let repo: PathBuf = repository_of(root.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
     let member: PathBuf = creation(root.as_path(), &template, "created");
-    assert_eq!(refusal(&template, member.as_path()).expect("checked"), None, "a creation is a member");
+    assert_eq!(
+        refusal(&template, member.as_path()).expect("checked"),
+        None,
+        "a creation is a member"
+    );
     let link: PathBuf = root.join("member-link");
-    std::os::unix::fs::symlink(member.as_path(), link.as_path()).expect("a link at a member's name");
+    std::os::unix::fs::symlink(member.as_path(), link.as_path())
+        .expect("a link at a member's name");
     assert_eq!(
         refusal(&template, link.as_path()).expect("checked"),
         Some(String::from("it is not the directory a creation makes")),
@@ -155,10 +199,16 @@ fn a_link_at_a_name_the_creation_makes_is_refused() {
     let template: ShadowTemplate = template_of(repo.as_path());
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
     std::fs::remove_file(shadow.join("HEAD").as_path()).expect("the HEAD a creation wrote");
-    std::os::unix::fs::symlink(repo.join(".git").join("HEAD").as_path(), shadow.join("HEAD").as_path()).expect("a link where the creation writes HEAD");
+    std::os::unix::fs::symlink(
+        repo.join(".git").join("HEAD").as_path(),
+        shadow.join("HEAD").as_path(),
+    )
+    .expect("a link where the creation writes HEAD");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("it holds HEAD as a link, which this invocation's creation does not make")),
+        Some(String::from(
+            "it holds HEAD as a link, which this invocation's creation does not make"
+        )),
         "a link at HEAD is not the file a creation writes"
     );
     remove(root.as_path());
@@ -177,18 +227,29 @@ fn a_link_at_a_name_the_creation_makes_is_refused() {
 fn a_worktree_configuration_is_compared_by_its_bytes() {
     let root: PathBuf = fixture("shadow-pool-member-worktree-configuration");
     let repo: PathBuf = repository_of(root.as_path());
-    git(repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
+    git(
+        repo.as_path(),
+        &["config", "extensions.worktreeConfig", "true"],
+    );
     // Git reads the per-worktree file as bytes, so an editor path that is not text is a configuration it accepts.
     let first: &[u8] = b"[core]\n\teditor = \x80\n";
     let second: &[u8] = b"[core]\n\teditor = \x81\n";
-    std::fs::write(repo.join(".git/config.worktree").as_path(), first).expect("the per-worktree file");
+    std::fs::write(repo.join(".git/config.worktree").as_path(), first)
+        .expect("the per-worktree file");
     let template: ShadowTemplate = template_of(repo.as_path());
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
-    assert_eq!(refusal(&template, shadow.as_path()).expect("checked"), None, "the copy a creation made is a member");
-    std::fs::write(repo.join(".git/config.worktree").as_path(), second).expect("another editor, in bytes");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")),
+        None,
+        "the copy a creation made is a member"
+    );
+    std::fs::write(repo.join(".git/config.worktree").as_path(), second)
+        .expect("another editor, in bytes");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from(
+            "its copy of the worktree's configuration is not the one a creation would copy"
+        )),
         "two configurations that decode to the same text are still two configurations"
     );
     remove(root.as_path());
@@ -210,10 +271,18 @@ fn a_claim_asks_one_link_question_of_each_shared_entry() {
     let root: PathBuf = fixture("shadow-pool-member-questions");
     let repo: PathBuf = repository_of(root.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
-    let (shared, _) = crate::shadow_links::shared_entries_of(template.common_dir.as_path(), template.git_dir.as_path()).expect("shared entries");
+    let (shared, _) = crate::shadow_links::shared_entries_of(
+        template.common_dir.as_path(),
+        template.git_dir.as_path(),
+    )
+    .expect("shared entries");
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
     reset_link_questions();
-    assert_eq!(refusal(&template, shadow.as_path()).expect("checked"), None, "a creation is a member");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        None,
+        "a creation is a member"
+    );
     assert_eq!(
         link_questions(),
         shared.len() as u64,
@@ -236,11 +305,17 @@ fn a_leftover_of_a_use_is_refused() {
         ("log", "COMMIT_EDITMSG"),
         ("sequencer", "sequencer"),
     ] {
-        let shadow: PathBuf = creation(root.as_path(), &template, format!("created-{name}").as_str());
+        let shadow: PathBuf = creation(
+            root.as_path(),
+            &template,
+            format!("created-{name}").as_str(),
+        );
         std::fs::write(shadow.join(leftover).as_path(), b"x\n").expect("leftover");
         assert_eq!(
             refusal(&template, shadow.as_path()).expect("checked"),
-            Some(format!("it holds {leftover}, which this invocation's creation does not make")),
+            Some(format!(
+                "it holds {leftover}, which this invocation's creation does not make"
+            )),
             "{leftover}"
         );
     }
@@ -256,15 +331,25 @@ fn a_pack_or_a_ref_is_refused() {
     let template: ShadowTemplate = template_of(repo.as_path());
     let packed: PathBuf = creation(root.as_path(), &template, "created-pack");
     // A pack is what a used shadow holds, and the creation leaves its folder to Git, so a use makes it.
-    std::fs::create_dir(packed.join("objects").join("pack").as_path()).expect("the pack folder a use made");
-    std::fs::write(packed.join("objects").join("pack").join("pack-x.pack").as_path(), b"x").expect("pack");
+    std::fs::create_dir(packed.join("objects").join("pack").as_path())
+        .expect("the pack folder a use made");
+    std::fs::write(
+        packed
+            .join("objects")
+            .join("pack")
+            .join("pack-x.pack")
+            .as_path(),
+        b"x",
+    )
+    .expect("pack");
     assert_eq!(
         refusal(&template, packed.as_path()).expect("checked"),
         Some(String::from("it holds a pack, which no creation leaves"))
     );
     let referenced: PathBuf = creation(root.as_path(), &template, "created-ref");
     // A ref is what a used shadow's commit writes, and the creation leaves its folder to Git.
-    std::fs::create_dir_all(referenced.join("refs").join("heads").as_path()).expect("the ref folder a use made");
+    std::fs::create_dir_all(referenced.join("refs").join("heads").as_path())
+        .expect("the ref folder a use made");
     std::fs::write(
         referenced.join("refs").join("heads").join("main").as_path(),
         b"0123456789012345678901234567890123456789\n",
@@ -300,13 +385,19 @@ fn a_rotation_of_the_wrappers_own_timing_log_between_the_fill_and_the_claim_refu
     // The log itself, which a commit of this repository has already written: a member of this moment links it, and
     //  the rotation of the same log is what a later command writes beside it.
     let log: String = String::from(crate::commit_timing::TIMING_FILE);
-    std::fs::write(template.common_dir.join(log.as_str()), b"{\"round\":1}\n").expect("the wrapper's own timing log");
+    std::fs::write(template.common_dir.join(log.as_str()), b"{\"round\":1}\n")
+        .expect("the wrapper's own timing log");
     let member: PathBuf = creation(root.as_path(), &template, "created");
-    assert_eq!(refusal(&template, member.as_path()).expect("checked"), None, "the creation is a member before the rotation");
+    assert_eq!(
+        refusal(&template, member.as_path()).expect("checked"),
+        None,
+        "the creation is a member before the rotation"
+    );
     // The generations a rotation of the wrapper's own timing log leaves in the common directory.
     for generation in [".1", ".7"] {
         let name: String = format!("{log}{generation}");
-        std::fs::write(template.common_dir.join(name.as_str()), b"{\"round\":1}\n").expect("a generation of the timing log");
+        std::fs::write(template.common_dir.join(name.as_str()), b"{\"round\":1}\n")
+            .expect("a generation of the timing log");
     }
     assert_eq!(
         refusal(&template, member.as_path()).expect("checked"),
@@ -319,7 +410,9 @@ fn a_rotation_of_the_wrappers_own_timing_log_between_the_fill_and_the_claim_refu
     std::fs::create_dir_all(rerere.as_path()).expect("the shared rr-cache directory");
     assert_eq!(
         refusal(&template, member.as_path()).expect("checked"),
-        Some(String::from("the shared entry rr-cache is not in the member")),
+        Some(String::from(
+            "the shared entry rr-cache is not in the member"
+        )),
         "an entry a commit reads that the repository gained is still a refusal"
     );
     remove(root.as_path());
@@ -340,7 +433,9 @@ fn a_link_of_another_repository_is_refused() {
     std::os::unix::fs::symlink(elsewhere.as_path(), link.as_path()).expect("another link");
     assert_eq!(
         refusal(&template, moved.as_path()).expect("checked"),
-        Some(String::from("the shared entry info links somewhere other than the repository's own entry"))
+        Some(String::from(
+            "the shared entry info links somewhere other than the repository's own entry"
+        ))
     );
     let missing: PathBuf = creation(root.as_path(), &template, "created-missing");
     std::fs::remove_file(missing.join("hooks").as_path()).expect("the real link");
@@ -363,18 +458,24 @@ fn a_config_of_another_invocation_is_refused() {
     other.repository_root = root.join("elsewhere");
     assert_eq!(
         refusal(&other, shadow.as_path()).expect("checked"),
-        Some(String::from("its config is not the one this invocation would write"))
+        Some(String::from(
+            "its config is not the one this invocation would write"
+        ))
     );
     let mut other_object_directory: ShadowTemplate = template.clone();
     other_object_directory.object_directory = root.join("objects-elsewhere");
     assert_eq!(
         refusal(&other_object_directory, shadow.as_path()).expect("checked"),
-        Some(String::from("its alternates do not name this invocation's object directory"))
+        Some(String::from(
+            "its alternates do not name this invocation's object directory"
+        ))
     );
     std::fs::write(shadow.join("HEAD").as_path(), b"ref: refs/heads/other\n").expect("head");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch"))
+        Some(String::from(
+            "its HEAD is not the one a creation leaves before a commit names its branch"
+        ))
     );
     remove(root.as_path());
 }
@@ -387,7 +488,14 @@ fn a_worktree_that_keeps_its_own_info_is_refused() {
     let linked: PathBuf = root.join("linked");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
     );
     let git_dir: PathBuf = repo.join(".git").join("worktrees").join("linked");
     std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
@@ -396,7 +504,9 @@ fn a_worktree_that_keeps_its_own_info_is_refused() {
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is"))
+        Some(String::from(
+            "this worktree keeps its own info directory, so its shadows are made where the commit is"
+        ))
     );
     remove(root.as_path());
 }
@@ -455,8 +565,12 @@ fn an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir() {
     let root: PathBuf = fixture("shadow-pool-member-unread-state-upkeep");
     let repo: PathBuf = repository_of(root.as_path());
     let common: PathBuf = repo.join(".git");
-    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("a folder named as a registration");
-    git(repo.as_path(), &["maintenance", "run", "--auto", "--no-detach"]);
+    std::fs::create_dir_all(common.join("worktrees").join("another"))
+        .expect("a folder named as a registration");
+    git(
+        repo.as_path(),
+        &["maintenance", "run", "--auto", "--no-detach"],
+    );
     assert!(
         std::fs::symlink_metadata(common.join("worktrees").as_path()).is_err(),
         "the upkeep takes the folder that holds no gitdir file, and the empty folder behind it"
@@ -484,14 +598,21 @@ fn the_state_the_member_control_writes_is_state_the_upkeep_keeps() {
     let repo: PathBuf = repository_of(root.as_path());
     let common: PathBuf = write_unread_state(root.as_path(), repo.as_path());
     let taken: PathBuf = common.join("worktrees").join("an-entry-the-upkeep-takes");
-    std::fs::create_dir_all(taken.as_path()).expect("a folder named as a registration, holding no gitdir file");
-    git(repo.as_path(), &["maintenance", "run", "--auto", "--no-detach"]);
+    std::fs::create_dir_all(taken.as_path())
+        .expect("a folder named as a registration, holding no gitdir file");
+    git(
+        repo.as_path(),
+        &["maintenance", "run", "--auto", "--no-detach"],
+    );
     assert!(
         std::fs::symlink_metadata(taken.as_path()).is_err(),
         "the forced upkeep ran, because it took the folder that holds no gitdir file"
     );
     for name in UNREAD_ENTRY_NAMES {
-        assert!(std::fs::symlink_metadata(common.join(name).as_path()).is_ok(), "the upkeep leaves {name}");
+        assert!(
+            std::fs::symlink_metadata(common.join(name).as_path()).is_ok(),
+            "the upkeep leaves {name}"
+        );
     }
     assert!(
         common.join("worktrees").join("another").is_dir(),
@@ -521,7 +642,9 @@ fn an_entry_a_commit_reads_that_appeared_after_the_member_is_a_refusal() {
     std::fs::create_dir(common.join("rr-cache")).expect("rerere records something");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("the shared entry rr-cache is not in the member"))
+        Some(String::from(
+            "the shared entry rr-cache is not in the member"
+        ))
     );
     remove(root.as_path());
 }
@@ -546,7 +669,9 @@ fn a_real_entry_at_a_shared_name_the_repository_holds_is_a_refusal() {
     std::fs::create_dir(shadow.join("hooks").as_path()).expect("a real entry where a link belongs");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("the shared entry hooks is not a link in the member"))
+        Some(String::from(
+            "the shared entry hooks is not a link in the member"
+        ))
     );
     remove(root.as_path());
 }
@@ -563,10 +688,13 @@ fn a_real_entry_at_a_shared_name_is_a_refusal() {
     let repo: PathBuf = repository_of(root.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
     let shadow: PathBuf = creation(root.as_path(), &template, "created");
-    std::fs::create_dir(shadow.join("rr-cache").as_path()).expect("a real entry where a link belongs");
+    std::fs::create_dir(shadow.join("rr-cache").as_path())
+        .expect("a real entry where a link belongs");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("the shared entry rr-cache is not a link in the member"))
+        Some(String::from(
+            "the shared entry rr-cache is not a link in the member"
+        ))
     );
     remove(root.as_path());
 }
@@ -603,7 +731,9 @@ fn a_shared_entry_the_repository_lost_is_a_refusal() {
     std::fs::remove_dir_all(common.join("lfs")).expect("another command removes lfs");
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
-        Some(String::from("the shared entry lfs points at an entry the repository no longer holds")),
+        Some(String::from(
+            "the shared entry lfs points at an entry the repository no longer holds"
+        )),
         "a link to nothing is not the tree a creation of this moment makes"
     );
     let fresh: PathBuf = creation(root.as_path(), &template, "created-after");
@@ -613,7 +743,9 @@ fn a_shared_entry_the_repository_lost_is_a_refusal() {
         "a creation makes the store the member's link could not reach"
     );
     assert!(
-        std::fs::symlink_metadata(common.join("lfs").as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        std::fs::symlink_metadata(common.join("lfs").as_path()).is_ok_and(|metadata| {
+            return metadata.is_dir();
+        }),
         "and the store it links is there"
     );
     remove(root.as_path());

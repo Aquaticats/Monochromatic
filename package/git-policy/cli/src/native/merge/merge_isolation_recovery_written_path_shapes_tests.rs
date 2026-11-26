@@ -16,11 +16,26 @@
 
 use super::super::*;
 use super::fixtures::{
-    World, aside_names, dead_owner, deferred_record_of, nested_directory_to_file_world, place,
-    record_of, symlink_to_file_world, symlink_to_file_world_with, world,
+    World,
+    aside_names,
+    dead_owner,
+    deferred_record_of,
+    nested_directory_to_file_world,
+    place,
+    record_of,
+    symlink_to_file_world,
+    symlink_to_file_world_with,
+    world,
 };
-use super::readings::{snapshot, the_mode_git_checks_out};
-use crate::test_support::{git, git_text, remove};
+use super::readings::{
+    snapshot,
+    the_mode_git_checks_out,
+};
+use crate::test_support::{
+    git,
+    git_text,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -44,21 +59,51 @@ use std::path::PathBuf;
 #[test]
 fn a_saved_merge_that_replaces_a_symlink_finishes() {
     let world: World = symlink_to_file_world("merge-recovery-symlink-replaced");
-    let record: PathBuf = deferred_record_of(&world, "51515151-0000-4000-8000-000000000051", "refs/cli-git/kept/51");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "51515151-0000-4000-8000-000000000051",
+        "refs/cli-git/kept/51",
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the command goes on");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
-    assert!(!record.exists(), "the record only goes once the merge landed");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch names the merge");
-    assert_eq!(std::fs::read(world.repo.join("link")).expect("the merge's file"), b"link as a file\n", "the merge's file is in place of the link");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge lands: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record only goes once the merge landed"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.new_oid,
+        "the branch names the merge"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join("link")).expect("the merge's file"),
+        b"link as a file\n",
+        "the merge's file is in place of the link"
+    );
     assert_eq!(
         std::fs::read(world.repo.join("target.txt")).expect("the link's target"),
         b"payload\n",
         "the file the link pointed at is untouched"
     );
-    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
+    assert_eq!(
+        aside_names(world.repo.as_path()),
+        Vec::<String>::new(),
+        "nothing is left at a private name"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["status", "--porcelain=v1", "--untracked-files=all"]
+        ),
+        ""
+    );
     remove(world.parent.as_path());
 }
 
@@ -87,14 +132,30 @@ fn a_saved_merge_that_replaces_a_symlink_finishes() {
 fn a_saved_merge_that_replaces_a_symlink_leaves_the_mode_git_checks_out() {
     use std::os::unix::fs::PermissionsExt;
     let world: World = symlink_to_file_world("merge-recovery-symlink-mode");
-    let record: PathBuf = deferred_record_of(&world, "53535353-0000-4000-8000-000000000053", "refs/cli-git/kept/53");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "53535353-0000-4000-8000-000000000053",
+        "refs/cli-git/kept/53",
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the command goes on");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
-    assert!(!record.exists(), "the record only goes once the merge landed");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge lands: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record only goes once the merge landed"
+    );
     let link: PathBuf = world.repo.join("link");
-    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let written: u32 = std::fs::symlink_metadata(link.as_path())
+        .expect("the merge's file")
+        .permissions()
+        .mode()
+        & 0o7777;
     let git_writes: u32 = the_mode_git_checks_out(&world, "link");
     assert_eq!(
         written, git_writes,
@@ -121,16 +182,36 @@ fn a_saved_merge_that_replaces_a_symlink_leaves_the_mode_git_checks_out() {
 fn a_saved_merge_that_replaces_a_symlink_leaves_an_executable_file_the_mode_git_checks_out() {
     use std::os::unix::fs::PermissionsExt;
     let world: World = symlink_to_file_world_with("merge-recovery-symlink-executable-mode", true);
-    let record: PathBuf = deferred_record_of(&world, "54545454-0000-4000-8000-000000000054", "refs/cli-git/kept/54");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "54545454-0000-4000-8000-000000000054",
+        "refs/cli-git/kept/54",
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the command goes on");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
-    assert!(!record.exists(), "the record only goes once the merge landed");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge lands: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record only goes once the merge landed"
+    );
     let link: PathBuf = world.repo.join("link");
-    let written: u32 = std::fs::symlink_metadata(link.as_path()).expect("the merge's file").permissions().mode() & 0o7777;
+    let written: u32 = std::fs::symlink_metadata(link.as_path())
+        .expect("the merge's file")
+        .permissions()
+        .mode()
+        & 0o7777;
     let git_writes: u32 = the_mode_git_checks_out(&world, "link");
-    assert_ne!(written & 0o111, 0, "the executable bits Git's entry decided are kept: {written:o}");
+    assert_ne!(
+        written & 0o111,
+        0,
+        "the executable bits Git's entry decided are kept: {written:o}"
+    );
     assert_eq!(
         written, git_writes,
         "the merge's executable file was given {written:o} where Git's entry writes {git_writes:o}, and the entry the merge replaced was a link, whose own mode is not the person's"
@@ -156,21 +237,50 @@ fn a_saved_merge_that_replaces_a_symlink_leaves_an_executable_file_the_mode_git_
 #[test]
 fn a_saved_merge_that_replaces_a_nested_directory_finishes() {
     let world: World = nested_directory_to_file_world("merge-recovery-nested-directory");
-    let record: PathBuf = deferred_record_of(&world, "52525252-0000-4000-8000-000000000052", "refs/cli-git/kept/52");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "52525252-0000-4000-8000-000000000052",
+        "refs/cli-git/kept/52",
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the command goes on");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge lands: {text}");
-    assert!(!record.exists(), "the record only goes once the merge landed");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch names the merge");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge lands: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record only goes once the merge landed"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.new_oid,
+        "the branch names the merge"
+    );
     assert_eq!(
         std::fs::read(world.repo.join("dir")).expect("the merge's file"),
         b"the merge's file\n",
         "the merge's file stands where the branch's directory stood"
     );
-    assert!(!world.repo.join("dir/sub").exists(), "the emptied directories of the branch's files are pruned");
-    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "");
+    assert!(
+        !world.repo.join("dir/sub").exists(),
+        "the emptied directories of the branch's files are pruned"
+    );
+    assert_eq!(
+        aside_names(world.repo.as_path()),
+        Vec::<String>::new(),
+        "nothing is left at a private name"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["status", "--porcelain=v1", "--untracked-files=all"]
+        ),
+        ""
+    );
     remove(world.parent.as_path());
 }
 
@@ -192,16 +302,35 @@ fn a_saved_merge_that_replaces_a_nested_directory_finishes() {
 fn an_emptied_directory_the_merge_does_not_reach_refuses_before_anything_is_written() {
     let world: World = nested_directory_to_file_world("merge-recovery-nested-directory-emptied");
     std::fs::create_dir(world.repo.join("dir/notes")).expect("the person's empty directory");
-    let record: PathBuf = deferred_record_of(&world, "53535353-0000-4000-8000-000000000053", "refs/cli-git/kept/53");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "53535353-0000-4000-8000-000000000053",
+        "refs/cli-git/kept/53",
+    );
     let before = snapshot(&world);
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a saved merge that wrote nothing lets the command go on");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused, "it is refused, not installed");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("a saved merge that wrote nothing lets the command go on");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::DeferredRefused,
+        "it is refused, not installed"
+    );
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(text.contains("dir"), "the path is named: {text}");
-    assert_eq!(snapshot(&world), before, "nothing was written and nothing was taken");
-    assert!(world.repo.join("dir/sub/child.txt").is_file(), "the branch's nested file is where it was");
-    assert!(world.repo.join("dir/notes").is_dir(), "the person's directory is where it was");
+    assert_eq!(
+        snapshot(&world),
+        before,
+        "nothing was written and nothing was taken"
+    );
+    assert!(
+        world.repo.join("dir/sub/child.txt").is_file(),
+        "the branch's nested file is where it was"
+    );
+    assert!(
+        world.repo.join("dir/notes").is_dir(),
+        "the person's directory is where it was"
+    );
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -235,21 +364,58 @@ fn a_partly_written_checkout_whose_branch_moved_puts_the_written_paths_back() {
     std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
     // Another command advances the branch by a commit that leaves both paths as the old side has them.
     std::fs::write(world.repo.join("h.txt"), b"h.txt elsewhere\n").expect("file");
-    git(world.repo.as_path(), &["commit", "--quiet", "--message=elsewhere", "--", "h.txt"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=elsewhere", "--", "h.txt"],
+    );
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
-    let record: PathBuf = record_of(&world, dead_owner("54545454-0000-4000-8000-000000000054"), Some("refs/heads/main"));
+    let record: PathBuf = record_of(
+        &world,
+        dead_owner("54545454-0000-4000-8000-000000000054"),
+        Some("refs/heads/main"),
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("recovery");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved, "the moved branch settles the merge: {text}");
-    assert!(!record.exists(), "the record only goes once the checkout is the moved head's");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the other command's");
-    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("file"), b"f.txt base\n", "the merge's file is put back");
-    assert!(!world.repo.join("dir").exists(), "nothing the merge adds is left");
-    assert_eq!(std::fs::read(world.repo.join("gone.txt")).expect("file"), b"gone.txt base\n", "nothing the merge deletes is left deleted");
-    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     assert_eq!(
-        git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]),
+        outcomes[0].action,
+        MergeRecoveryAction::BranchMoved,
+        "the moved branch settles the merge: {text}"
+    );
+    assert!(
+        !record.exists(),
+        "the record only goes once the checkout is the moved head's"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        moved,
+        "the branch is the other command's"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join("f.txt")).expect("file"),
+        b"f.txt base\n",
+        "the merge's file is put back"
+    );
+    assert!(
+        !world.repo.join("dir").exists(),
+        "nothing the merge adds is left"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join("gone.txt")).expect("file"),
+        b"gone.txt base\n",
+        "nothing the merge deletes is left deleted"
+    );
+    assert_eq!(
+        aside_names(world.repo.as_path()),
+        Vec::<String>::new(),
+        "nothing is left at a private name"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["status", "--porcelain=v1", "--untracked-files=all"]
+        ),
         "",
         "the checkout matches the branch, as the notice says"
     );

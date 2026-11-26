@@ -26,7 +26,13 @@
 
 use crate::index_byte_search::common_prefix_length;
 use crate::index_fsmonitor::write_fsmonitor;
-use crate::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORKTREE};
+use crate::index_full::{
+    EXTENDED,
+    FullEntry,
+    FullIndex,
+    INTENT_TO_ADD,
+    SKIP_WORKTREE,
+};
 use crate::index_stat::encode_varint;
 use crate::index_untracked_io::write_untracked;
 
@@ -59,13 +65,29 @@ fn has_extended(entry: &FullEntry) -> bool {
 
 /// Append one entry (`ce_write_entry`);
 /// `previous` is the path before it when the file is version 4.
-fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8>>) {
+fn write_entry(
+    out: &mut Vec<u8>,
+    entry: &FullEntry,
+    earlier: Option<&mut Vec<u8>>,
+) {
     let extended: bool = has_extended(entry);
-    for value in [entry.stat.ctime_sec, entry.stat.ctime_nsec, entry.stat.mtime_sec, entry.stat.mtime_nsec, entry.stat.dev, entry.stat.ino, entry.mode, entry.stat.uid, entry.stat.gid, entry.stat.size] {
+    for value in [
+        entry.stat.ctime_sec,
+        entry.stat.ctime_nsec,
+        entry.stat.mtime_sec,
+        entry.stat.mtime_nsec,
+        entry.stat.dev,
+        entry.stat.ino,
+        entry.mode,
+        entry.stat.uid,
+        entry.stat.gid,
+        entry.stat.size,
+    ] {
         out.extend_from_slice(&value.to_be_bytes());
     }
     out.extend_from_slice(entry.id.as_slice());
-    let flags: u16 = entry.flags | if extended { EXTENDED } else { 0 } | entry.path.len().min(NAME_MASK) as u16;
+    let flags: u16 =
+        entry.flags | if extended { EXTENDED } else { 0 } | entry.path.len().min(NAME_MASK) as u16;
     out.extend_from_slice(&flags.to_be_bytes());
     if extended {
         out.extend_from_slice(&(entry.extended & (INTENT_TO_ADD | SKIP_WORKTREE)).to_be_bytes());
@@ -89,7 +111,11 @@ fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8
 /// Append one extension:
 /// its signature,
 /// size and content.
-fn write_extension(out: &mut Vec<u8>, signature: &[u8; 4], content: &[u8]) {
+fn write_extension(
+    out: &mut Vec<u8>,
+    signature: &[u8; 4],
+    content: &[u8],
+) {
     out.extend_from_slice(signature);
     out.extend_from_slice(&(content.len() as u32).to_be_bytes());
     out.extend_from_slice(content);
@@ -98,17 +124,35 @@ fn write_extension(out: &mut Vec<u8>, signature: &[u8; 4], content: &[u8]) {
 /// The file's bytes,
 /// with the checksum `hash` makes of everything before it;
 /// `None` for more entries than the format counts.
-pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>, trailer: Trailer) -> Option<Vec<u8>> {
+pub fn write_full_index(
+    index: &FullIndex,
+    hash: &dyn Fn(&[u8]) -> Vec<u8>,
+    trailer: Trailer,
+) -> Option<Vec<u8>> {
     let extended: bool = index.entries.iter().any(has_extended);
     // Git demotes a version 3 file to version 2 when no entry needs the extended flags, and promotes a version 2 file with one.
-    let version: u32 = if index.version == 4 { 4 } else if extended { 3 } else { 2 };
+    let version: u32 = if index.version == 4 {
+        4
+    } else if extended {
+        3
+    } else {
+        2
+    };
     let mut out: Vec<u8> = Vec::new();
     out.extend_from_slice(b"DIRC");
     out.extend_from_slice(&version.to_be_bytes());
     out.extend_from_slice(&u32::try_from(index.entries.len()).ok()?.to_be_bytes());
     let mut previous: Vec<u8> = Vec::new();
     for entry in &index.entries {
-        write_entry(&mut out, entry, if version == 4 { Some(&mut previous) } else { None });
+        write_entry(
+            &mut out,
+            entry,
+            if version == 4 {
+                Some(&mut previous)
+            } else {
+                None
+            },
+        );
     }
     if let Some(tree) = &index.cache_tree {
         write_extension(&mut out, b"TREE", tree.write().as_slice());
@@ -127,7 +171,11 @@ pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>, trai
                 dirty.push(position);
             }
         }
-        write_extension(&mut out, b"FSMN", write_fsmonitor(monitor.token.as_slice(), dirty.as_slice()).as_slice());
+        write_extension(
+            &mut out,
+            b"FSMN",
+            write_fsmonitor(monitor.token.as_slice(), dirty.as_slice()).as_slice(),
+        );
     }
     match trailer {
         Trailer::Hashed => {
@@ -135,7 +183,9 @@ pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>, trai
             out.extend_from_slice(checksum.as_slice());
         }
         // Zeros of the checksum's own length: Git says with them that the computation was skipped.
-        Trailer::Skipped { checksum_length } => out.resize(out.len() + checksum_length, 0),
+        Trailer::Skipped {
+            checksum_length,
+        } => out.resize(out.len() + checksum_length, 0),
     }
     return Some(out);
 }

@@ -27,7 +27,11 @@
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// Time spans and the clock a birth time is read from.
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// What:
 ///  How the birth times a control sees are reported,
@@ -108,7 +112,10 @@ thread_local! {
 /// try { set(times); body(); } finally { clear(); }
 /// ```
 #[cfg(test)]
-pub fn with_birth_times<T>(times: BirthTimes, body: impl FnOnce() -> T) -> T {
+pub fn with_birth_times<T>(
+    times: BirthTimes,
+    body: impl FnOnce() -> T,
+) -> T {
     let started: bool = TIMES_FOR_THIS_THREAD.with(|held| {
         let was_none: bool = held.get().is_none();
         held.set(Some(times));
@@ -116,7 +123,9 @@ pub fn with_birth_times<T>(times: BirthTimes, body: impl FnOnce() -> T) -> T {
     });
     let ended: T = body();
     if started {
-        TIMES_FOR_THIS_THREAD.with(|held| { held.set(None); });
+        TIMES_FOR_THIS_THREAD.with(|held| {
+            held.set(None);
+        });
     }
     return ended;
 }
@@ -161,7 +170,9 @@ pub(crate) fn times_in_force() -> BirthTimes {
 /// birthTimeOf(path) // statSync(path).birthtimeMs, floored to the arm's tick
 /// ```
 pub(crate) fn birth_time_of(path: &Path) -> Option<SystemTime> {
-    let recorded: Option<SystemTime> = std::fs::symlink_metadata(path).ok().and_then(recorded_birth);
+    let recorded: Option<SystemTime> = std::fs::symlink_metadata(path)
+        .ok()
+        .and_then(recorded_birth);
     return match times_in_force() {
         BirthTimes::Recorded => recorded,
         BirthTimes::Hidden => None,
@@ -199,7 +210,10 @@ fn recorded_birth(metadata: std::fs::Metadata) -> Option<SystemTime> {
 /// ```ts
 /// new Date(Math.floor(ms / tickMs) * tickMs)
 /// ```
-fn floor_to(time: SystemTime, tick: Duration) -> Option<SystemTime> {
+fn floor_to(
+    time: SystemTime,
+    tick: Duration,
+) -> Option<SystemTime> {
     let since: Duration = time.duration_since(UNIX_EPOCH).ok()?;
     let tick_nanos: u128 = tick.as_nanos().max(1);
     let floored: u128 = since.as_nanos() / tick_nanos * tick_nanos;

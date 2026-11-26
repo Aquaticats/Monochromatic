@@ -15,15 +15,26 @@
 //! const seed = seedOfIndexBytes(index.bytes()); await writeIndexForReset({ index, destination, seed });
 //! ```
 
-/// What marks an index carries.
-use crate::index_flags::{IndexFlags, read_index_flags};
 /// The bytes one read of an index returned,
 /// and the copy a reset follows.
-use crate::commit_index_bytes::{IndexBytes, copy_index_failure};
+use crate::commit_index_bytes::{
+    IndexBytes,
+    copy_index_failure,
+};
+/// What marks an index carries.
+use crate::index_flags::{
+    IndexFlags,
+    read_index_flags,
+};
 /// The request built against a private index.
 use crate::private_index_request::indexed_request;
 /// The failure a step of the commit reports.
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitRequest,
+    run_git_checked,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -154,7 +165,14 @@ pub fn write_index_for_reset(
     let PrivateIndexSeed::CopyWithIntentToAdd(paths) = seed else {
         return Ok(());
     };
-    return drop_intent_to_add(context, cwd, destination, object_directory, paths.as_slice(), oid_length);
+    return drop_intent_to_add(
+        context,
+        cwd,
+        destination,
+        object_directory,
+        paths.as_slice(),
+        oid_length,
+    );
 }
 
 /// What:

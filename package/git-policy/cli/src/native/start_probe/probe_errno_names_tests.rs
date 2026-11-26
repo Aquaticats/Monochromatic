@@ -12,7 +12,14 @@
 //! for (const [name, value] of ERRNO_NAMES) expect(errnoOf(value)).toBe(name);
 //! ```
 
-use super::{ERRNO_NAMES, ErrnoWord, REASON_WORDS, errno_name, errno_of, known_reason_word};
+use super::{
+    ERRNO_NAMES,
+    ErrnoWord,
+    REASON_WORDS,
+    errno_name,
+    errno_of,
+    known_reason_word,
+};
 
 /// Each listed name maps to its own number and back.
 #[test]
@@ -28,7 +35,10 @@ fn every_name_round_trips() {
 #[test]
 fn no_number_is_named_twice() {
     for (name, value) in ERRNO_NAMES {
-        let matching: usize = ERRNO_NAMES.iter().filter(|(_, other)| return *other == value).count();
+        let matching: usize = ERRNO_NAMES
+            .iter()
+            .filter(|(_, other)| return *other == value)
+            .count();
         assert_eq!(matching, 1, "{name} shares its number");
     }
 }
@@ -45,7 +55,10 @@ fn an_unnamed_number_stays_unnamed() {
 /// and both parse back.
 #[test]
 fn the_errno_field_names_or_keeps_the_number() {
-    assert_eq!(ErrnoWord::of_number(Some(libc::EBUSY)), ErrnoWord::Named("EBUSY"));
+    assert_eq!(
+        ErrnoWord::of_number(Some(libc::EBUSY)),
+        ErrnoWord::Named("EBUSY")
+    );
     assert_eq!(ErrnoWord::of_number(Some(4242)), ErrnoWord::Number(4242));
     assert_eq!(ErrnoWord::of_number(None), ErrnoWord::None);
     assert_eq!(ErrnoWord::parse("EBUSY"), Some(ErrnoWord::Named("EBUSY")));

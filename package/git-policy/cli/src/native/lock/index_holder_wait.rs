@@ -53,8 +53,19 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    DEAD_OWNER_LOCK_LEFT, Evidence, THE_ENDING_SAYS_IT, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line,
-    proven_holder_progress_line, unproven_wait_line,
+    DEAD_OWNER_LOCK_LEFT,
+    Evidence,
+    THE_ENDING_SAYS_IT,
+    Verdict,
+    WaitEnd,
+    blocker_words,
+    ceiling_line,
+    classify_index_lock,
+    dead_owner_diagnostic,
+    gather_with,
+    proven_holder_line,
+    proven_holder_progress_line,
+    unproven_wait_line,
 };
 
 /// The sentence a merge's dead-owner line ends on:
@@ -67,24 +78,33 @@ const MERGE_CONSEQUENCE: &str = "the merge does not apply until that lock is gon
 /// the command clears it and goes on.
 pub const CLEARS_A_DEAD_OWNERS_LOCK: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was written by this step and the lock was left in place";
 
-/// The bounded scan of open descriptors.
-use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The process a PID file names,
 /// as this host's process table reports it.
 use crate::index_lock_evidence::host_pid_process;
+/// The bounded scan of open descriptors.
+use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The place of the lock and the watch on its directory.
-use crate::service_index_lock::{Watch, lock_path_of};
-/// The longest a wait lasts.
-use crate::wait_ceilings::MERGE_LOCK_CEILING;
+use crate::service_index_lock::{
+    Watch,
+    lock_path_of,
+};
 /// How long a wait without a watch sleeps between looks.
 use crate::service_index_watch::POLL_PAUSE;
-use crate::wait_progress::{Cadence, Ticker};
+/// The longest a wait lasts.
+use crate::wait_ceilings::MERGE_LOCK_CEILING;
+use crate::wait_progress::{
+    Cadence,
+    Ticker,
+};
 /// Writing the notices.
 use std::io::Write;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What came of the wait.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -133,12 +153,19 @@ enum Proof {
 }
 
 /// What the evidence for `real_index` proves now.
-fn look_at(real_index: &Path, gather: &dyn Fn(&Path) -> std::io::Result<Option<Evidence>>) -> Proof {
+fn look_at(
+    real_index: &Path,
+    gather: &dyn Fn(&Path) -> std::io::Result<Option<Evidence>>,
+) -> Proof {
     let Ok(Some(evidence)) = gather(real_index) else {
         return Proof::Nothing(None);
     };
     return match classify_index_lock(&evidence) {
-        Verdict::ProvenAlive { pid, by_descriptor, command } => Proof::Alive(evidence, pid, by_descriptor, command),
+        Verdict::ProvenAlive {
+            pid,
+            by_descriptor,
+            command,
+        } => Proof::Alive(evidence, pid, by_descriptor, command),
         Verdict::Dead(pid) => Proof::Dead(pid),
         Verdict::EvidenceFree => Proof::Nothing(Some(evidence)),
     };
@@ -160,23 +187,50 @@ fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
 ///  a merge that has not applied has changed nothing yet,
 ///  and a step of a settle says only what it wrote itself,
 ///  because a clear before it may have written the branch's content over the person's bytes.
-fn notice(opening: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool, ending: &str) -> String {
-    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending };
+fn notice(
+    opening: &str,
+    real_index: &Path,
+    waited: Duration,
+    ceiling: Duration,
+    proof: &Proof,
+    first: bool,
+    ending: &str,
+) -> String {
+    let end: WaitEnd<'_> = WaitEnd {
+        within: ceiling,
+        ending,
+    };
     let tail: String = match proof {
         Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
             let line: String = if first {
-                proven_holder_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), end)
+                proven_holder_line(
+                    *pid,
+                    *by_descriptor,
+                    holder_command.as_deref(),
+                    evidence.lock_path.as_path(),
+                    end,
+                )
             } else {
-                proven_holder_progress_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), end)
+                proven_holder_progress_line(
+                    *pid,
+                    *by_descriptor,
+                    holder_command.as_deref(),
+                    evidence.lock_path.as_path(),
+                    waited.as_secs(),
+                    end,
+                )
             };
             line
         }
-        Proof::Nothing(found) => unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref(), end),
+        Proof::Nothing(found) => {
+            unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref(), end)
+        }
         Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None, end),
     };
     return format!(
         "monochromatic-git-policy-cli: {opening} and waits for the index lock of this repository; {}",
-        tail.strip_prefix("monochromatic-git-policy-cli: ").unwrap_or(tail.as_str())
+        tail.strip_prefix("monochromatic-git-policy-cli: ")
+            .unwrap_or(tail.as_str())
     );
 }
 
@@ -198,12 +252,23 @@ fn notice(opening: &str, real_index: &Path, waited: Duration, ceiling: Duration,
 /// ```ts
 /// await waitForIndexRelease(realIndex, 'merge', cadence, stderr)
 /// ```
-pub fn wait_for_index_release(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+pub fn wait_for_index_release(
+    real_index: &Path,
+    command: &str,
+    cadence: Cadence,
+    out: &mut dyn Write,
+) -> IndexWait {
     return wait_for_index_release_within(real_index, command, MERGE_LOCK_CEILING, cadence, out);
 }
 
 /// `wait_for_index_release` that gives up after `ceiling`.
-pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+pub fn wait_for_index_release_within(
+    real_index: &Path,
+    command: &str,
+    ceiling: Duration,
+    cadence: Cadence,
+    out: &mut dyn Write,
+) -> IndexWait {
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
@@ -300,7 +365,10 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 /// // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
 /// lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr)
 /// ```
-pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
+pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(
+    real_index: &Path,
+    out: &mut W,
+) -> IndexWait {
     let lock: std::path::PathBuf = lock_path_of(real_index);
     if std::fs::symlink_metadata(&lock).is_err() {
         return IndexWait::NotHeld;
@@ -309,14 +377,24 @@ pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, ou
         Proof::Dead(pid) => {
             let _noted = write_then_flush(
                 out,
-                dead_owner_diagnostic(lock.as_path(), pid, MERGE_CONSEQUENCE, CLEARS_A_DEAD_OWNERS_LOCK).as_bytes(),
+                dead_owner_diagnostic(
+                    lock.as_path(),
+                    pid,
+                    MERGE_CONSEQUENCE,
+                    CLEARS_A_DEAD_OWNERS_LOCK,
+                )
+                .as_bytes(),
             );
             IndexWait::OwnerGone(Duration::ZERO)
         }
         // A holder proven alive and an owner nothing proves are both another program's command until they let go, and the
         //  merge does not wait for either: it is saved on its side ref and the next command settles it.
-        Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
-        Proof::Nothing(None) => IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read")),
+        Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => {
+            IndexWait::HeldByAnotherCommand(blocker_words(&evidence))
+        }
+        Proof::Nothing(None) => {
+            IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read"))
+        }
     };
 }
 
@@ -378,7 +456,10 @@ const RECOVERY_NOTICE_ENDING: &str = RECOVERY_UNFINISHED;
 /// ```ts
 /// await waitForIndexReleaseWhileFinishingAMerge(realIndex, stderr)
 /// ```
-pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
+pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(
+    real_index: &Path,
+    out: &mut W,
+) -> IndexWait {
     return wait_with_watches_and_consequence(
         real_index,
         // The clear may already have written the branch's content over the person's bytes, so this notice says what the
@@ -429,14 +510,24 @@ thread_local! {
 /// the callers ignore the result,
 /// because a closed terminal
 ///  is not a reason to stop the command the person asked for.
-fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Result<()> {
+fn write_then_flush<W: Write + ?Sized>(
+    out: &mut W,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     out.write_all(bytes)?;
     return out.flush();
 }
 
 /// `wait_for_index_release` with the function that sets a watch on the lock's directory,
 /// so a control can hand it none.
-fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
+fn wait_with_watches(
+    real_index: &Path,
+    command: &str,
+    ceiling: Duration,
+    cadence: Cadence,
+    out: &mut dyn Write,
+    set_watch: &dyn Fn(&Path) -> Option<Watch>,
+) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let notice_ending: String = format!("git {command} meets Git's own refusal");
     let opening: String = format!("git {command} has changed nothing yet");
@@ -471,7 +562,10 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
-    let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let lock_name: std::ffi::OsString = lock
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     let began: Instant = Instant::now();
     let mut ticker: Ticker = Ticker::announced_at_start(cadence);
     let mut held: bool = false;
@@ -479,7 +573,11 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     let mut proof: Proof = Proof::Nothing(None);
     loop {
         if std::fs::symlink_metadata(&lock).is_err() {
-            return if held { IndexWait::Released(began.elapsed()) } else { IndexWait::NotHeld };
+            return if held {
+                IndexWait::Released(began.elapsed())
+            } else {
+                IndexWait::NotHeld
+            };
         }
         held = true;
         let elapsed: Duration = began.elapsed();
@@ -490,12 +588,28 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
-            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, dead_consequence, dead_ending).as_bytes());
+            let _noted = write_then_flush(
+                out,
+                dead_owner_diagnostic(lock.as_path(), *pid, dead_consequence, dead_ending)
+                    .as_bytes(),
+            );
             return IndexWait::OwnerGone(elapsed);
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = write_then_flush(out, notice(opening, real_index, elapsed, ceiling, &proof, !announced, notice_ending).as_bytes());
+            let _noted = write_then_flush(
+                out,
+                notice(
+                    opening,
+                    real_index,
+                    elapsed,
+                    ceiling,
+                    &proof,
+                    !announced,
+                    notice_ending,
+                )
+                .as_bytes(),
+            );
             announced = true;
         }
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
@@ -504,13 +618,23 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
             let blocker: String = match &proof {
                 Proof::Alive(evidence, ..) => blocker_words(evidence),
                 Proof::Nothing(Some(evidence)) => blocker_words(evidence),
-                Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
+                Proof::Nothing(None) | Proof::Dead(_) => {
+                    String::from("an owner whose evidence could not be read")
+                }
             };
-            let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence);
+            let line: String = ceiling_line(
+                lock.as_path(),
+                blocker.as_str(),
+                elapsed.as_secs(),
+                consequence,
+            );
             let _noted = write_then_flush(out, line.as_bytes());
             return IndexWait::GaveUp(elapsed);
         }
-        let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
+        let pause: Duration = ticker
+            .next_in(elapsed)
+            .min(ceiling.saturating_sub(elapsed))
+            .max(Duration::from_millis(1));
         match watch.as_ref() {
             Some(active) => {
                 if !active.wait(pause, lock_name.as_os_str()) {
@@ -527,8 +651,16 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
 
 /// `wait_for_index_release` with the notice cadence this process runs under,
 /// on standard error.
-pub fn wait_for_index_release_here(real_index: &Path, command: &str) -> IndexWait {
-    return wait_for_index_release(real_index, command, Cadence::from_environment(), &mut std::io::stderr());
+pub fn wait_for_index_release_here(
+    real_index: &Path,
+    command: &str,
+) -> IndexWait {
+    return wait_for_index_release(
+        real_index,
+        command,
+        Cadence::from_environment(),
+        &mut std::io::stderr(),
+    );
 }
 
 /// The wait is controlled in the test module.

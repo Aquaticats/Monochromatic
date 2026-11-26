@@ -28,22 +28,45 @@ use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// A borrowed `Path`,
 /// and an owned `PathBuf` for the job that outlives the caller's borrow.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Renames `from` to `to` unless `to` exists:
 /// one step that is as exclusive as `create_new` and leaves no second name.
 #[cfg(target_os = "linux")]
-pub fn rename_noreplace(from: &Path, to: &Path) -> std::io::Result<()> {
+pub fn rename_noreplace(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
-    let source = std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    let target = std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let source =
+        std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let target =
+        std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
     // SAFETY: both strings are valid NUL-terminated paths for the call.
-    let done: i32 = unsafe { libc::renameat2(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), libc::RENAME_NOREPLACE) };
-    return if done == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+    let done: i32 = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            source.as_ptr(),
+            libc::AT_FDCWD,
+            target.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    return if done == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
+pub fn rename_noreplace(
+    _from: &Path,
+    _to: &Path,
+) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
 }
 
@@ -64,17 +87,37 @@ pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
 /// await exchange(from, to); // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 /// ```
 #[cfg(target_os = "linux")]
-pub fn exchange(from: &Path, to: &Path) -> std::io::Result<()> {
+pub fn exchange(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
-    let source = std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    let target = std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let source =
+        std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let target =
+        std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
     // SAFETY: both strings are valid NUL-terminated paths for the call.
-    let done: i32 = unsafe { libc::renameat2(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), libc::RENAME_EXCHANGE) };
-    return if done == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+    let done: i32 = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            source.as_ptr(),
+            libc::AT_FDCWD,
+            target.as_ptr(),
+            libc::RENAME_EXCHANGE,
+        )
+    };
+    return if done == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn exchange(_from: &Path, _to: &Path) -> std::io::Result<()> {
+pub fn exchange(
+    _from: &Path,
+    _to: &Path,
+) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
 }
 
@@ -130,14 +173,22 @@ pub enum TheAnswerOfARename {
 /// ```ts
 /// const moved: TheAnswerOfARename = await renameNoReplaceOnTheBlockingPool(from, to);
 /// ```
-pub async fn rename_noreplace_on_the_blocking_pool(from: &Path, to: &Path) -> TheAnswerOfARename {
+pub async fn rename_noreplace_on_the_blocking_pool(
+    from: &Path,
+    to: &Path,
+) -> TheAnswerOfARename {
     let (source, landing): (PathBuf, PathBuf) = (from.to_path_buf(), to.to_path_buf());
     let moved: Result<std::io::Result<()>, BlockingJobError> =
-        run_blocking_job_within_the_budget(move || return rename_noreplace(source.as_path(), landing.as_path())).await;
+        run_blocking_job_within_the_budget(move || {
+            return rename_noreplace(source.as_path(), landing.as_path());
+        })
+        .await;
     return match moved {
         Ok(Ok(())) => TheAnswerOfARename::Renamed,
         // The name another write took is not a failure: the caller keeps both entries and names the one it moved aside.
-        Ok(Err(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => TheAnswerOfARename::NameTaken(error),
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            TheAnswerOfARename::NameTaken(error)
+        }
         Ok(Err(error)) => TheAnswerOfARename::Failed(error),
         Err(refused) => TheAnswerOfARename::NoThreadToRunIt(refused),
     };

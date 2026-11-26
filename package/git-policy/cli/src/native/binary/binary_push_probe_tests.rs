@@ -5,10 +5,28 @@
 //! and the options that set an upstream publish as they do in plain Git.
 
 use super::commit::remove_settled;
-use super::lfs_pre_push::{World, commit_directly, ref_of, wrapped, world};
-use super::support::{Fixture, Observed, REAL_GIT, executable, fixture, git, observe, stderr_of};
+use super::lfs_pre_push::{
+    World,
+    commit_directly,
+    ref_of,
+    world,
+    wrapped,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    REAL_GIT,
+    executable,
+    fixture,
+    git,
+    observe,
+    stderr_of,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The finding the policy gives for a file without a final newline.
 const FINDING: &str = "noncanonical-final-newline";
@@ -21,10 +39,26 @@ fn blocked_world(fixture: &Fixture) -> World {
         "{ \"policies\": { \"final-newline\": \"error\" } }\n",
     )
     .expect("policy file");
-    commit_directly(fixture, world.repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", "{ \"policies\": { \"final-newline\": \"error\" } }\n");
+    commit_directly(
+        fixture,
+        world.repo.as_path(),
+        "monochromatic-git-policy-cli.config.jsonc",
+        "{ \"policies\": { \"final-newline\": \"error\" } }\n",
+    );
     std::fs::write(world.repo.join("a.txt"), "no final newline").expect("a.txt");
     git(fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, world.repo.as_path(), &["commit", "--quiet", "--no-verify", "--message=a", "--", "a.txt"]);
+    git(
+        fixture,
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--no-verify",
+            "--message=a",
+            "--",
+            "a.txt",
+        ],
+    );
     return world;
 }
 
@@ -46,7 +80,11 @@ fn a_policy_blocks_a_manual_push_whatever_its_verbosity() {
         let stderr: String = stderr_of(&pushed);
         assert_ne!(pushed.code, Some(0), "{region:?}: {stderr}");
         assert!(stderr.contains(FINDING), "{region:?}: {stderr}");
-        assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{region:?}: {stderr}");
+        assert_eq!(
+            ref_of(&fixture, world.origin.as_path(), "refs/heads/main"),
+            "absent",
+            "{region:?}: {stderr}"
+        );
     }
     remove_settled(&fixture);
 }
@@ -58,30 +96,64 @@ fn a_policy_blocks_a_manual_push_whatever_its_verbosity() {
 fn the_ways_to_set_an_upstream_publish_and_set_it() {
     let fixture: Fixture = fixture("push-probe-upstream");
     let world: World = world(&fixture, false, None);
-    git(&fixture, world.repo.as_path(), &["config", "push.autoSetupRemote", "false"]);
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["config", "push.autoSetupRemote", "false"],
+    );
     let upstream_of = |repo: &Path, branch: &str| -> String {
         let output = super::support::direct(&fixture)
             .current_dir(repo)
-            .args(["rev-parse", "--abbrev-ref", &format!("{branch}@{{upstream}}")])
+            .args([
+                "rev-parse",
+                "--abbrev-ref",
+                &format!("{branch}@{{upstream}}"),
+            ])
             .output()
             .expect("rev-parse starts");
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
     };
     for (index, (branch, region)) in [
         ("feature-a", vec!["push", "-u", "origin", "feature-a"]),
-        ("feature-b", vec!["push", "--set-upstream", "origin", "feature-b"]),
+        (
+            "feature-b",
+            vec!["push", "--set-upstream", "origin", "feature-b"],
+        ),
         ("feature-c", vec!["-c", "push.autoSetupRemote=true", "push"]),
     ]
     .into_iter()
     .enumerate()
     {
-        git(&fixture, world.repo.as_path(), &["checkout", "--quiet", "-b", branch]);
-        commit_directly(&fixture, world.repo.as_path(), &format!("f{index}.txt"), "text\n");
+        git(
+            &fixture,
+            world.repo.as_path(),
+            &["checkout", "--quiet", "-b", branch],
+        );
+        commit_directly(
+            &fixture,
+            world.repo.as_path(),
+            &format!("f{index}.txt"),
+            "text\n",
+        );
         let pushed: Observed = wrapped(&fixture, world.repo.as_path(), region.as_slice());
         assert_eq!(pushed.code, Some(0), "{region:?}: {}", stderr_of(&pushed));
-        let published: String = ref_of(&fixture, world.origin.as_path(), &format!("refs/heads/{branch}"));
-        assert_eq!(published, ref_of(&fixture, world.repo.as_path(), "HEAD"), "{region:?}");
-        assert_eq!(upstream_of(world.repo.as_path(), branch), format!("origin/{branch}"), "{region:?}");
+        let published: String = ref_of(
+            &fixture,
+            world.origin.as_path(),
+            &format!("refs/heads/{branch}"),
+        );
+        assert_eq!(
+            published,
+            ref_of(&fixture, world.repo.as_path(), "HEAD"),
+            "{region:?}"
+        );
+        assert_eq!(
+            upstream_of(world.repo.as_path(), branch),
+            format!("origin/{branch}"),
+            "{region:?}"
+        );
     }
     remove_settled(&fixture);
 }
@@ -100,10 +172,14 @@ fn the_ways_to_set_an_upstream_publish_and_set_it() {
 /// so nothing else changes about the Git the wrapper runs,
 /// and the helper publishes once,
 /// so a second read of the same remote changes nothing.
-fn publish_on_the_first_read(fixture: &Fixture, repo: &Path) -> PathBuf {
-    let helpers: String = String::from_utf8_lossy(&git(fixture, fixture.root.as_path(), &["--exec-path"]).stdout)
-        .trim()
-        .to_owned();
+fn publish_on_the_first_read(
+    fixture: &Fixture,
+    repo: &Path,
+) -> PathBuf {
+    let helpers: String =
+        String::from_utf8_lossy(&git(fixture, fixture.root.as_path(), &["--exec-path"]).stdout)
+            .trim()
+            .to_owned();
     let directory: PathBuf = fixture.root.join("exec");
     std::fs::create_dir_all(&directory).expect("exec directory");
     for listed in std::fs::read_dir(&helpers).expect("Git's helpers") {
@@ -142,18 +218,39 @@ fn publish_on_the_first_read(fixture: &Fixture, repo: &Path) -> PathBuf {
 fn a_push_the_auto_push_published_first_sends_nothing_and_succeeds() {
     let fixture: Fixture = fixture("push-probe-published-first");
     let world: World = world(&fixture, false, None);
-    git(&fixture, world.repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     commit_directly(&fixture, world.repo.as_path(), "next.txt", "next\n");
     let pushed: String = ref_of(&fixture, world.repo.as_path(), "refs/heads/main");
     let helpers: PathBuf = publish_on_the_first_read(&fixture, world.repo.as_path());
     let observed: Observed = observe(
-        super::support::wrapped(&fixture).current_dir(world.repo.as_path()).args(["push"]).env("GIT_EXEC_PATH", helpers.as_path()),
+        super::support::wrapped(&fixture)
+            .current_dir(world.repo.as_path())
+            .args(["push"])
+            .env("GIT_EXEC_PATH", helpers.as_path()),
         b"",
     );
     let stderr: String = stderr_of(&observed);
-    assert!(fixture.root.join("published-first.txt").exists(), "the stand-in never moved the origin: {stderr}");
-    assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), pushed, "the origin holds the commit");
-    assert_eq!(observed.code, Some(0), "the origin holds what this push sends: {stderr}");
-    assert!(stderr.contains("Everything up-to-date"), "Git's own report says the push published nothing: {stderr}");
+    assert!(
+        fixture.root.join("published-first.txt").exists(),
+        "the stand-in never moved the origin: {stderr}"
+    );
+    assert_eq!(
+        ref_of(&fixture, world.origin.as_path(), "refs/heads/main"),
+        pushed,
+        "the origin holds the commit"
+    );
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the origin holds what this push sends: {stderr}"
+    );
+    assert!(
+        stderr.contains("Everything up-to-date"),
+        "Git's own report says the push published nothing: {stderr}"
+    );
     remove_settled(&fixture);
 }

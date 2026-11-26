@@ -34,12 +34,18 @@
 //! ```
 
 use crate::fs_beneath::ObjectId;
-use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
+use crate::path_bytes_in_records::{
+    hex_of_path,
+    path_of_hex,
+};
 use crate::plain_file::read_plain_file;
 use crate::private_storage::create_private_directory_all;
 use crate::process_identity::current_birth_identity;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder of the common Git directory that holds one record per removal whose pass began,
 /// named by the registration's id.
@@ -93,7 +99,10 @@ pub struct WhichRemoval<'a> {
 }
 
 /// The path of the record of one registration.
-fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
+fn record_path(
+    common_dir: &Path,
+    id: &OsStr,
+) -> PathBuf {
     return common_dir.join(BEGUN_FOLDER).join(id);
 }
 
@@ -118,7 +127,10 @@ fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
 ///
 /// The words for a folder or a record that cannot be written,
 /// which a caller logs and never fails a removal for.
-pub fn record_around_begun(common_dir: &Path, which: WhichRemoval<'_>) -> Result<(), String> {
+pub fn record_around_begun(
+    common_dir: &Path,
+    which: WhichRemoval<'_>,
+) -> Result<(), String> {
     let path: PathBuf = record_path(common_dir, which.id);
     if let Some(parent) = path.parent()
         && let Err(error) = create_private_directory_all(parent)
@@ -142,9 +154,15 @@ pub fn record_around_begun(common_dir: &Path, which: WhichRemoval<'_>) -> Result
     // a kill at any instruction leaves either the record that was there or this complete one;
     // and a record a reused registration name left behind is replaced by the identities of the worktree
     // this pass emptied, which is the record every later reader of it needs.
-    return match crate::private_storage::replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    return match crate::private_storage::replace_private_file_unsynced(
+        path.as_path(),
+        text.as_bytes(),
+    ) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("the record {} of a removal that goes around a volume cannot be written ({error})", path.display())),
+        Err(error) => Err(format!(
+            "the record {} of a removal that goes around a volume cannot be written ({error})",
+            path.display()
+        )),
     };
 }
 
@@ -165,7 +183,10 @@ pub fn record_around_begun(common_dir: &Path, which: WhichRemoval<'_>) -> Result
 /// ```ts
 /// const begun = aroundBegunBy(commonDir, which); // boolean
 /// ```
-pub fn around_begun_by(common_dir: &Path, which: WhichRemoval<'_>) -> bool {
+pub fn around_begun_by(
+    common_dir: &Path,
+    which: WhichRemoval<'_>,
+) -> bool {
     let path: PathBuf = record_path(common_dir, which.id);
     let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
         Ok(read) => read,
@@ -180,7 +201,9 @@ pub fn around_begun_by(common_dir: &Path, which: WhichRemoval<'_>) -> bool {
         return false;
     };
     return read_record(text).is_some_and(|read| {
-        return read.admin == which.admin && read.worktree == which.worktree && read.target == which.target;
+        return read.admin == which.admin
+            && read.worktree == which.worktree
+            && read.target == which.target;
     });
 }
 
@@ -197,7 +220,10 @@ pub fn around_begun_by(common_dir: &Path, which: WhichRemoval<'_>) -> bool {
 /// ```ts
 /// forgetAroundBegun(commonDir, id);
 /// ```
-pub fn forget_around_begun(common_dir: &Path, id: &OsStr) {
+pub fn forget_around_begun(
+    common_dir: &Path,
+    id: &OsStr,
+) {
     let path: PathBuf = record_path(common_dir, id);
     match std::fs::remove_file(path.as_path()) {
         Ok(()) => {}
@@ -230,7 +256,9 @@ pub fn forget_around_begun(common_dir: &Path, id: &OsStr) {
 /// ```
 pub fn prune_around_begun(common_dir: &Path) {
     let folder: PathBuf = common_dir.join(BEGUN_FOLDER);
-    let Ok(listed) = std::fs::read_dir(folder.as_path()) else { return };
+    let Ok(listed) = std::fs::read_dir(folder.as_path()) else {
+        return;
+    };
     let registrations: PathBuf = common_dir.join("worktrees");
     for found in listed.flatten() {
         let name: std::ffi::OsString = found.file_name();
@@ -301,7 +329,11 @@ fn read_record(text: &str) -> Option<AroundRecord> {
             continue;
         }
     }
-    return Some(AroundRecord { admin: admin?, worktree: worktree?, target: target? });
+    return Some(AroundRecord {
+        admin: admin?,
+        worktree: worktree?,
+        target: target?,
+    });
 }
 
 /// The records of a removal that goes around a volume stay out of the release executable's tests.

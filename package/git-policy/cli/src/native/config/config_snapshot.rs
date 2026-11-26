@@ -32,14 +32,19 @@
 //! const hooksPath = snapshot.pathValue('core.hookspath'); // 'unhandled' means: ask Git
 //! ```
 
+/// The components one `core.fsync` value makes Git flush.
+use crate::config_fsync::FsyncComponents;
 /// Debug logging of a snapshot that could not be used.
 use crate::diagnostic_log::debug;
 /// One required Git start with the caller's context.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// The same start awaited by a caller that is a task of the runtime.
 use crate::transaction_git_awaiting::run_git_awaiting;
-/// The components one `core.fsync` value makes Git flush.
-use crate::config_fsync::FsyncComponents;
 /// Ordered map of the four maintenance keys to the text Git prints for them.
 use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
@@ -51,7 +56,12 @@ const DECIMAL_DIGITS_LIMIT: usize = 9;
 
 /// Keys the maintenance decision reads,
 /// spelled as `git config --list` prints them.
-pub const MAINTENANCE_KEYS: [&str; 4] = ["maintenance.auto", "maintenance.autodetach", "gc.auto", "gc.autodetach"];
+pub const MAINTENANCE_KEYS: [&str; 4] = [
+    "maintenance.auto",
+    "maintenance.autodetach",
+    "gc.auto",
+    "gc.autodetach",
+];
 
 /// The scope name Git lists for the values that came from a command line or its environment rather than a file:
 /// `-c`,
@@ -204,7 +214,10 @@ fn boolean_word(text: &str) -> Option<bool> {
 /// ```ts
 /// parseInt(String.fromCharCode(byte), radix); // NaN when it is not a digit
 /// ```
-fn digit_of(byte: u8, radix: u32) -> Option<u32> {
+fn digit_of(
+    byte: u8,
+    radix: u32,
+) -> Option<u32> {
     return (byte as char).to_digit(radix);
 }
 
@@ -250,18 +263,23 @@ fn git_integer(text: &str) -> Option<i64> {
         }
         _ => false,
     };
-    let (radix, first_digit): (u32, usize) = match (bytes.get(at), bytes.get(at + 1).map(u8::to_ascii_lowercase)) {
-        (Some(b'0'), Some(b'x')) => (16, at + 2),
-        (Some(b'0'), _) => (8, at),
-        _ => (10, at),
-    };
+    let (radix, first_digit): (u32, usize) =
+        match (bytes.get(at), bytes.get(at + 1).map(u8::to_ascii_lowercase)) {
+            (Some(b'0'), Some(b'x')) => (16, at + 2),
+            (Some(b'0'), _) => (8, at),
+            _ => (10, at),
+        };
     let mut magnitude: i64 = 0;
     let mut digits: usize = 0;
     let mut cursor: usize = first_digit;
     loop {
         let Some(byte) = bytes.get(cursor) else { break };
-        let Some(digit) = digit_of(*byte, radix) else { break };
-        magnitude = magnitude.checked_mul(i64::from(radix))?.checked_add(i64::from(digit))?;
+        let Some(digit) = digit_of(*byte, radix) else {
+            break;
+        };
+        magnitude = magnitude
+            .checked_mul(i64::from(radix))?
+            .checked_add(i64::from(digit))?;
         digits += 1;
         cursor += 1;
     }
@@ -362,7 +380,8 @@ pub fn canonical_bool_or_int(value: Option<&[u8]>) -> Option<String> {
 /// ```
 pub fn plain_path(value: Option<&[u8]>) -> Option<String> {
     let text: &str = std::str::from_utf8(value?).ok()?;
-    if text.is_empty() || text.starts_with('~') || text.starts_with("%(") || text.starts_with(":(") {
+    if text.is_empty() || text.starts_with('~') || text.starts_with("%(") || text.starts_with(":(")
+    {
         return None;
     }
     return Some(String::from(text));
@@ -434,7 +453,10 @@ impl ConfigSnapshot {
     /// ```ts
     /// this.entries.findLast((entry) => entry.key === key);
     /// ```
-    fn last_entry_named(&self, key: &str) -> Option<&ConfigEntry> {
+    fn last_entry_named(
+        &self,
+        key: &str,
+    ) -> Option<&ConfigEntry> {
         for entry in self.entries.iter().rev() {
             if entry.key == key {
                 return Some(entry);
@@ -454,10 +476,16 @@ impl ConfigSnapshot {
     /// ```ts
     /// parseConfigList(bytes, { withoutGlobalOptions });
     /// ```
-    pub fn parse(listing: &[u8], without_global_options: bool) -> Option<Self> {
+    pub fn parse(
+        listing: &[u8],
+        without_global_options: bool,
+    ) -> Option<Self> {
         let mut entries: Vec<ConfigEntry> = Vec::new();
         if listing.is_empty() {
-            return Some(Self { entries, without_global_options });
+            return Some(Self {
+                entries,
+                without_global_options,
+            });
         }
         let body: &[u8] = listing.strip_suffix(&[0])?;
         let mut fields = body.split(is_nul_byte);
@@ -474,7 +502,10 @@ impl ConfigSnapshot {
                 value: value.map(<[u8]>::to_vec),
             });
         }
-        return Some(Self { entries, without_global_options });
+        return Some(Self {
+            entries,
+            without_global_options,
+        });
     }
 
     /// What:
@@ -493,7 +524,9 @@ impl ConfigSnapshot {
     /// const value = entries('core.fsync').at(-1); // undefined: the default
     /// ```
     pub fn fsync_components(&self) -> Option<FsyncComponents> {
-        let Some(entry) = self.last_entry_named("core.fsync") else { return Some(FsyncComponents::default_set()) };
+        let Some(entry) = self.last_entry_named("core.fsync") else {
+            return Some(FsyncComponents::default_set());
+        };
         let value: &str = std::str::from_utf8(entry.value.as_deref()?).ok()?;
         return Some(FsyncComponents::parse(value));
     }
@@ -550,7 +583,11 @@ impl ConfigSnapshot {
         if set.names_loose_object() || legacy_flush {
             // Native Git flushes the objects it writes, and a pack that the import keeps instead of unpacking holds the same
             //  objects, so the pack and its index are flushed too; the unpacked case flushes its loose objects as the repository says.
-            return if set.names_pack_and_metadata() { None } else { Some(set.with_packs().value()) };
+            return if set.names_pack_and_metadata() {
+                None
+            } else {
+                Some(set.with_packs().value())
+            };
         }
         if !set.names_pack() {
             return None;
@@ -627,7 +664,10 @@ impl ConfigSnapshot {
     /// ```ts
     /// snapshot.pathValue('core.hookspath');
     /// ```
-    pub fn path_value(&self, key: &str) -> Lookup<String> {
+    pub fn path_value(
+        &self,
+        key: &str,
+    ) -> Lookup<String> {
         return self.last_converted(key, plain_path);
     }
 
@@ -641,7 +681,10 @@ impl ConfigSnapshot {
     /// ```ts
     /// snapshot.boolValue('hook.pre-commit.enabled');
     /// ```
-    pub fn bool_value(&self, key: &str) -> Lookup<bool> {
+    pub fn bool_value(
+        &self,
+        key: &str,
+    ) -> Lookup<bool> {
         return self.last_converted(key, canonical_bool);
     }
 
@@ -664,7 +707,10 @@ impl ConfigSnapshot {
     /// ```ts
     /// snapshot.boolValueFromFiles('hook.pre-commit.enabled');
     /// ```
-    pub fn bool_value_from_files(&self, key: &str) -> Lookup<bool> {
+    pub fn bool_value_from_files(
+        &self,
+        key: &str,
+    ) -> Lookup<bool> {
         let mut last: Lookup<bool> = Lookup::Unset;
         for entry in &self.entries {
             if entry.key != key || entry.scope == COMMAND_SCOPE {
@@ -722,7 +768,8 @@ impl ConfigSnapshot {
     /// snapshot.withoutGlobalOptions && !snapshot.entries.some((entry) => entry.key === 'extensions.refstorage');
     /// ```
     pub fn proves_files_ref_storage(&self) -> bool {
-        return self.without_global_options && self.last_entry_named("extensions.refstorage").is_none();
+        return self.without_global_options
+            && self.last_entry_named("extensions.refstorage").is_none();
     }
 }
 
@@ -739,7 +786,10 @@ impl ConfigSnapshot {
 /// ```ts
 /// const snapshot = await readConfigSnapshot({ context, cwd }); // undefined means: ask Git per key
 /// ```
-pub fn read_config_snapshot(context: &GitContext, cwd: &Path) -> Option<ConfigSnapshot> {
+pub fn read_config_snapshot(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<ConfigSnapshot> {
     let request: GitRequest = config_listing_request(cwd);
     return snapshot_of(run_git(context, &request), context);
 }
@@ -759,7 +809,10 @@ pub fn read_config_snapshot(context: &GitContext, cwd: &Path) -> Option<ConfigSn
 /// ```ts
 /// const snapshot = await readConfigSnapshotOnTheRuntime({ context, cwd });
 /// ```
-pub async fn read_config_snapshot_awaiting(context: &GitContext, cwd: &Path) -> Option<ConfigSnapshot> {
+pub async fn read_config_snapshot_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<ConfigSnapshot> {
     let request: GitRequest = config_listing_request(cwd);
     return snapshot_of(run_git_awaiting(context, &request).await, context);
 }
@@ -789,11 +842,17 @@ fn config_listing_request(cwd: &Path) -> GitRequest {
 /// ```ts
 /// snapshotOf(await read, context); // undefined means: ask Git per key
 /// ```
-fn snapshot_of(run: std::io::Result<GitOutput>, context: &GitContext) -> Option<ConfigSnapshot> {
+fn snapshot_of(
+    run: std::io::Result<GitOutput>,
+    context: &GitContext,
+) -> Option<ConfigSnapshot> {
     let output: GitOutput = match run {
         Ok(finished) => finished,
         Err(error) => {
-            debug("readConfigSnapshot", format!("git config --list could not start: {error}").as_str());
+            debug(
+                "readConfigSnapshot",
+                format!("git config --list could not start: {error}").as_str(),
+            );
             return None;
         }
     };
@@ -807,7 +866,10 @@ fn snapshot_of(run: std::io::Result<GitOutput>, context: &GitContext) -> Option<
     let parsed: Option<ConfigSnapshot> =
         ConfigSnapshot::parse(output.stdout.as_slice(), context.global_prefix.is_empty());
     if parsed.is_none() {
-        debug("readConfigSnapshot", "the configuration listing has an unexpected shape");
+        debug(
+            "readConfigSnapshot",
+            "the configuration listing has an unexpected shape",
+        );
     }
     return parsed;
 }

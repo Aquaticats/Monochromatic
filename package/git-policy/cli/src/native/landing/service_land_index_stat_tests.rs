@@ -4,9 +4,21 @@
 //! a refresh never hides an unstaged change,
 //! and an index that already describes the worktree costs no Git at all.
 
-use super::tests::{World, request, world};
+use super::tests::{
+    World,
+    request,
+    world,
+};
 use super::*;
-use crate::test_support::{REAL_GIT, executable, git, git_context, git_text, remove, renew_inode};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    git,
+    git_context,
+    git_text,
+    remove,
+    renew_inode,
+};
 
 /// The file a control makes stale before it lands:
 /// a committed path no request of the batch names.
@@ -19,14 +31,24 @@ const STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// Commits `name` with `content` to the world's branch,
 /// through Git alone.
-fn commit_into(world: &World, name: &str, content: &str) {
+fn commit_into(
+    world: &World,
+    name: &str,
+    content: &str,
+) {
     std::fs::write(world.repo.join(name), content).expect("write");
     git(world.repo.as_path(), &["add", "--", name]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--message=before"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=before"],
+    );
 }
 
 /// What `git ls-files --debug` prints for `name` in the world's real index.
-fn recording(world: &World, name: &str) -> String {
+fn recording(
+    world: &World,
+    name: &str,
+) -> String {
     return git_text(
         world.repo.as_path(),
         &["--no-optional-locks", "ls-files", "--debug", "--", name],
@@ -35,8 +57,13 @@ fn recording(world: &World, name: &str) -> String {
 
 /// The inode `name` has now,
 /// as `ls-files --debug` prints it.
-fn inode_of(world: &World, name: &str) -> u64 {
-    return std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(world.repo.join(name)).expect("the file"));
+fn inode_of(
+    world: &World,
+    name: &str,
+) -> u64 {
+    return std::os::unix::fs::MetadataExt::ino(
+        &std::fs::metadata(world.repo.join(name)).expect("the file"),
+    );
 }
 
 /// The world's index made to record stat data its worktree no longer has,
@@ -58,17 +85,29 @@ fn make_the_index_stale(world: &World) {
 /// Why:
 ///  Git cannot be made to fail at one step on demand,
 /// and a shell is the only way to name that step's outcome.
-fn with_a_shimmed_git(world: World, answering: &str) -> World {
+fn with_a_shimmed_git(
+    world: World,
+    answering: &str,
+) -> World {
     let shim: PathBuf = world.root.join("shim-git");
-    let script: String = format!("#!/bin/sh\ncase \" $* \" in\n  *\" update-index --refresh \"*) {answering} ;;\n  *) exec '{REAL_GIT}' \"$@\";;\nesac\n");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" update-index --refresh \"*) {answering} ;;\n  *) exec '{REAL_GIT}' \"$@\";;\nesac\n"
+    );
     executable(shim.as_path(), script.as_bytes());
     let context: LandContext = LandContext {
-        git: GitContext { real_git: shim, ..git_context() },
+        git: GitContext {
+            real_git: shim,
+            ..git_context()
+        },
         journal: world.context.journal.clone(),
         on_objects_written: None,
         lock_ceiling: world.context.lock_ceiling,
     };
-    return World { root: world.root, repo: world.repo, context };
+    return World {
+        root: world.root,
+        repo: world.repo,
+        context,
+    };
 }
 
 /// The stat data of an entry the batch does not change is refreshed in the index the landing installs,
@@ -80,8 +119,16 @@ fn a_landing_keeps_the_stat_data_of_a_stale_entry_it_does_not_change() {
     let world: World = world("service-land-index-stat-kept");
     make_the_index_stale(&world);
     let inode: u64 = inode_of(&world, STALE_FILE);
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    let outcomes = land_batch(
+        &world.context,
+        1,
+        &[request(&world, "one", "one.txt", "one\n")],
+    )
+    .expect("landed");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
     let after: String = recording(&world, STALE_FILE);
     assert!(
         after.contains(format!("ino: {inode}").as_str()),
@@ -98,9 +145,21 @@ fn a_landing_whose_refresh_fails_still_installs_its_index() {
     let world: World = world("service-land-index-stat-refused");
     make_the_index_stale(&world);
     let shimmed: World = with_a_shimmed_git(world, "exit 128");
-    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("a refresh Git refused must not fail the landing");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    let outcomes = land_batch(
+        &shimmed.context,
+        1,
+        &[request(&shimmed, "one", "one.txt", "one\n")],
+    )
+    .expect("a refresh Git refused must not fail the landing");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        git_text(shimmed.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     remove(shimmed.root.as_path());
 }
 
@@ -111,9 +170,21 @@ fn a_landing_whose_refresh_is_killed_still_installs_its_index() {
     let world: World = world("service-land-index-stat-killed");
     make_the_index_stale(&world);
     let shimmed: World = with_a_shimmed_git(world, "kill -9 $$");
-    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("a refresh that was killed must not fail the landing");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    let outcomes = land_batch(
+        &shimmed.context,
+        1,
+        &[request(&shimmed, "one", "one.txt", "one\n")],
+    )
+    .expect("a refresh that was killed must not fail the landing");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        git_text(shimmed.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     remove(shimmed.root.as_path());
 }
 
@@ -127,12 +198,27 @@ fn a_landing_whose_refresh_is_ended_at_its_ceiling_still_installs_its_index() {
     let world: World = world("service-land-index-stat-ceiling");
     make_the_index_stale(&world);
     let shimmed: World = with_a_shimmed_git(world, "sleep 600");
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(STEP_CEILING)); });
-    let answered = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]);
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(STEP_CEILING));
+    });
+    let answered = land_batch(
+        &shimmed.context,
+        1,
+        &[request(&shimmed, "one", "one.txt", "one\n")],
+    );
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
     let outcomes = answered.expect("a refresh the ceiling ended must not fail the landing");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        git_text(shimmed.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     remove(shimmed.root.as_path());
 }
 
@@ -143,13 +229,28 @@ fn a_landing_whose_refresh_is_ended_at_its_ceiling_still_installs_its_index() {
 fn a_landing_whose_refresh_meets_an_unstaged_change_keeps_it_visible() {
     let world: World = world("service-land-index-stat-unstaged");
     make_the_index_stale(&world);
-    std::fs::write(world.repo.join(STALE_FILE), "edited but not staged\n").expect("an unstaged change");
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    std::fs::write(world.repo.join(STALE_FILE), "edited but not staged\n")
+        .expect("an unstaged change");
+    let outcomes = land_batch(
+        &world.context,
+        1,
+        &[request(&world, "one", "one.txt", "one\n")],
+    )
+    .expect("landed");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
     let status: String = git_text(world.repo.as_path(), &["status", "--short"]);
-    assert!(status.contains(STALE_FILE), "the unstaged change is still a change: {status}");
+    assert!(
+        status.contains(STALE_FILE),
+        "the unstaged change is still a change: {status}"
+    );
     let difference: String = git_text(world.repo.as_path(), &["diff", "--", STALE_FILE]);
-    assert!(difference.contains("edited but not staged"), "the worktree bytes are the person's: {difference}");
+    assert!(
+        difference.contains("edited but not staged"),
+        "the worktree bytes are the person's: {difference}"
+    );
     remove(world.root.as_path());
 }
 
@@ -162,16 +263,34 @@ fn a_landing_over_an_index_that_describes_the_worktree_starts_no_refresh() {
     commit_into(&world, STALE_FILE, "stale\n");
     let asked: PathBuf = world.root.join("refresh-asked");
     let shimmed: World = with_a_shimmed_git(world, format!(": > '{}'", asked.display()).as_str());
-    let outcomes = land_batch(&shimmed.context, 1, &[request(&shimmed, "one", "one.txt", "one\n")]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert!(!asked.exists(), "an index that describes the worktree must cost no Git start, but the refresh was asked for");
-    assert_eq!(git_text(shimmed.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    let outcomes = land_batch(
+        &shimmed.context,
+        1,
+        &[request(&shimmed, "one", "one.txt", "one\n")],
+    )
+    .expect("landed");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert!(
+        !asked.exists(),
+        "an index that describes the worktree must cost no Git start, but the refresh was asked for"
+    );
+    assert_eq!(
+        git_text(shimmed.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     remove(shimmed.root.as_path());
 }
 
 /// The modification time of the world's live index.
 fn index_time(world: &World) -> std::time::SystemTime {
-    return std::fs::metadata(world.repo.join(".git/index")).expect("the live index").modified().expect("a modification time");
+    return std::fs::metadata(world.repo.join(".git/index"))
+        .expect("the live index")
+        .modified()
+        .expect("a modification time");
 }
 
 /// A landing installs its copy with the times the live index had,
@@ -189,9 +308,21 @@ fn a_landing_installs_its_copy_with_the_live_index_times() {
     make_the_index_stale(&world);
     let stamped: String = recording(&world, STALE_FILE);
     let before: std::time::SystemTime = index_time(&world);
-    let outcomes = land_batch(&world.context, 1, &[request(&world, "one", "one.txt", "one\n")]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_ne!(recording(&world, STALE_FILE), stamped, "the fixture must make the landing's refresh write the copy");
+    let outcomes = land_batch(
+        &world.context,
+        1,
+        &[request(&world, "one", "one.txt", "one\n")],
+    )
+    .expect("landed");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_ne!(
+        recording(&world, STALE_FILE),
+        stamped,
+        "the fixture must make the landing's refresh write the copy"
+    );
     assert_eq!(
         index_time(&world),
         before,

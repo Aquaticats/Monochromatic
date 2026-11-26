@@ -76,7 +76,9 @@ pub struct ConvertArguments {
 fn parse_jobs(value: &str) -> Result<usize, String> {
     return match value.parse::<usize>() {
         Ok(count) if count >= 1 => Ok(count),
-        _ => Err(format!("--jobs needs a whole number of at least one, but got {value:?}")),
+        _ => Err(format!(
+            "--jobs needs a whole number of at least one, but got {value:?}"
+        )),
     };
 }
 
@@ -109,12 +111,18 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
                 };
                 parsed.jobs = Some(parse_jobs(value)?);
             }
-            other if other.starts_with("--jobs=") => parsed.jobs = Some(parse_jobs(&other["--jobs=".len()..])?),
+            other if other.starts_with("--jobs=") => {
+                parsed.jobs = Some(parse_jobs(&other["--jobs=".len()..])?)
+            }
             "--help" | "-h" => parsed.help = true,
             "--dry-run" => parsed.dry_run = true,
             "--abandon" => parsed.abandon = true,
             "--all" => parsed.all = true,
-            other if other.starts_with('-') => return Err(format!("unknown option {other}; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`")),
+            other if other.starts_with('-') => {
+                return Err(format!(
+                    "unknown option {other}; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`"
+                ));
+            }
             _ => parsed.paths.push(token.clone()),
         }
     }
@@ -122,7 +130,9 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
         return Err(String::from("--dry-run and --abandon cannot be combined"));
     }
     if !parsed.help && !parsed.all && parsed.paths.is_empty() {
-        return Err(String::from("name a worktree or pass --all; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`"));
+        return Err(String::from(
+            "name a worktree or pass --all; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`",
+        ));
     }
     if parsed.all && !parsed.paths.is_empty() {
         return Err(String::from("--all and named worktrees cannot be combined"));
@@ -155,7 +165,10 @@ pub fn selects_attribute_source(globals: &[std::ffi::OsString]) -> bool {
         if text == "-c" {
             // The value is read only after a `-c`, as the short-circuit of `&&` did.
             let names_tree: bool = match words.next() {
-                Some(value) => value.to_string_lossy().to_lowercase().starts_with("attr.tree"),
+                Some(value) => value
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .starts_with("attr.tree"),
                 None => false,
             };
             if names_tree {

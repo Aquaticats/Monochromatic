@@ -25,8 +25,15 @@
 //! const tree = askForADrawnShadow(address, template, scratch); // the path, or undefined
 //! ```
 
+/// A reader of the answers,
+/// and the failure of a socket that closed.
+use crate::service_client_listen_and_ask_to_retire::read_message;
 /// One line of the protocol in each direction.
-use crate::service_protocol::{ClientMessage, ServiceMessage, encode_client};
+use crate::service_protocol::{
+    ClientMessage,
+    ServiceMessage,
+    encode_client,
+};
 /// Where the service listens.
 use crate::service_server_socket_binding::Bind;
 /// The facts a creation is made from.
@@ -35,18 +42,21 @@ use crate::shadow_create::ShadowTemplate;
 use crate::shadow_drawn::is_a_drawn_tree;
 /// What a connection to a socket that takes no connection costs.
 use crate::unix_socket_connect_within_a_deadline::connect_within;
-/// A reader of the answers,
-/// and the failure of a socket that closed.
-use crate::service_client_listen_and_ask_to_retire::read_message;
-/// The bytes of one line.
-use std::io::Write;
 /// The connection and the reader over it.
 use std::io::BufReader;
+/// The bytes of one line.
+use std::io::Write;
 use std::os::unix::net::UnixStream;
 /// The socket,
 /// the deadline and the path an answer names.
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The span one ask has,
 /// from the connection to the last byte of the answer.
@@ -83,7 +93,11 @@ pub const DRAWN_ANSWER_DEADLINE: Duration = Duration::from_millis(250);
 /// ```ts
 /// const tree = askForADrawnShadow(address, template, scratch);
 /// ```
-pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch: &Path) -> Option<PathBuf> {
+pub fn ask_for_a_drawn_shadow(
+    address: &Bind,
+    template: &ShadowTemplate,
+    scratch: &Path,
+) -> Option<PathBuf> {
     let socket: &Path = match address {
         Bind::Path(path) => path.as_path(),
         Bind::Abstract(_) | Bind::Inherited => return None,
@@ -93,17 +107,40 @@ pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch
         return None;
     }
     let deadline: Instant = Instant::now() + DRAWN_ANSWER_DEADLINE;
-    let line: String = encode_client(&ClientMessage::Shadow { git_dir: template.git_dir.clone(), scratch: scratch.to_path_buf() });
+    let line: String = encode_client(&ClientMessage::Shadow {
+        git_dir: template.git_dir.clone(),
+        scratch: scratch.to_path_buf(),
+    });
     let mut reader: BufReader<UnixStream> = BufReader::new(connected_within(socket, deadline)?);
     let _greeting: ServiceMessage = answered_within(&mut reader, deadline)?;
     let _set: std::io::Result<()> = reader.get_mut().set_write_timeout(Some(left_of(deadline)?));
-    if reader.get_mut().write_all(format!("{line}\n").as_bytes()).is_err() {
+    if reader
+        .get_mut()
+        .write_all(format!("{line}\n").as_bytes())
+        .is_err()
+    {
         return None;
     }
     let answer: ServiceMessage = answered_within(&mut reader, deadline)?;
-    let ServiceMessage::Drawn { tree } = answer else { return None };
-    if !is_a_drawn_tree(tree.as_path(), template.common_dir.as_path(), template.git_dir.as_path()) {
-        crate::diagnostic_log::debug("shadowDrawn", format!("refused the answer {}: it is not a drawn shadow of this worktree", tree.display()).as_str());
+    let ServiceMessage::Drawn {
+        tree,
+    } = answer
+    else {
+        return None;
+    };
+    if !is_a_drawn_tree(
+        tree.as_path(),
+        template.common_dir.as_path(),
+        template.git_dir.as_path(),
+    ) {
+        crate::diagnostic_log::debug(
+            "shadowDrawn",
+            format!(
+                "refused the answer {}: it is not a drawn shadow of this worktree",
+                tree.display()
+            )
+            .as_str(),
+        );
         return None;
     }
     return Some(tree);
@@ -119,7 +156,10 @@ pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch
 /// ```ts
 /// const stream = connectedWithin(socket, deadline); // undefined when the deadline passed
 /// ```
-fn connected_within(socket: &Path, deadline: Instant) -> Option<UnixStream> {
+fn connected_within(
+    socket: &Path,
+    deadline: Instant,
+) -> Option<UnixStream> {
     return connect_within(socket, left_of(deadline)?).ok();
 }
 
@@ -133,7 +173,10 @@ fn connected_within(socket: &Path, deadline: Instant) -> Option<UnixStream> {
 /// ```ts
 /// const message = answeredWithin(reader, deadline); // undefined when nothing came in time
 /// ```
-fn answered_within(reader: &mut BufReader<UnixStream>, deadline: Instant) -> Option<ServiceMessage> {
+fn answered_within(
+    reader: &mut BufReader<UnixStream>,
+    deadline: Instant,
+) -> Option<ServiceMessage> {
     let left: Duration = left_of(deadline)?;
     let _set: std::io::Result<()> = reader.get_ref().set_read_timeout(Some(left));
     return read_message(reader);

@@ -17,15 +17,24 @@
 //! ```
 
 use crate::worktree_clone_snapshot_batch::snapshot_batch_answer::{
-    MORE_ERRORS_KEY, outcome_of_answer,
+    MORE_ERRORS_KEY,
+    outcome_of_answer,
 };
 use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
 use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
 use monochromatic_zfs_request_to_openzfs_kernel_device::requests::{
-    ElementError, MAXIMUM_ELEMENTS_KEPT, MAXIMUM_REPLY_SIZE, ReplyRefusal, ReplyRefusalReason,
+    ElementError,
+    MAXIMUM_ELEMENTS_KEPT,
+    MAXIMUM_REPLY_SIZE,
+    ReplyRefusal,
+    ReplyRefusalReason,
 };
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
-    DeviceError, Error, NvData, NvList, Operation,
+    DeviceError,
+    Error,
+    NvData,
+    NvList,
+    Operation,
 };
 
 /// The pool every answer names.
@@ -48,7 +57,10 @@ fn second(set: &[String]) -> String {
 }
 
 /// The per-name failure of one snapshot.
-fn failure(name: &str, errno: i32) -> ElementError {
+fn failure(
+    name: &str,
+    errno: i32,
+) -> ElementError {
     return ElementError {
         name: name.to_string(),
         errno,
@@ -92,10 +104,18 @@ fn a_refusal_names_its_failures_and_leaves_the_rest_intact() {
     assert!(outcome.failures_complete());
     assert_eq!(
         outcome.outcome_of(refused.as_str()),
-        Some(&NameOutcome::Refused { errno: libc::EBUSY })
+        Some(&NameOutcome::Refused {
+            errno: libc::EBUSY
+        })
     );
-    assert_eq!(outcome.outcome_of(set[0].as_str()), Some(&NameOutcome::Intact));
-    assert_eq!(outcome.outcome_of(set[2].as_str()), Some(&NameOutcome::Intact));
+    assert_eq!(
+        outcome.outcome_of(set[0].as_str()),
+        Some(&NameOutcome::Intact)
+    );
+    assert_eq!(
+        outcome.outcome_of(set[2].as_str()),
+        Some(&NameOutcome::Intact)
+    );
 }
 
 /// A failure without a per-name list is unknown for every name.
@@ -196,7 +216,9 @@ fn a_shortened_per_name_list_leaves_unnamed_names_unknown() {
     assert_eq!(outcome.failures(), [failure(refused.as_str(), libc::EBUSY)]);
     assert_eq!(
         outcome.outcome_of(refused.as_str()),
-        Some(&NameOutcome::Refused { errno: libc::EBUSY })
+        Some(&NameOutcome::Refused {
+            errno: libc::EBUSY
+        })
     );
     assert!(matches!(
         outcome.outcome_of(set[0].as_str()),
@@ -244,7 +266,12 @@ fn a_list_at_the_readers_cap_is_not_complete() {
 fn a_success_naming_a_failure_is_unknown() {
     let set: Vec<String> = submitted();
     let mut reply: NvList = NvList::new();
-    reply.push(second(set.as_slice()), NvData::Int32 { value: libc::EBUSY });
+    reply.push(
+        second(set.as_slice()),
+        NvData::Int32 {
+            value: libc::EBUSY,
+        },
+    );
     let outcome: BatchOutcome = outcome_of_answer(POOL, set.as_slice(), Ok(Some(reply)));
     assert!(outcome.names().iter().all(|named| {
         return matches!(named.outcome, NameOutcome::Unknown { .. });

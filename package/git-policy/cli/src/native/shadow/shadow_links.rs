@@ -53,7 +53,10 @@
 //! ```
 
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The entries of the repository's common Git directory a commit's shadow shares,
@@ -82,15 +85,7 @@ use std::path::{Path, PathBuf};
 ///  `lfs` is the folder `git-lfs` keeps its objects and logs in,
 ///  which a clean filter of a commit in the shadow writes into.
 pub const SHARED_ENTRY_NAMES: [&str; 9] = [
-    "branches",
-    "hooks",
-    "info",
-    "lfs",
-    "modules",
-    "remotes",
-    "rr-cache",
-    "shallow",
-    "svn",
+    "branches", "hooks", "info", "lfs", "modules", "remotes", "rr-cache", "shallow", "svn",
 ];
 
 /// What:
@@ -183,7 +178,10 @@ fn regular_file_exists(path: &Path) -> std::io::Result<bool> {
 /// ```ts
 /// await keepsItsOwnInfo({ commonDir, gitDir })
 /// ```
-pub fn keeps_its_own_info(common_dir: &Path, git_dir: &Path) -> std::io::Result<bool> {
+pub fn keeps_its_own_info(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> std::io::Result<bool> {
     let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
     return Ok(git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?);
 }
@@ -199,7 +197,11 @@ pub fn keeps_its_own_info(common_dir: &Path, git_dir: &Path) -> std::io::Result<
 /// ```ts
 /// await symlink(source, destination);
 /// ```
-fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::Result<()> {
+fn share_entry(
+    source: &Path,
+    destination: &Path,
+    directory: bool,
+) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         let _ = directory;
@@ -232,7 +234,11 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
 /// await symlink(source, destination).catch((error) => { if (error.code !== 'EEXIST') throw error; await rm(destination, { recursive: true, force: true }); await symlink(source, destination); });
 /// ```
 #[cfg(unix)]
-fn share_replacing_template(source: &Path, destination: &Path, directory: bool) -> std::io::Result<()> {
+fn share_replacing_template(
+    source: &Path,
+    destination: &Path,
+    directory: bool,
+) -> std::io::Result<()> {
     return match share_entry(source, destination, directory) {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             remove_entry(destination)?;
@@ -256,7 +262,11 @@ fn share_replacing_template(source: &Path, destination: &Path, directory: bool) 
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(windows)]
-fn share_replacing_template(source: &Path, destination: &Path, directory: bool) -> std::io::Result<()> {
+fn share_replacing_template(
+    source: &Path,
+    destination: &Path,
+    directory: bool,
+) -> std::io::Result<()> {
     remove_entry(destination)?;
     return share_entry(source, destination, directory);
 }
@@ -313,17 +323,23 @@ pub fn shared_entries_of(
     //  nine of them on the creation's path and again on a claim's (`shared_entries_at`).
     // The names are then taken in the order the list has them, so the links a creation makes and the answers a claim
     //  compares are in one order whatever order the directory lists them in.
-    let listed: Vec<(std::ffi::OsString, PathBuf, bool)> = listing_of_a_common_directory(common_dir)?;
+    let listed: Vec<(std::ffi::OsString, PathBuf, bool)> =
+        listing_of_a_common_directory(common_dir)?;
     let mut entries: Vec<SharedEntry> = Vec::with_capacity(SHARED_ENTRY_NAMES.len());
     for name in SHARED_ENTRY_NAMES {
         if own_info && name == "info" {
             continue;
         }
-        let listed_entry: Option<&(std::ffi::OsString, PathBuf, bool)> = listed.iter().find(|(listed_name, _source, _directory)| {
-            return listed_name == std::ffi::OsStr::new(name);
-        });
+        let listed_entry: Option<&(std::ffi::OsString, PathBuf, bool)> =
+            listed.iter().find(|(listed_name, _source, _directory)| {
+                return listed_name == std::ffi::OsStr::new(name);
+            });
         let found: Option<SharedEntry> = match listed_entry {
-            Some((listed_name, source, directory)) => Some(SharedEntry { name: listed_name.clone(), source: source.clone(), directory: *directory }),
+            Some((listed_name, source, directory)) => Some(SharedEntry {
+                name: listed_name.clone(),
+                source: source.clone(),
+                directory: *directory,
+            }),
             // The store a filter writes into is the creation's to make, so it is always linked, whether the listing holds it or not.
             None if name == LFS_STORE_ENTRY_NAME => Some(SharedEntry {
                 name: std::ffi::OsString::from(name),
@@ -352,7 +368,9 @@ pub fn shared_entries_of(
 /// ```ts
 /// const listingOfACommonDirectory = async (dir) => (await readdir(dir, { withFileTypes: true })).map((e) => [e.name, join(dir, e.name), e.isDirectory()]);
 /// ```
-fn listing_of_a_common_directory(common_dir: &Path) -> std::io::Result<Vec<(std::ffi::OsString, PathBuf, bool)>> {
+fn listing_of_a_common_directory(
+    common_dir: &Path
+) -> std::io::Result<Vec<(std::ffi::OsString, PathBuf, bool)>> {
     let entries = std::fs::read_dir(common_dir)?;
     let mut listed: Vec<(std::ffi::OsString, PathBuf, bool)> = Vec::new();
     for entry in entries.flatten() {
@@ -382,11 +400,18 @@ fn listing_of_a_common_directory(common_dir: &Path) -> std::io::Result<Vec<(std:
 /// ```ts
 /// await linkDirectoryEntries({ entries, shadowDirectory });
 /// ```
-fn link_directory_entries(entries: &[SharedEntry], shadow_directory: &Path) -> std::io::Result<()> {
+fn link_directory_entries(
+    entries: &[SharedEntry],
+    shadow_directory: &Path,
+) -> std::io::Result<()> {
     for entry in entries {
         let destination: PathBuf = shadow_directory.join(&entry.name);
         // `git init` may have created a template entry of the same name; the real one replaces it.
-        match share_replacing_template(entry.source.as_path(), destination.as_path(), entry.directory) {
+        match share_replacing_template(
+            entry.source.as_path(),
+            destination.as_path(),
+            entry.directory,
+        ) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
@@ -453,7 +478,11 @@ fn is_a_directory(kind: std::fs::FileType) -> bool {
 /// ```
 fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
     let directory: bool = entry.file_type().is_ok_and(is_a_directory);
-    return SharedEntry { name: entry.file_name(), source: entry.path(), directory };
+    return SharedEntry {
+        name: entry.file_name(),
+        source: entry.path(),
+        directory,
+    };
 }
 
 /// What:
@@ -470,7 +499,7 @@ fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
 /// await sharedInfoEntries(listed) // { name, source, directory }[]
 /// ```
 fn shared_info_entries(
-    listed: impl Iterator<Item = std::io::Result<std::fs::DirEntry>>,
+    listed: impl Iterator<Item = std::io::Result<std::fs::DirEntry>>
 ) -> std::io::Result<Vec<SharedEntry>> {
     let mut shared: Vec<SharedEntry> = Vec::new();
     for read in listed {
@@ -544,7 +573,11 @@ fn make_the_store_a_filter_writes_into(common_dir: &Path) {
 /// ```ts
 /// await linkShadowEntries({ shadowPath, commonDir, gitDir });
 /// ```
-pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> std::io::Result<()> {
+pub fn link_shadow_entries(
+    shadow: &Path,
+    common_dir: &Path,
+    git_dir: &Path,
+) -> std::io::Result<()> {
     let (entries, mixed_info): (Vec<SharedEntry>, bool) = shared_entries_of(common_dir, git_dir)?;
     link_directory_entries(entries.as_slice(), shadow)?;
     let worktree_config: PathBuf = git_dir.join("config.worktree");

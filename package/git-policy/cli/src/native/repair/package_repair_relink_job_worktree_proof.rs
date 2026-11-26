@@ -27,8 +27,16 @@
 
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::work_item::WorkItem;
-use crate::worktree_registration_proof::{RegistrationRefusal, is_absent, read_record, registration_of_pointer};
-use std::path::{Path, PathBuf};
+use crate::worktree_registration_proof::{
+    RegistrationRefusal,
+    is_absent,
+    read_record,
+    registration_of_pointer,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why this record is not acted on now:
@@ -43,7 +51,11 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const refusal = (held, item, entry) => held.stillAt(entry.root) ? registrationOfPointer(item.gitDir, entry.root, held.pointer()).error : 'the directory was replaced';
 /// ```
-pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(item: &WorkItem, entry: &crate::package_repair_relink::RelinkEntry, held: &HeldWorktree) -> Option<Verdict> {
+pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(
+    item: &WorkItem,
+    entry: &crate::package_repair_relink::RelinkEntry,
+    held: &HeldWorktree,
+) -> Option<Verdict> {
     if !held.still_at(entry.root.as_path()) {
         return Some(Verdict::Skipped(format!(
             "{} is no longer the directory this relink was proved on, so it was left exactly as it is",
@@ -52,11 +64,19 @@ pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(item: &WorkItem, en
     }
     // The pointer is read through the descriptor the run holds, while the words name the path the record carries:
     //  `/proc/self/fd/<descriptor>` is nothing the person typed or could look for.
-    let pointer: Vec<u8> = match read_record(held.inside(".git").as_path(), &entry.root.join(".git"), "the worktree's pointer") {
+    let pointer: Vec<u8> = match read_record(
+        held.inside(".git").as_path(),
+        &entry.root.join(".git"),
+        "the worktree's pointer",
+    ) {
         Ok(bytes) => bytes,
         Err(refusal) => return Some(verdict_for_a_refusal(refusal)),
     };
-    return match registration_of_pointer(item.git_dir.as_path(), entry.root.as_path(), pointer.as_slice()) {
+    return match registration_of_pointer(
+        item.git_dir.as_path(),
+        entry.root.as_path(),
+        pointer.as_slice(),
+    ) {
         Ok(_registration) => None,
         Err(refusal) => Some(verdict_for_a_refusal(refusal)),
     };
@@ -84,8 +104,12 @@ pub(super) fn refusal_of_a_replaced_or_unregistered_worktree(item: &WorkItem, en
 /// ```
 pub(super) fn verdict_for_a_refusal(refusal: RegistrationRefusal) -> Verdict {
     return match refusal {
-        RegistrationRefusal::NotThisRepository(reason) => Verdict::Skipped(format!("this directory is no worktree of the repository any more ({reason}), so it was left exactly as it is")),
-        RegistrationRefusal::Undecided(reason) => Verdict::Retry(format!("this directory's registration could not be read now ({reason})")),
+        RegistrationRefusal::NotThisRepository(reason) => Verdict::Skipped(format!(
+            "this directory is no worktree of the repository any more ({reason}), so it was left exactly as it is"
+        )),
+        RegistrationRefusal::Undecided(reason) => Verdict::Retry(format!(
+            "this directory's registration could not be read now ({reason})"
+        )),
     };
 }
 
@@ -132,19 +156,44 @@ impl HeldWorktree {
         //  proof is about one directory, so the path it is about is resolved once and named from there on.
         let named: PathBuf = match std::fs::canonicalize(root) {
             Ok(resolved) => resolved,
-            Err(error) if is_absent(&error) => return Err(RegistrationRefusal::NotThisRepository(format!("{} does not exist ({error})", root.display()))),
-            Err(error) => return Err(RegistrationRefusal::Undecided(format!("{} cannot be resolved ({error})", root.display()))),
+            Err(error) if is_absent(&error) => {
+                return Err(RegistrationRefusal::NotThisRepository(format!(
+                    "{} does not exist ({error})",
+                    root.display()
+                )));
+            }
+            Err(error) => {
+                return Err(RegistrationRefusal::Undecided(format!(
+                    "{} cannot be resolved ({error})",
+                    root.display()
+                )));
+            }
         };
         let directory: std::fs::File = match crate::fs_beneath::open_root(named.as_path()) {
             Ok(opened) => opened,
             Err(error) if is_absent(&error) || error.kind() == std::io::ErrorKind::InvalidInput => {
-                return Err(RegistrationRefusal::NotThisRepository(format!("{} is no directory of this repository ({error})", named.display())))
+                return Err(RegistrationRefusal::NotThisRepository(format!(
+                    "{} is no directory of this repository ({error})",
+                    named.display()
+                )));
             }
-            Err(error) => return Err(RegistrationRefusal::Undecided(format!("{} cannot be opened ({error})", named.display()))),
+            Err(error) => {
+                return Err(RegistrationRefusal::Undecided(format!(
+                    "{} cannot be opened ({error})",
+                    named.display()
+                )));
+            }
         };
         return match crate::fs_beneath::identity_of(&directory) {
-            Ok(identity) => Ok(HeldWorktree { directory, identity, named }),
-            Err(error) => Err(RegistrationRefusal::Undecided(format!("{} cannot be examined ({error})", named.display()))),
+            Ok(identity) => Ok(HeldWorktree {
+                directory,
+                identity,
+                named,
+            }),
+            Err(error) => Err(RegistrationRefusal::Undecided(format!(
+                "{} cannot be examined ({error})",
+                named.display()
+            ))),
         };
     }
 
@@ -167,7 +216,10 @@ impl HeldWorktree {
     /// ```ts
     /// const pointerPath = held.inside('.git');
     /// ```
-    pub(super) fn inside(&self, name: &str) -> PathBuf {
+    pub(super) fn inside(
+        &self,
+        name: &str,
+    ) -> PathBuf {
         return self.descriptor().join(name);
     }
 
@@ -196,15 +248,21 @@ impl HeldWorktree {
     /// ```ts
     /// const same = readlink(held.descriptor) === held.named && realpath(root) === held.named && identityOfPath(held.named) === held.identity;
     /// ```
-    pub(super) fn still_at(&self, root: &Path) -> bool {
+    pub(super) fn still_at(
+        &self,
+        root: &Path,
+    ) -> bool {
         let descriptor: PathBuf = self.descriptor();
-        let Ok(named_at) = std::fs::read_link(descriptor.as_path()) else { return false };
+        let Ok(named_at) = std::fs::read_link(descriptor.as_path()) else {
+            return false;
+        };
         if named_at.as_os_str() != self.named.as_os_str() {
             return false;
         }
         if std::fs::canonicalize(root).ok().as_deref() != Some(self.named.as_path()) {
             return false;
         }
-        return crate::worktree_add_binding::path_identity(self.named.as_path()).as_ref() == Some(&self.identity);
+        return crate::worktree_add_binding::path_identity(self.named.as_path()).as_ref()
+            == Some(&self.identity);
     }
 }

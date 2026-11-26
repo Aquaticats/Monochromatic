@@ -32,8 +32,15 @@ impl LimitKind {
     /// Sets this limit on the calling process;
     /// it is async-signal-safe,
     /// so a `pre_exec` closure may call it.
-    pub fn apply(self, soft: u64, hard: u64) -> std::io::Result<()> {
-        let cap: libc::rlimit = libc::rlimit { rlim_cur: soft, rlim_max: hard };
+    pub fn apply(
+        self,
+        soft: u64,
+        hard: u64,
+    ) -> std::io::Result<()> {
+        let cap: libc::rlimit = libc::rlimit {
+            rlim_cur: soft,
+            rlim_max: hard,
+        };
         let resource = match self {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
@@ -50,7 +57,10 @@ impl LimitKind {
     /// The hard limit of this process,
     /// which a child inherits and which an unprivileged process can lower but never raise.
     pub fn current_hard(self) -> u64 {
-        let mut held: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut held: libc::rlimit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         let resource = match self {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
@@ -59,7 +69,12 @@ impl LimitKind {
         };
         // SAFETY: `getrlimit` writes the one `rlimit` this function owns.
         let read: libc::c_int = unsafe { libc::getrlimit(resource, &raw mut held) };
-        assert_eq!(read, 0, "getrlimit failed: {}", std::io::Error::last_os_error());
+        assert_eq!(
+            read,
+            0,
+            "getrlimit failed: {}",
+            std::io::Error::last_os_error()
+        );
         return held.rlim_max;
     }
 
@@ -69,8 +84,16 @@ impl LimitKind {
     /// the hard limit stays,
     /// so raising the soft limit up to it needs no privilege.
     #[cfg(target_os = "linux")]
-    pub fn lift_for(self, pid: u32, soft: u64, hard: u64) -> std::io::Result<()> {
-        let cap: libc::rlimit = libc::rlimit { rlim_cur: soft, rlim_max: hard };
+    pub fn lift_for(
+        self,
+        pid: u32,
+        soft: u64,
+        hard: u64,
+    ) -> std::io::Result<()> {
+        let cap: libc::rlimit = libc::rlimit {
+            rlim_cur: soft,
+            rlim_max: hard,
+        };
         let resource = match self {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
@@ -78,7 +101,15 @@ impl LimitKind {
             LimitKind::CoreFile => libc::RLIMIT_CORE,
         };
         // SAFETY: `prlimit` reads the one `rlimit` this function owns and is given no old-value pointer.
-        if unsafe { libc::prlimit(i32::try_from(pid).expect("a process ID fits"), resource, &raw const cap, std::ptr::null_mut()) } != 0 {
+        if unsafe {
+            libc::prlimit(
+                i32::try_from(pid).expect("a process ID fits"),
+                resource,
+                &raw const cap,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
             return Err(std::io::Error::last_os_error());
         }
         return Ok(());
@@ -117,18 +148,27 @@ pub fn restrict_to_one_cpu() -> std::io::Result<()> {
     // SAFETY: `cpu_set_t` is plain data, and a zeroed set is the empty one.
     let mut allowed: libc::cpu_set_t = unsafe { std::mem::zeroed() };
     // SAFETY: `sched_getaffinity` writes the set it is given, whose size is passed.
-    if unsafe { libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw mut allowed) } != 0 {
+    if unsafe {
+        libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw mut allowed)
+    } != 0
+    {
         return Err(std::io::Error::last_os_error());
     }
     let first: usize = (0..libc::CPU_SETSIZE as usize)
-        .find(|cpu| { return unsafe { libc::CPU_ISSET(*cpu, &allowed) }; })
-        .ok_or_else(|| { return std::io::Error::other("no allowed processor"); })?;
+        .find(|cpu| {
+            return unsafe { libc::CPU_ISSET(*cpu, &allowed) };
+        })
+        .ok_or_else(|| {
+            return std::io::Error::other("no allowed processor");
+        })?;
     // SAFETY: as above.
     let mut one: libc::cpu_set_t = unsafe { std::mem::zeroed() };
     // SAFETY: `first` is below `CPU_SETSIZE`, so the set holds the bit.
     unsafe { libc::CPU_SET(first, &mut one) };
     // SAFETY: `sched_setaffinity` reads the set it is given, whose size is passed.
-    if unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw const one) } != 0 {
+    if unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw const one) }
+        != 0
+    {
         return Err(std::io::Error::last_os_error());
     }
     return Ok(());

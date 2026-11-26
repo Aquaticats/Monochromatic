@@ -20,8 +20,18 @@
 //! const mounted = openDirectoryAtAMount(worktrees, 'my-slot');                 // crosses an existing mount at the slot
 //! ```
 
-use super::fs_beneath::{RESOLVE_BENEATH, RESOLVE_NO_MAGICLINKS, RESOLVE_NO_SYMLINKS, device_of, open_beneath_by, open_directory_at};
-use std::ffi::{OsStr, OsString};
+use super::fs_beneath::{
+    RESOLVE_BENEATH,
+    RESOLVE_NO_MAGICLINKS,
+    RESOLVE_NO_SYMLINKS,
+    device_of,
+    open_beneath_by,
+    open_directory_at,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
 
 /// What:
@@ -68,11 +78,24 @@ pub enum ChainRefusal {
 impl ChainRefusal {
     /// The refusal for the open failure of `name` at `step`,
     /// by the error number it carries.
-    fn of(step: usize, name: &OsStr, error: std::io::Error) -> ChainRefusal {
+    fn of(
+        step: usize,
+        name: &OsStr,
+        error: std::io::Error,
+    ) -> ChainRefusal {
         return match error.raw_os_error() {
-            Some(libc::ELOOP) => ChainRefusal::Link { step, component: name.to_os_string() },
-            Some(libc::EXDEV) => ChainRefusal::Boundary { step, component: name.to_os_string() },
-            _ => ChainRefusal::Unreadable { step, error },
+            Some(libc::ELOOP) => ChainRefusal::Link {
+                step,
+                component: name.to_os_string(),
+            },
+            Some(libc::EXDEV) => ChainRefusal::Boundary {
+                step,
+                component: name.to_os_string(),
+            },
+            _ => ChainRefusal::Unreadable {
+                step,
+                error,
+            },
         };
     }
 
@@ -85,9 +108,32 @@ impl ChainRefusal {
     /// and the positional words alone sent them looking for the number.
     fn into_io_error(self) -> std::io::Error {
         return match self {
-            ChainRefusal::Unreadable { error, .. } => error,
-            ChainRefusal::Link { step, component } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("`{}` (component {} of the walk) is a symbolic link", component.to_string_lossy(), step + 1)),
-            ChainRefusal::Boundary { step, component } => std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("`{}` (component {} of the walk) is a mount point or on another device", component.to_string_lossy(), step + 1)),
+            ChainRefusal::Unreadable {
+                error,
+                ..
+            } => error,
+            ChainRefusal::Link {
+                step,
+                component,
+            } => std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "`{}` (component {} of the walk) is a symbolic link",
+                    component.to_string_lossy(),
+                    step + 1
+                ),
+            ),
+            ChainRefusal::Boundary {
+                step,
+                component,
+            } => std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "`{}` (component {} of the walk) is a mount point or on another device",
+                    component.to_string_lossy(),
+                    step + 1
+                ),
+            ),
         };
     }
 }
@@ -107,10 +153,25 @@ impl ChainRefusal {
 /// ```ts
 /// const next = openOneHop(parent, 'worktrees', checkoutDevice, 1); // throws ChainRefusal
 /// ```
-fn open_one_hop(parent: &File, name: &OsStr, device: u64, step: usize) -> Result<File, ChainRefusal> {
-    let next: File = open_directory_at(parent, name).map_err(|error| return ChainRefusal::of(step, name, error))?;
-    if device_of(&next).map_err(|error| return ChainRefusal::Unreadable { step, error })? != device {
-        return Err(ChainRefusal::Boundary { step, component: name.to_os_string() });
+fn open_one_hop(
+    parent: &File,
+    name: &OsStr,
+    device: u64,
+    step: usize,
+) -> Result<File, ChainRefusal> {
+    let next: File = open_directory_at(parent, name)
+        .map_err(|error| return ChainRefusal::of(step, name, error))?;
+    if device_of(&next).map_err(|error| {
+        return ChainRefusal::Unreadable {
+            step,
+            error,
+        };
+    })? != device
+    {
+        return Err(ChainRefusal::Boundary {
+            step,
+            component: name.to_os_string(),
+        });
     }
     return Ok(next);
 }
@@ -137,8 +198,16 @@ fn open_one_hop(parent: &File, name: &OsStr, device: u64, step: usize) -> Result
 /// # Errors
 /// The reason of the first component the walk refuses,
 /// and its position.
-pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, ChainRefusal> {
-    let device: u64 = device_of(root).map_err(|error| return ChainRefusal::Unreadable { step: 0, error })?;
+pub fn open_chain_beneath(
+    root: &File,
+    names: &[OsString],
+) -> Result<Vec<File>, ChainRefusal> {
+    let device: u64 = device_of(root).map_err(|error| {
+        return ChainRefusal::Unreadable {
+            step: 0,
+            error,
+        };
+    })?;
     let mut chain: Vec<File> = Vec::with_capacity(names.len());
     for (step, name) in names.iter().enumerate() {
         let parent: &File = match chain.last() {
@@ -162,11 +231,15 @@ pub fn open_chain_beneath(root: &File, names: &[OsString]) -> Result<Vec<File>, 
 ///  so no second loop here can keep another device or boundary policy;
 ///  only the handles kept differ,
 ///  because this one holds one descriptor at a time and answers a path of any depth.
-pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Result<File> {
+pub fn open_directory_beneath(
+    root: &File,
+    names: &[OsString],
+) -> std::io::Result<File> {
     let device: u64 = device_of(root)?;
     let mut current: File = root.try_clone()?;
     for (step, name) in names.iter().enumerate() {
-        current = open_one_hop(&current, name.as_os_str(), device, step).map_err(|refusal| return refusal.into_io_error())?;
+        current = open_one_hop(&current, name.as_os_str(), device, step)
+            .map_err(|refusal| return refusal.into_io_error())?;
     }
     return Ok(current);
 }
@@ -184,8 +257,17 @@ pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Resul
 /// ```ts
 /// const mounted = openDirectoryAtAMount(worktrees, 'my-slot'); // crosses an existing mount at the slot only
 /// ```
-pub fn open_directory_at_a_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
-    return open_beneath_by(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+pub fn open_directory_at_a_mount(
+    parent: &File,
+    name: &OsStr,
+) -> std::io::Result<File> {
+    return open_beneath_by(
+        parent,
+        name,
+        libc::O_RDONLY | libc::O_DIRECTORY,
+        0,
+        RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS,
+    );
 }
 
 /// Controls stay out of the release executable.

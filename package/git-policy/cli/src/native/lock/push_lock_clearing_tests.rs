@@ -15,7 +15,10 @@
 use super::*;
 use crate::bounded_push::STOP_GRACE;
 use crate::stale_ref_lock_killed_git as killed;
-use crate::stale_ref_lock_killed_git::{Held, Stage};
+use crate::stale_ref_lock_killed_git::{
+    Held,
+    Stage,
+};
 use crate::test_support::scratch_environment;
 use std::time::Duration;
 
@@ -27,9 +30,20 @@ const TRACKING: &str = "refs/remotes/origin/main";
 
 /// Run `arguments` as the wrapper's own runner does,
 /// with `judge`.
-fn run(stage: &Stage, arguments: &[&str], judge: &Judge) -> PushAttempt {
+fn run(
+    stage: &Stage,
+    arguments: &[&str],
+    judge: &Judge,
+) -> PushAttempt {
     let command: Command = killed::plain_git(stage, arguments);
-    return run_clearing_locks(command, PATIENCE, STOP_GRACE, scratch_environment().as_slice(), judge).expect("the run");
+    return run_clearing_locks(
+        command,
+        PATIENCE,
+        STOP_GRACE,
+        scratch_environment().as_slice(),
+        judge,
+    )
+    .expect("the run");
 }
 
 /// A push killed after the remote took its commit leaves the tracking reference locked;
@@ -39,11 +53,24 @@ fn run(stage: &Stage, arguments: &[&str], judge: &Judge) -> PushAttempt {
 fn a_push_names_the_lock_of_a_killed_push_it_will_not_clear() {
     let stage: Stage = killed::stage("push-clearing-killed-push", true);
     let mut held: Held = killed::hold_push(&stage);
-    assert!(stage.lock_of(TRACKING).exists(), "the push holds the tracking reference");
+    assert!(
+        stage.lock_of(TRACKING).exists(),
+        "the push holds the tracking reference"
+    );
     held.kill();
     let _removed = std::fs::remove_file(stage.git_dir.join("hooks").join("reference-transaction"));
-    let attempt: PushAttempt = run(&stage, &["push", "--quiet", "origin", "main"], &killed::judge());
-    assert!(attempt.output.contains("monochromatic-git-policy-cli: left the reference lock"), "{}", attempt.output);
+    let attempt: PushAttempt = run(
+        &stage,
+        &["push", "--quiet", "origin", "main"],
+        &killed::judge(),
+    );
+    assert!(
+        attempt
+            .output
+            .contains("monochromatic-git-policy-cli: left the reference lock"),
+        "{}",
+        attempt.output
+    );
     assert!(attempt.output.contains("rm -- "), "{}", attempt.output);
     assert!(stage.lock_of(TRACKING).exists());
     stage.finish();
@@ -60,11 +87,29 @@ fn a_failed_push_carries_the_notice_of_the_lock_it_could_not_clear() {
     let mut held: Held = killed::hold_push(&stage);
     held.kill();
     let _removed = std::fs::remove_file(stage.git_dir.join("hooks").join("reference-transaction"));
-    let partial: Judge = Judge { ..killed::judge() };
+    let partial: Judge = Judge {
+        ..killed::judge()
+    };
     let attempt: PushAttempt = run(&stage, &["push", "--quiet", "origin", "main"], &partial);
-    assert!(attempt.output.contains("cannot lock ref"), "Git's own refusal stays: {}", attempt.output);
-    assert!(attempt.output.contains("monochromatic-git-policy-cli: left the reference lock"), "{}", attempt.output);
-    assert!(attempt.output.contains(&format!("rm -- {} ", stage.lock_of(TRACKING).display())), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("cannot lock ref"),
+        "Git's own refusal stays: {}",
+        attempt.output
+    );
+    assert!(
+        attempt
+            .output
+            .contains("monochromatic-git-policy-cli: left the reference lock"),
+        "{}",
+        attempt.output
+    );
+    assert!(
+        attempt
+            .output
+            .contains(&format!("rm -- {} ", stage.lock_of(TRACKING).display())),
+        "{}",
+        attempt.output
+    );
     assert!(stage.lock_of(TRACKING).exists());
     stage.finish();
 }
@@ -74,7 +119,11 @@ fn a_failed_push_carries_the_notice_of_the_lock_it_could_not_clear() {
 #[test]
 fn a_run_with_no_lock_adds_no_words() {
     let stage: Stage = killed::stage("push-clearing-silent", true);
-    let attempt: PushAttempt = run(&stage, &["fetch", "--prune", "--quiet", "origin"], &killed::judge());
+    let attempt: PushAttempt = run(
+        &stage,
+        &["fetch", "--prune", "--quiet", "origin"],
+        &killed::judge(),
+    );
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
     assert_eq!(attempt.output, "");
     stage.finish();

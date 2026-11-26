@@ -14,13 +14,32 @@
 //! created.push(await captureInstalledPath({ destinationPath, relativePath, selected: true }));
 //! ```
 
-use crate::worktree_copy_compare::lstat_or_absent;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use crate::worktree_copy_selection::{filesystem_path, is_separator_byte, parent_of_repository_path, shown_repository_path};
 use crate::json_record::quote;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_compare::lstat_or_absent;
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    WorktreeCopyEntry,
+};
+use crate::worktree_copy_selection::{
+    filesystem_path,
+    is_separator_byte,
+    parent_of_repository_path,
+    shown_repository_path,
+};
+use std::os::unix::fs::{
+    DirBuilderExt,
+    MetadataExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The permission bits of a directory monochromatic-git-policy-cli creates for a selected entry,
@@ -120,7 +139,12 @@ pub fn ensure_parents(
     entry: &WorktreeCopyEntry,
     created: &mut Vec<InstalledPath>,
 ) -> Result<(), WorktreeCopyError> {
-    return ensure_parents_remembering(destination_root, entry, created, &mut std::collections::HashSet::new());
+    return ensure_parents_remembering(
+        destination_root,
+        entry,
+        created,
+        &mut std::collections::HashSet::new(),
+    );
 }
 
 /// What:
@@ -148,10 +172,7 @@ pub fn ensure_parents_remembering(
     if known.contains(parent) {
         return Ok(());
     }
-    let components: Vec<&[u8]> = entry
-        .relative_path
-        .split(is_separator_byte)
-        .collect();
+    let components: Vec<&[u8]> = entry.relative_path.split(is_separator_byte).collect();
     let parent_count: usize = components.len().saturating_sub(1);
     for depth in 1..=parent_count {
         let current: Vec<u8> = joined_components(components[..depth].as_ref());
@@ -169,8 +190,7 @@ pub fn ensure_parents_remembering(
                 }
             }
             None => {
-                std::fs::create_dir(destination_path.as_path())
-                    .map_err(raw_failure_of)?;
+                std::fs::create_dir(destination_path.as_path()).map_err(raw_failure_of)?;
                 created.push(capture_installed_path(
                     destination_path.as_path(),
                     current.as_slice(),
@@ -245,7 +265,12 @@ fn install_file(
     // The link publishes the staged object itself, so the staged file takes the entry's mode first: the destination's
     // first instant is never wider than its source. A stage that cannot take it is copied instead, and the copy sets
     // the mode on the file it fills.
-    if std::fs::set_permissions(stage_path, std::os::unix::fs::PermissionsExt::from_mode(entry.mode)).is_ok() {
+    if std::fs::set_permissions(
+        stage_path,
+        std::os::unix::fs::PermissionsExt::from_mode(entry.mode),
+    )
+    .is_ok()
+    {
         // `match` on the link result: success ends here, a refusal copies, and any other failure is reported.
         match std::fs::hard_link(stage_path, destination_path) {
             Ok(()) => return Ok(()),
@@ -311,11 +336,16 @@ pub fn create_selected_entry(
                 .map_err(raw_failure_of);
         }
         EntryKind::File => {
-            return install_file(stage_root, stage_path.as_path(), destination_path.as_path(), entry);
+            return install_file(
+                stage_root,
+                stage_path.as_path(),
+                destination_path.as_path(),
+                entry,
+            );
         }
         EntryKind::Symlink => {
-            let target: PathBuf = std::fs::read_link(stage_path.as_path())
-                .map_err(raw_failure_of)?;
+            let target: PathBuf =
+                std::fs::read_link(stage_path.as_path()).map_err(raw_failure_of)?;
             return std::os::unix::fs::symlink(target, destination_path.as_path())
                 .map_err(raw_failure_of);
         }

@@ -50,5 +50,15 @@
 pub mod underlay_entry_read;
 pub mod underlay_entry_verdict;
 
-pub use underlay_entry_read::{CoveredEntryFacts, EntryReadRefusal, EntryReader, LiveEntryReader};
-pub use underlay_entry_verdict::{UnderlayVerdict, UnprotectedReason, UnprovenReason, verify};
+pub use underlay_entry_read::{
+    CoveredEntryFacts,
+    EntryReadRefusal,
+    EntryReader,
+    LiveEntryReader,
+};
+pub use underlay_entry_verdict::{
+    UnderlayVerdict,
+    UnprotectedReason,
+    UnprovenReason,
+    verify,
+};

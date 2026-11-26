@@ -6,7 +6,10 @@
 //! Every control reads a collector of its own rather than this process's standard error,
 //! so no control changes state another control of the run shares.
 
-use super::{LONGEST_STRETCH_WITHOUT_AN_END, StandardErrorOffTheCallingThread};
+use super::{
+    LONGEST_STRETCH_WITHOUT_AN_END,
+    StandardErrorOffTheCallingThread,
+};
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
@@ -23,12 +26,16 @@ use std::rc::Rc;
 /// ```ts
 /// const said = []; const stream = new StandardErrorOffTheCallingThread({ hand: (line) => said.push(line) });
 /// ```
-fn a_stream_that_keeps_what_it_said() -> (StandardErrorOffTheCallingThread<impl FnMut(&[u8])>, Rc<RefCell<Vec<Vec<u8>>>>) {
+fn a_stream_that_keeps_what_it_said() -> (
+    StandardErrorOffTheCallingThread<impl FnMut(&[u8])>,
+    Rc<RefCell<Vec<Vec<u8>>>>,
+) {
     let said: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
     let kept: Rc<RefCell<Vec<Vec<u8>>>> = Rc::clone(&said);
-    let stream: StandardErrorOffTheCallingThread<_> = StandardErrorOffTheCallingThread::handing_to(move |line: &[u8]| {
-        kept.borrow_mut().push(line.to_vec());
-    });
+    let stream: StandardErrorOffTheCallingThread<_> =
+        StandardErrorOffTheCallingThread::handing_to(move |line: &[u8]| {
+            kept.borrow_mut().push(line.to_vec());
+        });
     return (stream, said);
 }
 
@@ -44,7 +51,13 @@ fn a_stream_that_keeps_what_it_said() -> (StandardErrorOffTheCallingThread<impl 
 /// const said = (parts) => parts.map((bytes) => new TextDecoder().decode(bytes)).join('')
 /// ```
 fn as_text(parts: &Rc<RefCell<Vec<Vec<u8>>>>) -> String {
-    let joined: Vec<u8> = parts.borrow().iter().flat_map(|line| { return line.clone(); }).collect();
+    let joined: Vec<u8> = parts
+        .borrow()
+        .iter()
+        .flat_map(|line| {
+            return line.clone();
+        })
+        .collect();
     return String::from_utf8_lossy(joined.as_slice()).into_owned();
 }
 
@@ -62,10 +75,25 @@ fn as_text(parts: &Rc<RefCell<Vec<Vec<u8>>>>) -> String {
 #[test]
 fn whole_lines_are_handed_over_one_each_and_the_unfinished_line_stays() {
     let (mut stream, said) = a_stream_that_keeps_what_it_said();
-    stream.write_all(b"one\ntwo\nthree").expect("the stream takes the bytes");
-    assert_eq!(said.borrow().len(), 2, "two whole lines were said: {:?}", as_text(&said));
-    assert_eq!(as_text(&said), "one\ntwo\n", "the lines arrived whole and in order");
-    assert_eq!(stream.buffered, b"three".to_vec(), "the line with no end yet is kept here");
+    stream
+        .write_all(b"one\ntwo\nthree")
+        .expect("the stream takes the bytes");
+    assert_eq!(
+        said.borrow().len(),
+        2,
+        "two whole lines were said: {:?}",
+        as_text(&said)
+    );
+    assert_eq!(
+        as_text(&said),
+        "one\ntwo\n",
+        "the lines arrived whole and in order"
+    );
+    assert_eq!(
+        stream.buffered,
+        b"three".to_vec(),
+        "the line with no end yet is kept here"
+    );
 }
 
 /// What:
@@ -85,10 +113,21 @@ fn a_line_said_in_pieces_is_handed_over_once_at_its_newline() {
     let (mut stream, said) = a_stream_that_keeps_what_it_said();
     stream.write_all(b"the ").expect("the first piece");
     stream.write_all(b"whole ").expect("the second piece");
-    assert!(said.borrow().is_empty(), "no line is said before its newline arrives: {:?}", as_text(&said));
+    assert!(
+        said.borrow().is_empty(),
+        "no line is said before its newline arrives: {:?}",
+        as_text(&said)
+    );
     stream.write_all(b"line\n").expect("the last piece");
-    assert_eq!(as_text(&said), "the whole line\n", "the pieces arrived as the one line they spell");
-    assert!(stream.buffered.is_empty(), "the line was said whole, so nothing is left here");
+    assert_eq!(
+        as_text(&said),
+        "the whole line\n",
+        "the pieces arrived as the one line they spell"
+    );
+    assert!(
+        stream.buffered.is_empty(),
+        "the line was said whole, so nothing is left here"
+    );
 }
 
 /// What:
@@ -105,11 +144,17 @@ fn a_line_said_in_pieces_is_handed_over_once_at_its_newline() {
 #[test]
 fn a_flush_says_the_line_no_newline_ended_and_nothing_when_there_is_none() {
     let (mut stream, said) = a_stream_that_keeps_what_it_said();
-    stream.write_all(b"no end").expect("the line with no newline");
+    stream
+        .write_all(b"no end")
+        .expect("the line with no newline");
     stream.flush().expect("the stream flushes");
     assert_eq!(as_text(&said), "no end", "the line was said at the flush");
     stream.flush().expect("a second flush");
-    assert_eq!(said.borrow().len(), 1, "a flush with nothing to say says nothing");
+    assert_eq!(
+        said.borrow().len(),
+        1,
+        "a flush with nothing to say says nothing"
+    );
 }
 
 /// What:
@@ -126,10 +171,29 @@ fn a_flush_says_the_line_no_newline_ended_and_nothing_when_there_is_none() {
 #[test]
 fn a_stretch_with_no_end_is_handed_over_at_the_block() {
     let (mut stream, said) = a_stream_that_keeps_what_it_said();
-    stream.write_all(vec![b'x'; LONGEST_STRETCH_WITHOUT_AN_END - 1].as_slice()).expect("the bytes before the block");
-    assert!(said.borrow().is_empty(), "a stretch short of the block stays here: {:?}", said.borrow().len());
-    stream.write_all(b"x").expect("the byte that reaches the block");
-    assert_eq!(said.borrow().len(), 1, "the stretch was handed over once it reached the block");
-    assert_eq!(said.borrow()[0].len(), LONGEST_STRETCH_WITHOUT_AN_END, "every byte of the stretch went over");
-    assert!(stream.buffered.is_empty(), "the stretch is no longer held here");
+    stream
+        .write_all(vec![b'x'; LONGEST_STRETCH_WITHOUT_AN_END - 1].as_slice())
+        .expect("the bytes before the block");
+    assert!(
+        said.borrow().is_empty(),
+        "a stretch short of the block stays here: {:?}",
+        said.borrow().len()
+    );
+    stream
+        .write_all(b"x")
+        .expect("the byte that reaches the block");
+    assert_eq!(
+        said.borrow().len(),
+        1,
+        "the stretch was handed over once it reached the block"
+    );
+    assert_eq!(
+        said.borrow()[0].len(),
+        LONGEST_STRETCH_WITHOUT_AN_END,
+        "every byte of the stretch went over"
+    );
+    assert!(
+        stream.buffered.is_empty(),
+        "the stretch is no longer held here"
+    );
 }

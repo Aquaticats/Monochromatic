@@ -22,7 +22,12 @@
 /// ```ts
 /// import { Arity, OptionError, OptionErrorKind, OptionValue } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionError, OptionErrorKind, OptionValue};
+use crate::command_options::{
+    Arity,
+    OptionError,
+    OptionErrorKind,
+    OptionValue,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -109,7 +114,9 @@ pub(crate) fn take_value(
     // `usize` indexes the argument list; `index + 1` cannot overflow a real argument count.
     let following: usize = index + 1;
     if following < arguments.len() {
-        return Ok(Some(OptionValue::Detached { token: following }));
+        return Ok(Some(OptionValue::Detached {
+            token: following,
+        }));
     }
     if arity == Arity::LastArgDefault {
         // The option is the last argument and has a default (54-55).

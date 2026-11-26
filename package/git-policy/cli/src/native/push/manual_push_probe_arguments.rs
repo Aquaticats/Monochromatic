@@ -13,11 +13,18 @@
 //! probeArgs({ globalPrefix, args }); await git(['remote', 'get-url', '--push', '--all', remote]);
 //! ```
 
-/// The push's own reading of its destination.
-use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
-use crate::command_push::PUSH_TABLE;
 /// The probe's Git runner and its bounded queries.
-use crate::auto_push_single_flight::{PushGit, run_query};
+use crate::auto_push_single_flight::{
+    PushGit,
+    run_query,
+};
+/// The push's own reading of its destination.
+use crate::command_options::{
+    Boundary,
+    DEFAULT_MODE,
+    parse_options,
+};
+use crate::command_push::PUSH_TABLE;
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 
@@ -39,7 +46,10 @@ use std::ffi::OsString;
 /// ```ts
 /// probeArgs({ globalPrefix, args });
 /// ```
-pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString]) -> Vec<OsString> {
+pub fn probe_arguments(
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Vec<OsString> {
     // The separator is the one Git reads: a `--` that is the value of an option such as `--receive-pack` is not it. A region
     //  Git refuses has no reading, and the probe then stops at the first `--`, where Git refuses it as well.
     let separator = match parse_options(post_subcommand, PUSH_TABLE, DEFAULT_MODE, &[]) {
@@ -83,7 +93,11 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
 /// an scp-style address or a path,
 /// not a remote name.
 pub(crate) fn looks_like_location(typed: &str) -> bool {
-    if typed.contains("://") || typed.starts_with('/') || typed.starts_with("./") || typed.starts_with("../") {
+    if typed.contains("://")
+        || typed.starts_with('/')
+        || typed.starts_with("./")
+        || typed.starts_with("../")
+    {
         return true;
     }
     return match typed.split_once(':') {
@@ -94,19 +108,30 @@ pub(crate) fn looks_like_location(typed: &str) -> bool {
 
 /// One Git query of the probe:
 /// its trimmed standard output when it exits with status zero.
-pub(crate) fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
+pub(crate) fn answer(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Option<String> {
     let output = run_query(git, arguments).ok()?;
     if output.code != Some(0) {
         return None;
     }
-    return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+    return Some(
+        String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned(),
+    );
 }
 
 /// The destination locations of a remote name,
 /// one per `To` block Git printed:
 /// the push URLs of a configured remote,
 ///  or the name itself when it is not one (a URL or a path typed in place of a remote).
-pub(crate) fn locations_of(git: &PushGit, global_prefix: &[OsString], remote: &str) -> Vec<String> {
+pub(crate) fn locations_of(
+    git: &PushGit,
+    global_prefix: &[OsString],
+    remote: &str,
+) -> Vec<String> {
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     arguments.extend(["remote", "get-url", "--push", "--all", remote].map(OsString::from));
     return match answer(git, arguments.as_slice()) {

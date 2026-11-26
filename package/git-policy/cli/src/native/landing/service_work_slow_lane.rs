@@ -49,19 +49,44 @@
 
 use crate::a_panic_that_ends_one_item::keep_a_panic_awaiting;
 use crate::claim_time::ClaimTime;
-use crate::housekeeping_of_one_round::{HOUSEKEEPING_OF_ONE_ROUND, LOOK_AGAIN_AFTER_DEFERRING};
+use crate::housekeeping_of_one_round::{
+    HOUSEKEEPING_OF_ONE_ROUND,
+    LOOK_AGAIN_AFTER_DEFERRING,
+};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
-use crate::service_work::{CLAIM_LEASE, GitHandlers};
-use crate::service_work_common_directory::{common_directory_of, is_bare_common_directory};
+use crate::service_work::{
+    CLAIM_LEASE,
+    GitHandlers,
+};
+use crate::service_work_common_directory::{
+    common_directory_of,
+    is_bare_common_directory,
+};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
-use crate::service_work_handlers_replanning_and_acceptance::{Replanning, SLOW_KINDS, Wake, WorkHandlers, work_directory};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use crate::service_work_handlers_replanning_and_acceptance::{
+    Replanning,
+    SLOW_KINDS,
+    Wake,
+    WorkHandlers,
+    work_directory,
+};
 use std::future::Future;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::Duration;
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// What:
 ///  The way the after-commit loop asks the lane to work on a repository.
@@ -99,8 +124,16 @@ impl SlowLane {
     /// ```ts
     /// const lane = SlowLane.start(handlers, busy); // tokio.spawn(run(lane, handlers.copy(), busy))
     /// ```
-    pub fn start(handlers: &GitHandlers, busy: Arc<AtomicUsize>) -> SlowLane {
-        return SlowLane::start_with_slice_and_lease(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, CLAIM_LEASE);
+    pub fn start(
+        handlers: &GitHandlers,
+        busy: Arc<AtomicUsize>,
+    ) -> SlowLane {
+        return SlowLane::start_with_slice_and_lease(
+            handlers,
+            busy,
+            HOUSEKEEPING_OF_ONE_ROUND,
+            CLAIM_LEASE,
+        );
     }
 
     /// What:
@@ -117,17 +150,30 @@ impl SlowLane {
     /// ```ts
     /// const lane = SlowLane.startWithSliceAndLease(handlers, busy, slice, lease);
     /// ```
-    fn start_with_slice_and_lease(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) -> SlowLane {
-        let (inbox, taken): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel::<Wake>();
-        let owned: GitHandlers = handlers.for_round(std::collections::HashMap::<PathBuf, ReviewKey>::new());
-        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping, lease));
-        return SlowLane { inbox };
+    fn start_with_slice_and_lease(
+        handlers: &GitHandlers,
+        busy: Arc<AtomicUsize>,
+        housekeeping: Duration,
+        lease: Duration,
+    ) -> SlowLane {
+        let (inbox, taken): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) =
+            unbounded_channel::<Wake>();
+        let owned: GitHandlers =
+            handlers.for_round(std::collections::HashMap::<PathBuf, ReviewKey>::new());
+        let _running: tokio::task::JoinHandle<()> =
+            tokio::spawn(run_awaiting(taken, owned, busy, housekeeping, lease));
+        return SlowLane {
+            inbox,
+        };
     }
 
     /// Ask the lane to look at the repository `wake` names.
     /// A lane that ended is a service that is stopping:
     /// the records keep their places and the service started next drains them.
-    pub fn ask(&self, wake: Wake) {
+    pub fn ask(
+        &self,
+        wake: Wake,
+    ) {
         let _asked: Result<(), tokio::sync::mpsc::error::SendError<Wake>> = self.inbox.send(wake);
     }
 }
@@ -154,7 +200,9 @@ impl TheLaneIsBusy {
     /// Count the lane busy from here until this value ends.
     fn raising(busy: &Arc<AtomicUsize>) -> TheLaneIsBusy {
         busy.fetch_add(1, Ordering::SeqCst);
-        return TheLaneIsBusy { busy: Arc::clone(busy) };
+        return TheLaneIsBusy {
+            busy: Arc::clone(busy),
+        };
     }
 }
 
@@ -178,7 +226,9 @@ impl Drop for TheLaneIsBusy {
 /// ```ts
 /// const left = await aLookThatMayPanic(drainSlow(gitDir, handlers, housekeeping));
 /// ```
-async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look: W) -> Option<Duration> {
+async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(
+    look: W
+) -> Option<Duration> {
     return match keep_a_panic_awaiting(look).await {
         Ok(left) => left,
         Err(said) => {
@@ -216,9 +266,17 @@ async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look
 /// ```ts
 /// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
-async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) {
+async fn run_awaiting(
+    mut inbox: UnboundedReceiver<Wake>,
+    handlers: GitHandlers,
+    busy: Arc<AtomicUsize>,
+    housekeeping: Duration,
+    lease: Duration,
+) {
     loop {
-        let Some(first) = inbox.recv().await else { return };
+        let Some(first) = inbox.recv().await else {
+            return;
+        };
         // The count is this frame's until the looks it covers end, and a look that panicked gives it back too.
         let _busy: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
         let mut wakes: Vec<Wake> = vec![first];
@@ -234,11 +292,19 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                     continue;
                 }
                 looked_at.push(git_dir.clone());
-                let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
+                let mut keys: std::collections::HashMap<PathBuf, ReviewKey> =
+                    std::collections::HashMap::new();
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease)).await {
+                if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(
+                    git_dir.as_path(),
+                    &handlers.for_round(keys),
+                    housekeeping,
+                    lease,
+                ))
+                .await
+                {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,
@@ -296,12 +362,19 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
     housekeeping: Duration,
     lease: Duration,
 ) -> Option<Duration> {
-    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease).await;
-    let Some(common) = common_directory_of(git_dir) else { return own };
-    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
+    let own: Option<Duration> =
+        drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease).await;
+    let Some(common) = common_directory_of(git_dir) else {
+        return own;
+    };
+    if common == git_dir
+        || !is_bare_common_directory(common.as_path())
+        || !work_directory(common.as_path()).is_dir()
+    {
         return own;
     }
-    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease).await;
+    let shared: Option<Duration> =
+        drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),
         (one, other) => one.or(other),
@@ -326,9 +399,28 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration, lease: Duration) -> Option<Duration> {
-    let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    return drain_pending_awaiting(git_dir, handlers, &ClaimTime::read(), lease, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(
+    git_dir: &Path,
+    handlers: &H,
+    housekeeping: Duration,
+    lease: Duration,
+) -> Option<Duration> {
+    let mut nothing_to_plan: Replanning = Replanning {
+        first: None,
+        changes: Vec::new(),
+        plans: None,
+    };
+    return drain_pending_awaiting(
+        git_dir,
+        handlers,
+        &ClaimTime::read(),
+        lease,
+        Renewal::Timed,
+        &mut nothing_to_plan,
+        &SLOW_KINDS,
+        housekeeping,
+    )
+    .await;
 }
 
 /// Controls for the lane stay out of the release executable.

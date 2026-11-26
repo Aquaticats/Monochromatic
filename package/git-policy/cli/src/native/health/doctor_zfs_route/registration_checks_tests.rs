@@ -16,7 +16,10 @@
 //! expect(checkRegistration(facts)).toMatchObject({ kind: 'finding', field: 'registration' });
 //! ```
 
-use super::{RegistrationFacts, check_registration};
+use super::{
+    RegistrationFacts,
+    check_registration,
+};
 use crate::health::doctor_zfs_route::CheckOutcome;
 use crate::health::doctor_zfs_route::handler_checks::PathState;
 use std::path::PathBuf;
@@ -40,7 +43,10 @@ fn standing() -> RegistrationFacts {
     return RegistrationFacts {
         slot: String::from(SLOT),
         recorded: Some(registration()),
-        at_the_path: PathState::Directory { owner: 1000, mode: 0o755 },
+        at_the_path: PathState::Directory {
+            owner: 1000,
+            mode: 0o755,
+        },
         gitdir: Some(slot_path().join(".git")),
         slot_git: slot_path().join(".git"),
     };
@@ -50,11 +56,17 @@ fn standing() -> RegistrationFacts {
 #[test]
 fn a_complete_registration_passes() {
     let answer: CheckOutcome = check_registration(&standing());
-    let CheckOutcome::Pass { detail } = answer else {
+    let CheckOutcome::Pass {
+        detail,
+    } = answer
+    else {
         panic!("a complete registration passes: {answer:?}");
     };
     assert!(detail.contains("/repo/.git/worktrees/topic"), "{detail}");
-    assert!(detail.contains("git worktree` lists this worktree"), "{detail}");
+    assert!(
+        detail.contains("git worktree` lists this worktree"),
+        "{detail}"
+    );
 }
 
 /// A record that names no registration yet passes,
@@ -64,7 +76,10 @@ fn a_record_without_a_registration_passes() {
     let mut facts: RegistrationFacts = standing();
     facts.recorded = None;
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Pass { detail } = answer else {
+    let CheckOutcome::Pass {
+        detail,
+    } = answer
+    else {
         panic!("a record without a registration passes: {answer:?}");
     };
     assert!(detail.contains("names no Git registration yet"), "{detail}");
@@ -77,7 +92,11 @@ fn a_pruned_registration_is_a_finding() {
     facts.at_the_path = PathState::Absent;
     facts.gitdir = None;
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Finding { field, detail } = answer else {
+    let CheckOutcome::Finding {
+        field,
+        detail,
+    } = answer
+    else {
         panic!("a pruned registration is a finding: {answer:?}");
     };
     assert_eq!(field, "registration");
@@ -92,9 +111,14 @@ fn a_pruned_registration_is_a_finding() {
 #[test]
 fn an_unreadable_registration_is_unknown() {
     let mut facts: RegistrationFacts = standing();
-    facts.at_the_path = PathState::Unreadable { why: String::from("permission denied") };
+    facts.at_the_path = PathState::Unreadable {
+        why: String::from("permission denied"),
+    };
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Unknown { reason } = answer else {
+    let CheckOutcome::Unknown {
+        reason,
+    } = answer
+    else {
         panic!("an unreadable registration is unknown: {answer:?}");
     };
     assert!(reason.contains("permission denied"), "{reason}");
@@ -104,9 +128,16 @@ fn an_unreadable_registration_is_unknown() {
 #[test]
 fn a_file_at_the_registration_path_is_a_finding() {
     let mut facts: RegistrationFacts = standing();
-    facts.at_the_path = PathState::File { owner: 1000, mode: 0o644 };
+    facts.at_the_path = PathState::File {
+        owner: 1000,
+        mode: 0o644,
+    };
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Finding { field, detail } = answer else {
+    let CheckOutcome::Finding {
+        field,
+        detail,
+    } = answer
+    else {
         panic!("a file at the path is a finding: {answer:?}");
     };
     assert_eq!(field, "registration");
@@ -121,7 +152,11 @@ fn a_registration_without_a_gitdir_is_a_finding() {
     let mut facts: RegistrationFacts = standing();
     facts.gitdir = None;
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Finding { field, detail } = answer else {
+    let CheckOutcome::Finding {
+        field,
+        detail,
+    } = answer
+    else {
         panic!("a registration without a gitdir is a finding: {answer:?}");
     };
     assert_eq!(field, "registration");
@@ -136,12 +171,22 @@ fn a_misdirected_registration_names_both_paths_and_the_repair() {
     let mut facts: RegistrationFacts = standing();
     facts.gitdir = Some(PathBuf::from("/repo/.claude/worktrees/other/.git"));
     let answer: CheckOutcome = check_registration(&facts);
-    let CheckOutcome::Finding { field, detail } = answer else {
+    let CheckOutcome::Finding {
+        field,
+        detail,
+    } = answer
+    else {
         panic!("a misdirected registration is a finding: {answer:?}");
     };
     assert_eq!(field, "registration");
-    assert!(detail.contains("/repo/.claude/worktrees/other/.git"), "{detail}");
-    assert!(detail.contains("/repo/.claude/worktrees/topic/.git"), "{detail}");
+    assert!(
+        detail.contains("/repo/.claude/worktrees/other/.git"),
+        "{detail}"
+    );
+    assert!(
+        detail.contains("/repo/.claude/worktrees/topic/.git"),
+        "{detail}"
+    );
     assert!(detail.contains("git worktree repair topic"), "{detail}");
 }
 

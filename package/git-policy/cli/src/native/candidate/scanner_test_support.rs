@@ -14,9 +14,15 @@
 //! ```
 
 /// Shared disposable-directory fixtures and native path and process types.
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Set only in the child:
 ///  names the fixture directory the control may use.
@@ -39,7 +45,11 @@ const ISOLATED_FIXTURE_VARIABLE: &str = "CLI_GIT_NATIVE_SCANNER_FIXTURE";
 /// ```ts
 /// function runIsolated(testPath: string, name: string, body: (fixture: string) => void): void;
 /// ```
-pub(crate) fn run_isolated(test_path: &str, name: &str, body: fn(&Path)) {
+pub(crate) fn run_isolated(
+    test_path: &str,
+    name: &str,
+    body: fn(&Path),
+) {
     if let Some(directory) = std::env::var_os(ISOLATED_FIXTURE_VARIABLE) {
         body(Path::new(&directory));
         return;
@@ -50,8 +60,11 @@ pub(crate) fn run_isolated(test_path: &str, name: &str, body: fn(&Path)) {
     let work: PathBuf = root.join("work");
     std::fs::create_dir(&work).expect("control directory");
     let cache: PathBuf = root.join("cache");
-    let environment: [(&str, &OsStr); 3] =
-        [(ISOLATED_FIXTURE_VARIABLE, work.as_os_str()), ("HOME", home.as_os_str()), ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str())];
+    let environment: [(&str, &OsStr); 3] = [
+        (ISOLATED_FIXTURE_VARIABLE, work.as_os_str()),
+        ("HOME", home.as_os_str()),
+        ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str()),
+    ];
     // The child's pass is this control's assertion, and its two cache variables must not come in from this process.
     crate::child_test_process::passed(crate::child_test_process::ChildTest {
         exact_test: test_path,

@@ -365,7 +365,10 @@ pub struct OptionError {
 impl std::fmt::Display for OptionError {
     /// `&self` borrows the error read-only;
     ///  `&mut` lends the formatter for writing.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `write!` is the standard formatting macro; `{:?}` prints the variant name.
         return write!(
             formatter,
@@ -391,7 +394,10 @@ impl std::error::Error for OptionError {}
 /// ```ts
 /// const flag = wrapperFlags.indexOf(token); // -1 becomes "nothing"
 /// ```
-fn wrapper_flag_index(token: &[u8], wrapper_flags: &[&[u8]]) -> Option<usize> {
+fn wrapper_flag_index(
+    token: &[u8],
+    wrapper_flags: &[&[u8]],
+) -> Option<usize> {
     let mut index: usize = 0;
     while index < wrapper_flags.len() {
         if wrapper_flags[index] == token {
@@ -445,9 +451,10 @@ pub fn parse_options(
         let token: &[u8] = argument.as_encoded_bytes();
         // `if let Some(flag) = ...` runs the block only when a value is present.
         if let Some(flag) = wrapper_flag_index(token, wrapper_flags) {
-            parsed
-                .wrapper
-                .push(WrapperOccurrence { flag, token: index });
+            parsed.wrapper.push(WrapperOccurrence {
+                flag,
+                token: index,
+            });
             continue;
         }
         // A token not starting with `-`, the empty token and a lone `-` are not options (1011).

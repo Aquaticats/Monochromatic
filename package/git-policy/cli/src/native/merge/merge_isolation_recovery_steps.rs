@@ -18,34 +18,68 @@
 //! const standing = standing(change, state); // 'merged' | 'untouched' | ...
 //! ```
 
-use crate::lazy_runtime::run_on_runtime;
 /// The jobs of the blocking pool a judgement makes,
 /// so a disk that makes a look or a walk wait holds no worker of the runtime
 /// (`doc/planning/git-policy-cli-full-tokio.md`,
 /// "Blocking files,
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{
-    Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state_awaiting,
+    Change,
+    FileIdentity,
+    WorktreeState,
+    file_identity,
+    parse_raw_changes,
+    worktree_path,
+    worktree_state_awaiting,
 };
-use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
-use crate::recovery_error::{RecoveryError, io_failure};
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
 pub use crate::merge_isolation_index_reading::{
-    entries_by_path, index_entries, index_entries_awaiting, index_standings, index_standings_awaiting, standing_of_index,
+    entries_by_path,
+    index_entries,
+    index_entries_awaiting,
+    index_standings,
+    index_standings_awaiting,
+    standing_of_index,
 };
-pub use crate::merge_isolation_take_asides::{
-    Take, TakeFailure, TakenOnDisk, finish_asides, finish_asides_awaiting, put_back_awaiting, put_back_stranded_takes_awaiting,
-    restore_what_git_did_not_write_awaiting, take_aside_awaiting,
+use crate::merge_isolation_journal::{
+    MergeIntent,
+    remove_merge_intent,
 };
 /// The write of a merge into the index and the worktree,
 /// named here so a caller of the recovery keeps one import.
-pub use crate::merge_isolation_recovery_install::{install_entries, install_entries_awaiting, remove_empty_parents};
-use crate::transaction_git::{GitContext, GitRequest};
+pub use crate::merge_isolation_recovery_install::{
+    install_entries,
+    install_entries_awaiting,
+    remove_empty_parents,
+};
+pub use crate::merge_isolation_take_asides::{
+    Take,
+    TakeFailure,
+    TakenOnDisk,
+    finish_asides,
+    finish_asides_awaiting,
+    put_back_awaiting,
+    put_back_stranded_takes_awaiting,
+    restore_what_git_did_not_write_awaiting,
+    take_aside_awaiting,
+};
+use crate::recovery_error::{
+    RecoveryError,
+    io_failure,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Where recovery runs Git:
@@ -96,12 +130,24 @@ pub struct RecoveryPlace {
 impl RecoveryPlace {
     /// The place a settling command needs,
     /// from its context and the two directories.
-    pub fn settling(git: &GitContext, git_dir: &Path, root: &Path) -> RecoveryPlace {
+    pub fn settling(
+        git: &GitContext,
+        git_dir: &Path,
+        root: &Path,
+    ) -> RecoveryPlace {
         let common_dir: PathBuf = match git.common_dir.as_ref() {
             Some(found) => found.clone(),
             None => crate::common_directory_of_a_git_directory::common_directory_of(git_dir),
         };
-        return RecoveryPlace { git: GitContext { global_prefix: Vec::new(), ..git.clone() }, cwd: root.to_path_buf(), common_dir, git_dir: git_dir.to_path_buf() };
+        return RecoveryPlace {
+            git: GitContext {
+                global_prefix: Vec::new(),
+                ..git.clone()
+            },
+            cwd: root.to_path_buf(),
+            common_dir,
+            git_dir: git_dir.to_path_buf(),
+        };
     }
 }
 
@@ -187,10 +233,23 @@ pub struct IndexHeldAt {
 /// ```ts
 /// async function mergeChanges({ old, next }): Promise<Change[]>;
 /// ```
-pub async fn merge_changes_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+pub async fn merge_changes_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
-        &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.old_oid.as_str(), intent.new_oid.as_str()],
+        &[
+            "diff-tree",
+            "-r",
+            "-z",
+            "--raw",
+            "--no-renames",
+            "--no-abbrev",
+            intent.old_oid.as_str(),
+            intent.new_oid.as_str(),
+        ],
     );
     let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
@@ -210,7 +269,11 @@ pub async fn merge_changes_awaiting(place: &RecoveryPlace, root: &Path, intent: 
 /// ```ts
 /// async function mergeChanges({ old, next }): Promise<Change[]>;
 /// ```
-pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+pub fn merge_changes(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+) -> Result<Vec<Change>, RecoveryError> {
     return match run_on_runtime(merge_changes_awaiting(place, root, intent)) {
         Ok(found) => found,
         Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
@@ -289,11 +352,20 @@ pub enum Standing {
 /// ```ts
 /// function standing(change: Change, state: WorktreeState, recordsFileModes: boolean): Standing;
 /// ```
-pub fn standing(change: &Change, state: &WorktreeState, records_file_modes: bool) -> Standing {
+pub fn standing(
+    change: &Change,
+    state: &WorktreeState,
+    records_file_modes: bool,
+) -> Standing {
     let old_matches: bool = match state {
         WorktreeState::Missing => !change.existed(),
-        WorktreeState::Content { object, mode } => {
-            change.existed() && *object == change.old_oid && (!records_file_modes || *mode == change.old_mode)
+        WorktreeState::Content {
+            object,
+            mode,
+        } => {
+            change.existed()
+                && *object == change.old_oid
+                && (!records_file_modes || *mode == change.old_mode)
         }
         WorktreeState::Other => false,
     };
@@ -302,8 +374,13 @@ pub fn standing(change: &Change, state: &WorktreeState, records_file_modes: bool
     }
     let new_matches: bool = match state {
         WorktreeState::Missing => !change.exists_after(),
-        WorktreeState::Content { object, mode } => {
-            change.exists_after() && *object == change.new_oid && (!records_file_modes || *mode == change.new_mode)
+        WorktreeState::Content {
+            object,
+            mode,
+        } => {
+            change.exists_after()
+                && *object == change.new_oid
+                && (!records_file_modes || *mode == change.new_mode)
         }
         WorktreeState::Other => false,
     };
@@ -331,37 +408,68 @@ pub fn standing(change: &Change, state: &WorktreeState, records_file_modes: bool
 /// ```ts
 /// function judgeChanges({ place, root, changes }): Judged[]; // standing(...), then explainedDirectory(...) ? 'directory' : one
 /// ```
-pub async fn judge_changes_awaiting(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> Result<Vec<Judged>, RecoveryError> {
+pub async fn judge_changes_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    changes: &[Change],
+) -> Result<Vec<Judged>, RecoveryError> {
     // Whether a mode is part of the file here is one question for the whole judgement,
     // and it is the repository's answer, not this
     //  command's.
-    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes_awaiting(&place.git, root).await;
+    let records_file_modes: bool =
+        crate::merge_isolation_changes::the_repository_records_file_modes_awaiting(
+            &place.git, root,
+        )
+        .await;
     // The identity of every path is looked up in one job of the blocking pool, and all of them before any content is read, so a
     //  file written in between does not match the judgement and is never replaced.
-    let locations: Vec<PathBuf> = changes.iter().map(|change| return worktree_path(root, change.path.as_slice())).collect();
-    let looked_up: Result<Vec<Option<FileIdentity>>, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
-        return locations.iter().map(|location| return file_identity(location.as_path())).collect();
-    })
-    .await;
+    let locations: Vec<PathBuf> = changes
+        .iter()
+        .map(|change| return worktree_path(root, change.path.as_slice()))
+        .collect();
+    let looked_up: Result<Vec<Option<FileIdentity>>, crate::blocking_job::BlockingJobError> =
+        run_blocking_job_within_the_budget(move || {
+            return locations
+                .iter()
+                .map(|location| return file_identity(location.as_path()))
+                .collect();
+        })
+        .await;
     let identities: Vec<Option<FileIdentity>> = match looked_up {
         Ok(found) => found,
         // A look the pool never made leaves nothing proven about the worktree, so the command stops rather than judge the merge's
         //  paths on a guess and replace what it could not see.
-        Err(refused) => return Err(RecoveryError(format!("the entries of this merge's paths could not be looked at: {refused}"))),
+        Err(refused) => {
+            return Err(RecoveryError(format!(
+                "the entries of this merge's paths could not be looked at: {refused}"
+            )));
+        }
     };
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for (index, change) in changes.iter().enumerate() {
-        let state: WorktreeState = worktree_state_awaiting(&place.git, root, change.path.as_slice()).await.map_err(RecoveryError)?;
+        let state: WorktreeState =
+            worktree_state_awaiting(&place.git, root, change.path.as_slice())
+                .await
+                .map_err(RecoveryError)?;
         let content: Option<String> = match &state {
-            WorktreeState::Content { object, .. } => Some(object.clone()),
+            WorktreeState::Content {
+                object,
+                ..
+            } => Some(object.clone()),
             WorktreeState::Missing | WorktreeState::Other => None,
         };
-        judgements.push(Judged { standing: standing(change, &state, records_file_modes), identity: identities[index], content });
+        judgements.push(Judged {
+            standing: standing(change, &state, records_file_modes),
+            identity: identities[index],
+            content,
+        });
     }
     let candidates: Vec<usize> = (0..changes.len())
         .filter(|index| {
             let change: &Change = &changes[*index];
-            return judgements[*index].standing == Standing::Foreign && !change.existed() && change.exists_after();
+            return judgements[*index].standing == Standing::Foreign
+                && !change.existed()
+                && change.exists_after();
         })
         .collect();
     if !candidates.is_empty() {
@@ -389,7 +497,11 @@ pub async fn judge_changes_awaiting(place: &RecoveryPlace, root: &Path, changes:
                     if !holds_only_the_branchs {
                         continue;
                     }
-                    judgements[index] = Judged { standing: Standing::Directory, identity: None, content: None };
+                    judgements[index] = Judged {
+                        standing: Standing::Directory,
+                        identity: None,
+                        content: None,
+                    };
                 }
             }
             // A walk the pool never made proves nothing about these directories, so each stays foreign and the command refuses it
@@ -416,7 +528,10 @@ fn is_a_directory(found: std::fs::Metadata) -> bool {
 }
 
 /// Whether one change deletes a file of the branch below `prefix`.
-fn takes_a_file_below(other: &Change, prefix: &[u8]) -> bool {
+fn takes_a_file_below(
+    other: &Change,
+    prefix: &[u8],
+) -> bool {
     return other.path.starts_with(prefix) && other.existed() && !other.exists_after();
 }
 
@@ -433,7 +548,10 @@ fn takes_a_file_below(other: &Change, prefix: &[u8]) -> bool {
 /// ```ts
 /// changes.some((other) => other.path.startsWith(`${change.path}/`) && other.existed() && !other.existsAfter());
 /// ```
-fn the_branchs_files_stand_below(change: &Change, changes: &[Change]) -> bool {
+fn the_branchs_files_stand_below(
+    change: &Change,
+    changes: &[Change],
+) -> bool {
     let mut prefix: Vec<u8> = change.path.clone();
     prefix.push(b'/');
     for other in changes {

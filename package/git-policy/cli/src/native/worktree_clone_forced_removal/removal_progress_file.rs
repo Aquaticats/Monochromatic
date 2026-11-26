@@ -27,18 +27,39 @@
 //! ```
 
 use crate::worktree_clone_forced_removal::descriptor_calls::{
-    create_at, open_directory, open_file_below, remove_entry_at, rename_at, sync_directory,
+    create_at,
+    open_directory,
+    open_file_below,
+    remove_entry_at,
+    rename_at,
+    sync_directory,
 };
 use crate::worktree_clone_forced_removal::forced_arm_numbers::GIVE_UP_HEARTBEATS;
-use crate::worktree_clone_forced_removal::forced_removal_words::{PROGRESS_FILE_SUFFIX, Stage};
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY};
+use crate::worktree_clone_forced_removal::forced_removal_words::{
+    PROGRESS_FILE_SUFFIX,
+    Stage,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{
+    DIRECTORY_MODE,
+    RECEIPT_MODE,
+    RESULTS_DIRECTORY,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 use std::time::Duration;
 
 /// The file's format version,
@@ -88,9 +109,16 @@ pub struct ProgressRefusal {
 
 impl std::fmt::Display for ProgressRefusal {
     /// One sentence naming the call, the errno and what it said.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self.errno {
-            Some(errno) => write!(formatter, "{} answered errno {errno}: {}", self.calling, self.said),
+            Some(errno) => write!(
+                formatter,
+                "{} answered errno {errno}: {}",
+                self.calling, self.said
+            ),
             None => write!(formatter, "{}: {}", self.calling, self.said),
         };
     }
@@ -148,14 +176,38 @@ pub struct ProgressFile {
 
 impl ProgressFile {
     /// The file the root handler publishes beside the receipt.
-    pub fn live(dataset: DatasetGuid, nonce: RequestNonce, heartbeat: Duration) -> ProgressFile {
-        return ProgressFile { folder: PathBuf::from(RESULTS_DIRECTORY), owner: 0, dataset, nonce, heartbeat, stage_word: Arc::new(AtomicU64::new(FIRST_STAGE.order() as u64)) };
+    pub fn live(
+        dataset: DatasetGuid,
+        nonce: RequestNonce,
+        heartbeat: Duration,
+    ) -> ProgressFile {
+        return ProgressFile {
+            folder: PathBuf::from(RESULTS_DIRECTORY),
+            owner: 0,
+            dataset,
+            nonce,
+            heartbeat,
+            stage_word: Arc::new(AtomicU64::new(FIRST_STAGE.order() as u64)),
+        };
     }
 
     /// A file at a fixture folder,
     /// owned by the account a control expects.
-    pub fn at(folder: PathBuf, owner: u32, dataset: DatasetGuid, nonce: RequestNonce, heartbeat: Duration) -> ProgressFile {
-        return ProgressFile { folder, owner, dataset, nonce, heartbeat, stage_word: Arc::new(AtomicU64::new(FIRST_STAGE.order() as u64)) };
+    pub fn at(
+        folder: PathBuf,
+        owner: u32,
+        dataset: DatasetGuid,
+        nonce: RequestNonce,
+        heartbeat: Duration,
+    ) -> ProgressFile {
+        return ProgressFile {
+            folder,
+            owner,
+            dataset,
+            nonce,
+            heartbeat,
+            stage_word: Arc::new(AtomicU64::new(FIRST_STAGE.order() as u64)),
+        };
     }
 
     /// The file one dataset's progress is filed under.
@@ -170,7 +222,11 @@ impl ProgressFile {
     ///  so two publishes never share a staging name.
     fn staging_name(&self) -> String {
         let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
-        return format!("{}{PROGRESS_FILE_SUFFIX}.staging.{}.{attempt}", self.dataset.file_name(), std::process::id());
+        return format!(
+            "{}{PROGRESS_FILE_SUFFIX}.staging.{}.{attempt}",
+            self.dataset.file_name(),
+            std::process::id()
+        );
     }
 
     /// What:
@@ -189,29 +245,50 @@ impl ProgressFile {
         let folder: std::fs::File = self.open_the_folder()?;
         self.publish(&folder, FIRST_STAGE, 1)?;
         let (stop, listening) = std::sync::mpsc::channel::<()>();
-        let thread_folder: std::fs::File = folder.try_clone().map_err(|error| return ProgressRefusal {
-            calling: "folder",
-            errno: error.raw_os_error(),
-            said: String::from("the results folder's descriptor could not be shared with its heartbeat"),
+        let thread_folder: std::fs::File = folder.try_clone().map_err(|error| {
+            return ProgressRefusal {
+                calling: "folder",
+                errno: error.raw_os_error(),
+                said: String::from(
+                    "the results folder's descriptor could not be shared with its heartbeat",
+                ),
+            };
         })?;
         let period: Duration = self.heartbeat;
         let shared: Arc<AtomicU64> = Arc::clone(&counter);
         let held: ProgressFile = self.clone();
-        let heartbeat = crate::foundation::scoped_start::spawn_named("forced-removal-progress", move || {
-            // The thread ends when its channel is closed or when the act sends its stop, and each period it publishes
-            // the next counter with the stage the act last set, which it reads from the shared word.
-            while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = listening.recv_timeout(period) {
-                let next: u64 = shared.fetch_add(1, Ordering::SeqCst) + 1;
-                let stage: Stage = Stage::of_order(u8::try_from(held.stage_word.load(Ordering::SeqCst)).unwrap_or(0));
-                let _published: Result<(), ProgressRefusal> = held.publish(&thread_folder, stage, next);
-            }
-        })
-        .map_err(|error| return ProgressRefusal {
-            calling: "thread",
-            errno: error.raw_os_error(),
-            said: crate::foundation::scoped_start::refused_thread_sentence("advance the forced removal's progress file", &error),
-        })?;
-        return Ok(ProgressWriting { file: self.clone(), counter, stop, heartbeat, stage_word: self.stage_word.clone() });
+        let heartbeat =
+            crate::foundation::scoped_start::spawn_named("forced-removal-progress", move || {
+                // The thread ends when its channel is closed or when the act sends its stop, and each period it publishes
+                // the next counter with the stage the act last set, which it reads from the shared word.
+                while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                    listening.recv_timeout(period)
+                {
+                    let next: u64 = shared.fetch_add(1, Ordering::SeqCst) + 1;
+                    let stage: Stage = Stage::of_order(
+                        u8::try_from(held.stage_word.load(Ordering::SeqCst)).unwrap_or(0),
+                    );
+                    let _published: Result<(), ProgressRefusal> =
+                        held.publish(&thread_folder, stage, next);
+                }
+            })
+            .map_err(|error| {
+                return ProgressRefusal {
+                    calling: "thread",
+                    errno: error.raw_os_error(),
+                    said: crate::foundation::scoped_start::refused_thread_sentence(
+                        "advance the forced removal's progress file",
+                        &error,
+                    ),
+                };
+            })?;
+        return Ok(ProgressWriting {
+            file: self.clone(),
+            counter,
+            stop,
+            heartbeat,
+            stage_word: self.stage_word.clone(),
+        });
     }
 
     /// What:
@@ -227,42 +304,96 @@ impl ProgressFile {
     pub fn read(&self) -> Result<ProgressReading, ProgressRefusal> {
         let folder: std::fs::File = self.open_the_folder()?;
         let name: String = self.entry_name();
-        let mut file: std::fs::File = open_file_below(&folder, name.as_str()).map_err(|error| return ProgressRefusal {
-            calling: "read",
-            errno: error.raw_os_error(),
-            said: format!("the progress file {name}"),
+        let mut file: std::fs::File = open_file_below(&folder, name.as_str()).map_err(|error| {
+            return ProgressRefusal {
+                calling: "read",
+                errno: error.raw_os_error(),
+                said: format!("the progress file {name}"),
+            };
         })?;
-        let facts: std::fs::Metadata = file.metadata().map_err(|error| return ProgressRefusal {
-            calling: "read",
-            errno: error.raw_os_error(),
-            said: format!("the facts of the progress file {name}"),
+        let facts: std::fs::Metadata = file.metadata().map_err(|error| {
+            return ProgressRefusal {
+                calling: "read",
+                errno: error.raw_os_error(),
+                said: format!("the facts of the progress file {name}"),
+            };
         })?;
         if !facts.is_file() {
-            return Err(ProgressRefusal { calling: "read", errno: None, said: format!("{name} is not a regular file") });
+            return Err(ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said: format!("{name} is not a regular file"),
+            });
         }
         if facts.uid() != self.owner {
-            return Err(ProgressRefusal { calling: "read", errno: None, said: format!("{name} is owned by account {} and the route requires {}", facts.uid(), self.owner) });
+            return Err(ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said: format!(
+                    "{name} is owned by account {} and the route requires {}",
+                    facts.uid(),
+                    self.owner
+                ),
+            });
         }
         if facts.mode() & 0o7777 != RECEIPT_MODE {
-            return Err(ProgressRefusal { calling: "read", errno: None, said: format!("{name}'s mode is {:o} and the route requires {RECEIPT_MODE:o}", facts.mode() & 0o7777) });
+            return Err(ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said: format!(
+                    "{name}'s mode is {:o} and the route requires {RECEIPT_MODE:o}",
+                    facts.mode() & 0o7777
+                ),
+            });
         }
         let mut bytes: Vec<u8> = Vec::new();
-        Read::by_ref(&mut file).take(MAXIMUM_PROGRESS_BYTES + 1).read_to_end(&mut bytes).map_err(|error| return ProgressRefusal {
-            calling: "read",
-            errno: error.raw_os_error(),
-            said: format!("the bytes of {name}"),
-        })?;
+        Read::by_ref(&mut file)
+            .take(MAXIMUM_PROGRESS_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|error| {
+                return ProgressRefusal {
+                    calling: "read",
+                    errno: error.raw_os_error(),
+                    said: format!("the bytes of {name}"),
+                };
+            })?;
         if bytes.len() as u64 > MAXIMUM_PROGRESS_BYTES {
-            return Err(ProgressRefusal { calling: "read", errno: None, said: format!("{name} is longer than a progress file may be") });
+            return Err(ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said: format!("{name} is longer than a progress file may be"),
+            });
         }
         let Ok(text) = String::from_utf8(bytes) else {
-            return Err(ProgressRefusal { calling: "read", errno: None, said: format!("{name} is not text") });
+            return Err(ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said: format!("{name} is not text"),
+            });
         };
-        let (nonce, stage, counter) = parse_progress(text.as_str()).map_err(|said| return ProgressRefusal { calling: "read", errno: None, said })?;
+        let (nonce, stage, counter) = parse_progress(text.as_str()).map_err(|said| {
+            return ProgressRefusal {
+                calling: "read",
+                errno: None,
+                said,
+            };
+        })?;
         if nonce != self.nonce.as_str() {
-            return Err(ProgressRefusal { calling: "another-request", errno: None, said: format!("{name} answers nonce {nonce} and this request is {}", self.nonce.as_str()) });
+            return Err(ProgressRefusal {
+                calling: "another-request",
+                errno: None,
+                said: format!(
+                    "{name} answers nonce {nonce} and this request is {}",
+                    self.nonce.as_str()
+                ),
+            });
         }
-        return Ok(ProgressReading { nonce, stage, counter, read_at: std::time::Instant::now() });
+        return Ok(ProgressReading {
+            nonce,
+            stage,
+            counter,
+            read_at: std::time::Instant::now(),
+        });
     }
 
     /// What:
@@ -271,28 +402,52 @@ impl ProgressFile {
     /// Why:
     ///  The design fixes the give-up window as whole heartbeat periods,
     ///  and the wrapper's own wait compares nothing else.
-    pub fn gives_up(&self, unchanged_for: Duration) -> bool {
+    pub fn gives_up(
+        &self,
+        unchanged_for: Duration,
+    ) -> bool {
         return unchanged_for >= self.heartbeat.saturating_mul(GIVE_UP_HEARTBEATS);
     }
 
     /// Open the folder and prove it is the designed one.
     fn open_the_folder(&self) -> Result<std::fs::File, ProgressRefusal> {
         let path: &Path = self.folder.as_path();
-        let folder: std::fs::File = open_directory(path).map_err(|error| return ProgressRefusal {
-            calling: "folder",
-            errno: error.raw_os_error(),
-            said: format!("the results folder {}", path.display()),
+        let folder: std::fs::File = open_directory(path).map_err(|error| {
+            return ProgressRefusal {
+                calling: "folder",
+                errno: error.raw_os_error(),
+                said: format!("the results folder {}", path.display()),
+            };
         })?;
-        let facts: std::fs::Metadata = folder.metadata().map_err(|error| return ProgressRefusal {
-            calling: "folder",
-            errno: error.raw_os_error(),
-            said: format!("the facts of the results folder {}", path.display()),
+        let facts: std::fs::Metadata = folder.metadata().map_err(|error| {
+            return ProgressRefusal {
+                calling: "folder",
+                errno: error.raw_os_error(),
+                said: format!("the facts of the results folder {}", path.display()),
+            };
         })?;
         if facts.uid() != self.owner {
-            return Err(ProgressRefusal { calling: "folder", errno: None, said: format!("{} is owned by account {} and the route requires {}", path.display(), facts.uid(), self.owner) });
+            return Err(ProgressRefusal {
+                calling: "folder",
+                errno: None,
+                said: format!(
+                    "{} is owned by account {} and the route requires {}",
+                    path.display(),
+                    facts.uid(),
+                    self.owner
+                ),
+            });
         }
         if facts.mode() & 0o7777 != DIRECTORY_MODE {
-            return Err(ProgressRefusal { calling: "folder", errno: None, said: format!("{}'s mode is {:o} and the route requires {DIRECTORY_MODE:o}", path.display(), facts.mode() & 0o7777) });
+            return Err(ProgressRefusal {
+                calling: "folder",
+                errno: None,
+                said: format!(
+                    "{}'s mode is {:o} and the route requires {DIRECTORY_MODE:o}",
+                    path.display(),
+                    facts.mode() & 0o7777
+                ),
+            });
         }
         return Ok(folder);
     }
@@ -304,36 +459,52 @@ impl ProgressFile {
     ///  A reader sees the whole earlier file or the whole new one,
     ///  and the sibling is removed on every way out so this process's next
     ///  publish is never blocked by its own failure.
-    fn publish(&self, folder: &std::fs::File, stage: Stage, counter: u64) -> Result<(), ProgressRefusal> {
+    fn publish(
+        &self,
+        folder: &std::fs::File,
+        stage: Stage,
+        counter: u64,
+    ) -> Result<(), ProgressRefusal> {
         let name: String = self.entry_name();
         let staging: String = self.staging_name();
         let text: String = progress_text(self.dataset, &self.nonce, stage, counter);
         let staged: Result<(), ProgressRefusal> = (|| {
-            let mut file: std::fs::File = create_at(folder, staging.as_str(), RECEIPT_MODE).map_err(|error| return ProgressRefusal {
-                calling: "staging",
-                errno: error.raw_os_error(),
-                said: format!("the progress file's staging sibling {staging}"),
+            let mut file: std::fs::File = create_at(folder, staging.as_str(), RECEIPT_MODE)
+                .map_err(|error| {
+                    return ProgressRefusal {
+                        calling: "staging",
+                        errno: error.raw_os_error(),
+                        said: format!("the progress file's staging sibling {staging}"),
+                    };
+                })?;
+            file.write_all(text.as_bytes()).map_err(|error| {
+                return ProgressRefusal {
+                    calling: "staging",
+                    errno: error.raw_os_error(),
+                    said: format!("the write of {staging}"),
+                };
             })?;
-            file.write_all(text.as_bytes()).map_err(|error| return ProgressRefusal {
-                calling: "staging",
-                errno: error.raw_os_error(),
-                said: format!("the write of {staging}"),
-            })?;
-            file.sync_all().map_err(|error| return ProgressRefusal {
-                calling: "staging",
-                errno: error.raw_os_error(),
-                said: format!("the sync of {staging}"),
+            file.sync_all().map_err(|error| {
+                return ProgressRefusal {
+                    calling: "staging",
+                    errno: error.raw_os_error(),
+                    said: format!("the sync of {staging}"),
+                };
             })?;
             drop(file);
-            rename_at(folder, staging.as_str(), name.as_str()).map_err(|error| return ProgressRefusal {
-                calling: "staging",
-                errno: error.raw_os_error(),
-                said: format!("the rename of {staging} over {name}"),
+            rename_at(folder, staging.as_str(), name.as_str()).map_err(|error| {
+                return ProgressRefusal {
+                    calling: "staging",
+                    errno: error.raw_os_error(),
+                    said: format!("the rename of {staging} over {name}"),
+                };
             })?;
-            return sync_directory(folder).map_err(|error| return ProgressRefusal {
-                calling: "staging",
-                errno: error.raw_os_error(),
-                said: format!("the sync of the folder after {name}"),
+            return sync_directory(folder).map_err(|error| {
+                return ProgressRefusal {
+                    calling: "staging",
+                    errno: error.raw_os_error(),
+                    said: format!("the sync of the folder after {name}"),
+                };
             });
         })();
         if staged.is_err() {
@@ -374,9 +545,13 @@ impl ProgressWriting {
     ///
     /// # Errors
     /// The folder or the staging write answered an error.
-    pub fn stage(&self, stage: Stage) -> Result<(), ProgressRefusal> {
+    pub fn stage(
+        &self,
+        stage: Stage,
+    ) -> Result<(), ProgressRefusal> {
         let counter: u64 = self.counter.fetch_add(1, Ordering::SeqCst) + 1;
-        self.stage_word.store(stage.order() as u64, Ordering::SeqCst);
+        self.stage_word
+            .store(stage.order() as u64, Ordering::SeqCst);
         let folder: std::fs::File = self.file.open_the_folder()?;
         return self.file.publish(&folder, stage, counter);
     }
@@ -396,7 +571,13 @@ impl ProgressWriting {
     /// The last write answered an error, which the act reports beside its own
     /// answer.
     pub fn finish(self) -> Result<(), ProgressRefusal> {
-        let ProgressWriting { file, counter, stop, heartbeat, stage_word } = self;
+        let ProgressWriting {
+            file,
+            counter,
+            stop,
+            heartbeat,
+            stage_word,
+        } = self;
         let next: u64 = counter.fetch_add(1, Ordering::SeqCst) + 1;
         stage_word.store(Stage::Done.order() as u64, Ordering::SeqCst);
         let folder: std::fs::File = file.open_the_folder()?;
@@ -414,7 +595,12 @@ impl ProgressWriting {
 /// Why:
 ///  The reader must find the four values by name,
 ///  and the nonce is data beside the dataset's name and never part of it.
-pub fn progress_text(dataset: DatasetGuid, nonce: &RequestNonce, stage: Stage, counter: u64) -> String {
+pub fn progress_text(
+    dataset: DatasetGuid,
+    nonce: &RequestNonce,
+    stage: Stage,
+    counter: u64,
+) -> String {
     let lines: [String; 6] = [
         String::from(PROGRESS_VERSION),
         format!("kind {PROGRESS_KIND}"),
@@ -473,16 +659,25 @@ pub fn parse_progress(text: &str) -> Result<(String, Stage, u64), String> {
             continue;
         }
         if let Some(number) = line.strip_prefix("counter ") {
-            counter = Some(number.parse::<u64>().map_err(|_error| return String::from("the counter is not a number"))?);
+            counter = Some(
+                number
+                    .parse::<u64>()
+                    .map_err(|_error| return String::from("the counter is not a number"))?,
+            );
             continue;
         }
         return Err(format!("the line `{line}` is not one this build writes"));
     }
     if !(version_seen && kind_seen && dataset_seen) {
-        return Err(String::from("a progress file names its version, its kind and its dataset"));
+        return Err(String::from(
+            "a progress file names its version, its kind and its dataset",
+        ));
     }
-    let (Some(found_nonce), Some(found_stage), Some(found_counter)) = (nonce, stage, counter) else {
-        return Err(String::from("a progress file names its nonce, its stage and its counter"));
+    let (Some(found_nonce), Some(found_stage), Some(found_counter)) = (nonce, stage, counter)
+    else {
+        return Err(String::from(
+            "a progress file names its nonce, its stage and its counter",
+        ));
     };
     return Ok((found_nonce, found_stage, found_counter));
 }

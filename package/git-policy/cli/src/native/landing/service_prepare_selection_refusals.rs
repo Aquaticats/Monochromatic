@@ -18,13 +18,30 @@
 //! ```
 
 use crate::commit_index_selection::IndexSelection;
-use crate::commit_named_ignored_files::{NAMED_IGNORED_CODE, NAMED_IGNORED_CORE_ID, named_ignored_files, named_ignored_message};
-use crate::commit_pathspec_matching_nothing::{PATHSPEC_MATCHING_NOTHING_CODE, PATHSPEC_MATCHING_NOTHING_CORE_ID, pathspec_matching_nothing_message};
+use crate::commit_named_ignored_files::{
+    NAMED_IGNORED_CODE,
+    NAMED_IGNORED_CORE_ID,
+    named_ignored_files,
+    named_ignored_message,
+};
+use crate::commit_pathspec_matching_nothing::{
+    PATHSPEC_MATCHING_NOTHING_CODE,
+    PATHSPEC_MATCHING_NOTHING_CORE_ID,
+    pathspec_matching_nothing_message,
+};
 use crate::commit_selection_staging::selection_elements;
-use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
+use crate::commit_staged_deletions::{
+    STAGED_DELETION_CODE,
+    STAGED_DELETION_CORE_ID,
+    staged_deletion_message,
+    staged_deletions_present_on_disk,
+};
 use crate::commit_transaction::TransactionResult;
 use crate::policy_events::PolicyEvent;
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 use std::path::Path;
 
 /// What:
@@ -48,11 +65,16 @@ pub(crate) fn named_ignored_ending(
     real_index: &Path,
     selection: &IndexSelection<'_>,
 ) -> Result<Option<TransactionResult>, GitFailure> {
-    let ignored: Vec<Vec<u8>> = named_ignored_files(context, cwd, worktree_root, real_index, selection)?;
+    let ignored: Vec<Vec<u8>> =
+        named_ignored_files(context, cwd, worktree_root, real_index, selection)?;
     if ignored.is_empty() {
         return Ok(None);
     }
-    return Ok(Some(ending(NAMED_IGNORED_CORE_ID, NAMED_IGNORED_CODE, named_ignored_message(ignored.as_slice()))));
+    return Ok(Some(ending(
+        NAMED_IGNORED_CORE_ID,
+        NAMED_IGNORED_CODE,
+        named_ignored_message(ignored.as_slice()),
+    )));
 }
 
 /// What:
@@ -84,12 +106,25 @@ pub(crate) fn staged_deletion_ending(
     base_revision: &str,
     selection: &IndexSelection<'_>,
 ) -> Result<Option<TransactionResult>, GitFailure> {
-    let Some(elements) = selection_elements(selection) else { return Ok(None) };
-    let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(context, cwd, repository_root, real_index, base_revision, elements.as_slice())?;
+    let Some(elements) = selection_elements(selection) else {
+        return Ok(None);
+    };
+    let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(
+        context,
+        cwd,
+        repository_root,
+        real_index,
+        base_revision,
+        elements.as_slice(),
+    )?;
     if present.is_empty() {
         return Ok(None);
     }
-    return Ok(Some(ending(STAGED_DELETION_CORE_ID, STAGED_DELETION_CODE, staged_deletion_message(present.as_slice()))));
+    return Ok(Some(ending(
+        STAGED_DELETION_CORE_ID,
+        STAGED_DELETION_CODE,
+        staged_deletion_message(present.as_slice()),
+    )));
 }
 
 /// What:
@@ -108,7 +143,11 @@ pub(crate) fn staged_deletion_ending(
 /// const ending = found('explicit-path-commit', 'pathspec-matches-nothing', message(refused));
 /// ```
 pub(crate) fn pathspec_matching_nothing_ending(refused: &[Vec<u8>]) -> TransactionResult {
-    return ending(PATHSPEC_MATCHING_NOTHING_CORE_ID, PATHSPEC_MATCHING_NOTHING_CODE, pathspec_matching_nothing_message(refused));
+    return ending(
+        PATHSPEC_MATCHING_NOTHING_CORE_ID,
+        PATHSPEC_MATCHING_NOTHING_CODE,
+        pathspec_matching_nothing_message(refused),
+    );
 }
 
 /// What:
@@ -124,9 +163,17 @@ pub(crate) fn pathspec_matching_nothing_ending(refused: &[Vec<u8>]) -> Transacti
 /// ```ts
 /// ({ events: [{ type: 'core-finding', coreId, code, message }], exitCode: 1, landedOid: null, usesLfs: false })
 /// ```
-fn ending(core_id: &'static str, code: &'static str, message: String) -> TransactionResult {
+fn ending(
+    core_id: &'static str,
+    code: &'static str,
+    message: String,
+) -> TransactionResult {
     return TransactionResult {
-        events: vec![PolicyEvent::CoreFinding { core_id, code, message }],
+        events: vec![PolicyEvent::CoreFinding {
+            core_id,
+            code,
+            message,
+        }],
         exit_code: 1,
         landed_oid: None,
         uses_lfs: false,

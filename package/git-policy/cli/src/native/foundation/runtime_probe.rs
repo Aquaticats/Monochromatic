@@ -16,7 +16,12 @@
 //! ```
 
 use crate::blocking_job::run_blocking_job;
-use crate::lazy_runtime::{BuiltFlavor, RuntimeError, built_flavor, run_on_runtime};
+use crate::lazy_runtime::{
+    BuiltFlavor,
+    RuntimeError,
+    built_flavor,
+    run_on_runtime,
+};
 use std::ffi::OsString;
 
 /// The environment variable that makes the executable run this probe instead of a command.
@@ -49,9 +54,15 @@ fn flavor_text(flavor: Option<BuiltFlavor>) -> String {
     return match flavor {
         None => String::from("none"),
         Some(BuiltFlavor::CurrentThread) => String::from("current-thread"),
-        Some(BuiltFlavor::MultiThread { workers }) => format!("multi-thread workers={workers}"),
-        Some(BuiltFlavor::CurrentThreadAfterDeadline) => String::from("current-thread-after-deadline"),
-        Some(BuiltFlavor::CurrentThreadAfterFailure) => String::from("current-thread-after-failure"),
+        Some(BuiltFlavor::MultiThread {
+            workers,
+        }) => format!("multi-thread workers={workers}"),
+        Some(BuiltFlavor::CurrentThreadAfterDeadline) => {
+            String::from("current-thread-after-deadline")
+        }
+        Some(BuiltFlavor::CurrentThreadAfterFailure) => {
+            String::from("current-thread-after-failure")
+        }
     };
 }
 

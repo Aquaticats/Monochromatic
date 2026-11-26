@@ -1,8 +1,17 @@
 //! Controls for shadow requests and removal.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
-use crate::transaction_git::{GitOutput, run_git_checked};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
+use crate::transaction_git::{
+    GitOutput,
+    run_git_checked,
+};
 
 /// The shadow path derives from the common directory and the transaction ID.
 #[test]
@@ -57,7 +66,11 @@ fn the_git_directory_option_keeps_a_path_that_is_not_text() {
     let mut expected: Vec<u8> = b"--git-dir=".to_vec();
     expected.extend_from_slice(b"/repos/na\xefve/.git/shadow");
     let option: OsString = git_dir_option(shadow);
-    assert_eq!(option.as_os_str().as_bytes(), expected.as_slice(), "the option is the prefix and the path's bytes");
+    assert_eq!(
+        option.as_os_str().as_bytes(),
+        expected.as_slice(),
+        "the option is the prefix and the path's bytes"
+    );
 }
 
 /// A redirecting variable in the overlay does not reach a shadow command.
@@ -101,7 +114,10 @@ fn shadow_commands_ignore_redirects() {
 #[test]
 fn shadows_are_removed_whole() {
     let root: PathBuf = fixture("shadow-git-remove");
-    let shadow: PathBuf = root.join("monochromatic-git-policy-cli").join("shadow").join("0b6c");
+    let shadow: PathBuf = root
+        .join("monochromatic-git-policy-cli")
+        .join("shadow")
+        .join("0b6c");
     std::fs::create_dir_all(shadow.join("objects")).expect("shadow");
     std::fs::write(shadow.join("objects").join("x"), b"x").expect("object");
     remove_shadow_repository(shadow.as_path()).expect("removed");

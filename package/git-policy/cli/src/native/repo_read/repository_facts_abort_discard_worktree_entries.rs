@@ -10,9 +10,15 @@
 //!  so the provider's own file stays within its line bound.
 
 use crate::git_metadata::path_from_git_bytes;
-use crate::repository_facts::{GitFacts, RepositoryFacts};
+use crate::repository_facts::{
+    GitFacts,
+    RepositoryFacts,
+};
 use crate::worktree_identity::worktree_root;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether the worktree holds any entry at a repository-relative path.
@@ -36,7 +42,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// holdsAnEntry({ root, relative: 'a.txt' }); // false when nothing stands there
 /// ```
-pub(super) fn holds_an_entry(root: Option<&Path>, relative: &[u8]) -> bool {
+pub(super) fn holds_an_entry(
+    root: Option<&Path>,
+    relative: &[u8],
+) -> bool {
     let Some(top) = root else {
         return true;
     };

@@ -11,8 +11,19 @@
 //! // expect([...(await indexEntries(index, ['a.txt'])).keys()]).toEqual(['a.txt']);
 //! ```
 
-use super::{head_entries, index_entries, moved_since_listing, tree_entries};
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use super::{
+    head_entries,
+    index_entries,
+    moved_since_listing,
+    tree_entries,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -21,8 +32,12 @@ use std::path::PathBuf;
 /// which every Git the service starts inherits.
 fn inherited_literal_and_case_insensitive_pathspec_context() -> crate::transaction_git::GitContext {
     let mut context: crate::transaction_git::GitContext = git_context();
-    context.overlay.push((OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("1")));
-    context.overlay.push((OsString::from("GIT_ICASE_PATHSPECS"), OsString::from("1")));
+    context
+        .overlay
+        .push((OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("1")));
+    context
+        .overlay
+        .push((OsString::from("GIT_ICASE_PATHSPECS"), OsString::from("1")));
     return context;
 }
 
@@ -34,7 +49,17 @@ fn repository_with_a_case_twin(name: &str) -> (PathBuf, PathBuf) {
     std::fs::write(repo.join("A.txt"), b"upper\n").expect("write A.txt");
     std::fs::write(repo.join("a.txt"), b"lower\n").expect("write a.txt");
     git(repo.as_path(), &["add", "--", "A.txt", "a.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "A.txt", "a.txt"]);
+    git(
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--message=base",
+            "--",
+            "A.txt",
+            "a.txt",
+        ],
+    );
     return (root, repo);
 }
 
@@ -44,14 +69,36 @@ fn repository_with_a_case_twin(name: &str) -> (PathBuf, PathBuf) {
 fn the_entries_of_a_path_are_read_without_its_case_twin() {
     let (root, repo) = repository_with_a_case_twin("owed-entries-case-twin");
     let mut context: crate::transaction_git::GitContext = git_context();
-    context.overlay.push((OsString::from("GIT_ICASE_PATHSPECS"), OsString::from("1")));
+    context
+        .overlay
+        .push((OsString::from("GIT_ICASE_PATHSPECS"), OsString::from("1")));
     let asked: [Vec<u8>; 1] = [b"a.txt".to_vec()];
-    let from_the_tree = tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
-    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
-    let from_the_head = head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
-    assert_eq!(from_the_tree.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the tree is read at the path asked about");
-    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the index is read at the path asked about");
-    assert_eq!(from_the_head.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the head is read at the path asked about");
+    let from_the_tree =
+        tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
+    let from_the_index = index_entries(
+        &context,
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        asked.as_slice(),
+    )
+    .expect("the index reads");
+    let from_the_head =
+        head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
+    assert_eq!(
+        from_the_tree.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the tree is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_index.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the index is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_head.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the head is read at the path asked about"
+    );
     remove(root.as_path());
 }
 
@@ -65,12 +112,25 @@ fn the_index_entries_of_a_nested_path_keep_their_repository_relative_names() {
     std::fs::create_dir(repo.join("sub")).expect("sub directory");
     std::fs::write(repo.join("sub/f"), b"landed\n").expect("write sub/f");
     git(repo.as_path(), &["add", "--", "sub/f"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "sub/f"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base", "--", "sub/f"],
+    );
     let mut context: crate::transaction_git::GitContext = git_context();
     context.global_prefix = vec![OsString::from("-C"), repo.join("sub").into_os_string()];
     let asked: [Vec<u8>; 1] = [b"sub/f".to_vec()];
-    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
-    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the entry is named as the caller looks it up");
+    let from_the_index = index_entries(
+        &context,
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        asked.as_slice(),
+    )
+    .expect("the index reads");
+    assert_eq!(
+        from_the_index.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the entry is named as the caller looks it up"
+    );
     remove(root.as_path());
 }
 
@@ -83,7 +143,10 @@ fn the_moved_paths_of_a_nested_name_are_named_from_the_top() {
     std::fs::create_dir(repo.join("sub")).expect("sub directory");
     std::fs::write(repo.join("sub/f"), b"one\n").expect("write sub/f");
     git(repo.as_path(), &["add", "--", "sub/f"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "sub/f"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base", "--", "sub/f"],
+    );
     let index: PathBuf = repo.join(".git/index");
     let copy: PathBuf = root.join("commit.index");
     std::fs::copy(index.as_path(), copy.as_path()).expect("a copy of the index");
@@ -91,8 +154,14 @@ fn the_moved_paths_of_a_nested_name_are_named_from_the_top() {
     git(repo.as_path(), &["add", "--", "sub/f"]);
     let mut context: crate::transaction_git::GitContext = git_context();
     context.global_prefix = vec![OsString::from("-C"), repo.join("sub").into_os_string()];
-    let moved: Vec<Vec<u8>> = moved_since_listing(&context, repo.as_path(), index.as_path(), copy.as_path()).expect("the listings compare");
-    assert_eq!(moved, vec![b"sub/f".to_vec()], "the moved path is named from the top of the worktree");
+    let moved: Vec<Vec<u8>> =
+        moved_since_listing(&context, repo.as_path(), index.as_path(), copy.as_path())
+            .expect("the listings compare");
+    assert_eq!(
+        moved,
+        vec![b"sub/f".to_vec()],
+        "the moved path is named from the top of the worktree"
+    );
     remove(root.as_path());
 }
 
@@ -104,14 +173,36 @@ fn the_moved_paths_of_a_nested_name_are_named_from_the_top() {
 fn the_entries_of_a_path_are_read_under_the_callers_literal_option() {
     let (root, repo) = repository_with_a_case_twin("owed-entries-literal-option");
     let mut context: crate::transaction_git::GitContext = git_context();
-    context.global_prefix.push(OsString::from("--literal-pathspecs"));
+    context
+        .global_prefix
+        .push(OsString::from("--literal-pathspecs"));
     let asked: [Vec<u8>; 1] = [b"a.txt".to_vec()];
-    let from_the_tree = tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
-    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
-    let from_the_head = head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
-    assert_eq!(from_the_tree.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the tree is read at the path asked about");
-    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the index is read at the path asked about");
-    assert_eq!(from_the_head.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the head is read at the path asked about");
+    let from_the_tree =
+        tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
+    let from_the_index = index_entries(
+        &context,
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        asked.as_slice(),
+    )
+    .expect("the index reads");
+    let from_the_head =
+        head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
+    assert_eq!(
+        from_the_tree.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the tree is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_index.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the index is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_head.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the head is read at the path asked about"
+    );
     remove(root.as_path());
 }
 
@@ -121,14 +212,36 @@ fn the_entries_of_a_path_are_read_under_the_callers_literal_option() {
 fn the_entries_of_a_path_are_read_under_the_callers_case_insensitive_option() {
     let (root, repo) = repository_with_a_case_twin("owed-entries-icase-option");
     let mut context: crate::transaction_git::GitContext = git_context();
-    context.global_prefix.push(OsString::from("--icase-pathspecs"));
+    context
+        .global_prefix
+        .push(OsString::from("--icase-pathspecs"));
     let asked: [Vec<u8>; 1] = [b"a.txt".to_vec()];
-    let from_the_tree = tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
-    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
-    let from_the_head = head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
-    assert_eq!(from_the_tree.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the tree is read at the path asked about");
-    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the index is read at the path asked about");
-    assert_eq!(from_the_head.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the head is read at the path asked about");
+    let from_the_tree =
+        tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
+    let from_the_index = index_entries(
+        &context,
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        asked.as_slice(),
+    )
+    .expect("the index reads");
+    let from_the_head =
+        head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
+    assert_eq!(
+        from_the_tree.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the tree is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_index.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the index is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_head.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the head is read at the path asked about"
+    );
     remove(root.as_path());
 }
 
@@ -139,13 +252,34 @@ fn the_entries_of_a_path_are_read_under_the_callers_case_insensitive_option() {
 #[test]
 fn the_entries_of_a_path_are_read_under_an_inherited_literal_mode() {
     let (root, repo) = repository_with_a_case_twin("owed-entries-literal-mode");
-    let context: crate::transaction_git::GitContext = inherited_literal_and_case_insensitive_pathspec_context();
+    let context: crate::transaction_git::GitContext =
+        inherited_literal_and_case_insensitive_pathspec_context();
     let asked: [Vec<u8>; 1] = [b"a.txt".to_vec()];
-    let from_the_tree = tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
-    let from_the_index = index_entries(&context, repo.as_path(), repo.join(".git/index").as_path(), asked.as_slice()).expect("the index reads");
-    let from_the_head = head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
-    assert_eq!(from_the_tree.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the tree is read at the path asked about");
-    assert_eq!(from_the_index.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the index is read at the path asked about");
-    assert_eq!(from_the_head.keys().collect::<Vec<&Vec<u8>>>(), vec![&asked[0]], "the head is read at the path asked about");
+    let from_the_tree =
+        tree_entries(&context, repo.as_path(), "HEAD", asked.as_slice()).expect("the tree reads");
+    let from_the_index = index_entries(
+        &context,
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        asked.as_slice(),
+    )
+    .expect("the index reads");
+    let from_the_head =
+        head_entries(&context, repo.as_path(), asked.as_slice()).expect("the head reads");
+    assert_eq!(
+        from_the_tree.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the tree is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_index.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the index is read at the path asked about"
+    );
+    assert_eq!(
+        from_the_head.keys().collect::<Vec<&Vec<u8>>>(),
+        vec![&asked[0]],
+        "the head is read at the path asked about"
+    );
     remove(root.as_path());
 }

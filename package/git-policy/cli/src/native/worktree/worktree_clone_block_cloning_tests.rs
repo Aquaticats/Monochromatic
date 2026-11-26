@@ -4,9 +4,19 @@
 //! and the kernel's own switch is read without changing it.
 
 use crate::fs_kind::FilesystemKind;
-use crate::test_support::{fixture, remove};
-use crate::worktree_clone_block_cloning::{block_cloning_refusal, block_cloning_refusal_at, switch_at};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::worktree_clone_block_cloning::{
+    block_cloning_refusal,
+    block_cloning_refusal_at,
+    switch_at,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A switch file holding `text` in the fixture root,
@@ -21,7 +31,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const [root, switchPath, target] = switchFixture('clone-block-cloning', '0\n');
 /// ```
-fn switch_fixture(name: &str, text: &str) -> (PathBuf, PathBuf, PathBuf) {
+fn switch_fixture(
+    name: &str,
+    text: &str,
+) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let switch: PathBuf = root.join("zfs_bclone_enabled");
     std::fs::write(switch.as_path(), text).expect("a switch file standing in for the kernel's");
@@ -43,11 +56,30 @@ fn switch_fixture(name: &str, text: &str) -> (PathBuf, PathBuf, PathBuf) {
 #[test]
 fn a_switch_reading_zero_declines_the_rung_on_zfs() {
     let (root, switch, target) = switch_fixture("clone-block-cloning-off", "0\n");
-    assert_eq!(switch_at(switch.as_path()), Some(false), "the fixture reads as the kernel writes it");
-    let reason: String = block_cloning_refusal((FilesystemKind::Zfs, switch_at(switch.as_path())), target.as_path()).expect("block cloning off refuses the clones");
-    assert!(reason.contains("would receive the clones") && reason.contains(target.display().to_string().as_str()), "the refusal names the destination: {reason}");
-    assert!(reason.contains("zfs_bclone_enabled") && reason.contains("reads 0"), "the refusal names the switch and its value: {reason}");
-    assert_eq!(block_cloning_refusal_at((target.as_path(), switch.as_path())), None, "a fixture root is no ZFS dataset, so the switch decides nothing for it");
+    assert_eq!(
+        switch_at(switch.as_path()),
+        Some(false),
+        "the fixture reads as the kernel writes it"
+    );
+    let reason: String = block_cloning_refusal(
+        (FilesystemKind::Zfs, switch_at(switch.as_path())),
+        target.as_path(),
+    )
+    .expect("block cloning off refuses the clones");
+    assert!(
+        reason.contains("would receive the clones")
+            && reason.contains(target.display().to_string().as_str()),
+        "the refusal names the destination: {reason}"
+    );
+    assert!(
+        reason.contains("zfs_bclone_enabled") && reason.contains("reads 0"),
+        "the refusal names the switch and its value: {reason}"
+    );
+    assert_eq!(
+        block_cloning_refusal_at((target.as_path(), switch.as_path())),
+        None,
+        "a fixture root is no ZFS dataset, so the switch decides nothing for it"
+    );
     remove(root.as_path());
 }
 
@@ -69,11 +101,27 @@ fn a_switch_reading_zero_declines_the_rung_on_zfs() {
 fn a_switch_reading_one_or_no_switch_at_all_declines_nothing() {
     let (root, switch, target) = switch_fixture("clone-block-cloning-on", "1\n");
     assert_eq!(switch_at(switch.as_path()), Some(true));
-    assert_eq!(block_cloning_refusal((FilesystemKind::Zfs, Some(true)), target.as_path()), None, "block cloning on refuses nothing");
-    assert_eq!(block_cloning_refusal((FilesystemKind::Btrfs, Some(false)), target.as_path()), None, "a btrfs destination is not decided by the ZFS pool's switch");
-    assert_eq!(block_cloning_refusal((FilesystemKind::Other, Some(false)), target.as_path()), None, "an ordinary directory is not decided by the ZFS pool's switch");
+    assert_eq!(
+        block_cloning_refusal((FilesystemKind::Zfs, Some(true)), target.as_path()),
+        None,
+        "block cloning on refuses nothing"
+    );
+    assert_eq!(
+        block_cloning_refusal((FilesystemKind::Btrfs, Some(false)), target.as_path()),
+        None,
+        "a btrfs destination is not decided by the ZFS pool's switch"
+    );
+    assert_eq!(
+        block_cloning_refusal((FilesystemKind::Other, Some(false)), target.as_path()),
+        None,
+        "an ordinary directory is not decided by the ZFS pool's switch"
+    );
     let absent: PathBuf = switch.with_file_name("absent");
-    assert_eq!(block_cloning_refusal_at((absent.as_path(), switch.as_path())), None, "a host without the switch file refuses nothing");
+    assert_eq!(
+        block_cloning_refusal_at((absent.as_path(), switch.as_path())),
+        None,
+        "a host without the switch file refuses nothing"
+    );
     remove(root.as_path());
 }
 
@@ -92,6 +140,11 @@ fn a_switch_reading_one_or_no_switch_at_all_declines_nothing() {
 /// ```
 #[test]
 fn this_hosts_switch_reads_as_one_of_the_two_values() {
-    let host: Option<bool> = switch_at(Path::new(crate::worktree_clone_block_cloning::ZFS_BLOCK_CLONING_SWITCH));
-    assert!(matches!(host, None | Some(true) | Some(false)), "the switch reads off, on or not at all: {host:?}");
+    let host: Option<bool> = switch_at(Path::new(
+        crate::worktree_clone_block_cloning::ZFS_BLOCK_CLONING_SWITCH,
+    ));
+    assert!(
+        matches!(host, None | Some(true) | Some(false)),
+        "the switch reads off, on or not at all: {host:?}"
+    );
 }

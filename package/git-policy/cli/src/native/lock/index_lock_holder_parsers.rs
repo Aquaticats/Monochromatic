@@ -80,7 +80,10 @@ pub fn parse_lsof_number(text: &str) -> Option<u128> {
 /// ```ts
 /// numberField({ lines, identifier })
 /// ```
-fn number_field(lines: &[&str], identifier: char) -> Option<u128> {
+fn number_field(
+    lines: &[&str],
+    identifier: char,
+) -> Option<u128> {
     for line in lines {
         if let Some(rest) = line.strip_prefix(identifier) {
             return parse_lsof_number(rest);
@@ -99,7 +102,10 @@ fn number_field(lines: &[&str], identifier: char) -> Option<u128> {
 /// ```ts
 /// groupsStartingAt({ lines, identifier })
 /// ```
-fn groups<'a>(lines: &[&'a str], identifier: char) -> Vec<Vec<&'a str>> {
+fn groups<'a>(
+    lines: &[&'a str],
+    identifier: char,
+) -> Vec<Vec<&'a str>> {
     let mut grouped: Vec<Vec<&'a str>> = Vec::new();
     for line in lines {
         if line.starts_with(identifier) {
@@ -133,7 +139,10 @@ pub fn parse_lsof_fields(output: &str) -> Vec<LsofProcess> {
         }
         let mut files: Vec<(Option<u128>, Option<u128>)> = Vec::new();
         for file in groups(group.as_slice(), 'f') {
-            files.push((number_field(file.as_slice(), 'D'), number_field(file.as_slice(), 'i')));
+            files.push((
+                number_field(file.as_slice(), 'D'),
+                number_field(file.as_slice(), 'i'),
+            ));
         }
         processes.push(LsofProcess {
             pid: crate::js_text::decimal_attempt(&group[0][1..]),
@@ -153,13 +162,18 @@ pub fn parse_lsof_fields(output: &str) -> Vec<LsofProcess> {
 /// ```ts
 /// matchingHolders({ processes, device, inode })
 /// ```
-pub fn matching_holders(processes: &[LsofProcess], device: u64, inode: u64) -> Vec<Holder> {
+pub fn matching_holders(
+    processes: &[LsofProcess],
+    device: u64,
+    inode: u64,
+) -> Vec<Holder> {
     let mut holders: Vec<Holder> = Vec::new();
     for process in processes {
         let Some(pid) = process.pid else {
             continue;
         };
-        let wanted: (Option<u128>, Option<u128>) = (Some(u128::from(device)), Some(u128::from(inode)));
+        let wanted: (Option<u128>, Option<u128>) =
+            (Some(u128::from(device)), Some(u128::from(inode)));
         if process.files.contains(&wanted) {
             holders.push(Holder {
                 pid,
@@ -190,12 +204,17 @@ pub fn parse_restart_manager_output(output: &str) -> Vec<Holder> {
             Some((pid, name)) => (pid, name),
             None => (line, ""),
         };
-        let Some(pid) = crate::js_text::decimal_attempt(crate::js_text::trim_javascript(pid_text)) else {
+        let Some(pid) = crate::js_text::decimal_attempt(crate::js_text::trim_javascript(pid_text))
+        else {
             continue;
         };
         holders.push(Holder {
             pid,
-            command: if command.is_empty() { None } else { Some(String::from(command)) },
+            command: if command.is_empty() {
+                None
+            } else {
+                Some(String::from(command))
+            },
         });
     }
     return holders;

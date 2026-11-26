@@ -18,7 +18,10 @@ fn the_mapped_bytes_come_from_the_vm_size_line() {
 /// The system thread total is the part after the slash of the fourth `/proc/loadavg` field.
 #[test]
 fn the_system_threads_come_from_the_fourth_load_field() {
-    assert_eq!(system_threads_from("0.10 0.20 0.30 3/4321 99999\n"), Some(4321));
+    assert_eq!(
+        system_threads_from("0.10 0.20 0.30 3/4321 99999\n"),
+        Some(4321)
+    );
     assert_eq!(system_threads_from("0.10 0.20 0.30\n"), None);
     assert_eq!(system_threads_from("0.10 0.20 0.30 three 9\n"), None);
 }
@@ -84,6 +87,9 @@ fn this_process_reads_its_own_limits() {
 /// The control group is the version 2 line of the process's group file.
 #[test]
 fn the_control_group_is_the_version_two_line() {
-    assert_eq!(control_group_path("12:cpu:/old\n0::/user.slice/session.scope\n"), Some(String::from("/user.slice/session.scope")));
+    assert_eq!(
+        control_group_path("12:cpu:/old\n0::/user.slice/session.scope\n"),
+        Some(String::from("/user.slice/session.scope"))
+    );
     assert_eq!(control_group_path("12:cpu:/old\n"), None);
 }

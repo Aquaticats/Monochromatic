@@ -26,7 +26,10 @@ use crate::service_protocol::CommitRequest;
 /// ```ts
 /// whatABatchOwes(intent) // owed-index record, held pushes
 /// ```
-pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent, programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>]) {
+pub(crate) fn what_a_batch_owes(
+    intent: &crate::service_journal::Intent,
+    programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>],
+) {
     crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
     hold_the_pushes_of(intent);
     remember_the_programs_of(intent, programs);
@@ -49,12 +52,30 @@ pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent, program
 /// ```ts
 /// const rememberTheProgramsOf = (intent, programs) => intent.commits.forEach((commit, at) => { const held = programs[at]; if (held) remember(intent.gitDir, pushIdOf(intent, commit), held); });
 /// ```
-fn remember_the_programs_of(intent: &crate::service_journal::Intent, programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>]) {
-    let Some(reference) = intent.reference.text() else { return };
+fn remember_the_programs_of(
+    intent: &crate::service_journal::Intent,
+    programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>],
+) {
+    let Some(reference) = intent.reference.text() else {
+        return;
+    };
     for (at, commit) in intent.commits.iter().enumerate() {
-        let Some(held) = programs.get(at).and_then(Option::as_ref) else { continue };
-        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), false);
-        crate::service_push_programs_held_in_memory::remember(intent.git_dir.as_path(), item.id().as_str(), held.clone());
+        let Some(held) = programs.get(at).and_then(Option::as_ref) else {
+            continue;
+        };
+        let item: crate::work_item::WorkItem = push_item_of(
+            intent.repository.as_path(),
+            intent.git_dir.as_path(),
+            reference,
+            commit.as_str(),
+            intent.old.as_str(),
+            false,
+        );
+        crate::service_push_programs_held_in_memory::remember(
+            intent.git_dir.as_path(),
+            item.id().as_str(),
+            held.clone(),
+        );
     }
 }
 
@@ -88,7 +109,15 @@ pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
         // Whether that command chose a transport is recorded with the batch, so a push a restart holds again knows that it must
         //  not run through the manager's transport when the values that chose it are gone (`push_without_its_transport`).
         let transport: bool = intent.transports.get(at).copied().unwrap_or(false);
-        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), holder, transport);
+        hold_one(
+            intent.repository.as_path(),
+            intent.git_dir.as_path(),
+            reference,
+            commit.as_str(),
+            intent.old.as_str(),
+            holder,
+            transport,
+        );
     }
 }
 
@@ -104,8 +133,15 @@ pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
 /// ```ts
 /// sayNoPushRecordWasHeld(refName, commits)
 /// ```
-fn say_no_push_record_was_held(reference: &crate::ref_name::RefName, commits: &[String]) {
-    crate::service_log!("no push record was held for {} of {}: a push record names its branch in text, and this name is not text", commits.join(", "), reference.spoken());
+fn say_no_push_record_was_held(
+    reference: &crate::ref_name::RefName,
+    commits: &[String],
+) {
+    crate::service_log!(
+        "no push record was held for {} of {}: a push record names its branch in text, and this name is not text",
+        commits.join(", "),
+        reference.spoken()
+    );
 }
 
 /// The push record of one landed commit of a worktree,
@@ -117,7 +153,14 @@ fn say_no_push_record_was_held(reference: &crate::ref_name::RefName, commits: &[
 /// ```ts
 /// const item = { kind: 'push', repository, gitDir, branchRef: reference, oid: commit, parent, created: nowIso(), tries: 0 };
 /// ```
-fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, transport: bool) -> crate::work_item::WorkItem {
+fn push_item_of(
+    repository: &std::path::Path,
+    git_dir: &std::path::Path,
+    reference: &str,
+    commit: &str,
+    parent: &str,
+    transport: bool,
+) -> crate::work_item::WorkItem {
     return crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,
         repository: repository.to_path_buf(),
@@ -136,16 +179,29 @@ fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, referen
 /// and the programs and transport settings held against each of them.
 pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
     // A branch whose name is not text held no record (`hold_the_pushes_of`), so there is none to forget.
-    let Some(reference) = intent.reference.text() else { return };
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
+    let Some(reference) = intent.reference.text() else {
+        return;
+    };
+    let work_dir: std::path::PathBuf =
+        crate::service_work::work_directory(intent.git_dir.as_path());
     for commit in &intent.commits {
-        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), false);
+        let item: crate::work_item::WorkItem = push_item_of(
+            intent.repository.as_path(),
+            intent.git_dir.as_path(),
+            reference,
+            commit.as_str(),
+            intent.old.as_str(),
+            false,
+        );
         for name in [item.id(), item.id_before_the_branch()] {
             crate::work_item::forget_held(work_dir.as_path(), name.as_str());
             // What: The values of that record go with it, because nothing can run it now.
             // Why:  They live in this service's memory alone, and one of them can hold a password, so a record a batch gave back
             //  keeps none of them (`service_push_programs_held_in_memory`).
-            crate::service_push_programs_held_in_memory::forget(intent.git_dir.as_path(), name.as_str());
+            crate::service_push_programs_held_in_memory::forget(
+                intent.git_dir.as_path(),
+                name.as_str(),
+            );
         }
     }
 }
@@ -158,8 +214,17 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
 /// the answer loop writes it into the same record with the item's own words once the branch has moved (`hold_the_push`),
 /// and a batch a restart finishes names the command the request named,
 /// because no process table of the restart can tell which command owes the gate.
-fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, holder: &str, transport: bool) {
-    let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent, transport);
+fn hold_one(
+    repository: &std::path::Path,
+    git_dir: &std::path::Path,
+    reference: &str,
+    commit: &str,
+    parent: &str,
+    holder: &str,
+    transport: bool,
+) {
+    let item: crate::work_item::WorkItem =
+        push_item_of(repository, git_dir, reference, commit, parent, transport);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
     if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, holder) {
         crate::service_error!(
@@ -187,7 +252,10 @@ fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: 
 /// ```ts
 /// await holdThePush(request, commit);
 /// ```
-pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
+pub(crate) fn hold_the_push(
+    request: &CommitRequest,
+    commit: &str,
+) {
     // The same rule the batch's own records follow: a push record names its branch in text, and a name that is not text has
     //  none, because a spelling with replacement characters would push another branch.
     let Some(reference) = request.reference.text() else {
@@ -205,16 +273,26 @@ pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
         tries: 0,
         // The command that asked for this commit is the one whose push this record is, so it is the one whose transport
         //  choice the record remembers.
-        transport: request.programs.as_ref().is_some_and(|programs| { return programs.transport; }),
+        transport: request.programs.as_ref().is_some_and(|programs| {
+            return programs.transport;
+        }),
     };
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
+    let work_dir: std::path::PathBuf =
+        crate::service_work::work_directory(request.git_dir.as_path());
     // The record this batch already held names no command; naming this request's command here is what lets a later command
     //  tell a wait that has a command behind it from one whose command is gone (`held_push_holder_and_verdict.rs`).
-    let named: bool = crate::work_item::record_verdict(work_dir.as_path(), item.id().as_str(), request.holder.as_str(), crate::held_push_holder_and_verdict::Verdict::Undecided, "");
+    let named: bool = crate::work_item::record_verdict(
+        work_dir.as_path(),
+        item.id().as_str(),
+        request.holder.as_str(),
+        crate::held_push_holder_and_verdict::Verdict::Undecided,
+        "",
+    );
     if named {
         return;
     }
-    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, request.holder.as_str()) {
+    if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, request.holder.as_str())
+    {
         crate::service_error!(
             "the push of the landed commit {commit} {} could not be held for its gate ({reason})",
             crate::service_timing::in_the_repository_at(request.repository.as_path())

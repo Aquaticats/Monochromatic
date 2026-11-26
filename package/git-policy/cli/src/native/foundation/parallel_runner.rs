@@ -24,10 +24,23 @@
 //! ```
 
 use crate::line_sink::LineSink;
-use crate::scoped_start::{Started, start_or_run_with};
-use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use crate::scoped_start::{
+    Started,
+    start_or_run_with,
+};
+use crate::side_by_side_threads::{
+    ScopeBody,
+    in_thread_scope,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
 use std::thread::Scope;
 
 /// What:
@@ -81,7 +94,12 @@ pub trait OrderedWork<T, R>: Sync {
     /// Do the item at `index`,
     /// saying its lines through `say`,
     /// and return its result.
-    fn run(&self, index: usize, item: &T, say: &mut dyn LineSink) -> R;
+    fn run(
+        &self,
+        index: usize,
+        item: &T,
+        say: &mut dyn LineSink,
+    ) -> R;
 }
 
 /// What:
@@ -99,7 +117,10 @@ pub trait OrderedWork<T, R>: Sync {
 pub trait OrderedEvents<R> {
     /// Take one event,
     /// in input order.
-    fn on_event(&mut self, event: Event<'_, R>);
+    fn on_event(
+        &mut self,
+        event: Event<'_, R>,
+    );
 }
 
 /// What:
@@ -159,7 +180,12 @@ impl<R> Cursor<R> {
         held_lines.resize_with(count, Vec::new);
         let mut finished: Vec<Option<R>> = Vec::new();
         finished.resize_with(count, Option::default);
-        return Cursor { head: 0, begun: false, held_lines, finished };
+        return Cursor {
+            head: 0,
+            begun: false,
+            held_lines,
+            finished,
+        };
     }
 
     /// What:
@@ -172,7 +198,11 @@ impl<R> Cursor<R> {
     /// ```ts
     /// cursor.tell(message, onEvent);
     /// ```
-    pub(crate) fn tell<E: OrderedEvents<R> + ?Sized>(&mut self, message: Message<R>, on_event: &mut E) {
+    pub(crate) fn tell<E: OrderedEvents<R> + ?Sized>(
+        &mut self,
+        message: Message<R>,
+        on_event: &mut E,
+    ) {
         match message {
             Message::Line(index, text) => {
                 if index == self.head && self.begun {
@@ -191,7 +221,10 @@ impl<R> Cursor<R> {
     /// its held lines follow,
     /// and a complete head ends and the
     ///  next item becomes the head.
-    pub(crate) fn advance<E: OrderedEvents<R> + ?Sized>(&mut self, on_event: &mut E) {
+    pub(crate) fn advance<E: OrderedEvents<R> + ?Sized>(
+        &mut self,
+        on_event: &mut E,
+    ) {
         loop {
             if self.head >= self.finished.len() {
                 return;
@@ -225,9 +258,14 @@ struct LinesToConsumer<'sender, R> {
 }
 
 impl<R> LineSink for LinesToConsumer<'_, R> {
-    fn say(&mut self, text: &str) {
+    fn say(
+        &mut self,
+        text: &str,
+    ) {
         // The consumer is gone only when the calling thread panicked, and that panic is reported by the scope.
-        let _sent = self.sender.send(Message::Line(self.index, text.to_string()));
+        let _sent = self
+            .sender
+            .send(Message::Line(self.index, text.to_string()));
     }
 }
 
@@ -236,7 +274,13 @@ impl<R> LineSink for LinesToConsumer<'_, R> {
 /// the lanes,
 /// the counter that hands out lanes,
 /// the work and the sender of its results.
-type WorkerState<'a, T, R> = (&'a [T], &'a [Vec<usize>], &'a AtomicUsize, &'a dyn OrderedWork<T, R>, Sender<Message<R>>);
+type WorkerState<'a, T, R> = (
+    &'a [T],
+    &'a [Vec<usize>],
+    &'a AtomicUsize,
+    &'a dyn OrderedWork<T, R>,
+    Sender<Message<R>>,
+);
 
 /// What a worker does:
 /// take lanes until none is left,
@@ -245,10 +289,21 @@ type WorkerState<'a, T, R> = (&'a [T], &'a [Vec<usize>], &'a AtomicUsize, &'a dy
 fn work_lanes<T, R>((items, lanes, next_lane, work, sender): WorkerState<'_, T, R>) {
     loop {
         let lane_index: usize = next_lane.fetch_add(1, Ordering::Relaxed);
-        let Some(lane) = lanes.get(lane_index) else { return };
+        let Some(lane) = lanes.get(lane_index) else {
+            return;
+        };
         for &index in lane {
-            let Some(item) = items.get(index) else { continue };
-            let result: R = work.run(index, item, &mut LinesToConsumer { sender: &sender, index });
+            let Some(item) = items.get(index) else {
+                continue;
+            };
+            let result: R = work.run(
+                index,
+                item,
+                &mut LinesToConsumer {
+                    sender: &sender,
+                    index,
+                },
+            );
             let _sent = sender.send(Message::Done(index, result));
         }
     }
@@ -285,13 +340,30 @@ impl<'env, T: Sync + 'env, R: Send + 'env> ScopeBody<'env> for OrderedScope<'env
 
     /// Start the workers,
     /// then read their messages and report them in order until every worker is gone.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) {
-        let OrderedScope { items, lanes, workers, work, on_event, next_lane, sender, receiver, mut cursor } = self;
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'env>,
+    ) {
+        let OrderedScope {
+            items,
+            lanes,
+            workers,
+            work,
+            on_event,
+            next_lane,
+            sender,
+            receiver,
+            mut cursor,
+        } = self;
         // A worker whose thread cannot start runs its lanes here, before the events are read; a panic it had is raised after them.
         let mut inline_panic: Option<Box<dyn std::any::Any + Send>> = None;
         for _worker in 0..workers.max(1).min(lanes.len().max(1)) {
             let worker_sender: Sender<Message<R>> = sender.clone();
-            if let Started::Inline(Err(payload)) = start_or_run_with(scope, (items, lanes, next_lane, work, worker_sender), work_lanes::<T, R>) {
+            if let Started::Inline(Err(payload)) = start_or_run_with(
+                scope,
+                (items, lanes, next_lane, work, worker_sender),
+                work_lanes::<T, R>,
+            ) {
                 inline_panic.get_or_insert(payload);
             }
         }
@@ -317,7 +389,10 @@ impl<'env, T: Sync + 'env, R: Send + 'env> ScopeBody<'env> for OrderedScope<'env
 /// ```ts
 /// assertLanesCoverEveryItem(items.length, lanes);
 /// ```
-pub(crate) fn refuse_lanes_that_do_not_cover_every_item(count: usize, lanes: &[Vec<usize>]) {
+pub(crate) fn refuse_lanes_that_do_not_cover_every_item(
+    count: usize,
+    lanes: &[Vec<usize>],
+) {
     let mut covered: Vec<bool> = vec![false; count];
     for &index in lanes.iter().flatten() {
         let Some(slot) = covered.get_mut(index) else {
@@ -326,7 +401,10 @@ pub(crate) fn refuse_lanes_that_do_not_cover_every_item(count: usize, lanes: &[V
         assert!(!*slot, "item {index} is in two lanes");
         *slot = true;
     }
-    assert!(!covered.contains(&false), "a lane set must cover every item");
+    assert!(
+        !covered.contains(&false),
+        "a lane set must cover every item"
+    );
 }
 
 /// What:
@@ -348,12 +426,28 @@ pub(crate) fn refuse_lanes_that_do_not_cover_every_item(count: usize, lanes: &[V
 /// When a lane names an index that is not an item,
 /// or the lanes do not cover every item exactly once.
 pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
-    let OrderedRun { items, lanes, workers, work, on_event } = run;
+    let OrderedRun {
+        items,
+        lanes,
+        workers,
+        work,
+        on_event,
+    } = run;
     refuse_lanes_that_do_not_cover_every_item(items.len(), lanes);
     let next_lane: AtomicUsize = AtomicUsize::new(0);
     let (sender, receiver) = channel::<Message<R>>();
     let cursor: Cursor<R> = Cursor::new(items.len());
-    in_thread_scope(OrderedScope { items, lanes, workers, work, on_event, next_lane: &next_lane, sender, receiver, cursor });
+    in_thread_scope(OrderedScope {
+        items,
+        lanes,
+        workers,
+        work,
+        on_event,
+        next_lane: &next_lane,
+        sender,
+        receiver,
+        cursor,
+    });
 }
 
 /// Ordered run controls stay out of the release executable.

@@ -26,11 +26,23 @@
 //! const intact = addsOnlyPresentObjects(commitName, tipName); // false: ask Git
 //! ```
 
-use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
-use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{CommitFields, MODE_GITLINK, TreeEntry, is_tree_mode, parse_commit, parse_tree};
 use crate::config_snapshot::ConfigSnapshot;
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+    name_length,
+    to_hex,
+};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::{
+    CommitFields,
+    MODE_GITLINK,
+    TreeEntry,
+    is_tree_mode,
+    parse_commit,
+    parse_tree,
+};
 use crate::transaction_git::GitContext;
 use std::collections::HashMap;
 use std::path::Path;
@@ -52,7 +64,9 @@ const TREE_DEPTH_LIMIT: usize = 256;
 /// the release executable counts nothing.
 #[cfg(test)]
 fn note_name_step() {
-    crate::landing_state_carried_by_its_task::with_the_landing_state(|state| state.name_steps.set(state.name_steps.get() + 1));
+    crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
+        state.name_steps.set(state.name_steps.get() + 1)
+    });
 }
 
 /// The release executable does not count name comparisons.
@@ -62,7 +76,9 @@ fn note_name_step() {}
 /// The name comparisons the proofs of this landing have made so far.
 #[cfg(test)]
 pub(crate) fn name_steps() -> u64 {
-    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| return state.name_steps.get());
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
+        return state.name_steps.get();
+    });
 }
 
 /// The commit's header facts the landing needs.
@@ -84,7 +100,11 @@ pub struct BuiltCommit {
 /// The format of the names,
 /// from their length.
 fn format_of(hex: &str) -> ObjectFormat {
-    return if hex.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    return if hex.len() == ObjectFormat::Sha256.hex_length() {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
 }
 
 /// The environment variables that change which history,
@@ -114,7 +134,10 @@ fn history_is_rewritten(common_dir: &Path) -> bool {
 /// ```ts
 /// git.overlay.some(([key]) => key === name)
 /// ```
-fn overlay_sets(git: &GitContext, name: &str) -> bool {
+fn overlay_sets(
+    git: &GitContext,
+    name: &str,
+) -> bool {
     for (key, _value) in git.overlay.iter() {
         if key.to_string_lossy() == name {
             return true;
@@ -135,7 +158,9 @@ fn overlay_sets(git: &GitContext, name: &str) -> bool {
 /// ```
 fn changes_replacements(word: &std::ffi::OsString) -> bool {
     let text = word.to_string_lossy().to_ascii_lowercase();
-    return text == "--no-replace-objects" || text.starts_with("--replace-refs") || text.contains("core.usereplacerefs");
+    return text == "--no-replace-objects"
+        || text.starts_with("--replace-refs")
+        || text.contains("core.usereplacerefs");
 }
 
 /// What:
@@ -181,7 +206,11 @@ fn hex_of_parents(parents: &[Vec<u8>]) -> Vec<String> {
 /// ```ts
 /// snapshot !== undefined && !HISTORY_VARIABLES.some(isSet) && !prefix.some(changesReplacements) && !hasKey('core.usereplacerefs') && !filesAtDefaultPlaces()
 /// ```
-pub fn history_is_plain(common_dir: &Path, git: &GitContext, snapshot: Option<&ConfigSnapshot>) -> bool {
+pub fn history_is_plain(
+    common_dir: &Path,
+    git: &GitContext,
+    snapshot: Option<&ConfigSnapshot>,
+) -> bool {
     let Some(read) = snapshot else { return false };
     if history_is_rewritten(common_dir) {
         return false;
@@ -251,7 +280,12 @@ pub struct CommitContent {
 /// ```ts
 /// const readCommitContent = (commonDir, commit) => parseCommit(readObject(commonDir, commit));
 /// ```
-pub fn commit_content(git: &GitContext, repository: &Path, common_dir: &Path, commit: &str) -> Option<CommitContent> {
+pub fn commit_content(
+    git: &GitContext,
+    repository: &Path,
+    common_dir: &Path,
+    commit: &str,
+) -> Option<CommitContent> {
     let format: ObjectFormat = format_of(commit);
     let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
         return content_git_reads(git, repository, commit);
@@ -261,7 +295,11 @@ pub fn commit_content(git: &GitContext, repository: &Path, common_dir: &Path, co
         return None;
     }
     let fields = parse_commit(object.bytes.as_slice(), format)?;
-    return Some(CommitContent { parents: hex_of_parents(&fields.parents), tree: fields.tree, message: fields.message });
+    return Some(CommitContent {
+        parents: hex_of_parents(&fields.parents),
+        tree: fields.tree,
+        message: fields.message,
+    });
 }
 
 /// What:
@@ -277,10 +315,19 @@ pub fn commit_content(git: &GitContext, repository: &Path, common_dir: &Path, co
 /// ```ts
 /// const contentGitReads = (git, repository, commit) => parseCommit(git(['cat-file', 'commit', commit]).stdout);
 /// ```
-fn content_git_reads(git: &GitContext, repository: &Path, commit: &str) -> Option<CommitContent> {
-    let bytes: Vec<u8> = crate::service_object_questions_left_to_git::commit_bytes(git, repository, commit)?;
+fn content_git_reads(
+    git: &GitContext,
+    repository: &Path,
+    commit: &str,
+) -> Option<CommitContent> {
+    let bytes: Vec<u8> =
+        crate::service_object_questions_left_to_git::commit_bytes(git, repository, commit)?;
     let fields = parse_commit(bytes.as_slice(), format_of(commit))?;
-    return Some(CommitContent { parents: hex_of_parents(&fields.parents), tree: fields.tree, message: fields.message });
+    return Some(CommitContent {
+        parents: hex_of_parents(&fields.parents),
+        tree: fields.tree,
+        message: fields.message,
+    });
 }
 
 /// What:
@@ -297,12 +344,21 @@ fn content_git_reads(git: &GitContext, repository: &Path, commit: &str) -> Optio
 /// ```ts
 /// readCommit(commonDir, built)?.parents
 /// ```
-pub fn read_commit(git: &GitContext, repository: &Path, common_dir: &Path, built: &str) -> Option<BuiltCommit> {
+pub fn read_commit(
+    git: &GitContext,
+    repository: &Path,
+    common_dir: &Path,
+    built: &str,
+) -> Option<BuiltCommit> {
     if history_is_rewritten(common_dir) {
         return None;
     }
     let content: CommitContent = commit_content(git, repository, common_dir, built)?;
-    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format_of(built))?, parents: content.parents, tree: content.tree });
+    return Some(BuiltCommit {
+        name: from_hex(built.as_bytes(), format_of(built))?,
+        parents: content.parents,
+        tree: content.tree,
+    });
 }
 
 /// What the walk found.
@@ -331,7 +387,10 @@ impl Proof<'_> {
     /// The entries of the tree `name`,
     /// or `None` when it is absent,
     /// not a tree or unreadable.
-    fn entries(&self, name: &[u8]) -> Option<Vec<TreeEntry>> {
+    fn entries(
+        &self,
+        name: &[u8],
+    ) -> Option<Vec<TreeEntry>> {
         let object = self.database.read(name)?;
         if object.kind != ObjectKind::Tree {
             return None;
@@ -345,14 +404,21 @@ impl Proof<'_> {
     ///  sides is reachable from the tip,
     /// every other blob must exist,
     /// and every other tree is read and checked the same way.
-    fn tree(&mut self, new: &[u8], old: Option<&[u8]>, depth: usize) -> Found {
+    fn tree(
+        &mut self,
+        new: &[u8],
+        old: Option<&[u8]>,
+        depth: usize,
+    ) -> Found {
         if old == Some(new) {
             return Found::Present;
         }
         if depth > TREE_DEPTH_LIMIT {
             return Found::Unproven;
         }
-        let Some(wanted) = self.entries(new) else { return Found::Unproven };
+        let Some(wanted) = self.entries(new) else {
+            return Found::Unproven;
+        };
         // A directory that is not named, or cannot be read, has no entries to compare with.
         let before: Vec<TreeEntry> = match old {
             Some(name) => self.entries(name).unwrap_or_default(),
@@ -374,12 +440,16 @@ impl Proof<'_> {
         for entry in wanted {
             note_name_step();
             let same_name: Option<&&TreeEntry> = by_name.get(entry.name.as_slice());
-            if matches!(same_name, Some(candidate) if candidate.id == entry.id && candidate.mode == entry.mode) || entry.mode == MODE_GITLINK {
+            if matches!(same_name, Some(candidate) if candidate.id == entry.id && candidate.mode == entry.mode)
+                || entry.mode == MODE_GITLINK
+            {
                 continue;
             }
             if is_tree_mode(entry.mode) {
                 let below: Option<&[u8]> = match same_name {
-                    Some(candidate) if is_tree_mode(candidate.mode) => Some(candidate.id.as_slice()),
+                    Some(candidate) if is_tree_mode(candidate.mode) => {
+                        Some(candidate.id.as_slice())
+                    }
                     _ => None,
                 };
                 if self.tree(entry.id.as_slice(), below, depth + 1) == Found::Unproven {
@@ -414,21 +484,42 @@ impl Proof<'_> {
 /// ```ts
 /// onlyParentIs(built, tip) && everyChangedObjectExists(built.tree, tip.tree)
 /// ```
-pub fn adds_only_present_objects(common_dir: &Path, built: &BuiltCommit, tip: &str) -> bool {
+pub fn adds_only_present_objects(
+    common_dir: &Path,
+    built: &BuiltCommit,
+    tip: &str,
+) -> bool {
     if history_is_rewritten(common_dir) || built.parents.len() != 1 || built.parents[0] != tip {
         return false;
     }
     let format: ObjectFormat = format_of(tip);
-    let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
-    let Some(tip_bytes) = from_hex(tip.as_bytes(), format) else { return false };
-    let Some(tip_object) = database.read(tip_bytes.as_slice()) else { return false };
+    let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
+        return false;
+    };
+    let Some(tip_bytes) = from_hex(tip.as_bytes(), format) else {
+        return false;
+    };
+    let Some(tip_object) = database.read(tip_bytes.as_slice()) else {
+        return false;
+    };
     // Only a commit has fields to read.
-    let tip_fields_read: Option<CommitFields> = if tip_object.kind == ObjectKind::Commit { parse_commit(tip_object.bytes.as_slice(), format) } else { None };
-    let Some(tip_fields) = tip_fields_read else { return false };
+    let tip_fields_read: Option<CommitFields> = if tip_object.kind == ObjectKind::Commit {
+        parse_commit(tip_object.bytes.as_slice(), format)
+    } else {
+        None
+    };
+    let Some(tip_fields) = tip_fields_read else {
+        return false;
+    };
     // The commit was read before the objects were checked, and an object can go in between: it is looked up again here.
     if !database.contains(built.name.as_slice()) {
         return false;
     }
-    let mut proof: Proof<'_> = Proof { database: &database, format, budget: ENTRY_BUDGET };
-    return proof.tree(built.tree.as_slice(), Some(tip_fields.tree.as_slice()), 0) == Found::Present;
+    let mut proof: Proof<'_> = Proof {
+        database: &database,
+        format,
+        budget: ENTRY_BUDGET,
+    };
+    return proof.tree(built.tree.as_slice(), Some(tip_fields.tree.as_slice()), 0)
+        == Found::Present;
 }

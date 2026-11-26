@@ -26,7 +26,10 @@
 /// ```ts
 /// const caught = callCatchingPanics(state, call); // { ok } or { panic }
 /// ```
-pub fn call_catching_panics<S, R>(state: S, call: fn(S) -> R) -> std::thread::Result<R> {
+pub fn call_catching_panics<S, R>(
+    state: S,
+    call: fn(S) -> R,
+) -> std::thread::Result<R> {
     #[cfg_attr(
         dylint_lib = "monochromatic_lint_closure",
         expect(
@@ -34,7 +37,10 @@ pub fn call_catching_panics<S, R>(state: S, call: fn(S) -> R) -> std::thread::Re
             reason = "`std::panic::catch_unwind` accepts only a callable with no arguments, and it must carry the state and the function; see package/git-policy/cli/doc/closure-lint-suppressions.md"
         )
     )]
-    let caught: std::thread::Result<R> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || { return call(state); }));
+    let caught: std::thread::Result<R> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            return call(state);
+        }));
     return caught;
 }
 

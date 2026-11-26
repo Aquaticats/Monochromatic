@@ -18,44 +18,75 @@
 //! const capture = await captureInvocationBase({ gitPath, cwd, layout });
 //! ```
 
-/// Journal enums shared with the transaction record:
-///  the base,
-/// the symbolic `HEAD`,
-/// the conclusion and the ref backend.
-use crate::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
-/// Failure text of one Git start that the layout reports as unusable.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
+/// The one configuration read the invocation's consumers share.
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    read_config_snapshot,
+};
+/// The empty tree's name per object format,
+/// known without a Git process.
+use crate::empty_tree::empty_tree_name;
+/// The answers of one report,
+///  and the pathname each of them names.
+use crate::git_report_answers::{
+    absolute_reported,
+    answers_of,
+    object_format_of,
+};
+use crate::git_system_config::with_real_git;
+/// Invocation start time,
+/// ISO-8601 with milliseconds.
+use crate::iso_time::now_iso;
+/// Trim with JavaScript's whitespace rules,
+/// as `String.prototype.trim` does.
+use crate::js_text::trim_javascript;
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
-use crate::ref_files::{RefFilesLayout, read_symbolic_head};
+use crate::ref_files::{
+    RefFilesLayout,
+    read_symbolic_head,
+};
 /// A reference name as the bytes Git printed it.
 use crate::ref_name::RefName;
 /// The in-process repository layout,
 /// tried before the `rev-parse` report,
 ///  and the report shape it answers with.
-use crate::repo_read_adapter::{InvocationReport, invocation_report};
-use crate::git_system_config::with_real_git;
+use crate::repo_read_adapter::{
+    InvocationReport,
+    invocation_report,
+};
 use crate::repo_read_layout::read_layout_in;
 /// Proof that a sequencer marker names nothing,
 /// without a Git process.
 use crate::sequencer_marker::markers_maybe_present;
-/// The empty tree's name per object format,
-/// known without a Git process.
-use crate::empty_tree::empty_tree_name;
-/// Trim with JavaScript's whitespace rules,
-/// as `String.prototype.trim` does.
-use crate::js_text::trim_javascript;
-/// Invocation start time,
-/// ISO-8601 with milliseconds.
-use crate::iso_time::now_iso;
-/// The one configuration read the invocation's consumers share.
-use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-/// The answers of one report,
-///  and the pathname each of them names.
-use crate::git_report_answers::{absolute_reported, answers_of, object_format_of};
+/// Failure text of one Git start that the layout reports as unusable.
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git,
+    run_git_checked,
+};
+/// Journal enums shared with the transaction record:
+///  the base,
+/// the symbolic `HEAD`,
+/// the conclusion and the ref backend.
+use crate::transaction_journal::{
+    Base,
+    Conclusion,
+    RefFormat,
+    SymbolicHead,
+};
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `PathBuf` is an owned filesystem path.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Facts about the repository one invocation selects,
@@ -158,10 +189,15 @@ fn decoded_trimmed(output: &GitOutput) -> Result<String, GitFailure> {
 /// ```ts
 /// runTransactionGit({ gitPath, cwd, args, repository: selection({ cwd, globalPrefix }) })
 /// ```
-fn transaction_request<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> GitRequest {
+fn transaction_request<S: AsRef<OsStr>>(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[S],
+) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, arguments);
     request.without_prefix = true;
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    request.repository_selection =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     return request;
 }
 
@@ -176,16 +212,25 @@ fn transaction_request<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, argume
 /// ```ts
 /// await runTransactionGit({ gitPath, cwd, args, allowFailure: true })
 /// ```
-fn probe<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> Result<GitOutput, GitFailure> {
+fn probe<S: AsRef<OsStr>>(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[S],
+) -> Result<GitOutput, GitFailure> {
     return match run_git(context, &transaction_request(context, cwd, arguments)) {
         Ok(output) => Ok(output),
         Err(error) => {
             // The words are a message here, so a name that is not text is shown as the shell reads it back.
             let mut shown: Vec<String> = Vec::with_capacity(arguments.len());
             for argument in arguments {
-                shown.push(crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(argument.as_ref())));
+                shown.push(crate::shell_quote::shell_quote(
+                    crate::path_bytes::argument_bytes(argument.as_ref()),
+                ));
             }
-            Err(GitFailure(format!("git {} could not start: {error}", shown.join(" "))))
+            Err(GitFailure(format!(
+                "git {} could not start: {error}",
+                shown.join(" ")
+            )))
         }
     };
 }
@@ -199,7 +244,11 @@ fn probe<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> 
 /// ```ts
 /// await runTransactionGit({ gitPath, cwd, args })
 /// ```
-fn required<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> Result<GitOutput, GitFailure> {
+fn required<S: AsRef<OsStr>>(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[S],
+) -> Result<GitOutput, GitFailure> {
     return run_git_checked(context, &transaction_request(context, cwd, arguments));
 }
 
@@ -243,8 +292,18 @@ const PATH_QUESTIONS: [&[&str]; LAYOUT_PATHS] = [
     &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
     &["rev-parse", "--path-format=absolute", "--git-common-dir"],
     &["rev-parse", "--path-format=absolute", "--git-path", "index"],
-    &["rev-parse", "--path-format=absolute", "--git-path", "objects"],
-    &["rev-parse", "--path-format=absolute", "--git-path", "cli-git-transactions"],
+    &[
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-path",
+        "objects",
+    ],
+    &[
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-path",
+        "cli-git-transactions",
+    ],
 ];
 
 /// The question that prints the object format,
@@ -261,7 +320,10 @@ const OBJECT_FORMAT_QUESTION: [&str; 2] = ["rev-parse", "--show-object-format"];
 /// ```ts
 /// ({ topLevel: absolute(cwd, answers[0]), gitDir: absolute(cwd, answers[1]), ... })
 /// ```
-fn report_of_answers(cwd: &Path, answers: &[&[u8]; LAYOUT_ANSWERS]) -> Result<InvocationReport, GitFailure> {
+fn report_of_answers(
+    cwd: &Path,
+    answers: &[&[u8]; LAYOUT_ANSWERS],
+) -> Result<InvocationReport, GitFailure> {
     return Ok(InvocationReport {
         top_level: absolute_reported(cwd, answers[0])?,
         git_dir: absolute_reported(cwd, answers[1])?,
@@ -284,7 +346,10 @@ fn report_of_answers(cwd: &Path, answers: &[&[u8]; LAYOUT_ANSWERS]) -> Result<In
 /// ```ts
 /// PATH_QUESTIONS.map(async (question) => absolute(cwd, await ask(question)))
 /// ```
-fn absolute_answers(context: &GitContext, cwd: &Path) -> Result<[PathBuf; LAYOUT_PATHS], GitFailure> {
+fn absolute_answers(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<[PathBuf; LAYOUT_PATHS], GitFailure> {
     let mut answers: Vec<PathBuf> = Vec::with_capacity(LAYOUT_PATHS);
     for question in PATH_QUESTIONS {
         let output: GitOutput = required(context, cwd, question)?;
@@ -292,7 +357,9 @@ fn absolute_answers(context: &GitContext, cwd: &Path) -> Result<[PathBuf; LAYOUT
     }
     return match <[PathBuf; LAYOUT_PATHS]>::try_from(answers) {
         Ok(exactly) => Ok(exactly),
-        Err(_) => Err(GitFailure(String::from("Git returned incomplete repository layout."))),
+        Err(_) => Err(GitFailure(String::from(
+            "Git returned incomplete repository layout.",
+        ))),
     };
 }
 
@@ -307,8 +374,18 @@ fn absolute_answers(context: &GitContext, cwd: &Path) -> Result<[PathBuf; LAYOUT
 /// ```ts
 /// const [topLevel, gitDir, commonDir, indexPath, objectDirectory, registryRoot] = await absoluteAnswers();
 /// ```
-fn layout_report_asked_for(context: &GitContext, cwd: &Path) -> Result<InvocationReport, GitFailure> {
-    let [top_level, git_dir, common_dir, index_path, object_directory, registry_root] = absolute_answers(context, cwd)?;
+fn layout_report_asked_for(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<InvocationReport, GitFailure> {
+    let [
+        top_level,
+        git_dir,
+        common_dir,
+        index_path,
+        object_directory,
+        registry_root,
+    ] = absolute_answers(context, cwd)?;
     let output: GitOutput = required(context, cwd, OBJECT_FORMAT_QUESTION.as_slice())?;
     return Ok(InvocationReport {
         top_level,
@@ -333,7 +410,10 @@ fn layout_report_asked_for(context: &GitContext, cwd: &Path) -> Result<Invocatio
 /// ```ts
 /// const answers = split(await ask(['rev-parse', ...LAYOUT_ARGUMENTS])); answers.length === 7 ? reportOf(answers) : askedFor()
 /// ```
-fn layout_report_from_git(context: &GitContext, cwd: &Path) -> Result<InvocationReport, GitFailure> {
+fn layout_report_from_git(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<InvocationReport, GitFailure> {
     let mut arguments: Vec<&str> = vec!["rev-parse"];
     arguments.extend_from_slice(LAYOUT_ARGUMENTS.as_slice());
     let output: GitOutput = required(context, cwd, arguments.as_slice())?;
@@ -357,7 +437,11 @@ fn layout_report_from_git(context: &GitContext, cwd: &Path) -> Result<Invocation
 /// ```ts
 /// (await runTransactionGit({ args: ['rev-parse', '--verify', '--quiet', name], allowFailure: true })).exitCode === 0
 /// ```
-fn pseudoref_exists(context: &GitContext, cwd: &Path, name: &str) -> Result<bool, GitFailure> {
+fn pseudoref_exists(
+    context: &GitContext,
+    cwd: &Path,
+    name: &str,
+) -> Result<bool, GitFailure> {
     return Ok(probe(context, cwd, &["rev-parse", "--verify", "--quiet", name])?.code == Some(0));
 }
 
@@ -386,7 +470,11 @@ pub fn resolve_conclusion_kind(
         return Ok(Conclusion::Amend);
     }
     let names: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
-    let kinds: [Conclusion; 3] = [Conclusion::Merge, Conclusion::CherryPick, Conclusion::Revert];
+    let kinds: [Conclusion; 3] = [
+        Conclusion::Merge,
+        Conclusion::CherryPick,
+        Conclusion::Revert,
+    ];
     let maybe_present: Vec<bool> = markers_maybe_present(ref_files, &names);
     for ((name, kind), maybe) in names.into_iter().zip(kinds).zip(maybe_present) {
         if maybe && pseudoref_exists(context, cwd, name)? {
@@ -428,7 +516,9 @@ pub fn resolve_symbolic_head(
     }
     // The name is the bytes Git printed: a branch name is a byte string, and a reading that replaced a byte
     //  would name another ref (`ref_name.rs`).
-    return Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_git_output(output.stdout.as_slice())));
+    return Ok(SymbolicHead::Branch(
+        crate::ref_name::RefName::from_git_output(output.stdout.as_slice()),
+    ));
 }
 
 /// What:
@@ -442,11 +532,24 @@ pub fn resolve_symbolic_head(
 /// ```ts
 /// await resolveRefCommit({ gitPath, cwd, ref });
 /// ```
-pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &RefName) -> Result<Base, GitFailure> {
+pub fn resolve_ref_commit(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &RefName,
+) -> Result<Base, GitFailure> {
     // The question is the one spelling the in-process readers answer, `<ref>^{commit}`, and both halves are bytes.
     let mut peeled: OsString = reference.as_os_str().to_os_string();
     peeled.push("^{commit}");
-    let output: GitOutput = probe(context, cwd, &[OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), peeled])?;
+    let output: GitOutput = probe(
+        context,
+        cwd,
+        &[
+            OsString::from("rev-parse"),
+            OsString::from("--verify"),
+            OsString::from("--quiet"),
+            peeled,
+        ],
+    )?;
     if output.code != Some(0) {
         return Ok(Base::Unborn);
     }
@@ -479,7 +582,11 @@ pub fn resolve_ref_format_with(
     }
     let output: GitOutput = probe(context, cwd, &["rev-parse", "--show-ref-format"])?;
     let reftable: bool = output.code == Some(0) && decoded_trimmed(&output)? == "reftable";
-    return Ok(if reftable { RefFormat::Reftable } else { RefFormat::Files });
+    return Ok(if reftable {
+        RefFormat::Reftable
+    } else {
+        RefFormat::Files
+    });
 }
 
 /// What:
@@ -494,7 +601,11 @@ pub fn resolve_ref_format_with(
 /// ```ts
 /// emptyTreeName(objectFormat) ?? (await runTransactionGit({ args: ['hash-object', '-t', 'tree', '--stdin'] })).trim()
 /// ```
-fn resolve_empty_tree(context: &GitContext, cwd: &Path, object_format: &str) -> Result<String, GitFailure> {
+fn resolve_empty_tree(
+    context: &GitContext,
+    cwd: &Path,
+    object_format: &str,
+) -> Result<String, GitFailure> {
     if let Some(known) = empty_tree_name(object_format) {
         return Ok(String::from(known));
     }
@@ -523,12 +634,19 @@ pub fn capture_invocation_layout(
     let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
     // The readers answer for the directory they are given and cannot honour a repository the caller named, so a command line
     //  that names one asks Git.
-    let named: bool = !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty();
+    let named: bool =
+        !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice())
+            .is_empty();
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
     let read_in_process: Option<InvocationReport> = if named {
         None
     } else {
-        read_layout_in(cwd, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(invocation_report)
+        read_layout_in(
+            cwd,
+            with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice(),
+        )
+        .as_ref()
+        .and_then(invocation_report)
     };
     let report: InvocationReport = match read_in_process {
         Some(read) => read,
@@ -553,7 +671,11 @@ pub fn capture_invocation_layout(
     let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
     let repository_root: PathBuf = match std::fs::canonicalize(report.top_level.as_path()) {
         Ok(resolved) => resolved,
-        Err(error) => return Err(GitFailure(format!("repository root is unreadable: {error}"))),
+        Err(error) => {
+            return Err(GitFailure(format!(
+                "repository root is unreadable: {error}"
+            )));
+        }
     };
     return Ok(InvocationLayout {
         symbolic_head,
@@ -590,7 +712,10 @@ pub fn capture_invocation_base(
     layout: InvocationLayout,
 ) -> Result<InvocationCapture, GitFailure> {
     let base: Base = resolve_ref_commit(context, cwd, &layout.target_ref)?;
-    return Ok(InvocationCapture { base, layout });
+    return Ok(InvocationCapture {
+        base,
+        layout,
+    });
 }
 
 /// What:

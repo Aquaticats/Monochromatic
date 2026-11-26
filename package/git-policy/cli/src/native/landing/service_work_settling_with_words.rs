@@ -24,7 +24,11 @@
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::service_work_storage_awaited::settle_all_awaiting;
-use crate::work_item::{Claimed, DONE, FAILED};
+use crate::work_item::{
+    Claimed,
+    DONE,
+    FAILED,
+};
 use std::path::Path;
 
 /// What:
@@ -48,18 +52,29 @@ use std::path::Path;
 /// ```ts
 /// await settleWithTheWords(held, workDir, item, verdict, kind)
 /// ```
-pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
+pub(crate) async fn settle_with_the_words(
+    held: HeldClaims,
+    work_dir: &Path,
+    item: Claimed,
+    verdict: Verdict,
+    kind: &str,
+) -> Option<HeldClaims> {
     match verdict {
         Verdict::Done => {
             forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
-        Verdict::Delivered { said, .. } => {
+        Verdict::Delivered {
+            said,
+            ..
+        } => {
             // Only a push answers this, and a push is settled by `settle_after_the_push`, which records what it said before
             //  the item moves. A kind that answers in words reaches this only if a handler is given a push's verdict shape,
             //  which this module cannot make: the words are said rather than dropped, and the item is settled as done, because
             //  nothing here may fail a person's work over the shape of an answer.
-            crate::service_warn!("a step that answers in words answered as a push did, and its words are said here: {said}");
+            crate::service_warn!(
+                "a step that answers in words answered as a push did, and its words are said here: {said}"
+            );
             forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
@@ -70,15 +85,31 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
         }
         Verdict::Retry(reason) => {
             keep_the_reason(kind, &item, reason.as_str());
-            say_it_failed(kind, &item, format!("{reason}; this is tried again when its claim runs out").as_str());
+            say_it_failed(
+                kind,
+                &item,
+                format!("{reason}; this is tried again when its claim runs out").as_str(),
+            );
             return Some(held);
         }
         Verdict::Skipped(reason) => {
             match kind {
-                "trash" => crate::service_log!("the trash {} was left as it is: {reason}", item.item.parent),
-                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
-                "relink" => crate::service_log!("the package state of {} was left as it is: {reason}", item.item.repository.display()),
-                "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
+                "trash" => crate::service_log!(
+                    "the trash {} was left as it is: {reason}",
+                    item.item.parent
+                ),
+                "prewarm" => crate::service_log!(
+                    "the Cargo build directory of {} was left as it is: {reason}",
+                    item.item.repository.display()
+                ),
+                "relink" => crate::service_log!(
+                    "the package state of {} was left as it is: {reason}",
+                    item.item.repository.display()
+                ),
+                "subvolume delete" => crate::service_log!(
+                    "the subvolume {} was left as it is: {reason}",
+                    item.item.parent
+                ),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
             forget_the_reason(kind, &item);
@@ -101,12 +132,23 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
 /// ```ts
 /// if (kind === 'relink') remember(item.item.gitDir, item.item.id(), reason);
 /// ```
-fn keep_the_reason(kind: &str, item: &Claimed, reason: &str) {
+fn keep_the_reason(
+    kind: &str,
+    item: &Claimed,
+    reason: &str,
+) {
     if kind != "relink" {
         return;
     }
-    if let Err(problem) = crate::package_repair_relink_failure::remember(item.item.git_dir.as_path(), item.item.id().as_str(), reason) {
-        crate::service_warn!("the reason the relink of {} failed could not be kept for the person: {problem}", item.item.repository.display());
+    if let Err(problem) = crate::package_repair_relink_failure::remember(
+        item.item.git_dir.as_path(),
+        item.item.id().as_str(),
+        reason,
+    ) {
+        crate::service_warn!(
+            "the reason the relink of {} failed could not be kept for the person: {problem}",
+            item.item.repository.display()
+        );
     }
 }
 
@@ -121,11 +163,17 @@ fn keep_the_reason(kind: &str, item: &Claimed, reason: &str) {
 /// ```ts
 /// if (kind === 'relink') forget(item.item.gitDir, item.item.id());
 /// ```
-fn forget_the_reason(kind: &str, item: &Claimed) {
+fn forget_the_reason(
+    kind: &str,
+    item: &Claimed,
+) {
     if kind != "relink" {
         return;
     }
-    crate::package_repair_relink_failure::forget(item.item.git_dir.as_path(), item.item.id().as_str());
+    crate::package_repair_relink_failure::forget(
+        item.item.git_dir.as_path(),
+        item.item.id().as_str(),
+    );
 }
 
 /// What:
@@ -141,12 +189,28 @@ fn forget_the_reason(kind: &str, item: &Claimed) {
 /// ```ts
 /// sayItFailed(kind, item, reason) // every line goes to the service's log, through the queue that never holds its caller
 /// ```
-fn say_it_failed(kind: &str, item: &Claimed, reason: &str) {
+fn say_it_failed(
+    kind: &str,
+    item: &Claimed,
+    reason: &str,
+) {
     match kind {
-        "trash" => crate::service_warn!("the trash {} could not be emptied: {reason}", item.item.parent),
-        "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
-        "relink" => crate::service_warn!("the package state of {} could not be relinked: {reason}", item.item.repository.display()),
-        "subvolume delete" => crate::service_warn!("the subvolume {} could not be deleted: {reason}", item.item.parent),
+        "trash" => crate::service_warn!(
+            "the trash {} could not be emptied: {reason}",
+            item.item.parent
+        ),
+        "prewarm" => crate::service_warn!(
+            "the Cargo build directory of {} could not be filled: {reason}",
+            item.item.repository.display()
+        ),
+        "relink" => crate::service_warn!(
+            "the package state of {} could not be relinked: {reason}",
+            item.item.repository.display()
+        ),
+        "subvolume delete" => crate::service_warn!(
+            "the subvolume {} could not be deleted: {reason}",
+            item.item.parent
+        ),
         _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
     }
 }

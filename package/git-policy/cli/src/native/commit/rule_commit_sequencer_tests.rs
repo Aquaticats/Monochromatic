@@ -18,14 +18,28 @@
 
 /// The functions under test and the real-Git fixture helpers.
 use super::{
-    SequencerFacts, SequencerOutputError, SequencerState, sequencer_head_paths,
-    sequencer_query_arguments, sequencer_state, sequencer_state_when_query_fails,
+    SequencerFacts,
+    SequencerOutputError,
+    SequencerState,
+    sequencer_head_paths,
+    sequencer_query_arguments,
+    sequencer_state,
+    sequencer_state_when_query_fails,
 };
 use crate::command_test_support::{
-    fixture, git, git_output, os_arguments, remove, repository, repository_with_tracked_file,
+    fixture,
+    git,
+    git_output,
+    os_arguments,
+    remove,
+    repository,
+    repository_with_tracked_file,
     start_conflicted_merge,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Any one head file means an operation is in progress.

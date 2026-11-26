@@ -34,7 +34,10 @@ fn only_the_datasets_own_mount_shows_its_root() {
     let (own, bind) = the_two_mounts();
     assert_eq!(own.mount_id, 41);
     assert_eq!(own.root, std::path::PathBuf::from("/"));
-    assert_eq!(own.mount_point, std::path::PathBuf::from("/home/user/Monochromatic/.claude/worktrees/one"));
+    assert_eq!(
+        own.mount_point,
+        std::path::PathBuf::from("/home/user/Monochromatic/.claude/worktrees/one")
+    );
     assert!(own.is_the_dataset_root());
     assert_eq!(bind.root, std::path::PathBuf::from("/sub"));
     assert!(!bind.is_the_dataset_root());

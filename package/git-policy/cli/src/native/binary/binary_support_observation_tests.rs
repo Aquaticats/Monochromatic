@@ -24,27 +24,54 @@
 
 /// The shared wait these controls are of.
 use super::observe;
+/// The disposable fixture directory,
+/// the one writer of executable fixture files,
+/// and its removal.
+use crate::support::{
+    Fixture,
+    executable,
+    fixture,
+    remove,
+};
 /// The wait itself and what it answers,
 /// for the controls that give a wait a child of their own,
 /// the two bounds one reading of a command's line gives it,
 /// and the shared backstop a command whose line states none runs under.
-use crate::support_observation_bound::{Ending, LineBound, UNSTATED_BOUND, line_bound_of, wait_under_bound};
-/// The disposable fixture directory,
-/// the one writer of executable fixture files,
-/// and its removal.
-use crate::support::{Fixture, executable, fixture, remove};
+use crate::support_observation_bound::{
+    Ending,
+    LineBound,
+    UNSTATED_BOUND,
+    line_bound_of,
+    wait_under_bound,
+};
 /// The five folders a record of the after-commit queue stands in,
 /// which the wait's control moves one record through.
-use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING};
+use git_policy_cli::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    PENDING,
+    RECOVERING,
+};
 /// `process_group` puts a command of a control in a group of its own.
 use std::os::unix::process::CommandExt as _;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The command builder and the child's pipes.
-use std::process::{Child, Command, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 /// The clock a control measures its wait with,
 /// and the sleeps of its own waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The program whose form a bound takes in this harness:
 ///  `/usr/bin/timeout`,
@@ -136,16 +163,27 @@ fn spent_bound() -> Duration {
 ///  and the bound this wait keeps is the one that line states;
 ///  the wait starts the program such a line names,
 ///  which it does from the environment the line sets.
-fn bounded_script(made: &Fixture, script: &Path, seconds: u64) -> Command {
+fn bounded_script(
+    made: &Fixture,
+    script: &Path,
+    seconds: u64,
+) -> Command {
     let mut command: Command = Command::new(TIMEOUT);
-    command.arg("--signal=KILL").arg(seconds.to_string()).arg(script);
+    command
+        .arg("--signal=KILL")
+        .arg(seconds.to_string())
+        .arg(script);
     crate::support::hermetic(&mut command, made, std::ffi::OsStr::new("/usr/bin:/bin"));
     command.current_dir(made.root.as_path());
     return command;
 }
 
 /// One executable script in the fixture's directory.
-fn script(made: &Fixture, name: &str, body: &str) -> PathBuf {
+fn script(
+    made: &Fixture,
+    name: &str,
+    body: &str,
+) -> PathBuf {
     let path: PathBuf = made.root.join(name);
     executable(path.as_path(), body.as_bytes());
     return path;
@@ -184,10 +222,17 @@ fn descendant(release_and_gone: (&Path, &Path)) -> String {
 
 /// A named pipe the fixture can release a descendant through.
 fn named_pipe(path: &Path) {
-    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a fixture path holds no NUL");
+    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
+        .expect("a fixture path holds no NUL");
     // SAFETY: `mkfifo` reads the NUL-terminated path it is given and touches no memory of this process.
     let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the fixture makes the pipe {}: {}", path.display(), std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "the fixture makes the pipe {}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
 }
 
 /// Release the descendant that holds `release` open,
@@ -204,7 +249,11 @@ fn released(release_and_gone: (&Path, &Path)) {
     let _wrote: std::io::Result<()> = std::io::Write::write_all(&mut writing, b"go\n");
     let began: Instant = Instant::now();
     while !gone.exists() {
-        assert!(began.elapsed() < PATIENCE, "the descendant released through {} did not say it was gone within {PATIENCE:?}", release.display());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the descendant released through {} did not say it was gone within {PATIENCE:?}",
+            release.display()
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -220,7 +269,8 @@ fn spawned_beside_the_control(command: &mut Command) -> (Child, libc::pid_t) {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the command starts");
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a process ID fits the pid type");
+    let group: libc::pid_t =
+        libc::pid_t::try_from(child.id()).expect("a process ID fits the pid type");
     return (child, group);
 }
 
@@ -245,21 +295,43 @@ fn spawned_beside_the_control(command: &mut Command) -> (Child, libc::pid_t) {
 #[test]
 fn a_lines_two_bounds_are_read_once_and_reach_the_wait() {
     let made: Fixture = fixture("observe-line-bounds");
-    let command: PathBuf = script(&made, "keeps-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "keeps-alive",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     // A line of the bounded form states the seconds it names, and this wait keeps the same bound.
     let wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let line: LineBound = line_bound_of(&wrapped);
-    assert_eq!(line.stated, Some(Duration::from_secs(ONE_SECOND)), "a line of the bounded form states the seconds it names");
-    assert_eq!(line.kept, Duration::from_secs(ONE_SECOND), "this wait keeps the bound the command's own line states");
+    assert_eq!(
+        line.stated,
+        Some(Duration::from_secs(ONE_SECOND)),
+        "a line of the bounded form states the seconds it names"
+    );
+    assert_eq!(
+        line.kept,
+        Duration::from_secs(ONE_SECOND),
+        "this wait keeps the bound the command's own line states"
+    );
     // A line that names no `timeout` states nothing, so the shared backstop is what this wait keeps.
     let mut plain: Command = Command::new(SHELL);
     plain.arg(command.as_path());
     let unstated: LineBound = line_bound_of(&plain);
-    assert_eq!(unstated.stated, None, "a line that is not the bounded form states no bound of its own");
-    assert_eq!(unstated.kept, UNSTATED_BOUND, "a command whose line states no bound runs under the shared backstop");
+    assert_eq!(
+        unstated.stated, None,
+        "a line that is not the bounded form states no bound of its own"
+    );
+    assert_eq!(
+        unstated.kept, UNSTATED_BOUND,
+        "a command whose line states no bound runs under the shared backstop"
+    );
     // A `timeout` asked for no limit states nothing either: nothing waits without a bound.
     let no_limit: Command = bounded_script(&made, command.as_path(), 0);
-    assert_eq!(line_bound_of(&no_limit).stated, None, "`timeout --signal=KILL 0` asks for no limit, so the line states no bound");
+    assert_eq!(
+        line_bound_of(&no_limit).stated,
+        None,
+        "`timeout --signal=KILL 0` asks for no limit, so the line states no bound"
+    );
     // The shipped faces hand the wait the bounds one reading gave, and never a pair of their own.
     let faces: &str = include_str!("binary_support_observation.rs");
     assert!(
@@ -280,20 +352,38 @@ fn a_lines_two_bounds_are_read_once_and_reach_the_wait() {
 #[test]
 fn a_bound_counts_from_the_commands_own_start() {
     let made: Fixture = fixture("observe-spent-bound");
-    let command: PathBuf = script(&made, "runs-past-its-bound", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "runs-past-its-bound",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     // A child of this control's own with no timer around it,
     //  so the only bound on it is the one the wait is given.
     let mut started: Command = Command::new(SHELL);
-    started.arg(command.as_path()).current_dir(made.root.as_path());
+    started
+        .arg(command.as_path())
+        .current_dir(made.root.as_path());
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut started);
     // The command runs for longer than its own bound before the wait is called at all.
     std::thread::sleep(spent_bound() + SPENT_OVERRUN);
     let began: Instant = Instant::now();
     // The command's own line states no bound of its own: it is a script of this control's, not a bounded form.
-    let answer = wait_under_bound(child, Some(group), LineBound { kept: spent_bound(), stated: None }, b"");
+    let answer = wait_under_bound(
+        child,
+        Some(group),
+        LineBound {
+            kept: spent_bound(),
+            stated: None,
+        },
+        b"",
+    );
     let elapsed: Duration = began.elapsed();
     println!("the wait answered {:?} after {elapsed:?}", answer.ending);
-    assert_eq!(answer.ending, Ending::AtTheBound, "a command past its bound is ended by this wait, not by itself");
+    assert_eq!(
+        answer.ending,
+        Ending::AtTheBound,
+        "a command past its bound is ended by this wait, not by itself"
+    );
     assert!(
         elapsed < ALREADY_SPENT_PATIENCE,
         "the bound counts from the command's own start, and the wait took {elapsed:?} though nothing of the bound was left"
@@ -314,13 +404,28 @@ fn a_bound_counts_from_the_commands_own_start() {
 #[test]
 fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
     let made: Fixture = fixture("observe-inner-timer");
-    let command: PathBuf = script(&made, "kept-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "kept-alive",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
     // The permitted interleaving the review reproduced: this process does other work before it waits.
     std::thread::sleep(Duration::from_millis(100));
-    let answer = wait_under_bound(child, Some(group), LineBound { kept: Duration::from_secs(1), stated: Some(Duration::from_secs(ONE_SECOND)) }, b"");
-    println!("the wait answered {:?} with status {:?}", answer.ending, answer.status);
+    let answer = wait_under_bound(
+        child,
+        Some(group),
+        LineBound {
+            kept: Duration::from_secs(1),
+            stated: Some(Duration::from_secs(ONE_SECOND)),
+        },
+        b"",
+    );
+    println!(
+        "the wait answered {:?} with status {:?}",
+        answer.ending, answer.status
+    );
     assert_ne!(
         answer.ending,
         Ending::Itself,
@@ -346,13 +451,28 @@ fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
 #[test]
 fn a_death_by_the_lines_own_timeout_at_its_bound_is_the_bounds_ending() {
     let made: Fixture = fixture("observe-line-timer-at-the-bound");
-    let command: PathBuf = script(&made, "kept-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "kept-alive",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
     let began: Instant = Instant::now();
-    let answer = wait_under_bound(child, Some(group), LineBound { kept: Duration::from_secs(OUTLASTING_THE_LINES_BOUND_SECONDS), stated: Some(Duration::from_secs(ONE_SECOND)) }, b"");
+    let answer = wait_under_bound(
+        child,
+        Some(group),
+        LineBound {
+            kept: Duration::from_secs(OUTLASTING_THE_LINES_BOUND_SECONDS),
+            stated: Some(Duration::from_secs(ONE_SECOND)),
+        },
+        b"",
+    );
     let elapsed: Duration = began.elapsed();
-    println!("the wait answered {:?} with status {:?} after {elapsed:?}", answer.ending, answer.status);
+    println!(
+        "the wait answered {:?} with status {:?} after {elapsed:?}",
+        answer.ending, answer.status
+    );
     assert_eq!(
         std::os::unix::process::ExitStatusExt::signal(&answer.status),
         Some(libc::SIGKILL),
@@ -392,10 +512,16 @@ fn a_command_that_kills_itself_before_its_bound_keeps_its_own_ending() {
     let answer = wait_under_bound(
         child,
         Some(group),
-        LineBound { kept: Duration::from_secs(AMPLE_SECONDS), stated: Some(Duration::from_secs(AMPLE_SECONDS)) },
+        LineBound {
+            kept: Duration::from_secs(AMPLE_SECONDS),
+            stated: Some(Duration::from_secs(AMPLE_SECONDS)),
+        },
         b"",
     );
-    println!("the wait answered {:?} with status {:?}", answer.ending, answer.status);
+    println!(
+        "the wait answered {:?} with status {:?}",
+        answer.ending, answer.status
+    );
     assert_eq!(
         std::os::unix::process::ExitStatusExt::signal(&answer.status),
         Some(libc::SIGKILL),
@@ -421,26 +547,51 @@ fn a_command_that_kills_itself_before_its_bound_keeps_its_own_ending() {
 #[test]
 fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
     let made: Fixture = fixture("observe-signal-identity");
-    let command: PathBuf = script(&made, "waits-for-ever", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "waits-for-ever",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     let mut started: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut started);
     // A second child of this control's own, in a group of its own, that no signal may reach.
     let mut beside: Command = Command::new("/usr/bin/sleep");
     beside.arg(HOLDS_SECONDS.to_string());
     beside.current_dir(made.root.as_path());
-    let mut untouched: Child = beside.process_group(0).spawn().expect("the second child starts");
-    let answer = wait_under_bound(child, Some(group), LineBound { kept: Duration::from_secs(1), stated: Some(Duration::from_secs(ONE_SECOND)) }, b"");
-    let stayed: bool = untouched.try_wait().expect("the second child's state").is_none();
+    let mut untouched: Child = beside
+        .process_group(0)
+        .spawn()
+        .expect("the second child starts");
+    let answer = wait_under_bound(
+        child,
+        Some(group),
+        LineBound {
+            kept: Duration::from_secs(1),
+            stated: Some(Duration::from_secs(ONE_SECOND)),
+        },
+        b"",
+    );
+    let stayed: bool = untouched
+        .try_wait()
+        .expect("the second child's state")
+        .is_none();
     let _ended: std::io::Result<()> = untouched.kill();
     let _waited: std::io::Result<std::process::ExitStatus> = untouched.wait();
-    assert_eq!(answer.ending, Ending::AtTheBound, "the wait ended the command at its bound");
+    assert_eq!(
+        answer.ending,
+        Ending::AtTheBound,
+        "the wait ended the command at its bound"
+    );
     assert_eq!(
         std::os::unix::process::ExitStatusExt::signal(&answer.status),
         Some(libc::SIGKILL),
         "a command whose status is a `SIGKILL` death was alive when that signal went out: {:?}",
         answer.status
     );
-    assert!(stayed, "the signal reached only the command, and the second child of this control still ran");
+    assert!(
+        stayed,
+        "the signal reached only the command, and the second child of this control still ran"
+    );
     remove(&made);
 }
 
@@ -455,11 +606,20 @@ fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
 #[test]
 fn no_signal_in_the_wait_takes_a_number_its_child_no_longer_holds() {
     let files: [(&str, &str); 2] = [
-        ("binary_support_observation.rs", include_str!("binary_support_observation.rs")),
-        ("binary_support_observation_bound.rs", include_str!("binary_support_observation_bound.rs")),
+        (
+            "binary_support_observation.rs",
+            include_str!("binary_support_observation.rs"),
+        ),
+        (
+            "binary_support_observation_bound.rs",
+            include_str!("binary_support_observation_bound.rs"),
+        ),
     ];
     for (name, text) in files {
-        assert!(!text.contains("killpg("), "{name}: a whole group is signalled through its leader with `kill(-leader)`, never through `killpg`");
+        assert!(
+            !text.contains("killpg("),
+            "{name}: a whole group is signalled through its leader with `kill(-leader)`, never through `killpg`"
+        );
         for (index, _) in text.match_indices("libc::kill(") {
             let after: &str = &text[index..];
             assert!(
@@ -470,13 +630,20 @@ fn no_signal_in_the_wait_takes_a_number_its_child_no_longer_holds() {
         }
     }
     let bound: &str = include_str!("binary_support_observation_bound.rs");
-    let checked: usize = bound.find("WNOWAIT | libc::WNOHANG").expect("the wait looks before it signals, without reaping");
-    let signalled: usize = bound.find("libc::kill(-leader, libc::SIGKILL)").expect("the group is signalled at the bound");
+    let checked: usize = bound
+        .find("WNOWAIT | libc::WNOHANG")
+        .expect("the wait looks before it signals, without reaping");
+    let signalled: usize = bound
+        .find("libc::kill(-leader, libc::SIGKILL)")
+        .expect("the group is signalled at the bound");
     assert!(
         checked < signalled,
         "the wait looks at the child without reaping it before it signals, so the number it names is still the child's"
     );
-    assert!(bound.contains("pin.signal(libc::SIGKILL)"), "the command itself is signalled through its pin, never by a number");
+    assert!(
+        bound.contains("pin.signal(libc::SIGKILL)"),
+        "the command itself is signalled through its pin, never by a number"
+    );
 }
 
 /// What:
@@ -501,11 +668,18 @@ fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
     ];
     for (index, (body, code)) in cases.iter().enumerate() {
         let name: String = format!("ending-{index}");
-        let command: PathBuf = script(&made, name.as_str(), format!("#!/bin/sh\n{body}\n").as_str());
+        let command: PathBuf = script(
+            &made,
+            name.as_str(),
+            format!("#!/bin/sh\n{body}\n").as_str(),
+        );
         let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
         let seen = observe(&mut wrapped, b"");
         println!("{body}: the wait answered code {:?}", seen.code);
-        assert_eq!(seen.code, *code, "{body}: the command ended by itself, so its own status is the answer");
+        assert_eq!(
+            seen.code, *code,
+            "{body}: the command ended by itself, so its own status is the answer"
+        );
     }
     remove(&made);
 }
@@ -522,18 +696,30 @@ fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
 #[test]
 fn a_command_that_never_ends_is_ended_at_its_bound() {
     let made: Fixture = fixture("observe-bound");
-    let command: PathBuf = script(&made, "waits-for-ever", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
+    let command: PathBuf = script(
+        &made,
+        "waits-for-ever",
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str(),
+    );
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
         return observe(&mut wrapped, b"");
     }));
     let elapsed: Duration = began.elapsed();
-    let payload = outcome.expect_err("a command this wait ended is reported, never answered as one that ended by itself");
+    let payload = outcome.expect_err(
+        "a command this wait ended is reported, never answered as one that ended by itself",
+    );
     let message: String = message_of(payload);
     println!("the wait returned after {elapsed:?}, and said: {message}");
-    assert!(message.contains("was ended at its 1s wall-clock bound"), "the sentence says what the bound did: {message}");
-    assert!(elapsed < PATIENCE, "the wait kept its one-second bound, and returned after {elapsed:?}");
+    assert!(
+        message.contains("was ended at its 1s wall-clock bound"),
+        "the sentence says what the bound did: {message}"
+    );
+    assert!(
+        elapsed < PATIENCE,
+        "the wait kept its one-second bound, and returned after {elapsed:?}"
+    );
     remove(&made);
 }
 
@@ -568,13 +754,21 @@ fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
     released((release.as_path(), gone.as_path()));
     let payload = outcome.expect_err("a command that never ends is ended by this wait");
     let message: String = message_of(payload);
-    println!("the wait returned after {elapsed:?} against its one-second bound, and said: {message}");
-    assert!(message.contains("was ended at its 1s wall-clock bound"), "the sentence says what the bound did: {message}");
+    println!(
+        "the wait returned after {elapsed:?} against its one-second bound, and said: {message}"
+    );
+    assert!(
+        message.contains("was ended at its 1s wall-clock bound"),
+        "the sentence says what the bound did: {message}"
+    );
     assert!(
         message.contains("still holds its standard output"),
         "the sentence names the pipe a descendant still holds: {message}"
     );
-    assert!(elapsed < PATIENCE, "the wait kept its bound while a descendant held the pipe, and returned after {elapsed:?}");
+    assert!(
+        elapsed < PATIENCE,
+        "the wait kept its bound while a descendant held the pipe, and returned after {elapsed:?}"
+    );
     remove(&made);
 }
 
@@ -592,7 +786,10 @@ fn a_command_that_ends_by_itself_says_that_a_descendant_still_holds_its_output()
     let release: PathBuf = made.root.join("release");
     let gone: PathBuf = made.root.join("descendant-gone");
     named_pipe(release.as_path());
-    let body: String = format!("#!/bin/sh\n{}exit 0\n", descendant((release.as_path(), gone.as_path())));
+    let body: String = format!(
+        "#!/bin/sh\n{}exit 0\n",
+        descendant((release.as_path(), gone.as_path()))
+    );
     let command: PathBuf = script(&made, "leaves-a-descendant", body.as_str());
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -602,15 +799,25 @@ fn a_command_that_ends_by_itself_says_that_a_descendant_still_holds_its_output()
     let elapsed: Duration = began.elapsed();
     // The descendant is this control's own to release, whatever the wait answered.
     released((release.as_path(), gone.as_path()));
-    let payload = outcome.expect_err("an output a descendant may still be writing is never answered as the whole one");
+    let payload = outcome.expect_err(
+        "an output a descendant may still be writing is never answered as the whole one",
+    );
     let message: String = message_of(payload);
-    println!("the wait returned after {elapsed:?} against its bound of {AMPLE_SECONDS} s, and said: {message}");
-    assert!(message.contains("ended by itself"), "the sentence says the command ended by itself: {message}");
+    println!(
+        "the wait returned after {elapsed:?} against its bound of {AMPLE_SECONDS} s, and said: {message}"
+    );
+    assert!(
+        message.contains("ended by itself"),
+        "the sentence says the command ended by itself: {message}"
+    );
     assert!(
         message.contains("still holds its standard output"),
         "the sentence names the pipe a descendant still holds: {message}"
     );
-    assert!(elapsed < PATIENCE, "the wait gave its one grace and no more, and returned after {elapsed:?}");
+    assert!(
+        elapsed < PATIENCE,
+        "the wait gave its one grace and no more, and returned after {elapsed:?}"
+    );
     remove(&made);
 }
 
@@ -626,12 +833,21 @@ fn a_command_that_writes_more_than_a_pipe_holds_keeps_all_of_it() {
     // One mebibyte, several times what a pipe holds.
     let written: usize = 1 << 20;
     let blocks: usize = written / 4096;
-    let body: String = format!("#!/bin/sh\nexec /usr/bin/dd if=/dev/zero bs=4096 count={blocks} 2>/dev/null\n");
+    let body: String =
+        format!("#!/bin/sh\nexec /usr/bin/dd if=/dev/zero bs=4096 count={blocks} 2>/dev/null\n");
     let command: PathBuf = script(&made, "writes-much", body.as_str());
     let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
     let seen = observe(&mut wrapped, b"");
-    assert_eq!(seen.code, Some(0), "the command that writes much ends by itself");
-    assert_eq!(seen.stdout.len(), written, "every byte the command wrote is in the answer");
+    assert_eq!(
+        seen.code,
+        Some(0),
+        "the command that writes much ends by itself"
+    );
+    assert_eq!(
+        seen.stdout.len(),
+        written,
+        "every byte the command wrote is in the answer"
+    );
     remove(&made);
 }
 
@@ -681,13 +897,23 @@ thread_local! {
 ///  a record a read has seen is settled before the next read,
 /// so the wait ends rather than holding a record for ever.
 fn make_the_controlled_moves(folder: &str) {
-    let held: Option<(PathBuf, String)> = THE_RECORD_A_STEP_MOVES.with(|step| { return step.borrow().clone(); });
+    let held: Option<(PathBuf, String)> = THE_RECORD_A_STEP_MOVES.with(|step| {
+        return step.borrow().clone();
+    });
     let Some((work, name)) = held else {
         return;
     };
-    let ordinal: usize = THE_READ_ORDINAL.with(|at| { let now = at.get() + 1; at.set(now); return now; });
-    let moves: &'static [AMove] = THE_MOVES.with(|tabled| { return *tabled.borrow(); });
-    for one in moves.iter().filter(|one| { return one.at == ordinal; }) {
+    let ordinal: usize = THE_READ_ORDINAL.with(|at| {
+        let now = at.get() + 1;
+        at.set(now);
+        return now;
+    });
+    let moves: &'static [AMove] = THE_MOVES.with(|tabled| {
+        return *tabled.borrow();
+    });
+    for one in moves.iter().filter(|one| {
+        return one.at == ordinal;
+    }) {
         let standing: PathBuf = work.join(one.from).join(name.as_str());
         if !standing.is_file() {
             continue;
@@ -697,7 +923,9 @@ fn make_the_controlled_moves(folder: &str) {
     let standing: PathBuf = work.join(folder).join(name.as_str());
     let seen_before: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
     if standing.is_file() {
-        A_READ_SAW_THE_RECORD.with(|seen| { seen.set(true); });
+        A_READ_SAW_THE_RECORD.with(|seen| {
+            seen.set(true);
+        });
     }
     if seen_before {
         for from in [PENDING, RECOVERING, CLAIMED] {
@@ -723,7 +951,12 @@ fn make_the_controlled_moves(folder: &str) {
 /// ```ts
 /// const { seen, listing } = await waitWith([{ at: 2, from: 'claimed', to: 'recovering' }], 'pending');
 /// ```
-fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str, what: &str) {
+fn wait_with_moves(
+    moves: &'static [AMove],
+    starts_in: &str,
+    label: &str,
+    what: &str,
+) {
     let made: Fixture = fixture(label);
     let repository: PathBuf = made.root.join("repo");
     let git_dir: PathBuf = repository.join(".git");
@@ -733,22 +966,44 @@ fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str, what: 
         std::fs::create_dir_all(work.join(state)).expect("a state folder");
     }
     let name: String = format!("subvolume-delete-{}", "0".repeat(40));
-    std::fs::write(work.join(starts_in).join(name.as_str()), "a record a control moves\n").expect("the record");
-    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = Some((work.clone(), name.clone())); });
-    THE_MOVES.with(|held| { *held.borrow_mut() = moves; });
-    THE_READ_ORDINAL.with(|at| { at.set(0); });
-    A_READ_SAW_THE_RECORD.with(|seen| { seen.set(false); });
+    std::fs::write(
+        work.join(starts_in).join(name.as_str()),
+        "a record a control moves\n",
+    )
+    .expect("the record");
+    THE_RECORD_A_STEP_MOVES.with(|step| {
+        *step.borrow_mut() = Some((work.clone(), name.clone()));
+    });
+    THE_MOVES.with(|held| {
+        *held.borrow_mut() = moves;
+    });
+    THE_READ_ORDINAL.with(|at| {
+        at.set(0);
+    });
+    A_READ_SAW_THE_RECORD.with(|seen| {
+        seen.set(false);
+    });
     crate::support_observation::run_before_each_folder_read(Some(make_the_controlled_moves));
     crate::support_observation::settle_service_work(repository.as_path());
     crate::support_observation::run_before_each_folder_read(None);
-    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = None; });
-    THE_MOVES.with(|held| { *held.borrow_mut() = &[]; });
+    THE_RECORD_A_STEP_MOVES.with(|step| {
+        *step.borrow_mut() = None;
+    });
+    THE_MOVES.with(|held| {
+        *held.borrow_mut() = &[];
+    });
     let seen: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
     let listing: String = crate::support::work_listing(work.as_path());
     // The control's own sentence comes first, so a red says what the wait missed rather than only that it returned;
     // the settle check after it says the wait did end, which a wait that never returned would otherwise hide.
-    assert!(seen, "a read of the wait sees the record while {what}, and none did: {listing}");
-    assert!(work.join(DONE).join(name.as_str()).is_file(), "the record the control moves ends where the wait reads it as settled: {listing}");
+    assert!(
+        seen,
+        "a read of the wait sees the record while {what}, and none did: {listing}"
+    );
+    assert!(
+        work.join(DONE).join(name.as_str()).is_file(),
+        "the record the control moves ends where the wait reads it as settled: {listing}"
+    );
     remove(&made);
 }
 
@@ -776,12 +1031,36 @@ fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str, what: 
 fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads() {
     wait_with_moves(
         &[
-            AMove { at: 1, from: PENDING, to: RECOVERING },
-            AMove { at: 3, from: RECOVERING, to: CLAIMED },
-            AMove { at: 5, from: CLAIMED, to: RECOVERING },
-            AMove { at: 6, from: RECOVERING, to: PENDING },
-            AMove { at: 7, from: PENDING, to: RECOVERING },
-            AMove { at: 9, from: RECOVERING, to: CLAIMED },
+            AMove {
+                at: 1,
+                from: PENDING,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 3,
+                from: RECOVERING,
+                to: CLAIMED,
+            },
+            AMove {
+                at: 5,
+                from: CLAIMED,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 6,
+                from: RECOVERING,
+                to: PENDING,
+            },
+            AMove {
+                at: 7,
+                from: PENDING,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 9,
+                from: RECOVERING,
+                to: CLAIMED,
+            },
         ],
         PENDING,
         "observe-wait-the-order-holds-alone",
@@ -801,7 +1080,18 @@ fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_b
 #[test]
 fn a_second_sample_catches_what_a_recovery_takes_back_between_two_reads() {
     wait_with_moves(
-        &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: PENDING }],
+        &[
+            AMove {
+                at: 3,
+                from: CLAIMED,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 3,
+                from: RECOVERING,
+                to: PENDING,
+            },
+        ],
         CLAIMED,
         "observe-wait-a-second-sample-holds-alone",
         "a recovery takes it back between two reads",
@@ -821,7 +1111,18 @@ fn a_second_sample_catches_what_a_recovery_takes_back_between_two_reads() {
 #[test]
 fn a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples() {
     wait_with_moves(
-        &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 5, from: RECOVERING, to: PENDING }],
+        &[
+            AMove {
+                at: 3,
+                from: CLAIMED,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 5,
+                from: RECOVERING,
+                to: PENDING,
+            },
+        ],
         CLAIMED,
         "observe-wait-a-third-sample-holds-alone",
         "a recovery's two renames straddle two samples",
@@ -851,7 +1152,18 @@ fn a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples() {
 #[test]
 fn a_record_that_moves_between_two_reads_is_not_a_settled_queue() {
     wait_with_moves(
-        &[AMove { at: 1, from: PENDING, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: CLAIMED }],
+        &[
+            AMove {
+                at: 1,
+                from: PENDING,
+                to: RECOVERING,
+            },
+            AMove {
+                at: 3,
+                from: RECOVERING,
+                to: CLAIMED,
+            },
+        ],
         PENDING,
         "observe-wait-a-record-between-reads",
         "it moves between the folders a claim passes through",

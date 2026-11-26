@@ -32,7 +32,10 @@
 
 use crate::zfs_compatibility_gate::gate_paths::GatePaths;
 use crate::zfs_compatibility_gate::module_identity::ModuleIdentity;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kernel's own release text,
 /// which is what `uname --kernel-release` prints.
@@ -131,11 +134,17 @@ impl FingerprintRefusal {
     /// naming the file and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            FingerprintRefusal::KernelRelease { path, reason } => format!(
+            FingerprintRefusal::KernelRelease {
+                path,
+                reason,
+            } => format!(
                 "the probe could not read the kernel's release from {} ({reason}), so no record can say which kernel it judged. Nothing was attached.",
                 path.display()
             ),
-            FingerprintRefusal::BootId { path, reason } => format!(
+            FingerprintRefusal::BootId {
+                path,
+                reason,
+            } => format!(
                 "the probe could not read this boot's identity from {} ({reason}), so no record can say which boot it belongs to. Nothing was attached.",
                 path.display()
             ),
@@ -181,11 +190,21 @@ impl ProbeFingerprint {
     pub fn read(paths: &FingerprintPaths) -> Result<Self, FingerprintRefusal> {
         let kernel_release: String = match read_text(paths.kernel_release.as_path()) {
             Ok(text) => text,
-            Err(reason) => return Err(FingerprintRefusal::KernelRelease { path: paths.kernel_release.clone(), reason }),
+            Err(reason) => {
+                return Err(FingerprintRefusal::KernelRelease {
+                    path: paths.kernel_release.clone(),
+                    reason,
+                });
+            }
         };
         let boot_id: String = match read_text(paths.boot_id.as_path()) {
             Ok(text) => text,
-            Err(reason) => return Err(FingerprintRefusal::BootId { path: paths.boot_id.clone(), reason }),
+            Err(reason) => {
+                return Err(FingerprintRefusal::BootId {
+                    path: paths.boot_id.clone(),
+                    reason,
+                });
+            }
         };
         let module: ModuleIdentity = ModuleIdentity::read(&GatePaths {
             device: PathBuf::new(),
@@ -223,7 +242,9 @@ impl ProbeFingerprint {
 pub fn read_text(path: &Path) -> Result<String, String> {
     let bytes: Vec<u8> = read_bytes(path)?;
     let text: String = String::from_utf8(bytes).map_err(|error| return error.to_string())?;
-    return Ok(String::from(text.strip_suffix('\n').unwrap_or(text.as_str())));
+    return Ok(String::from(
+        text.strip_suffix('\n').unwrap_or(text.as_str()),
+    ));
 }
 
 /// What:
@@ -242,9 +263,14 @@ pub fn read_text(path: &Path) -> Result<String, String> {
 /// The file could not be read or is longer than the bound.
 pub fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
     use std::io::Read;
-    let mut file: std::fs::File = std::fs::File::open(path).map_err(|error| return error.to_string())?;
+    let mut file: std::fs::File =
+        std::fs::File::open(path).map_err(|error| return error.to_string())?;
     let mut bytes: Vec<u8> = Vec::new();
-    let read: usize = file.by_ref().take((ATTRIBUTE_BOUND + 1) as u64).read_to_end(&mut bytes).map_err(|error| return error.to_string())?;
+    let read: usize = file
+        .by_ref()
+        .take((ATTRIBUTE_BOUND + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| return error.to_string())?;
     if read > ATTRIBUTE_BOUND {
         return Err(format!("longer than {ATTRIBUTE_BOUND} bytes"));
     }

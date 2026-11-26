@@ -16,11 +16,20 @@
 
 /// The kind of step a command belongs to,
 /// and its bounded waits.
-use crate::child_class::{ChildClass, class_of};
+use crate::child_class::{
+    ChildClass,
+    class_of,
+};
 use crate::child_watch::StepBound;
 use crate::transaction_git_request_and_reply_types::GitRequest;
-use crate::transaction_git_step_rerun_and_end_rules::{is_side_ref_write, may_be_ended};
-use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
+use crate::transaction_git_step_rerun_and_end_rules::{
+    is_side_ref_write,
+    may_be_ended,
+};
+use crate::wait_ceilings::{
+    OBJECT_STEP_CEILING,
+    PLUMBING_STEP_CEILING,
+};
 /// A span of time,
 /// for the ceilings.
 use std::time::Duration;
@@ -54,10 +63,11 @@ pub(crate) fn step_bound(request: &GitRequest) -> StepBound {
     let shortened: Option<Duration> = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let shortened: Option<Duration> = None;
-    let class_ceiling: Duration = shortened.unwrap_or(match class_of(request.arguments.as_slice()) {
-        ChildClass::Plumbing => PLUMBING_STEP_CEILING,
-        ChildClass::Object => OBJECT_STEP_CEILING,
-    });
+    let class_ceiling: Duration =
+        shortened.unwrap_or(match class_of(request.arguments.as_slice()) {
+            ChildClass::Plumbing => PLUMBING_STEP_CEILING,
+            ChildClass::Object => OBJECT_STEP_CEILING,
+        });
     if may_be_ended(request) {
         return StepBound::EndAt(class_ceiling);
     }
@@ -76,10 +86,15 @@ pub(crate) fn step_bound(request: &GitRequest) -> StepBound {
 ///  plus the short extra wait.
 fn leave_running_bound(class_ceiling: Duration) -> StepBound {
     #[cfg(test)]
-    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD
+        .with(std::cell::Cell::get)
+        .unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
     #[cfg(not(test))]
     let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
-    return StepBound::LeaveRunning { after: class_ceiling, extra };
+    return StepBound::LeaveRunning {
+        after: class_ceiling,
+        extra,
+    };
 }
 
 /// What:

@@ -29,13 +29,23 @@
 
 use crate::client_journal::record_entry;
 use crate::diagnostic_log::debug;
-use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+    is_subvolume_root,
+};
 use crate::journald_native::Priority;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_clean::CleanRefusalKind;
-use crate::worktree_snapshot_source::{ChangedPaths, Refusal, RefusalKind, changed_paths, plain};
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_snapshot_source::{
+    ChangedPaths,
+    Refusal,
+    RefusalKind,
+    changed_paths,
+    plain,
+};
 use std::io::Write;
 use std::path::Path;
 
@@ -54,7 +64,8 @@ pub const LEAD: &str = "monochromatic-git-policy-cli: this worktree was not made
 /// it says which checkout wrote the worktree,
 /// and the cause follows
 /// (the integration pass's low L4).
-pub const DECLINED_LEAD: &str = "monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because ";
+pub const DECLINED_LEAD: &str =
+    "monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because ";
 
 /// What:
 ///  What kept the add from being a snapshot,
@@ -115,15 +126,30 @@ impl SlowRoute {
     /// ```ts
     /// if (!plan.quiet) console.error(route.line()); journal.warn(route.line(), fields);
     /// ```
-    pub fn tell(&self, plan: &AddPlan) {
+    pub fn tell(
+        &self,
+        plan: &AddPlan,
+    ) {
         let line: String = self.line();
-        debug(TAG, format!("{}: told ({}; {})", plan.destination.display(), self.word, self.detail).as_str());
+        debug(
+            TAG,
+            format!(
+                "{}: told ({}; {})",
+                plan.destination.display(),
+                self.word,
+                self.detail
+            )
+            .as_str(),
+        );
         if !plan.quiet {
             // A closed standard error leaves nowhere to print; the journal entry below still records the cause.
             let _written = std::io::stderr().write_all(format!("{line}\n").as_bytes());
         }
         let fields: [(&str, String); 3] = [
-            ("CLI_GIT_WORKTREE", plan.destination.to_string_lossy().into_owned()),
+            (
+                "CLI_GIT_WORKTREE",
+                plan.destination.to_string_lossy().into_owned(),
+            ),
             ("CLI_GIT_SLOW_CAUSE", self.word.to_string()),
             ("CLI_GIT_SLOW_DETAIL", self.detail.clone()),
         ];
@@ -145,7 +171,9 @@ impl SlowRoute {
 /// ```
 fn subject(identity: &WorktreeIdentity) -> &'static str {
     return match identity {
-        WorktreeIdentity::MainWorktree { .. } => "the main checkout",
+        WorktreeIdentity::MainWorktree {
+            ..
+        } => "the main checkout",
         _ => "this worktree",
     };
 }
@@ -167,7 +195,11 @@ const THEN_QUICK: &str = "and the next add is a snapshot that takes seconds";
 /// ```ts
 /// const route = statusFailed({ subject, root, reason });
 /// ```
-fn status_failed(subject: &str, root: &Path, reason: &str) -> SlowRoute {
+fn status_failed(
+    subject: &str,
+    root: &Path,
+    reason: &str,
+) -> SlowRoute {
     return SlowRoute {
         lead: LEAD,
         word: "status-failed",
@@ -193,33 +225,80 @@ fn status_failed(subject: &str, root: &Path, reason: &str) -> SlowRoute {
 /// ```ts
 /// const route = explainUnclean({ context, root, subject, kind, reason });
 /// ```
-fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: CleanRefusalKind, reason: &str) -> SlowRoute {
+fn explain_unclean(
+    context: &GitContext,
+    root: &Path,
+    subject: &str,
+    kind: CleanRefusalKind,
+    reason: &str,
+) -> SlowRoute {
     match kind {
         CleanRefusalKind::OperationInProgress("index.lock") => {
-            return SlowRoute { lead: LEAD, word: "git-running", detail: reason.to_string(), sentence: format!("another Git command is running in {subject} (its index.lock exists). Add again when it has finished, {THEN_QUICK}.") };
+            return SlowRoute {
+                lead: LEAD,
+                word: "git-running",
+                detail: reason.to_string(),
+                sentence: format!(
+                    "another Git command is running in {subject} (its index.lock exists). Add again when it has finished, {THEN_QUICK}."
+                ),
+            };
         }
         CleanRefusalKind::OperationInProgress(name) => {
-            return SlowRoute { lead: LEAD, word: "operation-unfinished", detail: reason.to_string(), sentence: format!("{subject} is in the middle of an operation ({name} exists in its Git directory). Finish or abort it, {THEN_QUICK}.") };
+            return SlowRoute {
+                lead: LEAD,
+                word: "operation-unfinished",
+                detail: reason.to_string(),
+                sentence: format!(
+                    "{subject} is in the middle of an operation ({name} exists in its Git directory). Finish or abort it, {THEN_QUICK}."
+                ),
+            };
         }
         CleanRefusalKind::NotPlain => {
-            return SlowRoute { lead: LEAD, word: "not-restorable", detail: reason.to_string(), sentence: format!("{subject} has an index entry that no reset can undo, a skip-worktree, assume-unchanged, intent-to-add, unmerged or submodule entry ({}).", plain(reason)) };
+            return SlowRoute {
+                lead: LEAD,
+                word: "not-restorable",
+                detail: reason.to_string(),
+                sentence: format!(
+                    "{subject} has an index entry that no reset can undo, a skip-worktree, assume-unchanged, intent-to-add, unmerged or submodule entry ({}).",
+                    plain(reason)
+                ),
+            };
         }
         CleanRefusalKind::Unreadable => {
-            return SlowRoute { lead: LEAD, word: "unproven", detail: reason.to_string(), sentence: format!("{subject} could not be read to prove it unchanged ({}).", plain(reason)) };
+            return SlowRoute {
+                lead: LEAD,
+                word: "unproven",
+                detail: reason.to_string(),
+                sentence: format!(
+                    "{subject} could not be read to prove it unchanged ({}).",
+                    plain(reason)
+                ),
+            };
         }
-        CleanRefusalKind::StagedChange | CleanRefusalKind::FileChanged | CleanRefusalKind::StatStale | CleanRefusalKind::Racy | CleanRefusalKind::Untracked => {}
+        CleanRefusalKind::StagedChange
+        | CleanRefusalKind::FileChanged
+        | CleanRefusalKind::StatStale
+        | CleanRefusalKind::Racy
+        | CleanRefusalKind::Untracked => {}
     }
     let listed: ChangedPaths = match changed_paths(context, root) {
         Ok(found) => found,
         Err(failure) => return status_failed(subject, root, failure.as_str()),
     };
-    if let ChangedPaths { count, first: Some(first), .. } = listed {
+    if let ChangedPaths {
+        count,
+        first: Some(first),
+        ..
+    } = listed
+    {
         let paths: &str = if count == 1 { "path" } else { "paths" };
         return SlowRoute {
             lead: LEAD,
             word: "uncommitted-changes",
             detail: reason.to_string(),
-            sentence: format!("{subject} has uncommitted changes in {count} {paths} (for example {first}). Commit or stash them, {THEN_QUICK}."),
+            sentence: format!(
+                "{subject} has uncommitted changes in {count} {paths} (for example {first}). Commit or stash them, {THEN_QUICK}."
+            ),
         };
     }
     if matches!(kind, CleanRefusalKind::Racy | CleanRefusalKind::StatStale) {
@@ -227,10 +306,20 @@ fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: Clean
             lead: LEAD,
             word: "stale-index",
             detail: reason.to_string(),
-            sentence: format!("Git's record of file times in {subject} is out of date. Run `git status` there once, {THEN_QUICK}."),
+            sentence: format!(
+                "Git's record of file times in {subject} is out of date. Run `git status` there once, {THEN_QUICK}."
+            ),
         };
     }
-    return SlowRoute { lead: LEAD, word: "unproven", detail: reason.to_string(), sentence: format!("{subject} could not be proven unchanged ({}).", plain(reason)) };
+    return SlowRoute {
+        lead: LEAD,
+        word: "unproven",
+        detail: reason.to_string(),
+        sentence: format!(
+            "{subject} could not be proven unchanged ({}).",
+            plain(reason)
+        ),
+    };
 }
 
 /// What:
@@ -246,15 +335,37 @@ fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: Clean
 /// ```ts
 /// const route = explainRefusal({ context, identity, refusal });
 /// ```
-pub fn explain_refusal(context: &GitContext, identity: &WorktreeIdentity, refusal: &Refusal) -> Option<SlowRoute> {
+pub fn explain_refusal(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    refusal: &Refusal,
+) -> Option<SlowRoute> {
     let root: &Path = match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => worktree_root.as_path(),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return None,
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => worktree_root.as_path(),
+        WorktreeIdentity::BareRepository {
+            ..
+        }
+        | WorktreeIdentity::OutsideWorktree => return None,
     };
     return Some(match refusal.kind {
-        RefusalKind::Unclean(kind) => explain_unclean(context, root, subject(identity), kind, refusal.reason.as_str()),
+        RefusalKind::Unclean(kind) => explain_unclean(
+            context,
+            root,
+            subject(identity),
+            kind,
+            refusal.reason.as_str(),
+        ),
         RefusalKind::Unsupported => explain_unsupported(refusal.reason.as_str()),
-        RefusalKind::StatusFailed => status_failed(subject(identity), root, refusal.reason.as_str()),
+        RefusalKind::StatusFailed => {
+            status_failed(subject(identity), root, refusal.reason.as_str())
+        }
     });
 }
 
@@ -271,7 +382,12 @@ pub fn explain_refusal(context: &GitContext, identity: &WorktreeIdentity, refusa
 /// const route = explainUnsupported('core.sparseCheckout is set');
 /// ```
 pub fn explain_unsupported(reason: &str) -> SlowRoute {
-    return SlowRoute { lead: LEAD, word: "unsupported", detail: reason.to_string(), sentence: format!("{}.", plain(reason)) };
+    return SlowRoute {
+        lead: LEAD,
+        word: "unsupported",
+        detail: reason.to_string(),
+        sentence: format!("{}.", plain(reason)),
+    };
 }
 
 /// What:
@@ -297,7 +413,15 @@ pub fn explain_unsupported(reason: &str) -> SlowRoute {
 /// const route = explainCloneFailure('a line-ending rule ... so this rung declines');
 /// ```
 pub fn explain_clone_failure(reason: &str) -> SlowRoute {
-    return SlowRoute { lead: LEAD, word: "clone-ended", detail: reason.to_string(), sentence: format!("the add ended after it had read the source ({}), so Git's own checkout wrote the worktree.", plain(reason)) };
+    return SlowRoute {
+        lead: LEAD,
+        word: "clone-ended",
+        detail: reason.to_string(),
+        sentence: format!(
+            "the add ended after it had read the source ({}), so Git's own checkout wrote the worktree.",
+            plain(reason)
+        ),
+    };
 }
 
 /// What:
@@ -315,7 +439,12 @@ pub fn explain_clone_failure(reason: &str) -> SlowRoute {
 /// const route = explainDecline('a line-ending rule ... so this rung declines');
 /// ```
 pub fn explain_decline(reason: &str) -> SlowRoute {
-    return SlowRoute { lead: DECLINED_LEAD, word: "declines", detail: reason.to_string(), sentence: format!("{}.", plain(reason)) };
+    return SlowRoute {
+        lead: DECLINED_LEAD,
+        word: "declines",
+        detail: reason.to_string(),
+        sentence: format!("{}.", plain(reason)),
+    };
 }
 
 /// What:
@@ -331,7 +460,15 @@ pub fn explain_decline(reason: &str) -> SlowRoute {
 /// const route = explainFailure('the stage could not be swapped into place');
 /// ```
 pub fn explain_failure(reason: &str) -> SlowRoute {
-    return SlowRoute { lead: LEAD, word: "snapshot-failed", detail: reason.to_string(), sentence: format!("the snapshot could not be finished ({}), so Git's own checkout made the worktree.", plain(reason)) };
+    return SlowRoute {
+        lead: LEAD,
+        word: "snapshot-failed",
+        detail: reason.to_string(),
+        sentence: format!(
+            "the snapshot could not be finished ({}), so Git's own checkout made the worktree.",
+            plain(reason)
+        ),
+    };
 }
 
 /// What:
@@ -349,30 +486,51 @@ pub fn explain_failure(reason: &str) -> SlowRoute {
 /// ```ts
 /// const route = explainCheapRefusal({ identity, plan, reason });
 /// ```
-pub fn explain_cheap_refusal(identity: &WorktreeIdentity, reason: &str) -> Option<SlowRoute> {
+pub fn explain_cheap_refusal(
+    identity: &WorktreeIdentity,
+    reason: &str,
+) -> Option<SlowRoute> {
     let root: &Path = match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => worktree_root.as_path(),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return None,
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => worktree_root.as_path(),
+        WorktreeIdentity::BareRepository {
+            ..
+        }
+        | WorktreeIdentity::OutsideWorktree => return None,
     };
     if filesystem_kind(root) != Ok(FilesystemKind::Btrfs) {
         return None;
     }
     let subject: &str = subject(identity);
     // The main checkout is migrated with the repository's other worktrees in view; a linked worktree is converted alone.
-    let command: &str = if matches!(identity, WorktreeIdentity::MainWorktree { .. }) { "migrate-to-subvolume" } else { "convert-worktree-to-subvolume" };
+    let command: &str = if matches!(identity, WorktreeIdentity::MainWorktree { .. }) {
+        "migrate-to-subvolume"
+    } else {
+        "convert-worktree-to-subvolume"
+    };
     if !is_subvolume_root(root).unwrap_or(false) {
         return Some(SlowRoute {
             lead: LEAD,
             word: "not-subvolume",
             detail: reason.to_string(),
-            sentence: format!("{subject} is not a btrfs subvolume. Run `git monochromatic-git-policy-cli {command}` in it, {THEN_QUICK}."),
+            sentence: format!(
+                "{subject} is not a btrfs subvolume. Run `git monochromatic-git-policy-cli {command}` in it, {THEN_QUICK}."
+            ),
         });
     }
     return Some(SlowRoute {
         lead: LEAD,
         word: "other-filesystem",
         detail: reason.to_string(),
-        sentence: format!("the new worktree is not on the same btrfs filesystem as {subject}. Put it on the same one, {THEN_QUICK}."),
+        sentence: format!(
+            "the new worktree is not on the same btrfs filesystem as {subject}. Put it on the same one, {THEN_QUICK}."
+        ),
     });
 }
 

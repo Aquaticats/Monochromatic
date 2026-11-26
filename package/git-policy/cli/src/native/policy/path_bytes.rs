@@ -12,7 +12,10 @@
 //! // const argument = Buffer.from(bytes); const shown = bytes.toString('utf8');
 //! ```
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 /// What:

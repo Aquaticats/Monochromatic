@@ -8,7 +8,10 @@ use super::*;
 /// one thread,
 /// so no other test's tasks run on it.
 fn runtime() -> tokio::runtime::Runtime {
-    return tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    return tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
 }
 
 /// A future that returns gives back what it returned,

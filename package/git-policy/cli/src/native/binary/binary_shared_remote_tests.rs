@@ -25,10 +25,27 @@
 //! // runWrapped(linked, ['remote', 'set-url', 'origin', url]).status === 1
 //! ```
 
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
+use super::support::{
+    Fixture,
+    Observed,
+    direct,
+    executable,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    stderr_of,
+    wrapped,
+};
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The remote URL every fixture repository starts with.
 const ORIGIN_URL: &str = "https://example.invalid/origin.git";
@@ -128,7 +145,11 @@ fn config_bytes(repo: &Path) -> Vec<u8> {
 
 /// A repository with `origin` and a file in its main checkout,
 /// plus a linked worktree `name` made at `place`.
-fn repository_with_worktree(fixture: &Fixture, name: &str, place: &Path) -> (PathBuf, PathBuf) {
+fn repository_with_worktree(
+    fixture: &Fixture,
+    name: &str,
+    place: &Path,
+) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     std::fs::write(repo.join("tracked.txt"), b"base\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
@@ -137,12 +158,26 @@ fn repository_with_worktree(fixture: &Fixture, name: &str, place: &Path) -> (Pat
         repo.as_path(),
         &["commit", "--quiet", "--message=base"],
     );
-    git(fixture, repo.as_path(), &["remote", "add", "origin", ORIGIN_URL]);
-    git(fixture, repo.as_path(), &["config", "user.kept.name", "kept"]);
     git(
         fixture,
         repo.as_path(),
-        &["worktree", "add", "--detach", place.to_str().expect("text path"), "HEAD"],
+        &["remote", "add", "origin", ORIGIN_URL],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "user.kept.name", "kept"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            place.to_str().expect("text path"),
+            "HEAD",
+        ],
     );
     return (repo, place.to_path_buf());
 }
@@ -157,7 +192,11 @@ fn repository_with_worktree(fixture: &Fixture, name: &str, place: &Path) -> (Pat
 ///  message must name what is shared,
 /// where the setting belongs,
 /// and how to get a copy with its own settings.
-fn every_form_is_refused_in(fixture: &Fixture, linked: &Path, repo: &Path) {
+fn every_form_is_refused_in(
+    fixture: &Fixture,
+    linked: &Path,
+    repo: &Path,
+) {
     let fixture_wide: Vec<u8> = config_bytes(repo);
     let main_text: String = repo.to_string_lossy().into_owned();
     let config_text: String = config_file(repo).to_string_lossy().into_owned();
@@ -214,7 +253,8 @@ fn every_form_is_refused_in(fixture: &Fixture, linked: &Path, repo: &Path) {
 fn every_shared_remote_write_is_refused_in_a_linked_worktree_inside_the_repository() {
     let fixture: Fixture = fixture("shared-remote-inside");
     let place: PathBuf = fixture.root.join("repo").join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     every_form_is_refused_in(&fixture, linked.as_path(), repo.as_path());
     remove(&fixture);
 }
@@ -227,7 +267,8 @@ fn every_shared_remote_write_is_refused_in_a_linked_worktree_inside_the_reposito
 fn every_shared_remote_write_is_refused_in_a_linked_worktree_outside_the_repository() {
     let fixture: Fixture = fixture("shared-remote-outside");
     let place: PathBuf = fixture.root.join("linked-outside");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     every_form_is_refused_in(&fixture, linked.as_path(), repo.as_path());
     remove(&fixture);
 }
@@ -239,7 +280,8 @@ fn every_shared_remote_write_is_refused_in_a_linked_worktree_outside_the_reposit
 fn global_options_and_aliases_reach_the_same_refusal() {
     let fixture: Fixture = fixture("shared-remote-global-options");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     let before: Vec<u8> = config_bytes(repo.as_path());
     let linked_text: String = linked.to_string_lossy().into_owned();
     // Each form runs in the directory a person would run it in:
@@ -249,35 +291,81 @@ fn global_options_and_aliases_reach_the_same_refusal() {
     let forms: [(PathBuf, Vec<&str>); 6] = [
         (
             repo.clone(),
-            vec!["-C", linked_text.as_str(), "remote", "set-url", "origin", OTHER_URL],
+            vec![
+                "-C",
+                linked_text.as_str(),
+                "remote",
+                "set-url",
+                "origin",
+                OTHER_URL,
+            ],
         ),
         (
             repo.clone(),
-            vec!["-C", linked_text.as_str(), "config", "remote.origin.url", OTHER_URL],
+            vec![
+                "-C",
+                linked_text.as_str(),
+                "config",
+                "remote.origin.url",
+                OTHER_URL,
+            ],
         ),
         (
             linked.clone(),
-            vec!["-c", "alias.seturl=remote set-url", "seturl", "origin", OTHER_URL],
+            vec![
+                "-c",
+                "alias.seturl=remote set-url",
+                "seturl",
+                "origin",
+                OTHER_URL,
+            ],
         ),
         (
             linked.clone(),
-            vec!["-c", "alias.setconfig=config", "setconfig", "remote.origin.url", OTHER_URL],
+            vec![
+                "-c",
+                "alias.setconfig=config",
+                "setconfig",
+                "remote.origin.url",
+                OTHER_URL,
+            ],
         ),
         // A shell alias reaches the command the shell runs, so it is refused like the command itself.
         (
             linked.clone(),
-            vec!["-c", "alias.shellsu=!git remote set-url", "shellsu", "origin", OTHER_URL],
+            vec![
+                "-c",
+                "alias.shellsu=!git remote set-url",
+                "shellsu",
+                "origin",
+                OTHER_URL,
+            ],
         ),
         (
             linked.clone(),
-            vec!["-c", "alias.shellcfg=!git config", "shellcfg", "remote.origin.url", OTHER_URL],
+            vec![
+                "-c",
+                "alias.shellcfg=!git config",
+                "shellcfg",
+                "remote.origin.url",
+                OTHER_URL,
+            ],
         ),
     ];
     for (directory, form) in forms {
         let observed: Observed = run_wrapped(&fixture, directory.as_path(), form.as_slice());
         let stderr: String = stderr_of(&observed);
-        assert_eq!(observed.code, Some(1), "git {} was not refused: {stderr}", form.join(" "));
-        assert!(stderr.contains(SHARED_REMOTE_CODE), "git {} printed no shared-remote finding: {stderr}", form.join(" "));
+        assert_eq!(
+            observed.code,
+            Some(1),
+            "git {} was not refused: {stderr}",
+            form.join(" ")
+        );
+        assert!(
+            stderr.contains(SHARED_REMOTE_CODE),
+            "git {} printed no shared-remote finding: {stderr}",
+            form.join(" ")
+        );
         assert_eq!(
             config_bytes(repo.as_path()),
             before,
@@ -294,7 +382,8 @@ fn global_options_and_aliases_reach_the_same_refusal() {
 fn reads_and_this_worktrees_own_file_still_run() {
     let fixture: Fixture = fixture("shared-remote-allowed");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     for form in ALLOWED_FORMS {
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), form);
         let stderr: String = stderr_of(&observed);
@@ -304,27 +393,76 @@ fn reads_and_this_worktrees_own_file_still_run() {
             "git {} was refused in a linked worktree: {stderr}",
             form.join(" ")
         );
-        assert!(!stderr.contains(SHARED_REMOTE_CODE), "git {} was refused: {stderr}", form.join(" "));
+        assert!(
+            !stderr.contains(SHARED_REMOTE_CODE),
+            "git {} was refused: {stderr}",
+            form.join(" ")
+        );
     }
     // A per-worktree configuration file needs the extension that enables it.
-    git(&fixture, repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "extensions.worktreeConfig", "true"],
+    );
     let before: Vec<u8> = config_bytes(repo.as_path());
-    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["config", "--worktree", "remote.origin.url", OTHER_URL]);
-    assert_eq!(observed.code, Some(0), "git config --worktree was refused: {}", stderr_of(&observed));
-    assert_eq!(config_bytes(repo.as_path()), before, "a per-worktree write changed the shared configuration");
-    let own: PathBuf = repo.join(".git").join("worktrees").join("linked").join("config.worktree");
-    let written: String = String::from_utf8_lossy(&std::fs::read(own.as_path()).expect("per-worktree configuration")).into_owned();
-    assert!(written.contains(OTHER_URL), "the per-worktree file does not hold the value: {written}");
+    let observed: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["config", "--worktree", "remote.origin.url", OTHER_URL],
+    );
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "git config --worktree was refused: {}",
+        stderr_of(&observed)
+    );
+    assert_eq!(
+        config_bytes(repo.as_path()),
+        before,
+        "a per-worktree write changed the shared configuration"
+    );
+    let own: PathBuf = repo
+        .join(".git")
+        .join("worktrees")
+        .join("linked")
+        .join("config.worktree");
+    let written: String =
+        String::from_utf8_lossy(&std::fs::read(own.as_path()).expect("per-worktree configuration"))
+            .into_owned();
+    assert!(
+        written.contains(OTHER_URL),
+        "the per-worktree file does not hold the value: {written}"
+    );
     // A file the command names itself is not the shared one.
     let named: PathBuf = fixture.root.join("named.config");
     let named_run: Observed = run_wrapped(
         &fixture,
         linked.as_path(),
-        &["config", "--file", named.to_str().expect("text path"), "remote.origin.url", OTHER_URL],
+        &[
+            "config",
+            "--file",
+            named.to_str().expect("text path"),
+            "remote.origin.url",
+            OTHER_URL,
+        ],
     );
-    assert_eq!(named_run.code, Some(0), "a named file was refused: {}", stderr_of(&named_run));
-    assert!(std::fs::read_to_string(named.as_path()).expect("named configuration").contains(OTHER_URL));
-    assert_eq!(config_bytes(repo.as_path()), before, "a named file changed the shared configuration");
+    assert_eq!(
+        named_run.code,
+        Some(0),
+        "a named file was refused: {}",
+        stderr_of(&named_run)
+    );
+    assert!(
+        std::fs::read_to_string(named.as_path())
+            .expect("named configuration")
+            .contains(OTHER_URL)
+    );
+    assert_eq!(
+        config_bytes(repo.as_path()),
+        before,
+        "a named file changed the shared configuration"
+    );
     remove(&fixture);
 }
 
@@ -360,12 +498,14 @@ fn edited_files(fixture: &Fixture) -> String {
 fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
     let fixture: Fixture = fixture("shared-remote-named-shared");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     let shared: PathBuf = config_file(repo.as_path());
     let spelled: String = shared.to_str().expect("text path").to_string();
     // A link to the shared file names the same bytes through another path.
     let link: PathBuf = fixture.root.join("config-link");
-    std::os::unix::fs::symlink(shared.as_path(), link.as_path()).expect("link to the shared configuration");
+    std::os::unix::fs::symlink(shared.as_path(), link.as_path())
+        .expect("link to the shared configuration");
     let linked_to: String = link.to_str().expect("text path").to_string();
     let editor: PathBuf = recording_editor(&fixture);
     let editor_text: String = editor.to_str().expect("text path").to_string();
@@ -373,17 +513,62 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
     let relative: String = String::from("../repo/.git/config");
     let before: Vec<u8> = config_bytes(repo.as_path());
     let forms: Vec<Vec<String>> = vec![
-        vec![String::from("config"), String::from("--file"), spelled.clone(), String::from("remote.origin.url"), String::from(OTHER_URL)],
-        vec![String::from("config"), format!("--file={spelled}"), String::from("remote.origin.url"), String::from(OTHER_URL)],
-        vec![String::from("config"), String::from("--file"), relative, String::from("remote.origin.url"), String::from(OTHER_URL)],
-        vec![String::from("config"), String::from("--file"), linked_to.clone(), String::from("remote.origin.url"), String::from(OTHER_URL)],
-        vec![String::from("config"), String::from("--file"), spelled.clone(), String::from("--remove-section"), String::from("remote.origin")],
-        vec![String::from("config"), String::from("--file"), spelled.clone(), String::from("--rename-section"), String::from("remote.origin"), String::from("remote.renamed")],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            spelled.clone(),
+            String::from("remote.origin.url"),
+            String::from(OTHER_URL),
+        ],
+        vec![
+            String::from("config"),
+            format!("--file={spelled}"),
+            String::from("remote.origin.url"),
+            String::from(OTHER_URL),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            relative,
+            String::from("remote.origin.url"),
+            String::from(OTHER_URL),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            linked_to.clone(),
+            String::from("remote.origin.url"),
+            String::from(OTHER_URL),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            spelled.clone(),
+            String::from("--remove-section"),
+            String::from("remote.origin"),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            spelled.clone(),
+            String::from("--rename-section"),
+            String::from("remote.origin"),
+            String::from("remote.renamed"),
+        ],
         // An editor session names no key and can change any of them.
         vec![String::from("config"), String::from("--edit")],
         vec![String::from("config"), String::from("edit")],
-        vec![String::from("config"), String::from("--edit"), String::from("user.name")],
-        vec![String::from("config"), String::from("--file"), spelled.clone(), String::from("--edit")],
+        vec![
+            String::from("config"),
+            String::from("--edit"),
+            String::from("user.name"),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            spelled.clone(),
+            String::from("--edit"),
+        ],
     ];
     let config_text: String = spelled.clone();
     for form in &forms {
@@ -396,7 +581,13 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
             b"",
         );
         let stderr: String = stderr_of(&observed);
-        assert_eq!(observed.code, Some(1), "git {} was not refused in {}", form.join(" "), linked.display());
+        assert_eq!(
+            observed.code,
+            Some(1),
+            "git {} was not refused in {}",
+            form.join(" "),
+            linked.display()
+        );
         assert!(
             stderr.contains("\"code\":\"linked-worktree-only/shared-remote-settings\""),
             "git {} printed no shared-remote finding: {stderr}",
@@ -423,8 +614,19 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
     let named: PathBuf = fixture.root.join("named.config");
     let named_text: String = named.to_str().expect("text path").to_string();
     for form in [
-        vec![String::from("config"), String::from("--file"), named_text.clone(), String::from("remote.origin.url"), String::from(OTHER_URL)],
-        vec![String::from("config"), String::from("--file"), named_text.clone(), String::from("--edit")],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            named_text.clone(),
+            String::from("remote.origin.url"),
+            String::from(OTHER_URL),
+        ],
+        vec![
+            String::from("config"),
+            String::from("--file"),
+            named_text.clone(),
+            String::from("--edit"),
+        ],
     ] {
         let arguments: Vec<&str> = form.iter().map(String::as_str).collect();
         let observed: Observed = observe(
@@ -434,10 +636,25 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
                 .args(arguments.as_slice()),
             b"",
         );
-        assert_eq!(observed.code, Some(0), "git {} was refused: {}", form.join(" "), stderr_of(&observed));
+        assert_eq!(
+            observed.code,
+            Some(0),
+            "git {} was refused: {}",
+            form.join(" "),
+            stderr_of(&observed)
+        );
         let stored: String = std::fs::read_to_string(named.as_path()).expect("named configuration");
-        assert!(stored.contains(OTHER_URL), "{} stored nothing: {stored}", form.join(" "));
-        assert_eq!(config_bytes(repo.as_path()), before, "git {} changed the shared configuration", form.join(" "));
+        assert!(
+            stored.contains(OTHER_URL),
+            "{} stored nothing: {stored}",
+            form.join(" ")
+        );
+        assert_eq!(
+            config_bytes(repo.as_path()),
+            before,
+            "git {} changed the shared configuration",
+            form.join(" ")
+        );
     }
     // The per-user file is the person's own, so an editor session on it runs.
     let global: PathBuf = fixture.root.join("global-config");
@@ -450,9 +667,19 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
             .args(["config", "--global", "--edit"]),
         b"",
     );
-    assert_eq!(global_run.code, Some(0), "git config --global --edit was refused: {}", stderr_of(&global_run));
-    assert_eq!(config_bytes(repo.as_path()), before, "git config --global --edit changed the shared configuration");
-    let global_edited: String = std::fs::read_to_string(global.as_path()).expect("per-user configuration");
+    assert_eq!(
+        global_run.code,
+        Some(0),
+        "git config --global --edit was refused: {}",
+        stderr_of(&global_run)
+    );
+    assert_eq!(
+        config_bytes(repo.as_path()),
+        before,
+        "git config --global --edit changed the shared configuration"
+    );
+    let global_edited: String =
+        std::fs::read_to_string(global.as_path()).expect("per-user configuration");
     assert!(
         global_edited.contains(EDITOR_SECTION),
         "the editor of the per-user file did not run: {global_edited}"
@@ -522,7 +749,12 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
             .args(["config", "--edit"]),
         b"",
     );
-    assert_eq!(direct_run.code, Some(0), "real Git refused its own editor session: {}", stderr_of(&direct_run));
+    assert_eq!(
+        direct_run.code,
+        Some(0),
+        "real Git refused its own editor session: {}",
+        stderr_of(&direct_run)
+    );
     assert_eq!(
         edited_files(&fixture).lines().next_back(),
         Some(spelled.as_str()),
@@ -540,7 +772,12 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
             .args(["config", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--edit"]),
         b"",
     );
-    assert_eq!(hatched.code, Some(0), "the hatch did not run the editor session: {}", stderr_of(&hatched));
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the hatch did not run the editor session: {}",
+        stderr_of(&hatched)
+    );
     assert_eq!(
         edited_files(&fixture).lines().next_back(),
         Some(spelled.as_str()),
@@ -549,7 +786,8 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
     let audit: PathBuf = repo
         .join(".git")
         .join("monochromatic-git-policy-cli-audit.jsonl");
-    let lines: String = std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
+    let lines: String =
+        std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
     assert!(lines.contains("\"form\":\"SharedRemote\""), "{lines}");
     assert!(lines.contains("\"outcome\":\"hatch\""), "{lines}");
     remove(&fixture);
@@ -560,22 +798,42 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
 fn the_hatch_runs_the_shared_remote_write() {
     let fixture: Fixture = fixture("shared-remote-hatch");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     let before: Vec<u8> = config_bytes(repo.as_path());
     let observed: Observed = run_wrapped(
         &fixture,
         linked.as_path(),
-        &["remote", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "set-url", "origin", OTHER_URL],
+        &[
+            "remote",
+            WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
+            "set-url",
+            "origin",
+            OTHER_URL,
+        ],
     );
-    assert_eq!(observed.code, Some(0), "the hatch did not run the command: {}", stderr_of(&observed));
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the hatch did not run the command: {}",
+        stderr_of(&observed)
+    );
     let after: String = String::from_utf8_lossy(&config_bytes(repo.as_path())).into_owned();
-    assert_ne!(config_bytes(repo.as_path()), before, "the hatch ran nothing that changed the configuration");
-    assert!(after.contains(OTHER_URL), "the hatch ran the command but stored nothing: {after}");
+    assert_ne!(
+        config_bytes(repo.as_path()),
+        before,
+        "the hatch ran nothing that changed the configuration"
+    );
+    assert!(
+        after.contains(OTHER_URL),
+        "the hatch ran the command but stored nothing: {after}"
+    );
     // A change made under the hatch is still attributable: one `hatch` line names this form and these arguments.
     let audit: PathBuf = repo
         .join(".git")
         .join("monochromatic-git-policy-cli-audit.jsonl");
-    let lines: String = std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
+    let lines: String =
+        std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
     assert!(lines.contains("\"form\":\"SharedRemote\""), "{lines}");
     assert!(lines.contains("\"outcome\":\"hatch\""), "{lines}");
     assert!(lines.contains(OTHER_URL), "{lines}");
@@ -588,7 +846,11 @@ fn the_hatch_runs_the_shared_remote_write() {
 fn the_main_checkout_still_changes_its_remote_settings() {
     let fixture: Fixture = fixture("shared-remote-main");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    git(&fixture, repo.as_path(), &["remote", "add", "origin", ORIGIN_URL]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", ORIGIN_URL],
+    );
     for form in [
         vec!["remote", "set-url", "origin", OTHER_URL],
         vec!["remote", "set-url", "--push", "origin", OTHER_URL],
@@ -616,7 +878,10 @@ fn the_main_checkout_still_changes_its_remote_settings() {
         );
     }
     let stored: String = String::from_utf8_lossy(&config_bytes(repo.as_path())).into_owned();
-    assert!(stored.contains(OTHER_URL), "the main checkout stored nothing: {stored}");
+    assert!(
+        stored.contains(OTHER_URL),
+        "the main checkout stored nothing: {stored}"
+    );
     // The shared file is this checkout's own, so naming it with `--file` is no refusal here either.
     let shared: PathBuf = config_file(repo.as_path());
     let named_run: Observed = run_wrapped(
@@ -691,7 +956,8 @@ fn another_work_tree_still_leaves_a_relative_file_path_in_the_shared_refusal(
 fn a_relative_file_path_beside_another_work_tree_is_read_from_the_directory_the_command_runs_in() {
     let fixture: Fixture = fixture("shared-remote-work-tree-relative");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     let elsewhere: PathBuf = fixture.root.join("nested").join("elsewhere");
     std::fs::create_dir_all(elsewhere.as_path()).expect("nested directory");
     let elsewhere_text: &str = elsewhere.to_str().expect("text path");
@@ -755,7 +1021,12 @@ fn a_relative_file_path_beside_another_work_tree_is_read_from_the_directory_the_
             OTHER_URL,
         ],
     );
-    assert_eq!(oracle.code, Some(0), "real Git refused the spelling: {}", stderr_of(&oracle));
+    assert_eq!(
+        oracle.code,
+        Some(0),
+        "real Git refused the spelling: {}",
+        stderr_of(&oracle)
+    );
     assert!(
         String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(OTHER_URL),
         "real Git did not write the shared file through the same relative path"
@@ -781,7 +1052,8 @@ fn a_relative_file_path_beside_another_work_tree_is_read_from_the_directory_the_
 fn a_shell_alias_reads_a_relative_file_path_where_git_runs_its_shell() {
     let fixture: Fixture = fixture("shared-remote-shell-alias-relative");
     let place: PathBuf = fixture.root.join("linked");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "repo", place.as_path());
     let below: PathBuf = linked.join("below");
     std::fs::create_dir_all(below.as_path()).expect("subdirectory of the linked worktree");
     // The command runs below the worktree root, where require-root refuses first, so this repository turns it off.
@@ -818,7 +1090,12 @@ fn a_shell_alias_reads_a_relative_file_path_where_git_runs_its_shell() {
     );
     // The oracle: real Git reads the same relative path from the directory it runs the shell in.
     let oracle: Observed = run_direct(&fixture, below.as_path(), form.as_slice());
-    assert_eq!(oracle.code, Some(0), "real Git refused its own alias: {}", stderr_of(&oracle));
+    assert_eq!(
+        oracle.code,
+        Some(0),
+        "real Git refused its own alias: {}",
+        stderr_of(&oracle)
+    );
     assert!(
         String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(OTHER_URL),
         "real Git did not write the shared file through the same spelling, so the refusal above proves nothing"
@@ -843,7 +1120,12 @@ fn a_linked_worktree_under_a_tool_cache_is_not_refused() {
             .env("UV_CACHE_DIR", cache.as_os_str()),
         b"",
     );
-    assert_eq!(observed.code, Some(0), "an exempt clone was refused: {}", stderr_of(&observed));
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "an exempt clone was refused: {}",
+        stderr_of(&observed)
+    );
     assert!(String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(OTHER_URL));
     remove(&fixture);
 }

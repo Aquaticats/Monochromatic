@@ -323,26 +323,26 @@ mod event_path;
 #[path = "binary_program_rename_tests.rs"]
 mod program_rename_guard;
 
+/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it,
+/// with no forward-target variable.
+#[path = "binary_convert_tests.rs"]
+mod convert;
 /// The `git monochromatic-git-policy-cli` management namespace.
 #[path = "binary_management_tests.rs"]
 mod management;
 /// `git monochromatic-git-policy-cli migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
-/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it,
-/// with no forward-target variable.
-#[path = "binary_convert_tests.rs"]
-mod convert;
 
 #[path = "binary_coordination_tests.rs"]
 mod coordination;
+/// The dependent-version policy on direct check and fix.
+#[path = "binary_dependent_version_tests.rs"]
+mod dependent_version;
 /// No external hook runs,
 /// and configured hooks are reported.
 #[path = "binary_external_hook_tests.rs"]
 mod external_hooks;
-/// The dependent-version policy on direct check and fix.
-#[path = "binary_dependent_version_tests.rs"]
-mod dependent_version;
 
 /// A merge over a file whose mode the person set:
 /// the merge writes the mode real Git writes for the entry,

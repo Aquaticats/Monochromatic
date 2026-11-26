@@ -14,10 +14,22 @@
 //! // const event = JSON.parse(stdout); expect(Buffer.from(event.pathBytes, 'base64')).toEqual(name);
 //! ```
 
-/// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
 use super::support::in_a_fixture_root_taking_any_name;
-use std::ffi::{OsStr, OsString};
+/// Import the shared fixtures and bounded process helpers.
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    wrapped,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
@@ -32,7 +44,11 @@ const LATIN_NAME_BYTES: &str = "Y2Fm6S50eHQ=";
 
 /// The final-newline finding about `LATIN_NAME` for one trigger,
 ///  with its sequence number.
-fn latin_finding(sequence: u64, trigger: &str, fix: &str) -> String {
+fn latin_finding(
+    sequence: u64,
+    trigger: &str,
+    fix: &str,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"{trigger}\",\
          \"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\
@@ -50,7 +66,9 @@ fn latin_finding(sequence: u64, trigger: &str, fix: &str) -> String {
 ///  in Git's byte order.
 #[test]
 fn events_carry_the_exact_bytes_of_a_name_that_is_not_utf8() {
-    if !in_a_fixture_root_taking_any_name("event_path::events_carry_the_exact_bytes_of_a_name_that_is_not_utf8") {
+    if !in_a_fixture_root_taking_any_name(
+        "event_path::events_carry_the_exact_bytes_of_a_name_that_is_not_utf8",
+    ) {
         return;
     }
     let fixture: Fixture = fixture("event-path");
@@ -75,9 +93,11 @@ fn events_carry_the_exact_bytes_of_a_name_that_is_not_utf8() {
     git(&fixture, repo.as_path(), &["reset", "--quiet"]);
     std::fs::write(repo.join("b.txt"), b"utf-8 name").expect("UTF-8 file");
     let checked: Observed = observe(
-        wrapped(&fixture)
-            .current_dir(&repo)
-            .args(["monochromatic-git-policy-cli", "check", "--all"]),
+        wrapped(&fixture).current_dir(&repo).args([
+            "monochromatic-git-policy-cli",
+            "check",
+            "--all",
+        ]),
         b"",
     );
     // Candidates come in Git's byte order: `b.txt` sorts before 0x63 `c`.

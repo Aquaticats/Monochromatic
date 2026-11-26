@@ -23,15 +23,18 @@
 //! stderr.write(renderLfsShims(shims));        // '' when there are none
 //! ```
 
-/// `ErrorKind` tells a read that gave no answer from one that failed.
-use std::io::ErrorKind;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
 /// The ceiling of each file system read of the report.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
 /// The job of such a read,
 /// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
+/// `ErrorKind` tells a read that gave no answer from one that failed.
+use std::io::ErrorKind;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The four hooks `git lfs install` writes.
 const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
@@ -107,7 +110,10 @@ pub fn is_lfs_shim(path: &Path) -> std::io::Result<bool> {
         Some(answer) => answer,
         None => Err(std::io::Error::new(
             ErrorKind::TimedOut,
-            format!("the read of {} gave no answer within {REPORT_SCAN_CEILING:?}", path.display()),
+            format!(
+                "the read of {} gave no answer within {REPORT_SCAN_CEILING:?}",
+                path.display()
+            ),
         )),
     };
 }

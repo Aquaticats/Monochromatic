@@ -14,22 +14,38 @@ struct Recorder {
 }
 
 impl Manager for Recorder {
-    fn within(&mut self, _wait: std::time::Duration) {}
+    fn within(
+        &mut self,
+        _wait: std::time::Duration,
+    ) {
+    }
 
-    fn reset_failed(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn start(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.stops.borrow_mut().push(format!("stop {unit}"));
         return Ok(());
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.stops.borrow_mut().push(format!("stop-alone {unit}"));
         return match self.refusal.borrow().clone() {
             Some(failure) => Err(failure),
@@ -37,11 +53,17 @@ impl Manager for Recorder {
         };
     }
 
-    fn active_state(&mut self, _unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        _unit: &str,
+    ) -> Result<Option<String>, CallError> {
         return Ok(None);
     }
 
-    fn listen(&mut self, _unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        _unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         return Ok(None);
     }
 }
@@ -57,7 +79,10 @@ impl Manager for Recorder {
 fn the_stop_is_the_sockets_and_never_the_services() {
     let mut recorder: Recorder = Recorder::default();
     stop_alone(&mut recorder, "example@abc.socket").expect("the manager took the stop");
-    assert_eq!(recorder.stops.borrow().clone(), vec![String::from("stop-alone example@abc.socket")]);
+    assert_eq!(
+        recorder.stops.borrow().clone(),
+        vec![String::from("stop-alone example@abc.socket")]
+    );
 }
 
 /// What:
@@ -69,9 +94,15 @@ fn the_stop_is_the_sockets_and_never_the_services() {
 #[test]
 fn a_unit_the_manager_does_not_hold_is_stopped_and_any_other_refusal_is_returned() {
     let mut missing: Recorder = Recorder::default();
-    *missing.refusal.borrow_mut() = Some(CallError::Manager { name: String::from(NO_SUCH_UNIT), text: String::new() });
+    *missing.refusal.borrow_mut() = Some(CallError::Manager {
+        name: String::from(NO_SUCH_UNIT),
+        text: String::new(),
+    });
     stop_alone(&mut missing, "example@abc.socket").expect("a unit that is not there is stopped");
     let mut refused: Recorder = Recorder::default();
     *refused.refusal.borrow_mut() = Some(CallError::TimedOut);
-    assert_eq!(stop_alone(&mut refused, "example@abc.socket"), Err(CallError::TimedOut));
+    assert_eq!(
+        stop_alone(&mut refused, "example@abc.socket"),
+        Err(CallError::TimedOut)
+    );
 }

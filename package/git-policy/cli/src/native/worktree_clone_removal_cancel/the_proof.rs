@@ -40,18 +40,35 @@ use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount::clone_slot_git_pointer::read_the_slot_git_pointer;
 use crate::worktree_clone_mount::slot_name_refusal;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, MountIntent, MountOperation, read_intent};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    IntentReading,
+    MountIntent,
+    MountOperation,
+    read_intent,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_removal_cancel::cancel_refusal::{
+    CancelRefusal,
+    of_pointer,
+};
+use crate::worktree_clone_removal_cancel::the_destroy_outcomes::settle_the_destroy_outcomes;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, the_clone_absence};
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::{RecordedBinding, read_the_recorded_binding};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    the_clone_absence,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
+    RecordedBinding,
+    read_the_recorded_binding,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_cancel::cancel_refusal::{CancelRefusal, of_pointer};
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::settle_the_destroy_outcomes;
 use crate::worktree_clone_unmount::staging_folder_name::staging_record_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder this repository's worktrees live in,
 /// below its pinned parent.
@@ -137,7 +154,9 @@ pub struct WhatTheRecordsProve {
 /// ```ts
 /// const guid = proveTheSlotIsARemovals(input);
 /// ```
-pub fn prove_the_slot_is_a_removals(input: &TheRecordsProof<'_>) -> Result<DatasetGuid, CancelRefusal> {
+pub fn prove_the_slot_is_a_removals(
+    input: &TheRecordsProof<'_>
+) -> Result<DatasetGuid, CancelRefusal> {
     let recorded: RecordedBinding = read_the_records(input)?;
     let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
     let _intent: MountIntent = read_the_request(input, &recorded, plan.is_some())?;
@@ -165,12 +184,15 @@ pub fn prove_the_slot_is_a_removals(input: &TheRecordsProof<'_>) -> Result<Datas
 /// ```ts
 /// proveTheSlotsRecords(input);
 /// ```
-pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRecordsProve, CancelRefusal> {
+pub fn prove_the_slots_records(
+    input: &TheRecordsProof<'_>
+) -> Result<WhatTheRecordsProve, CancelRefusal> {
     let recorded: RecordedBinding = read_the_records(input)?;
     let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
     let intent: MountIntent = read_the_request(input, &recorded, plan.is_some())?;
     let identity = live_identity(input, &recorded)?;
-    let live_origin: Option<String> = Some(identity.stats.origin()).filter(|origin| return !origin.is_empty());
+    let live_origin: Option<String> =
+        Some(identity.stats.origin()).filter(|origin| return !origin.is_empty());
     if live_origin.as_deref() != Some(recorded.origin_snapshot.as_str()) {
         return Err(CancelRefusal::TheCloneIsNotTheRecordedOne {
             field: "originSnapshot",
@@ -179,15 +201,27 @@ pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRec
         });
     }
     let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> =
-        input.reads.snapshots_of(recorded.clone_dataset.as_str(), recorded.clone_guid).map_err(|reason| {
-            return CancelRefusal::TheInventoryIsUnreadable { clone: recorded.clone_dataset.clone(), reason };
-        })?;
+        input
+            .reads
+            .snapshots_of(recorded.clone_dataset.as_str(), recorded.clone_guid)
+            .map_err(|reason| {
+                return CancelRefusal::TheInventoryIsUnreadable {
+                    clone: recorded.clone_dataset.clone(),
+                    reason,
+                };
+            })?;
     let destroyed: Vec<String> = match &plan {
         Some(standing) => settle_the_destroy_outcomes(standing, live.as_slice())?,
         None => Vec::new(),
     };
     let slot_path: PathBuf = input.checkout.join(WORKTREES_FOLDER).join(input.slot);
-    return Ok(WhatTheRecordsProve { recorded, slot_path, plan, intent, destroyed });
+    return Ok(WhatTheRecordsProve {
+        recorded,
+        slot_path,
+        plan,
+        intent,
+        destroyed,
+    });
 }
 
 /// What:
@@ -205,23 +239,38 @@ pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRec
 /// or a plan whose owner still runs.
 fn read_the_records(input: &TheRecordsProof<'_>) -> Result<RecordedBinding, CancelRefusal> {
     if let Some(reason) = slot_name_refusal(input.slot) {
-        return Err(CancelRefusal::NotBeingRemoved { slot: String::from(input.slot), found: format!("`{}` is not a slot name ({reason}).", input.slot) });
+        return Err(CancelRefusal::NotBeingRemoved {
+            slot: String::from(input.slot),
+            found: format!("`{}` is not a slot name ({reason}).", input.slot),
+        });
     }
     let slot_path: PathBuf = input.checkout.join(WORKTREES_FOLDER).join(input.slot);
     let folder: std::fs::File = std::fs::File::open(slot_path.as_path()).map_err(|error| {
-        return CancelRefusal::ThePointerIsNotOneGitdirLine { slot: String::from(input.slot), said: format!("the slot folder {} could not be read ({error})", slot_path.display()) };
+        return CancelRefusal::ThePointerIsNotOneGitdirLine {
+            slot: String::from(input.slot),
+            said: format!(
+                "the slot folder {} could not be read ({error})",
+                slot_path.display()
+            ),
+        };
     })?;
-    read_the_slot_git_pointer(&folder, input.checkout, input.slot).map_err(|refusal| return of_pointer(input.slot, &refusal))?;
-    let recorded: RecordedBinding =
-        read_the_recorded_binding(input.common_dir, input.slot).map_err(|stop| return of_a_removal_stop(input.slot, &stop))?;
+    read_the_slot_git_pointer(&folder, input.checkout, input.slot)
+        .map_err(|refusal| return of_pointer(input.slot, &refusal))?;
+    let recorded: RecordedBinding = read_the_recorded_binding(input.common_dir, input.slot)
+        .map_err(|stop| return of_a_removal_stop(input.slot, &stop))?;
     if recorded.slot != input.slot {
-        return Err(CancelRefusal::TheBindingIsNotThisSlots { slot: String::from(input.slot), said: format!("is filed as the slot `{}`", recorded.slot) });
+        return Err(CancelRefusal::TheBindingIsNotThisSlots {
+            slot: String::from(input.slot),
+            said: format!("is filed as the slot `{}`", recorded.slot),
+        });
     }
     let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
     if let Some(standing_plan) = &plan
         && let Some(owner) = live_plan_owner(standing_plan)
     {
-        return Err(CancelRefusal::ALiveRemoval { owner });
+        return Err(CancelRefusal::ALiveRemoval {
+            owner,
+        });
     }
     return Ok(recorded);
 }
@@ -236,10 +285,18 @@ fn read_the_records(input: &TheRecordsProof<'_>) -> Result<RecordedBinding, Canc
 /// # Errors
 /// The plan that cannot be read,
 /// or one that names another clone than the binding does.
-fn read_the_plan(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Result<Option<DestructionPlan>, CancelRefusal> {
+fn read_the_plan(
+    input: &TheRecordsProof<'_>,
+    recorded: &RecordedBinding,
+) -> Result<Option<DestructionPlan>, CancelRefusal> {
     let plan_path: PathBuf = plans_folder(input.common_dir).join(recorded.clone_guid.file_name());
-    let plan: Option<DestructionPlan> = read_an_existing_plan(input.common_dir, recorded.clone_guid)
-        .map_err(|refusal| return CancelRefusal::ThePlanIsUnreadable { path: plan_path.clone(), said: refusal.message(plan_path.as_path()) })?;
+    let plan: Option<DestructionPlan> =
+        read_an_existing_plan(input.common_dir, recorded.clone_guid).map_err(|refusal| {
+            return CancelRefusal::ThePlanIsUnreadable {
+                path: plan_path.clone(),
+                said: refusal.message(plan_path.as_path()),
+            };
+        })?;
     let Some(standing_plan) = &plan else {
         return Ok(None);
     };
@@ -271,20 +328,36 @@ fn read_the_plan(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Res
 /// A clone that does not answer,
 /// a request that is no local one,
 /// or a slot with no removal record.
-fn read_the_request(input: &TheRecordsProof<'_>, recorded: &RecordedBinding, has_plan: bool) -> Result<MountIntent, CancelRefusal> {
+fn read_the_request(
+    input: &TheRecordsProof<'_>,
+    recorded: &RecordedBinding,
+    has_plan: bool,
+) -> Result<MountIntent, CancelRefusal> {
     let identity = live_identity(input, recorded)?;
-    let intent: MountIntent = match read_intent(Some(&identity.properties), recorded.clone_dataset.as_str()) {
-        IntentReading::Request(request) => request,
-        IntentReading::Absent => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: String::from("no local value") });
-        }
-        IntentReading::Inherited { from } => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: format!("an inherited value from `{from}`") });
-        }
-        IntentReading::Refused(refusal) => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: refusal.message() });
-        }
-    };
+    let intent: MountIntent =
+        match read_intent(Some(&identity.properties), recorded.clone_dataset.as_str()) {
+            IntentReading::Request(request) => request,
+            IntentReading::Absent => {
+                return Err(CancelRefusal::TheIntentIsNotALocalRequest {
+                    clone: recorded.clone_dataset.clone(),
+                    said: String::from("no local value"),
+                });
+            }
+            IntentReading::Inherited {
+                from,
+            } => {
+                return Err(CancelRefusal::TheIntentIsNotALocalRequest {
+                    clone: recorded.clone_dataset.clone(),
+                    said: format!("an inherited value from `{from}`"),
+                });
+            }
+            IntentReading::Refused(refusal) => {
+                return Err(CancelRefusal::TheIntentIsNotALocalRequest {
+                    clone: recorded.clone_dataset.clone(),
+                    said: refusal.message(),
+                });
+            }
+        };
     let staged: bool = staged_record_stands(input.home, recorded.clone_guid);
     if !has_plan && !staged && intent.operation != MountOperation::Unmount {
         return Err(CancelRefusal::NotBeingRemoved {
@@ -309,11 +382,21 @@ fn read_the_request(input: &TheRecordsProof<'_>, recorded: &RecordedBinding, has
 /// The identity that differs,
 /// or the clone that is gone,
 /// renamed or unreadable.
-fn live_identity(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Result<monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity, CancelRefusal> {
-    let identity = input.reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| return the_clone_absence_arm(input, recorded, &reason))?;
-    let live_clone_guid: DatasetGuid = dataset_guid_of(identity.stats.dds_guid).map_err(|said| {
-        return CancelRefusal::TheCloneDoesNotAnswer { dataset: recorded.clone_dataset.clone(), reason: said };
-    })?;
+fn live_identity(
+    input: &TheRecordsProof<'_>,
+    recorded: &RecordedBinding,
+) -> Result<monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity, CancelRefusal> {
+    let identity = input
+        .reads
+        .identity(recorded.clone_dataset.as_str())
+        .map_err(|reason| return the_clone_absence_arm(input, recorded, &reason))?;
+    let live_clone_guid: DatasetGuid =
+        dataset_guid_of(identity.stats.dds_guid).map_err(|said| {
+            return CancelRefusal::TheCloneDoesNotAnswer {
+                dataset: recorded.clone_dataset.clone(),
+                reason: said,
+            };
+        })?;
     if live_clone_guid != recorded.clone_guid {
         return Err(CancelRefusal::TheCloneIsNotTheRecordedOne {
             field: "cloneGuid",
@@ -340,7 +423,9 @@ fn live_plan_owner(plan: &DestructionPlan) -> Option<String> {
     return match process_birth_identity(pid) {
         Ok(None) => None,
         Ok(Some(current)) => (current == birth).then(|| return owner.to_string()),
-        Err(error) => Some(format!("{owner} (whether it still runs cannot be decided: {error})")),
+        Err(error) => Some(format!(
+            "{owner} (whether it still runs cannot be decided: {error})"
+        )),
     };
 }
 
@@ -349,20 +434,36 @@ fn live_plan_owner(plan: &DestructionPlan) -> Option<String> {
 /// so the absence proof decides whether the head is gone,
 /// whether the name holds another object,
 /// or whether the pool could not be read.
-fn the_clone_absence_arm(input: &TheRecordsProof<'_>, recorded: &RecordedBinding, reason: &str) -> CancelRefusal {
-    return match the_clone_absence(input.absence, recorded.clone_dataset.as_str(), recorded.clone_guid) {
+fn the_clone_absence_arm(
+    input: &TheRecordsProof<'_>,
+    recorded: &RecordedBinding,
+    reason: &str,
+) -> CancelRefusal {
+    return match the_clone_absence(
+        input.absence,
+        recorded.clone_dataset.as_str(),
+        recorded.clone_guid,
+    ) {
         Ok(CloneAbsence::Gone) => CancelRefusal::TheHeadIsGone {
             slot: String::from(input.slot),
             dataset: recorded.clone_dataset.clone(),
             guid: recorded.clone_guid.file_name(),
-            said: format!("no child of its pinned parent carries GUID `{}` either", recorded.clone_guid.file_name()),
+            said: format!(
+                "no child of its pinned parent carries GUID `{}` either",
+                recorded.clone_guid.file_name()
+            ),
         },
-        Ok(CloneAbsence::There { name, guid }) => CancelRefusal::TheCloneIsNotTheRecordedOne {
+        Ok(CloneAbsence::There {
+            name,
+            guid,
+        }) => CancelRefusal::TheCloneIsNotTheRecordedOne {
             field: "cloneGuid",
             recorded: recorded.clone_guid.file_name(),
             live: format!("{} under `{name}`", guid.file_name()),
         },
-        Ok(CloneAbsence::Reused { guid }) => CancelRefusal::TheCloneIsNotTheRecordedOne {
+        Ok(CloneAbsence::Reused {
+            guid,
+        }) => CancelRefusal::TheCloneIsNotTheRecordedOne {
             field: "cloneGuid",
             recorded: recorded.clone_guid.file_name(),
             live: guid.file_name(),
@@ -378,24 +479,42 @@ fn the_clone_absence_arm(input: &TheRecordsProof<'_>, recorded: &RecordedBinding
 /// or the refusal a GUID 0 owes.
 fn dataset_guid_of(guid: u64) -> Result<DatasetGuid, String> {
     if guid == 0 {
-        return Err(String::from("the pool reported GUID 0, and no live object has that identity"));
+        return Err(String::from(
+            "the pool reported GUID 0, and no live object has that identity",
+        ));
     }
-    return DatasetGuid::parse(guid.to_string().as_str()).map_err(|_| return String::from("the pool's GUID is not canonical"));
+    return DatasetGuid::parse(guid.to_string().as_str())
+        .map_err(|_| return String::from("the pool's GUID is not canonical"));
 }
 
 /// Whether a staging record for this clone stands in the account's cache,
 /// which is one of the three records that make a slot's state a removal's.
-fn staged_record_stands(home: &Path, clone_guid: DatasetGuid) -> bool {
+fn staged_record_stands(
+    home: &Path,
+    clone_guid: DatasetGuid,
+) -> bool {
     let path: PathBuf = home.join(".cache").join(staging_record_name(clone_guid));
     return std::fs::symlink_metadata(path.as_path()).is_ok();
 }
 
 /// One removal's stop as this command's refusal,
 /// naming the slot the record belongs to.
-fn of_a_removal_stop(slot: &str, stop: &RemovalStop) -> CancelRefusal {
+fn of_a_removal_stop(
+    slot: &str,
+    stop: &RemovalStop,
+) -> CancelRefusal {
     return match stop {
-        RemovalStop::NoBinding { reason, .. } => CancelRefusal::NoBinding { slot: String::from(slot), reason: reason.clone() },
-        other => CancelRefusal::TheBindingIsNotThisSlots { slot: String::from(slot), said: format!("cannot be read as this removal's ({})", other.message()) },
+        RemovalStop::NoBinding {
+            reason,
+            ..
+        } => CancelRefusal::NoBinding {
+            slot: String::from(slot),
+            reason: reason.clone(),
+        },
+        other => CancelRefusal::TheBindingIsNotThisSlots {
+            slot: String::from(slot),
+            said: format!("cannot be read as this removal's ({})", other.message()),
+        },
     };
 }
 

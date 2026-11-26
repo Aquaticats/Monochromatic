@@ -191,7 +191,10 @@ pub struct OperationState {
 /// abortIsLive('am', state({ rebaseApplyApplying: true })) === true;
 /// abortIsLive('pick', state({ mergeHead: true })) === false;
 /// ```
-pub fn abort_is_live(operation: AbortOperation, state: OperationState) -> bool {
+pub fn abort_is_live(
+    operation: AbortOperation,
+    state: OperationState,
+) -> bool {
     return match operation {
         AbortOperation::Merge => state.merge_head,
         // `git rebase --abort` refuses an `am` (`It looks like 'git am' is in progress. Cannot rebase.`).
@@ -214,7 +217,10 @@ pub fn abort_is_live(operation: AbortOperation, state: OperationState) -> bool {
 /// ```ts
 /// inProgressOperation('am', state({ rebaseApplyRebasing: true })) === 'rebase';
 /// ```
-pub fn in_progress_operation(operation: AbortOperation, state: OperationState) -> AbortOperation {
+pub fn in_progress_operation(
+    operation: AbortOperation,
+    state: OperationState,
+) -> AbortOperation {
     return match operation {
         AbortOperation::Am if state.rebase_apply_rebasing => AbortOperation::Rebase,
         other => other,
@@ -222,7 +228,14 @@ pub fn in_progress_operation(operation: AbortOperation, state: OperationState) -
 }
 
 /// The path names inside the Git directory the question reads.
-pub const OPERATION_STATE_NAMES: [&str; 6] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply/rebasing", "rebase-apply/applying"];
+pub const OPERATION_STATE_NAMES: [&str; 6] = [
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "rebase-merge",
+    "rebase-apply/rebasing",
+    "rebase-apply/applying",
+];
 
 /// The name of the sequencer directory,
 /// which holds the picks a cherry-pick or revert sequence still owes.
@@ -243,7 +256,11 @@ pub const SEQUENCER_DIRECTORY: &str = "sequencer";
 /// ```ts
 /// RESTORED_REVISION_NAMES.includes('rebase-merge/orig-head');
 /// ```
-pub const RESTORED_REVISION_NAMES: [&str; 3] = ["rebase-merge/orig-head", "rebase-apply/orig-head", "sequencer/head"];
+pub const RESTORED_REVISION_NAMES: [&str; 3] = [
+    "rebase-merge/orig-head",
+    "rebase-apply/orig-head",
+    "sequencer/head",
+];
 
 /// What:
 ///  Where the commit an abort writes back into the worktree is recorded.
@@ -287,15 +304,22 @@ pub enum RestoredRevision {
 /// restoredRevision('pick', state({ sequencer: true })) === stateFile('sequencer/head');
 /// restoredRevision('am', state({ rebaseApplyApplying: true })) === named('ORIG_HEAD');
 /// ```
-pub fn restored_revision(operation: AbortOperation, state: OperationState) -> RestoredRevision {
+pub fn restored_revision(
+    operation: AbortOperation,
+    state: OperationState,
+) -> RestoredRevision {
     return match operation {
         // `git merge --abort` is a merge-semantics reset to the current `HEAD`, and a moved `ORIG_HEAD` is ignored (measured).
         AbortOperation::Merge => RestoredRevision::Named(OsStr::new("HEAD")),
         // Whichever backend started the rebase records its original head in its own directory.
-        AbortOperation::Rebase if state.rebase_merge => RestoredRevision::StateFile(OsStr::new("rebase-merge/orig-head")),
+        AbortOperation::Rebase if state.rebase_merge => {
+            RestoredRevision::StateFile(OsStr::new("rebase-merge/orig-head"))
+        }
         AbortOperation::Rebase => RestoredRevision::StateFile(OsStr::new("rebase-apply/orig-head")),
         // A sequence resets to its recorded start; one pick resets to the `HEAD` it never moved.
-        AbortOperation::Pick if state.sequencer => RestoredRevision::StateFile(OsStr::new("sequencer/head")),
+        AbortOperation::Pick if state.sequencer => {
+            RestoredRevision::StateFile(OsStr::new("sequencer/head"))
+        }
         AbortOperation::Pick => RestoredRevision::Named(OsStr::new("HEAD")),
         // `git am --abort` resets to `ORIG_HEAD`, which `git am` writes when it starts (measured, also during a rebase it ends).
         AbortOperation::Am => RestoredRevision::Named(OsStr::new("ORIG_HEAD")),

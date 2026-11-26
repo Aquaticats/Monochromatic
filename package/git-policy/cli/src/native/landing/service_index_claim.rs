@@ -40,13 +40,32 @@
 //! takeClaim(platform, lock, staleFile, marked) // 'held' | 'busy' | { foreign: { file, marked } } | { unavailable: error }
 //! ```
 
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, holder_is_running, marker_text, parse_marker};
-use crate::service_index_placement::{Platform, place_marked};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use crate::service_index_marker::{
+    Marked,
+    holder_is_elsewhere,
+    holder_is_gone,
+    holder_is_running,
+    marker_text,
+    parse_marker,
+};
+use crate::service_index_placement::{
+    Platform,
+    place_marked,
+};
 use crate::service_index_staging::stage_marker;
 use std::io::Read;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    OpenOptionsExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What every claim file's name starts with (after the lock's directory).
 pub const CLAIM_INFIX: &str = "cli-reclaim-";
@@ -76,7 +95,10 @@ pub enum Claim {
     /// A claim in the way cannot be judged (its maker is in another PID namespace,
     /// or it cannot be read):
     /// it stays and is named.
-    Unjudged { file: PathBuf, marked: Option<Marked> },
+    Unjudged {
+        file: PathBuf,
+        marked: Option<Marked>,
+    },
     /// A claim could not be placed or this process cannot name itself:
     /// nothing is removed,
     /// and the caller says so.
@@ -158,7 +180,14 @@ impl Drop for ClaimHold {
 /// const escapedByte = (byte: number) => [0x2f, 0, 0x25].includes(byte) ? '%' + byte.toString(16).padStart(2, '0') : String.fromCharCode(byte);
 /// ```
 fn escaped_byte(byte: u8) -> String {
-    return if matches!(byte, b'/' | 0 | b'%') { format!("%{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte)) } else { String::from(char::from(byte)) };
+    return if matches!(byte, b'/' | 0 | b'%') {
+        format!(
+            "%{}",
+            crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte)
+        )
+    } else {
+        String::from(char::from(byte))
+    };
 }
 
 /// What:
@@ -171,7 +200,10 @@ fn escaped_byte(byte: u8) -> String {
 /// ```ts
 /// abandoned.push([path, text]);
 /// ```
-fn remember_abandoned(path: PathBuf, text: String) {
+fn remember_abandoned(
+    path: PathBuf,
+    text: String,
+) {
     on_the_landing_state((path, text), keep_abandoned_claim);
 }
 
@@ -193,7 +225,11 @@ fn remember_abandoned(path: PathBuf, text: String) {
 /// ```ts
 /// join(dirname(lock), `cli-reclaim-${sha256(basename(lock) + '\0' + key).slice(0, 16).toString('hex')}-${slot}`)
 /// ```
-pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
+pub fn claim_path(
+    lock: &Path,
+    key: &str,
+    slot: usize,
+) -> PathBuf {
     use std::os::unix::ffi::OsStrExt;
     let mut input: Vec<u8> = match lock.file_name() {
         Some(name) => name.as_bytes().to_vec(),
@@ -202,7 +238,8 @@ pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
     input.push(0);
     input.extend_from_slice(key.as_bytes());
     let digest: [u8; 32] = crate::subvolume_sha::sha256(input.as_slice());
-    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..CLAIM_DIGEST_BYTES]);
+    let hex: String =
+        crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..CLAIM_DIGEST_BYTES]);
     return lock.with_file_name(format!("{CLAIM_INFIX}{hex}-{slot}"));
 }
 
@@ -255,7 +292,10 @@ fn remove_claim(path: &Path) {
     match std::fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => crate::service_error!("the claim file {} of a reclaim cannot be removed ({error}); it is inert, remove it by hand", path.display()),
+        Err(error) => crate::service_error!(
+            "the claim file {} of a reclaim cannot be removed ({error}); it is inert, remove it by hand",
+            path.display()
+        ),
     }
 }
 
@@ -266,12 +306,18 @@ fn remove_claim(path: &Path) {
 /// or one that cannot be judged.
 fn look_at(path: &Path) -> Slot {
     // No link is followed and no pipe waited on, so a stranger's file of this name cannot hang the reclaimer.
-    let opened = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path);
+    let opened = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+        .open(path);
     let file = match opened {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Slot::Free,
         Err(error) => {
-            crate::service_error!("the claim file {} of a reclaim cannot be opened ({error}), so its maker is not judged", path.display());
+            crate::service_error!(
+                "the claim file {} of a reclaim cannot be opened ({error}), so its maker is not judged",
+                path.display()
+            );
             return Slot::Unjudged(None);
         }
     };
@@ -281,7 +327,10 @@ fn look_at(path: &Path) -> Slot {
         // Bytes that are not text are no marker: the file is a stranger's.
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => return Slot::Dead,
         Err(error) => {
-            crate::service_error!("the claim file {} of a reclaim cannot be read ({error}), so its maker is not judged", path.display());
+            crate::service_error!(
+                "the claim file {} of a reclaim cannot be read ({error}), so its maker is not judged",
+                path.display()
+            );
             return Slot::Unjudged(None);
         }
     }
@@ -300,7 +349,11 @@ fn look_at(path: &Path) -> Slot {
 /// or an error because it
 ///  could not be read (then whether it is this attempt's claim is not known).
 fn text_of(path: &Path) -> std::io::Result<Option<String>> {
-    let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
+    let file = match std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+        .open(path)
+    {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -315,12 +368,18 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
 }
 
 /// Adds a claim to the landing's abandoned ones.
-fn keep_abandoned_claim(state: &LandingState, claim: (PathBuf, String)) {
+fn keep_abandoned_claim(
+    state: &LandingState,
+    claim: (PathBuf, String),
+) {
     state.abandoned_claims.borrow_mut().push(claim);
 }
 
 /// Takes the landing's abandoned claims out of its state.
-fn take_abandoned_claims(state: &LandingState, (): ()) -> Vec<(PathBuf, String)> {
+fn take_abandoned_claims(
+    state: &LandingState,
+    (): (),
+) -> Vec<(PathBuf, String)> {
     return state.abandoned_claims.take();
 }
 
@@ -357,12 +416,20 @@ fn attempt_token() -> std::io::Result<u64> {
         Ok(found) => found,
         Err(error) => return Err(std::io::Error::other(error.0)),
     };
-    let digits: String = uuid.chars().filter(char::is_ascii_hexdigit).take(16).collect();
+    let digits: String = uuid
+        .chars()
+        .filter(char::is_ascii_hexdigit)
+        .take(16)
+        .collect();
     return u64::from_str_radix(digits.as_str(), 16).map_err(std::io::Error::other);
 }
 
 /// Whether every slot below `slot` still holds a gone maker's claim.
-fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
+fn all_below_are_dead(
+    lock: &Path,
+    key: &str,
+    slot: usize,
+) -> bool {
     for below in 0..slot {
         if look_at(claim_path(lock, key, below).as_path()) != Slot::Dead {
             return false;
@@ -397,7 +464,11 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 /// while (!(await place(slot))) { if (await look(slot) !== 'dead') return 'busy'; slot++ }
 /// return allBelowDead(slot) ? held : (remove(slot), 'busy')
 /// ```
-pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
+pub fn take_claim(
+    platform: &Platform,
+    lock: &Path,
+    marked: &Marked,
+) -> Claim {
     // Lock kept: two reclaimers of one stale lock must not both unlink its name, and no system call unlinks a name only if it
     //  still names a given file. The claim is a file placed whole beside the lock, named from the stale lock's marker; the hold
     //  is a few system calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's
@@ -412,7 +483,11 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
     };
     let marker: String = match marker_text(token, platform.identity) {
         Ok(text) => text,
-        Err(error) => return Claim::Unavailable(std::io::Error::other(format!("this process has no birth identity to name in a claim ({error})"))),
+        Err(error) => {
+            return Claim::Unavailable(std::io::Error::other(format!(
+                "this process has no birth identity to name in a claim ({error})"
+            )));
+        }
     };
     let (staged, open) = match stage_marker(lock, token, marker.as_str()) {
         Ok(made) => made,
@@ -442,7 +517,10 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
                         // Whether the placement took effect is not known: the attempt remembers the claim it may have made, and
                         //  the next attempt of this thread removes it if it is there, so a claim of a running process is not
                         //  left to block every reclaimer.
-                        crate::service_error!("the claim file {} of a reclaim cannot be read back ({error}); the next attempt resolves it", path.display());
+                        crate::service_error!(
+                            "the claim file {} of a reclaim cannot be read back ({error}); the next attempt resolves it",
+                            path.display()
+                        );
                         remember_abandoned(path.clone(), marker.clone());
                         break Claim::Busy;
                     }
@@ -452,7 +530,12 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
         if ours {
             // A control reaches here to act as another reclaimer would between the placement and the look below.
             crate::service_fault::reach("reclaim-claim-placed");
-            let hold = ClaimHold { lock: lock.to_path_buf(), key: key.clone(), own: slot, cleared: false };
+            let hold = ClaimHold {
+                lock: lock.to_path_buf(),
+                key: key.clone(),
+                own: slot,
+                cleared: false,
+            };
             if all_below_are_dead(lock, key.as_str(), slot) {
                 break Claim::Held(hold);
             }
@@ -462,14 +545,35 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
             break Claim::Busy;
         }
         match placed {
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match look_at(path.as_path()) {
-                Slot::Dead => slot += 1,
-                Slot::Live | Slot::Free => break Claim::Busy,
-                Slot::Elsewhere(theirs) => break Claim::Foreign { file: path, marked: theirs },
-                Slot::Unjudged(theirs) => break Claim::Unjudged { file: path, marked: theirs },
-            },
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                match look_at(path.as_path()) {
+                    Slot::Dead => slot += 1,
+                    Slot::Live | Slot::Free => break Claim::Busy,
+                    Slot::Elsewhere(theirs) => {
+                        break Claim::Foreign {
+                            file: path,
+                            marked: theirs,
+                        };
+                    }
+                    Slot::Unjudged(theirs) => {
+                        break Claim::Unjudged {
+                            file: path,
+                            marked: theirs,
+                        };
+                    }
+                }
+            }
             // An interrupted call, or one that found no memory, is not a refusal of the file system: asked again by the wait.
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::OutOfMemory) => break Claim::Busy,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::Interrupted
+                        | std::io::ErrorKind::WouldBlock
+                        | std::io::ErrorKind::OutOfMemory
+                ) =>
+            {
+                break Claim::Busy;
+            }
             Err(error) => break Claim::Unavailable(error),
             Ok(()) => unreachable!("a placement that succeeded is the attempt's own claim"),
         }

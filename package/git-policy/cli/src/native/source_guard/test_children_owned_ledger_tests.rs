@@ -71,9 +71,15 @@ pub(super) fn entries(ledger: &str) -> Result<Vec<Entry>, String> {
         }
         // `split_once` cuts at the first separator only, so a reason may carry the character itself.
         let Some((path, reason)) = trimmed.split_once(SEPARATOR) else {
-            return Err(format!("ledger line {} holds no `{SEPARATOR}`: {trimmed}", index + 1));
+            return Err(format!(
+                "ledger line {} holds no `{SEPARATOR}`: {trimmed}",
+                index + 1
+            ));
         };
-        read.push(Entry { path: String::from(path.trim()), reason: String::from(reason.trim()) });
+        read.push(Entry {
+            path: String::from(path.trim()),
+            reason: String::from(reason.trim()),
+        });
     }
     return Ok(read);
 }
@@ -117,7 +123,11 @@ fn count_by_path(entries: &[Entry]) -> BTreeMap<String, usize> {
 /// ```ts
 /// function ledgerFindings(sites: Map<string, number[]>, testSources: string[], entries: Entry[]): string[]
 /// ```
-pub(super) fn ledger_findings(sites: &BTreeMap<String, Vec<usize>>, test_sources: &[String], entries: &[Entry]) -> Vec<String> {
+pub(super) fn ledger_findings(
+    sites: &BTreeMap<String, Vec<usize>>,
+    test_sources: &[String],
+    entries: &[Entry],
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let expected: BTreeMap<String, usize> = count_by_path(entries);
     // A path that is no test source is reported once, however many lines name it, and its count is not judged here.
@@ -159,28 +169,67 @@ pub(super) fn ledger_findings(sites: &BTreeMap<String, Vec<usize>>, test_sources
 /// and keeps a reason that carries the separator itself.
 #[test]
 fn one_line_is_one_site_and_a_note_is_no_site() {
-    let read: Vec<Entry> = entries("# a note\n\nbinary/a_tests.rs | not moved yet\nbinary/a_tests.rs | not moved | yet\n").expect("a readable ledger");
-    assert_eq!(read.len(), 2, "two lines are two sites, and the note and the blank line are none");
+    let read: Vec<Entry> = entries(
+        "# a note\n\nbinary/a_tests.rs | not moved yet\nbinary/a_tests.rs | not moved | yet\n",
+    )
+    .expect("a readable ledger");
+    assert_eq!(
+        read.len(),
+        2,
+        "two lines are two sites, and the note and the blank line are none"
+    );
     assert_eq!(read[0].path, "binary/a_tests.rs");
-    assert_eq!(read[1].reason, "not moved | yet", "only the first separator cuts the line");
+    assert_eq!(
+        read[1].reason, "not moved | yet",
+        "only the first separator cuts the line"
+    );
 }
 
 /// A line with no separator fails with its number,
 /// so a hand-edited ledger says where it went wrong instead of excusing nothing.
 #[test]
 fn a_line_without_a_separator_fails_with_its_number() {
-    let error: String = entries("# a note\nbinary/a_tests.rs not moved\n").expect_err("the second line has no separator");
-    assert_eq!(error, "ledger line 2 holds no `|`: binary/a_tests.rs not moved");
+    let error: String = entries("# a note\nbinary/a_tests.rs not moved\n")
+        .expect_err("the second line has no separator");
+    assert_eq!(
+        error,
+        "ledger line 2 holds no `|`: binary/a_tests.rs not moved"
+    );
 }
 
 /// A line whose reason is empty says nothing to the round that takes the site,
 /// and one that names no source of this crate has outlived its file.
 #[test]
 fn a_line_without_a_reason_and_one_of_an_absent_file_are_both_reported() {
-    let read: Vec<Entry> = entries("binary/a_tests.rs |\ngone_tests.rs | not moved yet\n").expect("a readable ledger");
-    let found: Vec<String> = ledger_findings(&BTreeMap::new(), &[String::from("binary/a_tests.rs")], &read);
-    assert!(found.iter().any(|each| return each.contains("gives no reason")), "{found:?}");
-    assert!(found.iter().any(|each| return each.contains("gone_tests.rs") && each.contains("no `mod` declaration")), "{found:?}");
-    assert!(found.iter().any(|each| return each.contains("still names 1 site(s) and the file holds 0")), "{found:?}");
-    assert_eq!(found.len(), 3, "an absent file is named once, and the count of the one that is a source is still judged: {found:?}");
+    let read: Vec<Entry> =
+        entries("binary/a_tests.rs |\ngone_tests.rs | not moved yet\n").expect("a readable ledger");
+    let found: Vec<String> = ledger_findings(
+        &BTreeMap::new(),
+        &[String::from("binary/a_tests.rs")],
+        &read,
+    );
+    assert!(
+        found
+            .iter()
+            .any(|each| return each.contains("gives no reason")),
+        "{found:?}"
+    );
+    assert!(
+        found
+            .iter()
+            .any(|each| return each.contains("gone_tests.rs")
+                && each.contains("no `mod` declaration")),
+        "{found:?}"
+    );
+    assert!(
+        found
+            .iter()
+            .any(|each| return each.contains("still names 1 site(s) and the file holds 0")),
+        "{found:?}"
+    );
+    assert_eq!(
+        found.len(),
+        3,
+        "an absent file is named once, and the count of the one that is a source is still judged: {found:?}"
+    );
 }

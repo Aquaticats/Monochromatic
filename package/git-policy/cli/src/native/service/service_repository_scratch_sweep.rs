@@ -34,13 +34,19 @@
 
 /// One thread for this collection,
 /// and the sentence a machine writes when it refuses one.
-use crate::scoped_start::{refused_thread_sentence, spawn_named};
+use crate::scoped_start::{
+    refused_thread_sentence,
+    spawn_named,
+};
 /// What a collection does,
 /// and the rules it applies.
 use crate::scratch_location::sweep_repository_scratch;
 /// A path,
 /// and what keeps one collection at a time for each directory.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 
 /// The point at which a collection begins,
@@ -50,7 +56,10 @@ use std::sync::Mutex;
 /// so a control of one repository never holds a collection of another.
 #[cfg(test)]
 pub(crate) fn collection_point(common_dir: &Path) -> String {
-    return format!("a-repository-scratch-collection-of-{}", common_dir.display());
+    return format!(
+        "a-repository-scratch-collection-of-{}",
+        common_dir.display()
+    );
 }
 
 /// Lock kept:
@@ -75,7 +84,9 @@ static COLLECTING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 /// claim(commonDir) // whether this caller runs the collection
 /// ```
 fn claim(common_dir: &Path) -> bool {
-    let mut collecting = COLLECTING.lock().expect("the collections this service runs");
+    let mut collecting = COLLECTING
+        .lock()
+        .expect("the collections this service runs");
     if place_of(collecting.as_slice(), common_dir).is_some() {
         return false;
     }
@@ -95,7 +106,9 @@ fn claim(common_dir: &Path) -> bool {
 /// release(commonDir) // void
 /// ```
 fn release(common_dir: &Path) {
-    let mut collecting = COLLECTING.lock().expect("the collections this service runs");
+    let mut collecting = COLLECTING
+        .lock()
+        .expect("the collections this service runs");
     if let Some(collected) = place_of(collecting.as_slice(), common_dir) {
         let _released = collecting.remove(collected);
     }
@@ -113,7 +126,10 @@ fn release(common_dir: &Path) {
 /// ```ts
 /// placeOf(collected, commonDir) // the index of that directory, or nothing
 /// ```
-fn place_of(collected: &[PathBuf], common_dir: &Path) -> Option<usize> {
+fn place_of(
+    collected: &[PathBuf],
+    common_dir: &Path,
+) -> Option<usize> {
     let mut place: usize = 0;
     while place < collected.len() {
         if collected[place].as_path() == common_dir {
@@ -180,13 +196,20 @@ pub fn start(common_dir: &Path) {
         let removed: usize = sweep_repository_scratch(owned.as_path());
         crate::diagnostic_log::debug(
             "repositoryScratchSweep",
-            format!("collected {} stale entries of the repository scratch directory of {named}", removed).as_str(),
+            format!(
+                "collected {} stale entries of the repository scratch directory of {named}",
+                removed
+            )
+            .as_str(),
         );
         drop(claimed);
     });
     if let Err(error) = started {
         release(common_dir);
-        crate::service_warn!("{}", refused_thread_sentence("collect the repository scratch directory", &error));
+        crate::service_warn!(
+            "{}",
+            refused_thread_sentence("collect the repository scratch directory", &error)
+        );
     }
 }
 

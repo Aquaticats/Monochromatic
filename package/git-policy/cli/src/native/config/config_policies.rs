@@ -28,11 +28,29 @@ use crate::config_error::ConfigError;
 /// validated in a file of their own.
 use crate::config_policies_markdown::markdown_autofix_options;
 /// The check of a `rulesFile` value and the words of each refusal.
-use crate::config_rules_file::{check_rules_file, rules_file_refusal_reason};
-use crate::config_schema::{ForbiddenStringsOptions, PolicyConfig, RulesFileEntry};
-use crate::config_values::{boolean, member_keys, member_path, text, wrong_kind};
+use crate::config_rules_file::{
+    check_rules_file,
+    rules_file_refusal_reason,
+};
+use crate::config_schema::{
+    ForbiddenStringsOptions,
+    PolicyConfig,
+    RulesFileEntry,
+};
+use crate::config_values::{
+    boolean,
+    member_keys,
+    member_path,
+    text,
+    wrong_kind,
+};
 use crate::policy_registry::{
-    POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, severity_from_name,
+    POLICY_REGISTRY,
+    PolicyDescriptor,
+    PolicyId,
+    Severity,
+    policy_by_name,
+    severity_from_name,
 };
 /// What:
 ///  Import the repository's JSONC value type.
@@ -85,7 +103,10 @@ fn known_policy_ids() -> String {
 /// ```ts
 /// function severity(value: JsoncValue, path: string): Severity;
 /// ```
-fn severity(value: &JsoncValue, path: &str) -> Result<Severity, ConfigError> {
+fn severity(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<Severity, ConfigError> {
     // What: A trailing `?` returns the reader's `Err` to our caller, or unwraps its value.
     // Why:  A non-string severity is already a complete, key-naming failure.
     //
@@ -127,7 +148,10 @@ fn severity(value: &JsoncValue, path: &str) -> Result<Severity, ConfigError> {
 /// ```ts
 /// function checkedRulesFile(name: string, keyPath: string): string; // throws ConfigError
 /// ```
-fn checked_rules_file(name: String, key_path: &str) -> Result<String, ConfigError> {
+fn checked_rules_file(
+    name: String,
+    key_path: &str,
+) -> Result<String, ConfigError> {
     // `if let Err(refusal) = ...` runs only when the name was refused.
     if let Err(refusal) = check_rules_file(name.as_str()) {
         return Err(ConfigError::new(
@@ -153,10 +177,16 @@ fn checked_rules_file(name: String, key_path: &str) -> Result<String, ConfigErro
 /// ```ts
 /// function rulesFileEntry(value: JsoncValue, path: string): RulesFileEntry; // throws ConfigError
 /// ```
-fn rules_file_entry(value: &JsoncValue, path: &str) -> Result<RulesFileEntry, ConfigError> {
+fn rules_file_entry(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<RulesFileEntry, ConfigError> {
     if value.text_units().is_some() {
         let name: String = text(value, path)?;
-        return Ok(RulesFileEntry { path: checked_rules_file(name, path)?, optional: false });
+        return Ok(RulesFileEntry {
+            path: checked_rules_file(name, path)?,
+            optional: false,
+        });
     }
     let Some(entries) = value.entries() else {
         return Err(wrong_kind(
@@ -178,16 +208,21 @@ fn rules_file_entry(value: &JsoncValue, path: &str) -> Result<RulesFileEntry, Co
             optional = boolean(member, key_path.as_str())?;
         } else {
             return Err(ConfigError::new(
-                format!("Unknown configuration key: {key_path}. Accepted keys: path, optional.").as_str(),
+                format!("Unknown configuration key: {key_path}. Accepted keys: path, optional.")
+                    .as_str(),
             ));
         }
     }
     let Some(found) = file else {
         return Err(ConfigError::new(
-            format!("Configuration key {path} must have a \"path\" key naming the rules file.").as_str(),
+            format!("Configuration key {path} must have a \"path\" key naming the rules file.")
+                .as_str(),
         ));
     };
-    return Ok(RulesFileEntry { path: found, optional });
+    return Ok(RulesFileEntry {
+        path: found,
+        optional,
+    });
 }
 
 /// What:
@@ -205,7 +240,10 @@ fn rules_file_entry(value: &JsoncValue, path: &str) -> Result<RulesFileEntry, Co
 /// ```ts
 /// function rulesFiles(value: JsoncValue, path: string): RulesFileEntry[]; // throws ConfigError
 /// ```
-fn rules_files(value: &JsoncValue, path: &str) -> Result<Vec<RulesFileEntry>, ConfigError> {
+fn rules_files(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<Vec<RulesFileEntry>, ConfigError> {
     if value.text_units().is_some() {
         return Ok(vec![rules_file_entry(value, path)?]);
     }

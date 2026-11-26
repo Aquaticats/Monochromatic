@@ -16,7 +16,10 @@
 
 use super::*;
 use crate::stale_ref_lock_killed_git as killed;
-use crate::stale_ref_lock_killed_git::{Held, Stage};
+use crate::stale_ref_lock_killed_git::{
+    Held,
+    Stage,
+};
 
 /// The prefix that points the command at the stage's repository.
 fn prefix(stage: &Stage) -> Vec<OsString> {
@@ -31,8 +34,12 @@ fn a_forwarded_fetch_names_what_stays_and_says_so() {
     let stage: Stage = killed::stage("forwarded-notice-proven", true);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
-    let notice: String = forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), &[], &killed::judge());
-    assert!(notice.contains("monochromatic-git-policy-cli: left the reference lock"), "{notice}");
+    let notice: String =
+        forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), &[], &killed::judge());
+    assert!(
+        notice.contains("monochromatic-git-policy-cli: left the reference lock"),
+        "{notice}"
+    );
     assert!(notice.contains("rm -- "), "{notice}");
     assert!(stage.lock_of(killed::GONE_REF).exists() && stage.packed_lock().exists());
     stage.finish();
@@ -45,8 +52,15 @@ fn a_forwarded_push_describes_a_lock_it_will_not_remove() {
     let stage: Stage = killed::stage("forwarded-notice-unproven", false);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
-    let notice: String = forwarded_lock_notice(b"push", prefix(&stage).as_slice(), &[], &killed::judge());
-    assert!(notice.contains(&format!("rm -- {} ", stage.lock_of(killed::GONE_REF).display())) || notice.contains("rm -- "), "{notice}");
+    let notice: String =
+        forwarded_lock_notice(b"push", prefix(&stage).as_slice(), &[], &killed::judge());
+    assert!(
+        notice.contains(&format!(
+            "rm -- {} ",
+            stage.lock_of(killed::GONE_REF).display()
+        )) || notice.contains("rm -- "),
+        "{notice}"
+    );
     assert!(stage.lock_of(killed::GONE_REF).exists());
     stage.finish();
 }
@@ -59,7 +73,10 @@ fn other_commands_are_left_alone() {
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
     for word in [&b"status"[..], b"log", b"pull", b"commit"] {
-        assert_eq!(forwarded_lock_notice(word, prefix(&stage).as_slice(), &[], &killed::judge()), "");
+        assert_eq!(
+            forwarded_lock_notice(word, prefix(&stage).as_slice(), &[], &killed::judge()),
+            ""
+        );
     }
     assert!(stage.lock_of(killed::GONE_REF).exists());
     stage.finish();
@@ -71,8 +88,14 @@ fn a_repository_named_by_another_option_is_not_touched() {
     let stage: Stage = killed::stage("forwarded-notice-git-dir", true);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
-    let named: Vec<OsString> = vec![OsString::from("--git-dir"), stage.git_dir.clone().into_os_string()];
-    assert_eq!(forwarded_lock_notice(b"fetch", named.as_slice(), &[], &killed::judge()), "");
+    let named: Vec<OsString> = vec![
+        OsString::from("--git-dir"),
+        stage.git_dir.clone().into_os_string(),
+    ];
+    assert_eq!(
+        forwarded_lock_notice(b"fetch", named.as_slice(), &[], &killed::judge()),
+        ""
+    );
     assert!(stage.lock_of(killed::GONE_REF).exists());
     stage.finish();
 }
@@ -84,8 +107,16 @@ fn git_dir_in_the_environment_names_the_repository() {
     let stage: Stage = killed::stage("forwarded-notice-env", true);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
-    let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_DIR"), stage.git_dir.clone().into_os_string())];
-    let notice: String = forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), environment.as_slice(), &killed::judge());
+    let environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from("GIT_DIR"),
+        stage.git_dir.clone().into_os_string(),
+    )];
+    let notice: String = forwarded_lock_notice(
+        b"fetch",
+        prefix(&stage).as_slice(),
+        environment.as_slice(),
+        &killed::judge(),
+    );
     assert!(notice.contains("left the reference lock"), "{notice}");
     stage.finish();
 }

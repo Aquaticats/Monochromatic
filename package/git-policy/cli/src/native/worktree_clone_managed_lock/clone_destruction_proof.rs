@@ -93,14 +93,23 @@ impl DestructionRefusal {
     /// The words a person reads for one refusal.
     pub fn words(&self) -> String {
         return match self {
-            DestructionRefusal::TheCloneStillAnswers { dataset, guid } => format!(
+            DestructionRefusal::TheCloneStillAnswers {
+                dataset,
+                guid,
+            } => format!(
                 "the clone `{dataset}` still answers on the pool with GUID `{}`, so nothing was destroyed and the lock stands",
                 guid.file_name()
             ),
-            DestructionRefusal::NoGuidToProveGone { dataset } => format!(
+            DestructionRefusal::NoGuidToProveGone {
+                dataset,
+            } => format!(
                 "the record names the clone `{dataset}` and no GUID, so nothing proves which clone a destruction ended; the lock stands"
             ),
-            DestructionRefusal::Unreadable { reason } => format!("the pool could not be read ({reason}), so the clone's destruction is not proven and the lock stands"),
+            DestructionRefusal::Unreadable {
+                reason,
+            } => format!(
+                "the pool could not be read ({reason}), so the clone's destruction is not proven and the lock stands"
+            ),
         };
     }
 }
@@ -160,14 +169,34 @@ impl CloneDestructionProof {
 /// ```ts
 /// const proof = proveTheRecordedCloneIsGone(slot, clone, live);
 /// ```
-pub fn prove_the_recorded_clone_is_gone(slot: &str, clone: &RecordedClone, live: &TheLiveCloneAnswer) -> Result<CloneDestructionProof, DestructionRefusal> {
-    let guid: DatasetGuid = clone.guid.ok_or_else(|| return DestructionRefusal::NoGuidToProveGone { dataset: clone.dataset.clone() })?;
+pub fn prove_the_recorded_clone_is_gone(
+    slot: &str,
+    clone: &RecordedClone,
+    live: &TheLiveCloneAnswer,
+) -> Result<CloneDestructionProof, DestructionRefusal> {
+    let guid: DatasetGuid = clone.guid.ok_or_else(|| {
+        return DestructionRefusal::NoGuidToProveGone {
+            dataset: clone.dataset.clone(),
+        };
+    })?;
     return match live {
-        TheLiveCloneAnswer::Absent => Ok(CloneDestructionProof { slot: String::from(slot), clone_dataset: clone.dataset.clone(), clone_guid: guid }),
-        TheLiveCloneAnswer::Answers { dataset, guid: answered } => {
-            Err(DestructionRefusal::TheCloneStillAnswers { dataset: dataset.clone(), guid: *answered })
-        }
-        TheLiveCloneAnswer::Unreadable { reason } => Err(DestructionRefusal::Unreadable { reason: reason.clone() }),
+        TheLiveCloneAnswer::Absent => Ok(CloneDestructionProof {
+            slot: String::from(slot),
+            clone_dataset: clone.dataset.clone(),
+            clone_guid: guid,
+        }),
+        TheLiveCloneAnswer::Answers {
+            dataset,
+            guid: answered,
+        } => Err(DestructionRefusal::TheCloneStillAnswers {
+            dataset: dataset.clone(),
+            guid: *answered,
+        }),
+        TheLiveCloneAnswer::Unreadable {
+            reason,
+        } => Err(DestructionRefusal::Unreadable {
+            reason: reason.clone(),
+        }),
     };
 }
 

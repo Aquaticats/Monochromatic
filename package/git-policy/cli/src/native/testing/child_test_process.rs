@@ -30,6 +30,11 @@
 //! ```
 
 /// What:
+///  `OsStr` is borrowed operating-system text of raw bytes (sibling: `String`, an owned UTF-8 buffer).
+/// Why:
+///  An environment value is bytes, not necessarily UTF-8, so the request names it by `OsStr`.
+use std::ffi::OsStr;
+/// What:
 ///  `Read` is how bytes come out of the pipe a child wrote,
 ///  and `AsRawFd` is the number of the descriptor a pipe is.
 ///  The siblings a reader might expect are `BufRead`, which adds line reading this file does not need,
@@ -49,11 +54,6 @@ use std::os::fd::AsRawFd;
 ///  One control runs a child under a Git subcommand's name, and three need work in the child before it execs.
 use std::os::unix::process::CommandExt as _;
 /// What:
-///  `OsStr` is borrowed operating-system text of raw bytes (sibling: `String`, an owned UTF-8 buffer).
-/// Why:
-///  An environment value is bytes, not necessarily UTF-8, so the request names it by `OsStr`.
-use std::ffi::OsStr;
-/// What:
 ///  `PathBuf` is an owned filesystem path of raw OS bytes.
 /// Why:
 ///  The path of this test binary is read once and kept for the command of each child.
@@ -62,19 +62,30 @@ use std::path::PathBuf;
 ///  `Child` is a running process, `Command` its recipe, `Output` its ending and its two streams, `Stdio` one stream.
 /// Why:
 ///  This file starts a child, waits for it and answers exactly these four.
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 /// What:
 ///  `Duration` is a span and `Instant` a moment on the monotonic clock.
 /// Why:
 ///  The deadline is a span measured from the moment the child starts.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// This test binary's own path,
 /// for the child the command of each child starts from it.
 ///  The ban on `current_exe` (`clippy.toml`) is about the wrapper starting itself,
 /// so this file is where that lint is excused for tests:
 /// the program started here is libtest, never the wrapper.
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way"
+)]
 fn this_test_binary() -> PathBuf {
     return std::env::current_exe().expect("this test binary's own path");
 }
@@ -326,7 +337,11 @@ pub(crate) fn finished(request: ChildTest<'_>) -> Option<Output> {
     };
     let stdout: Vec<u8> = what_the_pipe_holds(child.stdout.take());
     let stderr: Vec<u8> = what_the_pipe_holds(child.stderr.take());
-    return Some(Output { status, stdout, stderr });
+    return Some(Output {
+        status,
+        stdout,
+        stderr,
+    });
 }
 
 /// What:
@@ -355,7 +370,11 @@ pub(crate) fn passed(request: ChildTest<'_>) -> Output {
     };
     let said: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     let heard: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(output.status.success(), "the child test {name} failed with {:?}:\n{said}\n{heard}", output.status.code());
+    assert!(
+        output.status.success(),
+        "the child test {name} failed with {:?}:\n{said}\n{heard}",
+        output.status.code()
+    );
     assert!(
         said.contains(ONE_TEST_PASSED),
         "the child test {name} ran no single passing test (a name that matches no test ends successfully and runs nothing):\n{said}\n{heard}"
@@ -389,7 +408,9 @@ pub(crate) fn command_of(request: ChildTest<'_>) -> Command {
     let mut command: Command = match request.running_program {
         Some(running) => {
             let mut outer: Command = Command::new(running.program);
-            outer.args(running.arguments_before_the_test_binary).arg(binary.as_path());
+            outer
+                .args(running.arguments_before_the_test_binary)
+                .arg(binary.as_path());
             outer
         }
         None => {
@@ -403,7 +424,12 @@ pub(crate) fn command_of(request: ChildTest<'_>) -> Command {
     command.args(request.arguments_before_the_test_name);
     // `--exact` matches the path exactly, `--nocapture` lets the child's own prints reach the pipe `finished` reads, and
     //  one thread keeps the child's body the only test it runs.
-    command.args(["--exact", request.exact_test, "--nocapture", "--test-threads=1"]);
+    command.args([
+        "--exact",
+        request.exact_test,
+        "--nocapture",
+        "--test-threads=1",
+    ]);
     if request.ignored {
         command.arg("--ignored");
     }
@@ -415,7 +441,10 @@ pub(crate) fn command_of(request: ChildTest<'_>) -> Command {
     for (variable, value) in request.environment {
         command.env(variable, value);
     }
-    command.stdin(request.standard_input).stdout(request.standard_output).stderr(request.standard_error);
+    command
+        .stdin(request.standard_input)
+        .stdout(request.standard_output)
+        .stderr(request.standard_error);
     if let Some(hook) = request.before_the_exec {
         // SAFETY: the request's own documentation says its closure calls only async-signal-safe functions.
         unsafe {
@@ -449,23 +478,30 @@ fn what_the_pipe_holds(pipe: Option<impl Read + AsRawFd>) -> Vec<u8> {
     // SAFETY: the descriptor belongs to `pipe`, which outlives both calls, and neither call takes a pointer.
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
     if flags < 0 {
-        eprintln!("the child's output could not be read without waiting for its end (errno {flags}): nothing of it is collected");
+        eprintln!(
+            "the child's output could not be read without waiting for its end (errno {flags}): nothing of it is collected"
+        );
         return Vec::new();
     }
     // SAFETY: the descriptor still belongs to `pipe`, and the flag is set on this process's copy of it only.
-    let _set: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    let _set: libc::c_int =
+        unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
     let mut collected: Vec<u8> = Vec::new();
     let mut buffer: [u8; 8_192] = [0; 8_192];
     loop {
         match held.read(buffer.as_mut_slice()) {
             // Zero bytes read is the end of the pipe, so everything the child wrote has been collected.
             Ok(0) => return collected,
-            Ok(read) => collected.extend_from_slice(buffer.get(..read).unwrap_or(buffer.as_slice())),
+            Ok(read) => {
+                collected.extend_from_slice(buffer.get(..read).unwrap_or(buffer.as_slice()))
+            }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             // Nothing is there now, and the child has ended, so nothing of the child's will arrive later.
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return collected,
             Err(error) => {
-                eprintln!("the child's output ended in an error ({error}): what is collected is what came before it");
+                eprintln!(
+                    "the child's output ended in an error ({error}): what is collected is what came before it"
+                );
                 return collected;
             }
         }

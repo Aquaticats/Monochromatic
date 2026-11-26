@@ -25,14 +25,31 @@
 //! const outcome = await waitForServiceHold({ realIndex, command: 'add', cadence, stderr });
 //! ```
 
-use crate::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
+use crate::service_index_lock::{
+    LOCK_MARKER,
+    Watch,
+    lock_path_of,
+};
+use crate::service_index_marker::{
+    holder_is_running,
+    mark_names_a_gone_holder,
+    marker_of,
+};
 use crate::service_index_watch::POLL_PAUSE;
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
-use crate::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
-use crate::wait_progress::{Cadence, Ticker};
-use std::io::{Read, Write};
+use crate::wait_progress::{
+    Cadence,
+    Ticker,
+};
+use std::io::{
+    Read,
+    Write,
+};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How many times an empty lock is read again before it is taken for a foreign program's,
 /// and the pause between the reads.
@@ -131,7 +148,10 @@ fn pause_while_empty() {
 /// ```ts
 /// try { out.write(line); out.flush(); } catch { /* terminal closed */ }
 /// ```
-fn note_line(out: &mut dyn Write, line: &str) {
+fn note_line(
+    out: &mut dyn Write,
+    line: &str,
+) {
     let written: std::io::Result<()> = out.write_all(line.as_bytes());
     if written.is_ok() {
         let _flushed = out.flush();
@@ -152,7 +172,10 @@ fn holder_of(lock: &Path) -> Holder {
 ///  look would wait on for ever is a foreign program's at once,
 /// as a lock of any other shape it cannot read is
 /// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
-fn holder_after_pauses(lock: &Path, pause: &dyn Fn()) -> Holder {
+fn holder_after_pauses(
+    lock: &Path,
+    pause: &dyn Fn(),
+) -> Holder {
     for look in 0..EMPTY_LOOKS {
         let mut file = match crate::plain_file::open_plain_file(lock) {
             Ok(file) => file,
@@ -169,7 +192,11 @@ fn holder_after_pauses(lock: &Path, pause: &dyn Fn()) -> Holder {
             }
         }
         if filled == head.len() {
-            return if head == *LOCK_MARKER.as_bytes() { Holder::Service } else { Holder::Foreign };
+            return if head == *LOCK_MARKER.as_bytes() {
+                Holder::Service
+            } else {
+                Holder::Foreign
+            };
         }
         if filled > 0 && !LOCK_MARKER.as_bytes().starts_with(&head[..filled]) {
             return Holder::Foreign;
@@ -190,7 +217,11 @@ pub fn foreign_holds(real_index: &Path) -> bool {
 /// what it waits for,
 /// how long it has lasted,
 /// and how long it lasts in all before the command runs.
-fn waiting_line(command: &str, waited: Duration, ceiling: Duration) -> String {
+fn waiting_line(
+    command: &str,
+    waited: Duration,
+    ceiling: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this \
          waits for at most {} seconds in all, and then git {command} runs and reports what Git says.\n",
@@ -208,11 +239,16 @@ fn age_of(lock: &Path) -> Duration {
     let Ok(made) = metadata.modified() else {
         return Duration::ZERO;
     };
-    return std::time::SystemTime::now().duration_since(made).unwrap_or(Duration::ZERO);
+    return std::time::SystemTime::now()
+        .duration_since(made)
+        .unwrap_or(Duration::ZERO);
 }
 
 /// The line for the person when the hold is a leftover.
-fn stale_line(command: &str, age: Duration) -> String {
+fn stale_line(
+    command: &str,
+    age: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
         age.as_secs()
@@ -227,7 +263,10 @@ fn gone_line(command: &str) -> String {
 }
 
 /// The line for the person when the wait ran out.
-fn gave_up_line(command: &str, waited: Duration) -> String {
+fn gave_up_line(
+    command: &str,
+    waited: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
         waited.as_secs()
@@ -249,12 +288,23 @@ fn gave_up_line(command: &str, waited: Duration) -> String {
 /// ```ts
 /// await waitForServiceHold(realIndex, 'add', cadence, stderr)
 /// ```
-pub fn wait_for_service_hold(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> Waited {
+pub fn wait_for_service_hold(
+    real_index: &Path,
+    command: &str,
+    cadence: Cadence,
+    out: &mut dyn Write,
+) -> Waited {
     return wait_for_service_hold_within(real_index, command, SERVICE_HOLD_CEILING, cadence, out);
 }
 
 /// `wait_for_service_hold` that gives up after `ceiling`.
-pub fn wait_for_service_hold_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
+pub fn wait_for_service_hold_within(
+    real_index: &Path,
+    command: &str,
+    ceiling: Duration,
+    cadence: Cadence,
+    out: &mut dyn Write,
+) -> Waited {
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
@@ -271,18 +321,32 @@ pub fn wait_for_service_hold_within(real_index: &Path, command: &str, ceiling: D
 /// ```ts
 /// await waitWithWatches(realIndex, 'add', cadence, stderr, watchDirectory)
 /// ```
-fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
+fn wait_with_watches(
+    real_index: &Path,
+    command: &str,
+    ceiling: Duration,
+    cadence: Cadence,
+    out: &mut dyn Write,
+    set_watch: &dyn Fn(&Path) -> Option<Watch>,
+) -> Waited {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
     // Only the lock's own removal ends the wait; the service's staging files and Git's other files come and go meanwhile.
-    let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let lock_name: std::ffi::OsString = lock
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     let began: Instant = Instant::now();
     let mut ticker: Ticker = Ticker::new(cadence);
     let mut held: bool = false;
     loop {
         if holder_of(&lock) != Holder::Service {
-            return if held { Waited::Released } else { Waited::NotHeld };
+            return if held {
+                Waited::Released
+            } else {
+                Waited::NotHeld
+            };
         }
         // A holder the mark names and the system no longer has will never release the lock, however young the lock is.
         if mark_names_a_gone_holder(&lock) {
@@ -292,7 +356,8 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         let age: Duration = age_of(&lock);
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
-        let running: bool = matches!(marker_of(&lock), Some(marked) if holder_is_running(marked.holder.as_ref()));
+        let running: bool =
+            matches!(marker_of(&lock), Some(marked) if holder_is_running(marked.holder.as_ref()));
         if age >= UNASKABLE_HOLD_AGE && !running {
             note_line(out, stale_line(command, age).as_str());
             return Waited::Stale;
@@ -309,7 +374,10 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
             // A closed terminal is not a reason to stop the command the person asked for.
             note_line(out, waiting_line(command, elapsed, ceiling).as_str());
         }
-        let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
+        let pause: Duration = ticker
+            .next_in(elapsed)
+            .min(ceiling.saturating_sub(elapsed))
+            .max(Duration::from_millis(1));
         match watch.as_ref() {
             Some(active) => {
                 if !active.wait(pause, lock_name.as_os_str()) {
@@ -329,8 +397,16 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
 }
 
 /// `wait_for_service_hold` with the notice cadence this process runs under.
-pub fn wait_for_service_hold_here(real_index: &Path, command: &str) -> Waited {
-    return wait_for_service_hold(real_index, command, Cadence::from_environment(), &mut std::io::stderr());
+pub fn wait_for_service_hold_here(
+    real_index: &Path,
+    command: &str,
+) -> Waited {
+    return wait_for_service_hold(
+        real_index,
+        command,
+        Cadence::from_environment(),
+        &mut std::io::stderr(),
+    );
 }
 
 /// The wait is controlled in the test module.

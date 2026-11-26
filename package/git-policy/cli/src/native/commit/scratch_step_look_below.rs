@@ -17,11 +17,11 @@
 //! const below = lookBelow(step); // [{ pid, name, state, cpu }], undefined when the look failed
 //! ```
 
-/// One process of a tree.
-use crate::process_tree::TreeMember;
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
+/// One process of a tree.
+use crate::process_tree::TreeMember;
 /// What:
 ///   the process numbers below this one,
 /// from the kernel's per-thread child lists.
@@ -76,7 +76,10 @@ pub(crate) fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
     }
     let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(step) {
         Some(found) => found,
-        None => descendants_of_read(step)?.iter().map(member_number).collect(),
+        None => descendants_of_read(step)?
+            .iter()
+            .map(member_number)
+            .collect(),
     };
     let mut found: Vec<(i32, ProcessUse)> = Vec::new();
     // The step itself, so a look that finds it and nothing else still arms the ceiling.
@@ -116,14 +119,25 @@ pub(crate) fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
 ///  so a control that names the step keeps that place,
 ///  and one that names a program below it keeps the place a program has.
 #[cfg(all(test, target_os = "linux"))]
-fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, held: (i32, String)) {
+fn the_state_a_control_states(
+    found: &mut Vec<(i32, ProcessUse)>,
+    step: i32,
+    held: (i32, String),
+) {
     let (number, name) = held;
-    let stated: ProcessUse = ProcessUse { name, started: 0, state: 'D', cpu: Duration::ZERO };
+    let stated: ProcessUse = ProcessUse {
+        name,
+        started: 0,
+        state: 'D',
+        cpu: Duration::ZERO,
+    };
     // What: A control marks a process the look found, and never adds one.
     // Why:  A control's words are the kernel's answer about a process of the step's own tree,
     //       and a process a control named that no look found is not one this step started:
     //       a plant that added it would let one control's statement into another test's look.
-    match found.iter().position(|entry| { return entry.0 == number; }) {
+    match found.iter().position(|entry| {
+        return entry.0 == number;
+    }) {
         Some(at) => found[at] = (number, stated),
         None if number == step => found.insert(0, (number, stated)),
         None => {}
@@ -159,7 +173,12 @@ pub(crate) fn what_the_look_says(step: u32) -> WhatTheLookSays {
         None => return WhatTheLookSays::CouldNotLook,
     };
     return match the_process_the_kernel_holds(below.as_slice()) {
-        Some((found, used)) => WhatTheLookSays::TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *found, name: used.name.clone() }),
+        Some((found, used)) => {
+            WhatTheLookSays::TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram {
+                number: *found,
+                name: used.name.clone(),
+            })
+        }
         None => WhatTheLookSays::NotHeld,
     };
 }
@@ -225,7 +244,9 @@ pub(crate) fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
 /// ```ts
 /// const held = below.find(processIsBlocked); // { pid, name, state: 'D' } | undefined
 /// ```
-pub(crate) fn the_process_the_kernel_holds(below: &[(i32, ProcessUse)]) -> Option<&(i32, ProcessUse)> {
+pub(crate) fn the_process_the_kernel_holds(
+    below: &[(i32, ProcessUse)]
+) -> Option<&(i32, ProcessUse)> {
     for entry in below {
         if process_is_blocked(entry) {
             return Some(entry);

@@ -41,7 +41,10 @@
 /// `OsStr` is a borrowed file name.
 use std::ffi::OsStr;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The device number and the inode number of a file a descriptor holds open.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,7 +61,8 @@ pub struct OpenedFile {
 /// An overlay file system is not one of them:
 /// its attributes are those of the file below it,
 /// which such a server may be serving.
-const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
+const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] =
+    ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
 
 /// What:
 ///  The mount a descriptor was opened through,
@@ -73,14 +77,25 @@ const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", 
 /// record.text === undefined ? undefined : mountIdIn(record.text);
 /// ```
 #[cfg(target_os = "linux")]
-fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
-    return match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::RealFile) {
-        crate::descriptor_record::Record::Text(text) => Ok(crate::descriptor_record::mount_id_in(text.as_str())),
+fn mount_id_of(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<Option<u64>> {
+    return match crate::descriptor_record::descriptor_record(
+        process,
+        fd,
+        crate::descriptor_record::Targeted::RealFile,
+    ) {
+        crate::descriptor_record::Record::Text(text) => {
+            Ok(crate::descriptor_record::mount_id_in(text.as_str()))
+        }
         // Only a descriptor of a file of a file system reaches this read, so its text is a path and it can be the file; a
         //  descriptor that is not one is not identified here either.
         crate::descriptor_record::Record::NotTheTarget => Ok(None),
         // The process or the descriptor ended while this read looked at it, which a caller has always read as a race.
-        crate::descriptor_record::Record::Gone => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+        crate::descriptor_record::Record::Gone => {
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
         crate::descriptor_record::Record::BeyondBound => Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
@@ -88,8 +103,14 @@ fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
                 crate::descriptor_record::RECORD_BYTES_AT_MOST
             ),
         )),
-        crate::descriptor_record::Record::Unreadable { kind, reason } => Err(std::io::Error::new(kind, reason)),
-        crate::descriptor_record::Record::KindUnknown { kind, reason } => Err(std::io::Error::new(kind, reason)),
+        crate::descriptor_record::Record::Unreadable {
+            kind,
+            reason,
+        } => Err(std::io::Error::new(kind, reason)),
+        crate::descriptor_record::Record::KindUnknown {
+            kind,
+            reason,
+        } => Err(std::io::Error::new(kind, reason)),
     };
 }
 
@@ -105,11 +126,17 @@ fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
 /// readPlainTextAt(`${process}/mountinfo`, 4 << 20).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
 /// ```
 #[cfg(target_os = "linux")]
-fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<String>> {
+fn file_system_of_mount(
+    process: &Path,
+    mount: u64,
+) -> std::io::Result<Option<String>> {
     // The table's length is the system's state, not this command's: a process of a container host can hold tens of
     //  thousands of mounts, and one past the bound is refused rather than read whole
     //  (`crate::plain_file::MOUNT_TABLE_LIMIT`).
-    let table: String = crate::plain_file::read_plain_text_at(process.join("mountinfo").as_path(), crate::plain_file::MOUNT_TABLE_LIMIT)?;
+    let table: String = crate::plain_file::read_plain_text_at(
+        process.join("mountinfo").as_path(),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    )?;
     for line in table.lines() {
         let fields: Vec<&str> = line.split(' ').collect();
         let first: Option<u64> = match fields.first() {
@@ -172,7 +199,10 @@ fn read_in_memory(kind: Option<&str>) -> bool {
 /// openedFileOf({ process: '/proc/1234', fd: '3' });
 /// ```
 #[cfg(target_os = "linux")]
-pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile> {
+pub fn opened_file_of(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<OpenedFile> {
     let mount: Option<u64> = mount_id_of(process, fd)?;
     let kind: Option<String> = match mount {
         Some(number) => file_system_of_mount(process, number)?,
@@ -193,7 +223,9 @@ pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile>
         };
         return Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
-            format!("its mount is {named}, whose attributes are not in the memory of this kernel, so the file is not read"),
+            format!(
+                "its mount is {named}, whose attributes are not in the memory of this kernel, so the file is not read"
+            ),
         ));
     }
     let link: PathBuf = process.join("fd").join(fd);
@@ -212,7 +244,10 @@ pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile>
     if answer < 0 {
         return Err(std::io::Error::last_os_error());
     }
-    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+    return Ok(OpenedFile {
+        device: libc::makedev(found.stx_dev_major, found.stx_dev_minor),
+        inode: found.stx_ino,
+    });
 }
 
 /// What:
@@ -248,7 +283,10 @@ pub fn opened_file_of_our_own(descriptor: i32) -> std::io::Result<OpenedFile> {
     if answer < 0 {
         return Err(std::io::Error::last_os_error());
     }
-    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+    return Ok(OpenedFile {
+        device: libc::makedev(found.stx_dev_major, found.stx_dev_minor),
+        inode: found.stx_ino,
+    });
 }
 
 /// What:
@@ -300,11 +338,17 @@ fn path_name(path: &Path) -> std::io::Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt as _;
     let bytes: &[u8] = path.as_os_str().as_bytes();
     if bytes.contains(&0) {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the descriptor's path holds a zero byte",
+        ));
     }
     return match std::ffi::CString::new(bytes) {
         Ok(name) => Ok(name),
-        Err(_) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte")),
+        Err(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the descriptor's path holds a zero byte",
+        )),
     };
 }
 
@@ -320,7 +364,10 @@ fn path_name(path: &Path) -> std::io::Result<std::ffi::CString> {
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
-pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile> {
+pub fn opened_file_of(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<OpenedFile> {
     let _ = (process, fd);
     return Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,

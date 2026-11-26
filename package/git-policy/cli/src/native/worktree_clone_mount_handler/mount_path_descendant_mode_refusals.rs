@@ -155,7 +155,9 @@ impl MountPathDescendantFailure {
     pub fn message(&self) -> String {
         let prefix: String = format!("{}: ", root_modes_name());
         return match self {
-            MountPathDescendantFailure::NotRoot { effective_user } => {
+            MountPathDescendantFailure::NotRoot {
+                effective_user,
+            } => {
                 return NotRootRefusal {
                     mode: "mount-path-descendant",
                     nothing: "read, mounted or recorded",
@@ -165,55 +167,100 @@ impl MountPathDescendantFailure {
                 }
                 .sentence();
             }
-            MountPathDescendantFailure::NoRecordedCheckout { record } => format!(
+            MountPathDescendantFailure::NoRecordedCheckout {
+                record,
+            } => format!(
                 "{prefix}no-recorded-checkout: {} holds no record, so nothing says which checkout this dataset's mountpoint descends from. Nothing was mounted. Ways forward: run `{} record-checkout --checkout <path>` as root, then run the mode again, or let the record's repair run from the value the boot printed.",
                 record.display(),
                 root_modes_name()
             ),
             MountPathDescendantFailure::Record(refusal) => refusal.message(),
-            MountPathDescendantFailure::RecordNoLongerMatches { field, recorded, kernel } => format!(
+            MountPathDescendantFailure::RecordNoLongerMatches {
+                field,
+                recorded,
+                kernel,
+            } => format!(
                 "{prefix}checkout-record-no-longer-matches: the record's {field} is {recorded} and the kernel shows {kernel}. Nothing was mounted. Ways forward: run `{} record-checkout --checkout <path> --replace {kernel}` as root when the record only moved its GUID, or restore the dataset the record names; until then this dataset stays unmounted.",
                 root_modes_name()
             ),
-            MountPathDescendantFailure::DatasetRead { dataset, failure } => format!(
+            MountPathDescendantFailure::DatasetRead {
+                dataset,
+                failure,
+            } => format!(
                 "{prefix}`{dataset}` could not be read from the kernel, so nothing was mounted: {}. Ways forward: check that the dataset exists in an imported pool, then run the mode again.",
                 failure.message()
             ),
-            MountPathDescendantFailure::CheckoutNotMounted { checkout, dataset } => format!(
+            MountPathDescendantFailure::CheckoutNotMounted {
+                checkout,
+                dataset,
+            } => format!(
                 "{prefix}checkout-not-mounted: the mount table does not show `{dataset}` mounted at {} now, so the folder this dataset would be placed under is not a mount the route verified. Nothing was mounted. Ways forward: check that the checkout's own mount is in place (the boot's checkout unit, or `zfs mount <the checkout dataset>`), then run the mode again.",
                 checkout.display()
             ),
-            MountPathDescendantFailure::DatasetOutsideTheCheckout { dataset, mountpoint, checkout } => format!(
+            MountPathDescendantFailure::DatasetOutsideTheCheckout {
+                dataset,
+                mountpoint,
+                checkout,
+            } => format!(
                 "{prefix}dataset-outside-the-checkout: `{dataset}` mounts at {}, which is not strictly under the recorded checkout {}. Nothing was mounted. Ways forward: give the dataset a `mountpoint` under the checkout, or mount it with the unit that owned it before this mode.",
                 mountpoint.display(),
                 checkout.display()
             ),
-            MountPathDescendantFailure::DatasetInAnotherPool { dataset, pool, recorded } => format!(
+            MountPathDescendantFailure::DatasetInAnotherPool {
+                dataset,
+                pool,
+                recorded,
+            } => format!(
                 "{prefix}dataset-in-another-pool: `{dataset}` is in pool `{pool}` and the recorded checkout is in pool `{recorded}`, so this dataset would put another pool's subtree inside a served checkout. Nothing was mounted. Ways forward: name a dataset in the recorded checkout's own pool, or serve the checkout whose pool holds it.",
             ),
-            MountPathDescendantFailure::DatasetWithoutAMountpoint { dataset, mountpoint } => format!(
+            MountPathDescendantFailure::DatasetWithoutAMountpoint {
+                dataset,
+                mountpoint,
+            } => format!(
                 "{prefix}dataset-without-a-mountpoint: `{dataset}`'s `mountpoint` is `{mountpoint}`, so the dataset is mounted by someone else's rule and this mode would be guessing. Nothing was mounted. Ways forward: give the dataset a `mountpoint` under the checkout, then run the mode again."
             ),
-            MountPathDescendantFailure::DatasetAlreadyMountedElsewhere { dataset, mounted_at, mountpoint } => format!(
+            MountPathDescendantFailure::DatasetAlreadyMountedElsewhere {
+                dataset,
+                mounted_at,
+                mountpoint,
+            } => format!(
                 "{prefix}dataset-already-mounted-elsewhere: the kernel has `{dataset}` mounted at {}, and its own `mountpoint` is {}. Nothing was mounted. Ways forward: unmount the dataset where it stands, or give its property the path it is mounted at, then run the mode again.",
                 mounted_at.display(),
                 mountpoint.display()
             ),
-            MountPathDescendantFailure::DatasetNotMountable { dataset, property, value, because } => format!(
+            MountPathDescendantFailure::DatasetNotMountable {
+                dataset,
+                property,
+                value,
+                because,
+            } => format!(
                 "{prefix}dataset-not-mountable: `{dataset}`'s `{property}` is `{value}`, and {because}. Nothing was mounted. Ways forward: clear the property the refusal names, or let the unit that owned this dataset before this mode mount it."
             ),
-            MountPathDescendantFailure::EncryptionKeyNotLoaded { dataset, keystatus } => format!(
+            MountPathDescendantFailure::EncryptionKeyNotLoaded {
+                dataset,
+                keystatus,
+            } => format!(
                 "{prefix}encryption-key-not-loaded: `{dataset}` is encrypted and its `keystatus` is `{keystatus}`. Nothing was mounted. Ways forward: load the key by hand (`zfs load-key <dataset>`), then run the mode again; a boot unit has nobody to prompt."
             ),
-            MountPathDescendantFailure::MountpointNotEmpty { dataset, mountpoint } => format!(
+            MountPathDescendantFailure::MountpointNotEmpty {
+                dataset,
+                mountpoint,
+            } => format!(
                 "{prefix}mountpoint-not-empty: {} holds files and `{dataset}`'s `overlay` is off, so a mount there would hide them. Nothing was mounted. Ways forward: empty the folder, or give the dataset `overlay=on` when hiding what it holds is intended.",
                 mountpoint.display()
             ),
-            MountPathDescendantFailure::MountpointUnusable { dataset, mountpoint, because } => format!(
+            MountPathDescendantFailure::MountpointUnusable {
+                dataset,
+                mountpoint,
+                because,
+            } => format!(
                 "{prefix}mountpoint-unusable: the walk to {} refused for `{dataset}`: {because}. Nothing was mounted. Ways forward: check the folder's components as the refusal names them, then run the mode again; this mode creates the last component and no tree above it.",
                 mountpoint.display()
             ),
-            MountPathDescendantFailure::MountFailed { dataset, refusal } => format!(
+            MountPathDescendantFailure::MountFailed {
+                dataset,
+                refusal,
+            } => format!(
                 "{prefix}the mount of `{dataset}` refused at {}: {}. Nothing was mounted. Ways forward: read the step the refusal names, fix what it reports, then run the mode again.",
                 refusal.call.call_name(),
                 refusal.message()

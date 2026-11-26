@@ -124,21 +124,51 @@
 //! ```
 
 use crate::subvolume_remove_walk::Boundary;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
-use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
-use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
-use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
-use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
-use crate::worktree_removal_rescue::snapshot_linked_worktrees;
-use crate::worktree_removal_second_look::{SecondLook, nested_worktree_reason, why_the_worktree_stays, worktrees_inside};
-use crate::worktree_remove_hand_over::hand_over_worktree_removal;
-use crate::worktree_remove::{LinuxOperations, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
-use crate::worktree_remove_plan::RemovePlan;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::work_item::WorkItem;
+use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
+use crate::worktree_branch_reflog::{
+    MergeMove,
+    branch_made_at,
+    branch_moved_onto,
+};
+use crate::worktree_landed_registrations::{
+    RegisteredBefore,
+    Registration,
+    registrations_of,
+};
+use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
+use crate::worktree_removal_held_commits::{
+    KeptCommits,
+    keep_held_commits,
+};
+use crate::worktree_removal_rescue::snapshot_linked_worktrees;
+use crate::worktree_removal_second_look::{
+    SecondLook,
+    nested_worktree_reason,
+    why_the_worktree_stays,
+    worktrees_inside,
+};
+use crate::worktree_remove::{
+    LinuxOperations,
+    RemoveOperations,
+    RemoveOutcome,
+    RemoveRequest,
+    remove_with,
+};
+use crate::worktree_remove_hand_over::hand_over_worktree_removal;
+use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLandedRemoval";
@@ -320,7 +350,6 @@ pub struct LandedSweep {
     pub failed: Option<String>,
 }
 
-
 /// One branch a Git query named,
 /// with the commit it points at.
 /// Why:
@@ -347,19 +376,43 @@ struct Landing {
 /// ```ts
 /// const merged = branchesMergedInto(context, commit); // throws the reason
 /// ```
-fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Landing>, String> {
-    let arguments: Vec<OsString> = ["for-each-ref", "--merged", commit, "--format=%(refname)%09%(objectname)", "refs/heads"].map(OsString::from).to_vec();
-    let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
+fn branches_merged_into(
+    place: &LandedPlace<'_>,
+    commit: &str,
+) -> Result<Vec<Landing>, String> {
+    let arguments: Vec<OsString> = [
+        "for-each-ref",
+        "--merged",
+        commit,
+        "--format=%(refname)%09%(objectname)",
+        "refs/heads",
+    ]
+    .map(OsString::from)
+    .to_vec();
+    let output: GitOutput = match run_git(
+        place.context,
+        &GitRequest::new(place.cwd, arguments.as_slice()),
+    ) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("Git cannot list the branches merged into {commit} ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "Git cannot list the branches merged into {commit} ({error})"
+            ));
+        }
     };
     if output.code != Some(0) {
-        return Err(format!("Git cannot list the branches merged into {commit}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim()));
+        return Err(format!(
+            "Git cannot list the branches merged into {commit}: {}",
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        ));
     }
     let mut found: Vec<Landing> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
         let (reference, tip) = line.split_once('\t').unwrap_or((line, ""));
-        found.push(Landing { reference: reference.to_owned(), tip: tip.to_owned() });
+        found.push(Landing {
+            reference: reference.to_owned(),
+            tip: tip.to_owned(),
+        });
     }
     return Ok(found);
 }
@@ -385,7 +438,11 @@ fn reference_of(one: Landing) -> String {
 /// ```ts
 /// holdsItsOwnCommits(commonDir, 'refs/heads/task-z', 'dfc6c4e...') // false when its reflog begins at that commit
 /// ```
-fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool {
+fn holds_its_own_commits(
+    common_dir: &Path,
+    reference: &str,
+    tip: &str,
+) -> bool {
     return branch_made_at(common_dir, reference) != Some(tip.to_owned());
 }
 
@@ -426,7 +483,10 @@ struct ThisMerge<'a> {
 /// ```ts
 /// namesABranch('refs/heads/main', 'main') // true
 /// ```
-fn names_a_branch(reference: &str, short: &str) -> bool {
+fn names_a_branch(
+    reference: &str,
+    short: &str,
+) -> bool {
     return reference.strip_prefix("refs/heads/") == Some(short);
 }
 
@@ -456,15 +516,25 @@ fn names_a_branch(reference: &str, short: &str) -> bool {
 /// ```ts
 /// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', { branch: 'main', before, now })
 /// ```
-fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, this_merge: ThisMerge<'_>) -> bool {
+fn another_branch_took_the_tip(
+    landed: &[Landing],
+    common_dir: &Path,
+    reference: &str,
+    tip: &str,
+    this_merge: ThisMerge<'_>,
+) -> bool {
     for other in landed {
         if other.reference == reference {
             continue;
         }
-        let merge_move: Option<MergeMove<'_>> = match names_a_branch(other.reference.as_str(), this_merge.branch) {
-            true => Some(MergeMove { from: this_merge.before, to: this_merge.now }),
-            false => None,
-        };
+        let merge_move: Option<MergeMove<'_>> =
+            match names_a_branch(other.reference.as_str(), this_merge.branch) {
+                true => Some(MergeMove {
+                    from: this_merge.before,
+                    to: this_merge.now,
+                }),
+                false => None,
+            };
         if branch_moved_onto(common_dir, other.reference.as_str(), tip, merge_move) {
             return true;
         }
@@ -487,8 +557,16 @@ fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference:
 /// ```ts
 /// sweepLandedWorktrees(place, before, now, landedBranch)
 /// ```
-pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, landed_branch: &str) -> LandedSweep {
-    let mut sweep: LandedSweep = LandedSweep { landed_branch: String::from(landed_branch), ..LandedSweep::default() };
+pub fn sweep_landed_worktrees(
+    place: &LandedPlace<'_>,
+    before: &str,
+    now: &str,
+    landed_branch: &str,
+) -> LandedSweep {
+    let mut sweep: LandedSweep = LandedSweep {
+        landed_branch: String::from(landed_branch),
+        ..LandedSweep::default()
+    };
     let landed: Vec<Landing> = match branches_merged_into(place, now) {
         Ok(found) => found,
         Err(reason) => {
@@ -516,7 +594,11 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             place.common_dir,
             one.reference.as_str(),
             one.tip.as_str(),
-            ThisMerge { branch: landed_branch, before, now },
+            ThisMerge {
+                branch: landed_branch,
+                before,
+                now,
+            },
         ) {
             continue;
         }
@@ -566,7 +648,9 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         return answer;
     };
     for one in &registered {
-        if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
+        if !candidates.contains(one.branch.as_str())
+            || place.current_root == Some(one.worktree.as_path())
+        {
             continue;
         }
         // A registration that was not there when the merge started belongs to work that began after it, so this merge is
@@ -575,14 +659,43 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             continue;
         }
         match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
-            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
-            Examined::RemovedAround(left) => sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left }),
-            Examined::EmptiedAround => sweep.removed_emptied.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
-            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
-            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
-            Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
-            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
-            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Removed => sweep.removed.push(RemovedWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+            }),
+            Examined::RemovedAround(left) => sweep.removed_around.push(RemovedAroundWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+                left,
+            }),
+            Examined::EmptiedAround => sweep.removed_emptied.push(RemovedWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+            }),
+            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+                report,
+            }),
+            Examined::Refused(report) => sweep.refused.push(KeptWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+                why: report,
+            }),
+            Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+                record,
+            }),
+            Examined::Kept(why) => sweep.kept.push(KeptWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+                why,
+            }),
+            Examined::Unproven => sweep.unproven.push(UnprovenWorktree {
+                worktree: one.worktree.clone(),
+                branch: one.branch.clone(),
+            }),
         }
     }
     return sweep;
@@ -649,15 +762,30 @@ fn remove_here_or_hand_over(
     operations: &dyn RemoveOperations,
     one: &Registration,
 ) -> Attempt {
-    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
+    let plan: RemovePlan = RemovePlan {
+        target: one.worktree.clone(),
+        operand: OsString::from(one.worktree.as_os_str()),
+        force: false,
+    };
     // Asked again inside the removal, in the window it destroys in: its proof of cleanliness starts Git and walks the
     // tree, which is long enough for a command to add a worktree inside this one and for the service to record a refused
     // push (a cross-vendor review of the landed sweep, round 208).
-    let look: NothingNewWouldGoWithIt<'_> = NothingNewWouldGoWithIt { common_dir: place.common_dir, one };
-    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir, last_look: Some(&look) };
+    let look: NothingNewWouldGoWithIt<'_> = NothingNewWouldGoWithIt {
+        common_dir: place.common_dir,
+        one,
+    };
+    let request: RemoveRequest<'_> = RemoveRequest {
+        context: place.context,
+        plan: &plan,
+        common_dir: place.common_dir,
+        last_look: Some(&look),
+    };
     match remove_with(operations, &request) {
         RemoveOutcome::Removed => {
-            crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
+            crate::diagnostic_log::debug(
+                TAG,
+                format!("destroyed the subvolume of {}", one.worktree.display()).as_str(),
+            );
             return Attempt::Removed;
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
@@ -669,7 +797,14 @@ fn remove_here_or_hand_over(
         RemoveOutcome::RemovedAroundNothingLeft => return Attempt::EmptiedAround,
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
+    let record: WorkItem = match hand_over_worktree_removal(
+        place.context,
+        place.git_dir,
+        one.worktree.as_path(),
+        one.admin.as_path(),
+        place.current_root,
+        told,
+    ) {
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
@@ -680,7 +815,10 @@ fn remove_here_or_hand_over(
 /// which is asked again inside the removal.
 #[path = "worktree_landed_removal_last_look.rs"]
 mod last_look;
-use self::last_look::{NothingNewWouldGoWithIt, nothing_new_would_go_with_it};
+use self::last_look::{
+    NothingNewWouldGoWithIt,
+    nothing_new_would_go_with_it,
+};
 
 /// What one candidate came to.
 enum Examined {

@@ -20,13 +20,35 @@
 //! ```
 
 use super::companion_buffers::CompanionBuffers;
-use super::companion_calls::{CompanionCall, Failure, NO_ERRNO, failed};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    NO_ERRNO,
+    failed,
+};
 use super::companion_child_tree::Slots;
-use super::companion_descriptor_calls::{fsconfig_create, fsmount, fsopen_tmpfs, move_mount_between_paths, move_mount_onto_descriptor};
-use super::companion_mount_table::{mount_id_of, names_mount, names_mount_id, read_mount_table};
-use super::companion_file_calls::{close, parent_death_signal};
+use super::companion_descriptor_calls::{
+    fsconfig_create,
+    fsmount,
+    fsopen_tmpfs,
+    move_mount_between_paths,
+    move_mount_onto_descriptor,
+};
+use super::companion_file_calls::{
+    close,
+    parent_death_signal,
+};
 use super::companion_mount_calls::unmount;
-use super::companion_records::{StepRecord, send};
+use super::companion_mount_table::{
+    mount_id_of,
+    names_mount,
+    names_mount_id,
+    read_mount_table,
+};
+use super::companion_records::{
+    StepRecord,
+    send,
+};
 use super::companion_steps::CompanionStep;
 use std::os::fd::RawFd;
 
@@ -41,7 +63,11 @@ use std::os::fd::RawFd;
 /// # Errors
 /// A descriptor call refused,
 ///  or the read-back did not find the mount.
-pub fn attach(buffers: &CompanionBuffers, slots: Slots, mount_table: &mut [u8]) -> Result<u64, Failure> {
+pub fn attach(
+    buffers: &CompanionBuffers,
+    slots: Slots,
+    mount_table: &mut [u8],
+) -> Result<u64, Failure> {
     let context: RawFd = fsopen_tmpfs(buffers.tmpfs.as_c_str())?;
     let created: Result<(), Failure> = fsconfig_create(context);
     if created.is_err() {
@@ -56,7 +82,10 @@ pub fn attach(buffers: &CompanionBuffers, slots: Slots, mount_table: &mut [u8]) 
     moved?;
     let read: usize = read_mount_table(buffers.mountinfo.as_c_str(), mount_table)?;
     if !names_mount(&mount_table[..read], mount_id, buffers.slot.as_bytes()) {
-        return Err(Failure { call: CompanionCall::MountFactsCheck, errno: NO_ERRNO });
+        return Err(Failure {
+            call: CompanionCall::MountFactsCheck,
+            errno: NO_ERRNO,
+        });
     }
     return Ok(mount_id);
 }
@@ -72,7 +101,12 @@ pub fn attach(buffers: &CompanionBuffers, slots: Slots, mount_table: &mut [u8]) 
 /// # Errors
 /// The fork refused,
 ///  or the child reported a failure of its own.
-pub fn move_and_unmount(buffers: &CompanionBuffers, mount_id: u64, mount_table: &mut [u8], status: RawFd) -> Result<(), Failure> {
+pub fn move_and_unmount(
+    buffers: &CompanionBuffers,
+    mount_id: u64,
+    mount_table: &mut [u8],
+    status: RawFd,
+) -> Result<(), Failure> {
     // SAFETY: `fork` takes no argument, and this process is single-threaded by now.
     let child: libc::pid_t = unsafe { libc::fork() };
     if child < 0 {
@@ -98,13 +132,20 @@ pub fn move_and_unmount(buffers: &CompanionBuffers, mount_id: u64, mount_table: 
 ///  The unmount must not answer `EBUSY`,
 ///  and the table read is what proves the mount is gone rather than detached
 ///  from this path only.
-fn child_move(buffers: &CompanionBuffers, mount_id: u64, mount_table: &mut [u8]) -> Result<(), Failure> {
+fn child_move(
+    buffers: &CompanionBuffers,
+    mount_id: u64,
+    mount_table: &mut [u8],
+) -> Result<(), Failure> {
     parent_death_signal()?;
     move_mount_between_paths(buffers.slot.as_c_str(), buffers.move_target.as_c_str())?;
     unmount(buffers.move_target.as_c_str())?;
     let read: usize = read_mount_table(buffers.mountinfo.as_c_str(), mount_table)?;
     if names_mount_id(&mount_table[..read], mount_id) {
-        return Err(Failure { call: CompanionCall::MountFactsCheck, errno: NO_ERRNO });
+        return Err(Failure {
+            call: CompanionCall::MountFactsCheck,
+            errno: NO_ERRNO,
+        });
     }
     return Ok(());
 }
@@ -132,5 +173,8 @@ fn wait_for(child: libc::pid_t) -> Result<(), Failure> {
     if libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 {
         return Ok(());
     }
-    return Err(Failure { call: CompanionCall::Fork, errno: NO_ERRNO });
+    return Err(Failure {
+        call: CompanionCall::Fork,
+        errno: NO_ERRNO,
+    });
 }

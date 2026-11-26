@@ -27,7 +27,12 @@ use crate::service_messages::NOTHING_CHANGED;
 /// ```ts
 /// socketPathTooLong(tooLong) // 'The commit service would listen at /…, which takes 113 bytes …'
 /// ```
-pub fn socket_path_too_long(path: &str, length: usize, longest: usize, longest_runtime: usize) -> String {
+pub fn socket_path_too_long(
+    path: &str,
+    length: usize,
+    longest: usize,
+    longest_runtime: usize,
+) -> String {
     return format!(
         "The commit service would listen at {path}, which takes {length} bytes, and this system's addresses of that kind \
          hold at most {longest} bytes, so this commit was not made. That address is built from this command's runtime \
@@ -47,7 +52,12 @@ pub fn socket_path_too_long(path: &str, length: usize, longest: usize, longest_r
 /// ```ts
 /// serviceElsewhere(elsewhere) // 'The commit service was started, and it listens at /run/user/1000/…'
 /// ```
-pub fn service_elsewhere(made: &str, looked_for: &str, manager_runtime: &str, client_runtime: &str) -> String {
+pub fn service_elsewhere(
+    made: &str,
+    looked_for: &str,
+    manager_runtime: &str,
+    client_runtime: &str,
+) -> String {
     return format!(
         "The commit service was started, and it listens at {made}, while this command waits at {looked_for}, so this \
          commit was not made. Your account's service manager runs with the runtime directory {manager_runtime}, and this \

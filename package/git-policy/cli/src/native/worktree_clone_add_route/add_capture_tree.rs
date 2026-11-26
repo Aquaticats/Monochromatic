@@ -17,13 +17,24 @@
 //! walkPaths(root, entries, (entry) => entry.path, (entry, path, found) => { ... });
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_directory_at, open_root, read_link_at};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_directory_at,
+    open_root,
+    read_link_at,
+};
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::fields_of;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::MetadataExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kind of object one tracked path holds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,23 +107,36 @@ pub(super) fn walk_paths<'a, T: 'a>(
     path_of: impl Fn(&T) -> &[u8],
     mut visit: impl FnMut(&T, &Path, &FoundFacts, &std::fs::File, &OsStr) -> Result<(), String>,
 ) -> Result<(), String> {
-    let root: std::fs::File = open_root(root_path).map_err(|error| return format!("the root {} cannot be opened without a link ({error})", root_path.display()))?;
+    let root: std::fs::File = open_root(root_path).map_err(|error| {
+        return format!(
+            "the root {} cannot be opened without a link ({error})",
+            root_path.display()
+        );
+    })?;
     let mut cached: Option<(PathBuf, std::fs::File)> = None;
     for item in items {
         let path: PathBuf = PathBuf::from(OsStr::from_bytes(path_of(item)));
         let names: Vec<OsString> = plain_names(path.as_path())?;
         let Some((name, parents)) = names.split_last() else {
-            return Err(format!("the tracked path {} names the root itself", path.display()));
+            return Err(format!(
+                "the tracked path {} names the root itself",
+                path.display()
+            ));
         };
         let parent_path: PathBuf = parents.iter().collect();
-        let moved: bool = cached.as_ref().map(|(cached_path, _file)| return cached_path != &parent_path).unwrap_or(true);
+        let moved: bool = cached
+            .as_ref()
+            .map(|(cached_path, _file)| return cached_path != &parent_path)
+            .unwrap_or(true);
         if moved {
             cached = Some((parent_path, open_below(&root, parents, path.as_path())?));
         }
         let Some((_cached_path, parent)) = cached.as_ref() else {
             return Err(format!("the folder of {} is not open", path.display()));
         };
-        let holder: std::fs::File = parent.try_clone().map_err(|error| return format!("the folder of {} cannot be held ({error})", path.display()))?;
+        let holder: std::fs::File = parent.try_clone().map_err(|error| {
+            return format!("the folder of {} cannot be held ({error})", path.display());
+        })?;
         let found: FoundFacts = read_facts(&holder, name.as_os_str(), path.as_path())?;
         visit(item, path.as_path(), &found, &holder, name.as_os_str())?;
     }
@@ -126,15 +150,26 @@ fn plain_names(path: &Path) -> Result<Vec<OsString>, String> {
     for component in path.components() {
         match component {
             std::path::Component::Normal(name) => names.push(name.to_os_string()),
-            _ => return Err(format!("the tracked path {} is not a plain relative path", path.display())),
+            _ => {
+                return Err(format!(
+                    "the tracked path {} is not a plain relative path",
+                    path.display()
+                ));
+            }
         }
     }
     return Ok(names);
 }
 
 /// Open every folder of `parents` below `root`, one plain name at a time.
-fn open_below(root: &std::fs::File, parents: &[OsString], path: &Path) -> Result<std::fs::File, String> {
-    let mut held: std::fs::File = root.try_clone().map_err(|error| return format!("the root cannot be held ({error})"))?;
+fn open_below(
+    root: &std::fs::File,
+    parents: &[OsString],
+    path: &Path,
+) -> Result<std::fs::File, String> {
+    let mut held: std::fs::File = root
+        .try_clone()
+        .map_err(|error| return format!("the root cannot be held ({error})"))?;
     for name in parents {
         held = open_directory_at(&held, name.as_os_str()).map_err(|error| {
             return format!("the folder of {} cannot be opened without a link ({error}); Ways forward: restore the folder the index records, or check the source out again", path.display());
@@ -144,21 +179,42 @@ fn open_below(root: &std::fs::File, parents: &[OsString], path: &Path) -> Result
 }
 
 /// Read one path's facts below its parent's held handle.
-fn read_facts(parent: &std::fs::File, name: &OsStr, path: &Path) -> Result<FoundFacts, String> {
+fn read_facts(
+    parent: &std::fs::File,
+    name: &OsStr,
+    path: &Path,
+) -> Result<FoundFacts, String> {
     let metadata: std::fs::Metadata = match entry_metadata_at(parent, name) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(FoundFacts { kind: FoundKind::Absent, fields: None, size: 0, mtime: (0, 0), ctime: (0, 0), executable: false, link_target: None });
+            return Ok(FoundFacts {
+                kind: FoundKind::Absent,
+                fields: None,
+                size: 0,
+                mtime: (0, 0),
+                ctime: (0, 0),
+                executable: false,
+                link_target: None,
+            });
         }
         Err(error) => return Err(format!("{} cannot be examined ({error})", path.display())),
     };
     if metadata.is_dir() {
-        return Err(format!("{} is a folder, which the clone route cannot prove", path.display()));
+        return Err(format!(
+            "{} is a folder, which the clone route cannot prove",
+            path.display()
+        ));
     }
-    let kind: FoundKind = if metadata.is_symlink() { FoundKind::Link } else { FoundKind::Regular };
+    let kind: FoundKind = if metadata.is_symlink() {
+        FoundKind::Link
+    } else {
+        FoundKind::Regular
+    };
     let link_target: Option<Vec<u8>> = match kind {
         FoundKind::Link => {
-            let target: PathBuf = read_link_at(parent, name).map_err(|error| return format!("the link {} cannot be read ({error})", path.display()))?;
+            let target: PathBuf = read_link_at(parent, name).map_err(|error| {
+                return format!("the link {} cannot be read ({error})", path.display());
+            })?;
             Some(target.as_os_str().as_bytes().to_vec())
         }
         _ => None,

@@ -22,13 +22,30 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, entry_metadata_at, identity_at, identity_of, open_directory_at, open_file_at, read_link_at};
-use std::ffi::{OsStr, OsString};
+use crate::fs_beneath::{
+    ObjectId,
+    entry_metadata_at,
+    identity_at,
+    identity_of,
+    open_directory_at,
+    open_file_at,
+    read_link_at,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "conflictSideSource";
@@ -66,22 +83,40 @@ pub struct SaveFailure {
 impl SaveFailure {
     /// A failure of the system on `subject`,
     /// logged.
-    pub fn io(subject: String, reason: String) -> SaveFailure {
+    pub fn io(
+        subject: String,
+        reason: String,
+    ) -> SaveFailure {
         debug(TAG, &format!("fail closed: {subject}: {reason}"));
-        return SaveFailure { subject, reason, kind: FailureKind::Io };
+        return SaveFailure {
+            subject,
+            reason,
+            kind: FailureKind::Io,
+        };
     }
 
     /// A failure of kind `kind` on `subject`,
     /// logged.
-    fn of_kind(kind: FailureKind, subject: String, reason: String) -> SaveFailure {
+    fn of_kind(
+        kind: FailureKind,
+        subject: String,
+        reason: String,
+    ) -> SaveFailure {
         debug(TAG, &format!("fail closed ({kind:?}): {subject}: {reason}"));
-        return SaveFailure { subject, reason, kind };
+        return SaveFailure {
+            subject,
+            reason,
+            kind,
+        };
     }
 }
 
 /// A failure of the system on `subject`,
 /// logged.
-fn io_failure(subject: &str, error: &std::io::Error) -> SaveFailure {
+fn io_failure(
+    subject: &str,
+    error: &std::io::Error,
+) -> SaveFailure {
     return SaveFailure::io(String::from(subject), error.to_string());
 }
 
@@ -131,12 +166,16 @@ pub struct Located {
 /// ```ts
 /// function openParent(root: string, relative: Uint8Array): { parent: Dir; name: string } | undefined;
 /// ```
-fn open_parent(root: &Path, relative: &[u8]) -> Result<Option<(File, OsString)>, SaveFailure> {
+fn open_parent(
+    root: &Path,
+    relative: &[u8],
+) -> Result<Option<(File, OsString)>, SaveFailure> {
     let shown: String = String::from_utf8_lossy(relative).into_owned();
-    let names: Vec<OsString> = match crate::fs_beneath::plain_components(Path::new(OsStr::from_bytes(relative))) {
-        Ok(found) => found,
-        Err(error) => return Err(io_failure(&shown, &error)),
-    };
+    let names: Vec<OsString> =
+        match crate::fs_beneath::plain_components(Path::new(OsStr::from_bytes(relative))) {
+            Ok(found) => found,
+            Err(error) => return Err(io_failure(&shown, &error)),
+        };
     let Some((last, ancestors)) = names.split_last() else {
         return Err(SaveFailure::io(shown, String::from("it names no file")));
     };
@@ -157,7 +196,12 @@ fn open_parent(root: &Path, relative: &[u8]) -> Result<Option<(File, OsString)>,
                     Some(libc::ENOTDIR) => String::from("is a file, not a directory"),
                     Some(libc::EXDEV) => {
                         // Git writes through a mount; only this wrapper does not read across one.
-                        return Err(SaveFailure::io(subject, String::from("is on another mount, which the wrapper does not read across")));
+                        return Err(SaveFailure::io(
+                            subject,
+                            String::from(
+                                "is on another mount, which the wrapper does not read across",
+                            ),
+                        ));
                     }
                     _ => format!("cannot be opened without following a link ({error})"),
                 };
@@ -182,14 +226,22 @@ fn open_parent(root: &Path, relative: &[u8]) -> Result<Option<(File, OsString)>,
 /// ```ts
 /// function locate(root: string, relative: Uint8Array): Located | undefined;
 /// ```
-pub fn locate(root: &Path, relative: &[u8]) -> Result<Option<Located>, SaveFailure> {
+pub fn locate(
+    root: &Path,
+    relative: &[u8],
+) -> Result<Option<Located>, SaveFailure> {
     let Some((parent, name)) = open_parent(root, relative)? else {
         return Ok(None);
     };
     return match entry_metadata_at(&parent, name.as_os_str()) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(io_failure(&String::from_utf8_lossy(relative), &error)),
-        Ok(_) => Ok(Some(Located { root: root.to_path_buf(), relative: relative.to_vec(), parent, name })),
+        Ok(_) => Ok(Some(Located {
+            root: root.to_path_buf(),
+            relative: relative.to_vec(),
+            parent,
+            name,
+        })),
     };
 }
 
@@ -228,8 +280,15 @@ impl Stamp {
 
 /// The failure for a source that changed while it was read;
 /// `what` is a verb phrase that says how.
-fn changed(located: &Located, what: &str) -> SaveFailure {
-    return SaveFailure::of_kind(FailureKind::Changed, String::from_utf8_lossy(located.relative.as_slice()).into_owned(), what.to_string());
+fn changed(
+    located: &Located,
+    what: &str,
+) -> SaveFailure {
+    return SaveFailure::of_kind(
+        FailureKind::Changed,
+        String::from_utf8_lossy(located.relative.as_slice()).into_owned(),
+        what.to_string(),
+    );
 }
 
 /// What:
@@ -242,23 +301,42 @@ fn changed(located: &Located, what: &str) -> SaveFailure {
 /// ```ts
 /// function copyLink(located: Located, destination: string): void;
 /// ```
-fn copy_link(located: &Located, before: &std::fs::Metadata, destination: &Path) -> Result<(), SaveFailure> {
+fn copy_link(
+    located: &Located,
+    before: &std::fs::Metadata,
+    destination: &Path,
+) -> Result<(), SaveFailure> {
     let target: PathBuf = match read_link_at(&located.parent, located.name.as_os_str()) {
         Ok(read) => read,
-        Err(error) => return Err(changed(located, format!("could not be read as a link ({error})").as_str())),
+        Err(error) => {
+            return Err(changed(
+                located,
+                format!("could not be read as a link ({error})").as_str(),
+            ));
+        }
     };
     if let Err(error) = std::os::unix::fs::symlink(&target, destination) {
-        return Err(io_failure(&String::from_utf8_lossy(located.relative.as_slice()), &error));
+        return Err(io_failure(
+            &String::from_utf8_lossy(located.relative.as_slice()),
+            &error,
+        ));
     }
     if !link_unchanged(located, before, &target) {
         let _removed = std::fs::remove_file(destination);
-        return Err(changed(located, "was replaced while its link target was copied"));
+        return Err(changed(
+            located,
+            "was replaced while its link target was copied",
+        ));
     }
     return Ok(());
 }
 
 /// Whether the entry still has the stamp it had and still points at `target`.
-fn link_unchanged(located: &Located, before: &std::fs::Metadata, target: &Path) -> bool {
+fn link_unchanged(
+    located: &Located,
+    before: &std::fs::Metadata,
+    target: &Path,
+) -> bool {
     let Ok(now) = entry_metadata_at(&located.parent, located.name.as_os_str()) else {
         return false;
     };
@@ -315,12 +393,20 @@ impl From<SaveFailure> for CopyError {
 /// ```ts
 /// function copyStream(located: Located, from: File, to: File, before: Stamp, between: () => void): void;
 /// ```
-fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp, between: &mut dyn FnMut()) -> Result<(), CopyError> {
+fn copy_stream(
+    located: &Located,
+    from: &mut File,
+    to: &mut File,
+    before: Stamp,
+    between: &mut dyn FnMut(),
+) -> Result<(), CopyError> {
     let mut buffer: Vec<u8> = vec![0; 1 << 16];
     let mut copied: u64 = 0;
     while copied < before.size {
         let left: u64 = before.size - copied;
-        let wanted: usize = usize::try_from(left).unwrap_or(usize::MAX).min(buffer.len());
+        let wanted: usize = usize::try_from(left)
+            .unwrap_or(usize::MAX)
+            .min(buffer.len());
         let count: usize = from.read(&mut buffer[..wanted])?;
         if count == 0 {
             break;
@@ -331,21 +417,34 @@ fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp,
     }
     let after: Stamp = Stamp::of(&from.metadata()?);
     if after != before {
-        debug(TAG, &format!("{}: stamp before the copy {before:?}, after {after:?}", String::from_utf8_lossy(located.relative.as_slice())));
+        debug(
+            TAG,
+            &format!(
+                "{}: stamp before the copy {before:?}, after {after:?}",
+                String::from_utf8_lossy(located.relative.as_slice())
+            ),
+        );
         return Err(changed(located, "changed while it was copied").into());
     }
     if copied != before.size {
-        return Err(changed(located, format!("gave {copied} bytes where it had {}", before.size).as_str()).into());
+        return Err(changed(
+            located,
+            format!("gave {copied} bytes where it had {}", before.size).as_str(),
+        )
+        .into());
     }
     // The name must still lead, below the same directories and without a link, to the object that was read.
-    let named_now: Option<ObjectId> = match open_parent(located.root.as_path(), located.relative.as_slice())? {
-        Some((parent, name)) => identity_at(&parent, name.as_os_str()).ok(),
-        None => None,
-    };
+    let named_now: Option<ObjectId> =
+        match open_parent(located.root.as_path(), located.relative.as_slice())? {
+            Some((parent, name)) => identity_at(&parent, name.as_os_str()).ok(),
+            None => None,
+        };
     if named_now != identity_of(from).ok() {
         return Err(changed(located, "no longer holds the file that was copied").into());
     }
-    to.set_permissions(<std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(before.mode & 0o777))?;
+    to.set_permissions(
+        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(before.mode & 0o777),
+    )?;
     to.sync_all()?;
     return Ok(());
 }
@@ -363,18 +462,31 @@ fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp,
 /// ```ts
 /// function copyEntry(located: Located, metadata: Metadata, destination: string, between: () => void): void;
 /// ```
-fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Path, between: &mut dyn FnMut()) -> Result<(), CopyError> {
+fn copy_entry(
+    located: &Located,
+    metadata: &std::fs::Metadata,
+    destination: &Path,
+    between: &mut dyn FnMut(),
+) -> Result<(), CopyError> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let mut from: File = open_file_at(&located.parent, located.name.as_os_str())?;
     let opened: std::fs::Metadata = from.metadata()?;
     if !opened.file_type().is_file() {
-        return Err(SaveFailure::io(shown, String::from("it is neither a file nor a symbolic link")).into());
+        return Err(SaveFailure::io(
+            shown,
+            String::from("it is neither a file nor a symbolic link"),
+        )
+        .into());
     }
     let before: Stamp = Stamp::of(&opened);
     if before != Stamp::of(metadata) {
         return Err(changed(located, "changed between the look at its name and the open").into());
     }
-    let mut to: File = std::fs::OpenOptions::new().write(true).create_new(true).mode_600().open(destination)?;
+    let mut to: File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode_600()
+        .open(destination)?;
     let streamed: Result<(), CopyError> = copy_stream(located, &mut from, &mut to, before, between);
     if streamed.is_err() {
         let _removed = std::fs::remove_file(destination);
@@ -406,17 +518,25 @@ fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Pat
 /// ```ts
 /// function copyLocated(located: Located, destination: string, between: () => void): void;
 /// ```
-pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnMut()) -> Result<(), SaveFailure> {
+pub fn copy_located(
+    located: &Located,
+    destination: &Path,
+    between: &mut dyn FnMut(),
+) -> Result<(), SaveFailure> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
-    let metadata: std::fs::Metadata = match entry_metadata_at(&located.parent, located.name.as_os_str()) {
-        Ok(found) => found,
-        Err(error) => return Err(io_failure(&shown, &error)),
-    };
+    let metadata: std::fs::Metadata =
+        match entry_metadata_at(&located.parent, located.name.as_os_str()) {
+            Ok(found) => found,
+            Err(error) => return Err(io_failure(&shown, &error)),
+        };
     if metadata.file_type().is_symlink() {
         return copy_link(located, &metadata, destination);
     }
     if !metadata.file_type().is_file() {
-        return Err(SaveFailure::io(shown, String::from("it is neither a file nor a symbolic link")));
+        return Err(SaveFailure::io(
+            shown,
+            String::from("it is neither a file nor a symbolic link"),
+        ));
     }
     return match copy_entry(located, &metadata, destination, between) {
         Ok(()) => Ok(()),

@@ -21,9 +21,18 @@
 //! ```
 
 use super::classify_the_managed_lock;
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec, ScriptedGuids, ScriptedMounts};
-use crate::worktree_clone_managed_lock::{LockOwnership, ManagedLockState, TheWordsCause};
 use crate::worktree_clone_binding_record::EntryRow;
+use crate::worktree_clone_managed_lock::test_fixtures::{
+    Fixture,
+    RecordSpec,
+    ScriptedGuids,
+    ScriptedMounts,
+};
+use crate::worktree_clone_managed_lock::{
+    LockOwnership,
+    ManagedLockState,
+    TheWordsCause,
+};
 use std::path::PathBuf;
 
 /// The fixture's nonce.
@@ -42,7 +51,10 @@ const OTHER_NONCE: &str = "00000000000000000000000000000000";
 /// Why:
 ///  Every state below is this fixture with one fact moved,
 ///  so each control proves the fact it names rather than the fixture's shape.
-fn a_finished_slot(label: &str, lock: Option<Vec<u8>>) -> (Fixture, PathBuf) {
+fn a_finished_slot(
+    label: &str,
+    lock: Option<Vec<u8>>,
+) -> (Fixture, PathBuf) {
     let fixture: Fixture = Fixture::new(label);
     let registration: PathBuf = fixture.write_registration("locked-slot");
     fixture.write_pointer(registration.as_path());
@@ -61,23 +73,48 @@ fn a_finished_slot(label: &str, lock: Option<Vec<u8>>) -> (Fixture, PathBuf) {
 fn ownership_of(fixture: &Fixture) -> LockOwnership {
     let mounts: ScriptedMounts = ScriptedMounts::nothing();
     let guids: ScriptedGuids = ScriptedGuids::never_asked();
-    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts, &guids).ownership();
+    return classify_the_managed_lock(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &mounts,
+        &guids,
+    )
+    .ownership();
 }
 
 /// The state of one fixture's classification.
 fn state_of(fixture: &Fixture) -> ManagedLockState {
     let mounts: ScriptedMounts = ScriptedMounts::nothing();
     let guids: ScriptedGuids = ScriptedGuids::never_asked();
-    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts, &guids).state;
+    return classify_the_managed_lock(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &mounts,
+        &guids,
+    )
+    .state;
 }
 
 /// S1: the sentence the record's nonce recomposes is the wrapper's managed lock,
 /// wherever the pointer stands or not.
 #[test]
 fn the_verified_lock_is_the_wrappers_managed_class() {
-    let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-verified", Some(Vec::new()));
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    assert_eq!(state_of(&fixture), ManagedLockState::Managed { nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the nonce reads"), registration });
+    let (fixture, registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-verified", Some(Vec::new()));
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    assert_eq!(
+        state_of(&fixture),
+        ManagedLockState::Managed {
+            nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+                .expect("the nonce reads"),
+            registration
+        }
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::TheWrappersManaged);
 }
 
@@ -91,7 +128,13 @@ fn the_cut_short_lock_is_still_the_wrappers() {
     fixture.write_lock(registration.as_path(), &sentence[..covering]);
     assert_eq!(
         state_of(&fixture),
-        ManagedLockState::CutShort { nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the nonce reads"), registration, at: covering as u64, of: sentence.len() as u64 }
+        ManagedLockState::CutShort {
+            nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+                .expect("the nonce reads"),
+            registration,
+            at: covering as u64,
+            of: sentence.len() as u64
+        }
     );
     assert_eq!(ownership_of(&fixture), LockOwnership::TheWrappersManaged);
 }
@@ -100,8 +143,16 @@ fn the_cut_short_lock_is_still_the_wrappers() {
 /// and the sentence says which words they are.
 #[test]
 fn a_persons_lock_is_the_operator_class() {
-    let (fixture, _registration): (Fixture, PathBuf) = a_finished_slot("classify-operator", Some(b"initializing\n".to_vec()));
-    assert_eq!(state_of(&fixture), ManagedLockState::NotTheAddsWords { cause: TheWordsCause::AnothersWords { first_line: String::from("initializing") } });
+    let (fixture, _registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-operator", Some(b"initializing\n".to_vec()));
+    assert_eq!(
+        state_of(&fixture),
+        ManagedLockState::NotTheAddsWords {
+            cause: TheWordsCause::AnothersWords {
+                first_line: String::from("initializing")
+            }
+        }
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
@@ -109,8 +160,14 @@ fn a_persons_lock_is_the_operator_class() {
 /// which is the deliberate cost of a proof that compares bytes.
 #[test]
 fn an_empty_lock_is_the_operator_class() {
-    let (fixture, _registration): (Fixture, PathBuf) = a_finished_slot("classify-empty", Some(Vec::new()));
-    assert!(matches!(state_of(&fixture), ManagedLockState::NotTheAddsWords { cause: TheWordsCause::AnothersWords { .. } }));
+    let (fixture, _registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-empty", Some(Vec::new()));
+    assert!(matches!(
+        state_of(&fixture),
+        ManagedLockState::NotTheAddsWords {
+            cause: TheWordsCause::AnothersWords { .. }
+        }
+    ));
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
@@ -119,7 +176,10 @@ fn an_empty_lock_is_the_operator_class() {
 #[test]
 fn another_adds_sentence_is_the_operator_class() {
     let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-copied", None);
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(OTHER_NONCE).as_slice());
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(OTHER_NONCE).as_slice(),
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
@@ -127,9 +187,16 @@ fn another_adds_sentence_is_the_operator_class() {
 /// which is the deliberate cost of a proof that compares bytes rather than identity (`V5`).
 #[test]
 fn a_person_who_writes_the_sentence_makes_the_managed_state() {
-    let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-a-copied-sentence", None);
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    assert!(matches!(state_of(&fixture), ManagedLockState::Managed { .. }), "the words are all the proof reads");
+    let (fixture, registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-a-copied-sentence", None);
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    assert!(
+        matches!(state_of(&fixture), ManagedLockState::Managed { .. }),
+        "the words are all the proof reads"
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::TheWrappersManaged);
 }
 
@@ -140,8 +207,16 @@ fn a_slot_with_no_record_cannot_verify_any_lock() {
     let fixture: Fixture = Fixture::new("classify-no-record");
     let registration: PathBuf = fixture.write_registration("locked-slot");
     fixture.write_pointer(registration.as_path());
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    assert!(matches!(state_of(&fixture), ManagedLockState::NotTheAddsWords { cause: TheWordsCause::NoRecordToRecompose { .. } }));
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    assert!(matches!(
+        state_of(&fixture),
+        ManagedLockState::NotTheAddsWords {
+            cause: TheWordsCause::NoRecordToRecompose { .. }
+        }
+    ));
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
@@ -150,7 +225,14 @@ fn a_slot_with_no_record_cannot_verify_any_lock() {
 #[test]
 fn a_standing_registration_with_no_lock_is_the_unlocked_state() {
     let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-unlocked", None);
-    assert_eq!(state_of(&fixture), ManagedLockState::NoLock { nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the nonce reads"), registration });
+    assert_eq!(
+        state_of(&fixture),
+        ManagedLockState::NoLock {
+            nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+                .expect("the nonce reads"),
+            registration
+        }
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::NoLockStands);
 }
 
@@ -159,16 +241,37 @@ fn a_standing_registration_with_no_lock_is_the_unlocked_state() {
 /// and the missing pointer is a second sentence.
 #[test]
 fn the_lock_survives_the_lost_pointer() {
-    let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-no-pointer", Some(Vec::new()));
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    std::fs::remove_file(fixture.slot_path.join(".git")).expect("the pointer goes, as item 6's arm deletes it");
+    let (fixture, registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-no-pointer", Some(Vec::new()));
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    std::fs::remove_file(fixture.slot_path.join(".git"))
+        .expect("the pointer goes, as item 6's arm deletes it");
     let mounts: ScriptedMounts = ScriptedMounts::nothing();
     let guids: ScriptedGuids = ScriptedGuids::never_asked();
-    let classification = classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts, &guids);
-    assert!(matches!(classification.state, ManagedLockState::Managed { .. }), "the lock still reads as the add's: {:?}", classification.state);
+    let classification = classify_the_managed_lock(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &mounts,
+        &guids,
+    );
+    assert!(
+        matches!(classification.state, ManagedLockState::Managed { .. }),
+        "the lock still reads as the add's: {:?}",
+        classification.state
+    );
     assert!(classification.the_slot_shows_no_pointer());
-    assert_eq!(crate::worktree_clone_managed_lock::the_lines(&classification, fixture.slot.as_str()).len(), 2);
-    assert_eq!(classification.ownership(), LockOwnership::TheWrappersManaged);
+    assert_eq!(
+        crate::worktree_clone_managed_lock::the_lines(&classification, fixture.slot.as_str()).len(),
+        2
+    );
+    assert_eq!(
+        classification.ownership(),
+        LockOwnership::TheWrappersManaged
+    );
 }
 
 /// S6: a record that names a registration which is gone,
@@ -181,7 +284,14 @@ fn a_registration_the_record_names_and_nothing_holds_is_gone() {
     spec.slot_identity = Some(fixture.slot_identity());
     spec.registration = Some(gone.clone());
     fixture.write_record(&spec);
-    assert_eq!(state_of(&fixture), ManagedLockState::NoRegistration { nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the nonce reads"), recorded: Some(gone) });
+    assert_eq!(
+        state_of(&fixture),
+        ManagedLockState::NoRegistration {
+            nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+                .expect("the nonce reads"),
+            recorded: Some(gone)
+        }
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::NoRegistrationStands);
 }
 
@@ -196,7 +306,10 @@ fn a_registration_the_record_cannot_explain_is_unexplained() {
     spec.registration = Some(registration.clone());
     moved.write_record(&spec);
     moved.write_lock(registration.as_path(), moved.the_sentence(NONCE).as_slice());
-    assert!(matches!(state_of(&moved), ManagedLockState::NoBindingExplains { .. }));
+    assert!(matches!(
+        state_of(&moved),
+        ManagedLockState::NoBindingExplains { .. }
+    ));
     assert_eq!(ownership_of(&moved), LockOwnership::Unexplained);
     let twice: Fixture = Fixture::new("classify-two-entries");
     let first: PathBuf = twice.write_registration("locked-slot");
@@ -206,18 +319,30 @@ fn a_registration_the_record_cannot_explain_is_unexplained() {
     let mut unnamed: RecordSpec = RecordSpec::for_nonce(NONCE);
     unnamed.slot_identity = Some(twice.slot_identity());
     twice.write_record(&unnamed);
-    assert!(matches!(state_of(&twice), ManagedLockState::NoBindingExplains { .. }));
+    assert!(matches!(
+        state_of(&twice),
+        ManagedLockState::NoBindingExplains { .. }
+    ));
 }
 
 /// S8: a bare registration at the slot's name is the residue the add's own resume clears.
 #[test]
 fn a_half_made_registration_is_its_own_state() {
     let fixture: Fixture = Fixture::new("classify-half-made");
-    std::fs::create_dir_all(fixture.worktrees().join("locked-slot")).expect("the bare registration is made");
+    std::fs::create_dir_all(fixture.worktrees().join("locked-slot"))
+        .expect("the bare registration is made");
     let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
     spec.slot_identity = Some(fixture.slot_identity());
     fixture.write_record(&spec);
-    assert_eq!(state_of(&fixture), ManagedLockState::HalfMade { nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the nonce reads"), name: String::from("locked-slot"), row: EntryRow::Bare });
+    assert_eq!(
+        state_of(&fixture),
+        ManagedLockState::HalfMade {
+            nonce: crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+                .expect("the nonce reads"),
+            name: String::from("locked-slot"),
+            row: EntryRow::Bare
+        }
+    );
     assert_eq!(ownership_of(&fixture), LockOwnership::Unexplained);
 }
 
@@ -225,10 +350,21 @@ fn a_half_made_registration_is_its_own_state() {
 /// and its lock is none of this slot's business.
 #[test]
 fn another_worktrees_registration_is_its_own_state() {
-    let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-another-worktree", Some(Vec::new()));
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    std::fs::write(registration.join("gitdir"), format!("{}\n", fixture.root.join("elsewhere/.git").display()).as_bytes()).expect("the back-link is rewritten");
-    assert!(matches!(state_of(&fixture), ManagedLockState::SomebodyElsesWorktree { .. }));
+    let (fixture, registration): (Fixture, PathBuf) =
+        a_finished_slot("classify-another-worktree", Some(Vec::new()));
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    std::fs::write(
+        registration.join("gitdir"),
+        format!("{}\n", fixture.root.join("elsewhere/.git").display()).as_bytes(),
+    )
+    .expect("the back-link is rewritten");
+    assert!(matches!(
+        state_of(&fixture),
+        ManagedLockState::SomebodyElsesWorktree { .. }
+    ));
     assert_eq!(ownership_of(&fixture), LockOwnership::Unexplained);
 }
 
@@ -242,6 +378,12 @@ fn a_counter_entry_is_found_beside_the_slots_name() {
     let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
     spec.slot_identity = Some(fixture.slot_identity());
     fixture.write_record(&spec);
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    assert!(matches!(state_of(&fixture), ManagedLockState::Managed { .. }));
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    assert!(matches!(
+        state_of(&fixture),
+        ManagedLockState::Managed { .. }
+    ));
 }

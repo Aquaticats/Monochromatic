@@ -15,9 +15,24 @@
 //! expect(holdersOf(recordText([['self', 42, id]]))).toEqual([[42, id]]);
 //! ```
 
-use crate::lock_holder_record_reads::{identities_recorded, sweep};
-use crate::lock_holder_records::{CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_line, record_text};
-use crate::test_support::{fixture, remove};
+use crate::lock_holder_record_reads::{
+    identities_recorded,
+    sweep,
+};
+use crate::lock_holder_records::{
+    CHILD_KIND,
+    RECORD_HEADER,
+    SELF_KIND,
+    folder_of,
+    identity_of_birth,
+    identity_of_process,
+    record_line,
+    record_text,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -36,15 +51,26 @@ use std::path::PathBuf;
 fn the_self_line_reads_back_as_the_process_it_names() {
     let identity: String = identity_of_birth("linux:4242");
     let text: String = record_text(&[(SELF_KIND, 42, identity.clone())]);
-    assert!(text.contains(format!("{SELF_KIND} 42 {identity}").as_str()), "one space after the kind: {text:?}");
+    assert!(
+        text.contains(format!("{SELF_KIND} 42 {identity}").as_str()),
+        "one space after the kind: {text:?}"
+    );
     let written: String = record_line(CHILD_KIND, 7, identity.as_str());
-    assert_eq!(written, format!("{CHILD_KIND} 7 {identity}\n"), "the append path writes the same form");
+    assert_eq!(
+        written,
+        format!("{CHILD_KIND} 7 {identity}\n"),
+        "the append path writes the same form"
+    );
     let root: PathBuf = fixture("record-self-line");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
     std::fs::write(folder.join("record"), format!("{text}{written}").as_bytes()).expect("a record");
     let named: Vec<String> = identities_recorded(root.as_path(), 42);
-    assert_eq!(named, vec![identity.clone()], "the self line names the process it was written for: {text:?}");
+    assert_eq!(
+        named,
+        vec![identity.clone()],
+        "the self line names the process it was written for: {text:?}"
+    );
     let child: Vec<String> = identities_recorded(root.as_path(), 7);
     assert_eq!(child, vec![identity], "and a child line names its own");
     remove(root.as_path());
@@ -68,9 +94,21 @@ fn the_two_space_form_of_a_record_still_names_its_holder() {
     let root: PathBuf = fixture("record-two-spaces");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
-    std::fs::write(folder.join("record"), format!("{RECORD_HEADER}\nself  99 {identity}\nchild  98 {identity}\n").as_bytes()).expect("a record of the older form");
-    assert_eq!(identities_recorded(root.as_path(), 99), vec![identity.clone()], "the two-space self line reads back");
-    assert_eq!(identities_recorded(root.as_path(), 98), vec![identity], "and so does the two-space child line");
+    std::fs::write(
+        folder.join("record"),
+        format!("{RECORD_HEADER}\nself  99 {identity}\nchild  98 {identity}\n").as_bytes(),
+    )
+    .expect("a record of the older form");
+    assert_eq!(
+        identities_recorded(root.as_path(), 99),
+        vec![identity.clone()],
+        "the two-space self line reads back"
+    );
+    assert_eq!(
+        identities_recorded(root.as_path(), 98),
+        vec![identity],
+        "and so does the two-space child line"
+    );
     remove(root.as_path());
 }
 
@@ -90,9 +128,24 @@ fn a_record_line_that_is_not_one_names_nobody() {
     let root: PathBuf = fixture("record-not-a-line");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
-    std::fs::write(folder.join("record"), format!("{RECORD_HEADER}\nother 1 {}\nself nope {}\nbogus\n", identity_of_birth("linux:1"), identity_of_birth("linux:2")).as_bytes()).expect("a record");
-    assert!(identities_recorded(root.as_path(), 1).is_empty(), "a kind the reader does not know names nobody");
-    assert!(identities_recorded(root.as_path(), 0).is_empty(), "a number that is not one names nobody");
+    std::fs::write(
+        folder.join("record"),
+        format!(
+            "{RECORD_HEADER}\nother 1 {}\nself nope {}\nbogus\n",
+            identity_of_birth("linux:1"),
+            identity_of_birth("linux:2")
+        )
+        .as_bytes(),
+    )
+    .expect("a record");
+    assert!(
+        identities_recorded(root.as_path(), 1).is_empty(),
+        "a kind the reader does not know names nobody"
+    );
+    assert!(
+        identities_recorded(root.as_path(), 0).is_empty(),
+        "a number that is not one names nobody"
+    );
     remove(root.as_path());
 }
 
@@ -116,21 +169,39 @@ fn a_record_of_a_finished_command_is_swept_and_one_a_lock_needs_is_kept() {
     let mut talk: std::process::Command = std::process::Command::new("talk");
     talk.stdin(std::process::Stdio::null());
     // Both starts are owned, so the helper the control reads and reaps is the test thread's whichever one it gets.
-    let mut helper: std::process::Child = crate::test_support::spawn_owned(&mut talk).unwrap_or_else(|_| {
-        let mut fallback: std::process::Command = std::process::Command::new("sleep");
-        fallback.arg("0");
-        return crate::test_support::spawn_owned(&mut fallback).expect("a helper");
-    });
+    let mut helper: std::process::Child = crate::test_support::spawn_owned(&mut talk)
+        .unwrap_or_else(|_| {
+            let mut fallback: std::process::Command = std::process::Command::new("sleep");
+            fallback.arg("0");
+            return crate::test_support::spawn_owned(&mut fallback).expect("a helper");
+        });
     let gone: i64 = i64::from(helper.id());
     let identity: String = identity_of_process(gone).expect("its identity while it runs");
     helper.wait().expect("the helper ends");
     // One record of a command that ended, and one whose number a standing lock still names.
-    std::fs::write(folder.join("finished"), record_text(&[(SELF_KIND, gone, identity.clone())]).as_bytes()).expect("a finished command's record");
-    std::fs::write(folder.join("needed"), record_text(&[(CHILD_KIND, gone, identity.clone())]).as_bytes()).expect("a record a lock needs");
+    std::fs::write(
+        folder.join("finished"),
+        record_text(&[(SELF_KIND, gone, identity.clone())]).as_bytes(),
+    )
+    .expect("a finished command's record");
+    std::fs::write(
+        folder.join("needed"),
+        record_text(&[(CHILD_KIND, gone, identity.clone())]).as_bytes(),
+    )
+    .expect("a record a lock needs");
     sweep(root.as_path(), &[gone]);
-    assert!(folder.join("finished").exists() && folder.join("needed").exists(), "a number a standing lock names keeps every record that names it");
+    assert!(
+        folder.join("finished").exists() && folder.join("needed").exists(),
+        "a number a standing lock names keeps every record that names it"
+    );
     sweep(root.as_path(), &[]);
-    assert!(!folder.join("finished").exists(), "a record of a command that ended and that no lock names goes");
-    assert!(!folder.join("needed").exists(), "and so does the other, once no lock names the number");
+    assert!(
+        !folder.join("finished").exists(),
+        "a record of a command that ended and that no lock names goes"
+    );
+    assert!(
+        !folder.join("needed").exists(),
+        "and so does the other, once no lock names the number"
+    );
     remove(root.as_path());
 }

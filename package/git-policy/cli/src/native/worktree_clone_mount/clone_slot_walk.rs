@@ -21,15 +21,42 @@
 //! ```
 
 use super::clone_folder_identity::CloneFolderIdentity;
-use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason, chain_walk_refusal, fields_refusal, one_component_refusal};
+use super::clone_slot_walk_refusals::{
+    CloneSlotRefusal,
+    WalkRefusal,
+    WalkRefusalReason,
+    chain_walk_refusal,
+    fields_refusal,
+    one_component_refusal,
+};
 use super::slot_identity_store::SlotIdentityStore;
 use super::slot_name::slot_name_refusal;
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, device_of, handle_directory_at, identity_of, open_directory_at, open_root};
-use crate::fs_beneath_mount_facts::{mount_id_of, observed_path, unique_mount_number_of};
-use crate::fs_beneath_walk_chain::{open_chain_beneath, open_directory_at_a_mount};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::fs_beneath::{
+    ObjectId,
+    device_of,
+    handle_directory_at,
+    identity_of,
+    open_directory_at,
+    open_root,
+};
+use crate::fs_beneath_mount_facts::{
+    mount_id_of,
+    observed_path,
+    unique_mount_number_of,
+};
+use crate::fs_beneath_walk_chain::{
+    open_chain_beneath,
+    open_directory_at_a_mount,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "cloneSlotWalk";
@@ -210,7 +237,13 @@ thread_local! {
 fn canonical_checkout(checkout: &Path) -> Result<PathBuf, CloneSlotRefusal> {
     let canonical: PathBuf = match std::fs::canonicalize(checkout) {
         Ok(canonical) => canonical,
-        Err(error) => return Err(CloneSlotRefusal::Walk(WalkRefusal { component: checkout.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() })),
+        Err(error) => {
+            return Err(CloneSlotRefusal::Walk(WalkRefusal {
+                component: checkout.display().to_string(),
+                reason: WalkRefusalReason::Checkout,
+                detail: error.to_string(),
+            }));
+        }
     };
     if canonical != checkout {
         return Err(CloneSlotRefusal::Walk(WalkRefusal {
@@ -223,15 +256,29 @@ fn canonical_checkout(checkout: &Path) -> Result<PathBuf, CloneSlotRefusal> {
 }
 
 /// The refusal of the checkout's own root handle.
-fn checkout_root_refusal(canonical: &Path, error: std::io::Error) -> CloneSlotRefusal {
+fn checkout_root_refusal(
+    canonical: &Path,
+    error: std::io::Error,
+) -> CloneSlotRefusal {
     if error.kind() == std::io::ErrorKind::InvalidInput {
-        return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::NotTheCanonicalPath, detail: error.to_string() });
+        return CloneSlotRefusal::Walk(WalkRefusal {
+            component: canonical.display().to_string(),
+            reason: WalkRefusalReason::NotTheCanonicalPath,
+            detail: error.to_string(),
+        });
     }
-    return CloneSlotRefusal::Walk(WalkRefusal { component: canonical.display().to_string(), reason: WalkRefusalReason::Checkout, detail: error.to_string() });
+    return CloneSlotRefusal::Walk(WalkRefusal {
+        component: canonical.display().to_string(),
+        reason: WalkRefusalReason::Checkout,
+        detail: error.to_string(),
+    });
 }
 
 /// The refusal of one folder the walk opens by name.
-fn folder_refusal(component: &str, error: std::io::Error) -> CloneSlotRefusal {
+fn folder_refusal(
+    component: &str,
+    error: std::io::Error,
+) -> CloneSlotRefusal {
     return CloneSlotRefusal::Walk(one_component_refusal(component, &error));
 }
 
@@ -242,19 +289,43 @@ fn folder_refusal(component: &str, error: std::io::Error) -> CloneSlotRefusal {
 ///  The walk judges the same name the record is keyed by,
 ///  so a name the store refuses (`slot_name_refusal`) is refused here before any folder is opened,
 ///  and the sentence names what about the name is wrong.
-fn slot_name_walk_refusal(component: &str, slot: &str) -> Option<CloneSlotRefusal> {
-    return slot_name_refusal(slot).map(|reason| return CloneSlotRefusal::Walk(WalkRefusal { component: component.to_string(), reason: WalkRefusalReason::NotAPlainName, detail: reason }));
+fn slot_name_walk_refusal(
+    component: &str,
+    slot: &str,
+) -> Option<CloneSlotRefusal> {
+    return slot_name_refusal(slot).map(|reason| {
+        return CloneSlotRefusal::Walk(WalkRefusal {
+            component: component.to_string(),
+            reason: WalkRefusalReason::NotAPlainName,
+            detail: reason,
+        });
+    });
 }
 
 /// The checkout's root handle and the chain down to `.claude/worktrees`.
-fn walk_to_the_parent(checkout: &Path) -> Result<(std::fs::File, std::fs::File, PathBuf), CloneSlotRefusal> {
+fn walk_to_the_parent(
+    checkout: &Path
+) -> Result<(std::fs::File, std::fs::File, PathBuf), CloneSlotRefusal> {
     let canonical: PathBuf = canonical_checkout(checkout)?;
-    let root: std::fs::File = open_root(canonical.as_path()).map_err(|error| return checkout_root_refusal(canonical.as_path(), error))?;
+    let root: std::fs::File = open_root(canonical.as_path())
+        .map_err(|error| return checkout_root_refusal(canonical.as_path(), error))?;
     let names: Vec<OsString> = worktrees_parent_names();
-    let mut chain: Vec<std::fs::File> = open_chain_beneath(&root, names.as_slice()).map_err(|refusal| return CloneSlotRefusal::Walk(chain_walk_refusal(WORKTREES_PARENT_NAMES.as_slice(), &refusal)))?;
+    let mut chain: Vec<std::fs::File> =
+        open_chain_beneath(&root, names.as_slice()).map_err(|refusal| {
+            return CloneSlotRefusal::Walk(chain_walk_refusal(
+                WORKTREES_PARENT_NAMES.as_slice(),
+                &refusal,
+            ));
+        })?;
     let parent: std::fs::File = match chain.pop() {
         Some(held) => held,
-        None => return Err(CloneSlotRefusal::Walk(WalkRefusal { component: String::from("the worktrees folder"), reason: WalkRefusalReason::Missing, detail: String::new() })),
+        None => {
+            return Err(CloneSlotRefusal::Walk(WalkRefusal {
+                component: String::from("the worktrees folder"),
+                reason: WalkRefusalReason::Missing,
+                detail: String::new(),
+            }));
+        }
     };
     return Ok((root, parent, canonical));
 }
@@ -281,17 +352,36 @@ fn walk_to_the_parent(checkout: &Path) -> Result<(std::fs::File, std::fs::File, 
 /// # Errors
 /// The walk's refusal at the checkout or at any canonical component.
 pub fn hold_the_worktrees_parent(checkout: &Path) -> Result<HeldWorktreesParent, WalkRefusal> {
-    let (_checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(checkout).map_err(|refusal| {
-        return match refusal {
-            CloneSlotRefusal::Walk(walk) => walk,
-            other => WalkRefusal { component: canonical_or_given(checkout), reason: WalkRefusalReason::Checkout, detail: other.message() },
+    let (_checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(checkout).map_err(|refusal| {
+            return match refusal {
+                CloneSlotRefusal::Walk(walk) => walk,
+                other => WalkRefusal {
+                    component: canonical_or_given(checkout),
+                    reason: WalkRefusalReason::Checkout,
+                    detail: other.message(),
+                },
+            };
+        })?;
+    let identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent).map_err(|error| {
+        return WalkRefusal {
+            component: WORKTREES_PARENT_NAMES.join("/"),
+            reason: WalkRefusalReason::UnreadableFields,
+            detail: error.to_string(),
         };
     })?;
-    let identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent)
-        .map_err(|error| return WalkRefusal { component: WORKTREES_PARENT_NAMES.join("/"), reason: WalkRefusalReason::UnreadableFields, detail: error.to_string() })?;
-    let canonical_folder: PathBuf = canonical.join(WORKTREES_PARENT_NAMES[0]).join(WORKTREES_PARENT_NAMES[1]);
-    debug(TAG, "held the worktrees folder by descriptor and read its identity");
-    return Ok(HeldWorktreesParent { folder: parent, identity, canonical: canonical_folder });
+    let canonical_folder: PathBuf = canonical
+        .join(WORKTREES_PARENT_NAMES[0])
+        .join(WORKTREES_PARENT_NAMES[1]);
+    debug(
+        TAG,
+        "held the worktrees folder by descriptor and read its identity",
+    );
+    return Ok(HeldWorktreesParent {
+        folder: parent,
+        identity,
+        canonical: canonical_folder,
+    });
 }
 
 /// The path a refusal names when the walk refused before it produced a canonical one.
@@ -320,12 +410,23 @@ fn canonical_or_given(checkout: &Path) -> String {
 /// the store's refusal,
 /// a parent or slot that is not the recorded folder,
 /// or a slot whose two descriptors name different folders.
-pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+pub fn hold_clone_slot(
+    request: &HoldCloneSlotRequest<'_>
+) -> Result<HeldCloneSlot, CloneSlotRefusal> {
     // The checkout is what a person who ran the command in a moved folder must be told about, so its refusal
     // comes before the store's: a store the walk never reached is not their problem.
-    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    let store: SlotIdentityStore = SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::Compared);
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(request.checkout)?;
+    let store: SlotIdentityStore =
+        SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
+    return hold_the_walk(
+        request,
+        checkout_handle,
+        parent,
+        canonical,
+        &store,
+        SlotRecord::Compared,
+    );
 }
 
 /// What:
@@ -375,42 +476,87 @@ fn hold_the_walk(
     store: &SlotIdentityStore,
     slot_record: SlotRecord,
 ) -> Result<HeldCloneSlot, CloneSlotRefusal> {
-    let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
+    let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent)
+        .map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
     let slot_name: &OsStr = OsStr::new(request.slot);
     let component: String = slot_component(request.slot);
     if let Some(refusal) = slot_name_walk_refusal(component.as_str(), request.slot) {
         return Err(refusal);
     }
-    let reading: std::fs::File = open_directory_at(&parent, slot_name).map_err(|error| return folder_refusal(component.as_str(), error))?;
-    let checkout_device: u64 = device_of(&checkout_handle).map_err(|error| return fields_refusal(canonical.display().to_string().as_str(), &error))?;
-    let slot_device: u64 = device_of(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let reading: std::fs::File = open_directory_at(&parent, slot_name)
+        .map_err(|error| return folder_refusal(component.as_str(), error))?;
+    let checkout_device: u64 = device_of(&checkout_handle)
+        .map_err(|error| return fields_refusal(canonical.display().to_string().as_str(), &error))?;
+    let slot_device: u64 =
+        device_of(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
     if slot_device != checkout_device {
-        return Err(CloneSlotRefusal::Walk(WalkRefusal { component, reason: WalkRefusalReason::BoundaryCrossed, detail: String::new() }));
+        return Err(CloneSlotRefusal::Walk(WalkRefusal {
+            component,
+            reason: WalkRefusalReason::BoundaryCrossed,
+            detail: String::new(),
+        }));
     }
-    let slot_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let slot_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&reading)
+        .map_err(|error| return fields_refusal(component.as_str(), &error))?;
     let recorded_parent: CloneFolderIdentity = store.parent().map_err(CloneSlotRefusal::Store)?;
     let parent_fields = recorded_parent.differences(&parent_identity);
     if !parent_fields.is_empty() {
-        return Err(CloneSlotRefusal::ParentIdentity { checkout: canonical.clone(), recorded: Box::new(recorded_parent), found: Box::new(parent_identity), fields: parent_fields });
+        return Err(CloneSlotRefusal::ParentIdentity {
+            checkout: canonical.clone(),
+            recorded: Box::new(recorded_parent),
+            found: Box::new(parent_identity),
+            fields: parent_fields,
+        });
     }
     if slot_record == SlotRecord::Compared {
-        let recorded_slot: CloneFolderIdentity = store.slot(request.slot).map_err(CloneSlotRefusal::Store)?;
+        let recorded_slot: CloneFolderIdentity =
+            store.slot(request.slot).map_err(CloneSlotRefusal::Store)?;
         let slot_fields = recorded_slot.differences(&slot_identity);
         if !slot_fields.is_empty() {
-            return Err(CloneSlotRefusal::SlotIdentity { slot: request.slot.to_string(), recorded: Box::new(recorded_slot), found: Box::new(slot_identity), fields: slot_fields });
+            return Err(CloneSlotRefusal::SlotIdentity {
+                slot: request.slot.to_string(),
+                recorded: Box::new(recorded_slot),
+                found: Box::new(slot_identity),
+                fields: slot_fields,
+            });
         }
     }
     #[cfg(test)]
-    AFTER_THE_SLOT_IS_READ.with(|hook| { if let Some(after) = hook.borrow().as_ref() { after(); } });
-    let target: std::fs::File = handle_directory_at(&parent, slot_name).map_err(|error| return folder_refusal(component.as_str(), error))?;
-    let first: ObjectId = identity_of(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
-    let second: ObjectId = identity_of(&target).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    AFTER_THE_SLOT_IS_READ.with(|hook| {
+        if let Some(after) = hook.borrow().as_ref() {
+            after();
+        }
+    });
+    let target: std::fs::File = handle_directory_at(&parent, slot_name)
+        .map_err(|error| return folder_refusal(component.as_str(), error))?;
+    let first: ObjectId =
+        identity_of(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let second: ObjectId =
+        identity_of(&target).map_err(|error| return fields_refusal(component.as_str(), &error))?;
     if first != second {
-        return Err(CloneSlotRefusal::TargetAnotherObject { slot: request.slot.to_string(), first: first.encode(), second: second.encode() });
+        return Err(CloneSlotRefusal::TargetAnotherObject {
+            slot: request.slot.to_string(),
+            first: first.encode(),
+            second: second.encode(),
+        });
     }
-    let canonical_slot: PathBuf = canonical.join(WORKTREES_PARENT_NAMES[0]).join(WORKTREES_PARENT_NAMES[1]).join(request.slot);
-    debug(TAG, "held the checkout, the worktrees folder and one slot by descriptor");
-    return Ok(HeldCloneSlot { checkout: checkout_handle, parent, slot: reading, target, parent_identity, slot_identity, canonical_slot });
+    let canonical_slot: PathBuf = canonical
+        .join(WORKTREES_PARENT_NAMES[0])
+        .join(WORKTREES_PARENT_NAMES[1])
+        .join(request.slot);
+    debug(
+        TAG,
+        "held the checkout, the worktrees folder and one slot by descriptor",
+    );
+    return Ok(HeldCloneSlot {
+        checkout: checkout_handle,
+        parent,
+        slot: reading,
+        target,
+        parent_identity,
+        slot_identity,
+        canonical_slot,
+    });
 }
 
 /// What:
@@ -434,10 +580,21 @@ fn hold_the_walk(
 /// # Errors
 /// The store's refusal,
 /// and every refusal `hold_clone_slot` answers.
-pub fn hold_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
-    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
-    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::Compared);
+pub fn hold_clone_slot_under_root_control(
+    request: &HoldCloneSlotRequest<'_>
+) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store)
+        .map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(
+        request,
+        checkout_handle,
+        parent,
+        canonical,
+        &store,
+        SlotRecord::Compared,
+    );
 }
 
 /// What:
@@ -469,10 +626,21 @@ pub fn hold_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) ->
 /// The walk's refusal,
 /// the store's refusal,
 /// and a parent folder that is not the recorded one.
-pub fn observe_the_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
-    let store: SlotIdentityStore = SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
-    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::FirstObservation);
+pub fn observe_the_clone_slot(
+    request: &HoldCloneSlotRequest<'_>
+) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    let store: SlotIdentityStore =
+        SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(
+        request,
+        checkout_handle,
+        parent,
+        canonical,
+        &store,
+        SlotRecord::FirstObservation,
+    );
 }
 
 /// What:
@@ -491,10 +659,21 @@ pub fn observe_the_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<Held
 /// # Errors
 /// The store's root-control refusal,
 /// and every refusal the first observation answers.
-pub fn observe_the_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
-    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
-    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::FirstObservation);
+pub fn observe_the_clone_slot_under_root_control(
+    request: &HoldCloneSlotRequest<'_>
+) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store)
+        .map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(
+        request,
+        checkout_handle,
+        parent,
+        canonical,
+        &store,
+        SlotRecord::FirstObservation,
+    );
 }
 
 /// What:
@@ -520,13 +699,18 @@ pub fn observe_the_clone_slot_under_root_control(request: &HoldCloneSlotRequest<
 /// The walk's refusal of the slot's name,
 /// an open that names another object or no folder,
 /// or the folder's own facts not being readable.
-pub fn mount_id_at_the_held_target(held_parent: &std::fs::File, slot: &str) -> Result<u64, CloneSlotRefusal> {
+pub fn mount_id_at_the_held_target(
+    held_parent: &std::fs::File,
+    slot: &str,
+) -> Result<u64, CloneSlotRefusal> {
     let component: String = slot_component(slot);
     if let Some(refusal) = slot_name_walk_refusal(component.as_str(), slot) {
         return Err(refusal);
     }
-    let slot_folder: std::fs::File = open_directory_at_a_mount(held_parent, OsStr::new(slot)).map_err(|error| return folder_refusal(component.as_str(), error))?;
-    return mount_id_of(&slot_folder).map_err(|error| return fields_refusal(component.as_str(), &error));
+    let slot_folder: std::fs::File = open_directory_at_a_mount(held_parent, OsStr::new(slot))
+        .map_err(|error| return folder_refusal(component.as_str(), error))?;
+    return mount_id_of(&slot_folder)
+        .map_err(|error| return fields_refusal(component.as_str(), &error));
 }
 
 /// What:
@@ -545,23 +729,39 @@ pub fn mount_id_at_the_held_target(held_parent: &std::fs::File, slot: &str) -> R
 /// # Errors
 /// The walk's refusal at any component,
 /// including a slot that is not there.
-pub fn look_again_at_the_slot(request: &LookAgainAtSlotRequest<'_>) -> Result<FreshSlotLookup, CloneSlotRefusal> {
-    let (_checkout, parent, _canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
+pub fn look_again_at_the_slot(
+    request: &LookAgainAtSlotRequest<'_>
+) -> Result<FreshSlotLookup, CloneSlotRefusal> {
+    let (_checkout, parent, _canonical): (std::fs::File, std::fs::File, PathBuf) =
+        walk_to_the_parent(request.checkout)?;
+    let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent)
+        .map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
     let slot_name: &OsStr = OsStr::new(request.slot);
     let component: String = slot_component(request.slot);
     if let Some(refusal) = slot_name_walk_refusal(component.as_str(), request.slot) {
         return Err(refusal);
     }
-    let slot: std::fs::File = open_directory_at_a_mount(&parent, slot_name).map_err(|error| return folder_refusal(component.as_str(), error))?;
-    let slot_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
-    let mount_id: u64 = mount_id_of(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
-    let parent_mount_id: u64 = mount_id_of(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
-    let observed: PathBuf = observed_path(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let slot: std::fs::File = open_directory_at_a_mount(&parent, slot_name)
+        .map_err(|error| return folder_refusal(component.as_str(), error))?;
+    let slot_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&slot)
+        .map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let mount_id: u64 =
+        mount_id_of(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
+    let parent_mount_id: u64 =
+        mount_id_of(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
+    let observed: PathBuf =
+        observed_path(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
     // A kernel that reports no unique number leaves it out rather than answering the reused one, and the caller then
     // reads the live table for this mount.
     let unique_mount_number: Option<u64> = unique_mount_number_of(&slot).ok();
-    return Ok(FreshSlotLookup { parent_identity, slot_identity, mount_id, parent_mount_id, unique_mount_number, observed_path: observed });
+    return Ok(FreshSlotLookup {
+        parent_identity,
+        slot_identity,
+        mount_id,
+        parent_mount_id,
+        unique_mount_number,
+        observed_path: observed,
+    });
 }
 
 /// Controls stay out of the release executable.

@@ -38,25 +38,43 @@
 pub fn processes_in_group(group: libc::pid_t) -> Vec<(u32, String)> {
     let ours: Vec<u32> = this_process_and_its_starters();
     let mut found: Vec<(u32, String)> = Vec::new();
-    let Ok(table) = std::fs::read_dir("/proc") else { return found };
+    let Ok(table) = std::fs::read_dir("/proc") else {
+        return found;
+    };
     for entry in table.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.is_empty() || !name.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+        if name.is_empty()
+            || !name.bytes().all(|byte| {
+                return byte.is_ascii_digit();
+            })
+        {
             continue;
         }
-        let Ok(pid) = name.parse::<u32>() else { continue };
+        let Ok(pid) = name.parse::<u32>() else {
+            continue;
+        };
         if ours.contains(&pid) {
             continue;
         }
-        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else { continue };
+        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else {
+            continue;
+        };
         // The group is the fifth field of `stat`, after the program's name, which may hold spaces and brackets.
-        let Some((_before, after_name)) = stat.rsplit_once(')') else { continue };
+        let Some((_before, after_name)) = stat.rsplit_once(')') else {
+            continue;
+        };
         let fields: Vec<&str> = after_name.split_whitespace().collect();
-        let Some(in_group) = fields.get(2).and_then(|text| { return text.parse::<libc::pid_t>().ok(); }) else { continue };
+        let Some(in_group) = fields.get(2).and_then(|text| {
+            return text.parse::<libc::pid_t>().ok();
+        }) else {
+            continue;
+        };
         if in_group != group {
             continue;
         }
-        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { continue };
+        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else {
+            continue;
+        };
         let said: String = String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ");
         found.push((pid, said.trim_end().to_owned()));
     }
@@ -87,10 +105,19 @@ fn this_process_and_its_starters() -> Vec<u32> {
 /// The process number that started `pid`,
 /// or 0 when it cannot be read.
 fn parent_of(pid: u32) -> u32 {
-    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return 0 };
-    let Some((_before, after_name)) = stat.rsplit_once(')') else { return 0 };
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return 0;
+    };
+    let Some((_before, after_name)) = stat.rsplit_once(')') else {
+        return 0;
+    };
     let fields: Vec<&str> = after_name.split_whitespace().collect();
-    return fields.get(1).and_then(|text| { return text.parse::<u32>().ok(); }).unwrap_or(0);
+    return fields
+        .get(1)
+        .and_then(|text| {
+            return text.parse::<u32>().ok();
+        })
+        .unwrap_or(0);
 }
 
 /// What:
@@ -107,5 +134,8 @@ fn parent_of(pid: u32) -> u32 {
 /// ```
 pub fn assert_nothing_in_group(group: libc::pid_t) {
     let left: Vec<(u32, String)> = processes_in_group(group);
-    assert!(left.is_empty(), "processes of the group this control's helper was in are still there after the control ended it: {left:?}");
+    assert!(
+        left.is_empty(),
+        "processes of the group this control's helper was in are still there after the control ended it: {left:?}"
+    );
 }

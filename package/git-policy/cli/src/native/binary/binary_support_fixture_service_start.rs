@@ -15,10 +15,17 @@
 //! const service = spawn(SERVICE_PROGRAM, [...SERVICE_WORDS, '--journal', journal, '--path', socket]);
 //! ```
 
-use std::path::PathBuf;
-use std::process::{Child, Command};
-use crate::support_fixture_service::{Fixture, FixtureService, start_fixture_service_in};
+use crate::support_fixture_service::{
+    Fixture,
+    FixtureService,
+    start_fixture_service_in,
+};
 use crate::support_resource_limits::ServiceLaunch;
+use std::path::PathBuf;
+use std::process::{
+    Child,
+    Command,
+};
 
 /// The executable Cargo built for this test run,
 /// which is the wrapper and,
@@ -104,10 +111,17 @@ pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
     // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
     //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
     let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
-    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
-    let folder: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("rt", longest_folder);
+    let longest_folder: usize =
+        git_policy_cli::service_instance::longest_runtime_directory(instance.as_str())
+            .saturating_sub(1 + name.len());
+    let folder: PathBuf = fixture
+        .socket_folders
+        .lock()
+        .expect("the fixture's socket folders")
+        .folder("rt", longest_folder);
     let runtime: PathBuf = folder.join(name.as_str());
-    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli"))
+        .expect("runtime directory");
     return runtime;
 }
 
@@ -127,7 +141,8 @@ pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
 /// which is the moment the signal is meant for.
 pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
     type Job = (Command, std::sync::mpsc::Sender<std::io::Result<Child>>);
-    static SPAWNER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Job>>> = std::sync::OnceLock::new();
+    static SPAWNER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Job>>> =
+        std::sync::OnceLock::new();
     let spawner = SPAWNER.get_or_init(|| {
         let (sender, receiver) = std::sync::mpsc::channel::<Job>();
         std::thread::spawn(move || {
@@ -138,7 +153,11 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
         return std::sync::Mutex::new(sender);
     });
     let (reply, answer) = std::sync::mpsc::channel();
-    spawner.lock().expect("the spawner's sender").send((command, reply)).expect("the spawner thread runs");
+    spawner
+        .lock()
+        .expect("the spawner's sender")
+        .send((command, reply))
+        .expect("the spawner thread runs");
     return answer.recv().expect("the spawner thread answers");
 }
 
@@ -154,7 +173,9 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
 /// so it calls this while the commit runs.
 pub fn restart_ended_services(fixture: &Fixture) {
     let service = fixture.service.lock().expect("the fixture's service lock");
-    let Some(services) = service.as_ref() else { return };
+    let Some(services) = service.as_ref() else {
+        return;
+    };
     if services.forget_ended() {
         *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
         services.serve_worktrees(fixture);

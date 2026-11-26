@@ -40,4 +40,11 @@
 
 pub mod watch_rebinding;
 
-pub use watch_rebinding::{AfterTheMount, Watches, after_the_mount, the_object_the_path_shows, the_persons_line, what_a_watch_set_before_still_sees};
+pub use watch_rebinding::{
+    AfterTheMount,
+    Watches,
+    after_the_mount,
+    the_object_the_path_shows,
+    the_persons_line,
+    what_a_watch_set_before_still_sees,
+};

@@ -15,10 +15,20 @@
 //! expect(reports.filter((entry) => entry.check === 'device')).toHaveLength(1);
 //! ```
 
+use super::{
+    RouteFacts,
+    route_checks,
+};
 use crate::health::doctor_zfs_route::check_outcome::CheckReport;
-use super::{RouteFacts, route_checks};
-use crate::health::doctor_zfs_route::route_test_facts::{healthy_route_facts, DatasetBuilder, CHECKOUT_DATASET};
-use crate::health::doctor_zfs_route::zfs_checks::{Reading, reading_of};
+use crate::health::doctor_zfs_route::route_test_facts::{
+    CHECKOUT_DATASET,
+    DatasetBuilder,
+    healthy_route_facts,
+};
+use crate::health::doctor_zfs_route::zfs_checks::{
+    Reading,
+    reading_of,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
 use std::collections::BTreeMap;
 
@@ -28,10 +38,28 @@ use std::collections::BTreeMap;
 fn the_healthy_route_has_no_finding() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
     for report in &reports {
-        assert!(!report.found(), "the healthy route found something: {}", report.line());
+        assert!(
+            !report.found(),
+            "the healthy route found something: {}",
+            report.line()
+        );
     }
-    let unknown: Vec<&'static str> = reports.iter().filter(|report| return report.unknown()).map(|report| return report.check.name()).collect();
-    assert_eq!(unknown, vec!["cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"], "{unknown:?}");
+    let unknown: Vec<&'static str> = reports
+        .iter()
+        .filter(|report| return report.unknown())
+        .map(|report| return report.check.name())
+        .collect();
+    assert_eq!(
+        unknown,
+        vec![
+            "cancel-command",
+            "boot-protection",
+            "service-unit",
+            "backup-coverage",
+            "sanoid"
+        ],
+        "{unknown:?}"
+    );
 }
 
 /// Every check the step names appears exactly once.
@@ -49,10 +77,47 @@ fn every_check_appears_exactly_once() {
     assert_eq!(
         names,
         vec![
-            "abi", "backup-coverage", "binding-record", "blocked-removal", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "checkout-snapdir", "clone-origin", "clone-properties",
-            "clone-retention", "clone-snapshots", "clone-state", "container-dataset", "container-snapdir", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "managed-lock",
-            "nested-reachability", "parent-identity", "pool", "readiness", "registration", "removal-plan", "root-modes", "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries",
-            "unknown-dot-entry", "unresolved-requests", "zed-wiring",
+            "abi",
+            "backup-coverage",
+            "binding-record",
+            "blocked-removal",
+            "boot-protection",
+            "cancel-command",
+            "checkout-dataset",
+            "checkout-mount",
+            "checkout-propagation",
+            "checkout-snapdir",
+            "clone-origin",
+            "clone-properties",
+            "clone-retention",
+            "clone-snapshots",
+            "clone-state",
+            "container-dataset",
+            "container-snapdir",
+            "delegation",
+            "device",
+            "handler-configuration",
+            "handler-folders",
+            "handler-installation",
+            "holders",
+            "key",
+            "managed-lock",
+            "nested-reachability",
+            "parent-identity",
+            "pool",
+            "readiness",
+            "registration",
+            "removal-plan",
+            "root-modes",
+            "sanoid",
+            "service-unit",
+            "staging-bind-propagation",
+            "staging-folder",
+            "staging-forms",
+            "store-entries",
+            "unknown-dot-entry",
+            "unresolved-requests",
+            "zed-wiring",
         ]
     );
 }
@@ -66,13 +131,23 @@ fn one_broken_fact_moves_one_answer() {
         .into_iter()
         .map(|dataset| {
             if dataset.name == CHECKOUT_DATASET {
-                return crate::health::doctor_zfs_route::route_test_facts::dataset(crate::health::doctor_zfs_route::zfs_checks::DatasetRole::Checkout { mount_point: std::path::PathBuf::from(crate::health::doctor_zfs_route::route_test_facts::CHECKOUT) }, DatasetBuilder::checkout().mountpoint("/elsewhere").build());
+                return crate::health::doctor_zfs_route::route_test_facts::dataset(
+                    crate::health::doctor_zfs_route::zfs_checks::DatasetRole::Checkout {
+                        mount_point: std::path::PathBuf::from(
+                            crate::health::doctor_zfs_route::route_test_facts::CHECKOUT,
+                        ),
+                    },
+                    DatasetBuilder::checkout().mountpoint("/elsewhere").build(),
+                );
             }
             return dataset;
         })
         .collect();
     let reports: Vec<CheckReport> = route_checks(&facts);
-    let findings: Vec<&CheckReport> = reports.iter().filter(|report| return report.found()).collect();
+    let findings: Vec<&CheckReport> = reports
+        .iter()
+        .filter(|report| return report.found())
+        .collect();
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].check.name(), "checkout-dataset");
 }
@@ -83,9 +158,18 @@ fn one_broken_fact_moves_one_answer() {
 #[test]
 fn a_gone_pool_is_a_finding_in_the_whole_report() {
     let mut facts: RouteFacts = healthy_route_facts();
-    facts.pool = crate::health::doctor_zfs_route::zfs_checks::PoolFacts { pool: String::from("zpcachyos"), reading: reading_of(Err(ReadFailure { said: String::from("dataset does not exist"), errno: Some(2) })) };
+    facts.pool = crate::health::doctor_zfs_route::zfs_checks::PoolFacts {
+        pool: String::from("zpcachyos"),
+        reading: reading_of(Err(ReadFailure {
+            said: String::from("dataset does not exist"),
+            errno: Some(2),
+        })),
+    };
     let reports: Vec<CheckReport> = route_checks(&facts);
-    let pool: &CheckReport = reports.iter().find(|report| return report.check.name() == "pool").expect("the pool check reports");
+    let pool: &CheckReport = reports
+        .iter()
+        .find(|report| return report.check.name() == "pool")
+        .expect("the pool check reports");
     assert!(pool.found(), "{}", pool.line());
 }
 
@@ -94,12 +178,26 @@ fn a_gone_pool_is_a_finding_in_the_whole_report() {
 #[test]
 fn each_snapdir_line_follows_its_dataset() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
-    let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
+    let names: Vec<&'static str> = reports
+        .iter()
+        .map(|report| return report.check.name())
+        .collect();
     let at = |wanted: &str| {
-        return names.iter().position(|name| return *name == wanted).unwrap_or_else(|| panic!("{wanted} is in the report: {names:?}"));
+        return names
+            .iter()
+            .position(|name| return *name == wanted)
+            .unwrap_or_else(|| panic!("{wanted} is in the report: {names:?}"));
     };
-    assert_eq!(at("checkout-snapdir"), at("checkout-dataset") + 1, "{names:?}");
-    assert_eq!(at("container-snapdir"), at("container-dataset") + 1, "{names:?}");
+    assert_eq!(
+        at("checkout-snapdir"),
+        at("checkout-dataset") + 1,
+        "{names:?}"
+    );
+    assert_eq!(
+        at("container-snapdir"),
+        at("container-dataset") + 1,
+        "{names:?}"
+    );
 }
 
 /// A checkout dataset that lost its `snapdir` moves exactly the snapdir line,
@@ -119,7 +217,10 @@ fn a_container_that_can_show_its_snapshots_moves_one_answer() {
         })
         .collect();
     let reports: Vec<CheckReport> = route_checks(&facts);
-    let findings: Vec<&CheckReport> = reports.iter().filter(|report| return report.found()).collect();
+    let findings: Vec<&CheckReport> = reports
+        .iter()
+        .filter(|report| return report.found())
+        .collect();
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].check.name(), "container-snapdir");
 }
@@ -133,13 +234,46 @@ fn a_container_that_can_show_its_snapshots_moves_one_answer() {
 #[test]
 fn the_three_groups_of_the_step_all_appear() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
-    let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
+    let names: Vec<&'static str> = reports
+        .iter()
+        .map(|report| return report.check.name())
+        .collect();
     for expected in [
-        "device", "abi", "pool", "checkout-dataset", "container-dataset", "checkout-snapdir", "container-snapdir", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation",
-        "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin",
-        "clone-retention", "blocked-removal", "holders",
+        "device",
+        "abi",
+        "pool",
+        "checkout-dataset",
+        "container-dataset",
+        "checkout-snapdir",
+        "container-snapdir",
+        "key",
+        "clone-properties",
+        "parent-identity",
+        "store-entries",
+        "staging-forms",
+        "unknown-dot-entry",
+        "delegation",
+        "handler-installation",
+        "zed-wiring",
+        "readiness",
+        "unresolved-requests",
+        "staging-folder",
+        "staging-bind-propagation",
+        "clone-state",
+        "registration",
+        "managed-lock",
+        "binding-record",
+        "removal-plan",
+        "clone-snapshots",
+        "clone-origin",
+        "clone-retention",
+        "blocked-removal",
+        "holders",
     ] {
-        assert!(names.contains(&expected), "{expected} is in the report's names: {names:?}");
+        assert!(
+            names.contains(&expected),
+            "{expected} is in the report's names: {names:?}"
+        );
     }
 }
 
@@ -148,14 +282,32 @@ fn the_three_groups_of_the_step_all_appear() {
 #[test]
 fn each_clone_adds_its_own_group() {
     let mut facts: RouteFacts = healthy_route_facts();
-    let before: usize = route_checks(&facts).iter().filter(|report| return report.check.name() == "clone-state").count();
+    let before: usize = route_checks(&facts)
+        .iter()
+        .filter(|report| return report.check.name() == "clone-state")
+        .count();
     assert_eq!(before, 1);
     let mut second = crate::health::doctor_zfs_route::route_test_facts::healthy_clone();
-    second.holders.clone = String::from("zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/two");
+    second.holders.clone =
+        String::from("zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/two");
     facts.clones.push(second);
     let reports: Vec<CheckReport> = route_checks(&facts);
-    for check in ["clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders"] {
-        let count: usize = reports.iter().filter(|report| return report.check.name() == check).count();
+    for check in [
+        "clone-state",
+        "registration",
+        "managed-lock",
+        "binding-record",
+        "removal-plan",
+        "clone-snapshots",
+        "clone-origin",
+        "clone-retention",
+        "blocked-removal",
+        "holders",
+    ] {
+        let count: usize = reports
+            .iter()
+            .filter(|report| return report.check.name() == check)
+            .count();
         assert_eq!(count, 2, "{check} appears {count} times");
     }
 }
@@ -165,10 +317,22 @@ fn each_clone_adds_its_own_group() {
 #[test]
 fn a_slot_adds_one_slot_identity_line() {
     let mut facts: RouteFacts = healthy_route_facts();
-    assert!(!route_checks(&facts).iter().any(|report| return report.check.name() == "slot-identity"));
-    facts.slots.push(crate::health::doctor_zfs_route::identity_checks::SlotIdentityFacts { slot: String::from("one"), refusal: None });
+    assert!(
+        !route_checks(&facts)
+            .iter()
+            .any(|report| return report.check.name() == "slot-identity")
+    );
+    facts.slots.push(
+        crate::health::doctor_zfs_route::identity_checks::SlotIdentityFacts {
+            slot: String::from("one"),
+            refusal: None,
+        },
+    );
     let reports: Vec<CheckReport> = route_checks(&facts);
-    let slots: Vec<&CheckReport> = reports.iter().filter(|report| return report.check.name() == "slot-identity").collect::<Vec<&CheckReport>>();
+    let slots: Vec<&CheckReport> = reports
+        .iter()
+        .filter(|report| return report.check.name() == "slot-identity")
+        .collect::<Vec<&CheckReport>>();
     assert_eq!(slots.len(), 1);
     assert!(slots[0].passed());
 }
@@ -178,9 +342,26 @@ fn a_slot_adds_one_slot_identity_line() {
 #[test]
 fn the_report_is_built_from_facts_alone() {
     let mut facts: RouteFacts = healthy_route_facts();
-    facts.datasets.retain(|dataset| return dataset.name != CHECKOUT_DATASET);
-    facts.datasets.push(crate::health::doctor_zfs_route::zfs_checks::DatasetFacts { role: crate::health::doctor_zfs_route::zfs_checks::DatasetRole::Checkout { mount_point: std::path::PathBuf::from(crate::health::doctor_zfs_route::route_test_facts::CHECKOUT) }, name: String::from(CHECKOUT_DATASET), reading: Reading::Unreadable { why: String::from("permission denied") } });
+    facts
+        .datasets
+        .retain(|dataset| return dataset.name != CHECKOUT_DATASET);
+    facts
+        .datasets
+        .push(crate::health::doctor_zfs_route::zfs_checks::DatasetFacts {
+            role: crate::health::doctor_zfs_route::zfs_checks::DatasetRole::Checkout {
+                mount_point: std::path::PathBuf::from(
+                    crate::health::doctor_zfs_route::route_test_facts::CHECKOUT,
+                ),
+            },
+            name: String::from(CHECKOUT_DATASET),
+            reading: Reading::Unreadable {
+                why: String::from("permission denied"),
+            },
+        });
     let reports: Vec<CheckReport> = route_checks(&facts);
-    let checkout: &CheckReport = reports.iter().find(|report| return report.check.name() == "checkout-dataset").expect("the checkout check reports");
+    let checkout: &CheckReport = reports
+        .iter()
+        .find(|report| return report.check.name() == "checkout-dataset")
+        .expect("the checkout check reports");
     assert!(checkout.unknown(), "{}", checkout.line());
 }

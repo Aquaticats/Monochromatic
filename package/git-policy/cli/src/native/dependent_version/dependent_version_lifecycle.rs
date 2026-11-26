@@ -27,17 +27,29 @@
 /// whose message is reported as the reason.
 use crate::candidate_error::CandidateError;
 /// The modes and object names of index and tree entries.
-use crate::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+};
 /// The records a derived version is built from,
 /// and their change kinds.
-use crate::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{
+    CandidateChange,
+    CandidateRecord,
+};
 /// The store the candidates were prepared in.
 use crate::candidate_store::CandidateStore;
 /// The versions whose entries the store reads bytes for.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// The planner's content seam and its failure.
 use crate::dependent_version_content::{
-    ContentUnavailable, TrackedMode, TrackedPath, WorkspaceContent,
+    ContentUnavailable,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 /// The corrected files of this invocation.
 use crate::direct_fix_install::InstallChange;
@@ -136,7 +148,10 @@ pub fn lifecycle_workspace<'a>(
 /// ```ts
 /// const unavailable = (path, error) => ({ path, reason: error.message });
 /// ```
-fn unavailable(path: Option<&[u8]>, error: &CandidateError) -> ContentUnavailable {
+fn unavailable(
+    path: Option<&[u8]>,
+    error: &CandidateError,
+) -> ContentUnavailable {
     return ContentUnavailable {
         path: path.map(<[u8]>::to_vec),
         reason: error.message.clone(),
@@ -174,7 +189,11 @@ pub fn tracked_mode(mode: CandidateMode) -> TrackedMode {
 /// ```ts
 /// const entryRecord = (path, mode, object) => ({ path, mode, change: 'modified', object });
 /// ```
-fn entry_record(path: &[u8], mode: CandidateMode, object: &ObjectId) -> CandidateRecord {
+fn entry_record(
+    path: &[u8],
+    mode: CandidateMode,
+    object: &ObjectId,
+) -> CandidateRecord {
     return CandidateRecord {
         path: path.to_vec(),
         mode,
@@ -315,7 +334,10 @@ impl LifecycleWorkspace<'_> {
     /// ```ts
     /// async entryBytes(candidate): Promise<Uint8Array>;
     /// ```
-    fn entry_bytes(&mut self, candidate: &Candidate) -> Result<Vec<u8>, ContentUnavailable> {
+    fn entry_bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Vec<u8>, ContentUnavailable> {
         match self.store.bytes(candidate) {
             Ok(read) => return Ok(read.to_vec()),
             Err(error) => return Err(unavailable(Some(candidate.path.as_slice()), &error)),
@@ -333,7 +355,10 @@ impl LifecycleWorkspace<'_> {
 /// ```ts
 /// const entryOf = (version, path) => version.at(path) && { mode, object };
 /// ```
-fn entry_of(version: &CandidateVersion, path: &[u8]) -> Option<(CandidateMode, ObjectId)> {
+fn entry_of(
+    version: &CandidateVersion,
+    path: &[u8],
+) -> Option<(CandidateMode, ObjectId)> {
     let candidate: &Candidate = version.candidate_at_path(path)?;
     let object: &ObjectId = candidate.object.as_ref()?;
     return Some((candidate.mode, object.clone()));
@@ -383,7 +408,10 @@ impl WorkspaceContent for LifecycleWorkspace<'_> {
     /// ```ts
     /// candidateBytes(path): Promise<Uint8Array>;
     /// ```
-    fn candidate_bytes(&mut self, path: &[u8]) -> Result<Vec<u8>, ContentUnavailable> {
+    fn candidate_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Vec<u8>, ContentUnavailable> {
         if let Some(found) = self.corrected.get(path) {
             return Ok(found.replacement.to_vec());
         }
@@ -407,7 +435,10 @@ impl WorkspaceContent for LifecycleWorkspace<'_> {
     /// ```ts
     /// baseBytes(path): Promise<Uint8Array | undefined>;
     /// ```
-    fn base_bytes(&mut self, path: &[u8]) -> Result<Option<Vec<u8>>, ContentUnavailable> {
+    fn base_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Option<Vec<u8>>, ContentUnavailable> {
         let version: Rc<CandidateVersion> = self.head()?;
         let Some(candidate) = version.candidate_at_path(path) else {
             return Ok(None);

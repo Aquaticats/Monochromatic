@@ -37,16 +37,30 @@
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
 use crate::external_git_command::alias_run_directory;
-use crate::forwarded_command::{ResolvedCommand, Route, resolve_forwarded_command};
+use crate::forwarded_command::{
+    ResolvedCommand,
+    Route,
+    resolve_forwarded_command,
+};
 use crate::git_builtins::is_git_builtin;
-use crate::global_arguments::{GlobalLayout, command_tokens, global_layout};
-use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_guarded_word};
+use crate::global_arguments::{
+    GlobalLayout,
+    command_tokens,
+    global_layout,
+};
+use crate::rule_linked_worktree::{
+    LinkedWorktreeDecision,
+    decide_guarded_word,
+};
 /// The transaction Git context the resolver asks for an alias.
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The guard's decision,
@@ -129,7 +143,8 @@ pub fn decide_guarded_forwarded(
         };
     }
     // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
-    let resolved: ResolvedCommand = resolve_forwarded_command(context, environment, arguments, start);
+    let resolved: ResolvedCommand =
+        resolve_forwarded_command(context, environment, arguments, start);
     // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
     //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The one plain `git` command
     //  the resolver read from the value is what the shell runs, and the guard decides on it while the caller's own
@@ -193,7 +208,11 @@ pub fn decide_guarded_forwarded(
 /// ```ts
 /// const shellRunDirectory = (globals, start) => aliasRunDirectory({ globals, start });
 /// ```
-fn shell_run_directory(context: &GitContext, arguments: &[OsString], start: Option<&Path>) -> Option<PathBuf> {
+fn shell_run_directory(
+    context: &GitContext,
+    arguments: &[OsString],
+    start: Option<&Path>,
+) -> Option<PathBuf> {
     let layout: GlobalLayout = global_layout(arguments);
     let globals: &[OsString] = &arguments[..layout.prefix_len];
     return alias_run_directory(context, globals, start);

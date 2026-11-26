@@ -21,7 +21,11 @@
 //! ```
 
 use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 use std::path::Path;
 
 /// What:
@@ -35,7 +39,8 @@ use std::path::Path;
 /// const text = cStringOf(path); // throws on an interior NUL
 /// ```
 pub(super) fn c_string_of(path: &Path) -> Result<CString, String> {
-    return CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| return format!("the path {} holds a NUL byte", path.display()));
+    return CString::new(path.as_os_str().as_encoded_bytes())
+        .map_err(|_nul| return format!("the path {} holds a NUL byte", path.display()));
 }
 
 /// What:
@@ -50,8 +55,13 @@ pub(super) fn c_string_of(path: &Path) -> Result<CString, String> {
 /// ```ts
 /// const file = openat(directory, staging, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0644);
 /// ```
-pub(super) fn create_at(directory: &std::fs::File, name: &str, mode: u32) -> std::io::Result<std::fs::File> {
-    let text: CString = CString::new(name).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
+pub(super) fn create_at(
+    directory: &std::fs::File,
+    name: &str,
+    mode: u32,
+) -> std::io::Result<std::fs::File> {
+    let text: CString = CString::new(name)
+        .map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
     let descriptor: libc::c_int = unsafe {
         libc::openat(
@@ -65,7 +75,9 @@ pub(super) fn create_at(directory: &std::fs::File, name: &str, mode: u32) -> std
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: `openat` returned a new descriptor that nothing else owns.
-    return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) }));
+    return Ok(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    }));
 }
 
 /// What:
@@ -79,13 +91,21 @@ pub(super) fn create_at(directory: &std::fs::File, name: &str, mode: u32) -> std
 /// ```ts
 /// const file = openat(directory, guid, O_RDONLY | O_NOFOLLOW); // null when absent
 /// ```
-pub(super) fn open_receipt_at(directory: &std::fs::File, name: &str) -> std::io::Result<Option<std::fs::File>> {
+pub(super) fn open_receipt_at(
+    directory: &std::fs::File,
+    name: &str,
+) -> std::io::Result<Option<std::fs::File>> {
     let Ok(text) = CString::new(name) else {
         return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
     };
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
-    let descriptor: libc::c_int =
-        unsafe { libc::openat(directory.as_raw_fd(), text.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC) };
+    let descriptor: libc::c_int = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            text.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+        )
+    };
     if descriptor < 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.raw_os_error() == Some(libc::ENOENT) {
@@ -94,7 +114,9 @@ pub(super) fn open_receipt_at(directory: &std::fs::File, name: &str) -> std::io:
         return Err(error);
     }
     // SAFETY: `openat` returned a new descriptor that nothing else owns.
-    return Ok(Some(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) })));
+    return Ok(Some(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    })));
 }
 
 /// What:
@@ -110,8 +132,12 @@ pub(super) fn open_receipt_at(directory: &std::fs::File, name: &str) -> std::io:
 /// ```ts
 /// await unlinkat(directory, name); // no AT_REMOVEDIR: a folder is a refusal
 /// ```
-pub(super) fn unlink_at(directory: &std::fs::File, name: &str) -> std::io::Result<()> {
-    let text: CString = CString::new(name).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
+pub(super) fn unlink_at(
+    directory: &std::fs::File,
+    name: &str,
+) -> std::io::Result<()> {
+    let text: CString = CString::new(name)
+        .map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
     let removed: libc::c_int = unsafe { libc::unlinkat(directory.as_raw_fd(), text.as_ptr(), 0) };
     if removed != 0 {
@@ -131,11 +157,24 @@ pub(super) fn unlink_at(directory: &std::fs::File, name: &str) -> std::io::Resul
 /// ```ts
 /// await renameat(directory, staging, directory, guid);
 /// ```
-pub(super) fn rename_at(directory: &std::fs::File, from: &str, to: &str) -> std::io::Result<()> {
-    let old: CString = CString::new(from).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
-    let new: CString = CString::new(to).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
+pub(super) fn rename_at(
+    directory: &std::fs::File,
+    from: &str,
+    to: &str,
+) -> std::io::Result<()> {
+    let old: CString = CString::new(from)
+        .map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let new: CString =
+        CString::new(to).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
     // SAFETY: both strings are NUL-terminated and outlive the call, and `directory` is an open descriptor.
-    let renamed: libc::c_int = unsafe { libc::renameat(directory.as_raw_fd(), old.as_ptr(), directory.as_raw_fd(), new.as_ptr()) };
+    let renamed: libc::c_int = unsafe {
+        libc::renameat(
+            directory.as_raw_fd(),
+            old.as_ptr(),
+            directory.as_raw_fd(),
+            new.as_ptr(),
+        )
+    };
     if renamed != 0 {
         return Err(std::io::Error::last_os_error());
     }

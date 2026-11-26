@@ -22,7 +22,10 @@
 
 /// The start of one job on a scoped thread,
 /// or its run here when no thread starts.
-use crate::scoped_start::{Started, start_or_run_with};
+use crate::scoped_start::{
+    Started,
+    start_or_run_with,
+};
 use std::thread::Scope;
 
 /// What:
@@ -48,7 +51,10 @@ pub trait ScopeBody<'env> {
 
     /// Do the work,
     /// starting jobs on `scope` as needed.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) -> Self::Output;
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'env>,
+    ) -> Self::Output;
 }
 
 /// What:
@@ -70,7 +76,9 @@ pub fn in_thread_scope<'env, B: ScopeBody<'env>>(body: B) -> B::Output {
             reason = "`std::thread::scope` accepts only a callable, and it must carry the body; see package/git-policy/cli/doc/closure-lint-suppressions.md"
         )
     )]
-    let value: B::Output = std::thread::scope(move |scope| { return body.run(scope); });
+    let value: B::Output = std::thread::scope(move |scope| {
+        return body.run(scope);
+    });
     return value;
 }
 
@@ -89,7 +97,10 @@ impl<'env, S: Send + 'env, T: Send + 'env> ScopeBody<'env> for AllJobs<S, T> {
 
     /// Start every job,
     /// then wait for each in the order they started.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) -> Self::Output {
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'env>,
+    ) -> Self::Output {
         let mut started: Vec<Started<'scope, T>> = Vec::new();
         for state in self.states {
             started.push(start_or_run_with(scope, state, self.job));
@@ -117,8 +128,14 @@ impl<'env, S: Send + 'env, T: Send + 'env> ScopeBody<'env> for AllJobs<S, T> {
 /// ```ts
 /// const results = await Promise.allSettled(states.map((state) => job(state)));
 /// ```
-pub fn run_all_side_by_side<S: Send, T: Send>(states: Vec<S>, job: fn(S) -> T) -> Vec<std::thread::Result<T>> {
-    return in_thread_scope(AllJobs { states, job });
+pub fn run_all_side_by_side<S: Send, T: Send>(
+    states: Vec<S>,
+    job: fn(S) -> T,
+) -> Vec<std::thread::Result<T>> {
+    return in_thread_scope(AllJobs {
+        states,
+        job,
+    });
 }
 
 /// The work of `run_beside_caller`:
@@ -140,8 +157,12 @@ impl<'env, S: Send + 'env, T: Send + 'env, C, U> ScopeBody<'env> for BesideCalle
     /// Start the thread's job,
     /// run the caller's function here,
     /// then wait for the thread.
-    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) -> Self::Output {
-        let started: Started<'scope, T> = start_or_run_with(scope, self.thread_state, self.thread_job);
+    fn run<'scope>(
+        self,
+        scope: &'scope Scope<'scope, 'env>,
+    ) -> Self::Output {
+        let started: Started<'scope, T> =
+            start_or_run_with(scope, self.thread_state, self.thread_job);
         let here: U = (self.caller_job)(self.caller_state);
         return (started.join(), here);
     }
@@ -169,7 +190,12 @@ pub fn run_beside_caller<S: Send, T: Send, C, U>(
     (thread_state, thread_job): (S, fn(S) -> T),
     (caller_state, caller_job): (C, fn(C) -> U),
 ) -> (std::thread::Result<T>, U) {
-    return in_thread_scope(BesideCaller { thread_state, thread_job, caller_state, caller_job });
+    return in_thread_scope(BesideCaller {
+        thread_state,
+        thread_job,
+        caller_state,
+        caller_job,
+    });
 }
 
 /// Side by side controls stay out of the release executable.

@@ -6,14 +6,27 @@
 
 use super::*;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
-use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_instance::{
+    SOCKET_DIRECTORY,
+    instance_of,
+    service_unit_instance,
+    socket_path,
+    socket_unit_instance,
+};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_of_removed_worktrees::{note_path, record_worktree};
+use crate::service_units_of_removed_worktrees::{
+    note_path,
+    record_worktree,
+};
 use crate::systemd_dbus::CallError;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// The command word the notes name.
-const NAMED_COMMAND: &str = "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
+const NAMED_COMMAND: &str =
+    "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
 
 /// One disposable world:
 /// a runtime directory with a socket and a note for a present worktree,
@@ -36,27 +49,59 @@ fn world(name: &str) -> World {
     std::fs::create_dir_all(&kept).expect("kept");
     let gone: PathBuf = common.join("worktrees/gone");
     let unknown_instance: String = String::from("00000000000000000000000000000001");
-    let world: World = World { gone_instance: instance_of(gone.as_path()), kept_instance: instance_of(kept.as_path()), unknown_instance, root, runtime };
+    let world: World = World {
+        gone_instance: instance_of(gone.as_path()),
+        kept_instance: instance_of(kept.as_path()),
+        unknown_instance,
+        root,
+        runtime,
+    };
     for (instance, git_dir) in [(&world.kept_instance, &kept), (&world.gone_instance, &gone)] {
-        record_worktree(world.runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("note");
-        std::fs::write(socket_path(world.runtime.as_path(), instance.as_str()), b"listening").expect("socket");
+        record_worktree(
+            world.runtime.as_path(),
+            instance.as_str(),
+            git_dir.as_path(),
+        )
+        .expect("note");
+        std::fs::write(
+            socket_path(world.runtime.as_path(), instance.as_str()),
+            b"listening",
+        )
+        .expect("socket");
     }
-    std::fs::write(socket_path(world.runtime.as_path(), world.unknown_instance.as_str()), b"listening").expect("socket");
+    std::fs::write(
+        socket_path(world.runtime.as_path(), world.unknown_instance.as_str()),
+        b"listening",
+    )
+    .expect("socket");
     return world;
 }
 
 impl World {
     fn folders(&self) -> UnitFolders<'_> {
-        return UnitFolders { runtime_dir: self.runtime.as_path(), state_dir: None };
+        return UnitFolders {
+            runtime_dir: self.runtime.as_path(),
+            state_dir: None,
+        };
     }
 
     fn environment(&self) -> Vec<(OsString, OsString)> {
-        return vec![(OsString::from("XDG_RUNTIME_DIR"), self.runtime.clone().into_os_string())];
+        return vec![(
+            OsString::from("XDG_RUNTIME_DIR"),
+            self.runtime.clone().into_os_string(),
+        )];
     }
 }
 
 fn exit_parts(action: Action) -> (i32, String, String) {
-    let Action::Exit { code, stdout, stderr } = action else { panic!("the command exits") };
+    let Action::Exit {
+        code,
+        stdout,
+        stderr,
+    } = action
+    else {
+        panic!("the command exits")
+    };
     return (code, stdout, stderr);
 }
 
@@ -68,9 +113,29 @@ fn the_command_stops_the_units_of_the_removed_worktree_and_names_it() {
     let mut manager: Recorder = Recorder::default();
     let (code, stdout, stderr) = exit_parts(stop_units_action(&world.folders(), &mut manager));
     assert_eq!(code, 0, "{stderr}");
-    assert_eq!(manager.stops(), vec![format!("stop {}", socket_unit_instance(world.gone_instance.as_str())), format!("stop {}", service_unit_instance(world.gone_instance.as_str()))]);
-    assert!(stdout.contains("repository/.git/worktrees/gone") && stdout.contains(world.gone_instance.as_str()), "{stdout}");
-    assert!(stderr.contains("1 commit service instance cannot be matched") && stderr.contains(NAMED_COMMAND), "{stderr}");
+    assert_eq!(
+        manager.stops(),
+        vec![
+            format!(
+                "stop {}",
+                socket_unit_instance(world.gone_instance.as_str())
+            ),
+            format!(
+                "stop {}",
+                service_unit_instance(world.gone_instance.as_str())
+            )
+        ]
+    );
+    assert!(
+        stdout.contains("repository/.git/worktrees/gone")
+            && stdout.contains(world.gone_instance.as_str()),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains("1 commit service instance cannot be matched")
+            && stderr.contains(NAMED_COMMAND),
+        "{stderr}"
+    );
     assert!(!stdout.contains(world.kept_instance.as_str()));
     remove(world.root.as_path());
 }
@@ -88,15 +153,27 @@ fn a_kept_journal_is_named_on_standard_error_and_is_no_refusal() {
     let world: World = world("stop-units-kept-journal");
     let state: PathBuf = world.root.join("state");
     let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
-    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+        wrapper_state.as_path(),
+        world.gone_instance.as_str(),
+    );
     std::fs::create_dir_all(&journal).expect("journal folder");
     std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: world.runtime.as_path(),
+        state_dir: Some(state.as_path()),
+    };
     let mut manager: Recorder = Recorder::default();
     let (code, _stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
     assert_eq!(code, 0, "{stderr}");
-    assert!(stderr.contains(journal.display().to_string().as_str()), "the line names the journal: {stderr}");
-    assert!(stderr.contains("7.intent") && stderr.contains("has not landed"), "the line names what kept it: {stderr}");
+    assert!(
+        stderr.contains(journal.display().to_string().as_str()),
+        "the line names the journal: {stderr}"
+    );
+    assert!(
+        stderr.contains("7.intent") && stderr.contains("has not landed"),
+        "the line names what kept it: {stderr}"
+    );
     assert!(journal.exists(), "the journal is kept");
     remove(world.root.as_path());
 }
@@ -114,29 +191,58 @@ fn the_command_clears_a_kept_journal_and_names_where_it_was() {
     let world: World = world("stop-units-journal-only");
     let state: PathBuf = world.root.join("state");
     let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
-    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+        wrapper_state.as_path(),
+        world.gone_instance.as_str(),
+    );
     std::fs::create_dir_all(&journal).expect("journal folder");
     let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
     std::fs::write(
         journal.join("1.done"),
-        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+        format!(
+            "seq=1\n{}{}\n",
+            GITDIR_HEX_PREFIX,
+            crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())
+        ),
     )
     .expect("a landed batch that names the Git directory");
     // The note and the socket file a removal that kept this journal took with it.
-    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    std::fs::remove_file(note_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("note removed");
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("socket removed");
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: world.runtime.as_path(),
+        state_dir: Some(state.as_path()),
+    };
     let mut manager: Recorder = Recorder::default();
     let (code, stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
     assert_eq!(code, 0, "{stderr}");
-    assert!(manager.stops().is_empty(), "no unit of that instance exists to stop: {:?}", manager.stops());
     assert!(
-        stdout.contains("removed the commit service journal of the removed worktree") && stdout.contains(journal.display().to_string().as_str()),
+        manager.stops().is_empty(),
+        "no unit of that instance exists to stop: {:?}",
+        manager.stops()
+    );
+    assert!(
+        stdout.contains("removed the commit service journal of the removed worktree")
+            && stdout.contains(journal.display().to_string().as_str()),
         "the line names what was removed and where it was: {stdout}"
     );
-    assert!(stdout.contains(world.gone_instance.as_str()), "the line names the instance: {stdout}");
-    assert!(!journal.exists(), "the journal of a removed worktree that holds no work is cleared");
+    assert!(
+        stdout.contains(world.gone_instance.as_str()),
+        "the line names the instance: {stdout}"
+    );
+    assert!(
+        !journal.exists(),
+        "the journal of a removed worktree that holds no work is cleared"
+    );
     remove(world.root.as_path());
 }
 
@@ -146,10 +252,18 @@ fn the_command_clears_a_kept_journal_and_names_where_it_was() {
 fn a_refused_stop_is_status_one_with_the_instance_and_the_reason() {
     let world: World = world("stop-units-refused");
     let mut manager: Recorder = Recorder::default();
-    manager.refuse_stop_of(socket_unit_instance(world.gone_instance.as_str()).as_str(), CallError::TimedOut);
+    manager.refuse_stop_of(
+        socket_unit_instance(world.gone_instance.as_str()).as_str(),
+        CallError::TimedOut,
+    );
     let (code, _stdout, stderr) = exit_parts(stop_units_action(&world.folders(), &mut manager));
     assert_eq!(code, 1);
-    assert!(stderr.contains(world.gone_instance.as_str()) && stderr.contains("did not answer in time") && stderr.contains("run the command again"), "{stderr}");
+    assert!(
+        stderr.contains(world.gone_instance.as_str())
+            && stderr.contains("did not answer in time")
+            && stderr.contains("run the command again"),
+        "{stderr}"
+    );
     remove(world.root.as_path());
 }
 
@@ -157,12 +271,23 @@ fn a_refused_stop_is_status_one_with_the_instance_and_the_reason() {
 #[test]
 fn nothing_to_stop_is_said_and_asks_the_manager_nothing() {
     let world: World = world("stop-units-nothing");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
-    std::fs::remove_file(crate::service_units_of_removed_worktrees::note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("socket removed");
+    std::fs::remove_file(crate::service_units_of_removed_worktrees::note_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("note removed");
     let mut manager: Recorder = Recorder::default();
     let (code, stdout, _stderr) = exit_parts(stop_units_action(&world.folders(), &mut manager));
     assert_eq!(code, 0);
-    assert!(stdout.contains("no commit service unit or journal belongs to a removed worktree"), "{stdout}");
+    assert!(
+        stdout.contains("no commit service unit or journal belongs to a removed worktree"),
+        "{stdout}"
+    );
     assert!(manager.stops().is_empty());
     remove(world.root.as_path());
 }
@@ -173,11 +298,31 @@ fn nothing_to_stop_is_said_and_asks_the_manager_nothing() {
 fn doctor_counts_the_units_of_removed_worktrees_and_names_the_command() {
     let world: World = world("stop-units-note");
     let note: String = units_note(world.environment().as_slice());
-    assert!(note.contains("1 removed worktree are still set up") && note.contains(NAMED_COMMAND) && note.contains("nothing was changed"), "{note}");
-    assert!(socket_path(world.runtime.as_path(), world.gone_instance.as_str()).exists(), "the note is read only");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
-    std::fs::remove_file(crate::service_units_of_removed_worktrees::note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.unknown_instance.as_str())).expect("socket removed");
+    assert!(
+        note.contains("1 removed worktree are still set up")
+            && note.contains(NAMED_COMMAND)
+            && note.contains("nothing was changed"),
+        "{note}"
+    );
+    assert!(
+        socket_path(world.runtime.as_path(), world.gone_instance.as_str()).exists(),
+        "the note is read only"
+    );
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("socket removed");
+    std::fs::remove_file(crate::service_units_of_removed_worktrees::note_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("note removed");
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.unknown_instance.as_str(),
+    ))
+    .expect("socket removed");
     assert_eq!(units_note(world.environment().as_slice()), "");
     remove(world.root.as_path());
 }
@@ -188,7 +333,10 @@ fn without_a_runtime_directory_the_note_is_empty_and_the_command_refuses() {
     assert_eq!(units_note(&[]), "");
     let (code, _stdout, stderr) = exit_parts(plan_stop_units_of_removed_worktrees(&[]));
     assert_eq!(code, 1);
-    assert!(stderr.contains("XDG_RUNTIME_DIR is not set") && stderr.contains(NAMED_COMMAND), "{stderr}");
+    assert!(
+        stderr.contains("XDG_RUNTIME_DIR is not set") && stderr.contains(NAMED_COMMAND),
+        "{stderr}"
+    );
 }
 
 /// What:
@@ -207,27 +355,54 @@ fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
     let world: World = world("stop-units-note-journal-only");
     let state: PathBuf = world.root.join("state");
     let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
-    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+        wrapper_state.as_path(),
+        world.gone_instance.as_str(),
+    );
     std::fs::create_dir_all(&journal).expect("journal folder");
     let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
     std::fs::write(
         journal.join("1.done"),
-        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+        format!(
+            "seq=1\n{}{}\n",
+            GITDIR_HEX_PREFIX,
+            crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())
+        ),
     )
     .expect("a landed batch that names the Git directory");
     // The note and the socket file a removal that kept this journal took with it.
-    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    std::fs::remove_file(note_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("note removed");
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("socket removed");
     let home: PathBuf = world.root.join("home");
     std::fs::create_dir_all(&home).expect("home directory");
     let environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("HOME"), home.clone().into_os_string()),
-        (OsString::from("XDG_RUNTIME_DIR"), world.runtime.clone().into_os_string()),
-        (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
+        (
+            OsString::from("XDG_RUNTIME_DIR"),
+            world.runtime.clone().into_os_string(),
+        ),
+        (
+            OsString::from("XDG_STATE_HOME"),
+            state.clone().into_os_string(),
+        ),
     ];
     let note: String = units_note(environment.as_slice());
-    assert!(note.contains("1 removed worktree are still set up"), "the journal that no unit names is counted: {note}");
-    assert!(note.contains(NAMED_COMMAND), "the note names the command that clears it: {note}");
+    assert!(
+        note.contains("1 removed worktree are still set up"),
+        "the journal that no unit names is counted: {note}"
+    );
+    assert!(
+        note.contains(NAMED_COMMAND),
+        "the note names the command that clears it: {note}"
+    );
     remove(world.root.as_path());
 }
 
@@ -247,20 +422,38 @@ fn a_kept_journal_is_named_on_standard_output_and_the_none_line_is_not_printed()
     let world: World = world("stop-units-kept-journal-stdout");
     let state: PathBuf = world.root.join("state");
     let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
-    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+        wrapper_state.as_path(),
+        world.gone_instance.as_str(),
+    );
     std::fs::create_dir_all(&journal).expect("journal folder");
     let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
     std::fs::write(
         journal.join("1.done"),
-        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+        format!(
+            "seq=1\n{}{}\n",
+            GITDIR_HEX_PREFIX,
+            crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())
+        ),
     )
     .expect("a landed batch that names the Git directory");
     std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
     // The note and the socket file a removal that kept this journal took with it.
-    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
-    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    std::fs::remove_file(note_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("note removed");
+    std::fs::remove_file(socket_path(
+        world.runtime.as_path(),
+        world.gone_instance.as_str(),
+    ))
+    .expect("socket removed");
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: world.runtime.as_path(),
+        state_dir: Some(state.as_path()),
+    };
     let mut manager: Recorder = Recorder::default();
     let (code, stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
     assert_eq!(code, 0, "{stderr}");
@@ -275,7 +468,10 @@ fn a_kept_journal_is_named_on_standard_output_and_the_none_line_is_not_printed()
             && stdout.contains(journal.display().to_string().as_str()),
         "standard output names the journal it kept, whose it was and where it is: {stdout}"
     );
-    assert!(stderr.contains("7.intent"), "standard error still says what kept it: {stderr}");
+    assert!(
+        stderr.contains("7.intent"),
+        "standard error still says what kept it: {stderr}"
+    );
     assert!(journal.exists(), "the journal is kept");
     remove(world.root.as_path());
 }
@@ -297,10 +493,17 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
     let state: PathBuf = world.root.join("state");
     let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
     let instance: String = String::from("0000000000000000000000000000000e");
-    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), instance.as_str());
-    std::fs::create_dir_all(journal.join("claim-watch").as_path()).expect("journal with an empty claim watch");
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(
+        wrapper_state.as_path(),
+        instance.as_str(),
+    );
+    std::fs::create_dir_all(journal.join("claim-watch").as_path())
+        .expect("journal with an empty claim watch");
     std::fs::write(journal.join("busy"), b"1").expect("the service's record that it is running");
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: world.runtime.as_path(),
+        state_dir: Some(state.as_path()),
+    };
     let mut manager: Recorder = Recorder::default();
     let (code, _stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
     assert_eq!(code, 0, "{stderr}");
@@ -316,28 +519,46 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
         stderr.contains("1 commit service journal names no worktree"),
         "the line is about the journal that has no unit: {stderr}"
     );
-    assert!(stderr.contains("by hand"), "the line says a person can remove it after looking: {stderr}");
+    assert!(
+        stderr.contains("by hand"),
+        "the line says a person can remove it after looking: {stderr}"
+    );
     let journals_folder: String = state
         .join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current)
         .join(crate::service_journal_folder_of_an_instance::JOURNAL_FOLDER)
         .display()
         .to_string();
-    assert!(stderr.contains(journals_folder.as_str()), "the line says where to look: {stderr}");
+    assert!(
+        stderr.contains(journals_folder.as_str()),
+        "the line says where to look: {stderr}"
+    );
     assert!(journal.exists(), "nothing of it is touched");
     // `doctor` says the same about the same journal.
     let home: PathBuf = world.root.join("home");
     std::fs::create_dir_all(home.as_path()).expect("home directory");
     let environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("HOME"), home.into_os_string()),
-        (OsString::from("XDG_RUNTIME_DIR"), world.runtime.clone().into_os_string()),
-        (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
+        (
+            OsString::from("XDG_RUNTIME_DIR"),
+            world.runtime.clone().into_os_string(),
+        ),
+        (
+            OsString::from("XDG_STATE_HOME"),
+            state.clone().into_os_string(),
+        ),
     ];
     let note: String = units_note(environment.as_slice());
-    assert!(!note.contains("2 commit service instances cannot be matched"), "the note does not count it with the socket file's instance: {note}");
+    assert!(
+        !note.contains("2 commit service instances cannot be matched"),
+        "the note does not count it with the socket file's instance: {note}"
+    );
     assert!(
         note.contains("1 commit service journal names no worktree and has no unit beside it"),
         "the note is about the journal that has no unit: {note}"
     );
-    assert!(note.contains("by hand after looking"), "the note says what a person can do: {note}");
+    assert!(
+        note.contains("by hand after looking"),
+        "the note says what a person can do: {note}"
+    );
     remove(world.root.as_path());
 }

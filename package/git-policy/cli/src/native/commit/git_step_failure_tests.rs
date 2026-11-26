@@ -21,7 +21,11 @@ fn a_note_is_taken_once() {
     let taken: FailedStep = drain_failed_step().expect("the note just written");
     assert_eq!(taken.name, "git add");
     assert_eq!(taken.status, Some(REFUSED_STATUS));
-    assert_eq!(drain_failed_step(), None, "a record never reads the note another record stated");
+    assert_eq!(
+        drain_failed_step(),
+        None,
+        "a record never reads the note another record stated"
+    );
 }
 
 /// A step that could not start keeps no status,
@@ -30,7 +34,13 @@ fn a_note_is_taken_once() {
 fn a_step_that_never_exited_keeps_no_status() {
     clear_failed_step();
     note_failed_step("git diff-index", None);
-    assert_eq!(drain_failed_step(), Some(FailedStep { name: String::from("git diff-index"), status: None }));
+    assert_eq!(
+        drain_failed_step(),
+        Some(FailedStep {
+            name: String::from("git diff-index"),
+            status: None
+        })
+    );
 }
 
 /// Another step starting drops the note,
@@ -49,8 +59,15 @@ fn another_step_starting_drops_the_note() {
 #[test]
 fn a_note_never_carries_a_path_or_a_line_break() {
     clear_failed_step();
-    note_failed_step("git add -- /home/someone/a b.txt\n{\"k\":1}", Some(REFUSED_STATUS));
+    note_failed_step(
+        "git add -- /home/someone/a b.txt\n{\"k\":1}",
+        Some(REFUSED_STATUS),
+    );
     let taken: FailedStep = drain_failed_step().expect("the note just written");
-    assert!(!taken.name.contains('/') && !taken.name.contains('\n') && !taken.name.contains('"'), "{}", taken.name);
+    assert!(
+        !taken.name.contains('/') && !taken.name.contains('\n') && !taken.name.contains('"'),
+        "{}",
+        taken.name
+    );
     assert!(taken.name.starts_with("git add"), "{}", taken.name);
 }

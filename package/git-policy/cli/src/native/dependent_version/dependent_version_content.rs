@@ -132,11 +132,17 @@ pub trait WorkspaceContent {
     /// order in the wrapper).
     fn tracked_paths(&mut self) -> Result<Vec<TrackedPath>, ContentUnavailable>;
     /// The bytes of a tracked path in the candidate state.
-    fn candidate_bytes(&mut self, path: &[u8]) -> Result<Vec<u8>, ContentUnavailable>;
+    fn candidate_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Vec<u8>, ContentUnavailable>;
     /// The bytes of a path at the comparison base (`HEAD` for the policy),
     /// or nothing when
     /// the base lacks it.
-    fn base_bytes(&mut self, path: &[u8]) -> Result<Option<Vec<u8>>, ContentUnavailable>;
+    fn base_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Option<Vec<u8>>, ContentUnavailable>;
 }
 
 /// What:
@@ -325,13 +331,21 @@ pub fn plan_error_message(error: &PlanError) -> String {
 /// ```
 fn incomplete_reason(incomplete: &PolicyIncomplete) -> String {
     match incomplete {
-        PolicyIncomplete::NotUtf8 { path } => {
+        PolicyIncomplete::NotUtf8 {
+            path,
+        } => {
             return format!("{} is not valid UTF-8", display_path(path));
         }
-        PolicyIncomplete::ManifestSyntax { path, detail } => {
+        PolicyIncomplete::ManifestSyntax {
+            path,
+            detail,
+        } => {
             return format!("{} is not JSON ({detail})", display_path(path));
         }
-        PolicyIncomplete::ManifestShape { problem, .. } => return problem.clone(),
+        PolicyIncomplete::ManifestShape {
+            problem,
+            ..
+        } => return problem.clone(),
         PolicyIncomplete::DuplicateName {
             name,
             first,
@@ -344,7 +358,10 @@ fn incomplete_reason(incomplete: &PolicyIncomplete) -> String {
                 display_path(second)
             );
         }
-        PolicyIncomplete::PublishSetUnknown { path, problem } => {
+        PolicyIncomplete::PublishSetUnknown {
+            path,
+            problem,
+        } => {
             return format!(
                 "the publish set of {} cannot be read ({problem}), \
                  so whether a dependent is published cannot be judged",

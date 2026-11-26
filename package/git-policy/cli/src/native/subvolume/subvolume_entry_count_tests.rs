@@ -5,7 +5,10 @@
 //!  unreadable or missing directory counts what could be read instead of failing.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// Files,
 /// directories,

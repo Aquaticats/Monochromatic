@@ -25,12 +25,15 @@
 //! export const outsideThePhases = () => ({ scratch, stderr, unfinished });
 //! ```
 
-/// The counters,
-/// shared by the threads of one command.
-use std::sync::atomic::{AtomicU64, Ordering};
 /// Writing text out,
 /// which is what the measured stream does.
 use std::io::Write;
+/// The counters,
+/// shared by the threads of one command.
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 /// A span of time.
 use std::time::Duration;
 
@@ -66,7 +69,10 @@ pub struct OutsideThePhases {
 /// One span of time added to a counter,
 /// in whole microseconds,
 /// held at the counter's end rather than wrapped around it.
-fn add(counter: &AtomicU64, took: Duration) {
+fn add(
+    counter: &AtomicU64,
+    took: Duration,
+) {
     let microseconds: u64 = u64::try_from(took.as_micros()).unwrap_or(u64::MAX);
     // A saturated counter is a figure that cannot be right; a record is a diagnostic and never fails a command, so the sum is
     //  held at the counter's end rather than wrapped around it.
@@ -98,7 +104,10 @@ fn milliseconds(counter: &AtomicU64) -> u64 {
 /// ```ts
 /// noteScratchRemoval(elapsed, true);
 /// ```
-pub fn note_scratch_removal(took: Duration, finished: bool) {
+pub fn note_scratch_removal(
+    took: Duration,
+    finished: bool,
+) {
     add(&SCRATCH_REMOVAL_MICROSECONDS, took);
     if !finished {
         let _count: u64 = REMOVALS_THAT_DID_NOT_FINISH.fetch_add(1, Ordering::Relaxed);
@@ -167,7 +176,9 @@ impl MeasuredStandardError<std::io::Stderr> {
     /// The measured process's standard error,
     /// which is what a commit writes what the person reads to.
     pub fn new() -> Self {
-        return Self { inner: std::io::stderr() };
+        return Self {
+            inner: std::io::stderr(),
+        };
     }
 }
 
@@ -175,14 +186,19 @@ impl<W: Write> MeasuredStandardError<W> {
     /// The measured stream over another one,
     /// which a control uses to make a write spend time.
     pub fn over(inner: W) -> Self {
-        return Self { inner };
+        return Self {
+            inner,
+        };
     }
 }
 
 impl<W: Write> Write for MeasuredStandardError<W> {
     /// Writes the whole buffer,
     /// timed.
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         let began: std::time::Instant = std::time::Instant::now();
         let written: std::io::Result<usize> = self.inner.write(buffer);
         note_standard_error(began.elapsed());

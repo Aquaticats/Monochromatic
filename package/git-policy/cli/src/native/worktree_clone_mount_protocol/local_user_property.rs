@@ -23,7 +23,10 @@
 //! const reading = readLocalProperty(reply, cloneName, 'org.monochromatic:...');
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{PROPERTY_SOURCE_KEY, PROPERTY_VALUE_KEY};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    PROPERTY_SOURCE_KEY,
+    PROPERTY_VALUE_KEY,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// What:
@@ -60,17 +63,28 @@ impl PropertyRefusal {
     /// The refusal in words,
     /// naming the property and the shape that was found,
     /// and saying that nothing was done on its behalf.
-    pub fn message(&self, property: &str) -> String {
+    pub fn message(
+        &self,
+        property: &str,
+    ) -> String {
         let reason: String = match self {
-            PropertyRefusal::NotAPropertyPair { dataset } => format!(
+            PropertyRefusal::NotAPropertyPair {
+                dataset,
+            } => format!(
                 "the value of `{property}` on `{dataset}` is not the pair of `{PROPERTY_VALUE_KEY}` and `{PROPERTY_SOURCE_KEY}` that OpenZFS returns for a property, so this route cannot tell a local value from an inherited one"
             ),
-            PropertyRefusal::MissingValue => format!("the value of `{property}` has no `{PROPERTY_VALUE_KEY}` key"),
+            PropertyRefusal::MissingValue => {
+                format!("the value of `{property}` has no `{PROPERTY_VALUE_KEY}` key")
+            }
             PropertyRefusal::MissingSource => format!(
                 "the value of `{property}` has no `{PROPERTY_SOURCE_KEY}` key, so this route cannot tell whether the clone set it or inherited it"
             ),
-            PropertyRefusal::ValueNotText => format!("the `{PROPERTY_VALUE_KEY}` of `{property}` is not text"),
-            PropertyRefusal::SourceNotText => format!("the `{PROPERTY_SOURCE_KEY}` of `{property}` is not text"),
+            PropertyRefusal::ValueNotText => {
+                format!("the `{PROPERTY_VALUE_KEY}` of `{property}` is not text")
+            }
+            PropertyRefusal::SourceNotText => {
+                format!("the `{PROPERTY_SOURCE_KEY}` of `{property}` is not text")
+            }
         };
         return format!(
             "{reason}. Nothing was mounted, unmounted, attached or recorded on its behalf. Ways forward: read the property again, as `zfs get -H -o value,source {property} <clone>` prints it, or unset and set it again in the designed form."
@@ -118,7 +132,11 @@ pub enum PropertyReading<'a> {
 /// ```ts
 /// const reading = readLocalProperty(properties, 'pool/data', 'org...state');
 /// ```
-pub fn read_local_property<'a>(properties: Option<&'a NvList>, dataset: &str, property: &str) -> PropertyReading<'a> {
+pub fn read_local_property<'a>(
+    properties: Option<&'a NvList>,
+    dataset: &str,
+    property: &str,
+) -> PropertyReading<'a> {
     let Some(reply) = properties else {
         return PropertyReading::Absent;
     };
@@ -126,7 +144,9 @@ pub fn read_local_property<'a>(properties: Option<&'a NvList>, dataset: &str, pr
         return PropertyReading::Absent;
     }
     let Some(pair) = reply.get_list(property) else {
-        return PropertyReading::Malformed(PropertyRefusal::NotAPropertyPair { dataset: String::from(dataset) });
+        return PropertyReading::Malformed(PropertyRefusal::NotAPropertyPair {
+            dataset: String::from(dataset),
+        });
     };
     let Some(value) = pair.get_str(PROPERTY_VALUE_KEY) else {
         return PropertyReading::Malformed(if pair.get(PROPERTY_VALUE_KEY).is_some() {
@@ -143,9 +163,13 @@ pub fn read_local_property<'a>(properties: Option<&'a NvList>, dataset: &str, pr
         });
     };
     if source == dataset {
-        return PropertyReading::Local { value };
+        return PropertyReading::Local {
+            value,
+        };
     }
-    return PropertyReading::Inherited { from: String::from(source) };
+    return PropertyReading::Inherited {
+        from: String::from(source),
+    };
 }
 
 /// Controls stay out of the release executable.

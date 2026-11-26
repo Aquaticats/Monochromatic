@@ -20,15 +20,39 @@
 //! expect((await drain(goneRepo, due)).changes).toEqual([{ forget: branch }]);
 //! ```
 
-use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, gone_line, prove, the_mounts};
+use super::{
+    Gone,
+    GoneBecause,
+    Mounts,
+    NothingIsMounted,
+    Proof,
+    gone_line,
+    prove,
+    the_mounts,
+};
 use crate::claim_time::ClaimTime;
-use crate::push_retry::{RetryChange, Retrying};
+use crate::push_retry::{
+    RetryChange,
+    Retrying,
+};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_work::{SERVICE_KINDS, Verdict};
+use crate::service_work::{
+    SERVICE_KINDS,
+    Verdict,
+};
 use crate::service_work_drains_awaiting::drain_planned_with_awaiting;
-use crate::test_support::{fixture, remove};
-use crate::work_item::{WorkItem, WorkKind};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// The first pause of a plan,
@@ -49,7 +73,8 @@ const BRANCH: &str = "refs/heads/main";
 fn a_deleted_repository(root: &Path) -> (PathBuf, PathBuf) {
     let holder: PathBuf = root.join("work");
     let repository: PathBuf = holder.join("repository-a");
-    std::fs::create_dir_all(repository.join(".git").as_path()).expect("the Git directory of a repository");
+    std::fs::create_dir_all(repository.join(".git").as_path())
+        .expect("the Git directory of a repository");
     std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
     std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
     return (repository.join(".git"), repository);
@@ -79,7 +104,10 @@ fn a_path_behind_an_unmounted_mount_point(root: &Path) -> PathBuf {
 struct EverythingIsMounted;
 
 impl Mounts for EverythingIsMounted {
-    fn is_mount_point(&self, _path: &Path) -> bool {
+    fn is_mount_point(
+        &self,
+        _path: &Path,
+    ) -> bool {
         return true;
     }
 }
@@ -95,8 +123,15 @@ fn a_deleted_repository_is_proven_gone() {
     let root: PathBuf = fixture("unreachable-deleted");
     let (git_dir, worktree): (PathBuf, PathBuf) = a_deleted_repository(root.as_path());
     assert_eq!(
-        prove(git_dir.as_path(), Some(worktree.as_path()), &NothingIsMounted),
-        Proof::Gone(Gone { nearest: root.join("work"), because: GoneBecause::OrdinaryDirectory }),
+        prove(
+            git_dir.as_path(),
+            Some(worktree.as_path()),
+            &NothingIsMounted
+        ),
+        Proof::Gone(Gone {
+            nearest: root.join("work"),
+            because: GoneBecause::OrdinaryDirectory
+        }),
         "the directory that held the repository holds other entries, so the repository was deleted"
     );
     remove(root.as_path());
@@ -114,8 +149,14 @@ fn a_path_behind_an_unmounted_mount_point_may_return() {
     let root: PathBuf = fixture("unreachable-unmounted");
     let git_dir: PathBuf = a_path_behind_an_unmounted_mount_point(root.as_path());
     assert_eq!(
-        prove(git_dir.as_path(), Some(root.join("drive/repository").as_path()), &NothingIsMounted),
-        Proof::MayReturn(super::MayReturn { nearest: root.join("drive") }),
+        prove(
+            git_dir.as_path(),
+            Some(root.join("drive/repository").as_path()),
+            &NothingIsMounted
+        ),
+        Proof::MayReturn(super::MayReturn {
+            nearest: root.join("drive")
+        }),
         "nothing is mounted at the directory, and it holds nothing, so a drive may still arrive"
     );
     remove(root.as_path());
@@ -139,7 +180,9 @@ fn a_path_behind_an_unmounted_mount_point_may_return() {
 fn a_path_behind_a_directory_that_cannot_be_searched_may_return() {
     use std::os::unix::fs::PermissionsExt;
     if unsafe { libc::geteuid() } == 0 {
-        eprintln!("skipped: a directory that refuses the search does not stop root, so this control proves nothing here");
+        eprintln!(
+            "skipped: a directory that refuses the search does not stop root, so this control proves nothing here"
+        );
         return;
     }
     let root: PathBuf = fixture("unreachable-denied-search");
@@ -149,18 +192,28 @@ fn a_path_behind_a_directory_that_cannot_be_searched_may_return() {
     std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a repository");
     // The directory that holds the repository refuses the search, and the directory above it holds other entries, so a walk that
     //  read the refusal as absence would reach an ordinary directory and prove the repository gone.
-    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o000)).expect("the directory refuses the search");
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o000))
+        .expect("the directory refuses the search");
     assert_eq!(
-        prove(git_dir.as_path(), Some(repository.as_path()), &NothingIsMounted),
-        Proof::MayReturn(super::MayReturn { nearest: repository.clone() }),
+        prove(
+            git_dir.as_path(),
+            Some(repository.as_path()),
+            &NothingIsMounted
+        ),
+        Proof::MayReturn(super::MayReturn {
+            nearest: repository.clone()
+        }),
         "a refused search is not a deletion, so the worktree's repository may still be there"
     );
     assert_eq!(
         prove(git_dir.as_path(), None, &NothingIsMounted),
-        Proof::MayReturn(super::MayReturn { nearest: git_dir.clone() }),
+        Proof::MayReturn(super::MayReturn {
+            nearest: git_dir.clone()
+        }),
         "a walk that was refused at its first step proves nothing about the path"
     );
-    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the directory is searchable again");
+    std::fs::set_permissions(private.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("the directory is searchable again");
     assert!(git_dir.exists(), "the repository was there the whole time");
     remove(root.as_path());
 }
@@ -175,21 +228,28 @@ fn a_path_behind_a_directory_that_cannot_be_searched_may_return() {
 fn a_path_behind_a_directory_whose_entries_cannot_be_listed_may_return() {
     use std::os::unix::fs::PermissionsExt;
     if unsafe { libc::geteuid() } == 0 {
-        eprintln!("skipped: a directory that refuses the read does not stop root, so this control proves nothing here");
+        eprintln!(
+            "skipped: a directory that refuses the read does not stop root, so this control proves nothing here"
+        );
         return;
     }
     let root: PathBuf = fixture("unreachable-denied-listing");
     let repository: PathBuf = root.join("repository");
     let git_dir: PathBuf = repository.join(".git");
-    std::fs::create_dir_all(repository.as_path()).expect("the directory the repository would be in");
+    std::fs::create_dir_all(repository.as_path())
+        .expect("the directory the repository would be in");
     // Search without read: the Git directory can be looked for, and the entries of the directory it would be in cannot be listed.
-    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o100)).expect("the directory refuses the listing");
+    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o100))
+        .expect("the directory refuses the listing");
     assert_eq!(
         prove(git_dir.as_path(), None, &NothingIsMounted),
-        Proof::MayReturn(super::MayReturn { nearest: repository.clone() }),
+        Proof::MayReturn(super::MayReturn {
+            nearest: repository.clone()
+        }),
         "a directory whose entries were refused is not proven to hold the other entries of a deleted repository"
     );
-    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the directory is listable again");
+    std::fs::set_permissions(repository.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("the directory is listable again");
     remove(root.as_path());
 }
 
@@ -205,8 +265,15 @@ fn the_root_of_a_mounted_filesystem_proves_the_repository_gone() {
     let root: PathBuf = fixture("unreachable-mounted-root");
     let git_dir: PathBuf = a_path_behind_an_unmounted_mount_point(root.as_path());
     assert_eq!(
-        prove(git_dir.as_path(), Some(root.join("drive/repository").as_path()), &EverythingIsMounted),
-        Proof::Gone(Gone { nearest: root.join("drive"), because: GoneBecause::MountedFilesystemRoot }),
+        prove(
+            git_dir.as_path(),
+            Some(root.join("drive/repository").as_path()),
+            &EverythingIsMounted
+        ),
+        Proof::Gone(Gone {
+            nearest: root.join("drive"),
+            because: GoneBecause::MountedFilesystemRoot
+        }),
         "a mounted filesystem's root is answering, so the rest was deleted from it"
     );
     remove(root.as_path());
@@ -225,13 +292,35 @@ fn the_line_names_the_path_the_proof_and_the_branches() {
     let root: PathBuf = fixture("unreachable-line");
     let (git_dir, worktree): (PathBuf, PathBuf) = a_deleted_repository(root.as_path());
     let _worktree: &Path = worktree.as_path();
-    let gone: Gone = Gone { nearest: root.join("work"), because: GoneBecause::OrdinaryDirectory };
-    let said: String = gone_line(git_dir.as_path(), &gone, &[String::from("refs/heads/main of 0123")]);
-    assert!(said.contains(git_dir.display().to_string().as_str()), "the path is named: {said}");
-    assert!(said.contains(root.join("work").display().to_string().as_str()), "the directory the proof looked at is named: {said}");
-    assert!(said.contains("is a directory that holds other entries"), "the proof is named: {said}");
-    assert!(said.contains("refs/heads/main of 0123"), "the branch and commit that lost their tries are named: {said}");
-    assert!(said.contains("ends without another try"), "and that no try follows: {said}");
+    let gone: Gone = Gone {
+        nearest: root.join("work"),
+        because: GoneBecause::OrdinaryDirectory,
+    };
+    let said: String = gone_line(
+        git_dir.as_path(),
+        &gone,
+        &[String::from("refs/heads/main of 0123")],
+    );
+    assert!(
+        said.contains(git_dir.display().to_string().as_str()),
+        "the path is named: {said}"
+    );
+    assert!(
+        said.contains(root.join("work").display().to_string().as_str()),
+        "the directory the proof looked at is named: {said}"
+    );
+    assert!(
+        said.contains("is a directory that holds other entries"),
+        "the proof is named: {said}"
+    );
+    assert!(
+        said.contains("refs/heads/main of 0123"),
+        "the branch and commit that lost their tries are named: {said}"
+    );
+    assert!(
+        said.contains("ends without another try"),
+        "and that no try follows: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -247,21 +336,30 @@ fn the_line_names_the_path_the_proof_and_the_branches() {
 fn a_deleted_repository_ends_its_plans() {
     let root: PathBuf = fixture("unreachable-drain-gone");
     let (git_dir, worktree): (PathBuf, PathBuf) = a_deleted_repository(root.as_path());
-    let drained: crate::service_work::Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
-        git_dir.as_path(),
-        &Quiet,
-        &ClaimTime::read(),
-        crate::service_work::CLAIM_LEASE,
-        Renewal::Timed,
-        &retrying_for(git_dir.as_path(), worktree.as_path()),
-        &SERVICE_KINDS,
-    ));
+    let drained: crate::service_work::Drained =
+        crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+            git_dir.as_path(),
+            &Quiet,
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            Renewal::Timed,
+            &retrying_for(git_dir.as_path(), worktree.as_path()),
+            &SERVICE_KINDS,
+        ));
     assert!(
-        !drained.changes.iter().any(|change| return matches!(change, RetryChange::Plan { .. })),
+        !drained
+            .changes
+            .iter()
+            .any(|change| return matches!(change, RetryChange::Plan { .. })),
         "no plan is kept for a repository that is gone: {:?}",
         drained.changes
     );
-    assert_eq!(drained.changes.len(), 1, "one change, and it drops the branch: {:?}", drained.changes);
+    assert_eq!(
+        drained.changes.len(),
+        1,
+        "one change, and it drops the branch: {:?}",
+        drained.changes
+    );
     assert!(
         matches!(&drained.changes[0], RetryChange::Forget { git_dir: named, branch_ref, .. } if named.as_path() == git_dir.as_path() && branch_ref == BRANCH),
         "the plan of the branch ends where it was kept: {:?}",
@@ -283,21 +381,30 @@ fn a_deleted_repository_ends_its_plans() {
 fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
     let root: PathBuf = fixture("unreachable-drain-kept");
     let git_dir: PathBuf = a_path_behind_an_unmounted_mount_point(root.as_path());
-    let drained: crate::service_work::Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
-        git_dir.as_path(),
-        &Quiet,
-        &ClaimTime::read(),
-        crate::service_work::CLAIM_LEASE,
-        Renewal::Timed,
-        &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
-        &SERVICE_KINDS,
-    ));
+    let drained: crate::service_work::Drained =
+        crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+            git_dir.as_path(),
+            &Quiet,
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            Renewal::Timed,
+            &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
+            &SERVICE_KINDS,
+        ));
     assert!(
-        !drained.changes.iter().any(|change| return matches!(change, RetryChange::Forget { .. })),
+        !drained
+            .changes
+            .iter()
+            .any(|change| return matches!(change, RetryChange::Forget { .. })),
         "nothing ends a plan for a directory that may return: {:?}",
         drained.changes
     );
-    assert_eq!(drained.changes.len(), 1, "one change, and it keeps the plan: {:?}", drained.changes);
+    assert_eq!(
+        drained.changes.len(),
+        1,
+        "one change, and it keeps the plan: {:?}",
+        drained.changes
+    );
     assert!(
         matches!(&drained.changes[0], RetryChange::Plan { git_dir: named, attempt, .. } if named.as_path() == git_dir.as_path() && *attempt == 5),
         "the plan keeps its branch with the next try: {:?}",
@@ -316,7 +423,10 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_real_mount_table_names_the_root() {
-    assert!(the_mounts().is_mount_point(Path::new("/")), "the root of the tree is a mount point");
+    assert!(
+        the_mounts().is_mount_point(Path::new("/")),
+        "the root of the tree is a mount point"
+    );
 }
 
 /// Environment variable that makes the control below run its inner half,
@@ -345,11 +455,22 @@ const MOUNT_SIDE: &str = "UNREACHABLE_GIT_DIR_TEST_MOUNT_SIDE";
 fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     if std::env::var_os(MOUNT_SIDE).is_none() {
         let probe: std::process::Output = std::process::Command::new("unshare")
-            .args(["--user", "--map-root-user", "--mount", "--propagation", "private", "--", "mount", "--version"])
+            .args([
+                "--user",
+                "--map-root-user",
+                "--mount",
+                "--propagation",
+                "private",
+                "--",
+                "mount",
+                "--version",
+            ])
             .output()
             .expect("unshare runs");
         if !probe.status.success() {
-            eprintln!("skipped: this host lets no unprivileged process mount in a namespace of its own, so no table changes here");
+            eprintln!(
+                "skipped: this host lets no unprivileged process mount in a namespace of its own, so no table changes here"
+            );
             return;
         }
         // The inner half is this test binary in a mount namespace of its own, and its pass is this control's assertion.
@@ -359,7 +480,13 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
             environment: environment.as_slice(),
             running_program: Some(crate::child_test_process::ProgramRunningTheTest {
                 program: "unshare",
-                arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+                arguments_before_the_test_binary: &[
+                    "--user",
+                    "--map-root-user",
+                    "--mount",
+                    "--propagation",
+                    "private",
+                ],
             }),
             ..crate::child_test_process::ChildTest::default()
         });
@@ -373,7 +500,9 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     // The drive is not mounted and its mount point holds nothing, so a repository may still arrive with it.
     assert_eq!(
         prove(git_dir.as_path(), None, &the_mounts()),
-        Proof::MayReturn(super::MayReturn { nearest: drive.clone() }),
+        Proof::MayReturn(super::MayReturn {
+            nearest: drive.clone()
+        }),
         "an empty directory that no filesystem is mounted on may still receive the repository"
     );
     let mounted: MountedTmpfs = MountedTmpfs::at(drive.as_path());
@@ -382,7 +511,10 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
     assert_eq!(
         prove(git_dir.as_path(), None, &the_mounts()),
-        Proof::Gone(Gone { nearest: drive.clone(), because: GoneBecause::MountedFilesystemRoot }),
+        Proof::Gone(Gone {
+            nearest: drive.clone(),
+            because: GoneBecause::MountedFilesystemRoot
+        }),
         "the table is read again, so the mounted root that is answering proves the repository gone"
     );
     assert!(
@@ -407,21 +539,30 @@ impl MountedTmpfs {
     /// Mount a tmpfs on `path`,
     /// which this process may only do as root in a mount namespace of its own.
     fn at(path: &Path) -> Self {
-        let mounted: std::process::Output = std::process::Command::new("mount").args(["-t", "tmpfs", "tmpfs"]).arg(path).output().expect("the mount command runs");
+        let mounted: std::process::Output = std::process::Command::new("mount")
+            .args(["-t", "tmpfs", "tmpfs"])
+            .arg(path)
+            .output()
+            .expect("the mount command runs");
         assert!(
             mounted.status.success(),
             "a tmpfs is mounted at {}: {}",
             path.display(),
             String::from_utf8_lossy(mounted.stderr.as_slice())
         );
-        return Self { at: path.to_path_buf() };
+        return Self {
+            at: path.to_path_buf(),
+        };
     }
 }
 
 #[cfg(target_os = "linux")]
 impl Drop for MountedTmpfs {
     fn drop(&mut self) {
-        let _unmounted: std::io::Result<std::process::Output> = std::process::Command::new("umount").arg(self.at.as_path()).output();
+        let _unmounted: std::io::Result<std::process::Output> =
+            std::process::Command::new("umount")
+                .arg(self.at.as_path())
+                .output();
     }
 }
 
@@ -430,13 +571,22 @@ impl Drop for MountedTmpfs {
 struct Quiet;
 
 impl crate::service_work::WorkHandlers for Quiet {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         panic!("a drain of an unreachable directory runs nothing");
     }
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         panic!("a drain of an unreachable directory runs nothing");
     }
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         panic!("a drain of an unreachable directory runs nothing");
     }
 }
@@ -450,7 +600,10 @@ impl crate::service_work::WorkHandlers for Quiet {
 /// Why:
 ///   The proof is asked about the plans a drain already has,
 /// so the control states one exactly as a round that failed to push it did.
-fn retrying_for(git_dir: &Path, worktree: &Path) -> Retrying {
+fn retrying_for(
+    git_dir: &Path,
+    worktree: &Path,
+) -> Retrying {
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: worktree.to_path_buf(),
@@ -462,7 +615,15 @@ fn retrying_for(git_dir: &Path, worktree: &Path) -> Retrying {
         tries: 3,
         transport: false,
     };
-    return Retrying { first: Some(FIRST_PAUSE), due: vec![crate::push_retry::Due { git_dir: git_dir.to_path_buf(), item, attempt: 4 }], plans: None };
+    return Retrying {
+        first: Some(FIRST_PAUSE),
+        due: vec![crate::push_retry::Due {
+            git_dir: git_dir.to_path_buf(),
+            item,
+            attempt: 4,
+        }],
+        plans: None,
+    };
 }
 
 /// What:
@@ -479,10 +640,17 @@ fn a_git_directory_that_moved_away_from_its_worktree_may_return() {
     let worktree: PathBuf = root.join("worktree");
     let git_dir: PathBuf = worktree.join(".git");
     std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
-    std::fs::rename(git_dir.as_path(), root.join("git-dir-away").as_path()).expect("the Git directory goes away");
+    std::fs::rename(git_dir.as_path(), root.join("git-dir-away").as_path())
+        .expect("the Git directory goes away");
     assert_eq!(
-        prove(git_dir.as_path(), Some(worktree.as_path()), &NothingIsMounted),
-        Proof::MayReturn(super::MayReturn { nearest: worktree.clone() }),
+        prove(
+            git_dir.as_path(),
+            Some(worktree.as_path()),
+            &NothingIsMounted
+        ),
+        Proof::MayReturn(super::MayReturn {
+            nearest: worktree.clone()
+        }),
         "the worktree is still there, so the repository was not deleted"
     );
     remove(root.as_path());
@@ -512,28 +680,43 @@ fn a_repository_renamed_back_before_the_change_lands_keeps_its_plans() {
     std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
     let plans: PathBuf = root.join("plans");
     std::fs::create_dir_all(plans.as_path()).expect("the plan directory");
-    let mut retries: crate::push_retry::PushRetries = crate::push_retry::PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    let mut retries: crate::push_retry::PushRetries =
+        crate::push_retry::PushRetries::restored(FIRST_PAUSE, plans.as_path());
     let stored: Retrying = retrying_for(git_dir.as_path(), repository.as_path());
     for due in &stored.due {
-        let _pause: Duration = retries.schedule(git_dir.as_path(), &due.item, 1, std::time::Instant::now());
+        let _pause: Duration =
+            retries.schedule(git_dir.as_path(), &due.item, 1, std::time::Instant::now());
     }
     // The round of the service's work takes the due plan out of the schedule before it drains the directory, and hands the plan
     //  to the worker; the plan the drain ends is therefore this one, and it is the one the repository's return must keep
     //  (`service_work_run_round.rs`, `plan_the_round`).
-    let taken: Vec<crate::push_retry::Due> = retries.take_due(git_dir.as_path(), std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1));
-    assert_eq!(taken.len(), 1, "the due plan left the running service's schedule, as it does before a round's drain");
-    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: taken, plans: Some(plans.clone()) };
-
-    std::fs::rename(repository.as_path(), moved.as_path()).expect("the whole repository is renamed, not deleted");
-    let drained: crate::service_work::Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+    let taken: Vec<crate::push_retry::Due> = retries.take_due(
         git_dir.as_path(),
-        &Quiet,
-        &ClaimTime::read(),
-        crate::service_work::CLAIM_LEASE,
-        Renewal::Timed,
-        &retrying,
-        &SERVICE_KINDS,
-    ));
+        std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1),
+    );
+    assert_eq!(
+        taken.len(),
+        1,
+        "the due plan left the running service's schedule, as it does before a round's drain"
+    );
+    let retrying: Retrying = Retrying {
+        first: Some(FIRST_PAUSE),
+        due: taken,
+        plans: Some(plans.clone()),
+    };
+
+    std::fs::rename(repository.as_path(), moved.as_path())
+        .expect("the whole repository is renamed, not deleted");
+    let drained: crate::service_work::Drained =
+        crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+            git_dir.as_path(),
+            &Quiet,
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            Renewal::Timed,
+            &retrying,
+            &SERVICE_KINDS,
+        ));
     assert!(
         matches!(&drained.changes[0], RetryChange::Forget { .. }),
         "the drain proves the path gone while the repository is away: {:?}",
@@ -544,10 +727,19 @@ fn a_repository_renamed_back_before_the_change_lands_keeps_its_plans() {
     retries.apply(drained.changes);
 
     assert!(
-        retries.next_wait(git_dir.as_path(), std::time::Instant::now()).is_some(),
+        retries
+            .next_wait(git_dir.as_path(), std::time::Instant::now())
+            .is_some(),
         "the running service still has a wait for the repository whose plan its drain ended on a reading that went stale"
     );
-    let due: Vec<crate::push_retry::Due> = retries.take_due(git_dir.as_path(), std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1));
-    assert_eq!(due.len(), 1, "the repository is back, so its one scheduled push stays");
+    let due: Vec<crate::push_retry::Due> = retries.take_due(
+        git_dir.as_path(),
+        std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1),
+    );
+    assert_eq!(
+        due.len(),
+        1,
+        "the repository is back, so its one scheduled push stays"
+    );
     remove(root.as_path());
 }

@@ -21,7 +21,15 @@
 //! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(EXIT_NO_WORKER); }
 //! ```
 
-use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, flavor_words, runtime_build, spawn_on_runtime_within, the_worker_answers};
+use crate::lazy_runtime::{
+    BUILD_DEADLINE,
+    BuiltFlavor,
+    RuntimeBuild,
+    flavor_words,
+    runtime_build,
+    spawn_on_runtime_within,
+    the_worker_answers,
+};
 use crate::wait_ceilings::RUNTIME_BUILD_PATIENCE;
 
 /// The exit status of a service that has no worker thread to run a task it cannot serve without:
@@ -76,7 +84,9 @@ fn stand_in_words(build: RuntimeBuild) -> Option<String> {
 /// ```
 pub(crate) fn say_how_the_runtime_was_built() {
     let Some(build) = runtime_build() else { return };
-    let Some(line) = stand_in_words(build) else { return };
+    let Some(line) = stand_in_words(build) else {
+        return;
+    };
     crate::service_warn!("{line}");
 }
 
@@ -119,7 +129,10 @@ fn waiting_words(what: &str) -> String {
 /// ```ts
 /// const task = startWhatTheServiceCannotServeWithout('the acceptor of connections', acceptConnections(listener, shared));
 /// ```
-pub(crate) fn start_what_the_service_cannot_serve_without<F>(what: &str, future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+pub(crate) fn start_what_the_service_cannot_serve_without<F>(
+    what: &str,
+    future: F,
+) -> Option<tokio::task::JoinHandle<F::Output>>
 where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
@@ -148,7 +161,11 @@ where
 /// ```
 pub(crate) fn no_worker_words(what: &str) -> String {
     let built: String = match runtime_build() {
-        Some(build) => format!("the runtime was built as {} in {} ms", flavor_words(build.flavor), build.spent.as_millis()),
+        Some(build) => format!(
+            "the runtime was built as {} in {} ms",
+            flavor_words(build.flavor),
+            build.spent.as_millis()
+        ),
         None => String::from("the runtime was never built"),
     };
     return format!(

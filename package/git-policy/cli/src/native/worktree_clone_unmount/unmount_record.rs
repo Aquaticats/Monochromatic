@@ -16,12 +16,27 @@
 //! ```
 
 use super::staged_folder_identity::StagedFolderIdentity;
-use super::staged_folder_record::{write_record, StagedFolderRecord};
-use super::staged_record_reading::{read_staged_record, BindingDecision, RecordReading};
-use super::unmount_turn::{call_refused, refused, UnmountOutcome, UnmountRequest};
+use super::staged_folder_record::{
+    StagedFolderRecord,
+    write_record,
+};
+use super::staged_record_reading::{
+    BindingDecision,
+    RecordReading,
+    read_staged_record,
+};
+use super::unmount_turn::{
+    UnmountOutcome,
+    UnmountRequest,
+    call_refused,
+    refused,
+};
 use std::os::unix::fs::MetadataExt;
 
-#[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
+#[allow(
+    clippy::result_large_err,
+    reason = "the outcome carries the mount row and the step a person acts on"
+)]
 /// What:
 ///  The shape a staging folder must have before the record is written and the bind is made:
 ///  owned by the account whose cache holds it,
@@ -36,50 +51,110 @@ use std::os::unix::fs::MetadataExt;
 /// ```ts
 /// checkTheFoldersShape(request, staging, name);
 /// ```
-pub(super) fn check_the_folders_shape(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
+pub(super) fn check_the_folders_shape(
+    request: &UnmountRequest<'_>,
+    staging: &std::fs::File,
+    name: &str,
+) -> Result<(), UnmountOutcome> {
     let folder_facts: std::fs::Metadata = match staging.metadata() {
         Ok(facts) => facts,
-        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be read: {error}"))),
+        Err(error) => {
+            return Err(refused(
+                "staging-folder",
+                format!("the staging folder {name} could not be read: {error}"),
+            ));
+        }
     };
     let cache_facts: std::fs::Metadata = match request.cache.metadata() {
         Ok(facts) => facts,
-        Err(error) => return Err(refused("staging-folder", format!("the cache folder could not be read: {error}"))),
+        Err(error) => {
+            return Err(refused(
+                "staging-folder",
+                format!("the cache folder could not be read: {error}"),
+            ));
+        }
     };
     let entry_count: usize = match crate::entries_of_one_open_folder::entry_names(staging) {
         Ok(names) => names.len(),
-        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be listed: {error}"))),
+        Err(error) => {
+            return Err(refused(
+                "staging-folder",
+                format!("the staging folder {name} could not be listed: {error}"),
+            ));
+        }
     };
     if folder_facts.uid() != cache_facts.uid() {
-        return Err(refused("staging-folder", format!("the staging folder {name} is owned by {}, and the account's cache by {}", folder_facts.uid(), cache_facts.uid())));
+        return Err(refused(
+            "staging-folder",
+            format!(
+                "the staging folder {name} is owned by {}, and the account's cache by {}",
+                folder_facts.uid(),
+                cache_facts.uid()
+            ),
+        ));
     }
     if folder_facts.mode() & 0o7777 != 0o700 {
-        return Err(refused("staging-folder", format!("the staging folder {name} has mode {:04o}, and the route records 0700", folder_facts.mode() & 0o7777)));
+        return Err(refused(
+            "staging-folder",
+            format!(
+                "the staging folder {name} has mode {:04o}, and the route records 0700",
+                folder_facts.mode() & 0o7777
+            ),
+        ));
     }
     if entry_count != 0 {
-        return Err(refused("staging-folder", format!("the staging folder {name} holds {entry_count} entries, and a staging folder is empty before its bind")));
+        return Err(refused(
+            "staging-folder",
+            format!(
+                "the staging folder {name} holds {entry_count} entries, and a staging folder is empty before its bind"
+            ),
+        ));
     }
     return Ok(());
 }
 
-#[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
-pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
-    let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
+#[allow(
+    clippy::result_large_err,
+    reason = "the outcome carries the mount row and the step a person acts on"
+)]
+pub(super) fn record_the_bind(
+    request: &UnmountRequest<'_>,
+    staging: &std::fs::File,
+    name: &str,
+) -> Result<(), UnmountOutcome> {
+    let reading: RecordReading = read_staged_record(
+        request.cache,
+        request.expected.guid,
+        request.boot,
+        request.cache_path.join(name).as_path(),
+        request.calls,
+    );
     let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
         Ok(identity) => identity,
         Err(refusal) => return Err(refused("staged-record", refusal.message())),
     };
-    if let RecordReading::Current { record, .. } = &reading {
+    if let RecordReading::Current {
+        record,
+        ..
+    } = &reading
+    {
         let moved = identity.differences(&record.identity);
         if !moved.is_empty() {
             return Err(refused(
                 "staged-record",
-                format!("the folder the record describes differs from the folder this invocation opened in the {}, so the record is kept and the bind refused", StagedFolderIdentity::field_names(moved.as_slice())),
+                format!(
+                    "the folder the record describes differs from the folder this invocation opened in the {}, so the record is kept and the bind refused",
+                    StagedFolderIdentity::field_names(moved.as_slice())
+                ),
             ));
         }
     }
     if BindingDecision::of(&reading) == BindingDecision::Refuse {
         let said: String = match reading {
-            RecordReading::Refused { step, said } => format!("the staged record refused at its {step} step: {said}"),
+            RecordReading::Refused {
+                step,
+                said,
+            } => format!("the staged record refused at its {step} step: {said}"),
             _ => String::from("the staged record refused"),
         };
         return Err(refused("staged-record", said));
@@ -104,5 +179,6 @@ pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::F
         namespace_inode,
         boot: String::from(request.boot),
     };
-    return write_record(request.cache, &record).map_err(|refusal| return refused("staged-record", refusal.message()));
+    return write_record(request.cache, &record)
+        .map_err(|refusal| return refused("staged-record", refusal.message()));
 }

@@ -21,7 +21,11 @@
 //! unshareUserNamespace(); writeAll(openForWrite(setgroups), 'deny'); mountTmpfs(scratch, options);
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure, failed};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    failed,
+};
 use std::ffi::CStr;
 use std::os::fd::RawFd;
 
@@ -61,7 +65,11 @@ pub fn exit_now(status: i32) -> ! {
 /// The call refused.
 pub fn set_process_group(pid: libc::pid_t) -> Result<(), Failure> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
-    return if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
+    return if unsafe { libc::setpgid(pid, pid) } == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Fork))
+    };
 }
 
 /// What:
@@ -75,7 +83,11 @@ pub fn set_process_group(pid: libc::pid_t) -> Result<(), Failure> {
 /// The call refused.
 pub fn parent_death_signal() -> Result<(), Failure> {
     // SAFETY: `prctl` reads its four words and writes nothing of ours.
-    return if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
+    return if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) } == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Fork))
+    };
 }
 
 /// The process that started this one.
@@ -90,7 +102,10 @@ pub fn parent_id() -> libc::pid_t {
 ///
 /// # Errors
 /// The call refused.
-pub fn move_descriptor(from: RawFd, to: RawFd) -> Result<(), Failure> {
+pub fn move_descriptor(
+    from: RawFd,
+    to: RawFd,
+) -> Result<(), Failure> {
     // SAFETY: `dup2` reads two descriptor numbers and touches no memory of ours.
     if unsafe { libc::dup2(from, to) } < 0 {
         return Err(failed(CompanionCall::Pipe));
@@ -109,9 +124,16 @@ pub fn move_descriptor(from: RawFd, to: RawFd) -> Result<(), Failure> {
 ///
 /// # Errors
 /// The call refused.
-pub fn close_range(first: u32, last: u32) -> Result<(), Failure> {
+pub fn close_range(
+    first: u32,
+    last: u32,
+) -> Result<(), Failure> {
     // SAFETY: `close_range` closes descriptors this process holds and touches no memory of ours.
-    return if unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
+    return if unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Fork))
+    };
 }
 
 /// What:
@@ -120,10 +142,18 @@ pub fn close_range(first: u32, last: u32) -> Result<(), Failure> {
 ///
 /// # Errors
 /// The call refused.
-pub fn open_for_write(path: &CStr, call: CompanionCall) -> Result<RawFd, Failure> {
+pub fn open_for_write(
+    path: &CStr,
+    call: CompanionCall,
+) -> Result<RawFd, Failure> {
     // SAFETY: the path is the caller's and outlives the call; the answer is owned once.
-    let opened: libc::c_int = unsafe { libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC) };
-    return if opened < 0 { Err(failed(call)) } else { Ok(opened) };
+    let opened: libc::c_int =
+        unsafe { libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC) };
+    return if opened < 0 {
+        Err(failed(call))
+    } else {
+        Ok(opened)
+    };
 }
 
 /// What:
@@ -134,11 +164,21 @@ pub fn open_for_write(path: &CStr, call: CompanionCall) -> Result<RawFd, Failure
 ///
 /// # Errors
 /// The call refused.
-pub fn write_all(descriptor: RawFd, bytes: &[u8], call: CompanionCall) -> Result<(), Failure> {
+pub fn write_all(
+    descriptor: RawFd,
+    bytes: &[u8],
+    call: CompanionCall,
+) -> Result<(), Failure> {
     let mut written: usize = 0;
     while written < bytes.len() {
         // SAFETY: the buffer holds the room the call is given, from the offset it is written at.
-        let put: libc::ssize_t = unsafe { libc::write(descriptor, bytes.as_ptr().add(written).cast::<libc::c_void>(), bytes.len() - written) };
+        let put: libc::ssize_t = unsafe {
+            libc::write(
+                descriptor,
+                bytes.as_ptr().add(written).cast::<libc::c_void>(),
+                bytes.len() - written,
+            )
+        };
         if put <= 0 {
             return Err(failed(call));
         }
@@ -162,7 +202,11 @@ pub fn close(descriptor: RawFd) {
 /// The call refused.
 pub fn unshare_user_namespace() -> Result<(), Failure> {
     // SAFETY: `unshare` reads the one flag word and touches no memory of ours.
-    return if unsafe { libc::unshare(libc::CLONE_NEWUSER) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareUserNamespace)) };
+    return if unsafe { libc::unshare(libc::CLONE_NEWUSER) } == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::UnshareUserNamespace))
+    };
 }
 
 /// What:
@@ -174,7 +218,11 @@ pub fn unshare_user_namespace() -> Result<(), Failure> {
 /// The call refused.
 pub fn unshare_mount_namespace() -> Result<(), Failure> {
     // SAFETY: `unshare` reads the one flag word and touches no memory of ours.
-    return if unsafe { libc::unshare(libc::CLONE_NEWNS) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareMountNamespace)) };
+    return if unsafe { libc::unshare(libc::CLONE_NEWNS) } == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::UnshareMountNamespace))
+    };
 }
 
 /// What:
@@ -185,7 +233,11 @@ pub fn unshare_mount_namespace() -> Result<(), Failure> {
 pub fn make_directory(path: &CStr) -> Result<(), Failure> {
     // SAFETY: the path is the caller's and outlives the call.
     let made: libc::c_int = unsafe { libc::mkdir(path.as_ptr(), 0o700) };
-    return if made == 0 { Ok(()) } else { Err(failed(CompanionCall::Mkdir)) };
+    return if made == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Mkdir))
+    };
 }
 
 /// What:
@@ -193,10 +245,18 @@ pub fn make_directory(path: &CStr) -> Result<(), Failure> {
 ///
 /// # Errors
 /// The call refused.
-pub fn make_symlink(target: &CStr, directory: RawFd, name: &CStr) -> Result<(), Failure> {
+pub fn make_symlink(
+    target: &CStr,
+    directory: RawFd,
+    name: &CStr,
+) -> Result<(), Failure> {
     // SAFETY: both names are the caller's and outlive the call.
     let made: libc::c_int = unsafe { libc::symlinkat(target.as_ptr(), directory, name.as_ptr()) };
-    return if made == 0 { Ok(()) } else { Err(failed(CompanionCall::Symlinkat)) };
+    return if made == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Symlinkat))
+    };
 }
 
 /// What:
@@ -204,10 +264,19 @@ pub fn make_symlink(target: &CStr, directory: RawFd, name: &CStr) -> Result<(), 
 ///
 /// # Errors
 /// The call refused.
-pub fn rename_within(directory: RawFd, from: &CStr, to: &CStr) -> Result<(), Failure> {
+pub fn rename_within(
+    directory: RawFd,
+    from: &CStr,
+    to: &CStr,
+) -> Result<(), Failure> {
     // SAFETY: both names are the caller's and outlive the call, and neither link is followed.
-    let moved: libc::c_int = unsafe { libc::renameat(directory, from.as_ptr(), directory, to.as_ptr()) };
-    return if moved == 0 { Ok(()) } else { Err(failed(CompanionCall::Renameat)) };
+    let moved: libc::c_int =
+        unsafe { libc::renameat(directory, from.as_ptr(), directory, to.as_ptr()) };
+    return if moved == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Renameat))
+    };
 }
 
 /// What:
@@ -223,7 +292,15 @@ pub fn identity_of(descriptor: RawFd) -> Result<Identity, Failure> {
     // SAFETY: an all-zero `statx` is a valid value for the call to fill.
     let mut found: libc::statx = unsafe { std::mem::zeroed() };
     // SAFETY: the descriptor is the caller's, the empty name names it, and `found` is a live `statx`.
-    let answered: libc::c_int = unsafe { libc::statx(descriptor, c"".as_ptr(), libc::AT_EMPTY_PATH, libc::STATX_BASIC_STATS | libc::STATX_BTIME, &mut found) };
+    let answered: libc::c_int = unsafe {
+        libc::statx(
+            descriptor,
+            c"".as_ptr(),
+            libc::AT_EMPTY_PATH,
+            libc::STATX_BASIC_STATS | libc::STATX_BTIME,
+            &mut found,
+        )
+    };
     if answered < 0 {
         return Err(failed(CompanionCall::Statx));
     }
@@ -233,5 +310,9 @@ pub fn identity_of(descriptor: RawFd) -> Result<Identity, Failure> {
         let _ = &found;
         Some((found.stx_btime.tv_sec, found.stx_btime.tv_nsec))
     };
-    return Ok(Identity { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino, birth });
+    return Ok(Identity {
+        device: libc::makedev(found.stx_dev_major, found.stx_dev_minor),
+        inode: found.stx_ino,
+        birth,
+    });
 }

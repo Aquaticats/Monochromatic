@@ -44,10 +44,16 @@
 //! expect(linesThatStartAtLogin(unitText)).toEqual([]); expect(created(afterProvisioning)).toAllBeBelow(runtimeDir);
 //! ```
 
-use super::tests::{Machine, Recorder, add_socket, earlier_service_files, machine};
-use crate::service_instance::program_link;
+use super::tests::{
+    Machine,
+    Recorder,
+    add_socket,
+    earlier_service_files,
+    machine,
+};
 use super::*;
 use crate::no_start_at_login_tests::lines_that_start_at_login;
+use crate::service_instance::program_link;
 use crate::test_support::remove;
 use std::collections::BTreeMap;
 
@@ -57,18 +63,30 @@ use std::collections::BTreeMap;
 #[test]
 fn the_unit_texts_the_wrapper_writes_carry_no_install_line() {
     let machine: Machine = machine("never-login-texts-lib");
-    let mut texts: Vec<(String, String)> = vec![(String::from("SOCKET_UNIT"), SOCKET_UNIT.to_string()), (String::from("SERVICE_UNIT"), SERVICE_UNIT.to_string())];
+    let mut texts: Vec<(String, String)> = vec![
+        (String::from("SOCKET_UNIT"), SOCKET_UNIT.to_string()),
+        (String::from("SERVICE_UNIT"), SERVICE_UNIT.to_string()),
+    ];
     for (name, text) in unit_texts(&machine.host) {
         texts.push((name.to_string(), text));
     }
     for (name, text) in texts {
-        assert_eq!(lines_that_start_at_login(text.as_str()), Vec::<String>::new(), "{name} would start at startup or login:\n{text}");
+        assert_eq!(
+            lines_that_start_at_login(text.as_str()),
+            Vec::<String>::new(),
+            "{name} would start at startup or login:\n{text}"
+        );
     }
     let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     for name in [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME] {
-        let written: String = std::fs::read_to_string(directory.join(name)).expect("the written unit");
-        assert_eq!(lines_that_start_at_login(written.as_str()), Vec::<String>::new(), "{name} as written");
+        let written: String =
+            std::fs::read_to_string(directory.join(name)).expect("the written unit");
+        assert_eq!(
+            lines_that_start_at_login(written.as_str()),
+            Vec::<String>::new(),
+            "{name} as written"
+        );
     }
     remove(machine.root.as_path());
 }
@@ -92,17 +110,25 @@ fn entries_below(root: &Path) -> BTreeMap<PathBuf, Entry> {
     let mut found: BTreeMap<PathBuf, Entry> = BTreeMap::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        let Ok(listing) = std::fs::read_dir(&directory) else { continue };
+        let Ok(listing) = std::fs::read_dir(&directory) else {
+            continue;
+        };
         for entry in listing.flatten() {
             let path: PathBuf = entry.path();
             let meta = std::fs::symlink_metadata(&path).expect("metadata");
             if meta.file_type().is_symlink() {
-                found.insert(path.clone(), Entry::Link(std::fs::read_link(&path).expect("link target")));
+                found.insert(
+                    path.clone(),
+                    Entry::Link(std::fs::read_link(&path).expect("link target")),
+                );
             } else if meta.is_dir() {
                 found.insert(path.clone(), Entry::Directory);
                 pending.push(path);
             } else {
-                found.insert(path.clone(), Entry::File(std::fs::read(&path).unwrap_or_default()));
+                found.insert(
+                    path.clone(),
+                    Entry::File(std::fs::read(&path).unwrap_or_default()),
+                );
             }
         }
     }
@@ -115,12 +141,23 @@ fn entries_below(root: &Path) -> BTreeMap<PathBuf, Entry> {
 ///  directory with the enabling link an earlier release made,
 /// and the same units in the runtime directory.
 fn plant_earlier_releases(machine: &Machine) {
-    let user: PathBuf = machine.host.user_unit_dir.clone().expect("a user unit directory");
+    let user: PathBuf = machine
+        .host
+        .user_unit_dir
+        .clone()
+        .expect("a user unit directory");
     earlier_service_files(machine, user.as_path());
-    earlier_service_files(machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let wants: PathBuf = user.join("sockets.target.wants");
     std::fs::create_dir_all(&wants).expect("wants folder");
-    std::os::unix::fs::symlink(user.join(LEGACY_SOCKET_UNIT_NAME), wants.join(LEGACY_SOCKET_UNIT_NAME)).expect("the earlier enabling link");
+    std::os::unix::fs::symlink(
+        user.join(LEGACY_SOCKET_UNIT_NAME),
+        wants.join(LEGACY_SOCKET_UNIT_NAME),
+    )
+    .expect("the earlier enabling link");
 }
 
 /// The runs a guard looks at:
@@ -132,9 +169,23 @@ fn plant_earlier_releases(machine: &Machine) {
 /// Each gives the machine,
 /// the entries before and after,
 /// and the manager's calls.
-fn runs() -> Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, Vec<String>)> {
-    let mut all: Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, Vec<String>)> = Vec::new();
-    for (name, plant, twice) in [("never-login-fresh-lib", false, false), ("never-login-second-lib", false, true), ("never-login-earlier-lib", true, false)] {
+fn runs() -> Vec<(
+    Machine,
+    BTreeMap<PathBuf, Entry>,
+    BTreeMap<PathBuf, Entry>,
+    Vec<String>,
+)> {
+    let mut all: Vec<(
+        Machine,
+        BTreeMap<PathBuf, Entry>,
+        BTreeMap<PathBuf, Entry>,
+        Vec<String>,
+    )> = Vec::new();
+    for (name, plant, twice) in [
+        ("never-login-fresh-lib", false, false),
+        ("never-login-second-lib", false, true),
+        ("never-login-earlier-lib", true, false),
+    ] {
         let machine: Machine = machine(name);
         std::fs::create_dir_all(&machine.root).expect("root");
         if plant {
@@ -177,7 +228,11 @@ fn runs() -> Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, V
 fn provisioning_writes_only_in_the_runtime_directory_and_links_nothing_that_starts_a_unit() {
     for (machine, before, after, _calls) in runs() {
         let runtime_units: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
-        let user_units: PathBuf = machine.host.user_unit_dir.clone().expect("a user unit directory");
+        let user_units: PathBuf = machine
+            .host
+            .user_unit_dir
+            .clone()
+            .expect("a user unit directory");
         for (path, entry) in &after {
             let changed: bool = before.get(path) != Some(entry);
             if !changed {
@@ -185,25 +240,55 @@ fn provisioning_writes_only_in_the_runtime_directory_and_links_nothing_that_star
             }
             let ancestors_of_runtime_units: bool = runtime_units.starts_with(path);
             assert!(
-                path.starts_with(&runtime_units) || ancestors_of_runtime_units || path.starts_with(machine.host.runtime_dir.as_path()),
+                path.starts_with(&runtime_units)
+                    || ancestors_of_runtime_units
+                    || path.starts_with(machine.host.runtime_dir.as_path()),
                 "{} was created or changed outside {}",
                 path.display(),
                 machine.host.runtime_dir.display()
             );
-            let name: String = path.file_name().map(|text| { return text.to_string_lossy().into_owned(); }).unwrap_or_default();
-            assert!(!name.ends_with(".wants") && !name.ends_with(".requires"), "{} is an enabling folder", path.display());
+            let name: String = path
+                .file_name()
+                .map(|text| {
+                    return text.to_string_lossy().into_owned();
+                })
+                .unwrap_or_default();
+            assert!(
+                !name.ends_with(".wants") && !name.ends_with(".requires"),
+                "{} is an enabling folder",
+                path.display()
+            );
             if let Entry::Link(target) = entry {
                 // The one link is the program the service runs, directly in the runtime directory, naming the wrapper's own
                 //  executable: it starts nothing at login, and the manager never reads it.
-                assert_eq!(path, &program_link(machine.host.runtime_dir.as_path()), "{} is a link the wrapper does not make", path.display());
-                assert_eq!(target, &machine.host.service_binary, "{} does not name this release", path.display());
+                assert_eq!(
+                    path,
+                    &program_link(machine.host.runtime_dir.as_path()),
+                    "{} is a link the wrapper does not make",
+                    path.display()
+                );
+                assert_eq!(
+                    target,
+                    &machine.host.service_binary,
+                    "{} does not name this release",
+                    path.display()
+                );
                 continue;
             }
-            assert!(!path.starts_with(machine.host.runtime_dir.as_path()) || path.starts_with(&runtime_units), "{} is not the program link and lies outside the unit folder", path.display());
-        }
-        for path in before.keys().filter(|path| { return !after.contains_key(*path); }) {
             assert!(
-                path.starts_with(&user_units) || path.starts_with(&runtime_units) || path.starts_with(machine.host.runtime_dir.as_path()),
+                !path.starts_with(machine.host.runtime_dir.as_path())
+                    || path.starts_with(&runtime_units),
+                "{} is not the program link and lies outside the unit folder",
+                path.display()
+            );
+        }
+        for path in before.keys().filter(|path| {
+            return !after.contains_key(*path);
+        }) {
+            assert!(
+                path.starts_with(&user_units)
+                    || path.starts_with(&runtime_units)
+                    || path.starts_with(machine.host.runtime_dir.as_path()),
                 "{} was removed from outside the unit directories",
                 path.display()
             );
@@ -213,8 +298,13 @@ fn provisioning_writes_only_in_the_runtime_directory_and_links_nothing_that_star
 }
 
 /// Whether a `*.wants` link of the units is under the user's own unit directory in `entries`.
-fn path_in_user_units(entries: &BTreeMap<PathBuf, Entry>, user_units: &Path) -> bool {
-    return entries.keys().any(|path| { return path.starts_with(user_units) && path.to_string_lossy().contains(".wants/"); });
+fn path_in_user_units(
+    entries: &BTreeMap<PathBuf, Entry>,
+    user_units: &Path,
+) -> bool {
+    return entries.keys().any(|path| {
+        return path.starts_with(user_units) && path.to_string_lossy().contains(".wants/");
+    });
 }
 
 /// The earlier release's enabling link is removed with its unit,
@@ -227,7 +317,11 @@ fn an_earlier_releases_enabling_link_is_removed() {
     plant_earlier_releases(&machine);
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     let after: BTreeMap<PathBuf, Entry> = entries_below(machine.root.as_path());
-    let user_units: PathBuf = machine.host.user_unit_dir.clone().expect("a user unit directory");
+    let user_units: PathBuf = machine
+        .host
+        .user_unit_dir
+        .clone()
+        .expect("a user unit directory");
     assert!(!path_in_user_units(&after, &user_units), "{after:?}");
     remove(machine.root.as_path());
 }
@@ -244,7 +338,14 @@ fn an_earlier_releases_enabling_link_is_removed() {
 /// and no call makes the manager read every unit it holds.
 #[test]
 fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit_and_for_no_reload() {
-    let allowed: [&str; 6] = ["reset-failed", "start", "restart", "stop", "stop-alone", "state"];
+    let allowed: [&str; 6] = [
+        "reset-failed",
+        "start",
+        "restart",
+        "stop",
+        "stop-alone",
+        "state",
+    ];
     // What: The calls of every run, counted together.
     // Why:  A run that found everything as it would write it asks nothing at all, which is the fast path this release added;
     //       the list is still checked against the calls a run that does have work to do makes.
@@ -252,10 +353,16 @@ fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit_and_for_no_relo
     for (machine, _before, _after, calls) in runs() {
         for call in &calls {
             let verb: &str = call.split(' ').next().unwrap_or("");
-            assert!(allowed.contains(&verb), "{call}: not a call that provisioning may make");
+            assert!(
+                allowed.contains(&verb),
+                "{call}: not a call that provisioning may make"
+            );
         }
         asked += calls.len();
         remove(machine.root.as_path());
     }
-    assert!(asked > 0, "one of the runs asked the manager something, so the list is checked against real calls");
+    assert!(
+        asked > 0,
+        "one of the runs asked the manager something, so the list is checked against real calls"
+    );
 }

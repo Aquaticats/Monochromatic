@@ -31,31 +31,55 @@
 //! const output = await spawnWatchedOnTheRuntime(command, { waitingFor, ledgerStep, terms, stoppable, bound, aStopWaits });
 //! ```
 
-/// The watch of one child,
-/// its terms and the wording of its endings.
-use crate::child_watch::{ChildWatch, WatchTerms};
-/// The bound of a step and the errors of its endings.
-use crate::child_watch_step_bounds_and_errors::{NotKnown, Outlived, StepBound, ending_of_a_watched_step, not_known_text, output_of, refused_while_stopping};
-/// The captured output of a step that is never ended,
-/// in files that outlive the command.
-use crate::output_capture::Capture;
 /// The child the wrapper adopted and the pidfd its end is awaited through.
 use crate::child_awaited_through_a_pidfd::adopt;
+/// The watch of one child,
+/// its terms and the wording of its endings.
+use crate::child_watch::{
+    ChildWatch,
+    WatchTerms,
+};
+/// The bound of a step and the errors of its endings.
+use crate::child_watch_step_bounds_and_errors::{
+    NotKnown,
+    Outlived,
+    StepBound,
+    ending_of_a_watched_step,
+    not_known_text,
+    output_of,
+    refused_while_stopping,
+};
 /// Whether a task can run on this process's runtime at all,
 /// which is the question the rest of this run asks.
 use crate::lazy_runtime::tasks_can_run;
+/// The captured output of a step that is never ended,
+/// in files that outlive the command.
+use crate::output_capture::Capture;
 /// Starts that ride out a short shortage of processes,
 /// without holding the worker.
 use crate::start_retry::spawn_retrying_without_blocking;
 /// The pipes of a step that is ended at its ceiling,
 /// read to their end on the runtime.
-use crate::step_output_read_whole_through_pipes::{StepPipes, attach_pipes_awaiting, release_write_ends};
+use crate::step_output_read_whole_through_pipes::{
+    StepPipes,
+    attach_pipes_awaiting,
+    release_write_ends,
+};
+/// The count and the arm of the work the service's shutdown waits for.
+use crate::stop_of_the_service_noticed_by_its_children::{
+    StopArm,
+    Unfinished,
+    begin_unfinished_work,
+};
 /// The lock files a stopped step leaves.
 use crate::stopped_git_locks::LockLedger;
-/// The count and the arm of the work the service's shutdown waits for.
-use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 /// The child process types of the one-shot run.
-use std::process::{Child, Command, ExitStatus, Output};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Output,
+};
 /// A span of time,
 /// for the ceiling and the left-running wait.
 use std::time::Duration;
@@ -114,16 +138,21 @@ async fn output_of_a_step_left_running(
             )));
         }
         match tokio::time::timeout(limit, receiver).await {
-            Ok(Ok(status)) => return match status {
-                Ok(finished) => Ok(output_of(finished, captured)),
-                Err(error) => Err(error),
-            },
+            Ok(Ok(status)) => {
+                return match status {
+                    Ok(finished) => Ok(output_of(finished, captured)),
+                    Err(error) => Err(error),
+                };
+            }
             Ok(Err(_gone)) => {
                 return Err(std::io::Error::other(format!(
                     "{waiting_for} was started and the task waiting for it ended without its end: this is a defect of monochromatic-git-policy-cli"
                 )));
             }
-            Err(_elapsed) => Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra)))),
+            Err(_elapsed) => Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                NotKnown(not_known_text(waiting_for, after, extra)),
+            )),
         }
     } else {
         match tokio::time::timeout(limit, owned.wait()).await {
@@ -134,7 +163,10 @@ async fn output_of_a_step_left_running(
                 if let Some(unwaited) = owned.into_std_when_unreaped() {
                     crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(unwaited);
                 }
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    NotKnown(not_known_text(waiting_for, after, extra)),
+                ));
             }
         }
     };
@@ -178,7 +210,10 @@ pub async fn output_watched_within_for_a_stop_awaiting(
 ) -> std::io::Result<Output> {
     let ceiling: Option<Duration> = match bound {
         StepBound::EndAt(limit) => Some(limit),
-        StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
+        StepBound::LeaveRunning {
+            ..
+        }
+        | StepBound::Unbounded => None,
     };
     // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
     // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut. A step
@@ -186,7 +221,10 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     // made before the child starts, so a refusal starts nothing.
     let (captured, pipes): (Option<Capture>, Option<StepPipes>) = match bound {
         StepBound::EndAt(_) => (None, Some(attach_pipes_awaiting(command).await?)),
-        StepBound::LeaveRunning { .. } | StepBound::Unbounded => (Some(Capture::new()?), None),
+        StepBound::LeaveRunning {
+            ..
+        }
+        | StepBound::Unbounded => (Some(Capture::new()?), None),
     };
     if let Some(files) = captured.as_ref() {
         let (out, err) = files.stdio()?;
@@ -194,7 +232,10 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     }
     // The service's shutdown waits for this step and ends it when the service is stopped. A landing that is already unwinding after a stop
     //  may start the steps that undo what the stop cut (the side ref that keeps its commit); every other step begun after the stop is refused.
-    let mut unfinished: Unfinished = match begin_unfinished_work(crate::service_busy_step_record_on_this_thread::on_landing_thread(), waiting_for) {
+    let mut unfinished: Unfinished = match begin_unfinished_work(
+        crate::service_busy_step_record_on_this_thread::on_landing_thread(),
+        waiting_for,
+    ) {
         Ok(counted) => counted,
         Err(refusal) => return Err(refused_while_stopping(&refusal)),
     };
@@ -209,8 +250,14 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
-    let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
-    let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
+    let arm: Option<StopArm> = if a_stop_lets_it_finish {
+        None
+    } else {
+        unfinished.take_arm()
+    };
+    let started: ChildWatch =
+        ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm)
+            .kept_as(ledger_step);
     // A step that is not ended at a ceiling gives the watch none: a step that may not be run twice is only announced, and a
     //  command that stops waiting for one leaves it running.
     // `mut` lets the watch be closed here rather than dropped, which would wait for its task on this worker.
@@ -223,28 +270,47 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     }
     // A step the command stops waiting for and leaves running says so in every notice: the notice names that bound, not a wait
     //  that has none (`wait_progress.rs`, `child_wait_line`).
-    if let StepBound::LeaveRunning { after, extra } = bound {
+    if let StepBound::LeaveRunning {
+        after,
+        extra,
+    } = bound
+    {
         watch.stops_waiting_after(after.saturating_add(extra));
     }
     // Nothing here ends the step but this wait, unless a watch whose pin proves the process does: that watch ends it at the ceiling
     // and this wait is the backstop behind it, later by the ending such a watch needs. A step with no ceiling is waited for as before.
     let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
-        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.what_watches_the_step());
+        crate::step_output_read_whole_through_pipes::carried_for(
+            ceiling,
+            watch.what_watches_the_step(),
+        );
     watch.begin();
     // Whether the step was left running, so what it writes from here on is read by nobody.
     let mut left_running: bool = false;
     let output: std::io::Result<Output> = match bound {
-        StepBound::LeaveRunning { after, extra } => match output_of_a_step_left_running(child, captured.as_ref(), waiting_for, after, extra).await {
-            Ok(finished) => Ok(finished),
-            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                left_running = true;
-                Err(error)
+        StepBound::LeaveRunning {
+            after,
+            extra,
+        } => {
+            match output_of_a_step_left_running(child, captured.as_ref(), waiting_for, after, extra)
+                .await
+            {
+                Ok(finished) => Ok(finished),
+                Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+                    left_running = true;
+                    Err(error)
+                }
+                Err(error) => Err(error),
             }
-            Err(error) => Err(error),
-        },
+        }
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends_awaiting(child, waiting_for, carried).await,
-            None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
+            Some(open) => {
+                open.read_until_the_child_ends_awaiting(child, waiting_for, carried)
+                    .await
+            }
+            None => Err(std::io::Error::other(
+                "a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli",
+            )),
         },
         StepBound::Unbounded => {
             let mut waited_for = adopt(child);
@@ -256,9 +322,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     };
     watch.end();
     // Nobody will read what a step that was left running writes from here on, and it is held in memory until the step ends.
-    if left_running
-        && let Some(files) = captured.as_ref()
-    {
+    if left_running && let Some(files) = captured.as_ref() {
         files.discard();
     }
     // The stop ended the step: the caller is told so, whatever the step's own end looked like.

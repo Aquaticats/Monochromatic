@@ -91,12 +91,22 @@ pub enum PassResult {
 pub trait FixPasses {
     /// Run every policy against the current state;
     ///  `candidate_version` counts earlier changes.
-    fn run_pass(&mut self, candidate_version: usize) -> PassResult;
+    fn run_pass(
+        &mut self,
+        candidate_version: usize,
+    ) -> PassResult;
     /// Apply the last pass's corrections and store the new exact state under `snapshot`.
     /// Returns false when the corrections could not be applied.
-    fn apply(&mut self, snapshot: usize) -> bool;
+    fn apply(
+        &mut self,
+        snapshot: usize,
+    ) -> bool;
     /// Whether two stored states are equal byte for byte.
-    fn snapshots_equal(&mut self, left: usize, right: usize) -> bool;
+    fn snapshots_equal(
+        &mut self,
+        left: usize,
+        right: usize,
+    ) -> bool;
 }
 
 /// What:
@@ -147,7 +157,10 @@ pub enum Convergence {
 /// const earlier = visited.findIndex(state => equal(state, current));
 /// if (earlier === visited.length - 1) return settled; if (earlier !== -1) return cycle;
 /// ```
-fn repeated_state_ending(passes: &mut dyn FixPasses, snapshot: usize) -> Option<Convergence> {
+fn repeated_state_ending(
+    passes: &mut dyn FixPasses,
+    snapshot: usize,
+) -> Option<Convergence> {
     // `0..snapshot` counts every state stored before this one.
     for earlier in 0..snapshot {
         if passes.snapshots_equal(earlier, snapshot) {
@@ -184,7 +197,11 @@ pub fn converge(passes: &mut dyn FixPasses) -> Convergence {
     for changed_passes in 0..MAXIMUM_CHANGED_PASSES {
         // `match` picks one arm per variant; `{}` does nothing and goes on.
         match passes.run_pass(changed_passes) {
-            PassResult::Stable => return Convergence::Settled { changed_passes },
+            PassResult::Stable => {
+                return Convergence::Settled {
+                    changed_passes,
+                };
+            }
             PassResult::Failed => return Convergence::Blocked,
             PassResult::Proposed => {}
         }

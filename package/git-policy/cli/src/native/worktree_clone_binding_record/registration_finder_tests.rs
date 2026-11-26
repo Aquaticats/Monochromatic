@@ -3,7 +3,12 @@
 //!  the counters a stale registration makes,
 //!  and the names another slot's binding owns.
 
-use crate::worktree_clone_binding_record::registration_finder::{MOST_CANDIDATES, candidate_names, git_sanitized_name, owned_by_another_slot};
+use crate::worktree_clone_binding_record::registration_finder::{
+    MOST_CANDIDATES,
+    candidate_names,
+    git_sanitized_name,
+    owned_by_another_slot,
+};
 
 /// Git's sanitiser collapses `..`, replaces a leading dot and a forbidden byte,
 /// turns `@{`'s brace into `-`,
@@ -28,7 +33,10 @@ fn the_candidates_are_the_name_and_its_counters() {
     assert_eq!(names.len(), MOST_CANDIDATES);
     assert_eq!(names[0], "topic");
     assert_eq!(names[1], "topic1");
-    assert_eq!(names[MOST_CANDIDATES - 1], format!("topic{}", MOST_CANDIDATES - 1));
+    assert_eq!(
+        names[MOST_CANDIDATES - 1],
+        format!("topic{}", MOST_CANDIDATES - 1)
+    );
     let numbered: Vec<String> = candidate_names("topic1");
     assert_eq!(numbered[0], "topic1");
     assert_eq!(numbered[1], "topic11");
@@ -41,6 +49,10 @@ fn another_slots_candidates_own_their_names() {
     let others: Vec<String> = vec![String::from("topic1")];
     assert!(owned_by_another_slot("topic1", "topic", others.as_slice()));
     assert!(!owned_by_another_slot("topic", "topic", others.as_slice()));
-    assert!(!owned_by_another_slot("topic1", "topic1", others.as_slice()));
+    assert!(!owned_by_another_slot(
+        "topic1",
+        "topic1",
+        others.as_slice()
+    ));
     assert!(!owned_by_another_slot("topic2", "topic", others.as_slice()));
 }

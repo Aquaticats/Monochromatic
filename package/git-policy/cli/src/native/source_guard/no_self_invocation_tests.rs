@@ -24,10 +24,18 @@ use std::path::Path;
 /// The forbidden texts and the justified exceptions.
 #[path = "no_self_invocation_rules_tests.rs"]
 mod rules;
-use rules::{ALLOWED, Allowed, RULES, Rule};
+use rules::{
+    ALLOWED,
+    Allowed,
+    RULES,
+    Rule,
+};
 
 use super::release_sources_in;
-use crate::source_scan_tests::{real_roots, source_root};
+use crate::source_scan_tests::{
+    real_roots,
+    source_root,
+};
 
 /// Filesystem-backed controls of this scan on nested layouts.
 #[path = "no_self_invocation_fixture_tests.rs"]
@@ -60,7 +68,10 @@ fn code_lines(source: &str) -> Vec<(usize, String)> {
 }
 
 /// Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
-fn findings_in(root: &Path, roots: &[crate::source_scan_tests::CrateRoot]) -> Result<Vec<Finding>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[crate::source_scan_tests::CrateRoot],
+) -> Result<Vec<Finding>, String> {
     let mut found: Vec<Finding> = Vec::new();
     for name in release_sources_in(root, roots)? {
         let text: String = std::fs::read_to_string(root.join(name.as_str()))
@@ -83,7 +94,10 @@ fn findings() -> Vec<Finding> {
 
 /// The findings no `allowed` entry excuses,
 /// each as a `file:line [rule] reason` text.
-fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
+fn unexplained(
+    found: &[Finding],
+    allowed: &[Allowed],
+) -> Vec<String> {
     return found
         .iter()
         .filter(|(file, rule, _)| {
@@ -107,7 +121,10 @@ fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
 
 /// The `allowed` entries no finding matches,
 /// each as a `file [rule]: why` text.
-fn stale(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
+fn stale(
+    found: &[Finding],
+    allowed: &[Allowed],
+) -> Vec<String> {
     return allowed
         .iter()
         .filter(|entry| {
@@ -139,7 +156,11 @@ fn the_release_code_never_starts_the_wrapper_or_writes_shell_text() {
 #[test]
 fn every_justified_exception_still_matches_code() {
     let stale: Vec<String> = stale(findings().as_slice(), ALLOWED);
-    assert!(stale.is_empty(), "remove these entries from ALLOWED, their code is gone:\n{}", stale.join("\n"));
+    assert!(
+        stale.is_empty(),
+        "remove these entries from ALLOWED, their code is gone:\n{}",
+        stale.join("\n")
+    );
 }
 
 /// The scan reads the release files,
@@ -147,7 +168,8 @@ fn every_justified_exception_still_matches_code() {
 #[test]
 fn the_scan_reads_the_release_sources_and_no_hook_command_is_defined() {
     let root = source_root();
-    let sources: Vec<String> = release_sources_in(&root, &real_roots()).expect("the crate's release sources");
+    let sources: Vec<String> =
+        release_sources_in(&root, &real_roots()).expect("the crate's release sources");
     assert!(sources.iter().any(|path| {
         return Path::new(path).ends_with("lfs_pre_push.rs");
     }));
@@ -175,9 +197,18 @@ fn each_rule_fires_on_its_own_forbidden_text() {
         ("argv0-dispatch", "let name = std::env::args_os().next();"),
         ("argv-vector-read", "use std::env::args_os as the_vector;"),
         ("shell-text", "let script = \"#!/bin/sh\\nexit 0\\n\";"),
-        ("hook-command", "format!(\"hook.x.command={exe} monochromatic-git-policy-cli sub\")"),
-        ("management-word", "Command::new(program).arg(\"monochromatic-git-policy-cli\").arg(\"x\")"),
-        ("spawn-own-executable", "Command::new(request.own_executable)"),
+        (
+            "hook-command",
+            "format!(\"hook.x.command={exe} monochromatic-git-policy-cli sub\")",
+        ),
+        (
+            "management-word",
+            "Command::new(program).arg(\"monochromatic-git-policy-cli\").arg(\"x\")",
+        ),
+        (
+            "spawn-own-executable",
+            "Command::new(request.own_executable)",
+        ),
     ];
     for (id, sample) in samples {
         let rule: &Rule = RULES
@@ -195,16 +226,51 @@ fn each_rule_fires_on_its_own_forbidden_text() {
 /// so a needle that grew too wide fails here before it fails the tree.
 #[test]
 fn each_added_needle_fires_on_its_own_witness_and_no_release_read() {
-    let dispatch: &Rule = RULES.iter().find(|rule| { return rule.id == "argv0-dispatch"; }).expect("argv0-dispatch");
-    let vector: &Rule = RULES.iter().find(|rule| { return rule.id == "argv-vector-read"; }).expect("argv-vector-read");
-    for witness in ["std::fs::read(\"/proc/self/cmdline\")", "std::fs::read_to_string(\"/proc/self/comm\")", "std::fs::read_to_string(\"/proc/thread-self/comm\")"] {
-        assert!((dispatch.matches)(witness), "argv0-dispatch does not fire on {witness}");
+    let dispatch: &Rule = RULES
+        .iter()
+        .find(|rule| {
+            return rule.id == "argv0-dispatch";
+        })
+        .expect("argv0-dispatch");
+    let vector: &Rule = RULES
+        .iter()
+        .find(|rule| {
+            return rule.id == "argv-vector-read";
+        })
+        .expect("argv-vector-read");
+    for witness in [
+        "std::fs::read(\"/proc/self/cmdline\")",
+        "std::fs::read_to_string(\"/proc/self/comm\")",
+        "std::fs::read_to_string(\"/proc/thread-self/comm\")",
+    ] {
+        assert!(
+            (dispatch.matches)(witness),
+            "argv0-dispatch does not fire on {witness}"
+        );
     }
-    for witness in ["use std::env::args_os as the_vector;", "let all = std::env::args().collect::<Vec<_>>();", "let name = e::args();", "use std::env::args as the_vector;"] {
-        assert!((vector.matches)(witness), "argv-vector-read does not fire on {witness}");
+    for witness in [
+        "use std::env::args_os as the_vector;",
+        "let all = std::env::args().collect::<Vec<_>>();",
+        "let name = e::args();",
+        "use std::env::args as the_vector;",
+    ] {
+        assert!(
+            (vector.matches)(witness),
+            "argv-vector-read does not fire on {witness}"
+        );
     }
-    for control in ["std::fs::read_to_string(\"/proc/self/stat\")", "std::fs::read_to_string(format!(\"/proc/self/task/{tid}/io\"))", "std::fs::read_to_string(format!(\"/proc/{pid}/comm\"))"] {
-        assert!(!(dispatch.matches)(control), "argv0-dispatch fires on {control}, which release code reads today");
+    for control in [
+        "std::fs::read_to_string(\"/proc/self/stat\")",
+        "std::fs::read_to_string(format!(\"/proc/self/task/{tid}/io\"))",
+        "std::fs::read_to_string(format!(\"/proc/{pid}/comm\"))",
+    ] {
+        assert!(
+            !(dispatch.matches)(control),
+            "argv0-dispatch fires on {control}, which release code reads today"
+        );
     }
-    assert!(!(vector.matches)("let taken = request.arguments.as_slice();"), "argv-vector-read fires only on the process's own vector, which every other file takes as a parameter");
+    assert!(
+        !(vector.matches)("let taken = request.arguments.as_slice();"),
+        "argv-vector-read fires only on the process's own vector, which every other file takes as a parameter"
+    );
 }

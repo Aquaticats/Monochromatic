@@ -21,6 +21,15 @@
 //! await writePrivateFile({ path, bytes }); await syncDirectory(dirname(path));
 //! ```
 
+/// Diagnostics for a decision no failure reports.
+use crate::diagnostic_log::debug;
+/// The in-memory claim that makes the checked rename one step to the other threads of the process.
+use crate::name_held_while_one_thread_publishes_it::{
+    HeldName,
+    hold_name_while_publishing,
+};
+/// Owned operating-system text for the staging name.
+use std::ffi::OsString;
 /// What:
 ///  `File` is an open file handle;
 ///  `OpenOptions` configures how one is opened.
@@ -31,19 +40,16 @@
 /// ```ts
 /// import { open, constants } from 'node:fs/promises';
 /// ```
-use std::fs::{File, OpenOptions};
+use std::fs::{
+    File,
+    OpenOptions,
+};
 /// The trait that gives files `.read_to_end` and `.take`.
 use std::io::Read;
 /// The trait that gives files `.write_all`.
 use std::io::Write;
-/// Owned operating-system text for the staging name.
-use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw bytes.
 use std::path::Path;
-/// Diagnostics for a decision no failure reports.
-use crate::diagnostic_log::debug;
-/// The in-memory claim that makes the checked rename one step to the other threads of the process.
-use crate::name_held_while_one_thread_publishes_it::{HeldName, hold_name_while_publishing};
 use std::time::Duration;
 
 /// How long the checked rename waits for another thread of this process that is publishing the same name:
@@ -172,7 +178,10 @@ fn open_exclusively(staged: &std::path::Path) -> std::io::Result<std::fs::File> 
 /// ```ts
 /// if (process.platform !== 'win32') await chmod(path, mode);
 /// ```
-pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
+pub fn protect_path(
+    path: &Path,
+    mode: u32,
+) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         // The trait adds `.from_mode` to permissions on Unix.
@@ -253,7 +262,10 @@ pub(super) fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTemp
 /// ```ts
 /// if (await exists(path)) throw alreadyExists(path); await rename(staged, path);
 /// ```
-fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> {
+fn publish_by_checked_rename(
+    staged: &Path,
+    path: &Path,
+) -> std::io::Result<()> {
     // The check and the rename are one step to every other thread of this process that publishes the name by this fallback; the
     //  claim ends when this function returns, on every way out. `TimedOut` means nothing was published.
     let _held: HeldName = hold_name_while_publishing(path, HELD_NAME_WAIT)?;
@@ -261,7 +273,11 @@ fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> 
         return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
     #[cfg(test)]
-    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| {
+        if let Some(pause) = hook.borrow().as_ref() {
+            pause();
+        }
+    });
     return std::fs::rename(staged, path);
 }
 
@@ -297,7 +313,12 @@ fn settle_exclusive_publish(
     }
     debug(
         "publishExclusive",
-        format!("the filesystem refused the exclusive publish of {} ({}); publishing by rename", path.display(), refused.error).as_str(),
+        format!(
+            "the filesystem refused the exclusive publish of {} ({}); publishing by rename",
+            path.display(),
+            refused.error
+        )
+        .as_str(),
     );
     let mut staged: tempfile::NamedTempFile = refused.file;
     let renamed: std::io::Result<()> = publish_by_checked_rename(staged.path(), path);
@@ -315,7 +336,12 @@ mod syncs_test_support;
 #[cfg(test)]
 pub(crate) use syncs_test_support::skip_the_durability_syncs_here;
 #[cfg(test)]
-pub(crate) use syncs_test_support::{record_directory_sync, record_file_sync, take_directory_syncs, take_file_syncs};
+pub(crate) use syncs_test_support::{
+    record_directory_sync,
+    record_file_sync,
+    take_directory_syncs,
+    take_file_syncs,
+};
 
 /// Whether this process's syncs must reach the disk;
 /// always,
@@ -348,7 +374,10 @@ pub(crate) fn syncing_is_faithful() -> bool {
 /// ```ts
 /// const flushFileWhenFaithful = async (handle: FileHandle, path: string) => { recordFileSync(path); if (isFaithful()) await handle.sync(); };
 /// ```
-pub(crate) fn flush_file_when_faithful(file: &File, path: &Path) -> std::io::Result<()> {
+pub(crate) fn flush_file_when_faithful(
+    file: &File,
+    path: &Path,
+) -> std::io::Result<()> {
     // The path is read only by the test-only record; a release build leaves it unused.
     #[cfg(not(test))]
     let _path_for_tests: &Path = path;
@@ -372,7 +401,11 @@ pub(crate) fn flush_file_when_faithful(file: &File, path: &Path) -> std::io::Res
 /// ```ts
 /// if (durable) { await handle.sync(); }
 /// ```
-pub(super) fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result<()> {
+pub(super) fn sync_when_durable(
+    file: &File,
+    path: &Path,
+    durable: bool,
+) -> std::io::Result<()> {
     if !durable {
         return Ok(());
     }
@@ -389,7 +422,10 @@ pub(super) fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std:
 /// ```ts
 /// if (mode !== undefined) { await chmod(staged, mode); }
 /// ```
-fn protect_when_asked(staged: &Path, mode: Option<u32>) -> std::io::Result<()> {
+fn protect_when_asked(
+    staged: &Path,
+    mode: Option<u32>,
+) -> std::io::Result<()> {
     return match mode {
         Some(bits) => protect_path(staged, bits),
         None => Ok(()),
@@ -421,7 +457,12 @@ fn protect_when_asked(staged: &Path, mode: Option<u32>) -> std::io::Result<()> {
 /// ```ts
 /// const staged = await stagingBeside(path); await writeAndSync(staged, bytes); await publishExclusive(staged, path);
 /// ```
-fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: bool) -> std::io::Result<()> {
+fn write_then_publish(
+    path: &Path,
+    bytes: &[u8],
+    mode: Option<u32>,
+    durable: bool,
+) -> std::io::Result<()> {
     let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
     // Each step runs only when the one before it succeeded, and the first failure is the result; a failure drops `staged`,
     //  which removes the staging file.
@@ -429,13 +470,21 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
     sync_when_durable(staged.as_file(), path, durable)?;
     protect_when_asked(staged.path(), mode)?;
     #[cfg(test)]
-    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        return hook.borrow().as_ref().map_or(Ok(()), |fail| {
+            return fail();
+        });
+    })?;
     #[cfg(test)]
-    let outcome: Result<File, tempfile::PersistError> = if THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(std::cell::Cell::get) {
-        Err(tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged })
-    } else {
-        staged.persist_noclobber(path)
-    };
+    let outcome: Result<File, tempfile::PersistError> =
+        if THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(std::cell::Cell::get) {
+            Err(tempfile::PersistError {
+                error: std::io::Error::from_raw_os_error(libc::ENOTSUP),
+                file: staged,
+            })
+        } else {
+            staged.persist_noclobber(path)
+        };
     #[cfg(not(test))]
     let outcome: Result<File, tempfile::PersistError> = staged.persist_noclobber(path);
     return settle_exclusive_publish(path, outcome);
@@ -458,7 +507,10 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
 /// ```ts
 /// async function writePrivateFile({ path, bytes }): Promise<void>;
 /// ```
-pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_private_file(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE), true);
 }
 
@@ -476,7 +528,10 @@ pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// ```ts
 /// await writePrivateFile({ path, bytes, sync: false });
 /// ```
-pub fn write_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_private_file_unsynced(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE), false);
 }
 
@@ -497,7 +552,10 @@ pub fn write_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result
 /// ```ts
 /// const handle = await open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); await handle.writeFile(bytes); await handle.sync();
 /// ```
-pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_exclusive_synced(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     return write_then_publish(path, bytes, None, true);
 }
 
@@ -514,7 +572,10 @@ pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> 
 /// ```ts
 /// const handle = await open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); await handle.writeFile(bytes);
 /// ```
-pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_exclusive_scratch(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut file: File = exclusive_options().open(path)?;
     // A write cut short by a full disk or a size limit leaves nothing at its name: a caller reads these bytes as the
     //  input of one command, and half of them would be read as an answer.
@@ -530,7 +591,10 @@ pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()>
 #[path = "private_storage_replacing_a_record.rs"]
 mod replacing_a_record;
 
-pub use replacing_a_record::{replace_private_file, replace_private_file_unsynced};
+pub use replacing_a_record::{
+    replace_private_file,
+    replace_private_file_unsynced,
+};
 
 /// What:
 ///  Create one directory with mode `0700`;
@@ -624,7 +688,10 @@ fn private_directory_builder() -> std::fs::DirBuilder {
 /// ```
 #[cfg(unix)]
 fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
-    return matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP | libc::ENOSYS));
+    return matches!(
+        error.raw_os_error(),
+        Some(libc::EINVAL | libc::ENOTSUP | libc::ENOSYS)
+    );
 }
 
 /// What:
@@ -649,13 +716,20 @@ fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
 /// if (error !== undefined && !['EINVAL', 'ENOTSUP', 'ENOSYS'].includes(error.code)) throw error;
 /// ```
 #[cfg(unix)]
-fn settle_directory_sync(path: &Path, outcome: std::io::Result<()>) -> std::io::Result<()> {
+fn settle_directory_sync(
+    path: &Path,
+    outcome: std::io::Result<()>,
+) -> std::io::Result<()> {
     return match outcome {
         Ok(()) => Ok(()),
         Err(error) if directory_sync_is_unsupported(&error) => {
             debug(
                 "syncDirectory",
-                format!("the filesystem of {} cannot sync a directory ({error}); skipped", path.display()).as_str(),
+                format!(
+                    "the filesystem of {} cannot sync a directory ({error}); skipped",
+                    path.display()
+                )
+                .as_str(),
             );
             Ok(())
         }
@@ -686,7 +760,10 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
         let directory: File = File::open(path)?;
-        settle_directory_sync(path, rustix::fs::fsync(&directory).map_err(std::io::Error::from))?;
+        settle_directory_sync(
+            path,
+            rustix::fs::fsync(&directory).map_err(std::io::Error::from),
+        )?;
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
@@ -820,7 +897,10 @@ pub fn open_regular_file(path: &Path) -> Result<File, ReadRefusal> {
 /// ```ts
 /// async function readPrivateFile(path: string, limit: number): Promise<Uint8Array>; // throws ReadRefusal
 /// ```
-pub fn read_regular_file(path: &Path, limit: u64) -> Result<Vec<u8>, ReadRefusal> {
+pub fn read_regular_file(
+    path: &Path,
+    limit: u64,
+) -> Result<Vec<u8>, ReadRefusal> {
     let file: File = open_regular_file(path)?;
     // The handle's own metadata, so a swap between the check and the read is impossible.
     let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;

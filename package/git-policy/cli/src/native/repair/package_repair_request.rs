@@ -24,7 +24,10 @@ use crate::package_repair_command::ToolLimits;
 use crate::transaction_git::GitContext;
 /// Operating-system text,
 /// and its borrowed form.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// A borrowed filesystem path.
 use std::path::Path;
 /// A length of time.
@@ -111,7 +114,9 @@ impl RepairSwitch {
                 break;
             }
         }
-        let Some(add_at) = add_position else { return found };
+        let Some(add_at) = add_position else {
+            return found;
+        };
         let mut words = arguments[add_at + 2..].iter();
         while let Some(word) = words.next() {
             let bytes: &[u8] = word.as_encoded_bytes();
@@ -216,13 +221,23 @@ impl RepairEnvironment {
     /// RepairEnvironment.fromProcess();
     /// ```
     pub fn from_process() -> RepairEnvironment {
-        let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, ceiling: crate::wait_ceilings::REPAIR_TOOL_CEILING, workers: workers_for(available), start_directory: crate::start_directory::StartDirectory::read_from_the_process() };
+        let available: usize =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        return RepairEnvironment {
+            search_path: std::env::var_os("PATH"),
+            quiet_window: TOOL_QUIET_WINDOW,
+            ceiling: crate::wait_ceilings::REPAIR_TOOL_CEILING,
+            workers: workers_for(available),
+            start_directory: crate::start_directory::StartDirectory::read_from_the_process(),
+        };
     }
 
     /// The two bounds one tool runs under.
     pub fn limits(&self) -> ToolLimits {
-        return ToolLimits { window: self.quiet_window, ceiling: self.ceiling };
+        return ToolLimits {
+            window: self.quiet_window,
+            ceiling: self.ceiling,
+        };
     }
 
     /// The search path as a borrowed value.

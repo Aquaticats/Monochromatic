@@ -48,14 +48,33 @@
 //! if (argv.slice(0, 3).join(' ') === 'monochromatic-git-policy-cli service run') process.exit(await runService(argv.slice(3)));
 //! ```
 
-use crate::service_journal::{DONE_RETAINED, prune_done};
-use crate::wrapper_names_old_and_new::COMMAND_WORD;
-use crate::service_land::{LandContext, recover_instance};
+use crate::service_journal::{
+    DONE_RETAINED,
+    prune_done,
+};
+use crate::service_land::{
+    LandContext,
+    recover_instance,
+};
 use crate::service_protocol::PROTOCOL_VERSION;
-use crate::service_timing::{log, started_line};
-use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
-use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
+use crate::service_server::{
+    Bind,
+    IDLE_EXIT,
+    ServeSettings,
+    bind,
+    serve,
+};
+use crate::service_timing::{
+    log,
+    started_line,
+};
+use crate::service_units_of_removed_worktrees::{
+    OwnWorktree,
+    own_worktree_state,
+    stop_own_socket_when_the_worktree_is_gone,
+};
 use crate::transaction_git::GitContext;
+use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -147,7 +166,8 @@ pub const EXIT_NOTHING_TO_SERVE: i32 = 0;
 /// ```
 pub fn is_service_start(arguments: &[OsString]) -> bool {
     return arguments.len() >= SERVICE_WORDS.len()
-        && (starts_with_service_words(arguments, &SERVICE_WORDS) || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
+        && (starts_with_service_words(arguments, &SERVICE_WORDS)
+            || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
 }
 
 /// The words of the arguments after the service mode words,
@@ -174,7 +194,10 @@ pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> 
 /// ```ts
 /// SERVICE_WORDS.every((word, at) => arguments[at] === word)
 /// ```
-fn starts_with_service_words(arguments: &[OsString], words: &[&str; 3]) -> bool {
+fn starts_with_service_words(
+    arguments: &[OsString],
+    words: &[&str; 3],
+) -> bool {
     for (argument, word) in arguments.iter().zip(words) {
         if argument != *word {
             return false;
@@ -194,12 +217,18 @@ fn starts_with_service_words(arguments: &[OsString], words: &[&str; 3]) -> bool 
 /// ```ts
 /// const n = Number(option(args, name)); return Number.isInteger(n) && n >= 0 ? n : undefined;
 /// ```
-fn number_option(arguments: &[String], name: &str) -> Option<u64> {
+fn number_option(
+    arguments: &[String],
+    name: &str,
+) -> Option<u64> {
     let text: String = option(arguments, name)?;
     return text.parse::<u64>().ok();
 }
 
-fn option(arguments: &[String], name: &str) -> Option<String> {
+fn option(
+    arguments: &[String],
+    name: &str,
+) -> Option<String> {
     // The word after the first occurrence of the option name.
     for (at, argument) in arguments.iter().enumerate() {
         if argument == name {
@@ -231,9 +260,13 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 fn git_is_wrapper(git: &std::path::Path) -> bool {
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     // This service is a process of its own: the directory it was started in is read here, once, as its entry.
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::read_from_the_process();
     return match crate::real_git::process_resolution_inputs(environment.as_slice(), &start) {
-        Ok(inputs) => matches!(crate::real_git_candidate::classify_candidate(git, inputs.own_executable.as_path()), crate::real_git_candidate::CandidateKind::Wrapper),
+        Ok(inputs) => matches!(
+            crate::real_git_candidate::classify_candidate(git, inputs.own_executable.as_path()),
+            crate::real_git_candidate::CandidateKind::Wrapper
+        ),
         // Without its own path only a launcher's record can be recognised.
         Err(_) => crate::real_git_candidate::is_wrapper_launcher(git, None),
     };
@@ -292,7 +325,8 @@ pub fn run(arguments: &[String]) -> i32 {
     if let Some(name) = named_instance.as_deref() {
         match own_worktree_state(name, journal.as_path()) {
             OwnWorktree::Gone(_) => {
-                let _served_nothing = stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
+                let _served_nothing =
+                    stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
                 return EXIT_NOTHING_TO_SERVE;
             }
             OwnWorktree::Served(git_dir) => own_git_dir = Some(git_dir),
@@ -311,7 +345,10 @@ pub fn run(arguments: &[String]) -> i32 {
         return EXIT_REFUSED;
     }
     if let Err(error) = std::fs::create_dir_all(&journal) {
-        crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
+        crate::service_error!(
+            "cannot create the journal directory {}: {error}",
+            journal.display()
+        );
         return EXIT_REFUSED;
     }
     let listener = match bind(&address) {
@@ -322,13 +359,24 @@ pub fn run(arguments: &[String]) -> i32 {
         }
     };
     let context: LandContext = LandContext {
-        git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
+        git: GitContext {
+            real_git: git,
+            overlay: crate::child_environment::service_child_overlay(
+                std::env::vars_os().collect::<Vec<_>>().as_slice(),
+            ),
+            global_prefix: Vec::new(),
+            common_dir: None,
+        },
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
-        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LANDING_LOCK_CEILING, Duration::from_millis),
+        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(
+            crate::wait_ceilings::LANDING_LOCK_CEILING,
+            Duration::from_millis,
+        ),
     };
-    let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
+    let idle: Duration =
+        number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
     // The serving loop asks about this worktree at its own interval, so a removal that no wrapper sees still ends the units.
     settings.own_git_dir = own_git_dir;
@@ -340,11 +388,22 @@ pub fn run(arguments: &[String]) -> i32 {
     // Every later entry carries the release and the instance.
     crate::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
     // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
-    log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
+    log(started_line(
+        settings.release.as_str(),
+        PROTOCOL_VERSION,
+        settings.instance.as_deref(),
+    )
+    .as_str());
     // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
     //  it are finished before the first connection is accepted.
-    if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
-        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, lock_ceiling: context.lock_ceiling };
+    if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent())
+    {
+        let earlier: LandContext = LandContext {
+            git: context.git.clone(),
+            journal: shared.to_path_buf(),
+            on_objects_written: None,
+            lock_ceiling: context.lock_ceiling,
+        };
         let _reports = recover_instance(&earlier, instance);
         // Nothing reads that journal's finished batches any more; the newest are kept, and an older one goes only once no
         //  client of it may still read it, so it stops growing.

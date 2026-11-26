@@ -17,8 +17,10 @@
 //! const line = heldBackLine(branchRef, stopped); const unsure = unansweredLine(branchRef, stopped);
 //! ```
 
-use crate::push_held_back_by_a_blocked_commit::{Held, Stopped};
-
+use crate::push_held_back_by_a_blocked_commit::{
+    Held,
+    Stopped,
+};
 
 /// What:
 ///  The reason a verdict with no words of its own is named with.
@@ -45,7 +47,8 @@ pub const UNRECORDED_REASON: &str = "its post-commit check blocked the automatic
 /// ```ts
 /// const UNDECIDED = 'its post-commit check has not decided whether it may be published';
 /// ```
-pub const UNDECIDED_REASON: &str = "its post-commit check has not decided whether it may be published";
+pub const UNDECIDED_REASON: &str =
+    "its post-commit check has not decided whether it may be published";
 
 /// What:
 ///  The words a person is given for one verdict.
@@ -111,7 +114,10 @@ pub fn branch_name(branch_ref: &str) -> &str {
 /// ```ts
 /// const line = (branchRef, stopped) => `${name(branchRef)} is held back by the commit ${stopped.commits[0].commit}, because ${reason}. …`;
 /// ```
-pub fn held_back_line(branch_ref: &str, stopped: &Stopped) -> String {
+pub fn held_back_line(
+    branch_ref: &str,
+    stopped: &Stopped,
+) -> String {
     let name: &str = branch_name(branch_ref);
     let [only] = stopped.commits.as_slice() else {
         let mut listed: Vec<String> = Vec::new();
@@ -142,7 +148,10 @@ pub fn held_back_line(branch_ref: &str, stopped: &Stopped) -> String {
 /// ```ts
 /// const waitingLine = (branchRef, stopped) => `${name(branchRef)} is not sent yet: the post-commit checks of ${commits} have not decided, so the automatic push stops before ${them} and a person's \`git push\` still sends the branch; the push resumes as soon as those checks answer.`;
 /// ```
-pub fn undecided_line(branch_ref: &str, stopped: &Stopped) -> String {
+pub fn undecided_line(
+    branch_ref: &str,
+    stopped: &Stopped,
+) -> String {
     let name: &str = branch_name(branch_ref);
     let mut named: Vec<String> = Vec::new();
     for held in &stopped.commits {
@@ -172,7 +181,10 @@ pub fn undecided_line(branch_ref: &str, stopped: &Stopped) -> String {
 /// ```ts
 /// const unsureLine = (branchRef, stopped) => `${name(branchRef)} may be held back by ${commits}, because ${reason}, and Git could not say whether it is still on the branch's way out; the automatic push sends nothing until it can, and a person's \`git push\` still sends the branch.`;
 /// ```
-pub fn unanswered_line(branch_ref: &str, stopped: &Stopped) -> String {
+pub fn unanswered_line(
+    branch_ref: &str,
+    stopped: &Stopped,
+) -> String {
     let name: &str = branch_name(branch_ref);
     let mut named: Vec<String> = Vec::new();
     for held in &stopped.commits {

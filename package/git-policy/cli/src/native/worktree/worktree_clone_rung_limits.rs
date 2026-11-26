@@ -60,8 +60,14 @@
 //! const reason = entries && (source.dirty ? tooSmallATree(entries) : tooSmallAFilesMean(entries) ?? tooManyChangedPaths(source, entries));
 //! ```
 
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
-use crate::worktree_clean::{StatEntry, stored_stats};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
+use crate::worktree_clean::{
+    StatEntry,
+    stored_stats,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
 
@@ -145,7 +151,9 @@ pub fn the_fewest_tracked_bytes_that_keep_the_clone_rung(kind: FilesystemKind) -
         // cloned whatever its size, as a clean one is.
         FilesystemKind::Btrfs => None,
         FilesystemKind::Zfs => Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG),
-        FilesystemKind::Overlayfs | FilesystemKind::Other => Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG),
+        FilesystemKind::Overlayfs | FilesystemKind::Other => {
+            Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG)
+        }
     };
 }
 
@@ -297,7 +305,10 @@ pub fn the_changed_file_cut(tracked: usize) -> usize {
 /// const entries = storedStats(source.clean.indexBytes, source.clean.hashLength) ?? undefined;
 /// ```
 pub fn tracked_entries(source: &SnapshotSource) -> Option<Vec<StatEntry>> {
-    return stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length);
+    return stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    );
 }
 
 /// What:
@@ -311,7 +322,12 @@ pub fn tracked_entries(source: &SnapshotSource) -> Option<Vec<StatEntry>> {
 /// const total = entries.reduce((sum, entry) => sum + entry.stored.size, 0);
 /// ```
 pub fn tracked_bytes(entries: &[StatEntry]) -> u64 {
-    let total: u64 = entries.iter().map(|entry| { return u64::from(entry.stored.size); }).sum();
+    let total: u64 = entries
+        .iter()
+        .map(|entry| {
+            return u64::from(entry.stored.size);
+        })
+        .sum();
     return total;
 }
 
@@ -367,13 +383,22 @@ pub fn mean_tracked_file(entries: &[StatEntry]) -> Option<u64> {
 /// ```ts
 /// const limit = theFewestTrackedBytes(kindOf(source)); const reason = limit !== undefined && carried < limit ? `...` : undefined;
 /// ```
-pub fn reason_the_tree_is_too_small(source: &SnapshotSource, bytes_the_clones_carry: u64) -> Option<String> {
-    let kind: FilesystemKind = filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other);
+pub fn reason_the_tree_is_too_small(
+    source: &SnapshotSource,
+    bytes_the_clones_carry: u64,
+) -> Option<String> {
+    let kind: FilesystemKind =
+        filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other);
     let limit: u64 = the_fewest_tracked_bytes_that_keep_the_clone_rung(kind)?;
     if bytes_the_clones_carry >= limit {
         return None;
     }
-    return Some(format!("the clones would copy {} bytes of the tracked files of {}, below the {} a tree with changes needs on ZFS for the clone to be quicker than Git's own checkout", bytes_the_clones_carry, shown(source.root.as_path()), limit));
+    return Some(format!(
+        "the clones would copy {} bytes of the tracked files of {}, below the {} a tree with changes needs on ZFS for the clone to be quicker than Git's own checkout",
+        bytes_the_clones_carry,
+        shown(source.root.as_path()),
+        limit
+    ));
 }
 
 /// What:
@@ -391,15 +416,25 @@ pub fn reason_the_tree_is_too_small(source: &SnapshotSource, bytes_the_clones_ca
 /// ```ts
 /// const reason = mean < THE_SMALLEST_MEAN ? `...` : undefined;
 /// ```
-pub fn reason_the_mean_file_is_too_small(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+pub fn reason_the_mean_file_is_too_small(
+    source: &SnapshotSource,
+    entries: &[StatEntry],
+) -> Option<String> {
     let mean: u64 = mean_tracked_file(entries)?;
     // An unreadable filesystem takes the safest measured edge, as an unmeasured one does;
     // btrfs has none, and a clean btrfs source is cloned whatever its mean.
-    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other))?;
+    let edge: u64 = the_smallest_mean_tracked_file(
+        filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other),
+    )?;
     if mean >= edge {
         return None;
     }
-    return Some(format!("the tracked files of {} average {} bytes each, below the {} a source with no tracked change needs for the clone to be quicker than Git's own checkout", shown(source.root.as_path()), mean, edge));
+    return Some(format!(
+        "the tracked files of {} average {} bytes each, below the {} a source with no tracked change needs for the clone to be quicker than Git's own checkout",
+        shown(source.root.as_path()),
+        mean,
+        edge
+    ));
 }
 
 /// What:
@@ -416,14 +451,25 @@ pub fn reason_the_mean_file_is_too_small(source: &SnapshotSource, entries: &[Sta
 /// ```ts
 /// const reason = changed > theChangedFileCut(tracked) ? `...` : undefined;
 /// ```
-pub fn reason_too_many_changed_paths(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+pub fn reason_too_many_changed_paths(
+    source: &SnapshotSource,
+    entries: &[StatEntry],
+) -> Option<String> {
     let tracked: usize = entries.len();
-    let changed: usize = source.dirty.as_ref().map_or(0, |changes| { return changes.tracked; });
+    let changed: usize = source.dirty.as_ref().map_or(0, |changes| {
+        return changes.tracked;
+    });
     let cut: usize = the_changed_file_cut(tracked);
     if changed <= cut {
         return None;
     }
-    return Some(format!("{} of the {} tracked files of {} have changes, more than the {} changed paths this rung still clones a source with, so Git's own checkout writes the worktree", changed, tracked, shown(source.root.as_path()), cut));
+    return Some(format!(
+        "{} of the {} tracked files of {} have changes, more than the {} changed paths this rung still clones a source with, so Git's own checkout writes the worktree",
+        changed,
+        tracked,
+        shown(source.root.as_path()),
+        cut
+    ));
 }
 
 /// What:
@@ -459,12 +505,18 @@ pub fn reason_too_many_changed_paths(source: &SnapshotSource, entries: &[StatEnt
 /// const size = changedTrackedFiles(source) ? tooSmallATree(read.bytesTheClonesCarry()) : tooSmallAFilesMean(entries);
 /// const reason = size ?? tooManyChangedPaths(source, entries);
 /// ```
-pub fn decline_before_cloning(source: &SnapshotSource, entries: &[StatEntry], bytes_the_clones_carry: u64) -> Option<String> {
+pub fn decline_before_cloning(
+    source: &SnapshotSource,
+    entries: &[StatEntry],
+    bytes_the_clones_carry: u64,
+) -> Option<String> {
     let by_size: Option<String> = match changed_tracked_files(source) {
         0 => reason_the_mean_file_is_too_small(source, entries),
         _changed => reason_the_tree_is_too_small(source, bytes_the_clones_carry),
     };
-    return by_size.or_else(|| { return reason_too_many_changed_paths(source, entries); });
+    return by_size.or_else(|| {
+        return reason_too_many_changed_paths(source, entries);
+    });
 }
 
 /// What:
@@ -482,7 +534,9 @@ pub fn decline_before_cloning(source: &SnapshotSource, entries: &[StatEntry], by
 /// const changed = source.dirty?.tracked ?? 0;
 /// ```
 pub fn changed_tracked_files(source: &SnapshotSource) -> usize {
-    return source.dirty.as_ref().map_or(0, |changes| { return changes.tracked; });
+    return source.dirty.as_ref().map_or(0, |changes| {
+        return changes.tracked;
+    });
 }
 
 /// What:

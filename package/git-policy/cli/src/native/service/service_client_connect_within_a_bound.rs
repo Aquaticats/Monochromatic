@@ -20,10 +20,16 @@
 use crate::service_server::Bind;
 use crate::wait_ceilings::CONNECT_CEILING;
 use std::io::ErrorKind;
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{
+    FromRawFd,
+    RawFd,
+};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The shortest wait the kernel is asked for,
 /// so a bound that is spent still names a wait it accepts.
@@ -49,22 +55,43 @@ struct Address {
 
 impl Address {
     /// A socket named by a file.
-    fn path(path: &Path, within: Duration) -> Self {
+    fn path(
+        path: &Path,
+        within: Duration,
+    ) -> Self {
         use std::os::unix::ffi::OsStrExt as _;
-        return Self::named(path.as_os_str().as_bytes(), within, path.display().to_string(), false);
+        return Self::named(
+            path.as_os_str().as_bytes(),
+            within,
+            path.display().to_string(),
+            false,
+        );
     }
 
     /// A socket named by the kernel,
     /// whose name is not a file and is not ended by a zero byte.
     #[cfg(target_os = "linux")]
-    fn abstract_name(name: &str, within: Duration) -> Self {
-        return Self::named(name.as_bytes(), within, format!("{name}, a name the kernel holds rather than a file"), true);
+    fn abstract_name(
+        name: &str,
+        within: Duration,
+    ) -> Self {
+        return Self::named(
+            name.as_bytes(),
+            within,
+            format!("{name}, a name the kernel holds rather than a file"),
+            true,
+        );
     }
 
     /// A socket whose name is `bytes`,
     /// in the structure that holds one name,
     /// which the kernel keeps rather than a file when `kernel_named` says so.
-    fn named(bytes: &[u8], within: Duration, named: String, kernel_named: bool) -> Self {
+    fn named(
+        bytes: &[u8],
+        within: Duration,
+        named: String,
+        kernel_named: bool,
+    ) -> Self {
         // SAFETY: `sockaddr_un` is a plain structure of integers and a byte array, for which all zero bytes are a valid value:
         //  the family says which kind of address it is, and the name is written after this.
         let mut structure: libc::sockaddr_un = unsafe { std::mem::zeroed() };
@@ -75,12 +102,24 @@ impl Address {
         let ending: usize = usize::from(!kernel_named);
         let room: usize = structure.sun_path.len().saturating_sub(start + ending);
         let taken: usize = bytes.len().min(room);
-        for (slot, byte) in structure.sun_path.iter_mut().skip(start).zip(bytes.iter()).take(taken) {
+        for (slot, byte) in structure
+            .sun_path
+            .iter_mut()
+            .skip(start)
+            .zip(bytes.iter())
+            .take(taken)
+        {
             *slot = libc::c_char::try_from(*byte).unwrap_or(0);
         }
         let offset: usize = size_of::<libc::sa_family_t>();
-        let length: libc::socklen_t = libc::socklen_t::try_from(offset + start + taken + ending).unwrap_or(0);
-        return Self { structure, length, within, named };
+        let length: libc::socklen_t =
+            libc::socklen_t::try_from(offset + start + taken + ending).unwrap_or(0);
+        return Self {
+            structure,
+            length,
+            within,
+            named,
+        };
     }
 
     /// What:
@@ -97,7 +136,13 @@ impl Address {
     /// ```
     fn connect(self) -> std::io::Result<UnixStream> {
         // SAFETY: `socket` takes three integers and touches no memory of this process.
-        let descriptor: RawFd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK, 0) };
+        let descriptor: RawFd = unsafe {
+            libc::socket(
+                libc::AF_UNIX,
+                libc::SOCK_STREAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
+                0,
+            )
+        };
         if descriptor < 0 {
             return Err(refused(&self.named, std::io::Error::last_os_error()));
         }
@@ -130,12 +175,17 @@ impl Address {
     /// ```ts
     /// while (true) { const rc = connect(); if (rc === 0) return proveConnected(); if (!retryable(errno)) throw refused(); if (expired()) throw timedOut(); await poll(POLLOUT, left) }
     /// ```
-    fn ask(&self, descriptor: RawFd) -> std::io::Result<()> {
+    fn ask(
+        &self,
+        descriptor: RawFd,
+    ) -> std::io::Result<()> {
         let until: Instant = Instant::now() + self.within.max(SHORTEST_WAIT);
         loop {
             // SAFETY: `descriptor` is an open socket, and the structure with its length is one address the call reads and does
             //  not write.
-            let asked: libc::c_int = unsafe { libc::connect(descriptor, (&raw const self.structure).cast(), self.length) };
+            let asked: libc::c_int = unsafe {
+                libc::connect(descriptor, (&raw const self.structure).cast(), self.length)
+            };
             if asked == 0 {
                 return self.proved(descriptor);
             }
@@ -150,14 +200,22 @@ impl Address {
             }
             let left: Duration = until.saturating_duration_since(Instant::now());
             if left.is_zero() {
-                return Err(std::io::Error::new(ErrorKind::TimedOut, format!(
-                    "the socket at {} took no connection within {} ms, so nothing there is accepting connections",
-                    self.named,
-                    self.within.as_millis()
-                )));
+                return Err(std::io::Error::new(
+                    ErrorKind::TimedOut,
+                    format!(
+                        "the socket at {} took no connection within {} ms, so nothing there is accepting connections",
+                        self.named,
+                        self.within.as_millis()
+                    ),
+                ));
             }
-            let mut waiting: libc::pollfd = libc::pollfd { fd: descriptor, events: libc::POLLOUT, revents: 0 };
-            let millis: libc::c_int = libc::c_int::try_from(left.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+            let mut waiting: libc::pollfd = libc::pollfd {
+                fd: descriptor,
+                events: libc::POLLOUT,
+                revents: 0,
+            };
+            let millis: libc::c_int =
+                libc::c_int::try_from(left.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
             // SAFETY: `waiting` is one valid `pollfd` for the call, which reads and writes only that.
             let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, millis) };
             if ready < 0 {
@@ -182,13 +240,18 @@ impl Address {
     /// ```ts
     /// getpeername(fd).errno === 0 ? ok() : throw refused()
     /// ```
-    fn proved(&self, descriptor: RawFd) -> std::io::Result<()> {
+    fn proved(
+        &self,
+        descriptor: RawFd,
+    ) -> std::io::Result<()> {
         // SAFETY: `sockaddr_un` is a plain structure of integers and a byte array, for which all zero bytes are a valid value;
         //  this call only writes it, with the length it was given.
         let mut peer: libc::sockaddr_un = unsafe { std::mem::zeroed() };
-        let mut length: libc::socklen_t = libc::socklen_t::try_from(size_of::<libc::sockaddr_un>()).unwrap_or(0);
+        let mut length: libc::socklen_t =
+            libc::socklen_t::try_from(size_of::<libc::sockaddr_un>()).unwrap_or(0);
         // SAFETY: the two pointers are this function's own variables, and the length passed is their size.
-        let asked: libc::c_int = unsafe { libc::getpeername(descriptor, (&raw mut peer).cast(), &raw mut length) };
+        let asked: libc::c_int =
+            unsafe { libc::getpeername(descriptor, (&raw mut peer).cast(), &raw mut length) };
         if asked < 0 {
             return Err(refused(&self.named, std::io::Error::last_os_error()));
         }
@@ -226,22 +289,35 @@ pub(crate) fn connect_within(address: &Bind) -> std::io::Result<UnixStream> {
 /// ```ts
 /// connectWithinFor(address, 200) // a control's bound
 /// ```
-pub(crate) fn connect_within_for(address: &Bind, within: Duration) -> std::io::Result<UnixStream> {
+pub(crate) fn connect_within_for(
+    address: &Bind,
+    within: Duration,
+) -> std::io::Result<UnixStream> {
     let addressed: Address = match address {
         #[cfg(target_os = "linux")]
         Bind::Abstract(name) => Address::abstract_name(name, within),
         #[cfg(not(target_os = "linux"))]
         Bind::Abstract(_) => return Err(std::io::Error::other("abstract sockets need Linux")),
         Bind::Path(path) => Address::path(path, within),
-        Bind::Inherited => return Err(std::io::Error::other("a client does not inherit the socket")),
+        Bind::Inherited => {
+            return Err(std::io::Error::other(
+                "a client does not inherit the socket",
+            ));
+        }
     };
     return addressed.connect();
 }
 
 /// The error a refused connect ends with,
 /// naming the address the service was looked for at.
-fn refused(named: &str, error: std::io::Error) -> std::io::Error {
-    return std::io::Error::new(error.kind(), format!("the socket at {named} refused the connection: {error}"));
+fn refused(
+    named: &str,
+    error: std::io::Error,
+) -> std::io::Error {
+    return std::io::Error::new(
+        error.kind(),
+        format!("the socket at {named} refused the connection: {error}"),
+    );
 }
 
 /// Closes a descriptor this file opened and did not hand on.
@@ -252,14 +328,18 @@ fn close(descriptor: RawFd) {
 
 /// Puts a connected socket back in the blocking mode,
 /// so a step that writes a whole line at once keeps the behaviour it had.
-fn set_blocking(descriptor: RawFd, named: &str) -> std::io::Result<()> {
+fn set_blocking(
+    descriptor: RawFd,
+    named: &str,
+) -> std::io::Result<()> {
     // SAFETY: `fcntl` with `F_GETFL` takes a descriptor and returns its flags without touching memory.
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
     if flags < 0 {
         return Err(refused(named, std::io::Error::last_os_error()));
     }
     // SAFETY: as above, with `F_SETFL` and a flag word.
-    let set: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
+    let set: libc::c_int =
+        unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
     if set < 0 {
         return Err(refused(named, std::io::Error::last_os_error()));
     }

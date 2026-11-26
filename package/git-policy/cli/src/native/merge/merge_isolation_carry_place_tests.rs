@@ -10,13 +10,27 @@
 //!  the path either holds them or names where they are,
 //!  and the merge never reports a write that threw them away.
 
-use super::{JudgedFile, SetAsides, place_file_awaiting};
+use super::{
+    JudgedFile,
+    SetAsides,
+    place_file_awaiting,
+};
 use crate::merge_isolation_carry_writes::FileWrite;
 use crate::merge_isolation_changes::file_identity;
 use crate::merge_isolation_take_aside_names::ASIDE_PREFIX;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The bytes the branch holds at the path the merge carries.
 const BEFORE: &str = "the line the branch had\n";
@@ -91,27 +105,47 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     git(repo.as_path(), &["add", "--", "f.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let location: PathBuf = repo.join("f.txt");
-    let object: String = git_text(repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
-    let judged: JudgedFile = JudgedFile { identity: file_identity(location.as_path()), content: Some(object) };
+    let object: String = git_text(repo.as_path(), &["hash-object", "--", "f.txt"])
+        .trim()
+        .to_owned();
+    let judged: JudgedFile = JudgedFile {
+        identity: file_identity(location.as_path()),
+        content: Some(object),
+    };
     // The descriptor the writer keeps is this process's, so the write it makes can be asked about after the placement; the
     //  child holds the same inode open, which is what the scan for holders can see.
-    let mut writer: std::fs::File = std::fs::File::options().write(true).open(location.as_path()).expect("the writer's descriptor");
-    let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
+    let mut writer: std::fs::File = std::fs::File::options()
+        .write(true)
+        .open(location.as_path())
+        .expect("the writer's descriptor");
+    let held_open: std::fs::File =
+        std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
-    holder.arg("120").stdin(std::process::Stdio::from(held_open));
+    holder
+        .arg("120")
+        .stdin(std::process::Stdio::from(held_open));
     // The holder dies with this test thread, so a control that fails leaves no program behind holding the file.
-    let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
+    let mut holding: std::process::Child =
+        crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
     let mut held: Vec<PathBuf> = Vec::new();
     let mut unproven: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
-        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: false };
+        let mut set_asides: SetAsides<'_> = SetAsides {
+            held_open: &mut held,
+            unproven: &mut unproven,
+            keep_the_planned_bytes: false,
+        };
         return place_file_awaiting(
             &git_context(),
             repo.as_path(),
             b"f.txt",
             &judged,
-            &FileWrite::Bytes { bytes: MERGED.as_bytes().to_vec(), mode: String::from(MODE), the_persons_bits: None },
+            &FileWrite::Bytes {
+                bytes: MERGED.as_bytes().to_vec(),
+                mode: String::from(MODE),
+                the_persons_bits: None,
+            },
             A_MERGES_ID,
             &mut set_asides,
         )
@@ -121,13 +155,30 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     .expect("the placement goes through");
     let kept: Vec<PathBuf> = asides_beside(location.as_path());
     // The descriptor the writer kept writes now, into the inode the take renamed.
-    writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
+    writer
+        .write_all(THE_EDIT.as_bytes())
+        .expect("the write through the descriptor the writer kept");
     writer.flush().expect("the write reaches the file");
     let said: String = format!("{placed:?} {held:?}");
-    assert_eq!(kept.len(), 1, "the entry a process holds open is kept under its private name, not removed: {kept:?} ({said})");
-    assert_eq!(held, kept, "the placement hands the private name it kept to its caller, which says it: {said}");
-    assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
-    assert_eq!(std::fs::read(location.as_path()).expect("the merge's entry"), MERGED.as_bytes(), "the merge's entry is at the path");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the entry a process holds open is kept under its private name, not removed: {kept:?} ({said})"
+    );
+    assert_eq!(
+        held, kept,
+        "the placement hands the private name it kept to its caller, which says it: {said}"
+    );
+    assert_eq!(
+        std::fs::read(kept[0].as_path()).expect("the kept entry"),
+        THE_EDIT.as_bytes(),
+        "the bytes written through the descriptor are still readable"
+    );
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("the merge's entry"),
+        MERGED.as_bytes(),
+        "the merge's entry is at the path"
+    );
     holding.kill().expect("the holder ends");
     holding.wait().expect("reaped");
     remove(root.as_path());
@@ -157,31 +208,72 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_deletes_it() {
     git(repo.as_path(), &["add", "--", "f.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let location: PathBuf = repo.join("f.txt");
-    let object: String = git_text(repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
-    let judged: JudgedFile = JudgedFile { identity: file_identity(location.as_path()), content: Some(object) };
-    let mut writer: std::fs::File = std::fs::File::options().write(true).open(location.as_path()).expect("the writer's descriptor");
-    let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
+    let object: String = git_text(repo.as_path(), &["hash-object", "--", "f.txt"])
+        .trim()
+        .to_owned();
+    let judged: JudgedFile = JudgedFile {
+        identity: file_identity(location.as_path()),
+        content: Some(object),
+    };
+    let mut writer: std::fs::File = std::fs::File::options()
+        .write(true)
+        .open(location.as_path())
+        .expect("the writer's descriptor");
+    let held_open: std::fs::File =
+        std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
-    holder.arg("120").stdin(std::process::Stdio::from(held_open));
+    holder
+        .arg("120")
+        .stdin(std::process::Stdio::from(held_open));
     // The holder dies with this test thread, so a control that fails leaves no program behind holding the file.
-    let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
+    let mut holding: std::process::Child =
+        crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
     let mut held: Vec<PathBuf> = Vec::new();
     let mut unproven: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
-        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: false };
-        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove, A_MERGES_ID, &mut set_asides).await;
+        let mut set_asides: SetAsides<'_> = SetAsides {
+            held_open: &mut held,
+            unproven: &mut unproven,
+            keep_the_planned_bytes: false,
+        };
+        return place_file_awaiting(
+            &git_context(),
+            repo.as_path(),
+            b"f.txt",
+            &judged,
+            &FileWrite::Remove,
+            A_MERGES_ID,
+            &mut set_asides,
+        )
+        .await;
     })
     .expect("the runtime runs the removal")
     .expect("the removal goes through");
     let said: String = format!("{placed:?} {held:?}");
-    assert!(std::fs::symlink_metadata(location.as_path()).is_err(), "the path the merge deletes is free");
+    assert!(
+        std::fs::symlink_metadata(location.as_path()).is_err(),
+        "the path the merge deletes is free"
+    );
     let kept: Vec<PathBuf> = asides_beside(location.as_path());
-    writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
+    writer
+        .write_all(THE_EDIT.as_bytes())
+        .expect("the write through the descriptor the writer kept");
     writer.flush().expect("the write reaches the file");
-    assert_eq!(kept.len(), 1, "the entry the removal took aside is kept when a program holds it open: {kept:?} ({said})");
-    assert_eq!(held, kept, "the removal hands the private name it kept to its caller, which says it: {said}");
-    assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the entry the removal took aside is kept when a program holds it open: {kept:?} ({said})"
+    );
+    assert_eq!(
+        held, kept,
+        "the removal hands the private name it kept to its caller, which says it: {said}"
+    );
+    assert_eq!(
+        std::fs::read(kept[0].as_path()).expect("the kept entry"),
+        THE_EDIT.as_bytes(),
+        "the bytes written through the descriptor are still readable"
+    );
     holding.kill().expect("the holder ends");
     holding.wait().expect("reaped");
     remove(root.as_path());

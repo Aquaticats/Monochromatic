@@ -14,9 +14,20 @@
 
 /// The tokenizer modes,
 ///  the comparison harness and the fixture helpers.
-use super::{DEFAULT_MODE, ParseMode};
-use crate::command_test_parseopt::{Tally, compare, compare_singles_and_pairs, empty_tally};
-use crate::command_test_support::{fixture, remove};
+use super::{
+    DEFAULT_MODE,
+    ParseMode,
+};
+use crate::command_test_parseopt::{
+    Tally,
+    compare,
+    compare_singles_and_pairs,
+    empty_tally,
+};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// Tokens covering clusters,

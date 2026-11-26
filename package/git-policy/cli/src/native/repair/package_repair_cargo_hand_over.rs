@@ -12,14 +12,27 @@
 //! const handedOver = async (request, entries) => { const told = await handOverWithinTheBudget(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(told); };
 //! ```
 
-use crate::add_timing::{begin_work, end_work};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
 use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
-use crate::package_repair_prewarm::{PrewarmEntry, hand_over_in_a_job};
-use crate::package_repair_report::{Finding, Outcome, Tool};
+use crate::package_repair_prewarm::{
+    PrewarmEntry,
+    hand_over_in_a_job,
+};
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+    Tool,
+};
 use crate::package_repair_request::RepairRequest;
 use crate::service_work::work_directory;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What:
@@ -59,24 +72,45 @@ fn moved_aside(entry: &PrewarmEntry) -> usize {
 /// ```ts
 /// const handedOver = async (request, entries) => { const told = await handOverWithinTheBudget(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(told); };
 /// ```
-pub(super) async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry], common_dir: Option<&Path>) -> Finding {
+pub(super) async fn hand_the_filling_over(
+    request: &RepairRequest<'_>,
+    entries: &[PrewarmEntry],
+    common_dir: Option<&Path>,
+) -> Finding {
     let began: Instant = begin_work();
     // Where a person watches what became of the work this add leaves behind: the queue's own states, and the service's journal.
     let the_queues_states: Option<String> = common_dir.map(queues_states);
     let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
         Some(common) => {
-            let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
-                (request.git.clone(), common.to_path_buf(), request.destination.to_path_buf(), entries.to_vec());
+            let state: (
+                crate::transaction_git::GitContext,
+                PathBuf,
+                PathBuf,
+                Vec<PrewarmEntry>,
+            ) = (
+                request.git.clone(),
+                common.to_path_buf(),
+                request.destination.to_path_buf(),
+                entries.to_vec(),
+            );
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        None => Ok(Err(String::from("git could not name the repository's common directory"))),
+        None => Ok(Err(String::from(
+            "git could not name the repository's common directory",
+        ))),
     };
     end_work("cargoPrewarmHandOver", began);
     let staged: usize = entries.iter().map(moved_aside).sum();
-    let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
+    let workspace_noun: &str = if entries.len() == 1 {
+        "build directory"
+    } else {
+        "build directories"
+    };
     let them: &str = if entries.len() == 1 { "it" } else { "them" };
     let queue: String = match the_queues_states {
-        Some(directory) => format!("`{directory}/{{pending,claimed,done,failed}}` and the service's journal"),
+        Some(directory) => {
+            format!("`{directory}/{{pending,claimed,done,failed}}` and the service's journal")
+        }
         // No queue directory could be named, so the line says only what happens; a command naming a path that is not there would
         //  be worse than none.
         None => String::from("the commit service's journal"),
@@ -88,7 +122,11 @@ pub(super) async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: 
     } else {
         format!(
             ", and the cleaning of the {staged} {} the copy carried, moved aside before this command answered so that no build trusts {}",
-            if staged == 1 { "build state" } else { "build states" },
+            if staged == 1 {
+                "build state"
+            } else {
+                "build states"
+            },
             if staged == 1 { "it" } else { "them" }
         )
     };
@@ -108,5 +146,11 @@ pub(super) async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: 
             entries.len()
         ),
     };
-    return Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail, millis: began.elapsed().as_millis() } };
+    return Finding {
+        tool: Tool::Cargo,
+        outcome: Outcome::Repaired {
+            detail,
+            millis: began.elapsed().as_millis(),
+        },
+    };
 }

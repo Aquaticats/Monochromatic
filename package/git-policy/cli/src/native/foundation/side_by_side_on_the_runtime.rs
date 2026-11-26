@@ -63,17 +63,24 @@ fn no_answer_yet<T>() -> Option<Result<T, BlockingJobError>> {
 /// ```ts
 /// const answers = await Promise.allSettled(states.map((state) => runBlockingJobWithinTheBudget(() => job(state))));
 /// ```
-pub async fn run_all_side_by_side_on_the_runtime<S, T>(states: Vec<S>, job: fn(S) -> T) -> Vec<Result<T, BlockingJobError>>
+pub async fn run_all_side_by_side_on_the_runtime<S, T>(
+    states: Vec<S>,
+    job: fn(S) -> T,
+) -> Vec<Result<T, BlockingJobError>>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
     let count: usize = states.len();
-    let mut started: tokio::task::JoinSet<(usize, Result<T, BlockingJobError>)> = tokio::task::JoinSet::new();
+    let mut started: tokio::task::JoinSet<(usize, Result<T, BlockingJobError>)> =
+        tokio::task::JoinSet::new();
     for (index, state) in states.into_iter().enumerate() {
-        started.spawn(async move { return (index, run_a_job_or_in_turn(state, job).await); });
+        started.spawn(async move {
+            return (index, run_a_job_or_in_turn(state, job).await);
+        });
     }
-    let mut answers: Vec<Option<Result<T, BlockingJobError>>> = std::iter::repeat_with(no_answer_yet).take(count).collect();
+    let mut answers: Vec<Option<Result<T, BlockingJobError>>> =
+        std::iter::repeat_with(no_answer_yet).take(count).collect();
     while let Some(joined) = started.join_next().await {
         // An item's task that panicked outside the job it awaited answered nothing, and its slot says so below.
         if let Ok((index, answer)) = joined {
@@ -121,17 +128,20 @@ pub type AJob<S, T> = (S, fn(S) -> T);
 /// ```ts
 /// const [answer, here] = await Promise.all([runBlockingJobWithinTheBudget(() => job(state)), callerWork(callerState)]);
 /// ```
-pub async fn run_beside_the_caller_on_the_runtime<S, T, C, U>(job: AJob<S, T>, caller: AJob<C, U>) -> (Result<T, BlockingJobError>, U)
+pub async fn run_beside_the_caller_on_the_runtime<S, T, C, U>(
+    job: AJob<S, T>,
+    caller: AJob<C, U>,
+) -> (Result<T, BlockingJobError>, U)
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
     let (state, work): AJob<S, T> = job;
     let (caller_state, caller_work): AJob<C, U> = caller;
-    let (answer, here): (Result<T, BlockingJobError>, U) = tokio::join!(
-        run_a_job_or_in_turn(state, work),
-        async move { return caller_work(caller_state); },
-    );
+    let (answer, here): (Result<T, BlockingJobError>, U) =
+        tokio::join!(run_a_job_or_in_turn(state, work), async move {
+            return caller_work(caller_state);
+        },);
     return (answer, here);
 }
 

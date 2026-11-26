@@ -21,11 +21,19 @@
 //! ```
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
-use crate::worktree_clone_record_settling::settling_command::{SettlingDone, SettlingReads, settle_the_records_of_a_slot};
+use crate::worktree_clone_record_settling::settling_command::{
+    SettlingDone,
+    SettlingReads,
+    settle_the_records_of_a_slot,
+};
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
 use crate::worktree_clone_record_settling::settling_steps::SettlingStep;
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
 
 /// The variable naming the guest this arm may run in.
@@ -49,18 +57,29 @@ fn the_request(fixture: &LivePoolFixture) -> SettlingRequest {
     let recorded = fixture.recorded();
     let whole: String = recorded.clone_guid.file_name();
     let digits: String = String::from(&whole[whole.len() - 4..]);
-    return SettlingRequest { slot: String::from(SLOT), confirmed_slot: String::from(SLOT), digits };
+    return SettlingRequest {
+        slot: String::from(SLOT),
+        confirmed_slot: String::from(SLOT),
+        digits,
+    };
 }
 
 /// The `.git` pointer the recipe's first step removes,
 /// which the fixture's record names and the slot must hold.
 fn write_the_pointer(fixture: &LivePoolFixture) {
-    std::fs::write(fixture.slot_path().join(".git"), format!("gitdir: {}\n", fixture.registration().display())).expect("the pointer writes");
+    std::fs::write(
+        fixture.slot_path().join(".git"),
+        format!("gitdir: {}\n", fixture.registration().display()),
+    )
+    .expect("the pointer writes");
 }
 
 /// Whether one dataset answers the guest's own `zfs list`,
 /// which is the pool's answer and not this arm's reading of it.
-fn the_pool_holds(fixture: &LivePoolFixture, name: &str) -> bool {
+fn the_pool_holds(
+    fixture: &LivePoolFixture,
+    name: &str,
+) -> bool {
     return fixture.exists(name);
 }
 
@@ -78,12 +97,26 @@ fn the_pool_holds(fixture: &LivePoolFixture, name: &str) -> bool {
 #[test]
 #[ignore = "runs only inside the throwaway guest through e2e/settling-command-guest.ts"]
 fn the_settling_command_guest_arms() {
-    let variables: PoolVariables =
-        PoolVariables { guest: GUEST_VARIABLE, pool: POOL_VARIABLE, prefix: PREFIX_VARIABLE, root: ROOT_VARIABLE, default_root: DEFAULT_ROOT, default_pool: DEFAULT_POOL };
-    let Some(fixture) = LivePoolFixture::from_environment("the_settling_command_guest_arms", &variables) else { return };
+    let variables: PoolVariables = PoolVariables {
+        guest: GUEST_VARIABLE,
+        pool: POOL_VARIABLE,
+        prefix: PREFIX_VARIABLE,
+        root: ROOT_VARIABLE,
+        default_root: DEFAULT_ROOT,
+        default_pool: DEFAULT_POOL,
+    };
+    let Some(fixture) =
+        LivePoolFixture::from_environment("the_settling_command_guest_arms", &variables)
+    else {
+        return;
+    };
     let probe: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest has /dev/zfs");
-    let mounts: crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets = crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
-    let reads: SettlingReads<'_> = SettlingReads { probe: &probe, mounts: &mounts };
+    let mounts: crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets =
+        crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
+    let reads: SettlingReads<'_> = SettlingReads {
+        probe: &probe,
+        mounts: &mounts,
+    };
     fixture.build(&[]);
     let recorded = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
@@ -91,20 +124,53 @@ fn the_settling_command_guest_arms() {
     let request: SettlingRequest = the_request(&fixture);
 
     // The clone stands, so the command refuses and changes nothing.
-    let refused = settle_the_records_of_a_slot(fixture.common().as_path(), &request, &reads).expect_err("a standing clone refuses");
-    assert!(matches!(refused, SettlingStop::TheCloneStillStands { .. }), "{refused:?}");
-    assert!(the_pool_holds(&fixture, fixture.clone().as_str()), "the clone still answers");
+    let refused = settle_the_records_of_a_slot(fixture.common().as_path(), &request, &reads)
+        .expect_err("a standing clone refuses");
+    assert!(
+        matches!(refused, SettlingStop::TheCloneStillStands { .. }),
+        "{refused:?}"
+    );
+    assert!(
+        the_pool_holds(&fixture, fixture.clone().as_str()),
+        "the clone still answers"
+    );
     assert!(fixture.registration().exists(), "the registration stands");
-    assert!(crate::worktree_clone_binding_record::registration_home::home_folder(fixture.common().as_path()).join(format!("{SLOT}.binding")).exists(), "the binding stands");
+    assert!(
+        crate::worktree_clone_binding_record::registration_home::home_folder(
+            fixture.common().as_path()
+        )
+        .join(format!("{SLOT}.binding"))
+        .exists(),
+        "the binding stands"
+    );
     println!("SETTLING stands=refused");
 
     // A person destroys the clone outside the wrapper, which is the state the command exists for.
     fixture.run("zfs", &["destroy", "-r", fixture.clone().as_str()]);
-    let settled: SettlingDone = settle_the_records_of_a_slot(fixture.common().as_path(), &request, &reads).expect("a gone clone settles");
-    assert!(!the_pool_holds(&fixture, fixture.clone().as_str()), "the clone is gone from the pool");
+    let settled: SettlingDone =
+        settle_the_records_of_a_slot(fixture.common().as_path(), &request, &reads)
+            .expect("a gone clone settles");
+    assert!(
+        !the_pool_holds(&fixture, fixture.clone().as_str()),
+        "the clone is gone from the pool"
+    );
     assert!(!fixture.registration().exists(), "the registration went");
-    assert!(!crate::worktree_clone_binding_record::registration_home::home_folder(fixture.common().as_path()).join(format!("{SLOT}.binding")).exists(), "the binding went");
-    assert!(settled.lines.iter().any(|line| return line.contains("the clone's absence is proved")), "{:?}", settled.lines);
+    assert!(
+        !crate::worktree_clone_binding_record::registration_home::home_folder(
+            fixture.common().as_path()
+        )
+        .join(format!("{SLOT}.binding"))
+        .exists(),
+        "the binding went"
+    );
+    assert!(
+        settled
+            .lines
+            .iter()
+            .any(|line| return line.contains("the clone's absence is proved")),
+        "{:?}",
+        settled.lines
+    );
     println!("SETTLING gone=settled records={}", settled.files.len());
 
     // A slot whose checkout has begun keeps its registration and its files.
@@ -112,16 +178,39 @@ fn the_settling_command_guest_arms() {
     let checked_out = fixture.recorded();
     fixture.write_the_adds_records(&checked_out);
     write_the_pointer(&fixture);
-    std::fs::write(fixture.slot_path().join("README.md"), b"# the person's file\n").expect("the file writes");
+    std::fs::write(
+        fixture.slot_path().join("README.md"),
+        b"# the person's file\n",
+    )
+    .expect("the file writes");
     // A rebuilt pool makes a new clone, so its GUID is not the first arm's and the confirmation is read again.
     let rebuilt: SettlingRequest = the_request(&fixture);
     fixture.run("zfs", &["destroy", "-r", fixture.clone().as_str()]);
-    let with_a_checkout: SettlingDone = settle_the_records_of_a_slot(fixture.common().as_path(), &rebuilt, &reads).expect("a checkout's records settle");
+    let with_a_checkout: SettlingDone =
+        settle_the_records_of_a_slot(fixture.common().as_path(), &rebuilt, &reads)
+            .expect("a checkout's records settle");
     assert!(with_a_checkout.checkout_begun, "a checkout had begun");
-    assert_eq!(with_a_checkout.steps, vec![SettlingStep::TheOriginInventory, SettlingStep::TheCloneInventory, SettlingStep::TheBinding, SettlingStep::TheClaim]);
-    assert!(fixture.registration().exists(), "the registration stays for git worktree remove");
-    assert!(fixture.slot_path().join(".git").exists(), "the pointer stays");
-    assert!(fixture.slot_path().join("README.md").exists(), "the person's file stays");
+    assert_eq!(
+        with_a_checkout.steps,
+        vec![
+            SettlingStep::TheOriginInventory,
+            SettlingStep::TheCloneInventory,
+            SettlingStep::TheBinding,
+            SettlingStep::TheClaim
+        ]
+    );
+    assert!(
+        fixture.registration().exists(),
+        "the registration stays for git worktree remove"
+    );
+    assert!(
+        fixture.slot_path().join(".git").exists(),
+        "the pointer stays"
+    );
+    assert!(
+        fixture.slot_path().join("README.md").exists(),
+        "the person's file stays"
+    );
     println!("SETTLING checkout=records-only registration=kept");
     fixture.teardown();
     println!("SETTLING done");

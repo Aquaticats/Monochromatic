@@ -12,13 +12,32 @@
 #![cfg(unix)]
 
 /// Import the forwarding functions under test and shared fixtures.
-use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
+use super::{
+    ChildOutcome,
+    STOP_OUTCOME_FOR_THIS_THREAD,
+    StopOutcome,
+    exit_code,
+    git_command,
+    replace_process_with_real_git,
+    run_real_git,
+    run_real_git_until,
+};
 use crate::hooks_off::StartOwner;
-use crate::test_support::{executable, fixture, remove};
-use std::ffi::{OsStr, OsString};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// Exit codes pass through;
@@ -87,14 +106,25 @@ fn command_preserves_program_arguments_and_overlay() {
     }
     seen_environment.sort();
     assert_eq!(seen_environment, overlay);
-    let marker = crate::started_as_git::parse_marker(start_marker.expect("the start carries the marker").as_os_str())
-        .expect("a well-formed marker");
+    let marker = crate::started_as_git::parse_marker(
+        start_marker
+            .expect("the start carries the marker")
+            .as_os_str(),
+    )
+    .expect("a well-formed marker");
     assert_eq!(marker.starter_pid, std::process::id());
     assert_eq!(marker.mode, crate::started_as_git::StartMode::Child);
     // No overlay means the child environment is exactly the inherited one plus the marker.
     let bare: Command = git_command(Path::new("git"), &[], &[], StartOwner::Wrapper);
     assert_eq!(bare.get_envs().count(), 1);
-    assert_eq!(bare.get_envs().next().map(|(name, _value)| { return name.to_os_string(); }), Some(OsString::from(crate::started_as_git::STARTED_AS_GIT_VARIABLE)));
+    assert_eq!(
+        bare.get_envs().next().map(|(name, _value)| {
+            return name.to_os_string();
+        }),
+        Some(OsString::from(
+            crate::started_as_git::STARTED_AS_GIT_VARIABLE
+        ))
+    );
 }
 
 /// A child's own exit code and its terminating signal are both observed exactly.
@@ -237,20 +267,45 @@ fn a_run_with_a_ceiling_ends_git_and_leaves_its_helpers_running() {
     );
     executable(program.as_path(), script.as_bytes());
     let began: std::time::Instant = std::time::Instant::now();
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
+    let error: std::io::Error = run_real_git_until(
+        program.as_path(),
+        &[],
+        &[],
+        ENDED_CHILD_CEILING,
+        StartOwner::Wrapper,
+    )
+    .expect_err("the ceiling ends the step");
     let waited: std::time::Duration = began.elapsed();
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
     let said: String = error.to_string();
-    assert!(said.contains(named.as_str()) && said.contains("Git ended"), "the error names the ceiling and what it knows about Git: {said}");
-    assert!(said.contains("a filter or helper Git started may still be running"), "the error does not claim the helper ended: {said}");
-    assert!(waited < std::time::Duration::from_secs(20), "the ceiling ends it near its number, not when the child would have finished: {waited:?}");
-    assert!(!still_alive(number_in(child_number.as_path())), "Git is gone");
+    assert!(
+        said.contains(named.as_str()) && said.contains("Git ended"),
+        "the error names the ceiling and what it knows about Git: {said}"
+    );
+    assert!(
+        said.contains("a filter or helper Git started may still be running"),
+        "the error does not claim the helper ended: {said}"
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(20),
+        "the ceiling ends it near its number, not when the child would have finished: {waited:?}"
+    );
+    assert!(
+        !still_alive(number_in(child_number.as_path())),
+        "Git is gone"
+    );
     let helper: i32 = number_in(helper_number.as_path());
-    assert!(still_alive(helper), "the helper Git started is not signalled, as under native Git: {said}");
+    assert!(
+        still_alive(helper),
+        "the helper Git started is not signalled, as under native Git: {said}"
+    );
     // SAFETY: `kill` with SIGKILL takes a process number this control started through the runner and touches no memory.
     unsafe { libc::kill(helper, libc::SIGKILL) };
-    assert!(!still_alive(helper), "the control ends the helper it let run, so nothing outlives it");
+    assert!(
+        !still_alive(helper),
+        "the control ends the helper it let run, so nothing outlives it"
+    );
     remove(root.as_path());
 }
 
@@ -261,9 +316,30 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
     let root: PathBuf = fixture("forward-under-ceiling");
     let program: PathBuf = root.join("quick-git");
     executable(program.as_path(), b"#!/bin/sh\nexit 3\n");
-    assert_eq!(run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(30), StartOwner::Wrapper).expect("it ends at once"), ChildOutcome::Exited(3));
+    assert_eq!(
+        run_real_git_until(
+            program.as_path(),
+            &[],
+            &[],
+            std::time::Duration::from_secs(30),
+            StartOwner::Wrapper
+        )
+        .expect("it ends at once"),
+        ChildOutcome::Exited(3)
+    );
     let missing: PathBuf = root.join("no-git");
-    assert_eq!(run_real_git_until(missing.as_path(), &[], &[], std::time::Duration::from_secs(30), StartOwner::Wrapper).expect_err("nothing to start").kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(
+        run_real_git_until(
+            missing.as_path(),
+            &[],
+            &[],
+            std::time::Duration::from_secs(30),
+            StartOwner::Wrapper
+        )
+        .expect_err("nothing to start")
+        .kind(),
+        std::io::ErrorKind::NotFound
+    );
     remove(root.as_path());
 }
 
@@ -300,17 +376,37 @@ fn a_ceiling_whose_child_cannot_be_collected_returns_and_says_so() {
     let child_number: PathBuf = root.join("child.pid");
     let program: PathBuf = root.join("uninterruptible-git");
     // `exec` makes the leader the process that hangs, so the kill leaves no helper of the control's own behind.
-    let script: String = format!("#!/bin/sh\necho $$ > {}\nexec sleep 600\n", child_number.display());
+    let script: String = format!(
+        "#!/bin/sh\necho $$ > {}\nexec sleep 600\n",
+        child_number.display()
+    );
     executable(program.as_path(), script.as_bytes());
-    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Left)));
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
+    STOP_OUTCOME_FOR_THIS_THREAD
+        .with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Left)));
+    let error: std::io::Error = run_real_git_until(
+        program.as_path(),
+        &[],
+        &[],
+        ENDED_CHILD_CEILING,
+        StartOwner::Wrapper,
+    )
+    .expect_err("the ceiling ends the step");
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     let named: String = format!("{ENDED_CHILD_CEILING:?}");
     let said: String = error.to_string();
-    assert!(said.contains(named.as_str()) && said.contains("has not exited"), "the error names the ceiling and what it saw: {said}");
-    assert!(said.contains("a filter or helper Git started may still be running"), "and what it cannot know about the helpers: {said}");
-    assert!(collected_here(number_in(child_number.as_path())), "the kill reached Git, and only its collection was left to this process");
+    assert!(
+        said.contains(named.as_str()) && said.contains("has not exited"),
+        "the error names the ceiling and what it saw: {said}"
+    );
+    assert!(
+        said.contains("a filter or helper Git started may still be running"),
+        "and what it cannot know about the helpers: {said}"
+    );
+    assert!(
+        collected_here(number_in(child_number.as_path())),
+        "the kill reached Git, and only its collection was left to this process"
+    );
     remove(root.as_path());
 }
 
@@ -372,13 +468,31 @@ fn a_bounded_step_keeps_the_process_group_of_this_one() {
     let root: PathBuf = fixture("forward-ceiling-group");
     let group_file: PathBuf = root.join("group.txt");
     let program: PathBuf = root.join("printing-git");
-    let script: String = format!("#!/bin/sh\nread -r line < /proc/self/stat\nset -- $line\nprintf '%s\\n' \"$5\" > {}\n", group_file.display());
+    let script: String = format!(
+        "#!/bin/sh\nread -r line < /proc/self/stat\nset -- $line\nprintf '%s\\n' \"$5\" > {}\n",
+        group_file.display()
+    );
     executable(program.as_path(), script.as_bytes());
-    let outcome: ChildOutcome = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect("the script ends at once");
-    assert_eq!(outcome, ChildOutcome::Exited(0), "the script ran to its end");
+    let outcome: ChildOutcome = run_real_git_until(
+        program.as_path(),
+        &[],
+        &[],
+        ENDED_CHILD_CEILING,
+        StartOwner::Wrapper,
+    )
+    .expect("the script ends at once");
+    assert_eq!(
+        outcome,
+        ChildOutcome::Exited(0),
+        "the script ran to its end"
+    );
     // SAFETY: `getpgrp` takes no argument and touches no memory.
     let mine: i32 = unsafe { libc::getpgrp() };
-    assert_eq!(number_in(group_file.as_path()), mine, "the step runs in this process's group, which is the terminal's foreground group");
+    assert_eq!(
+        number_in(group_file.as_path()),
+        mine,
+        "the step runs in this process's group, which is the terminal's foreground group"
+    );
     remove(root.as_path());
 }
 
@@ -474,18 +588,35 @@ fn a_ceiling_says_what_a_caller_reading_the_stream_to_its_end_sees() {
     let root: PathBuf = fixture("forward-ceiling-eof");
     let helper_number: PathBuf = root.join("helper.pid");
     let program: PathBuf = root.join("filter-git");
-    let script: String = format!("#!/bin/sh\nsleep 600 &\necho $! > {}\nexec sleep 600\n", helper_number.display());
+    let script: String = format!(
+        "#!/bin/sh\nsleep 600 &\necho $! > {}\nexec sleep 600\n",
+        helper_number.display()
+    );
     executable(program.as_path(), script.as_bytes());
-    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Collected)));
-    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING, StartOwner::Wrapper).expect_err("the ceiling ends the step");
+    STOP_OUTCOME_FOR_THIS_THREAD
+        .with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Collected)));
+    let error: std::io::Error = run_real_git_until(
+        program.as_path(),
+        &[],
+        &[],
+        ENDED_CHILD_CEILING,
+        StartOwner::Wrapper,
+    )
+    .expect_err("the ceiling ends the step");
     STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
     let said: String = error.to_string();
     // The helper holds the stream open exactly as the line says, so this control ends it here.
     let helper: i32 = number_in(helper_number.as_path());
     // SAFETY: `kill` with SIGKILL takes a process number this control started through the runner and touches no memory.
     unsafe { libc::kill(helper, libc::SIGKILL) };
-    assert!(!still_alive(helper), "the control ends the helper it let run");
+    assert!(
+        !still_alive(helper),
+        "the control ends the helper it let run"
+    );
     assert!(said.contains("a caller reading this command's standard error to its end waits until that helper closes it"), "the line says what the caller's end of file means: {said}");
-    assert!(said.contains("and Git ended"), "and what is known about Git: {said}");
+    assert!(
+        said.contains("and Git ended"),
+        "and what is known about Git: {said}"
+    );
     remove(root.as_path());
 }

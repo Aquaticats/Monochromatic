@@ -32,7 +32,12 @@
 
 use crate::worktree_clone_forced_removal::caller_chain_walk::SparedBy;
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
-use crate::worktree_clone_forced_removal::receiver_closure::{MountRow, NamespaceTable, ReceiverSet, plan_the_receivers};
+use crate::worktree_clone_forced_removal::receiver_closure::{
+    MountRow,
+    NamespaceTable,
+    ReceiverSet,
+    plan_the_receivers,
+};
 
 /// What:
 ///  Why a forced removal may not go on,
@@ -116,14 +121,30 @@ impl ForcedRefusal {
     ///  and the design fixes which word each cause answers.
     pub fn word(&self) -> RefusalWord {
         return match self {
-            ForcedRefusal::ProtectedHolds { .. } => RefusalWord::CallerProtectedHolds,
-            ForcedRefusal::Blind { .. } => RefusalWord::HolderBlind,
-            ForcedRefusal::Unenterable { .. } => RefusalWord::HolderUnendable,
-            ForcedRefusal::Locked { .. } => RefusalWord::HolderLocked,
-            ForcedRefusal::ParentIsNotTheCheckout { .. } => RefusalWord::HolderUnendable,
-            ForcedRefusal::Structure { .. } => RefusalWord::HolderUnendable,
-            ForcedRefusal::Unendable { .. } => RefusalWord::HolderUnendable,
-            ForcedRefusal::NoDestination { .. } => RefusalWord::HolderUnendable,
+            ForcedRefusal::ProtectedHolds {
+                ..
+            } => RefusalWord::CallerProtectedHolds,
+            ForcedRefusal::Blind {
+                ..
+            } => RefusalWord::HolderBlind,
+            ForcedRefusal::Unenterable {
+                ..
+            } => RefusalWord::HolderUnendable,
+            ForcedRefusal::Locked {
+                ..
+            } => RefusalWord::HolderLocked,
+            ForcedRefusal::ParentIsNotTheCheckout {
+                ..
+            } => RefusalWord::HolderUnendable,
+            ForcedRefusal::Structure {
+                ..
+            } => RefusalWord::HolderUnendable,
+            ForcedRefusal::Unendable {
+                ..
+            } => RefusalWord::HolderUnendable,
+            ForcedRefusal::NoDestination {
+                ..
+            } => RefusalWord::HolderUnendable,
         };
     }
 }
@@ -258,30 +279,60 @@ pub struct ForcedPlan {
 /// ```
 pub fn plan_the_forced_removal(reads: &PreflightReads<'_>) -> Result<ForcedPlan, ForcedRefusal> {
     if let Some((holder, spared_by)) = reads.protected {
-        return Err(ForcedRefusal::ProtectedHolds { holder, spared_by });
+        return Err(ForcedRefusal::ProtectedHolds {
+            holder,
+            spared_by,
+        });
     }
     if !reads.blind.is_empty() {
-        return Err(ForcedRefusal::Blind { reads: reads.blind.to_vec() });
+        return Err(ForcedRefusal::Blind {
+            reads: reads.blind.to_vec(),
+        });
     }
     if let Some(namespace) = reads.unenterable.first() {
-        return Err(ForcedRefusal::Unenterable { namespace: namespace.clone() });
+        return Err(ForcedRefusal::Unenterable {
+            namespace: namespace.clone(),
+        });
     }
     if let Some((namespace, holder)) = reads.locked.first() {
-        return Err(ForcedRefusal::Locked { namespace: namespace.clone(), holder: holder.clone() });
+        return Err(ForcedRefusal::Locked {
+            namespace: namespace.clone(),
+            holder: holder.clone(),
+        });
     }
     if let Some(namespace) = reads.parents_not_the_checkout.first() {
-        return Err(ForcedRefusal::ParentIsNotTheCheckout { namespace: namespace.clone() });
+        return Err(ForcedRefusal::ParentIsNotTheCheckout {
+            namespace: namespace.clone(),
+        });
     }
     if let Some((namespace, because)) = reads.structural.first() {
-        return Err(ForcedRefusal::Structure { namespace: namespace.clone(), because });
+        return Err(ForcedRefusal::Structure {
+            namespace: namespace.clone(),
+            because,
+        });
     }
     if let Some((holder, because)) = reads.unendable.first() {
-        return Err(ForcedRefusal::Unendable { holder: *holder, because: because.clone() });
+        return Err(ForcedRefusal::Unendable {
+            holder: *holder,
+            because: because.clone(),
+        });
     }
-    let Some(acting) = reads.tables.iter().find(|table| return table.namespace == reads.acting) else {
-        return Err(ForcedRefusal::Unenterable { namespace: String::from(reads.acting) });
+    let Some(acting) = reads
+        .tables
+        .iter()
+        .find(|table| return table.namespace == reads.acting)
+    else {
+        return Err(ForcedRefusal::Unenterable {
+            namespace: String::from(reads.acting),
+        });
     };
-    let receivers: ReceiverSet = plan_the_receivers(acting, reads.copy, reads.tables, reads.dataset, reads.handled);
+    let receivers: ReceiverSet = plan_the_receivers(
+        acting,
+        reads.copy,
+        reads.tables,
+        reads.dataset,
+        reads.handled,
+    );
     let in_place: bool = receivers.way_eight && reads.handle_proved;
     if !in_place {
         // Way 7 needs one directory on the parent mount's root, so its reads are the route's own precondition, and
@@ -291,11 +342,21 @@ pub fn plan_the_forced_removal(reads: &PreflightReads<'_>) -> Result<ForcedPlan,
             .iter()
             .find(|(namespace, _because)| return *namespace == reads.acting)
         {
-            return Err(ForcedRefusal::NoDestination { namespace: String::from(reads.acting), because });
+            return Err(ForcedRefusal::NoDestination {
+                namespace: String::from(reads.acting),
+                because,
+            });
         }
     }
-    let route: Route = if in_place { Route::InPlaceByTheHandle } else { Route::SlaveMoveAndUnmount };
-    return Ok(ForcedPlan { route, receivers });
+    let route: Route = if in_place {
+        Route::InPlaceByTheHandle
+    } else {
+        Route::SlaveMoveAndUnmount
+    };
+    return Ok(ForcedPlan {
+        route,
+        receivers,
+    });
 }
 
 /// Controls stay out of the release executable.

@@ -14,13 +14,31 @@
 //! ```
 
 use super::forget_programs;
-use crate::service_client_settings_and_watches::{Activation, ClientConfig, ManagerAnswer, ManagerWatch};
-use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service};
+use crate::service_client_settings_and_watches::{
+    Activation,
+    ClientConfig,
+    ManagerAnswer,
+    ManagerWatch,
+};
+use crate::service_protocol::{
+    ClientMessage,
+    PROTOCOL_VERSION,
+    RELEASE,
+    ServiceMessage,
+    decode_client,
+    encode_service,
+};
 use crate::service_server::Bind;
-use std::io::{BufRead, Write};
+use std::io::{
+    BufRead,
+    Write,
+};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use std::time::Duration;
 
 /// How many times the stand-in manager of these controls was asked to start the service,
@@ -33,28 +51,40 @@ static STARTS_ASKED: AtomicUsize = AtomicUsize::new(0);
 const STAND_IN_PATIENCE: Duration = Duration::from_secs(30);
 
 /// The manager's word for a service that is running now.
-fn running(_bus: &Path, _unit: &str) -> ManagerAnswer {
+fn running(
+    _bus: &Path,
+    _unit: &str,
+) -> ManagerAnswer {
     return ManagerAnswer::State(String::from("active"));
 }
 
 /// The manager's word for a service that is not running:
 /// the state a person's own stop leaves,
 /// which a command may not repair by connecting.
-fn stopped(_bus: &Path, _unit: &str) -> ManagerAnswer {
+fn stopped(
+    _bus: &Path,
+    _unit: &str,
+) -> ManagerAnswer {
     return ManagerAnswer::State(String::from("inactive"));
 }
 
 /// A start the manager takes,
 /// counted,
 /// because a start is what these controls prove does not happen.
-fn a_start_is_asked_for(_bus: &Path, _unit: &str) -> bool {
+fn a_start_is_asked_for(
+    _bus: &Path,
+    _unit: &str,
+) -> bool {
     let _counted = STARTS_ASKED.fetch_add(1, Ordering::SeqCst);
     return true;
 }
 
 /// A reset and a restart the manager takes,
 /// which no message of this file asks for.
-fn a_repair_is_asked_for(_bus: &Path, _unit: &str) -> bool {
+fn a_repair_is_asked_for(
+    _bus: &Path,
+    _unit: &str,
+) -> bool {
     return true;
 }
 
@@ -77,7 +107,10 @@ fn watching(answer: fn(&Path, &str) -> ManagerAnswer) -> ManagerWatch {
 /// The settings of a client that reaches `address` and asks the manager in `watch`:
 /// the waits are milliseconds,
 /// so a control ends in well under a second.
-fn a_config(address: &str, watch: Option<ManagerWatch>) -> ClientConfig {
+fn a_config(
+    address: &str,
+    watch: Option<ManagerWatch>,
+) -> ClientConfig {
     return ClientConfig {
         address: Bind::Abstract(String::from(address)),
         activation: Activation::Managed,
@@ -101,7 +134,8 @@ fn an_address(label: &str) -> String {
 /// A listener on the abstract name `name`.
 fn a_listener_on(name: &str) -> UnixListener {
     use std::os::linux::net::SocketAddrExt;
-    let socket: std::os::unix::net::SocketAddr = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let socket: std::os::unix::net::SocketAddr =
+        std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
     return UnixListener::bind_addr(&socket).expect("bind the stand-in service");
 }
 
@@ -123,11 +157,20 @@ fn a_listener_on(name: &str) -> UnixListener {
 #[test]
 fn a_record_settled_where_no_service_runs_starts_none_to_tell_it() {
     STARTS_ASKED.store(0, Ordering::SeqCst);
-    let config: ClientConfig = a_config(an_address("cold-service").as_str(), Some(watching(stopped)));
+    let config: ClientConfig =
+        a_config(an_address("cold-service").as_str(), Some(watching(stopped)));
     let records: Vec<String> = vec![String::from("push-0123456789abcdef")];
-    let told: Result<(), crate::service_messages::ClientFailure> = forget_programs(&config, Path::new("/repository/.git"), records.as_slice());
-    assert!(told.is_ok(), "nothing to tell a service that does not run is no failure: {told:?}");
-    assert_eq!(STARTS_ASKED.load(Ordering::SeqCst), 0, "the manager was asked to start a service a command only wanted to tell nothing");
+    let told: Result<(), crate::service_messages::ClientFailure> =
+        forget_programs(&config, Path::new("/repository/.git"), records.as_slice());
+    assert!(
+        told.is_ok(),
+        "nothing to tell a service that does not run is no failure: {told:?}"
+    );
+    assert_eq!(
+        STARTS_ASKED.load(Ordering::SeqCst),
+        0,
+        "the manager was asked to start a service a command only wanted to tell nothing"
+    );
 }
 
 /// What:
@@ -149,25 +192,45 @@ fn a_running_service_is_told_which_records_can_no_longer_run() {
     let service: UnixListener = a_listener_on(name.as_str());
     let (sender, receiver) = std::sync::mpsc::channel::<String>();
     let serving = std::thread::spawn(move || {
-        let (stream, _address) = service.accept().expect("the client connects to a service that is running");
-        let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+        let (stream, _address) = service
+            .accept()
+            .expect("the client connects to a service that is running");
+        let mut greeting: String = encode_service(&ServiceMessage::Welcome {
+            version: PROTOCOL_VERSION,
+            release: Some(String::from(RELEASE)),
+        });
         greeting.push('\n');
         (&stream).write_all(greeting.as_bytes()).expect("greet");
         let mut line: String = String::new();
-        std::io::BufReader::new(&stream).read_line(&mut line).expect("the client sends its message");
+        std::io::BufReader::new(&stream)
+            .read_line(&mut line)
+            .expect("the client sends its message");
         sender.send(line).expect("the captured line");
         drop(stream);
     });
     let config: ClientConfig = a_config(name.as_str(), Some(watching(running)));
-    let records: Vec<String> = vec![String::from("push-0123456789abcdef"), String::from("push-456789abcdef0123")];
-    let told: Result<(), crate::service_messages::ClientFailure> = forget_programs(&config, Path::new("/repository/.git"), records.as_slice());
+    let records: Vec<String> = vec![
+        String::from("push-0123456789abcdef"),
+        String::from("push-456789abcdef0123"),
+    ];
+    let told: Result<(), crate::service_messages::ClientFailure> =
+        forget_programs(&config, Path::new("/repository/.git"), records.as_slice());
     assert!(told.is_ok(), "the service read the line: {told:?}");
-    let line: String = receiver.recv_timeout(STAND_IN_PATIENCE).expect("the client wrote its message");
+    let line: String = receiver
+        .recv_timeout(STAND_IN_PATIENCE)
+        .expect("the client wrote its message");
     let _joined = serving.join();
     assert_eq!(
         decode_client(line.as_str()),
-        Ok(ClientMessage::ForgetPrograms { git_dir: std::path::PathBuf::from("/repository/.git"), records }),
+        Ok(ClientMessage::ForgetPrograms {
+            git_dir: std::path::PathBuf::from("/repository/.git"),
+            records
+        }),
         "the service is told the records the command settled and no others"
     );
-    assert_eq!(STARTS_ASKED.load(Ordering::SeqCst), 0, "a service that answered needed no start");
+    assert_eq!(
+        STARTS_ASKED.load(Ordering::SeqCst),
+        0,
+        "a service that answered needed no start"
+    );
 }

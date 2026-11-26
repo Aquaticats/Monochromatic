@@ -3,14 +3,30 @@
 
 use super::*;
 use crate::capture_invocation::capture_invocation_layout;
-use crate::test_support::{fixture, git, git_context, git_text, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+};
 use std::path::PathBuf;
 
 /// Create an empty repository of `format` and return the name Git gives `tree 0` there,
 ///  with the format Git reports for it.
-fn oracle(name: &str, format: &str) -> (PathBuf, String, String) {
+fn oracle(
+    name: &str,
+    format: &str,
+) -> (PathBuf, String, String) {
     let root: PathBuf = fixture(name);
-    git(root.as_path(), &["init", "--quiet", format!("--object-format={format}").as_str()]);
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            format!("--object-format={format}").as_str(),
+        ],
+    );
     let hashed: String = git_text(root.as_path(), &["hash-object", "-t", "tree", "--stdin"]);
     let reported: String = git_text(root.as_path(), &["rev-parse", "--show-object-format"]);
     return (root, hashed, reported);
@@ -52,7 +68,8 @@ fn an_unknown_format_is_not_answered() {
 ///  as the spawned hash did.
 #[test]
 fn the_capture_of_a_sha256_repository_records_the_sha256_empty_tree() {
-    let (root, hashed, _reported): (PathBuf, String, String) = oracle("empty-tree-capture-sha256", "sha256");
+    let (root, hashed, _reported): (PathBuf, String, String) =
+        oracle("empty-tree-capture-sha256", "sha256");
     let layout = capture_invocation_layout(&git_context(), root.as_path(), false).expect("layout");
     assert_eq!(layout.object_format, "sha256");
     assert_eq!(layout.empty_tree_oid, hashed);

@@ -1,9 +1,17 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
 
-use crate::service_client_listen_and_ask_to_retire::read_message;
-use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, decode_service};
 use super::*;
-use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
+use crate::service_client_listen_and_ask_to_retire::read_message;
+use crate::service_protocol::{
+    HEARTBEAT_EVERY,
+    HEARTBEAT_SILENCE,
+    encode_service,
+};
+use crate::service_protocol::{
+    PROTOCOL_VERSION,
+    RELEASE,
+    decode_service,
+};
 /// The socket a stand-in service listens on and the address it names.
 use crate::service_server::Bind;
 use std::os::unix::net::UnixListener;
@@ -14,7 +22,10 @@ use std::os::unix::net::UnixListener;
 /// or at `ANSWER_CEILING`.
 #[test]
 fn the_silence_bound_is_several_beats_so_one_late_beat_is_not_a_stopped_service() {
-    assert!(HEARTBEAT_SILENCE >= HEARTBEAT_EVERY * MINIMUM_BEATS_MISSED, "{HEARTBEAT_SILENCE:?} against a beat every {HEARTBEAT_EVERY:?}");
+    assert!(
+        HEARTBEAT_SILENCE >= HEARTBEAT_EVERY * MINIMUM_BEATS_MISSED,
+        "{HEARTBEAT_SILENCE:?} against a beat every {HEARTBEAT_EVERY:?}"
+    );
 }
 
 /// The fewest beats of silence a stopped service is told from a late one by.
@@ -32,13 +43,24 @@ fn reader_after(bytes: &[u8]) -> BufReader<UnixStream> {
 /// and a connection the service closed reads as no message.
 #[test]
 fn a_line_is_read_as_a_message_and_a_closed_connection_as_none() {
-    let greeting: ServiceMessage = ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) };
+    let greeting: ServiceMessage = ServiceMessage::Welcome {
+        version: PROTOCOL_VERSION,
+        release: Some(String::from(RELEASE)),
+    };
     let mut line: String = encode_service(&greeting);
     line.push('\n');
     let mut reader: BufReader<UnixStream> = reader_after(line.as_bytes());
     assert_eq!(read_message(&mut reader), Some(greeting));
-    assert_eq!(read_message(&mut reader), None, "the service closed the connection after its line");
-    assert_eq!(read_message(&mut reader_after(b"")), None, "a connection closed with nothing sent");
+    assert_eq!(
+        read_message(&mut reader),
+        None,
+        "the service closed the connection after its line"
+    );
+    assert_eq!(
+        read_message(&mut reader_after(b"")),
+        None,
+        "a connection closed with nothing sent"
+    );
 }
 
 /// A line that is not a message reads as none,
@@ -50,7 +72,10 @@ fn a_line_is_read_as_a_message_and_a_closed_connection_as_none() {
 /// because the empty line decodes to nothing by itself.
 #[test]
 fn an_empty_or_damaged_line_decodes_to_no_message() {
-    assert!(decode_service("").is_err(), "an empty line is not a message");
+    assert!(
+        decode_service("").is_err(),
+        "an empty line is not a message"
+    );
     assert_eq!(read_message(&mut reader_after(b"not a message\n")), None);
 }
 
@@ -61,11 +86,26 @@ fn an_empty_or_damaged_line_decodes_to_no_message() {
 #[test]
 fn a_read_only_failure_is_the_frozen_move_one_only_when_the_move_record_covers_the_repository() {
     let state: std::path::PathBuf = crate::test_support::fixture("client-read-only-freeze");
-    assert_eq!(read_only_failure("/work/repo", None), ClientFailure::RepositoryReadOnly(String::from("/work/repo")), "no state folder");
-    assert_eq!(read_only_failure("/work/repo", Some(state.as_path())), ClientFailure::RepositoryReadOnly(String::from("/work/repo")), "no manifest");
+    assert_eq!(
+        read_only_failure("/work/repo", None),
+        ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
+        "no state folder"
+    );
+    assert_eq!(
+        read_only_failure("/work/repo", Some(state.as_path())),
+        ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
+        "no manifest"
+    );
     std::fs::write(state.join("freeze-manifest.tsv"), "0a1b\t/work/repo\n").expect("manifest");
-    assert_eq!(read_only_failure("/work/repo/package/x", Some(state.as_path())), ClientFailure::RepositoryFrozen(String::from("/work/repo/package/x")));
-    assert_eq!(read_only_failure("/work/other", Some(state.as_path())), ClientFailure::RepositoryReadOnly(String::from("/work/other")), "a repository the move did not freeze");
+    assert_eq!(
+        read_only_failure("/work/repo/package/x", Some(state.as_path())),
+        ClientFailure::RepositoryFrozen(String::from("/work/repo/package/x"))
+    );
+    assert_eq!(
+        read_only_failure("/work/other", Some(state.as_path())),
+        ClientFailure::RepositoryReadOnly(String::from("/work/other")),
+        "a repository the move did not freeze"
+    );
     crate::test_support::remove(state.as_path());
 }
 
@@ -85,19 +125,42 @@ fn a_sent_commit_carries_the_programs_of_this_command() {
     let (sender, receiver) = std::sync::mpsc::channel::<String>();
     let serving = std::thread::spawn(move || {
         let (stream, _address) = service.accept().expect("the client connects");
-        (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+        (&stream)
+            .write_all(
+                the_line(&ServiceMessage::Welcome {
+                    version: PROTOCOL_VERSION,
+                    release: Some(String::from(RELEASE)),
+                })
+                .as_slice(),
+            )
+            .expect("greet");
         let mut request: String = String::new();
-        std::io::BufReader::new(&stream).read_line(&mut request).expect("the client sends its request");
+        std::io::BufReader::new(&stream)
+            .read_line(&mut request)
+            .expect("the client sends its request");
         sender.send(request).expect("the captured line");
         drop(stream);
     });
     // No answer comes, so the client ends on its silence bound; the line it wrote is captured before that.
-    let _unanswered: Result<Submitted, ClientFailure> = submit(&reach_settings(name.as_str()), &a_request("carries-programs"), &mut std::io::sink());
-    let line: String = receiver.recv_timeout(STAND_IN_PATIENCE).expect("the client wrote its request");
+    let _unanswered: Result<Submitted, ClientFailure> = submit(
+        &reach_settings(name.as_str()),
+        &a_request("carries-programs"),
+        &mut std::io::sink(),
+    );
+    let line: String = receiver
+        .recv_timeout(STAND_IN_PATIENCE)
+        .expect("the client wrote its request");
     let _joined = serving.join();
-    let decoded: ClientMessage = decode_client(line.as_str()).expect("the client writes a request the service accepts");
-    let ClientMessage::Commit(sent) = decoded else { panic!("the client wrote no commit request") };
-    assert_eq!(sent.programs, Some(crate::service_push_programs_held_in_memory::of_this_process()), "the request carries this command's programs");
+    let decoded: ClientMessage =
+        decode_client(line.as_str()).expect("the client writes a request the service accepts");
+    let ClientMessage::Commit(sent) = decoded else {
+        panic!("the client wrote no commit request")
+    };
+    assert_eq!(
+        sent.programs,
+        Some(crate::service_push_programs_held_in_memory::of_this_process()),
+        "the request carries this command's programs"
+    );
 }
 
 /// What:
@@ -147,7 +210,9 @@ fn a_request(id: &str) -> CommitRequest {
         commit: None,
         cleanup: None,
         index: std::path::PathBuf::from("/nowhere/.git/index"),
-        scratch: std::path::PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-a-0"),
+        scratch: std::path::PathBuf::from(
+            "/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-a-0",
+        ),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -163,7 +228,8 @@ fn an_address(label: &str) -> String {
 /// A listener on the abstract name `name`.
 fn a_listener_on(name: &str) -> UnixListener {
     use std::os::linux::net::SocketAddrExt;
-    let socket: std::os::unix::net::SocketAddr = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let socket: std::os::unix::net::SocketAddr =
+        std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
     return UnixListener::bind_addr(&socket).expect("bind the stand-in service");
 }
 
@@ -178,9 +244,19 @@ fn the_line(message: &ServiceMessage) -> Vec<u8> {
 /// so the client's send is a send that happened.
 fn greet_and_read(stream: &UnixStream) {
     use std::io::BufRead;
-    (&*stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+    (&*stream)
+        .write_all(
+            the_line(&ServiceMessage::Welcome {
+                version: PROTOCOL_VERSION,
+                release: Some(String::from(RELEASE)),
+            })
+            .as_slice(),
+        )
+        .expect("greet");
     let mut request: String = String::new();
-    std::io::BufReader::new(stream).read_line(&mut request).expect("the client sends its request");
+    std::io::BufReader::new(stream)
+        .read_line(&mut request)
+        .expect("the client sends its request");
 }
 
 /// How many connections a stand-in service of these controls serves before its thread ends,
@@ -212,10 +288,18 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made() {
         drop(stream);
         drop(service);
     });
-    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("sent-then-gone"), &mut std::io::sink())
-        .expect_err("the service is gone after the request was sent");
+    let failure: ClientFailure = submit(
+        &reach_settings(name.as_str()),
+        &a_request("sent-then-gone"),
+        &mut std::io::sink(),
+    )
+    .expect_err("the service is gone after the request was sent");
     let _joined = serving.join();
-    assert_eq!(failure, ClientFailure::ServiceSilent, "a request that was sent may have landed, so nothing may say it was not made");
+    assert_eq!(
+        failure,
+        ClientFailure::ServiceSilent,
+        "a request that was sent may have landed, so nothing may say it was not made"
+    );
 }
 
 /// What:
@@ -228,7 +312,8 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made() {
 /// the service was killed after the branch moved and the unit named another release),
 /// and the sentence it printed was false.
 #[test]
-fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_newer_service_answers() {
+fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_newer_service_answers()
+ {
     let name: String = an_address("sent-then-newer");
     let service: UnixListener = a_listener_on(name.as_str());
     let _set = service.set_nonblocking(true);
@@ -244,19 +329,32 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_
                         continue;
                     }
                     // From the second connection on: a service of a newer release, which this client cannot ask to retire.
-                    let newer: ServiceMessage = ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1, release: Some(String::from("a-newer-release")) };
-                    (&stream).write_all(the_line(&newer).as_slice()).expect("greet as a newer release");
+                    let newer: ServiceMessage = ServiceMessage::Welcome {
+                        version: PROTOCOL_VERSION + 1,
+                        release: Some(String::from("a-newer-release")),
+                    };
+                    (&stream)
+                        .write_all(the_line(&newer).as_slice())
+                        .expect("greet as a newer release");
                 }
                 Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
             }
         }
     });
-    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("sent-then-newer"), &mut std::io::sink())
-        .expect_err("a service of a newer release cannot answer this client");
+    let failure: ClientFailure = submit(
+        &reach_settings(name.as_str()),
+        &a_request("sent-then-newer"),
+        &mut std::io::sink(),
+    )
+    .expect_err("a service of a newer release cannot answer this client");
     // The stand-in ends by its own bound: the client needs one greeting, and waiting for the thread would make this control
     //  as long as that bound.
     drop(serving);
-    assert_eq!(failure, ClientFailure::ServiceSilent, "a request that was sent may have landed, so nothing may say it was not made");
+    assert_eq!(
+        failure,
+        ClientFailure::ServiceSilent,
+        "a request that was sent may have landed, so nothing may say it was not made"
+    );
 }
 
 /// What:
@@ -269,8 +367,12 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_
 #[test]
 fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {
     let name: String = an_address("never-sent");
-    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("never-sent"), &mut std::io::sink())
-        .expect_err("nothing listens at this address");
+    let failure: ClientFailure = submit(
+        &reach_settings(name.as_str()),
+        &a_request("never-sent"),
+        &mut std::io::sink(),
+    )
+    .expect_err("nothing listens at this address");
     assert_eq!(
         failure,
         ClientFailure::DidNotStart { unit: None, answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing },
@@ -302,11 +404,27 @@ fn a_service_that_withdraws(
         let _sent = arrived.send(());
         // The connection the withdrawal comes on, which the client opens itself.
         let (withdrawing, _withdrawn) = service.accept().expect("the client asks to withdraw");
-        let _greeting = (&withdrawing).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        let _greeting = (&withdrawing).write_all(
+            the_line(&ServiceMessage::Welcome {
+                version: PROTOCOL_VERSION,
+                release: Some(String::from(RELEASE)),
+            })
+            .as_slice(),
+        );
         let mut asked: String = String::new();
-        std::io::BufReader::new(&withdrawing).read_line(&mut asked).expect("the withdrawal reaches the service");
-        assert!(asked.contains("withdraw"), "the line the client sends asks to withdraw: {asked}");
-        let _waiting = (&withdrawing).write_all(the_line(&ServiceMessage::Waiting { text: line }).as_slice());
+        std::io::BufReader::new(&withdrawing)
+            .read_line(&mut asked)
+            .expect("the withdrawal reaches the service");
+        assert!(
+            asked.contains("withdraw"),
+            "the line the client sends asks to withdraw: {asked}"
+        );
+        let _waiting = (&withdrawing).write_all(
+            the_line(&ServiceMessage::Waiting {
+                text: line,
+            })
+            .as_slice(),
+        );
         let _answer = (&withdrawing).write_all(the_line(&answer).as_slice());
     });
     return (seen, serving);
@@ -327,19 +445,49 @@ fn a_service_that_withdraws(
 #[test]
 fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
     let name: String = an_address("interrupted");
-    let (seen, serving) = a_service_that_withdraws(name.as_str(), "the commit waits for another program's index lock", ServiceMessage::Withdrawn { id: String::from("interrupted") });
+    let (seen, serving) = a_service_that_withdraws(
+        name.as_str(),
+        "the commit waits for another program's index lock",
+        ServiceMessage::Withdrawn {
+            id: String::from("interrupted"),
+        },
+    );
     let interrupting = std::thread::spawn(move || {
-        seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, Some(std::process::id() as i32));
+        seen.recv_timeout(Duration::from_secs(30))
+            .expect("the request reaches the service");
+        crate::service_client_interrupted::stop_requested_for_test(
+            libc::SIGINT,
+            Some(std::process::id() as i32),
+        );
     });
-    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("interrupted"), &mut std::io::sink()).expect_err("the service gave the request up");
+    let failure: ClientFailure = submit(
+        &reach_settings(name.as_str()),
+        &a_request("interrupted"),
+        &mut std::io::sink(),
+    )
+    .expect_err("the service gave the request up");
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
-    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(std::process::id() as i32), blocker: Some(String::from("the commit waits for another program's index lock")) };
-    assert_eq!(failure, expected, "the person is told the commit was not made");
+    let expected: ClientFailure = ClientFailure::Interrupted {
+        signal: libc::SIGINT,
+        sender: Some(std::process::id() as i32),
+        blocker: Some(String::from(
+            "the commit waits for another program's index lock",
+        )),
+    };
+    assert_eq!(
+        failure, expected,
+        "the person is told the commit was not made"
+    );
     let words: String = crate::service_messages::render(&failure);
-    assert!(words.contains("interrupted") && words.contains("was not made"), "{words}");
-    assert!(words.contains(crate::service_messages::NOTHING_CHANGED), "{words}");
+    assert!(
+        words.contains("interrupted") && words.contains("was not made"),
+        "{words}"
+    );
+    assert!(
+        words.contains(crate::service_messages::NOTHING_CHANGED),
+        "{words}"
+    );
 }
 
 /// What:
@@ -361,16 +509,34 @@ fn a_commit_that_landed_before_the_signal_came_stays_landed() {
     let (seen, serving) = a_service_that_withdraws(
         name.as_str(),
         "the commit waits for another program's index lock",
-        ServiceMessage::Landed { id: String::from("interrupted-after-landing"), commit: commit.clone(), already: false, landing: None },
+        ServiceMessage::Landed {
+            id: String::from("interrupted-after-landing"),
+            commit: commit.clone(),
+            already: false,
+            landing: None,
+        },
     );
     let interrupting = std::thread::spawn(move || {
-        seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
+        seen.recv_timeout(Duration::from_secs(30))
+            .expect("the request reaches the service");
         crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, None);
     });
-    let submitted: Submitted = submit(&reach_settings(name.as_str()), &a_request("interrupted-after-landing"), &mut std::io::sink()).expect("the commit landed");
+    let submitted: Submitted = submit(
+        &reach_settings(name.as_str()),
+        &a_request("interrupted-after-landing"),
+        &mut std::io::sink(),
+    )
+    .expect("the commit landed");
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
-    assert_eq!(submitted, Submitted::Landed { commit, already: true }, "a commit on the branch is reported as landed");
+    assert_eq!(
+        submitted,
+        Submitted::Landed {
+            commit,
+            already: true
+        },
+        "a commit on the branch is reported as landed"
+    );
 }
 
 /// What:
@@ -401,20 +567,35 @@ fn a_give_up_after_a_whole_delivery_says_the_result_is_not_known() {
         drop(first);
         // The second connection: greeted, and not one byte of the request read.
         let (second, _second_address) = service.accept().expect("the client sends again");
-        (&second).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+        (&second)
+            .write_all(
+                the_line(&ServiceMessage::Welcome {
+                    version: PROTOCOL_VERSION,
+                    release: Some(String::from(RELEASE)),
+                })
+                .as_slice(),
+            )
+            .expect("greet");
         std::thread::sleep(STAND_IN_PATIENCE);
         drop(second);
     });
     let request: CommitRequest = a_request_of_many_changes("give-up-after-whole");
-    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &request, &mut std::io::sink())
-        .expect_err("a request whose second write stalls cannot be answered");
+    let failure: ClientFailure = submit(
+        &reach_settings(name.as_str()),
+        &request,
+        &mut std::io::sink(),
+    )
+    .expect_err("a request whose second write stalls cannot be answered");
     drop(serving);
     assert_eq!(
         failure,
         ClientFailure::MayNotHaveLanded,
         "an earlier attempt delivered the whole line, so nothing may say the service never took it"
     );
-    assert!(!crate::service_commit_tree_ownership::the_service_never_took(&Err(failure.clone())), "and the scratch tree stays with the service's claim on it");
+    assert!(
+        !crate::service_commit_tree_ownership::the_service_never_took(&Err(failure.clone())),
+        "and the scratch tree stays with the service's claim on it"
+    );
 }
 
 /// A request whose line is larger than one connection's buffers,

@@ -3,32 +3,74 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{NotTaken, RELINK_REFERENCE, RelinkEntry, Reach, RelinkTool, SearchPathOfTheAdd, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{
+    NotTaken,
+    RELINK_REFERENCE,
+    Reach,
+    RelinkEntry,
+    RelinkTool,
+    SearchPathOfTheAdd,
+    decode,
+    encode,
+    hand_over_with,
+    item_of,
+    object_name_of,
+};
 use crate::claim_time::ClaimTime;
 use crate::iso_time::now_iso;
 use crate::service_route::Route;
 use crate::service_server::Bind;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git_context, remove};
-use crate::work_item::{Claimed, DONE, Enqueued, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+};
+use crate::work_item::{
+    Claimed,
+    DONE,
+    Enqueued,
+    PENDING,
+    WorkItem,
+    WorkKind,
+    claim_next_of,
+    enqueue,
+    settle,
+    state_directory,
+};
 use std::os::unix::fs::PermissionsExt as _;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// One worktree that needs both tools,
 /// so the payload holds more than one name.
 fn entry(root: &Path) -> RelinkEntry {
-    return RelinkEntry { root: root.to_path_buf(), search_path: SearchPathOfTheAdd::NotRecorded, tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain] };
+    return RelinkEntry {
+        root: root.to_path_buf(),
+        search_path: SearchPathOfTheAdd::NotRecorded,
+        tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain],
+    };
 }
 
 /// A route finder that names no service,
 /// as a session with no unit for this repository does.
-fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
+fn no_service(
+    _git: &Path,
+    _git_dir: &Path,
+) -> Option<Route> {
     return None;
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(
+    _host: &crate::service_provision::ProvisionHost
+) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -36,7 +78,11 @@ fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<
 /// a route finder that finds nothing and a provisioner that sets nothing up,
 /// so no service and no session bus is reached.
 fn no_reach() -> Reach<'static> {
-    return Reach { router: &no_service, provisioner: &nothing_to_set_up, start_wait: std::time::Duration::from_millis(200) };
+    return Reach {
+        router: &no_service,
+        provisioner: &nothing_to_set_up,
+        start_wait: std::time::Duration::from_millis(200),
+    };
 }
 
 /// What:
@@ -64,7 +110,11 @@ fn both_tools_round_trip_through_the_payload() {
             tools: vec![RelinkTool::Pnpm, RelinkTool::Toolchain],
         };
         let text: String = encode(&written).expect("the payload");
-        assert_eq!(decode(text.as_str()).expect("the entry"), written, "{text} did not come back as it went");
+        assert_eq!(
+            decode(text.as_str()).expect("the entry"),
+            written,
+            "{text} did not come back as it went"
+        );
     }
 }
 
@@ -92,7 +142,12 @@ fn a_payload_that_names_no_known_tool_is_refused() {
         assert!(refused.is_err(), "{text} was accepted as {refused:?}");
     }
     assert!(
-        encode(&RelinkEntry { root: PathBuf::from("/w"), search_path: SearchPathOfTheAdd::NotRecorded, tools: Vec::new() }).is_err(),
+        encode(&RelinkEntry {
+            root: PathBuf::from("/w"),
+            search_path: SearchPathOfTheAdd::NotRecorded,
+            tools: Vec::new()
+        })
+        .is_err(),
         "a relink of no tool is no work"
     );
 }
@@ -106,12 +161,24 @@ fn a_payload_that_names_no_known_tool_is_refused() {
 #[test]
 fn two_worktrees_get_their_own_object_name() {
     let moment: &str = "2026-11-11T00:00:00.000Z";
-    let first: String = object_name_of(Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one"), moment);
-    let second: String = object_name_of(Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/two"), moment);
-    let later: String = object_name_of(Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one"), "2026-11-11T00:00:00.001Z");
+    let first: String = object_name_of(
+        Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one"),
+        moment,
+    );
+    let second: String = object_name_of(
+        Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/two"),
+        moment,
+    );
+    let later: String = object_name_of(
+        Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one"),
+        "2026-11-11T00:00:00.001Z",
+    );
     assert_ne!(first, later, "two hand-overs of one path are two records");
     assert_eq!(first.len(), 40, "{first}");
-    assert!(first.as_bytes().iter().all(u8::is_ascii_hexdigit), "{first}");
+    assert!(
+        first.as_bytes().iter().all(u8::is_ascii_hexdigit),
+        "{first}"
+    );
     assert_ne!(first, second);
 }
 
@@ -130,12 +197,21 @@ fn the_record_names_the_worktree_the_common_directory_and_the_tools() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = entry(destination.as_path());
-    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
+    let item: WorkItem = item_of(
+        common.as_path(),
+        destination.as_path(),
+        &written,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the record");
     assert_eq!(item.kind, WorkKind::Relink);
     assert_eq!(item.repository, destination);
     assert_eq!(item.git_dir, common);
     assert_eq!(item.branch_ref, RELINK_REFERENCE);
-    assert_eq!(item.oid, object_name_of(destination.as_path(), item.created.as_str()));
+    assert_eq!(
+        item.oid,
+        object_name_of(destination.as_path(), item.created.as_str())
+    );
     assert_eq!(decode(item.parent.as_str()).expect("the entry"), written);
     remove(root.as_path());
 }
@@ -144,7 +220,9 @@ fn the_record_names_the_worktree_the_common_directory_and_the_tools() {
 /// sorted,
 /// so a control can say what a hand-over left there.
 fn pending_names(pending: &Path) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(pending) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(pending) else {
+        return Vec::new();
+    };
     let mut names: Vec<String> = listing
         .flatten()
         .map(|item| return item.file_name().to_string_lossy().into_owned())
@@ -164,7 +242,10 @@ fn pending_names(pending: &Path) -> Vec<String> {
 fn after_the_clock_moves(moment: &str) {
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     while now_iso() == moment {
-        assert!(Instant::now() < deadline, "the clock did not move past {moment}");
+        assert!(
+            Instant::now() < deadline,
+            "the clock did not move past {moment}"
+        );
         std::thread::sleep(Duration::from_millis(1));
     }
 }
@@ -186,18 +267,45 @@ fn a_second_worktree_at_a_settled_path_gets_its_own_record() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let work: PathBuf = work_directory(common.as_path());
-    let first: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the first record");
+    let first: WorkItem = item_of(
+        common.as_path(),
+        destination.as_path(),
+        &entry(destination.as_path()),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the first record");
     assert_eq!(enqueue(work.as_path(), &first), Ok(Enqueued::Added));
     let claimed: Claimed = claim_next_of(work.as_path(), &ClaimTime::read(), &[WorkKind::Relink])
         .expect("the claim")
         .expect("a relink record to claim");
     settle(work.as_path(), &claimed, DONE).expect("the first relink settles");
     after_the_clock_moves(first.created.as_str());
-    let second: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the second record");
-    assert_ne!(first.created, second.created, "the two adds are two moments");
-    assert_ne!(first.id(), second.id(), "the second add is other work than the settled one");
-    assert_eq!(enqueue(work.as_path(), &second), Ok(Enqueued::Added), "a settled record answered the second add as known");
-    assert_eq!(pending_names(state_directory(work.as_path(), PENDING).as_path()), vec![second.id()], "the second add has no pending relink");
+    let second: WorkItem = item_of(
+        common.as_path(),
+        destination.as_path(),
+        &entry(destination.as_path()),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("the second record");
+    assert_ne!(
+        first.created, second.created,
+        "the two adds are two moments"
+    );
+    assert_ne!(
+        first.id(),
+        second.id(),
+        "the second add is other work than the settled one"
+    );
+    assert_eq!(
+        enqueue(work.as_path(), &second),
+        Ok(Enqueued::Added),
+        "a settled record answered the second add as known"
+    );
+    assert_eq!(
+        pending_names(state_directory(work.as_path(), PENDING).as_path()),
+        vec![second.id()],
+        "the second add has no pending relink"
+    );
     remove(root.as_path());
 }
 
@@ -215,14 +323,35 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     let address: String = format!("relink-hand-over-{}", std::process::id());
     let service: FixtureService = serve_this_release(address.as_str());
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let route: Route = Route {
+        address: Bind::Abstract(address),
+        provision: None,
+    };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     let written: RelinkEntry = entry(destination.as_path());
-    hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &nothing_to_set_up), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("a service took the record");
+    hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        &written,
+        &reach(&router, &nothing_to_set_up),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect("a service took the record");
     let heard: Vec<String> = service.finish();
-    let work: String = crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work { git_dir: common.clone(), review_key: None, push_programs: Vec::new()});
-    assert!(heard.contains(&work), "the service was woken for the repository's common directory: {heard:?}");
-    let queued: Vec<String> = pending_names(state_directory(work_directory(common.as_path()).as_path(), PENDING).as_path());
+    let work: String =
+        crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work {
+            git_dir: common.clone(),
+            review_key: None,
+            push_programs: Vec::new(),
+        });
+    assert!(
+        heard.contains(&work),
+        "the service was woken for the repository's common directory: {heard:?}"
+    );
+    let queued: Vec<String> = pending_names(
+        state_directory(work_directory(common.as_path()).as_path(), PENDING).as_path(),
+    );
     assert_eq!(queued.len(), 1, "the service drains the record: {queued:?}");
     remove(root.as_path());
 }
@@ -244,7 +373,10 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    let route: Route = Route { address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())), provision: Some(unreachable_host()) };
+    let route: Route = Route {
+        address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())),
+        provision: Some(unreachable_host()),
+    };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     // The claim a service makes: the record leaves `pending` before the add takes it back.
     let claimed_from: PathBuf = pending.clone();
@@ -255,11 +387,28 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
         return Ok(());
     };
     let written: RelinkEntry = entry(destination.as_path());
-    let not_taken: NotTaken =
-        hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect_err("no service answered this add");
-    assert!(!not_taken.reason.is_empty(), "the add is told why no service took the record");
-    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left queued");
-    not_taken.queued.expect("the record the add wrote").take_back();
+    let not_taken: NotTaken = hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        &written,
+        &reach(&router, &claiming_pending),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect_err("no service answered this add");
+    assert!(
+        !not_taken.reason.is_empty(),
+        "the add is told why no service took the record"
+    );
+    assert_eq!(
+        pending_names(pending.as_path()),
+        Vec::<String>::new(),
+        "nothing is left queued"
+    );
+    not_taken
+        .queued
+        .expect("the record the add wrote")
+        .take_back();
     remove(root.as_path());
 }
 
@@ -279,18 +428,42 @@ fn a_record_that_cannot_be_taken_back_stays_queued() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     let written: RelinkEntry = entry(destination.as_path());
-    let not_taken: NotTaken = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach(), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect_err("a session with no service is reported");
+    let not_taken: NotTaken = hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        &written,
+        &no_reach(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    )
+    .expect_err("a session with no service is reported");
     // A directory that refuses the unlink, as one whose permissions somebody changed does.
-    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
-    not_taken.queued.expect("the record the add wrote").take_back();
-    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture is removable again");
-    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record stays, so the service may relink this worktree again");
+    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a directory that refuses writes");
+    not_taken
+        .queued
+        .expect("the record the add wrote")
+        .take_back();
+    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("the fixture is removable again");
+    assert_eq!(
+        pending_names(pending.as_path()).len(),
+        1,
+        "the record stays, so the service may relink this worktree again"
+    );
     remove(root.as_path());
 }
 
 /// A reach of a control whose provisioner sets nothing up but records what it saw.
-fn reach<'a>(router: crate::worktree_trash_hand_over::Router<'a>, provisioner: crate::worktree_trash_hand_over::Provisioner<'a>) -> Reach<'a> {
-    return Reach { router, provisioner, start_wait: std::time::Duration::from_millis(400) };
+fn reach<'a>(
+    router: crate::worktree_trash_hand_over::Router<'a>,
+    provisioner: crate::worktree_trash_hand_over::Provisioner<'a>,
+) -> Reach<'a> {
+    return Reach {
+        router,
+        provisioner,
+        start_wait: std::time::Duration::from_millis(400),
+    };
 }
 
 /// A host a control never reaches,
@@ -322,7 +495,8 @@ struct FixtureService {
 impl FixtureService {
     /// Stop the loop and answer the lines it read.
     fn finish(self) -> Vec<String> {
-        self.finished.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.finished
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         return self.thread.join().expect("the service thread");
     }
 }
@@ -336,10 +510,13 @@ impl FixtureService {
 fn serve_this_release(name: &str) -> FixtureService {
     use std::io::BufRead;
     use std::os::linux::net::SocketAddrExt;
-    let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("a name");
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
+    let socket =
+        std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("a name");
+    let listener: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
     listener.set_nonblocking(true).expect("non-blocking");
-    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
     let thread = std::thread::spawn(move || {
         let mut heard: Vec<String> = Vec::new();
@@ -349,10 +526,12 @@ fn serve_this_release(name: &str) -> FixtureService {
                 continue;
             };
             stream.set_nonblocking(false).expect("blocking");
-            let mut greeting: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
-                version: crate::service_protocol::PROTOCOL_VERSION,
-                release: Some(String::from(crate::service_protocol::RELEASE)),
-            });
+            let mut greeting: String = crate::service_protocol::encode_service(
+                &crate::service_protocol::ServiceMessage::Welcome {
+                    version: crate::service_protocol::PROTOCOL_VERSION,
+                    release: Some(String::from(crate::service_protocol::RELEASE)),
+                },
+            );
             greeting.push('\n');
             let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
             let mut raw: String = String::new();
@@ -364,7 +543,10 @@ fn serve_this_release(name: &str) -> FixtureService {
         }
         return heard;
     });
-    return FixtureService { finished, thread };
+    return FixtureService {
+        finished,
+        thread,
+    };
 }
 
 /// What:
@@ -385,13 +567,31 @@ fn a_hand_over_with_no_service_leaves_its_record_queued() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = entry(destination.as_path());
-    let told: Result<(), NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach(), &crate::start_directory::StartDirectory::at(std::path::Path::new("/")));
+    let told: Result<(), NotTaken> = hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        &written,
+        &no_reach(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    );
     let not_taken: NotTaken = told.expect_err("a session with no service is reported");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record the add relinks for is gone before the add's own run");
+    assert_eq!(
+        pending_names(pending.as_path()).len(),
+        1,
+        "the record the add relinks for is gone before the add's own run"
+    );
     // The add's own run is what makes the record superfluous; only then is it taken back.
-    not_taken.queued.expect("the queued record the add takes back after its own run").take_back();
-    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "the record stays after the add's own run finished");
+    not_taken
+        .queued
+        .expect("the queued record the add takes back after its own run")
+        .take_back();
+    assert_eq!(
+        pending_names(pending.as_path()),
+        Vec::<String>::new(),
+        "the record stays after the add's own run finished"
+    );
     remove(root.as_path());
 }
 
@@ -413,11 +613,22 @@ fn a_search_path_that_cannot_be_written_names_no_record() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(root.as_path());
-    let recorded: Result<WorkItem, String> = item_of(common.as_path(), destination.as_path(), &written, &start);
-    let Err(reason) = recorded else { panic!("a record carries a search path no entry of which could be written: {recorded:?}") };
-    assert!(reason.contains("search path") && reason.contains("cannot be recorded"), "{reason}");
+    let written: RelinkEntry = RelinkEntry {
+        root: destination.clone(),
+        search_path: SearchPathOfTheAdd::Set(OsString::from("bin")),
+        tools: vec![RelinkTool::Pnpm],
+    };
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::at(root.as_path());
+    let recorded: Result<WorkItem, String> =
+        item_of(common.as_path(), destination.as_path(), &written, &start);
+    let Err(reason) = recorded else {
+        panic!("a record carries a search path no entry of which could be written: {recorded:?}")
+    };
+    assert!(
+        reason.contains("search path") && reason.contains("cannot be recorded"),
+        "{reason}"
+    );
     remove(root.as_path());
 }
 
@@ -440,13 +651,25 @@ fn a_relative_search_path_is_recorded_against_the_adds_directory() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(root.as_path());
-    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written, &start).expect("the record");
+    let written: RelinkEntry = RelinkEntry {
+        root: destination.clone(),
+        search_path: SearchPathOfTheAdd::Set(OsString::from("bin")),
+        tools: vec![RelinkTool::Pnpm],
+    };
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::at(root.as_path());
+    let item: WorkItem =
+        item_of(common.as_path(), destination.as_path(), &written, &start).expect("the record");
     let recorded: SearchPathOfTheAdd = decode(item.parent.as_str()).expect("the entry").search_path;
-    let SearchPathOfTheAdd::Set(recorded_path) = recorded else { panic!("the record carries a search path: {recorded:?}") };
+    let SearchPathOfTheAdd::Set(recorded_path) = recorded else {
+        panic!("the record carries a search path: {recorded:?}")
+    };
     let named: PathBuf = PathBuf::from(recorded_path);
-    assert!(named.is_absolute(), "the record names a search path that means nothing outside the add's directory: {}", named.display());
+    assert!(
+        named.is_absolute(),
+        "the record names a search path that means nothing outside the add's directory: {}",
+        named.display()
+    );
     assert_eq!(
         named,
         root.join("bin"),

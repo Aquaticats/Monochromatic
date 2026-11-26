@@ -10,17 +10,36 @@
 //!       form that deletes nothing would be noise a reader has to filter.
 
 use super::record_audited;
-use crate::command_test_support::{audit_records, os_arguments};
-use crate::policy_checks::{ShippedChecks, shipped_checks};
-use crate::policy_engine::{PolicyChecks, PolicyOutcome};
-use crate::policy_trigger::Trigger;
+use crate::command_test_support::{
+    audit_records,
+    os_arguments,
+};
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
+use crate::policy_engine::{
+    PolicyChecks,
+    PolicyOutcome,
+};
 use crate::policy_registry::PolicyId;
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
+use crate::policy_trigger::Trigger;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_linked_worktree::{
-    AuditedCommand, LinkedWorktreeDecision, decide_linked_worktree,
+    AuditedCommand,
+    LinkedWorktreeDecision,
+    decide_linked_worktree,
 };
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::PathBuf;
 
@@ -44,7 +63,10 @@ fn only_a_removal_and_a_deletion_are_audited() {
         ),
         (vec!["branch", "-D", "gone"], AuditedCommand::BranchDelete),
         (vec!["branch", "-d", "gone"], AuditedCommand::BranchDelete),
-        (vec!["branch", "--delete", "gone"], AuditedCommand::BranchDelete),
+        (
+            vec!["branch", "--delete", "gone"],
+            AuditedCommand::BranchDelete,
+        ),
     ] {
         assert_eq!(
             decision(values.as_slice()),
@@ -64,7 +86,11 @@ fn only_a_removal_and_a_deletion_are_audited() {
         vec!["branch", "-m", "old", "new"],
         vec!["status"],
     ] {
-        assert_eq!(decision(values.as_slice()), LinkedWorktreeDecision::Pass, "{values:?}");
+        assert_eq!(
+            decision(values.as_slice()),
+            LinkedWorktreeDecision::Pass,
+            "{values:?}"
+        );
     }
 }
 
@@ -92,7 +118,10 @@ fn an_audited_form_is_never_refused() {
 fn only_a_branch_that_exists_leaves_a_line() {
     let root: PathBuf = fixture("policy-audited");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=base"],
+    );
     git(repo.as_path(), &["branch", "gone"]);
     let location: RepositoryLocation = RepositoryLocation {
         identity: WorktreeIdentity::MainWorktree {
@@ -123,6 +152,10 @@ fn only_a_branch_that_exists_leaves_a_line() {
     assert_eq!(records[0]["form"].as_str(), Some("BranchDelete"));
     assert_eq!(records[0]["outcome"].as_str(), Some("logged"));
     assert_eq!(records[0]["facts"]["branch"].as_str(), Some("gone"));
-    assert!(records[0]["facts"]["commit"].as_str().is_some_and(|commit| return !commit.is_empty()));
+    assert!(
+        records[0]["facts"]["commit"]
+            .as_str()
+            .is_some_and(|commit| return !commit.is_empty())
+    );
     remove(root.as_path());
 }

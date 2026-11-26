@@ -12,7 +12,13 @@
 //! writeAll(pipe.write, 'line\n'); expect(readAvailable(pipe.read, buffer)).toEqual({ kind: 'bytes', count: 5 });
 //! ```
 
-use super::{ReadSome, read_available, read_one_blocking, set_nonblocking, write_all};
+use super::{
+    ReadSome,
+    read_available,
+    read_one_blocking,
+    set_nonblocking,
+    write_all,
+};
 use std::os::fd::AsRawFd;
 
 /// A line written to a pipe reads back whole,
@@ -22,13 +28,25 @@ fn the_pipe_carries_whole_lines_and_says_nothing_yet() {
     let ends = super::super::probe_processes::pipe_pair().expect("a pipe is made");
     set_nonblocking(ends.read.as_raw_fd()).expect("the read end is non-blocking");
     let mut buffer: [u8; 16] = [0; 16];
-    assert_eq!(read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()), Ok(ReadSome::NothingYet));
+    assert_eq!(
+        read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()),
+        Ok(ReadSome::NothingYet)
+    );
     write_all(ends.write.as_raw_fd(), b"line\n").expect("the line is written");
-    assert_eq!(read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()), Ok(ReadSome::Bytes(5)));
+    assert_eq!(
+        read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()),
+        Ok(ReadSome::Bytes(5))
+    );
     assert_eq!(&buffer[..5], b"line\n");
-    assert_eq!(read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()), Ok(ReadSome::NothingYet));
+    assert_eq!(
+        read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()),
+        Ok(ReadSome::NothingYet)
+    );
     drop(ends.write);
-    assert_eq!(read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()), Ok(ReadSome::End));
+    assert_eq!(
+        read_available(ends.read.as_raw_fd(), buffer.as_mut_slice()),
+        Ok(ReadSome::End)
+    );
 }
 
 /// One byte is read with a wait,

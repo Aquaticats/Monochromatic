@@ -19,7 +19,11 @@
 //! ```
 
 use crate::worktree_copy_notices::refused_destination_written_into_notice;
-use crate::worktree_subvolume::{CreatedDestinationSettlement, CreatedSubvolume, settle_created_destination};
+use crate::worktree_subvolume::{
+    CreatedDestinationSettlement,
+    CreatedSubvolume,
+    settle_created_destination,
+};
 
 /// What:
 ///  Settle the destination a refused add left behind,
@@ -37,8 +41,12 @@ use crate::worktree_subvolume::{CreatedDestinationSettlement, CreatedSubvolume, 
 /// ```
 pub(crate) fn settle_refused_destination(made: &CreatedSubvolume) -> Option<String> {
     return match settle_created_destination(made) {
-        CreatedDestinationSettlement::HoldsSomething => Some(refused_destination_written_into_notice(made.path.as_path())),
-        CreatedDestinationSettlement::Removed | CreatedDestinationSettlement::Gone | CreatedDestinationSettlement::LeftAlone => None,
+        CreatedDestinationSettlement::HoldsSomething => {
+            Some(refused_destination_written_into_notice(made.path.as_path()))
+        }
+        CreatedDestinationSettlement::Removed
+        | CreatedDestinationSettlement::Gone
+        | CreatedDestinationSettlement::LeftAlone => None,
     };
 }
 

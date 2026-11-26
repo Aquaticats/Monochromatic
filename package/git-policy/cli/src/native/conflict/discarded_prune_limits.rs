@@ -53,7 +53,10 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        return Self { max_age_days: DEFAULT_MAX_AGE_DAYS, max_bytes: DEFAULT_MAX_BYTES };
+        return Self {
+            max_age_days: DEFAULT_MAX_AGE_DAYS,
+            max_bytes: DEFAULT_MAX_BYTES,
+        };
     }
 }
 

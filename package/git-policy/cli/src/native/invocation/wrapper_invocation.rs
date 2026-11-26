@@ -34,22 +34,41 @@
 /// import { withoutTokens } from './command_options_query.ts';
 /// ```
 use crate::command_add::parse_add_region;
-use crate::command_branch_create::{branch_creation_command, parse_branch_creation_region};
+use crate::command_branch_create::{
+    branch_creation_command,
+    parse_branch_creation_region,
+};
 use crate::command_clean::parse_clean_region;
 use crate::command_commit::parse_commit_region;
 use crate::command_config::parse_config_region;
-use crate::command_options::{OptionError, WrapperOccurrence};
-use crate::command_options_query::{WrapperFlags, without_tokens};
+use crate::command_options::{
+    OptionError,
+    WrapperOccurrence,
+};
+use crate::command_options_query::{
+    WrapperFlags,
+    without_tokens,
+};
 use crate::command_push::parse_push_region;
 use crate::command_reset::parse_reset_region;
 use crate::command_stash::parse_stash_region;
 use crate::command_status::parse_status_region;
 use crate::command_worktree::changes_worktree_registrations;
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 use crate::policy_registry::PolicyId;
 use crate::wrapper_controls::{
-    CONTROL_SPELLINGS, ControlMeaning, Controls, control_flags, control_meaning, no_controls,
-    record_control, strip_global_controls,
+    CONTROL_SPELLINGS,
+    ControlMeaning,
+    Controls,
+    control_flags,
+    control_meaning,
+    no_controls,
+    record_control,
+    strip_global_controls,
 };
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -289,7 +308,10 @@ fn read_table(
 /// ```ts
 /// function recordTableControls(found: TableControls, controls: Controls): number[];
 /// ```
-fn record_table_controls(found: &TableControls, controls: &mut Controls) -> Vec<usize> {
+fn record_table_controls(
+    found: &TableControls,
+    controls: &mut Controls,
+) -> Vec<usize> {
     // `.clone()` copies the own-hatch positions into the list this function returns.
     let mut positions: Vec<usize> = found.flags.escape.clone();
     if !found.flags.escape.is_empty() {
@@ -326,7 +348,10 @@ fn record_table_controls(found: &TableControls, controls: &mut Controls) -> Vec<
 /// ```ts
 /// function leadingControls(region: string[], controls: Controls): number[];
 /// ```
-fn leading_controls(region: &[OsString], controls: &mut Controls) -> Vec<usize> {
+fn leading_controls(
+    region: &[OsString],
+    controls: &mut Controls,
+) -> Vec<usize> {
     let mut positions: Vec<usize> = Vec::<usize>::new();
     // `.iter().enumerate()` yields `(index, token)` pairs in order.
     for (index, token) in region.iter().enumerate() {
@@ -355,7 +380,11 @@ fn leading_controls(region: &[OsString], controls: &mut Controls) -> Vec<usize> 
 /// ```ts
 /// function untabledControls(word: string, region: string[], controls: Controls): number[];
 /// ```
-fn untabled_controls(word: &[u8], region: &[OsString], controls: &mut Controls) -> Vec<usize> {
+fn untabled_controls(
+    word: &[u8],
+    region: &[OsString],
+    controls: &mut Controls,
+) -> Vec<usize> {
     let mut positions: Vec<usize> = leading_controls(region, controls);
     // The first token that is not a control sits right after the leading controls.
     let second_word: usize = positions.len();

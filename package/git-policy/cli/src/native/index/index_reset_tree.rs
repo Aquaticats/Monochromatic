@@ -18,13 +18,29 @@
 
 use crate::index_byte_search::is_slash;
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{ObjectKind, from_hex, name_length};
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+    name_length,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{FlatEntry, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
+use crate::repo_read_tree::{
+    FlatEntry,
+    TreeEntry,
+    flatten_pair,
+    flatten_tree,
+    is_tree_mode,
+    parse_commit,
+    parse_tree,
+};
 
 /// The root tree of the commit named by `hex`,
 /// or of the tree it names.
-pub fn root_tree(database: &ObjectDatabase, hex: &str, format: ObjectFormat) -> Option<Vec<u8>> {
+pub fn root_tree(
+    database: &ObjectDatabase,
+    hex: &str,
+    format: ObjectFormat,
+) -> Option<Vec<u8>> {
     let name: Vec<u8> = from_hex(hex.as_bytes(), format)?;
     let object = database.read(name.as_slice())?;
     return match object.kind {
@@ -35,7 +51,11 @@ pub fn root_tree(database: &ObjectDatabase, hex: &str, format: ObjectFormat) -> 
 }
 
 /// The entries of the tree `tree`.
-fn entries_of(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Vec<TreeEntry>> {
+fn entries_of(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<TreeEntry>> {
     let object = database.read(tree)?;
     if object.kind != ObjectKind::Tree {
         return None;
@@ -43,15 +63,20 @@ fn entries_of(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> O
     return parse_tree(object.bytes.as_slice(), name_length(format));
 }
 
-
 /// Order two entries by path,
 /// as the sorted list of the index needs.
-fn by_path(left: &FlatEntry, right: &FlatEntry) -> std::cmp::Ordering {
+fn by_path(
+    left: &FlatEntry,
+    right: &FlatEntry,
+) -> std::cmp::Ordering {
     return left.path.cmp(&right.path);
 }
 
 /// Whether two neighbours in a sorted list name the same path.
-fn same_path(later: &mut FlatEntry, earlier: &mut FlatEntry) -> bool {
+fn same_path(
+    later: &mut FlatEntry,
+    earlier: &mut FlatEntry,
+) -> bool {
     return later.path == earlier.path;
 }
 
@@ -60,7 +85,12 @@ fn same_path(later: &mut FlatEntry, earlier: &mut FlatEntry) -> bool {
 /// nothing when the name is absent,
 /// the one entry
 /// when it is a file.
-fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
+fn entries_at(
+    database: &ObjectDatabase,
+    root: &[u8],
+    name: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<FlatEntry>> {
     let components: Vec<&[u8]> = name.split(is_slash).collect();
     let mut tree: Vec<u8> = root.to_vec();
     for (position, component) in components.iter().enumerate() {
@@ -84,7 +114,11 @@ fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: Objec
             continue;
         }
         if !is_tree_mode(found.mode) {
-            return Some(vec![FlatEntry { path: name.to_vec(), mode: found.mode, id: found.id }]);
+            return Some(vec![FlatEntry {
+                path: name.to_vec(),
+                mode: found.mode,
+                id: found.id,
+            }]);
         }
         let below: Vec<FlatEntry> = flatten_tree(database, found.id.as_slice(), format)?;
         let mut prefixed: Vec<FlatEntry> = Vec::new();
@@ -92,7 +126,11 @@ fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: Objec
             let mut path: Vec<u8> = name.to_vec();
             path.push(b'/');
             path.extend_from_slice(entry.path.as_slice());
-            prefixed.push(FlatEntry { path, mode: entry.mode, id: entry.id });
+            prefixed.push(FlatEntry {
+                path,
+                mode: entry.mode,
+                id: entry.id,
+            });
         }
         return Some(prefixed);
     }
@@ -101,7 +139,12 @@ fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: Objec
 
 /// The tree's files at or below each of `names`,
 /// sorted by path without repeats.
-pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
+pub fn tree_entries_at(
+    database: &ObjectDatabase,
+    root: &[u8],
+    names: &[Vec<u8>],
+    format: ObjectFormat,
+) -> Option<Vec<FlatEntry>> {
     let mut found: Vec<FlatEntry> = Vec::new();
     for name in names {
         found.extend(entries_at(database, root, name.as_slice(), format)?);
@@ -115,7 +158,12 @@ pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>]
 /// sorted without repeats;
 /// `None` for the
 /// old tree stands for the empty tree.
-pub fn changed_paths(database: &ObjectDatabase, old: Option<&[u8]>, new: &[u8], format: ObjectFormat) -> Option<Vec<Vec<u8>>> {
+pub fn changed_paths(
+    database: &ObjectDatabase,
+    old: Option<&[u8]>,
+    new: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<Vec<u8>>> {
     let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = match old {
         Some(tree) => flatten_pair(database, tree, new, format)?,
         None => (Vec::new(), flatten_tree(database, new, format)?),

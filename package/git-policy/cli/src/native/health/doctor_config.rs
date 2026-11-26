@@ -19,14 +19,28 @@
 //! ```
 
 use crate::config_file::load_repository_config;
-use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
-use crate::discarded_prune::Limits;
+use crate::config_schema::{
+    CliGitConfig,
+    ConcurrencyConfig,
+};
 use crate::config_snapshot::read_config_snapshot_awaiting;
-use crate::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::discarded_prune::Limits;
+use crate::external_hooks::{
+    ConfiguredHook,
+    configured_hooks,
+    describe_hook,
+    explain_external_hooks,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::LANDING_LOCK_CEILING;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What the configuration contributes to the doctor report.
@@ -67,7 +81,10 @@ pub struct ConfigFindings {
 /// ```ts
 /// await git(['rev-parse', '--show-toplevel']).catch(() => undefined)
 /// ```
-async fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+async fn top_level(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<PathBuf> {
     let request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--show-toplevel"]);
     let output = run_git_awaiting(context, &request).await.ok()?;
     if !output.succeeded() {
@@ -91,7 +108,10 @@ async fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// configFindings({ context, cwd });
 /// ```
-pub async fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
+pub async fn config_findings(
+    context: &GitContext,
+    cwd: &Path,
+) -> ConfigFindings {
     // `match` on the `Option`: a snapshot that could not be read gives no hooks, as `.unwrap_or_default()` did.
     let hooks: Vec<ConfiguredHook> = match read_config_snapshot_awaiting(context, cwd).await {
         Some(snapshot) => configured_hooks(&snapshot),
@@ -106,13 +126,18 @@ pub async fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings
         },
         None => None,
     };
-    let (retired_hooks_key, retired_index_lock_key, retired_landing_key): (bool, bool, bool) = match loaded.as_ref() {
-        Some(found) => {
-            let retired: ConcurrencyConfig = found.concurrency;
-            (retired.hooks.present, retired.index_lock.present, retired.landing.present)
-        }
-        None => (false, false, false),
-    };
+    let (retired_hooks_key, retired_index_lock_key, retired_landing_key): (bool, bool, bool) =
+        match loaded.as_ref() {
+            Some(found) => {
+                let retired: ConcurrencyConfig = found.concurrency;
+                (
+                    retired.hooks.present,
+                    retired.index_lock.present,
+                    retired.landing.present,
+                )
+            }
+            None => (false, false, false),
+        };
     let discarded: Limits = match loaded {
         Some(found) => found.discarded,
         None => Limits::default(),

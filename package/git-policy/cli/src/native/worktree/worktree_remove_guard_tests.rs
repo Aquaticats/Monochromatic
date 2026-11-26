@@ -10,10 +10,25 @@
 
 use super::*;
 use crate::fs_beneath::handle_path;
-use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
+use crate::push_failure_notice::{
+    orphaned_push_failures,
+    record_push_failure,
+};
 use crate::push_failure_notice_words::PushOutcome;
-use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy_with_owner, record_destroyed};
+use crate::test_support::{
+    age,
+    fixture,
+    git,
+    git_context,
+    git_output,
+    remove,
+    repository,
+};
+use crate::worktree_removal_interrupted_destroy::{
+    finish_interrupted_destroys,
+    record_destroy_with_owner,
+    record_destroyed,
+};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -38,7 +53,10 @@ use std::os::unix::fs::PermissionsExt;
 /// expect(removedHere(outcome)).toBe(true);
 /// ```
 fn removed_here(outcome: &RemoveOutcome) -> bool {
-    return matches!(outcome, RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace);
+    return matches!(
+        outcome,
+        RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace
+    );
 }
 
 /// A hook that runs once,
@@ -67,7 +85,11 @@ struct Stand {
 impl Stand {
     /// A stand-in with no hook.
     fn new(subvolumes: Vec<PathBuf>) -> Stand {
-        return Stand { subvolumes, after_proof: RefCell::new(None), during_destroy: RefCell::new(None) };
+        return Stand {
+            subvolumes,
+            after_proof: RefCell::new(None),
+            during_destroy: RefCell::new(None),
+        };
     }
 
     /// Run the hook once.
@@ -82,32 +104,64 @@ impl Stand {
 /// the hooks,
 /// and a deletion in place of the kernel call.
 impl RemoveOperations for Stand {
-    fn is_subvolume_root(&self, path: &Path) -> bool {
-        return self.subvolumes.iter().any(|known: &PathBuf| { return known == path; });
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> bool {
+        return self.subvolumes.iter().any(|known: &PathBuf| {
+            return known == path;
+        });
     }
 
-    fn removal_allowed(&self, _path: &Path) -> bool {
+    fn removal_allowed(
+        &self,
+        _path: &Path,
+    ) -> bool {
         return true;
     }
 
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, _common_dir: &Path) -> Result<(), String> {
+    fn check_clean(
+        &self,
+        request: &RemoveRequest<'_>,
+        admin: &Path,
+        _common_dir: &Path,
+    ) -> Result<(), String> {
         // The proof is made against the repository the worktree's own pointers name, so that a worktree of another
         // repository passes it, and only the scope of the registration can stop it.
-        let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| { return String::from("no common directory"); })?;
-        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir).map_err(|refusal| { return refusal.reason; })?;
+        let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| {
+            return String::from("no common directory");
+        })?;
+        check_clean(
+            request.context,
+            request.plan.target.as_path(),
+            admin,
+            own_common_dir,
+        )
+        .map_err(|refusal| {
+            return refusal.reason;
+        })?;
         Stand::fire(&self.after_proof);
         return Ok(());
     }
 
-    fn destroy(&self, held: &Held) -> Result<(), String> {
+    fn destroy(
+        &self,
+        held: &Held,
+    ) -> Result<(), String> {
         Stand::fire(&self.during_destroy);
         // Below the held parent, as the kernel call is: a path swapped since cannot redirect it.
-        return std::fs::remove_dir_all(handle_path(&held.parent).join(held.name.as_os_str())).map_err(|error: std::io::Error| { return error.to_string(); });
+        return std::fs::remove_dir_all(handle_path(&held.parent).join(held.name.as_os_str()))
+            .map_err(|error: std::io::Error| {
+                return error.to_string();
+            });
     }
 }
 
 /// A repository with one tracked file.
-fn repository_with_file(root: &Path, name: &str) -> PathBuf {
+fn repository_with_file(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
     git(repo.as_path(), &["add", "tracked.txt"]);
@@ -118,8 +172,22 @@ fn repository_with_file(root: &Path, name: &str) -> PathBuf {
 /// A linked worktree at `directory`,
 /// provably clean,
 /// and its real path.
-fn clean_worktree(repo: &Path, directory: &Path, branch: &str) -> PathBuf {
-    git(repo, &["worktree", "add", "--quiet", "-b", branch, directory.to_str().expect("UTF-8")]);
+fn clean_worktree(
+    repo: &Path,
+    directory: &Path,
+    branch: &str,
+) -> PathBuf {
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            branch,
+            directory.to_str().expect("UTF-8"),
+        ],
+    );
     let canonical: PathBuf = std::fs::canonicalize(directory).expect("canonical");
     age(canonical.join("tracked.txt").as_path());
     git(canonical.as_path(), &["update-index", "--refresh"]);
@@ -127,25 +195,55 @@ fn clean_worktree(repo: &Path, directory: &Path, branch: &str) -> PathBuf {
 }
 
 /// A plan that names `target` by `operand`.
-fn plan_named(target: &Path, operand: &str) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: false };
+fn plan_named(
+    target: &Path,
+    operand: &str,
+) -> RemovePlan {
+    return RemovePlan {
+        target: target.to_path_buf(),
+        operand: OsString::from(operand),
+        force: false,
+    };
 }
 
 /// The same,
 /// with the force the person passes as `-f`/`--force`.
-fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: true };
+fn forced_plan_named(
+    target: &Path,
+    operand: &str,
+) -> RemovePlan {
+    return RemovePlan {
+        target: target.to_path_buf(),
+        operand: OsString::from(operand),
+        force: true,
+    };
 }
 
 /// Run the removal of `plan` in the repository `repo` on the stand-in.
-fn run(stand: &Stand, repo: &Path, plan: &RemovePlan) -> RemoveOutcome {
+fn run(
+    stand: &Stand,
+    repo: &Path,
+    plan: &RemovePlan,
+) -> RemoveOutcome {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_with(stand, &RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None });
+    return remove_with(
+        stand,
+        &RemoveRequest {
+            context: &git_context(),
+            plan,
+            common_dir: common_dir.as_path(),
+            last_look: None,
+        },
+    );
 }
 
 /// The administrative directory of the worktree registered at `worktree` in `repo`.
-fn admin_of(repo: &Path, name: &str) -> PathBuf {
-    return std::fs::canonicalize(repo.join(".git/worktrees").join(name)).expect("administrative directory");
+fn admin_of(
+    repo: &Path,
+    name: &str,
+) -> PathBuf {
+    return std::fs::canonicalize(repo.join(".git/worktrees").join(name))
+        .expect("administrative directory");
 }
 
 /// What:
@@ -167,10 +265,27 @@ fn a_forced_removal_of_a_changed_worktree_is_served_and_an_unforced_one_is_not()
     std::fs::write(worktree.join("tracked.txt"), b"unsaved work\n").expect("a change");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     // Without the force the proof refuses the change, and Git words that refusal itself.
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert_eq!(std::fs::read(worktree.join("tracked.txt")).expect("the change is still there"), b"unsaved work\n");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("tracked.txt")).expect("the change is still there"),
+        b"unsaved work\n"
+    );
     // With it the removal answers for the worktree, as Git's own `--force` does.
-    assert!(removed_here(&run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt"))), "the forced removal took the worktree away");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &forced_plan_named(worktree.as_path(), "../wt")
+        )),
+        "the forced removal took the worktree away"
+    );
     assert!(!worktree.exists(), "the forced removal destroyed it");
     remove(root.as_path());
 }
@@ -194,8 +309,18 @@ fn a_forced_removal_of_a_locked_worktree_is_left_to_git() {
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     std::fs::write(admin.join("locked"), b"keep this one\n").expect("lock");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert!(worktree.join("tracked.txt").is_file(), "the locked worktree is untouched");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &forced_plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the locked worktree is untouched"
+    );
     assert!(admin.join("locked").is_file(), "and so is its lock");
     remove(root.as_path());
 }
@@ -209,11 +334,31 @@ fn a_worktree_of_another_repository_is_left_to_git() {
     let repo_b: PathBuf = repository_with_file(root.as_path(), "b");
     let foreign: PathBuf = clean_worktree(repo_b.as_path(), root.join("wb").as_path(), "tb");
     let stand: Stand = Stand::new(vec![foreign.clone()]);
-    assert_eq!(run(&stand, repo_a.as_path(), &plan_named(foreign.as_path(), "../wb")), RemoveOutcome::LeftToGit);
-    assert!(foreign.join("tracked.txt").is_file(), "the foreign worktree is untouched");
-    assert!(repo_b.join(".git/worktrees/wb").is_dir(), "its registration too");
+    assert_eq!(
+        run(
+            &stand,
+            repo_a.as_path(),
+            &plan_named(foreign.as_path(), "../wb")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        foreign.join("tracked.txt").is_file(),
+        "the foreign worktree is untouched"
+    );
+    assert!(
+        repo_b.join(".git/worktrees/wb").is_dir(),
+        "its registration too"
+    );
     // The same worktree asked of the repository that owns it is served.
-    assert!(removed_here(&run(&stand, repo_b.as_path(), &plan_named(foreign.as_path(), "../wb"))), "the worktree of another repository is removed when Git picks it here");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo_b.as_path(),
+            &plan_named(foreign.as_path(), "../wb")
+        )),
+        "the worktree of another repository is removed when Git picks it here"
+    );
     remove(root.as_path());
 }
 
@@ -228,12 +373,36 @@ fn a_name_that_git_resolves_by_its_last_components_is_left_to_git() {
     let topic: PathBuf = clean_worktree(repo.as_path(), root.join("y/topic").as_path(), "tt");
     std::os::unix::fs::symlink("../x/other", repo.join("topic")).expect("link");
     let stand: Stand = Stand::new(vec![other.clone(), topic.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(other.as_path(), "topic")), RemoveOutcome::LeftToGit);
-    assert!(other.join("tracked.txt").is_file() && topic.join("tracked.txt").is_file(), "both worktrees are untouched");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(other.as_path(), "topic")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        other.join("tracked.txt").is_file() && topic.join("tracked.txt").is_file(),
+        "both worktrees are untouched"
+    );
     // A name whose only match is the target itself, and a path that matches no registered name, are served.
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(other.as_path(), "other"))), "the worktree named by its last component was removed");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(other.as_path(), "other")
+        )),
+        "the worktree named by its last component was removed"
+    );
     assert!(!other.exists());
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(topic.as_path(), "../y/topic"))), "the worktree named by its path was removed");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(topic.as_path(), "../y/topic")
+        )),
+        "the worktree named by its path was removed"
+    );
     assert!(!topic.exists());
     remove(root.as_path());
 }
@@ -244,7 +413,10 @@ fn a_lock_entry_that_cannot_be_looked_up_is_not_an_absent_lock() {
     let root: PathBuf = fixture("remove-guard-lock-lookup");
     std::fs::write(root.join("not-a-directory"), b"x").expect("file");
     std::fs::create_dir(root.join("admin")).expect("admin");
-    assert!(lock_state(root.join("not-a-directory").as_path()).is_err(), "the lookup fails with ENOTDIR");
+    assert!(
+        lock_state(root.join("not-a-directory").as_path()).is_err(),
+        "the lookup fails with ENOTDIR"
+    );
     assert_eq!(lock_state(root.join("admin").as_path()), Ok(false));
     std::fs::write(root.join("admin/locked"), b"reason\n").expect("locked");
     assert_eq!(lock_state(root.join("admin").as_path()), Ok(true));
@@ -259,9 +431,21 @@ fn a_lock_taken_after_the_proof_stops_the_removal() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    *stand.after_proof.borrow_mut() = Some(Box::new(move || { std::fs::write(admin.join("locked"), b"late\n").expect("lock"); }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert!(worktree.join("tracked.txt").is_file(), "the locked worktree is untouched");
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        std::fs::write(admin.join("locked"), b"late\n").expect("lock");
+    }));
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the locked worktree is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -278,9 +462,22 @@ fn a_directory_swapped_in_after_the_proof_is_not_destroyed() {
         std::fs::create_dir(at.as_path()).expect("replacement");
         std::fs::write(at.join("precious.txt"), b"unsaved work\n").expect("replacement file");
     }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert_eq!(std::fs::read(worktree.join("precious.txt")).expect("the replacement is kept"), b"unsaved work\n");
-    assert!(root.join("wt.moved/tracked.txt").is_file(), "the proven directory is untouched");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("precious.txt")).expect("the replacement is kept"),
+        b"unsaved work\n"
+    );
+    assert!(
+        root.join("wt.moved/tracked.txt").is_file(),
+        "the proven directory is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -291,16 +488,35 @@ fn an_ancestor_replaced_by_a_link_after_the_proof_does_not_redirect_the_destroy(
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("sub/wt").as_path(), "topic");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    let (sub, moved, elsewhere) = (root.join("sub"), root.join("sub.moved"), root.join("elsewhere"));
+    let (sub, moved, elsewhere) = (
+        root.join("sub"),
+        root.join("sub.moved"),
+        root.join("elsewhere"),
+    );
     *stand.after_proof.borrow_mut() = Some(Box::new(move || {
         std::fs::rename(sub.as_path(), moved.as_path()).expect("move the ancestor away");
         std::fs::create_dir_all(elsewhere.join("wt")).expect("replacement");
-        std::fs::write(elsewhere.join("wt/precious.txt"), b"unsaved work\n").expect("replacement file");
+        std::fs::write(elsewhere.join("wt/precious.txt"), b"unsaved work\n")
+            .expect("replacement file");
         std::os::unix::fs::symlink(elsewhere.as_path(), sub.as_path()).expect("link");
     }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../sub/wt")), RemoveOutcome::LeftToGit);
-    assert_eq!(std::fs::read(root.join("elsewhere/wt/precious.txt")).expect("the directory behind the link is kept"), b"unsaved work\n");
-    assert!(root.join("sub.moved/wt/tracked.txt").is_file(), "the proven directory is untouched too");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../sub/wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert_eq!(
+        std::fs::read(root.join("elsewhere/wt/precious.txt"))
+            .expect("the directory behind the link is kept"),
+        b"unsaved work\n"
+    );
+    assert!(
+        root.join("sub.moved/wt/tracked.txt").is_file(),
+        "the proven directory is untouched too"
+    );
     remove(root.as_path());
 }
 
@@ -319,8 +535,18 @@ fn an_ancestor_replaced_by_a_directory_after_the_proof_stops_the_removal() {
         std::fs::rename(sub.as_path(), moved.as_path()).expect("move the ancestor away");
         std::fs::create_dir(sub.as_path()).expect("another directory at the same path");
     }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../sub/wt")), RemoveOutcome::LeftToGit);
-    assert!(root.join("sub.moved/wt/tracked.txt").is_file(), "the proven directory is untouched");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../sub/wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        root.join("sub.moved/wt/tracked.txt").is_file(),
+        "the proven directory is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -332,19 +558,53 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let library: PathBuf = repository_with_file(root.as_path(), "library");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
-    git(worktree.as_path(), &["-c", "protocol.file.allow=always", "submodule", "add", "--quiet", library.to_str().expect("UTF-8"), "lib"]);
-    git(worktree.as_path(), &["commit", "--quiet", "--message=submodule"]);
+    git(
+        worktree.as_path(),
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "--quiet",
+            library.to_str().expect("UTF-8"),
+            "lib",
+        ],
+    );
+    git(
+        worktree.as_path(),
+        &["commit", "--quiet", "--message=submodule"],
+    );
     for name in ["tracked.txt", ".gitmodules"] {
         age(worktree.join(name).as_path());
     }
     git(worktree.as_path(), &["update-index", "--refresh"]);
     // Which rule refuses it, so that the result is not an accident of file times.
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let proof = check_clean(&git_context(), worktree.as_path(), admin_of(repo.as_path(), "wt").as_path(), common_dir.as_path());
-    assert_eq!(proof.map_err(|refusal| { return refusal.reason; }), Err(String::from("lib is a submodule")));
+    let proof = check_clean(
+        &git_context(),
+        worktree.as_path(),
+        admin_of(repo.as_path(), "wt").as_path(),
+        common_dir.as_path(),
+    );
+    assert_eq!(
+        proof.map_err(|refusal| {
+            return refusal.reason;
+        }),
+        Err(String::from("lib is a submodule"))
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert!(worktree.join("lib/tracked.txt").is_file(), "the submodule's files are untouched");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        worktree.join("lib/tracked.txt").is_file(),
+        "the submodule's files are untouched"
+    );
     remove(root.as_path());
 }
 
@@ -370,13 +630,26 @@ fn the_snapshots_ahead_are_gone_before_the_subvolume_is_destroyed() {
     std::fs::create_dir_all(member.as_path()).expect("a snapshot the wrapper made ahead of an add");
     std::fs::write(member.join("tracked.txt"), b"the worktree's own file\n").expect("its files");
     // The pool's member when the destroy runs, which is what tells whether the pool went first or last.
-    let there_at_the_destroy: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let there_at_the_destroy: std::rc::Rc<std::cell::Cell<bool>> =
+        std::rc::Rc::new(std::cell::Cell::new(false));
     let watch: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::clone(&there_at_the_destroy);
     let seen: PathBuf = member.clone();
     let mut stand: Stand = Stand::new(vec![worktree.clone()]);
-    stand.during_destroy = RefCell::new(Some(Box::new(move || { watch.set(seen.exists()); })));
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"))), "the removal finished");
-    assert!(!there_at_the_destroy.get(), "the pool of the worktree went before the destroy, not after it");
+    stand.during_destroy = RefCell::new(Some(Box::new(move || {
+        watch.set(seen.exists());
+    })));
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        )),
+        "the removal finished"
+    );
+    assert!(
+        !there_at_the_destroy.get(),
+        "the pool of the worktree went before the destroy, not after it"
+    );
     assert!(!admin.exists(), "the registration went with it");
     remove(root.as_path());
 }
@@ -401,14 +674,31 @@ fn a_removal_whose_snapshots_ahead_cannot_be_cleared_refuses_before_the_subvolum
     let pool: PathBuf = crate::worktree_snapshot_ahead::pool_folder(admin.as_path());
     std::fs::create_dir_all(pool.as_path()).expect("the folder of the pool");
     // A folder this account may read and not write is the one shape in which the pool cannot be taken out of its name.
-    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o555)).expect("a folder that cannot be written");
+    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("a folder that cannot be written");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder is writable again");
-    let RemoveOutcome::Refused(report) = outcome else { panic!("a pool that cannot go stops the removal, but it was {outcome:?}") };
-    assert!(report.contains(pool.to_str().expect("UTF-8")), "the report names the folder that stands in the way: {report}");
-    assert!(report.contains("nothing was removed"), "and says nothing changed: {report}");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is where it was");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    std::fs::set_permissions(data.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the folder is writable again");
+    let RemoveOutcome::Refused(report) = outcome else {
+        panic!("a pool that cannot go stops the removal, but it was {outcome:?}")
+    };
+    assert!(
+        report.contains(pool.to_str().expect("UTF-8")),
+        "the report names the folder that stands in the way: {report}"
+    );
+    assert!(
+        report.contains("nothing was removed"),
+        "and says nothing changed: {report}"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is where it was"
+    );
     assert!(admin.is_dir(), "and so is its registration");
     remove(root.as_path());
 }
@@ -424,14 +714,31 @@ fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_remo
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let worktrees: PathBuf = repo.join(".git/worktrees");
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restore");
-    let RemoveOutcome::Incomplete(report) = outcome else { panic!("a leftover registration is not a success: {outcome:?}") };
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("read-only registrations");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("restore");
+    let RemoveOutcome::Incomplete(report) = outcome else {
+        panic!("a leftover registration is not a success: {outcome:?}")
+    };
     assert!(!worktree.exists(), "the files are gone");
-    assert!(report.contains(admin.to_str().expect("UTF-8")), "the report names the leftover: {report}");
-    assert!(report.contains(worktree.to_str().expect("UTF-8")), "and the removed worktree: {report}");
-    assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes: {report}");
+    assert!(
+        report.contains(admin.to_str().expect("UTF-8")),
+        "the report names the leftover: {report}"
+    );
+    assert!(
+        report.contains(worktree.to_str().expect("UTF-8")),
+        "and the removed worktree: {report}"
+    );
+    assert!(
+        report.contains(format!("git -C {} worktree prune", repo.display()).as_str()),
+        "and the command that finishes: {report}"
+    );
     remove(root.as_path());
 }
 
@@ -452,27 +759,84 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     // A push failure nobody has seen yet lives in that registration and would go with it.
-    record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", PushOutcome::Refused, "refused by test policy").expect("notice");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    record_push_failure(
+        admin.as_path(),
+        "refs/heads/topic",
+        "0123456789abcdef0123456789abcdef01234567",
+        PushOutcome::Refused,
+        "refused by test policy",
+    )
+    .expect("notice");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     remove(worktree.as_path());
-    let refused = git_output(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
-    assert!(!refused.status.success(), "a stale registration stops the add, which is the state to repair");
+    let refused = git_output(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            worktree.to_str().expect("UTF-8"),
+        ],
+    );
+    assert!(
+        !refused.status.success(),
+        "a stale registration stops the add, which is the state to repair"
+    );
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
     assert!(problems.is_empty(), "{problems:?}");
     assert!(!admin.exists(), "the registration the destroy left is gone");
-    let shown: Vec<String> = crate::test_support::shown_notices(orphaned_push_failures(common.as_path(), &|commit: &str| { return commit.to_string(); }));
-    assert!(shown.iter().any(|text: &String| { return text.contains("refused by test policy"); }), "the notice the registration held is shown: {shown:?}");
+    let shown: Vec<String> = crate::test_support::shown_notices(orphaned_push_failures(
+        common.as_path(),
+        &|commit: &str| {
+            return commit.to_string();
+        },
+    ));
+    assert!(
+        shown.iter().any(|text: &String| {
+            return text.contains("refused by test policy");
+        }),
+        "the notice the registration held is shown: {shown:?}"
+    );
     // Git accepts the path again, which is what the person asked for.
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
-    assert!(worktree.join("tracked.txt").is_file(), "the add at the reused path made the worktree");
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            worktree.to_str().expect("UTF-8"),
+        ],
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the add at the reused path made the worktree"
+    );
     remove(root.as_path());
 }
 
 /// The one registration id under `common/worktrees`.
 fn only_registration_id(common: &Path) -> std::ffi::OsString {
-    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(common.join("worktrees")).expect("registrations").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name(); }).collect();
+    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(common.join("worktrees"))
+        .expect("registrations")
+        .flatten()
+        .map(|entry: std::fs::DirEntry| {
+            return entry.file_name();
+        })
+        .collect();
     names.sort();
     assert_eq!(names.len(), 1, "one registration: {names:?}");
     return names.remove(0);
@@ -498,14 +862,30 @@ fn a_pathname_that_ends_with_the_finished_mark_is_not_proof_of_destruction() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let id: std::ffi::OsString = only_registration_id(common.as_path());
     let admin: PathBuf = common.join("worktrees").join(&id);
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), id.as_os_str(), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        id.as_os_str(),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
     // The worktree is where the record names it, so nothing was destroyed and the record is dropped without a word, as for
     // every removal that did not happen.
     assert!(problems.is_empty(), "{problems:?}");
-    assert!(admin.join("gitdir").is_file(), "the registration of a worktree that still exists is kept");
-    assert!(worktree.join("tracked.txt").is_file(), "and so is the worktree");
+    assert!(
+        admin.join("gitdir").is_file(),
+        "the registration of a worktree that still exists is kept"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "and so is the worktree"
+    );
     remove(root.as_path());
 }
 
@@ -525,19 +905,39 @@ fn a_link_at_the_mark_writers_temporary_name_is_not_written_through() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
-    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
+    let record: PathBuf = common
+        .join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER)
+        .join("wt");
     let notes: PathBuf = root.join("notes.txt");
     std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
     let planted: PathBuf = record.with_extension(format!("recorded.{}", std::process::id()));
-    std::os::unix::fs::symlink(notes.as_path(), planted.as_path()).expect("a link at the temporary name");
+    std::os::unix::fs::symlink(notes.as_path(), planted.as_path())
+        .expect("a link at the temporary name");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
-    assert_eq!(std::fs::read(notes.as_path()).expect("their file"), b"a person's notes\n", "nothing is written through the link");
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("their file"),
+        b"a person's notes\n",
+        "nothing is written through the link"
+    );
     // The mark is there, so the removal this record names is finished and the registration goes.
     remove(worktree.as_path());
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
-    assert!(!admin.exists(), "the marked record still finished the removal");
+    assert!(
+        !admin.exists(),
+        "the marked record still finished the removal"
+    );
     remove(root.as_path());
 }
 
@@ -570,8 +970,18 @@ fn a_named_pipe_among_the_destroy_records_does_not_hold_the_command() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     remove(worktree.as_path());
     let folder: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER);
@@ -587,7 +997,10 @@ fn a_named_pipe_among_the_destroy_records_does_not_hold_the_command() {
     };
     runner.join().expect("the scan ends");
     assert!(problems.is_empty(), "{problems:?}");
-    assert!(folder.join("pipe-not-a-record").exists(), "the named pipe itself is left alone");
+    assert!(
+        folder.join("pipe-not-a-record").exists(),
+        "the named pipe itself is left alone"
+    );
     assert!(!admin.exists(), "the record beside it is still finished");
     remove(root.as_path());
 }
@@ -611,17 +1024,41 @@ fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
     std::fs::write(converting.join("d/copy"), b"a copy\n").expect("its file");
     // A record beside the worktree is what proves the copy is a conversion's; without one the removal is not refused.
     let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
-        original: crate::fs_beneath::identity_of(&std::fs::File::open(converting.as_path()).expect("the copy")).expect("identity"),
+        original: crate::fs_beneath::identity_of(
+            &std::fs::File::open(converting.as_path()).expect("the copy"),
+        )
+        .expect("identity"),
         created: None,
     };
-    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(
+        worktree.as_path(),
+        &stage,
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    let RemoveOutcome::Refused(report) = outcome else { panic!("the removal is refused while the copy is there, but it was {outcome:?}") };
-    assert!(report.contains(converting.to_str().expect("UTF-8")), "the report names the copy: {report}");
-    assert!(report.contains("convert-worktree-to-subvolume"), "and the command that finishes or discards it: {report}");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    let RemoveOutcome::Refused(report) = outcome else {
+        panic!("the removal is refused while the copy is there, but it was {outcome:?}")
+    };
+    assert!(
+        report.contains(converting.to_str().expect("UTF-8")),
+        "the report names the copy: {report}"
+    );
+    assert!(
+        report.contains("convert-worktree-to-subvolume"),
+        "and the command that finishes or discards it: {report}"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is untouched"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is untouched"
+    );
     assert!(converting.join("d/copy").is_file(), "and so is the copy");
     remove(root.as_path());
 }
@@ -646,15 +1083,33 @@ fn a_forced_removal_of_a_worktree_with_a_leftover_conversion_stage_is_refused() 
     std::fs::create_dir_all(converting.join("d")).expect("a copy beside the worktree");
     std::fs::write(converting.join("d/copy"), b"a copy\n").expect("its file");
     let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
-        original: crate::fs_beneath::identity_of(&std::fs::File::open(converting.as_path()).expect("the copy")).expect("identity"),
+        original: crate::fs_beneath::identity_of(
+            &std::fs::File::open(converting.as_path()).expect("the copy"),
+        )
+        .expect("identity"),
         created: None,
     };
-    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(
+        worktree.as_path(),
+        &stage,
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt"));
-    let RemoveOutcome::Refused(report) = outcome else { panic!("a forced removal with a recorded copy is refused, but it was {outcome:?}") };
-    assert!(report.contains("convert-worktree-to-subvolume"), "the report names the command that finishes or discards it: {report}");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &forced_plan_named(worktree.as_path(), "../wt"),
+    );
+    let RemoveOutcome::Refused(report) = outcome else {
+        panic!("a forced removal with a recorded copy is refused, but it was {outcome:?}")
+    };
+    assert!(
+        report.contains("convert-worktree-to-subvolume"),
+        "the report names the command that finishes or discards it: {report}"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is untouched"
+    );
     assert!(converting.join("d/copy").is_file(), "and so is the copy");
     remove(root.as_path());
 }
@@ -677,12 +1132,25 @@ fn a_stale_record_whose_stage_is_gone_does_not_stop_the_removal() {
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
-        original: crate::fs_beneath::identity_of(&std::fs::File::open(worktree.as_path()).expect("the worktree")).expect("identity"),
+        original: crate::fs_beneath::identity_of(
+            &std::fs::File::open(worktree.as_path()).expect("the worktree"),
+        )
+        .expect("identity"),
         created: None,
     };
-    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(
+        worktree.as_path(),
+        &stage,
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"))), "the removal finished");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        )),
+        "the removal finished"
+    );
     assert!(!worktree.exists(), "the removal ran");
     remove(root.as_path());
 }
@@ -701,13 +1169,29 @@ fn a_record_whose_stage_name_holds_another_object_does_not_stop_the_removal() {
     std::fs::create_dir_all(sibling.join("d")).expect("a directory of the person's own");
     std::fs::write(sibling.join("d/theirs"), b"theirs\n").expect("its file");
     let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
-        original: crate::fs_beneath::identity_of(&std::fs::File::open(worktree.as_path()).expect("the worktree")).expect("identity"),
+        original: crate::fs_beneath::identity_of(
+            &std::fs::File::open(worktree.as_path()).expect("the worktree"),
+        )
+        .expect("identity"),
         created: None,
     };
-    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(
+        worktree.as_path(),
+        &stage,
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"))), "the removal finished");
-    assert!(sibling.join("d/theirs").is_file(), "the object that is not the recorded one is left alone");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        )),
+        "the removal finished"
+    );
+    assert!(
+        sibling.join("d/theirs").is_file(),
+        "the object that is not the recorded one is left alone"
+    );
     remove(root.as_path());
 }
 
@@ -725,11 +1209,22 @@ fn a_directory_beside_a_worktree_that_no_conversion_recorded_does_not_stop_its_r
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let sibling: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
-    std::fs::create_dir_all(sibling.join("d")).expect("a directory of the person's own beside the worktree");
+    std::fs::create_dir_all(sibling.join("d"))
+        .expect("a directory of the person's own beside the worktree");
     std::fs::write(sibling.join("d/theirs"), b"theirs\n").expect("its file");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    assert!(removed_here(&run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"))), "the removal finished");
-    assert!(sibling.join("d/theirs").is_file(), "the directory that no conversion recorded is left alone");
+    assert!(
+        removed_here(&run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        )),
+        "the removal finished"
+    );
+    assert!(
+        sibling.join("d/theirs").is_file(),
+        "the directory that no conversion recorded is left alone"
+    );
     remove(root.as_path());
 }
 
@@ -746,22 +1241,52 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let worktrees: PathBuf = repo.join(".git/worktrees");
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restore");
-    assert!(matches!(outcome, RemoveOutcome::Incomplete(_)), "the registration cannot be removed: {outcome:?}");
-    assert!(!worktree.exists() && admin.is_dir(), "the destroy happened and the registration stayed");
-    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
-    assert!(record.is_file(), "the destroy this removal made is recorded for the next command");
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("read-only registrations");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("restore");
+    assert!(
+        matches!(outcome, RemoveOutcome::Incomplete(_)),
+        "the registration cannot be removed: {outcome:?}"
+    );
+    assert!(
+        !worktree.exists() && admin.is_dir(),
+        "the destroy happened and the registration stayed"
+    );
+    let record: PathBuf = common
+        .join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER)
+        .join("wt");
+    assert!(
+        record.is_file(),
+        "the destroy this removal made is recorded for the next command"
+    );
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
     assert!(problems.is_empty(), "{problems:?}");
-    assert!(!admin.exists() && !record.exists(), "the next command finished it and dropped the record");
+    assert!(
+        !admin.exists() && !record.exists(),
+        "the next command finished it and dropped the record"
+    );
     // A removal that finished leaves nothing behind for a later command to do.
     let other: PathBuf = clean_worktree(repo.as_path(), root.join("wt2").as_path(), "other");
     let second: Stand = Stand::new(vec![other.clone()]);
-    assert!(removed_here(&run(&second, repo.as_path(), &plan_named(other.as_path(), "../wt2"))), "the second removal finished");
+    assert!(
+        removed_here(&run(
+            &second,
+            repo.as_path(),
+            &plan_named(other.as_path(), "../wt2")
+        )),
+        "the second removal finished"
+    );
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
-    assert!(!record.parent().expect("record folder").exists(), "a finished removal records nothing");
+    assert!(
+        !record.parent().expect("record folder").exists(),
+        "a finished removal records nothing"
+    );
     remove(root.as_path());
 }
 
@@ -779,20 +1304,49 @@ fn the_refusal_for_a_post_swap_stage_names_the_finishing_command() {
     let root: PathBuf = fixture("remove-leftover-stage-past-swap");
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
-    let platform: crate::subvolume_test_support::PlainPlatform = crate::subvolume_test_support::PlainPlatform::new();
-    let options = crate::worktree_convert::ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
+    let platform: crate::subvolume_test_support::PlainPlatform =
+        crate::subvolume_test_support::PlainPlatform::new();
+    let options = crate::worktree_convert::ConvertOptions {
+        dry_run: false,
+        abandon: false,
+        command_line_attributes: false,
+    };
     // A conversion stopped right after its exchange: the original tree waits at the converting name, and the journal says
     // `Exchanged`, which is the state `--abandon` refuses.
-    let killed = crate::worktree_convert::convert_worktree(&platform, worktree.as_path(), options, &crate::subvolume_error::Interrupt::at("exchanged", 0), &mut |_text: &str| {});
+    let killed = crate::worktree_convert::convert_worktree(
+        &platform,
+        worktree.as_path(),
+        options,
+        &crate::subvolume_error::Interrupt::at("exchanged", 0),
+        &mut |_text: &str| {},
+    );
     assert!(killed.is_err(), "the conversion is stopped at its exchange");
     let converting: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the original tree is at the converting name");
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_ok(),
+        "the original tree is at the converting name"
+    );
     let stand: Stand = Stand::new(vec![worktree.clone()]);
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    let RemoveOutcome::Refused(report) = outcome else { panic!("the removal is refused while the copy is there, but it was {outcome:?}") };
-    assert!(report.contains("which completes it in place"), "the report names the command that finishes a post-swap conversion: {report}");
-    assert!(!report.contains("or discard"), "and not the remedy for a copy that is still there: {report}");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    let RemoveOutcome::Refused(report) = outcome else {
+        panic!("the removal is refused while the copy is there, but it was {outcome:?}")
+    };
+    assert!(
+        report.contains("which completes it in place"),
+        "the report names the command that finishes a post-swap conversion: {report}"
+    );
+    assert!(
+        !report.contains("or discard"),
+        "and not the remedy for a copy that is still there: {report}"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -815,17 +1369,44 @@ fn another_commands_recovery_leaves_the_record_of_a_running_removal() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    let record: PathBuf = common
+        .join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER)
+        .join("wt");
     // A removal that is running: the record is this process's, and the worktree is still there until its kernel call.
-    crate::worktree_removal_interrupted_destroy::record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
-    assert!(finish_interrupted_destroys(common.as_path()).is_empty(), "a removal that is running is not a problem to report");
-    assert!(record.is_file(), "the record of a running removal stays, so its owner can mark it");
+    crate::worktree_removal_interrupted_destroy::record_destroy(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+    )
+    .expect("record");
+    assert!(
+        finish_interrupted_destroys(common.as_path()).is_empty(),
+        "a removal that is running is not a problem to report"
+    );
+    assert!(
+        record.is_file(),
+        "the record of a running removal stays, so its owner can mark it"
+    );
     // The same record with an owner that has ended is dropped, as before.
     std::fs::remove_file(record.as_path()).expect("drop the running record this control wrote");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
-    assert!(!record.exists(), "a record whose owner has ended is dropped");
+    assert!(
+        !record.exists(),
+        "a record whose owner has ended is dropped"
+    );
     remove(root.as_path());
 }
 
@@ -847,20 +1428,49 @@ fn a_registration_a_repair_pointed_at_a_restored_checkout_is_kept() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     // The checkout is destroyed, and a backup of it is restored at another path, which real Git then repairs the
     // registration to name.
     let restored: PathBuf = root.join("restored");
-    std::fs::rename(worktree.as_path(), restored.as_path()).expect("the checkout is restored at another path");
-    git(repo.as_path(), &["worktree", "repair", restored.to_str().expect("UTF-8")]);
-    let pointer: String = std::fs::read_to_string(admin.join("gitdir")).expect("the registration's gitdir");
-    assert!(pointer.contains("restored"), "the repair pointed the registration at the restored checkout: {pointer}");
+    std::fs::rename(worktree.as_path(), restored.as_path())
+        .expect("the checkout is restored at another path");
+    git(
+        repo.as_path(),
+        &["worktree", "repair", restored.to_str().expect("UTF-8")],
+    );
+    let pointer: String =
+        std::fs::read_to_string(admin.join("gitdir")).expect("the registration's gitdir");
+    assert!(
+        pointer.contains("restored"),
+        "the repair pointed the registration at the restored checkout: {pointer}"
+    );
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
-    assert!(problems.iter().any(|text: &String| { return text.contains("restored"); }), "the person is told what the registration names now: {problems:?}");
-    assert!(admin.join("gitdir").is_file(), "the registration of a restored checkout is kept");
-    assert!(restored.join("tracked.txt").is_file(), "the restored checkout is untouched");
+    assert!(
+        problems.iter().any(|text: &String| {
+            return text.contains("restored");
+        }),
+        "the person is told what the registration names now: {problems:?}"
+    );
+    assert!(
+        admin.join("gitdir").is_file(),
+        "the registration of a restored checkout is kept"
+    );
+    assert!(
+        restored.join("tracked.txt").is_file(),
+        "the restored checkout is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -888,23 +1498,56 @@ fn a_registration_whose_gitdir_cannot_be_read_is_kept_and_named() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     // A backup of the checkout is restored at another path, which real Git repairs the registration to name.
     let restored: PathBuf = root.join("restored");
-    std::fs::rename(worktree.as_path(), restored.as_path()).expect("the checkout is restored at another path");
-    git(repo.as_path(), &["worktree", "repair", restored.to_str().expect("UTF-8")]);
+    std::fs::rename(worktree.as_path(), restored.as_path())
+        .expect("the checkout is restored at another path");
+    git(
+        repo.as_path(),
+        &["worktree", "repair", restored.to_str().expect("UTF-8")],
+    );
     let index: PathBuf = admin.join("index");
-    assert!(index.is_file(), "the registration holds the restored checkout's index");
+    assert!(
+        index.is_file(),
+        "the registration holds the restored checkout's index"
+    );
     // What a mode a person cannot read does: the answer is there and this user cannot have it.
-    std::fs::set_permissions(admin.join("gitdir").as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable gitdir");
+    std::fs::set_permissions(
+        admin.join("gitdir").as_path(),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .expect("unreadable gitdir");
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
-    assert!(problems.iter().any(|text: &String| { return text.contains(admin.to_str().expect("UTF-8")); }), "the person is told which registration is kept: {problems:?}");
+    assert!(
+        problems.iter().any(|text: &String| {
+            return text.contains(admin.to_str().expect("UTF-8"));
+        }),
+        "the person is told which registration is kept: {problems:?}"
+    );
     assert!(admin.join("gitdir").is_file(), "the registration is kept");
     assert!(index.is_file(), "and so is the restored checkout's index");
-    assert!(restored.join("tracked.txt").is_file(), "the restored checkout is untouched");
-    std::fs::set_permissions(admin.join("gitdir").as_path(), std::fs::Permissions::from_mode(0o644)).expect("readable again");
+    assert!(
+        restored.join("tracked.txt").is_file(),
+        "the restored checkout is untouched"
+    );
+    std::fs::set_permissions(
+        admin.join("gitdir").as_path(),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .expect("readable again");
     remove(root.as_path());
 }
 
@@ -927,16 +1570,40 @@ fn a_worktree_moved_away_after_the_record_keeps_its_registration() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     let moved: PathBuf = root.join("wt.moved");
-    std::fs::rename(worktree.as_path(), moved.as_path()).expect("the worktree is moved, not destroyed");
+    std::fs::rename(worktree.as_path(), moved.as_path())
+        .expect("the worktree is moved, not destroyed");
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
-    assert!(!problems.is_empty(), "the person is told the removal did not finish");
-    assert!(admin.join("gitdir").is_file(), "the registration a moved worktree still names is kept");
-    let pointer: String = std::fs::read_to_string(moved.join(".git")).expect("the moved worktree's .git file");
-    assert!(pointer.contains(admin.to_str().expect("UTF-8")), "and it still names a registration that is there: {pointer}");
-    assert!(moved.join("tracked.txt").is_file(), "the worktree's files are untouched");
+    assert!(
+        !problems.is_empty(),
+        "the person is told the removal did not finish"
+    );
+    assert!(
+        admin.join("gitdir").is_file(),
+        "the registration a moved worktree still names is kept"
+    );
+    let pointer: String =
+        std::fs::read_to_string(moved.join(".git")).expect("the moved worktree's .git file");
+    assert!(
+        pointer.contains(admin.to_str().expect("UTF-8")),
+        "and it still names a registration that is there: {pointer}"
+    );
+    assert!(
+        moved.join("tracked.txt").is_file(),
+        "the worktree's files are untouched"
+    );
     remove(root.as_path());
 }
 
@@ -954,11 +1621,27 @@ fn a_recorded_destroy_whose_worktree_is_still_there_changes_nothing() {
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
-    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    let identity = crate::fs_beneath::identity_of(
+        &std::fs::File::open(admin.as_path()).expect("registration"),
+    )
+    .expect("identity");
+    record_destroy_with_owner(
+        common.as_path(),
+        std::ffi::OsStr::new("wt"),
+        &identity,
+        worktree.as_path(),
+        Some(ENDED_OWNER),
+    )
+    .expect("record");
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
-    assert!(admin.join("gitdir").is_file() && worktree.join("tracked.txt").is_file(), "nothing was removed");
-    assert!(finish_interrupted_destroys(common.as_path()).is_empty(), "the record is gone, so the next command looks at nothing");
+    assert!(
+        admin.join("gitdir").is_file() && worktree.join("tracked.txt").is_file(),
+        "nothing was removed"
+    );
+    assert!(
+        finish_interrupted_destroys(common.as_path()).is_empty(),
+        "the record is gone, so the next command looks at nothing"
+    );
     remove(root.as_path());
 }
 
@@ -977,9 +1660,22 @@ fn an_administrative_directory_replaced_after_the_proof_is_kept() {
         std::fs::create_dir(at.as_path()).expect("replacement registration");
         std::fs::write(at.join("gitdir"), b"/elsewhere/.git\n").expect("replacement gitdir");
     }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert_eq!(std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"), b"/elsewhere/.git\n");
-    assert!(worktree.join("tracked.txt").is_file(), "nothing was destroyed");
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert_eq!(
+        std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"),
+        b"/elsewhere/.git\n"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "nothing was destroyed"
+    );
     remove(root.as_path());
 }
 
@@ -993,9 +1689,22 @@ fn a_registration_rewritten_after_the_proof_stops_the_removal() {
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let pointer: Vec<u8> = format!("{}\n", worktree.join(".git").display()).into_bytes();
     // Same bytes plus trailing spaces: still a record of this worktree for Git, but not the proven text.
-    *stand.after_proof.borrow_mut() = Some(Box::new(move || { std::fs::write(admin.join("gitdir"), [pointer.as_slice(), b"  \n"].concat()).expect("rewrite"); }));
-    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
-    assert!(worktree.join("tracked.txt").is_file(), "nothing was destroyed");
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        std::fs::write(admin.join("gitdir"), [pointer.as_slice(), b"  \n"].concat())
+            .expect("rewrite");
+    }));
+    assert_eq!(
+        run(
+            &stand,
+            repo.as_path(),
+            &plan_named(worktree.as_path(), "../wt")
+        ),
+        RemoveOutcome::LeftToGit
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "nothing was destroyed"
+    );
     remove(root.as_path());
 }
 
@@ -1014,11 +1723,23 @@ fn an_administrative_directory_replaced_during_the_destroy_is_kept_and_reported(
         std::fs::create_dir(at.as_path()).expect("replacement registration");
         std::fs::write(at.join("gitdir"), b"/elsewhere/.git\n").expect("replacement gitdir");
     }));
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    let RemoveOutcome::Incomplete(report) = outcome else { panic!("a registration that was not removed is not a success: {outcome:?}") };
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    let RemoveOutcome::Incomplete(report) = outcome else {
+        panic!("a registration that was not removed is not a success: {outcome:?}")
+    };
     assert!(report.contains(admin.to_str().expect("UTF-8")), "{report}");
-    assert_eq!(std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"), b"/elsewhere/.git\n");
-    assert!(repo.join(".git/worktrees/wt.moved/gitdir").is_file(), "the registration that was moved away is not emptied under its new name");
+    assert_eq!(
+        std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"),
+        b"/elsewhere/.git\n"
+    );
+    assert!(
+        repo.join(".git/worktrees/wt.moved/gitdir").is_file(),
+        "the registration that was moved away is not emptied under its new name"
+    );
     remove(root.as_path());
 }
 
@@ -1039,16 +1760,28 @@ fn a_removal_marks_its_record_before_it_calls_the_destroy() {
     let repo: PathBuf = repository_with_file(root.as_path(), "repo");
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let record: PathBuf = common_dir.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    let record: PathBuf = common_dir
+        .join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER)
+        .join("wt");
     let marked: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let seen: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::clone(&marked);
     let read_at: PathBuf = record.clone();
     // The destroy of this stand-in runs the hook once, at the one moment the kernel call holds the removal.
     *stand.during_destroy.borrow_mut() = Some(Box::new(move || {
-        seen.set(std::fs::read_to_string(read_at.as_path()).is_ok_and(|text| { return text.starts_with("destroyed=1\n") }));
+        seen.set(
+            std::fs::read_to_string(read_at.as_path())
+                .is_ok_and(|text| return text.starts_with("destroyed=1\n")),
+        );
     }));
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    assert!(marked.get(), "the record says the files leave the path before the call starts, but it did not: {outcome:?}");
+    let outcome: RemoveOutcome = run(
+        &stand,
+        repo.as_path(),
+        &plan_named(worktree.as_path(), "../wt"),
+    );
+    assert!(
+        marked.get(),
+        "the record says the files leave the path before the call starts, but it did not: {outcome:?}"
+    );
     remove(root.as_path());
 }

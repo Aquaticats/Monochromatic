@@ -12,19 +12,40 @@
 //!  exactly as native Git does,
 //! so the next command of the person sees the same repository.
 
-use super::commit::{git_text, remove_settled};
-use super::service_commit::{Running, query, start, through_service};
-use super::support::{Fixture, direct, fixture, git, repository};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
+use super::service_commit::{
+    Running,
+    query,
+    start,
+    through_service,
+};
+use super::support::{
+    Fixture,
+    direct,
+    fixture,
+    git,
+    repository,
+};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 fn finished(fixture: &Fixture) -> usize {
     return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
         return entries
             .flatten()
-            .filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+            .filter(|entry| {
+                return entry.path().extension().is_some_and(|extension| {
+                    return extension == DONE_EXTENSION;
+                });
+            })
             .count();
     });
 }
@@ -33,7 +54,10 @@ fn finished(fixture: &Fixture) -> usize {
 /// the stored tree and message,
 /// the short status,
 /// and the staged difference from the commit.
-fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<String> {
+fn left_behind(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["log", "-1", "--format=%T%n%B"]),
         git_text(fixture, repo, &["status", "--short"]),
@@ -53,7 +77,11 @@ struct Case {
     commits: bool,
 }
 
-fn write(repo: &Path, name: &str, text: &str) {
+fn write(
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("write");
 }
 
@@ -61,7 +89,11 @@ fn stage_two_and_leave_one(repo: &Path) {
     write(repo, "a.txt", "base\nstaged\n");
     write(repo, "c.txt", "new file\n");
     write(repo, "b.txt", "other\nunstaged\n");
-    let output = std::process::Command::new("/usr/bin/git").current_dir(repo).args(["add", "a.txt", "c.txt"]).output().expect("add");
+    let output = std::process::Command::new("/usr/bin/git")
+        .current_dir(repo)
+        .args(["add", "a.txt", "c.txt"])
+        .output()
+        .expect("add");
     assert!(output.status.success());
 }
 
@@ -90,32 +122,77 @@ fn index_commits_and_commit_all_through_the_service_equal_the_native_commit() {
     write(&repo, "b.txt", "other\n");
     git(&fixture, &repo, &["add", "a.txt", "b.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     let start_commit: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
     let cases: [Case; 5] = [
-        Case { name: "index with staged and unstaged", command: &["commit", "--no-enforce-only", "-m", "s"], prepare: stage_two_and_leave_one, commits: true },
-        Case { name: "all", command: &["commit", "--no-enforce-only", "-a", "-m", "s"], prepare: edit_two_and_add_untracked, commits: true },
-        Case { name: "all with a deletion", command: &["commit", "--no-enforce-only", "--all", "-m", "s"], prepare: delete_one_and_edit_one, commits: true },
-        Case { name: "all short form together", command: &["commit", "--no-enforce-only", "-am", "s"], prepare: edit_two_and_add_untracked, commits: true },
-        Case { name: "nothing staged", command: &["commit", "--no-enforce-only", "-m", "s"], prepare: nothing_staged, commits: false },
+        Case {
+            name: "index with staged and unstaged",
+            command: &["commit", "--no-enforce-only", "-m", "s"],
+            prepare: stage_two_and_leave_one,
+            commits: true,
+        },
+        Case {
+            name: "all",
+            command: &["commit", "--no-enforce-only", "-a", "-m", "s"],
+            prepare: edit_two_and_add_untracked,
+            commits: true,
+        },
+        Case {
+            name: "all with a deletion",
+            command: &["commit", "--no-enforce-only", "--all", "-m", "s"],
+            prepare: delete_one_and_edit_one,
+            commits: true,
+        },
+        Case {
+            name: "all short form together",
+            command: &["commit", "--no-enforce-only", "-am", "s"],
+            prepare: edit_two_and_add_untracked,
+            commits: true,
+        },
+        Case {
+            name: "nothing staged",
+            command: &["commit", "--no-enforce-only", "-m", "s"],
+            prepare: nothing_staged,
+            commits: false,
+        },
     ];
     let name: String = format!("selection-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     for entry in &cases {
         let mut outcomes: Vec<(Vec<String>, Option<i32>)> = Vec::new();
         for through in [true, false] {
-            git(&fixture, &repo, &["reset", "--hard", "--quiet", start_commit.as_str()]);
+            git(
+                &fixture,
+                &repo,
+                &["reset", "--hard", "--quiet", start_commit.as_str()],
+            );
             git(&fixture, &repo, &["clean", "--force", "--quiet", "-d"]);
             (entry.prepare)(&repo);
             let before: usize = finished(&fixture);
             let output: Output = if through {
                 through_service(&fixture, &repo, name.as_str(), entry.command)
             } else {
-                direct(&fixture).current_dir(&repo).args(entry.command.iter().copied().filter(|word| { return *word != "--no-enforce-only"; })).output().expect("native")
+                direct(&fixture)
+                    .current_dir(&repo)
+                    .args(entry.command.iter().copied().filter(|word| {
+                        return *word != "--no-enforce-only";
+                    }))
+                    .output()
+                    .expect("native")
             };
             if through {
                 let expected: usize = before + usize::from(entry.commits);
-                assert_eq!(finished(&fixture), expected, "{}: {}", entry.name, String::from_utf8_lossy(&output.stderr));
+                assert_eq!(
+                    finished(&fixture),
+                    expected,
+                    "{}: {}",
+                    entry.name,
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
             outcomes.push((left_behind(&fixture, &repo), output.status.code()));
         }

@@ -14,9 +14,18 @@
 //!  Test-only.
 //!  A release build reads no atomic and holds no lock here.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Whether a control states that the step's end has not been collected.
 static HELD: AtomicBool = AtomicBool::new(false);
@@ -31,7 +40,9 @@ const LOOK_PAUSE: Duration = Duration::from_millis(5);
 /// Take the window for the control that is about to use it,
 /// with no hold planted.
 pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
-    let taken: MutexGuard<'static, ()> = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let taken: MutexGuard<'static, ()> = WINDOW
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     HELD.store(false, Ordering::SeqCst);
     return taken;
 }

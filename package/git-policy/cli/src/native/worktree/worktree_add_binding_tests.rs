@@ -7,8 +7,16 @@
 
 use super::*;
 use crate::private_storage::take_file_syncs;
-use crate::test_support::{fixture, git, remove, repository};
-use crate::worktree_ladder_test_support::{commit_all, tracked};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
+use crate::worktree_ladder_test_support::{
+    commit_all,
+    tracked,
+};
 
 /// An ordinary repository with a worktree registered without a checkout beside it:
 /// the repository,
@@ -19,7 +27,18 @@ fn registered(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     tracked(repo.as_path(), "file.txt", b"content\n");
     commit_all(repo.as_path(), "first");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
     let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     return (repo, destination, admin);
@@ -38,26 +57,75 @@ fn a_pair_the_repository_does_not_confirm_is_not_bound() {
     let (repo, destination, admin) = registered(root.as_path());
     let common: PathBuf = repo.join(".git");
     // A pointer at a directory outside the repository's worktrees.
-    let foreign: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("foreign");
+    let foreign: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical")
+        .join("foreign");
     std::fs::create_dir_all(foreign.join("admin")).expect("foreign admin");
-    std::fs::write(foreign.join("admin/gitdir"), format!("{}\n", foreign.join("look/.git").display())).expect("gitdir");
+    std::fs::write(
+        foreign.join("admin/gitdir"),
+        format!("{}\n", foreign.join("look/.git").display()),
+    )
+    .expect("gitdir");
     std::fs::create_dir_all(foreign.join("look")).expect("look");
-    std::fs::write(foreign.join("look/.git"), format!("gitdir: {}\n", foreign.join("admin").display())).expect("pointer");
-    assert!(bind_registration(common.as_path(), foreign.join("look").as_path()).expect_err("not registered").contains("not registered"));
+    std::fs::write(
+        foreign.join("look/.git"),
+        format!("gitdir: {}\n", foreign.join("admin").display()),
+    )
+    .expect("pointer");
+    assert!(
+        bind_registration(common.as_path(), foreign.join("look").as_path())
+            .expect_err("not registered")
+            .contains("not registered")
+    );
     // A pointer edited to name the source's own git directory.
     let edited: PathBuf = foreign.join("edited");
     std::fs::create_dir_all(edited.as_path()).expect("edited");
-    std::fs::write(edited.join(".git"), format!("gitdir: {}\n", common.display())).expect("pointer at the main git directory");
-    assert!(bind_registration(common.as_path(), edited.as_path()).is_err(), "the main git directory is not a registration");
+    std::fs::write(
+        edited.join(".git"),
+        format!("gitdir: {}\n", common.display()),
+    )
+    .expect("pointer at the main git directory");
+    assert!(
+        bind_registration(common.as_path(), edited.as_path()).is_err(),
+        "the main git directory is not a registration"
+    );
     // A pointer edited to name another worktree's registration: its back-link names another place.
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "other", "../other"]);
-    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", repo.join(".git/worktrees/other").display())).expect("edited pointer");
-    assert!(bind_registration(common.as_path(), destination.as_path()).expect_err("not named back").contains("does not name"));
-    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("restored");
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "other",
+            "../other",
+        ],
+    );
+    std::fs::write(
+        destination.join(".git"),
+        format!("gitdir: {}\n", repo.join(".git/worktrees/other").display()),
+    )
+    .expect("edited pointer");
+    assert!(
+        bind_registration(common.as_path(), destination.as_path())
+            .expect_err("not named back")
+            .contains("does not name")
+    );
+    std::fs::write(
+        destination.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("restored");
     // A destination named through a link.
-    let link: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("link");
+    let link: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical")
+        .join("link");
     std::os::unix::fs::symlink(destination.as_path(), link.as_path()).expect("link");
-    assert!(bind_registration(common.as_path(), link.as_path()).is_err(), "a link is not the directory");
+    assert!(
+        bind_registration(common.as_path(), link.as_path()).is_err(),
+        "a link is not the directory"
+    );
     // Positive control: the real pair binds.
     assert!(bind_registration(common.as_path(), destination.as_path()).is_ok());
     remove(root.as_path());
@@ -80,12 +148,24 @@ fn a_pair_the_repository_does_not_confirm_is_not_bound() {
 fn the_proof_of_who_made_a_registration_flushes_nothing() {
     let root: PathBuf = fixture("binding-owner-unsynced");
     let (repo, destination, admin) = registered(root.as_path());
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     let owner_file: PathBuf = admin.join(REGISTRATION_OWNER_NAME);
     take_file_syncs();
-    assert_eq!(claim_registration(&bound.admin, "mine").expect("claimed"), RegistrationOwner::Mine);
-    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the proof of who made the registration flushes no file");
-    assert_eq!(std::fs::read(owner_file.as_path()).expect("owner"), b"mine", "the proof is published whole with the token in it");
+    assert_eq!(
+        claim_registration(&bound.admin, "mine").expect("claimed"),
+        RegistrationOwner::Mine
+    );
+    assert_eq!(
+        take_file_syncs(),
+        Vec::<PathBuf>::new(),
+        "the proof of who made the registration flushes no file"
+    );
+    assert_eq!(
+        std::fs::read(owner_file.as_path()).expect("owner"),
+        b"mine",
+        "the proof is published whole with the token in it"
+    );
     assert_eq!(
         claim_registration(&bound.admin, "another").expect("read back"),
         RegistrationOwner::Another(String::from("mine")),
@@ -93,7 +173,10 @@ fn the_proof_of_who_made_a_registration_flushes_nothing() {
     );
     let control: PathBuf = admin.join("durable-control");
     crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
-    assert!(!take_file_syncs().is_empty(), "a durable private file flushes (the control that the recorder sees it)");
+    assert!(
+        !take_file_syncs().is_empty(),
+        "a durable private file flushes (the control that the recorder sees it)"
+    );
     remove(root.as_path());
 }
 
@@ -104,7 +187,8 @@ fn the_proof_of_who_made_a_registration_flushes_nothing() {
 fn a_binding_holds_until_an_object_it_names_changes() {
     let root: PathBuf = fixture("binding-holds");
     let (repo, destination, admin) = registered(root.as_path());
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     assert_eq!(verify_association(&bound), Ok(()));
     assert_eq!(verify_association(&bound), Ok(()));
     assert!(destination.join(".git").exists() && admin.exists());
@@ -121,13 +205,26 @@ fn a_binding_holds_until_an_object_it_names_changes() {
 fn a_destination_moved_and_replaced_no_longer_verifies() {
     let root: PathBuf = fixture("binding-replaced");
     let (repo, destination, _admin) = registered(root.as_path());
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "again", "../topic"]);
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    git(
+        repo.as_path(),
+        &["worktree", "move", "../topic", "../moved"],
+    );
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "again", "../topic"],
+    );
     std::fs::write(destination.join("mine.txt"), b"work in the replacement").expect("their work");
     let reason: String = verify_association(&bound).expect_err("replaced");
-    assert!(reason.contains("no longer the directory Git made"), "{reason}");
-    assert_eq!(std::fs::read(destination.join("mine.txt")).expect("kept"), b"work in the replacement");
+    assert!(
+        reason.contains("no longer the directory Git made"),
+        "{reason}"
+    );
+    assert_eq!(
+        std::fs::read(destination.join("mine.txt")).expect("kept"),
+        b"work in the replacement"
+    );
     remove(root.as_path());
 }
 
@@ -138,10 +235,17 @@ fn a_destination_moved_and_replaced_no_longer_verifies() {
 fn a_moved_worktree_no_longer_verifies() {
     let root: PathBuf = fixture("binding-moved");
     let (repo, destination, admin) = registered(root.as_path());
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    git(
+        repo.as_path(),
+        &["worktree", "move", "../topic", "../moved"],
+    );
     assert!(verify_association(&bound).is_err());
-    assert!(admin.exists(), "the registration of the moved worktree is untouched");
+    assert!(
+        admin.exists(),
+        "the registration of the moved worktree is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -152,18 +256,40 @@ fn a_moved_worktree_no_longer_verifies() {
 fn a_replaced_registration_an_edited_pointer_and_a_repointed_registration_stop_the_verification() {
     let root: PathBuf = fixture("binding-edited");
     let (repo, destination, admin) = registered(root.as_path());
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     let original: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
     std::fs::write(destination.join(".git"), b"gitdir: /elsewhere\n").expect("edited pointer");
-    assert!(verify_association(&bound).expect_err("pointer").contains("no longer the pointer"));
+    assert!(
+        verify_association(&bound)
+            .expect_err("pointer")
+            .contains("no longer the pointer")
+    );
     std::fs::write(destination.join(".git"), original).expect("restored");
     assert_eq!(verify_association(&bound), Ok(()), "positive control");
-    std::fs::write(admin.join("gitdir"), format!("{}\n", root.join("elsewhere/.git").display())).expect("re-pointed");
-    assert!(verify_association(&bound).expect_err("repointed").contains("no longer names"));
-    std::fs::write(admin.join("gitdir"), format!("{}\n", destination.join(".git").display())).expect("restored");
-    std::fs::rename(admin.as_path(), admin.with_file_name("topic.moved")).expect("registration moved");
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", root.join("elsewhere/.git").display()),
+    )
+    .expect("re-pointed");
+    assert!(
+        verify_association(&bound)
+            .expect_err("repointed")
+            .contains("no longer names")
+    );
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", destination.join(".git").display()),
+    )
+    .expect("restored");
+    std::fs::rename(admin.as_path(), admin.with_file_name("topic.moved"))
+        .expect("registration moved");
     std::fs::create_dir(admin.as_path()).expect("another registration");
-    assert!(verify_association(&bound).expect_err("replaced").contains("no longer the one Git made"));
+    assert!(
+        verify_association(&bound)
+            .expect_err("replaced")
+            .contains("no longer the one Git made")
+    );
     remove(root.as_path());
 }
 
@@ -173,16 +299,35 @@ fn a_replaced_registration_an_edited_pointer_and_a_repointed_registration_stop_t
 #[test]
 fn a_record_round_trips_and_a_forged_one_is_nothing() {
     let planned: PathBuf = PathBuf::from("/base/line\nphase=registered");
-    assert_eq!(decode_record(planned_record(planned.as_path()).as_str()), Some(Recorded::Planned(planned)));
+    assert_eq!(
+        decode_record(planned_record(planned.as_path()).as_str()),
+        Some(Recorded::Planned(planned))
+    );
     let binding: Binding = Binding {
         destination: PathBuf::from("/base/topic"),
-        destination_id: ObjectId { device: 1, inode: 2, birth: Some((3, 4)) },
+        destination_id: ObjectId {
+            device: 1,
+            inode: 2,
+            birth: Some((3, 4)),
+        },
         admin: PathBuf::from("/repo/.git/worktrees/topic"),
-        admin_id: ObjectId { device: 5, inode: 6, birth: None },
+        admin_id: ObjectId {
+            device: 5,
+            inode: 6,
+            birth: None,
+        },
         pointer: b"gitdir: /repo/.git/worktrees/topic\n".to_vec(),
     };
-    assert_eq!(decode_record(binding.encode().as_str()), Some(Recorded::Registered(binding.clone())));
-    for broken in ["", "destination=zz\nphase=planned\n", "destination=2f\nphase=other\n", "phase=planned\n"] {
+    assert_eq!(
+        decode_record(binding.encode().as_str()),
+        Some(Recorded::Registered(binding.clone()))
+    );
+    for broken in [
+        "",
+        "destination=zz\nphase=planned\n",
+        "destination=2f\nphase=other\n",
+        "phase=planned\n",
+    ] {
         assert_eq!(decode_record(broken), None, "{broken:?}");
     }
     let missing_field: String = binding.encode().replace("pointer=", "pointe=");
@@ -198,13 +343,33 @@ fn a_record_round_trips_and_a_forged_one_is_nothing() {
 fn a_pointer_through_a_link_is_not_bound_and_the_message_names_the_remedy() {
     let root: PathBuf = fixture("binding-alias");
     let (repo, destination, admin) = registered(root.as_path());
-    let alias: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("alias");
-    std::os::unix::fs::symlink(repo.join(".git"), alias.as_path()).expect("alias of the git directory");
-    std::fs::write(destination.join(".git"), format!("gitdir: {}/worktrees/topic\n", alias.display())).expect("pointer through the alias");
-    let reason: String = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect_err("refused");
-    assert!(reason.contains("without a symbolic link") && reason.contains("canonical path") && reason.contains(".git"), "{reason}");
-    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("restored");
-    assert!(bind_registration(repo.join(".git").as_path(), destination.as_path()).is_ok(), "positive control");
+    let alias: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical")
+        .join("alias");
+    std::os::unix::fs::symlink(repo.join(".git"), alias.as_path())
+        .expect("alias of the git directory");
+    std::fs::write(
+        destination.join(".git"),
+        format!("gitdir: {}/worktrees/topic\n", alias.display()),
+    )
+    .expect("pointer through the alias");
+    let reason: String =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect_err("refused");
+    assert!(
+        reason.contains("without a symbolic link")
+            && reason.contains("canonical path")
+            && reason.contains(".git"),
+        "{reason}"
+    );
+    std::fs::write(
+        destination.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("restored");
+    assert!(
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).is_ok(),
+        "positive control"
+    );
     remove(root.as_path());
 }
 
@@ -213,17 +378,36 @@ fn a_pointer_through_a_link_is_not_bound_and_the_message_names_the_remedy() {
 fn a_relative_pointer_without_links_is_bound() {
     let root: PathBuf = fixture("binding-relative");
     let (repo, destination, _admin) = registered(root.as_path());
-    std::fs::write(destination.join(".git"), "gitdir: ../repo/.git/worktrees/topic\n").expect("relative pointer");
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    std::fs::write(
+        destination.join(".git"),
+        "gitdir: ../repo/.git/worktrees/topic\n",
+    )
+    .expect("relative pointer");
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     assert_eq!(bound.binding.admin, repo.join(".git/worktrees/topic"));
     // The climb is as deep as the destination is, so the pointer reaches the file system root whatever depth the
     // fixture root gives the destination: a fixed count made the control depend on that depth.
     let climbs: usize = destination.ancestors().count() - 1;
     let to_the_root: String = "../".repeat(climbs);
-    assert!(pointer_target(destination.as_path(), format!("gitdir: {to_the_root}\n").as_bytes()).is_ok(), "the root is a place");
+    assert!(
+        pointer_target(
+            destination.as_path(),
+            format!("gitdir: {to_the_root}\n").as_bytes()
+        )
+        .is_ok(),
+        "the root is a place"
+    );
     assert!(pointer_target(destination.as_path(), b"gitdir: ").is_ok());
     let climbing: String = "../".repeat(climbs + 1);
-    assert!(pointer_target(destination.as_path(), format!("gitdir: {climbing}x\n").as_bytes()).is_err(), "a pointer cannot climb out of the root");
+    assert!(
+        pointer_target(
+            destination.as_path(),
+            format!("gitdir: {climbing}x\n").as_bytes()
+        )
+        .is_err(),
+        "a pointer cannot climb out of the root"
+    );
     remove(root.as_path());
 }
 
@@ -235,8 +419,11 @@ fn a_relative_pointer_without_links_is_bound() {
 fn verification_resolves_the_pointer_again() {
     let root: PathBuf = fixture("binding-verify-alias");
     let (repo, destination, admin) = registered(root.as_path());
-    let mut bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    let alias: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("alias");
+    let mut bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let alias: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical")
+        .join("alias");
     std::os::unix::fs::symlink(repo.join(".git"), alias.as_path()).expect("alias");
     let text: Vec<u8> = format!("gitdir: {}/worktrees/topic\n", alias.display()).into_bytes();
     std::fs::write(destination.join(".git"), text.as_slice()).expect("pointer through the alias");
@@ -255,18 +442,43 @@ fn verification_resolves_the_pointer_again() {
 #[test]
 fn a_registration_written_with_relative_paths_is_bound_and_verified() {
     let root: PathBuf = fixture("binding-relative-paths");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
     tracked(repo.as_path(), "file.txt", b"content\n");
     commit_all(repo.as_path(), "first");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--relative-paths", "-b", "topic", "../topic"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--relative-paths",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
     let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
-    let recorded: String = std::fs::read_to_string(repo.join(".git/worktrees/topic/gitdir")).expect("gitdir file");
-    assert!(recorded.starts_with("../"), "Git recorded the destination relative to the registration: {recorded}");
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let recorded: String =
+        std::fs::read_to_string(repo.join(".git/worktrees/topic/gitdir")).expect("gitdir file");
+    assert!(
+        recorded.starts_with("../"),
+        "Git recorded the destination relative to the registration: {recorded}"
+    );
+    let bound: Bound =
+        bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
     assert_eq!(bound.binding.admin, repo.join(".git/worktrees/topic"));
     verify_association(&bound).expect("verified");
     // A relative back-link that names another place is still refused.
-    std::fs::write(repo.join(".git/worktrees/topic/gitdir"), "../../../../elsewhere/.git\n").expect("edited back-link");
-    assert!(bind_registration(repo.join(".git").as_path(), destination.as_path()).expect_err("another place").contains("does not name"));
+    std::fs::write(
+        repo.join(".git/worktrees/topic/gitdir"),
+        "../../../../elsewhere/.git\n",
+    )
+    .expect("edited back-link");
+    assert!(
+        bind_registration(repo.join(".git").as_path(), destination.as_path())
+            .expect_err("another place")
+            .contains("does not name")
+    );
     remove(root.as_path());
 }

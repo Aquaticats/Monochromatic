@@ -26,9 +26,18 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_inventory::InventoryRecord;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanSnapshot};
-use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInventory, LiveObject};
-use crate::worktree_clone_removal_proof_and_plan::removal_stop::{BookmarkRefusalReason, RefusedBookmark};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanSnapshot,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{
+    LiveInventory,
+    LiveObject,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::{
+    BookmarkRefusalReason,
+    RefusedBookmark,
+};
 
 /// What:
 ///  The tuples a bookmark may be explained by:
@@ -62,12 +71,22 @@ pub struct Explanations {
 /// ```ts
 /// const refused = refuseTheUnexplainedBookmarks(explanations, bookmark, originInventory);
 /// ```
-pub fn refuse_the_unexplained_bookmarks(explanations: &Explanations, bookmarks: &[LiveObject], origin_inventory: &InventoryRecord) -> Vec<RefusedBookmark> {
+pub fn refuse_the_unexplained_bookmarks(
+    explanations: &Explanations,
+    bookmarks: &[LiveObject],
+    origin_inventory: &InventoryRecord,
+) -> Vec<RefusedBookmark> {
     let mut refused: Vec<RefusedBookmark> = Vec::new();
     for bookmark in bookmarks {
-        let reason: Option<BookmarkRefusalReason> = judge_one(bookmark, explanations, origin_inventory);
+        let reason: Option<BookmarkRefusalReason> =
+            judge_one(bookmark, explanations, origin_inventory);
         let Some(found) = reason else { continue };
-        refused.push(RefusedBookmark { name: bookmark.full_name(), guid: bookmark.guid, createtxg: bookmark.createtxg, reason: found });
+        refused.push(RefusedBookmark {
+            name: bookmark.full_name(),
+            guid: bookmark.guid,
+            createtxg: bookmark.createtxg,
+            reason: found,
+        });
     }
     return refused;
 }
@@ -84,21 +103,29 @@ pub fn refuse_the_unexplained_bookmarks(explanations: &Explanations, bookmarks: 
 /// ```ts
 /// const reason = explain(bookmark) ? undefined : 'no-live-or-planned-snapshot';
 /// ```
-fn judge_one(bookmark: &LiveObject, explanations: &Explanations, origin_inventory: &InventoryRecord) -> Option<BookmarkRefusalReason> {
-    if origin_inventory.entries.iter().any(|entry| return entry.guid == bookmark.guid) {
+fn judge_one(
+    bookmark: &LiveObject,
+    explanations: &Explanations,
+    origin_inventory: &InventoryRecord,
+) -> Option<BookmarkRefusalReason> {
+    if origin_inventory
+        .entries
+        .iter()
+        .any(|entry| return entry.guid == bookmark.guid)
+    {
         return Some(BookmarkRefusalReason::OriginSide);
     }
-    let by_a_live_snapshot: bool = explanations
-        .live_snapshots
-        .iter()
-        .any(|snapshot| return snapshot.guid == bookmark.guid && snapshot.createtxg == bookmark.createtxg && snapshot.owning_dataset == bookmark.owning_dataset);
+    let by_a_live_snapshot: bool = explanations.live_snapshots.iter().any(|snapshot| {
+        return snapshot.guid == bookmark.guid
+            && snapshot.createtxg == bookmark.createtxg
+            && snapshot.owning_dataset == bookmark.owning_dataset;
+    });
     if by_a_live_snapshot {
         return None;
     }
-    let by_the_plan: bool = explanations
-        .planned_tuples
-        .iter()
-        .any(|planned| return planned.guid == bookmark.guid && planned.createtxg == bookmark.createtxg);
+    let by_the_plan: bool = explanations.planned_tuples.iter().any(|planned| {
+        return planned.guid == bookmark.guid && planned.createtxg == bookmark.createtxg;
+    });
     if by_the_plan {
         return None;
     }
@@ -117,12 +144,18 @@ fn judge_one(bookmark: &LiveObject, explanations: &Explanations, origin_inventor
 /// ```ts
 /// const explanations = explanationsOf(inventory, plan);
 /// ```
-pub fn explanations_of(inventory: &LiveInventory, plan: Option<&DestructionPlan>) -> Explanations {
+pub fn explanations_of(
+    inventory: &LiveInventory,
+    plan: Option<&DestructionPlan>,
+) -> Explanations {
     let planned: Vec<PlanSnapshot> = match plan {
         Some(found) => found.named_snapshots(),
         None => Vec::new(),
     };
-    return Explanations { live_snapshots: inventory.snapshots(), planned_tuples: planned };
+    return Explanations {
+        live_snapshots: inventory.snapshots(),
+        planned_tuples: planned,
+    };
 }
 
 /// Controls stay out of the release executable.

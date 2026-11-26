@@ -20,7 +20,11 @@
 //! makeMountsPrivate('/'); mountTmpfs('tmpfs', scratch, 'size=64k,mode=0700'); bindMount(slot, bound); umount(moveTarget);
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure, failed};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    failed,
+};
 use std::ffi::CStr;
 
 /// What:
@@ -35,7 +39,12 @@ use std::ffi::CStr;
 /// # Errors
 /// Both calls refused.
 pub fn make_mounts_private(root: &CStr) -> Result<(), Failure> {
-    let attributes: libc::mount_attr = libc::mount_attr { attr_set: 0, attr_clr: 0, propagation: libc::MS_PRIVATE as u64, userns_fd: 0 };
+    let attributes: libc::mount_attr = libc::mount_attr {
+        attr_set: 0,
+        attr_clr: 0,
+        propagation: libc::MS_PRIVATE as u64,
+        userns_fd: 0,
+    };
     // SAFETY: the root path and the attribute structure are this call's own and outlive it.
     let set: libc::c_int = unsafe {
         libc::syscall(
@@ -51,7 +60,15 @@ pub fn make_mounts_private(root: &CStr) -> Result<(), Failure> {
         return Ok(());
     }
     // SAFETY: every argument is this call's own: no source, the root path and no data.
-    let mounted: libc::c_int = unsafe { libc::mount(std::ptr::null(), root.as_ptr(), std::ptr::null(), libc::MS_REC | libc::MS_PRIVATE, std::ptr::null()) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            std::ptr::null(),
+            root.as_ptr(),
+            std::ptr::null(),
+            libc::MS_REC | libc::MS_PRIVATE,
+            std::ptr::null(),
+        )
+    };
     if mounted == 0 {
         return Ok(());
     }
@@ -64,10 +81,26 @@ pub fn make_mounts_private(root: &CStr) -> Result<(), Failure> {
 ///
 /// # Errors
 /// The call refused.
-pub fn mount_tmpfs(tmpfs: &CStr, target: &CStr, options: &CStr) -> Result<(), Failure> {
+pub fn mount_tmpfs(
+    tmpfs: &CStr,
+    target: &CStr,
+    options: &CStr,
+) -> Result<(), Failure> {
     // SAFETY: every pointer is this call's own and outlives it.
-    let mounted: libc::c_int = unsafe { libc::mount(tmpfs.as_ptr(), target.as_ptr(), tmpfs.as_ptr(), libc::MS_NOSUID | libc::MS_NODEV, options.as_ptr().cast::<libc::c_void>()) };
-    return if mounted == 0 { Ok(()) } else { Err(failed(CompanionCall::MountTmpfs)) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            tmpfs.as_ptr(),
+            target.as_ptr(),
+            tmpfs.as_ptr(),
+            libc::MS_NOSUID | libc::MS_NODEV,
+            options.as_ptr().cast::<libc::c_void>(),
+        )
+    };
+    return if mounted == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::MountTmpfs))
+    };
 }
 
 /// What:
@@ -76,10 +109,25 @@ pub fn mount_tmpfs(tmpfs: &CStr, target: &CStr, options: &CStr) -> Result<(), Fa
 ///
 /// # Errors
 /// The call refused.
-pub fn bind_mount(source: &CStr, target: &CStr) -> Result<(), Failure> {
+pub fn bind_mount(
+    source: &CStr,
+    target: &CStr,
+) -> Result<(), Failure> {
     // SAFETY: both paths are this call's own and outlive it; a bind mount reads no data pointer.
-    let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), std::ptr::null(), libc::MS_BIND, std::ptr::null()) };
-    return if mounted == 0 { Ok(()) } else { Err(failed(CompanionCall::MountTmpfs)) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            source.as_ptr(),
+            target.as_ptr(),
+            std::ptr::null(),
+            libc::MS_BIND,
+            std::ptr::null(),
+        )
+    };
+    return if mounted == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::MountTmpfs))
+    };
 }
 
 /// What:
@@ -91,5 +139,9 @@ pub fn bind_mount(source: &CStr, target: &CStr) -> Result<(), Failure> {
 pub fn unmount(target: &CStr) -> Result<(), Failure> {
     // SAFETY: the path is this call's own and outlives it; no lazy detach is asked for.
     let unmounted: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
-    return if unmounted == 0 { Ok(()) } else { Err(failed(CompanionCall::Umount)) };
+    return if unmounted == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::Umount))
+    };
 }

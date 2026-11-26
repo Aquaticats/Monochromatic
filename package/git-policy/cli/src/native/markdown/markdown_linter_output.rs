@@ -21,11 +21,20 @@
 //! ```
 
 /// Import the selectable rules and their configuration spelling.
-use crate::config_schema::{MarkdownRule, markdown_rule_name};
+use crate::config_schema::{
+    MarkdownRule,
+    markdown_rule_name,
+};
 /// Import the linter's in-process result types and finding model.
 use monochromatic_lint::{
-    diagnostic::{Diagnostic, Severity},
-    run_embedded::{EmbeddedFailure, EmbeddedRun},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
+    run_embedded::{
+        EmbeddedFailure,
+        EmbeddedRun,
+    },
 };
 
 /// The longest explanation quoted from the linter's own words,
@@ -105,7 +114,10 @@ pub struct LintRun {
 /// ```ts
 /// const selectedRule = (code, rules) => rules.find(rule => code === `markdown/${ruleName(rule)}`);
 /// ```
-fn selected_rule(code: &str, rules: &[MarkdownRule]) -> Option<MarkdownRule> {
+fn selected_rule(
+    code: &str,
+    rules: &[MarkdownRule],
+) -> Option<MarkdownRule> {
     for rule in rules {
         if code.strip_prefix("markdown/") == Some(markdown_rule_name(*rule)) {
             return Some(*rule);
@@ -124,7 +136,10 @@ fn selected_rule(code: &str, rules: &[MarkdownRule]) -> Option<MarkdownRule> {
 /// ```ts
 /// function position(name: string, value: number): number; // throws string
 /// ```
-fn position(name: &str, value: usize) -> Result<u64, String> {
+fn position(
+    name: &str,
+    value: usize,
+) -> Result<u64, String> {
     match u64::try_from(value) {
         Ok(count) => return Ok(count),
         Err(_) => return Err(format!("its {name} is not a position")),
@@ -141,9 +156,15 @@ fn position(name: &str, value: usize) -> Result<u64, String> {
 /// ```ts
 /// function remainingFinding(finding: Diagnostic, rules: MarkdownRule[]): RemainingFinding; // throws string
 /// ```
-fn remaining_finding(finding: &Diagnostic, rules: &[MarkdownRule]) -> Result<RemainingFinding, String> {
+fn remaining_finding(
+    finding: &Diagnostic,
+    rules: &[MarkdownRule],
+) -> Result<RemainingFinding, String> {
     let Some(rule) = selected_rule(finding.code.as_str(), rules) else {
-        return Err(format!("its code {:?} is not a selected rule", finding.code));
+        return Err(format!(
+            "its code {:?} is not a selected rule",
+            finding.code
+        ));
     };
     if finding.severity != Severity::Warn {
         return Err(String::from("its severity is not the configured \"warn\""));
@@ -180,7 +201,10 @@ pub fn explanation(text: &str) -> String {
 }
 
 /// The running size of the findings after adding `finding`.
-fn add_finding_bytes(total: usize, finding: &Diagnostic) -> usize {
+fn add_finding_bytes(
+    total: usize,
+    finding: &Diagnostic,
+) -> usize {
     return total
         .saturating_add(finding.message.len())
         .saturating_add(finding.code.len())

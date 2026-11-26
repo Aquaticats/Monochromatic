@@ -16,7 +16,10 @@ use std::collections::HashSet;
 /// A function-like value with the right shape is a lookup in tests:
 /// the shipped callers write a small struct that holds the state.
 impl<Lookup: FnMut(&[u8]) -> Option<StatFields>> StatLookup for Lookup {
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+    fn stat_now(
+        &mut self,
+        path: &[u8],
+    ) -> Option<StatFields> {
         return self(path);
     }
 }
@@ -24,7 +27,11 @@ impl<Lookup: FnMut(&[u8]) -> Option<StatFields>> StatLookup for Lookup {
 /// A function-like value with the right shape is a trust check in tests:
 /// the shipped callers write a small struct that holds the state.
 impl<Check: FnMut(&[u8], &StoredStat) -> bool> StatTrust for Check {
-    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
+    fn is_trusted(
+        &mut self,
+        path: &[u8],
+        stored: &StoredStat,
+    ) -> bool {
         return self(path, stored);
     }
 }
@@ -51,21 +58,52 @@ struct Built {
 
 /// A regular file entry with the stat fields the lookups below compare against.
 fn regular(path: &'static str) -> Built {
-    return Built { path, mode: 0o100_644, flags: 0, size: 10, mtime_seconds: 100, mtime_nanos: 7 };
+    return Built {
+        path,
+        mode: 0o100_644,
+        flags: 0,
+        size: 10,
+        mtime_seconds: 100,
+        mtime_nanos: 7,
+    };
 }
 
 /// What `lstat` would report for every path now:
 /// the same size and time,
 /// new inode and change time.
 fn fresh() -> StatFields {
-    return StatFields { ctime_seconds: 900, ctime_nanos: 901, mtime_seconds: 100, mtime_nanos: 7, dev: 5, ino: 6, uid: 1000, gid: 1001, size: 10 };
+    return StatFields {
+        ctime_seconds: 900,
+        ctime_nanos: 901,
+        mtime_seconds: 100,
+        mtime_nanos: 7,
+        dev: 5,
+        ino: 6,
+        uid: 1000,
+        gid: 1001,
+        size: 10,
+    };
 }
 
 /// The bytes of a built entry's fixed part:
 /// old stat fields that the rewrite must replace.
-fn entry_bytes(entry: &Built, hash_length: usize) -> Vec<u8> {
+fn entry_bytes(
+    entry: &Built,
+    hash_length: usize,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
-    for value in [1u32, 2, entry.mtime_seconds, entry.mtime_nanos, 3, 4, entry.mode, 8, 9, entry.size] {
+    for value in [
+        1u32,
+        2,
+        entry.mtime_seconds,
+        entry.mtime_nanos,
+        3,
+        4,
+        entry.mode,
+        8,
+        9,
+        entry.size,
+    ] {
         bytes.extend_from_slice(&value.to_be_bytes());
     }
     bytes.extend(std::iter::repeat_n(0xab, hash_length));
@@ -77,8 +115,17 @@ fn entry_bytes(entry: &Built, hash_length: usize) -> Vec<u8> {
 }
 
 /// Build an index file.
-fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], checksum: Checksum) -> Vec<u8> {
-    let hash_length: usize = if matches!(checksum, Checksum::Sha256 | Checksum::Zero32) { 32 } else { 20 };
+fn build(
+    version: u32,
+    entries: &[Built],
+    extensions: &[(&[u8; 4], Vec<u8>)],
+    checksum: Checksum,
+) -> Vec<u8> {
+    let hash_length: usize = if matches!(checksum, Checksum::Sha256 | Checksum::Zero32) {
+        32
+    } else {
+        20
+    };
     let mut bytes: Vec<u8> = b"DIRC".to_vec();
     bytes.extend_from_slice(&version.to_be_bytes());
     bytes.extend_from_slice(&u32::try_from(entries.len()).expect("count").to_be_bytes());
@@ -88,9 +135,18 @@ fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], ch
         bytes.extend(entry_bytes(entry, hash_length));
         let path: &[u8] = entry.path.as_bytes();
         if version == 4 {
-            let common: usize = previous.iter().zip(path).take_while(|(left, right)| { return left == right; }).count();
+            let common: usize = previous
+                .iter()
+                .zip(path)
+                .take_while(|(left, right)| {
+                    return left == right;
+                })
+                .count();
             let strip: usize = previous.len() - common;
-            assert!(strip < 0x80, "the built paths strip less than a varint byte");
+            assert!(
+                strip < 0x80,
+                "the built paths strip less than a varint byte"
+            );
             bytes.push(u8::try_from(strip).expect("strip"));
             bytes.extend_from_slice(&path[common..]);
             bytes.push(0);
@@ -120,13 +176,31 @@ fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], ch
 /// The paths of a rewritten file's entries and the stat fields stored for each,
 /// read back with the same walker the
 ///  rewrite uses plus raw offsets.
-fn stored(bytes: &[u8], hash_length: usize) -> Vec<(Vec<u8>, [u32; 9])> {
+fn stored(
+    bytes: &[u8],
+    hash_length: usize,
+) -> Vec<(Vec<u8>, [u32; 9])> {
     let (entries, _end) = walk_entries(bytes, hash_length).expect("walk");
     return entries
         .iter()
         .map(|entry: &Located| {
-            let field = |index: usize| -> u32 { return be32(bytes, entry.start + index * 4).expect("field"); };
-            return (entry.path.clone(), [field(0), field(1), field(2), field(3), field(4), field(5), field(7), field(8), field(9)]);
+            let field = |index: usize| -> u32 {
+                return be32(bytes, entry.start + index * 4).expect("field");
+            };
+            return (
+                entry.path.clone(),
+                [
+                    field(0),
+                    field(1),
+                    field(2),
+                    field(3),
+                    field(4),
+                    field(5),
+                    field(7),
+                    field(8),
+                    field(9),
+                ],
+            );
         })
         .collect();
 }
@@ -144,13 +218,22 @@ const UNTOUCHED: [u32; 9] = [1, 2, 100, 7, 3, 4, 8, 9, 10];
 
 /// Unwrap a rewrite.
 fn rewritten(outcome: IndexOutcome) -> (Vec<u8>, usize, usize) {
-    let IndexOutcome::Rewritten { bytes, updated, total } = outcome else { panic!("the index was skipped: {outcome:?}") };
+    let IndexOutcome::Rewritten {
+        bytes,
+        updated,
+        total,
+    } = outcome
+    else {
+        panic!("the index was skipped: {outcome:?}")
+    };
     return (bytes, updated, total);
 }
 
 /// Unwrap a skip.
 fn skipped(outcome: IndexOutcome) -> String {
-    let IndexOutcome::Skipped(reason) = outcome else { panic!("the index was rewritten") };
+    let IndexOutcome::Skipped(reason) = outcome else {
+        panic!("the index was rewritten")
+    };
     return reason;
 }
 
@@ -160,13 +243,41 @@ fn skipped(outcome: IndexOutcome) -> String {
 /// and nothing else moves.
 #[test]
 fn a_version_2_index_gets_fresh_stat_fields_and_a_valid_checksum() {
-    let input: Vec<u8> = build(2, &[regular("README.md"), regular("src/main.rs")], &[(b"TREE", vec![1, 2, 3])], Checksum::Sha1);
-    let (output, updated, total) = rewritten(rewrite_index_stat(input.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
+    let input: Vec<u8> = build(
+        2,
+        &[regular("README.md"), regular("src/main.rs")],
+        &[(b"TREE", vec![1, 2, 3])],
+        Checksum::Sha1,
+    );
+    let (output, updated, total) = rewritten(rewrite_index_stat(
+        input.as_slice(),
+        &mut |_path: &[u8]| {
+            return Some(fresh());
+        },
+    ));
     assert_eq!((updated, total), (2, 2));
-    assert_eq!(stored(output.as_slice(), 20), vec![(b"README.md".to_vec(), REWRITTEN), (b"src/main.rs".to_vec(), REWRITTEN)]);
-    assert_eq!(output.len(), input.len(), "entry and extension lengths never change");
-    assert_eq!(&output[output.len() - 20..], sha1(&output[..output.len() - 20]).as_slice());
-    assert!(output.windows(4).any(|window: &[u8]| { return window == b"TREE"; }), "the cache-tree extension is kept");
+    assert_eq!(
+        stored(output.as_slice(), 20),
+        vec![
+            (b"README.md".to_vec(), REWRITTEN),
+            (b"src/main.rs".to_vec(), REWRITTEN)
+        ]
+    );
+    assert_eq!(
+        output.len(),
+        input.len(),
+        "entry and extension lengths never change"
+    );
+    assert_eq!(
+        &output[output.len() - 20..],
+        sha1(&output[..output.len() - 20]).as_slice()
+    );
+    assert!(
+        output.windows(4).any(|window: &[u8]| {
+            return window == b"TREE";
+        }),
+        "the cache-tree extension is kept"
+    );
 }
 
 /// An entry keeps its fields when the file is missing,
@@ -188,14 +299,32 @@ fn only_entries_whose_file_still_matches_are_rewritten() {
     link.mode = 0o120_000;
     let mut plain_time: Built = regular("plain-time");
     plain_time.mtime_nanos = 0;
-    let entries: Vec<Built> = vec![regular("missing"), regular("bigger"), regular("later"), stage, empty, directory, link, plain_time];
+    let entries: Vec<Built> = vec![
+        regular("missing"),
+        regular("bigger"),
+        regular("later"),
+        stage,
+        empty,
+        directory,
+        link,
+        plain_time,
+    ];
     let input: Vec<u8> = build(2, entries.as_slice(), &[], Checksum::Sha1);
     let mut lookup = |path: &[u8]| -> Option<StatFields> {
         return match path {
             b"missing" => None,
-            b"bigger" => Some(StatFields { size: 11, ..fresh() }),
-            b"later" => Some(StatFields { mtime_nanos: 8, ..fresh() }),
-            b"plain-time" => Some(StatFields { mtime_nanos: 123_456, ..fresh() }),
+            b"bigger" => Some(StatFields {
+                size: 11,
+                ..fresh()
+            }),
+            b"later" => Some(StatFields {
+                mtime_nanos: 8,
+                ..fresh()
+            }),
+            b"plain-time" => Some(StatFields {
+                mtime_nanos: 123_456,
+                ..fresh()
+            }),
             _ => Some(fresh()),
         };
     };
@@ -208,7 +337,12 @@ fn only_entries_whose_file_still_matches_are_rewritten() {
             b"empty" => [1, 2, 100, 7, 3, 4, 8, 9, 0],
             _ => UNTOUCHED,
         };
-        assert_eq!(fields, expected, "{}", String::from_utf8_lossy(path.as_slice()));
+        assert_eq!(
+            fields,
+            expected,
+            "{}",
+            String::from_utf8_lossy(path.as_slice())
+        );
     }
 }
 
@@ -218,25 +352,53 @@ fn only_entries_whose_file_still_matches_are_rewritten() {
 fn extended_flags_belong_to_version_3_only() {
     let mut extended: Built = regular("intent");
     extended.flags = 0x4000;
-    let v3: Vec<u8> = build(3, &[extended.clone(), regular("after")], &[], Checksum::Sha1);
-    let (output, updated, _total) = rewritten(rewrite_index_stat(v3.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
+    let v3: Vec<u8> = build(
+        3,
+        &[extended.clone(), regular("after")],
+        &[],
+        Checksum::Sha1,
+    );
+    let (output, updated, _total) =
+        rewritten(rewrite_index_stat(v3.as_slice(), &mut |_path: &[u8]| {
+            return Some(fresh());
+        }));
     assert_eq!(updated, 2);
     assert_eq!(stored(output.as_slice(), 20).len(), 2);
     let v2: Vec<u8> = build(2, &[extended], &[], Checksum::Sha1);
-    assert!(skipped(rewrite_index_stat(v2.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); })).contains("documented layout"));
+    assert!(
+        skipped(rewrite_index_stat(v2.as_slice(), &mut |_path: &[u8]| {
+            return Some(fresh());
+        }))
+        .contains("documented layout")
+    );
 }
 
 /// Version 4 paths are compressed against the previous one;
 /// the lookup still receives the whole path.
 #[test]
 fn version_4_paths_are_expanded_before_the_lookup() {
-    let input: Vec<u8> = build(4, &[regular("dir/alpha"), regular("dir/beta"), regular("other")], &[], Checksum::Sha1);
+    let input: Vec<u8> = build(
+        4,
+        &[regular("dir/alpha"), regular("dir/beta"), regular("other")],
+        &[],
+        Checksum::Sha1,
+    );
     let mut asked: Vec<Vec<u8>> = Vec::new();
-    let (output, updated, _total) = rewritten(rewrite_index_stat(input.as_slice(), &mut |path: &[u8]| {
-        asked.push(path.to_vec());
-        return Some(fresh());
-    }));
-    assert_eq!(asked, vec![b"dir/alpha".to_vec(), b"dir/beta".to_vec(), b"other".to_vec()]);
+    let (output, updated, _total) = rewritten(rewrite_index_stat(
+        input.as_slice(),
+        &mut |path: &[u8]| {
+            asked.push(path.to_vec());
+            return Some(fresh());
+        },
+    ));
+    assert_eq!(
+        asked,
+        vec![
+            b"dir/alpha".to_vec(),
+            b"dir/beta".to_vec(),
+            b"other".to_vec()
+        ]
+    );
     assert_eq!(updated, 3);
     assert_eq!(output.len(), input.len());
 }
@@ -246,12 +408,28 @@ fn version_4_paths_are_expanded_before_the_lookup() {
 #[test]
 fn both_hash_lengths_and_the_zero_checksum_are_kept() {
     let wide: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha256);
-    let (output, updated, _total) = rewritten(rewrite_index_stat(wide.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
+    let (output, updated, _total) = rewritten(rewrite_index_stat(
+        wide.as_slice(),
+        &mut |_path: &[u8]| {
+            return Some(fresh());
+        },
+    ));
     assert_eq!(updated, 1);
-    assert_eq!(&output[output.len() - 32..], sha256(&output[..output.len() - 32]).as_slice());
-    assert_eq!(stored(output.as_slice(), 32), vec![(b"a".to_vec(), REWRITTEN)]);
+    assert_eq!(
+        &output[output.len() - 32..],
+        sha256(&output[..output.len() - 32]).as_slice()
+    );
+    assert_eq!(
+        stored(output.as_slice(), 32),
+        vec![(b"a".to_vec(), REWRITTEN)]
+    );
     let zero: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
-    let (kept_zero, zero_updated, _zero_total) = rewritten(rewrite_index_stat(zero.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
+    let (kept_zero, zero_updated, _zero_total) = rewritten(rewrite_index_stat(
+        zero.as_slice(),
+        &mut |_path: &[u8]| {
+            return Some(fresh());
+        },
+    ));
     assert_eq!(zero_updated, 1);
     assert_eq!(&kept_zero[kept_zero.len() - 20..], &[0u8; 20]);
 }
@@ -270,12 +448,20 @@ fn derived_extensions_are_dropped_and_the_others_kept() {
         (b"IEOT", vec![6; 8]),
     ];
     let input: Vec<u8> = build(2, &[regular("a")], extensions.as_slice(), Checksum::Sha1);
-    let (output, _updated, _total) = rewritten(rewrite_index_stat(input.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
+    let (output, _updated, _total) = rewritten(rewrite_index_stat(
+        input.as_slice(),
+        &mut |_path: &[u8]| {
+            return Some(fresh());
+        },
+    ));
     let tail: &[u8] = &output[HEADER + 64..output.len() - 20];
     let signatures: Vec<&[u8]> = vec![&tail[..4], &tail[9..13]];
     assert_eq!(signatures, vec![b"TREE".as_slice(), b"REUC".as_slice()]);
     assert_eq!(tail.len(), 9 + 9);
-    assert_eq!(&output[output.len() - 20..], sha1(&output[..output.len() - 20]).as_slice());
+    assert_eq!(
+        &output[output.len() - 20..],
+        sha1(&output[..output.len() - 20]).as_slice()
+    );
 }
 
 /// A split or sparse index changes what the entries mean,
@@ -284,8 +470,16 @@ fn derived_extensions_are_dropped_and_the_others_kept() {
 fn split_and_sparse_indexes_are_declined() {
     for signature in [b"link", b"sdir"] {
         let input: Vec<u8> = build(2, &[regular("a")], &[(signature, vec![0])], Checksum::Sha1);
-        let reason: String = skipped(rewrite_index_stat(input.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); }));
-        assert!(reason.contains(String::from_utf8_lossy(signature).as_ref()), "{reason}");
+        let reason: String = skipped(rewrite_index_stat(
+            input.as_slice(),
+            &mut |_path: &[u8]| {
+                return Some(fresh());
+            },
+        ));
+        assert!(
+            reason.contains(String::from_utf8_lossy(signature).as_ref()),
+            "{reason}"
+        );
     }
 }
 
@@ -293,22 +487,36 @@ fn split_and_sparse_indexes_are_declined() {
 #[test]
 fn malformed_files_are_declined_with_a_reason() {
     let good: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha1);
-    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let lookup = |_path: &[u8]| -> Option<StatFields> {
+        return Some(fresh());
+    };
     let mut not_an_index: Vec<u8> = good.clone();
     not_an_index[0] = b'X';
-    assert!(skipped(rewrite_index_stat(not_an_index.as_slice(), &mut { lookup })).contains("no DIRC signature"));
+    assert!(
+        skipped(rewrite_index_stat(not_an_index.as_slice(), &mut { lookup }))
+            .contains("no DIRC signature")
+    );
     assert!(skipped(rewrite_index_stat(b"DIR", &mut { lookup })).contains("no DIRC signature"));
     for version in [1u32, 5] {
         let mut wrong: Vec<u8> = good.clone();
         wrong[4..8].copy_from_slice(&version.to_be_bytes());
-        assert!(skipped(rewrite_index_stat(wrong.as_slice(), &mut { lookup })).contains(format!("version {version}").as_str()));
+        assert!(
+            skipped(rewrite_index_stat(wrong.as_slice(), &mut { lookup }))
+                .contains(format!("version {version}").as_str())
+        );
     }
     let mut corrupt: Vec<u8> = good.clone();
     corrupt[20] ^= 1;
-    assert!(skipped(rewrite_index_stat(corrupt.as_slice(), &mut { lookup })).contains("checksum matches neither"));
+    assert!(
+        skipped(rewrite_index_stat(corrupt.as_slice(), &mut { lookup }))
+            .contains("checksum matches neither")
+    );
     let mut cut_entry: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
     cut_entry[8..12].copy_from_slice(&5u32.to_be_bytes());
-    assert!(skipped(rewrite_index_stat(cut_entry.as_slice(), &mut { lookup })).contains("checksum matches neither"));
+    assert!(
+        skipped(rewrite_index_stat(cut_entry.as_slice(), &mut { lookup }))
+            .contains("checksum matches neither")
+    );
     // An all-zero checksum proves nothing, so a file that does not parse to its end under a hash length is declined.
     let zero_with_cut_extension: Vec<u8> = {
         let mut bytes: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
@@ -316,7 +524,13 @@ fn malformed_files_are_declined_with_a_reason() {
         bytes.splice(at..at, *b"TREE\0\0\0");
         bytes
     };
-    assert!(skipped(rewrite_index_stat(zero_with_cut_extension.as_slice(), &mut { lookup })).contains("checksum matches neither"));
+    assert!(
+        skipped(rewrite_index_stat(
+            zero_with_cut_extension.as_slice(),
+            &mut { lookup }
+        ))
+        .contains("checksum matches neither")
+    );
     // With a checksum that verifies, a cut-off or oversized extension is reported as such.
     let with_checksum = |extension: Vec<u8>| -> Vec<u8> {
         let mut bytes: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha1);
@@ -327,13 +541,27 @@ fn malformed_files_are_declined_with_a_reason() {
         return bytes;
     };
     let cut_extension: Vec<u8> = with_checksum(b"TREE\0\0\0".to_vec());
-    assert!(skipped(rewrite_index_stat(cut_extension.as_slice(), &mut { lookup })).contains("an extension header is cut off") || skipped(rewrite_index_stat(cut_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
+    assert!(
+        skipped(rewrite_index_stat(cut_extension.as_slice(), &mut {
+            lookup
+        }))
+        .contains("an extension header is cut off")
+            || skipped(rewrite_index_stat(cut_extension.as_slice(), &mut {
+                lookup
+            }))
+            .contains("runs past the end")
+    );
     let long_extension: Vec<u8> = {
         let mut extension: Vec<u8> = b"TREE".to_vec();
         extension.extend_from_slice(&1000u32.to_be_bytes());
         with_checksum(extension)
     };
-    assert!(skipped(rewrite_index_stat(long_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
+    assert!(
+        skipped(rewrite_index_stat(long_extension.as_slice(), &mut {
+            lookup
+        }))
+        .contains("runs past the end")
+    );
 }
 
 /// A file that is exactly a header is long enough to be judged by its signature and version,
@@ -342,13 +570,18 @@ fn malformed_files_are_declined_with_a_reason() {
 /// one byte less cannot hold the signature.
 #[test]
 fn a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index() {
-    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let lookup = |_path: &[u8]| -> Option<StatFields> {
+        return Some(fresh());
+    };
     let mut header: Vec<u8> = b"DIRC".to_vec();
     header.extend_from_slice(&2u32.to_be_bytes());
     header.extend_from_slice(&0u32.to_be_bytes());
     assert_eq!(header.len(), HEADER);
     let exact: String = skipped(rewrite_index_stat(header.as_slice(), &mut { lookup }));
-    assert!(exact.contains("checksum matches neither") && !exact.contains("no DIRC signature"), "{exact}");
+    assert!(
+        exact.contains("checksum matches neither") && !exact.contains("no DIRC signature"),
+        "{exact}"
+    );
     let short: String = skipped(rewrite_index_stat(&header[..HEADER - 1], &mut { lookup }));
     assert!(short.contains("no DIRC signature"), "{short}");
 }
@@ -364,7 +597,9 @@ fn ambiguous_sha256_index() -> Vec<u8> {
         bytes.extend_from_slice(&value.to_be_bytes());
     }
     bytes.extend_from_slice(&[0u8; 20]);
-    bytes.extend_from_slice(&[0x00, 0x01, 0x78, 0x00, b'U', b'N', b'T', b'R', 0x00, 0x00, 0x00, 0x14]);
+    bytes.extend_from_slice(&[
+        0x00, 0x01, 0x78, 0x00, b'U', b'N', b'T', b'R', 0x00, 0x00, 0x00, 0x14,
+    ]);
     bytes.extend_from_slice(&4u16.to_be_bytes());
     bytes.extend_from_slice(b"real\0\0");
     bytes.extend_from_slice(&[0u8; 32]);
@@ -379,14 +614,34 @@ fn ambiguous_sha256_index() -> Vec<u8> {
 #[test]
 fn an_ambiguous_zero_checksum_is_declined_unless_the_repository_hash_is_known() {
     let input: Vec<u8> = ambiguous_sha256_index();
-    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let lookup = |_path: &[u8]| -> Option<StatFields> {
+        return Some(fresh());
+    };
     let reason: String = skipped(rewrite_index_stat(input.as_slice(), &mut { lookup }));
     assert!(reason.contains("both SHA-1 and SHA-256"), "{reason}");
-    let known: RewriteContext = RewriteContext { hash_length: Some(32), index_mtime: None };
-    let (output, updated, total) = rewritten(rewrite_index_stat_with(input.as_slice(), &known, &mut { lookup }, &mut |_path: &[u8], _stored: &StoredStat| { return true; }));
-    assert_eq!((output.len(), updated, total), (124, 1, 1), "no byte of a SHA-256 index is dropped");
+    let known: RewriteContext = RewriteContext {
+        hash_length: Some(32),
+        index_mtime: None,
+    };
+    let (output, updated, total) = rewritten(rewrite_index_stat_with(
+        input.as_slice(),
+        &known,
+        &mut { lookup },
+        &mut |_path: &[u8], _stored: &StoredStat| {
+            return true;
+        },
+    ));
+    assert_eq!(
+        (output.len(), updated, total),
+        (124, 1, 1),
+        "no byte of a SHA-256 index is dropped"
+    );
     assert_eq!(stored(output.as_slice(), 32)[0].0, b"real".to_vec());
-    assert_eq!(&output[output.len() - 32..], &[0u8; 32], "an index written without a checksum keeps none");
+    assert_eq!(
+        &output[output.len() - 32..],
+        &[0u8; 32],
+        "an index written without a checksum keeps none"
+    );
 }
 
 /// An empty SHA-256 index with an all-zero checksum is read as SHA-256 on its own,
@@ -395,13 +650,29 @@ fn an_ambiguous_zero_checksum_is_declined_unless_the_repository_hash_is_known() 
 #[test]
 fn an_empty_skip_hash_sha256_index_and_a_contradicting_format_are_handled() {
     let empty: Vec<u8> = build(2, &[], &[], Checksum::Zero32);
-    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
-    let (output, _updated, total) = rewritten(rewrite_index_stat(empty.as_slice(), &mut { lookup }));
+    let lookup = |_path: &[u8]| -> Option<StatFields> {
+        return Some(fresh());
+    };
+    let (output, _updated, total) =
+        rewritten(rewrite_index_stat(empty.as_slice(), &mut { lookup }));
     assert_eq!((output.len(), total), (empty.len(), 0));
     let sha1_index: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha1);
-    let wrong: RewriteContext = RewriteContext { hash_length: Some(32), index_mtime: None };
-    let reason: String = skipped(rewrite_index_stat_with(sha1_index.as_slice(), &wrong, &mut { lookup }, &mut |_path: &[u8], _stored: &StoredStat| { return true; }));
-    assert!(reason.contains("does not match the repository's hash"), "{reason}");
+    let wrong: RewriteContext = RewriteContext {
+        hash_length: Some(32),
+        index_mtime: None,
+    };
+    let reason: String = skipped(rewrite_index_stat_with(
+        sha1_index.as_slice(),
+        &wrong,
+        &mut { lookup },
+        &mut |_path: &[u8], _stored: &StoredStat| {
+            return true;
+        },
+    ));
+    assert!(
+        reason.contains("does not match the repository's hash"),
+        "{reason}"
+    );
 }
 
 /// An entry as new as the index file is racy and keeps its fields;
@@ -412,29 +683,66 @@ fn an_empty_skip_hash_sha256_index_and_a_contradicting_format_are_handled() {
 #[test]
 fn racy_entries_and_untrusted_entries_keep_their_stat_fields() {
     let input: Vec<u8> = build(2, &[regular("README.md")], &[], Checksum::Sha1);
-    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
-    let always = |_path: &[u8], _stored: &StoredStat| -> bool { return true; };
+    let lookup = |_path: &[u8]| -> Option<StatFields> {
+        return Some(fresh());
+    };
+    let always = |_path: &[u8], _stored: &StoredStat| -> bool {
+        return true;
+    };
     for (index_seconds, expected) in [(100u32, 0usize), (101, 1), (99, 0)] {
-        let context: RewriteContext = RewriteContext { hash_length: None, index_mtime: Some((index_seconds, 0)) };
-        let (output, updated, _total) = rewritten(rewrite_index_stat_with(input.as_slice(), &context, &mut { lookup }, &mut { always }));
+        let context: RewriteContext = RewriteContext {
+            hash_length: None,
+            index_mtime: Some((index_seconds, 0)),
+        };
+        let (output, updated, _total) = rewritten(rewrite_index_stat_with(
+            input.as_slice(),
+            &context,
+            &mut { lookup },
+            &mut { always },
+        ));
         assert_eq!(updated, expected, "index time {index_seconds}");
         let fields: [u32; 9] = stored(output.as_slice(), 20)[0].1;
-        assert_eq!(fields, if expected == 1 { REWRITTEN } else { UNTOUCHED }, "index time {index_seconds}");
+        assert_eq!(
+            fields,
+            if expected == 1 { REWRITTEN } else { UNTOUCHED },
+            "index time {index_seconds}"
+        );
     }
     let mut seen: Vec<StoredStat> = Vec::new();
-    let (_output, updated, _total) = rewritten(rewrite_index_stat_with(input.as_slice(), &RewriteContext::default(), &mut { lookup }, &mut |_path: &[u8], recorded: &StoredStat| {
-        seen.push(*recorded);
-        return false;
-    }));
+    let (_output, updated, _total) = rewritten(rewrite_index_stat_with(
+        input.as_slice(),
+        &RewriteContext::default(),
+        &mut { lookup },
+        &mut |_path: &[u8], recorded: &StoredStat| {
+            seen.push(*recorded);
+            return false;
+        },
+    ));
     assert_eq!(updated, 0);
-    assert_eq!(seen, vec![StoredStat { ctime_seconds: 1, ctime_nanos: 2, mtime_seconds: 100, mtime_nanos: 7, ino: 4, uid: 8, gid: 9, size: 10 }]);
+    assert_eq!(
+        seen,
+        vec![StoredStat {
+            ctime_seconds: 1,
+            ctime_nanos: 2,
+            mtime_seconds: 100,
+            mtime_nanos: 7,
+            ino: 4,
+            uid: 8,
+            gid: 9,
+            size: 10
+        }]
+    );
 }
-
 
 /// The paths whose stat data a seed zeroes,
 /// as the set the install is given.
 fn written_paths(paths: &[&str]) -> HashSet<Vec<u8>> {
-    return paths.iter().map(|path: &&str| { return path.as_bytes().to_vec(); }).collect();
+    return paths
+        .iter()
+        .map(|path: &&str| {
+            return path.as_bytes().to_vec();
+        })
+        .collect();
 }
 
 /// A seed whose written paths are zeroed:
@@ -445,23 +753,62 @@ fn written_paths(paths: &[&str]) -> HashSet<Vec<u8>> {
 /// and the checksum verifies.
 #[test]
 fn a_seed_zeroes_the_stat_data_of_the_paths_git_still_has_to_write() {
-    for (version, checksum, hash_length) in [(2u32, Checksum::Sha1, 20usize), (2, Checksum::Sha256, 32), (3, Checksum::Sha1, 20), (4, Checksum::Sha256, 32)] {
-        let input: Vec<u8> = build(version, &[regular("carried.txt"), regular("written.txt")], &[], checksum);
-        let Some(output) = with_zeroed_stat(input.as_slice(), &written_paths(&["written.txt"]), hash_length) else { panic!("version {version} is an index this reader knows") };
+    for (version, checksum, hash_length) in [
+        (2u32, Checksum::Sha1, 20usize),
+        (2, Checksum::Sha256, 32),
+        (3, Checksum::Sha1, 20),
+        (4, Checksum::Sha256, 32),
+    ] {
+        let input: Vec<u8> = build(
+            version,
+            &[regular("carried.txt"), regular("written.txt")],
+            &[],
+            checksum,
+        );
+        let Some(output) = with_zeroed_stat(
+            input.as_slice(),
+            &written_paths(&["written.txt"]),
+            hash_length,
+        ) else {
+            panic!("version {version} is an index this reader knows")
+        };
         assert_eq!(output.len(), input.len(), "entry lengths never change");
         let fields: Vec<(Vec<u8>, [u32; 9])> = stored(output.as_slice(), hash_length);
-        assert_eq!(fields, vec![(b"carried.txt".to_vec(), UNTOUCHED), (b"written.txt".to_vec(), [0; 9])], "version {version}: only the written path loses its stat data");
-        let (input_entries, _input_end) = walk_entries(input.as_slice(), hash_length).expect("walk");
-        let (output_entries, _output_end) = walk_entries(output.as_slice(), hash_length).expect("walk");
+        assert_eq!(
+            fields,
+            vec![
+                (b"carried.txt".to_vec(), UNTOUCHED),
+                (b"written.txt".to_vec(), [0; 9])
+            ],
+            "version {version}: only the written path loses its stat data"
+        );
+        let (input_entries, _input_end) =
+            walk_entries(input.as_slice(), hash_length).expect("walk");
+        let (output_entries, _output_end) =
+            walk_entries(output.as_slice(), hash_length).expect("walk");
         for (before, after) in input_entries.iter().zip(output_entries.iter()) {
             // The mode sits inside the stat fields and is not stat data: Git writes the path from it.
-            assert_eq!(be32(input.as_slice(), before.start + 24), be32(output.as_slice(), after.start + 24), "the mode of {} is kept", String::from_utf8_lossy(before.path.as_slice()));
+            assert_eq!(
+                be32(input.as_slice(), before.start + 24),
+                be32(output.as_slice(), after.start + 24),
+                "the mode of {} is kept",
+                String::from_utf8_lossy(before.path.as_slice())
+            );
             assert_eq!(before.path, after.path);
         }
-        let verifies: bool = if hash_length == 20 { sha1(&output[..output.len() - 20]).as_slice() == &output[output.len() - 20..] } else { sha256(&output[..output.len() - 32]).as_slice() == &output[output.len() - 32..] };
+        let verifies: bool = if hash_length == 20 {
+            sha1(&output[..output.len() - 20]).as_slice() == &output[output.len() - 20..]
+        } else {
+            sha256(&output[..output.len() - 32]).as_slice() == &output[output.len() - 32..]
+        };
         assert!(verifies, "version {version}: the checksum is made good");
-        let untouched: Option<Vec<u8>> = with_zeroed_stat(input.as_slice(), &written_paths(&[]), hash_length);
-        assert_eq!(untouched.as_deref(), Some(input.as_slice()), "version {version}: a seed that zeroes nothing is the index itself");
+        let untouched: Option<Vec<u8>> =
+            with_zeroed_stat(input.as_slice(), &written_paths(&[]), hash_length);
+        assert_eq!(
+            untouched.as_deref(),
+            Some(input.as_slice()),
+            "version {version}: a seed that zeroes nothing is the index itself"
+        );
     }
 }
 
@@ -471,6 +818,15 @@ fn a_seed_zeroes_the_stat_data_of_the_paths_git_still_has_to_write() {
 fn a_seed_declines_a_layout_it_cannot_walk_and_keeps_a_zero_checksum() {
     assert_eq!(with_zeroed_stat(b"DIRC", &written_paths(&["a"]), 20), None);
     let skip_hash: Vec<u8> = build(2, &[regular("written.txt")], &[], Checksum::Zero20);
-    let zeroed: Option<Vec<u8>> = with_zeroed_stat(skip_hash.as_slice(), &written_paths(&["written.txt"]), 20);
-    assert_eq!(zeroed.map(|bytes| { return bytes[bytes.len() - 20..].iter().all(|byte| { return *byte == 0; }); }), Some(true), "an index written with index.skipHash keeps its zero checksum");
+    let zeroed: Option<Vec<u8>> =
+        with_zeroed_stat(skip_hash.as_slice(), &written_paths(&["written.txt"]), 20);
+    assert_eq!(
+        zeroed.map(|bytes| {
+            return bytes[bytes.len() - 20..].iter().all(|byte| {
+                return *byte == 0;
+            });
+        }),
+        Some(true),
+        "an index written with index.skipHash keeps its zero checksum"
+    );
 }

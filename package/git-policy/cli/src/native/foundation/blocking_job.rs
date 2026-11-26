@@ -64,7 +64,10 @@ pub enum BlockingJobError {
 }
 
 impl std::fmt::Display for BlockingJobError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             BlockingJobError::NoThreadToStart => write!(
                 formatter,
@@ -84,8 +87,14 @@ impl std::fmt::Display for BlockingJobError {
                  started, and whether it finished is not known from here. Hint: check the process limit (`ulimit -u`) and the \
                  control group's `pids.max`, and check what the step was doing before running the command again"
             ),
-            BlockingJobError::Panicked => write!(formatter, "a blocking step panicked; this is a defect of monochromatic-git-policy-cli"),
-            BlockingJobError::Cancelled => write!(formatter, "a blocking step was cancelled because the runtime was ending"),
+            BlockingJobError::Panicked => write!(
+                formatter,
+                "a blocking step panicked; this is a defect of monochromatic-git-policy-cli"
+            ),
+            BlockingJobError::Cancelled => write!(
+                formatter,
+                "a blocking step was cancelled because the runtime was ending"
+            ),
         };
     }
 }
@@ -107,7 +116,8 @@ where
     // `spawn_blocking` panics where no thread can start, and the pool has already queued the closure at that point
     //  (`tokio-1.54.1/src/runtime/blocking/pool.rs`, `spawn_task`), so a refused job is still queued to run later. Nothing here
     //  can stop it, so the answer says it may still run and claims no state of the step's work.
-    let started = crate::panic_notice::while_panics_are_expected(job, tokio::task::spawn_blocking::<J, T>);
+    let started =
+        crate::panic_notice::while_panics_are_expected(job, tokio::task::spawn_blocking::<J, T>);
     let Ok(handle) = started else {
         return Err(BlockingJobError::MayStillRunAfterItsThreadWasRefused);
     };
