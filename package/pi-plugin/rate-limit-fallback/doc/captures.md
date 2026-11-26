@@ -60,8 +60,9 @@ the member’s hold.
 Captured on 2026-11-26 on this machine, node v26.13.1 with the undici it bundles, by driving the
 installed `openai-completions` and `openai-responses` adapters over real loopback sockets and over
 undici-shaped failures, then reading the terminal `errorMessage` the pool reads. Both adapters
-reported every text identically. The driving script is the round folder's
-`scratch/capture-transport-errors.ts` (this round: issue 6515's).
+reported every text identically. The driving script is kept as
+`capture-transport-errors.ts` in the round folder of issue 6515's round
+(2026-11-26).
 
 Measured on a real socket or real resolver, so the shape is what Pi produces rather than a guess:
 
