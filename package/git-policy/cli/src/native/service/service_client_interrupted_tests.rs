@@ -322,18 +322,14 @@ fn a_second_signal_ends_the_process_by_it() {
         // Only reached when the second signal did not end this process: the parent names that status.
         std::process::exit(0);
     }
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
-    let output: std::process::Output = std::process::Command::new(binary)
-        .args([
-            "--exact",
-            "service::service_client_interrupted::tests::a_second_signal_ends_the_process_by_it",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env(SECOND_SIGNAL_CHILD, "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
+    // The death by signal is the assertion, so this asks for the raw ending rather than for a passing test.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(SECOND_SIGNAL_CHILD, std::ffi::OsStr::new("1"))];
+    let output: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: "service::service_client_interrupted::tests::a_second_signal_ends_the_process_by_it",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    })
+    .expect("the child ends within the deadline");
     assert_eq!(
         output.status.signal(),
         Some(libc::SIGINT),

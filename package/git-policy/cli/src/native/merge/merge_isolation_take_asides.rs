@@ -45,7 +45,15 @@ use crate::merge_isolation_take_aside_names::aside_name;
 /// and the one decision every command makes about each.
 use crate::merge_isolation_kept_copies_decisions::settle_the_asides_of_a_merge_awaiting;
 use crate::recovery_error::{RecoveryError, io_failure};
-use crate::rename_that_never_replaces::rename_noreplace;
+/// The rename that never replaces,
+/// as a job of the blocking pool.
+use crate::rename_that_never_replaces::{TheAnswerOfARename, rename_noreplace, rename_noreplace_on_the_blocking_pool};
+/// The one job of the blocking pool that makes the step's file calls,
+/// so a disk that makes them wait holds no worker of the runtime
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown").
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
 use std::io::Write;
@@ -141,7 +149,13 @@ pub struct TakeFailure {
 /// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : regular file ? hash-object --no-filters -- <location> : undefined
 /// ```
 pub(crate) async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -> Option<String> {
-    let kind: std::fs::FileType = std::fs::symlink_metadata(location).ok()?.file_type();
+    // The look at the entry is a file call that can wait on a disk, so a job of the blocking pool makes it.
+    let looked_at: PathBuf = location.to_path_buf();
+    let kind: std::fs::FileType = match run_blocking_job_within_the_budget(move || return std::fs::symlink_metadata(looked_at.as_path())).await {
+        Ok(Ok(found)) => found.file_type(),
+        // An entry that is not there, and a look the pool never made, both leave the bytes unknown.
+        Ok(Err(_)) | Err(_) => return None,
+    };
     if kind.is_symlink() {
         return the_objects_a_link_hashes_to_awaiting(git, root, location).await.ok();
     }
@@ -269,41 +283,57 @@ pub async fn take_aside_awaiting(
     transaction_id: &str,
 ) -> Result<Take, TakeFailure> {
     let aside: PathBuf = aside_name(location, transaction_id);
-    match rename_noreplace(location, aside.as_path()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+    // The take is one rename that writes the directory it lands in, so a job of the blocking pool makes it.
+    match rename_noreplace_on_the_blocking_pool(location, aside.as_path()).await {
+        TheAnswerOfARename::Renamed => {}
+        TheAnswerOfARename::Failed(error) if error.kind() == std::io::ErrorKind::NotFound => {
             // The path was empty when it was judged; a file that is there now came after the judgement and is not the
             //  merge's to replace.
             return Ok(if judged.content.is_some() { Take::Changed } else { Take::Nothing });
         }
-        Err(error) => return Err(TakeFailure { error: io_failure("setting aside", location, &error), stranded: None }),
+        // A private name another entry holds is a rename that failed, and both names stay: the path and that entry.
+        TheAnswerOfARename::Failed(error) | TheAnswerOfARename::NameTaken(error) => {
+            return Err(TakeFailure { error: io_failure("setting aside", location, &error), stranded: None });
+        }
+        // The rename did not run, or may have: nothing here may say the file was taken, so the take stops naming the path.
+        TheAnswerOfARename::NoThreadToRunIt(refused) => {
+            return Err(TakeFailure { error: RecoveryError(format!("{} could not be set aside: {refused}", location.display())), stranded: None });
+        }
     }
-    let taken: Option<FileIdentity> = file_identity(aside.as_path());
+    // The identity of the file that was taken is a look at a user's file, which can wait on a disk, so a job of the blocking pool
+    //  makes it.
+    let looked_at: PathBuf = aside.clone();
+    let taken: Option<FileIdentity> = match run_blocking_job_within_the_budget(move || return file_identity(looked_at.as_path())).await {
+        Ok(found) => found,
+        // A look the pool never made cannot prove the file that was taken, so it goes back rather than be replaced.
+        Err(_refused) => return put_back_and_report_awaiting(location, aside).await,
+    };
     let Some(expected) = judged.content.as_deref() else {
         // Nothing stood there when it was judged, so a file that is there now is someone else's.
-        return put_back_and_report(location, aside);
+        return put_back_and_report_awaiting(location, aside).await;
     };
     // The identity is the cheap check and the bytes are the authority:
     // a program that keeps its descriptor across the rename can write the same
     //  length into the file and put the modification time back, which leaves every part of the identity as it was.
     if judged.identity.is_none() || taken != judged.identity {
-        return put_back_and_report(location, aside);
+        return put_back_and_report_awaiting(location, aside).await;
     }
     match are_the_file_form_of_awaiting(&place.git, root, path, aside.as_path(), expected).await {
         Some(true) => {}
-        Some(false) => return put_back_and_report(location, aside),
+        Some(false) => return put_back_and_report_awaiting(location, aside).await,
         // A read that fails cannot prove the bytes, so the file goes back rather than be replaced.
         None => {
-            return Err(put_back_after_a_failed_read(
+            return Err(put_back_after_a_failed_read_awaiting(
                 location,
                 aside,
                 RecoveryError(String::from("the bytes of the file the merge replaces could not be read")),
-            ));
+            )
+            .await);
         }
     }
     return match taken {
         Some(identity) => Ok(Take::Aside { aside, taken: identity, expected: String::from(expected) }),
-        None => put_back_and_report(location, aside),
+        None => put_back_and_report_awaiting(location, aside).await,
     };
 }
 
@@ -317,14 +347,26 @@ pub async fn take_aside_awaiting(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// putBack(location, aside): Take; // renameNoReplace(aside, location) ? 'changed' : throw
+/// const putBack = async (location, aside) => { const moved = await renameNoReplaceOnThePool(aside, location); if (moved.kind === 'renamed') return 'changed'; throw ...; };
 /// ```
-fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, TakeFailure> {
-    return match rename_noreplace(aside.as_path(), location) {
-        Ok(()) => Ok(Take::Changed),
-        Err(error) => Err(TakeFailure {
+async fn put_back_and_report_awaiting(location: &Path, aside: PathBuf) -> Result<Take, TakeFailure> {
+    let waiting_at: PathBuf = aside.clone();
+    return match rename_noreplace_on_the_blocking_pool(waiting_at.as_path(), location).await {
+        TheAnswerOfARename::Renamed => Ok(Take::Changed),
+        // A rename that failed says why, and both names stay: the path and the private one the file is at.
+        TheAnswerOfARename::Failed(error) | TheAnswerOfARename::NameTaken(error) => Err(TakeFailure {
             error: RecoveryError(format!(
                 "{} changed after this command judged it and it could not be put back ({error}); it is at {} and nothing was \
+                 replaced by the merge.",
+                location.display(),
+                aside.display()
+            )),
+            stranded: Some(aside),
+        }),
+        // The system gave the pool no thread, so the file may still be under its private name; it is named rather than lost.
+        TheAnswerOfARename::NoThreadToRunIt(refused) => Err(TakeFailure {
+            error: RecoveryError(format!(
+                "{} changed after this command judged it and it could not be put back ({refused}); it is at {} and nothing was \
                  replaced by the merge.",
                 location.display(),
                 aside.display()
@@ -345,15 +387,36 @@ fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, TakeFail
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// putBackAfterAFailedRead(location, aside, error): TakeFailure; // renameNoReplace(aside, location) ? { error } : { error, stranded: aside }
+/// const putBackAfterAFailedRead = async (location, aside, error) => { const moved = await renameNoReplaceOnThePool(aside, location); return moved.kind === 'renamed' ? { error } : { error, stranded: aside }; };
 /// ```
-fn put_back_after_a_failed_read(location: &Path, aside: PathBuf, error: RecoveryError) -> TakeFailure {
-    return match rename_noreplace(aside.as_path(), location) {
-        Ok(()) => TakeFailure { error, stranded: None },
-        Err(back) => TakeFailure {
+async fn put_back_after_a_failed_read_awaiting(location: &Path, aside: PathBuf, error: RecoveryError) -> TakeFailure {
+    // The putting back is a rename, so a job of the blocking pool makes it.
+    return match rename_noreplace_on_the_blocking_pool(aside.as_path(), location).await {
+        TheAnswerOfARename::Renamed => TakeFailure { error, stranded: None },
+        TheAnswerOfARename::Failed(back) => TakeFailure {
             error: RecoveryError(format!(
                 "{} could not be read for the merge ({}) and could not be put back either ({back}); it is at {} and nothing was \
                  replaced by the merge.",
+                location.display(),
+                error.0,
+                aside.display()
+            )),
+            stranded: Some(aside),
+        },
+        TheAnswerOfARename::NameTaken(back) => TakeFailure {
+            error: RecoveryError(format!(
+                "{} could not be read for the merge ({}) and could not be put back either ({back}); it is at {} and nothing was \
+                 replaced by the merge.",
+                location.display(),
+                error.0,
+                aside.display()
+            )),
+            stranded: Some(aside),
+        },
+        TheAnswerOfARename::NoThreadToRunIt(refused) => TakeFailure {
+            error: RecoveryError(format!(
+                "{} could not be read for the merge ({}) and could not be put back either ({refused}); it is at {} and nothing \
+                 was replaced by the merge.",
                 location.display(),
                 error.0,
                 aside.display()
@@ -376,15 +439,36 @@ fn put_back_after_a_failed_read(location: &Path, aside: PathBuf, error: Recovery
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function putBack(taken: { aside: string; location: string }[]): string[]; // names of files left at their private name
+/// const putBack = async (taken) => { const left = []; for (const entry of taken) { const moved = await renameNoReplaceOnThePool(entry.aside, entry.location); if (moved.kind !== 'renamed') left.push(...); } return left; };
 /// ```
-pub fn put_back(taken: &[TakenOnDisk]) -> Vec<String> {
+pub async fn put_back_awaiting(taken: &[TakenOnDisk]) -> Vec<String> {
     let mut left: Vec<String> = Vec::new();
-    for entry in taken {
-        match rename_noreplace(entry.aside.as_path(), entry.location.as_path()) {
-            Ok(()) => {}
-            Err(error) => left.push(format!("{} (its bytes are at {}, which was not removed: {error})", entry.location.display(), entry.aside.display())),
+    // The renames are file calls that can wait on a disk, so one job of the blocking pool makes them all and the names that
+    //  could not go back are the job's answer.
+    let names: Vec<(PathBuf, PathBuf)> = taken.iter().map(|entry| return (entry.aside.clone(), entry.location.clone())).collect();
+    let moved: Result<Vec<(usize, std::io::Error)>, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
+        let mut failed: Vec<(usize, std::io::Error)> = Vec::new();
+        for (index, (aside, location)) in names.iter().enumerate() {
+            if let Err(error) = rename_noreplace(aside.as_path(), location.as_path()) {
+                failed.push((index, error));
+            }
         }
+        return failed;
+    })
+    .await;
+    let failed: Vec<(usize, std::io::Error)> = match moved {
+        Ok(found) => found,
+        // No rename ran, or they may still run: every file is named rather than promised back.
+        Err(refused) => {
+            for entry in taken {
+                left.push(format!("{} (its bytes are at {}, which was not removed: {refused})", entry.location.display(), entry.aside.display()));
+            }
+            return left;
+        }
+    };
+    for (index, error) in failed {
+        let entry: &TakenOnDisk = &taken[index];
+        left.push(format!("{} (its bytes are at {}, which was not removed: {error})", entry.location.display(), entry.aside.display()));
     }
     return left;
 }
@@ -456,7 +540,7 @@ pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &Recovery
             );
             continue;
         };
-        match proof.remove(entry.aside.as_path()) {
+        match proof.remove_on_the_blocking_pool(entry.aside.as_path()).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(io_failure("removing", entry.aside.as_path(), &error)),
@@ -514,7 +598,15 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
         return None;
     }
     crate::service_fault::reach("aside-scanned");
-    let proof: ProofNothingCanWrite = the_proof_that_nothing_can_write_into(aside, &scanned)?;
+    // The proof is a read lease the kernel grants on an opened file, and opening a user's file can wait on a disk, so a job of the
+    //  blocking pool asks for it.
+    let named: PathBuf = aside.to_path_buf();
+    let asked = run_blocking_job_within_the_budget(move || return the_proof_that_nothing_can_write_into(named.as_path(), &scanned)).await;
+    let proof: ProofNothingCanWrite = match asked {
+        Ok(Some(proof)) => proof,
+        // A proof the pool never took, and a file system that offers no lease, both keep the name where it is.
+        Ok(None) | Err(_) => return None,
+    };
     if are_the_file_form_of_awaiting(git, root, path, aside, expected).await != Some(true) {
         return None;
     }
@@ -574,7 +666,14 @@ pub(crate) enum CopyRemoval {
 /// async function mayRemoveTheCopy(git, root, aside, theFile, heldByTheFile): Promise<CopyRemoval>; // regular entry && no readable process holds it && the aside's identity and bytes are unchanged && the file at the path is still the entry the comparison read
 /// ```
 pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, aside: &Path, the_file: &Path, held_by_the_file: FileIdentity) -> CopyRemoval {
-    let Some(taken): Option<FileIdentity> = file_identity(aside) else { return CopyRemoval::Changed };
+    // The identity of the copy is a look at a user's file, which can wait on a disk, so a job of the blocking pool makes it.
+    let looked_at: PathBuf = aside.to_path_buf();
+    let taken_before: Option<FileIdentity> = match run_blocking_job_within_the_budget(move || return file_identity(looked_at.as_path())).await {
+        Ok(found) => found,
+        // A look the pool never made proves nothing, so the copy stays.
+        Err(_refused) => return CopyRemoval::Changed,
+    };
+    let Some(taken) = taken_before else { return CopyRemoval::Changed };
     let Some(held): Option<String> = raw_bytes_of_awaiting(git, root, aside).await else { return CopyRemoval::Changed };
     let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
@@ -582,14 +681,27 @@ pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, 
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("copy-scanned");
-    // The proof is taken before the last looks, so what they read cannot change before the name goes.
-    let Some(proof) = the_proof_that_nothing_can_write_into(aside, &scanned) else {
-        return CopyRemoval::HeldOpen;
+    // The proof is taken before the last looks, so what they read cannot change before the name goes. It is a read lease the
+    //  kernel grants on an opened file, so a job of the blocking pool asks for it.
+    let named: PathBuf = aside.to_path_buf();
+    let asked = run_blocking_job_within_the_budget(move || return the_proof_that_nothing_can_write_into(named.as_path(), &scanned)).await;
+    let proof = match asked {
+        Ok(Some(proof)) => proof,
+        // A proof the pool never took, and a file system that offers no lease, both keep the copy where it is.
+        Ok(None) | Err(_) => return CopyRemoval::HeldOpen,
     };
-    if file_identity(aside) != Some(taken) {
+    // The two identities are looks at user's files, so one job of the blocking pool makes both.
+    let (copy_at, path_at): (PathBuf, PathBuf) = (aside.to_path_buf(), the_file.to_path_buf());
+    let compared = run_blocking_job_within_the_budget(move || return (file_identity(copy_at.as_path()), file_identity(path_at.as_path()))).await;
+    let (the_copy, the_path): (Option<FileIdentity>, Option<FileIdentity>) = match compared {
+        Ok(answers) => answers,
+        // A look the pool never made proves nothing about either entry, so the copy stays.
+        Err(_refused) => return CopyRemoval::Changed,
+    };
+    if the_copy != Some(taken) {
         return CopyRemoval::Changed;
     }
-    if file_identity(the_file) != Some(held_by_the_file) {
+    if the_path != Some(held_by_the_file) {
         return CopyRemoval::Changed;
     }
     if raw_bytes_of_awaiting(git, root, aside).await.as_deref() != Some(held.as_str()) {
@@ -619,27 +731,52 @@ pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, 
 pub async fn restore_what_git_did_not_write_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let mut written: Vec<TakenOnDisk> = Vec::new();
     for entry in taken {
-        if std::fs::symlink_metadata(entry.location.as_path()).is_err() {
-            match rename_noreplace(entry.aside.as_path(), entry.location.as_path()) {
-                Ok(()) => {}
-                Err(error) => {
-                    return Err(RecoveryError(format!(
-                        "{} could not be put back after the merge's files could not be written ({error}); it is at {} and nothing was \
-                         removed.",
-                        entry.location.display(),
-                        entry.aside.display()
-                    )));
-                }
+        // The look at the path is a file call that can wait on a disk, so a job of the blocking pool makes it.
+        let goes_to: PathBuf = entry.location.clone();
+        let was_free: Result<bool, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
+            return std::fs::symlink_metadata(goes_to.as_path()).is_err();
+        })
+        .await;
+        let free: bool = match was_free {
+            Ok(found) => found,
+            // A look the pool never made proves nothing about the path, so the file is not moved onto one that may be taken.
+            Err(refused) => {
+                return Err(RecoveryError(format!(
+                    "{} could not be read after the merge's files could not be written: {refused}",
+                    entry.location.display()
+                )));
             }
+        };
+        if !free {
+            written.push(TakenOnDisk {
+                location: entry.location.clone(),
+                path: entry.path.clone(),
+                aside: entry.aside.clone(),
+                taken: entry.taken,
+                expected: entry.expected.clone(),
+            });
             continue;
         }
-        written.push(TakenOnDisk {
-            location: entry.location.clone(),
-            path: entry.path.clone(),
-            aside: entry.aside.clone(),
-            taken: entry.taken,
-            expected: entry.expected.clone(),
-        });
+        // Putting the file back is one rename, so a job of the blocking pool makes it.
+        match rename_noreplace_on_the_blocking_pool(entry.aside.as_path(), entry.location.as_path()).await {
+            TheAnswerOfARename::Renamed => {}
+            TheAnswerOfARename::NameTaken(error) | TheAnswerOfARename::Failed(error) => {
+                return Err(RecoveryError(format!(
+                    "{} could not be put back after the merge's files could not be written ({error}); it is at {} and nothing was \
+                     removed.",
+                    entry.location.display(),
+                    entry.aside.display()
+                )));
+            }
+            TheAnswerOfARename::NoThreadToRunIt(refused) => {
+                return Err(RecoveryError(format!(
+                    "{} could not be put back after the merge's files could not be written ({refused}); it is at {} and nothing \
+                     was removed.",
+                    entry.location.display(),
+                    entry.aside.display()
+                )));
+            }
+        }
     }
     return finish_asides_awaiting(place, root, written.as_slice(), out).await;
 }

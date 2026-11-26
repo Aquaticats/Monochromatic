@@ -38,3 +38,42 @@ and ends with the rules holding.
 An allow-list of today's pairs to keep until it is empty,
 `uses/` folders for the 36 folders that lack one,
 and the untangling rounds after it.
+
+## When the rules land (owner, 2026-11-25T22:40-05:00)
+
+The round that built the lists (branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`)
+matched `main` at 17:42;
+by 22:35 the merges since then left 63 list lines that tolerate nothing
+and about 190 findings no line records,
+so the lists are regenerated against `main` before they land.
+Asked whether that happens before or after the crate split
+(`doc/planning/cli-git-source-layout.md`, "Splitting into crates (owner, 2026-11-04)"),
+the owner chose "Before the split (Recommended)":
+the lists are regenerated once the open wrapper rounds merge,
+the branch merges,
+and then the reformat and the split run.
+Each crate the split creates is switched on with an empty list,
+and every split round deletes the list lines of the folders it moves.
+
+The `uses/` links for the 36 folders that lack one,
+named as a cost in "What it costs",
+cannot be written while their folders loop:
+the round measured `cargo package --list` giving no answer after 120 seconds with the 421 links in place,
+against 1.9 seconds without them
+(`doc/planning/cli-git-source-layout.md`, the section the round's commit `457a1f6142` added),
+so each folder's links are written when its uses no longer loop.
+
+## What the list holds (owner, 2026-11-25T22:45-05:00)
+
+The round put on the list every finding of the two rules on the day they went on,
+not only the loops and mutual uses this decision named:
+at its count 421 `uses/` links not yet written,
+59 folder docs without a file list,
+49 `pub use folder::*` re-exports,
+20 findings on the `health/` group folder
+and one function beside `fn main` in `main.rs`,
+beside the 524 folder uses and 544 file uses inside today's loops.
+Asked whether to keep that or list only the loops and the links,
+the owner answered "Everything now, untangle over time.":
+every finding of the two rules on the day the rules land goes on the list,
+and each line is deleted when its finding goes.

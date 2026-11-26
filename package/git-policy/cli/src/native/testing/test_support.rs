@@ -13,7 +13,7 @@
 ///  path and process types used by the fixtures.
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
@@ -69,13 +69,13 @@ mod fixture_support_shared_by_both_test_targets;
 
 /// The shared helpers, named here so every `crate::test_support::name` path stays the same.
 pub(crate) use self::fixture_support_shared_by_both_test_targets::{
-    FIXTURE_ROOT_VARIABLE, KEEP_FIXTURES_VARIABLE, forbid_core_dumps, fixture_root, made_fixture_folder, own_group, restore_owner_access,
-    settle_fixture, spawn_owned, system_temporary_directories, this_test_binary,
+    FIXTURE_ROOT_VARIABLE, KEEP_FIXTURES_VARIABLE, forbid_core_dumps, fixture_root, made_fixture_folder, restore_owner_access,
+    settle_fixture, system_temporary_directories, this_test_binary,
 };
 /// The fixtures one test thread created,
 /// removed when the thread ends however the test ended.
 /// Why:
-///  The helper process groups are owned by the shared fixture support both test targets include,
+///  The helper process groups are owned by `test_process_owner.rs`,
 ///  so this registry holds only the folders.
 struct ThreadFixtures {
     /// Roots to remove.
@@ -86,6 +86,8 @@ struct ThreadFixtures {
 /// which runs this.
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
+        // The helpers die first, so no process is left in a directory that is about to be removed.
+        super::test_process_owner::end_owned_groups();
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
             end_processes_working_in(root.as_path());
@@ -98,6 +100,22 @@ thread_local! {
     /// The fixtures of the running test thread.
     static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
 }
+
+/// What:
+///  The owner of every helper process a control starts,
+///  named here so every `crate::test_support::name` path stays the same.
+///  The owner is a file of its own because the binary controls' crate and the candidate consumer's crate include it by
+///  path, and the library's test-only modules are invisible to them.
+/// Why:
+///  One shape starts such a helper, so one file decides when it dies.
+///  `own_group` is not named here: the library's own controls all start their helper through `spawn_owned`, and a target
+///  that starts one without it names the owner directly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { spawnOwned } from './test_process_owner';
+/// ```
+pub(crate) use super::test_process_owner::spawn_owned;
 
 /// What:
 ///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
@@ -113,7 +131,7 @@ thread_local! {
 /// ```ts
 /// const child = spawnOwned(command, { stdio: 'ignore' });
 /// ```
-pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<std::process::Child> {
+pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<Child> {
     command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     return spawn_owned(command);
 }
@@ -259,9 +277,6 @@ pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
-
-#[path = "child_test_process.rs"]
-pub(crate) mod child_test_process;
 
 #[path = "fixture_executable.rs"]
 mod fixture_executable;

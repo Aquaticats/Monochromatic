@@ -81,6 +81,7 @@ fn shelf_findings(
                     shown(group, base),
                     shown(&outer, base)
                 )),
+                key: format!("nested-group {}", shown(group, base)),
             });
         }
         for file in by_folder.get(group).into_iter().flatten() {
@@ -98,6 +99,11 @@ fn shelf_findings(
                 help: Some(String::from(
                     "Move the file into a child folder named for what it does.",
                 )),
+                key: format!(
+                    "group-file {} {}",
+                    shown(group, base),
+                    file_name(file)
+                ),
             });
         }
         findings.extend(check_index_items(&index, IndexRole::Group, base));
@@ -129,6 +135,11 @@ fn names_group(from: &Path, group: &Path, proof: &Proof, base: &Path) -> LayoutF
             "Name the folder inside {} that holds what is needed, and link that folder.",
             shown(group, base)
         )),
+        key: format!(
+            "names-group {} {}",
+            shown(from, base),
+            shown(group, base)
+        ),
     };
 }
 
@@ -155,6 +166,7 @@ pub fn links_group(link: &Link, base: &Path) -> LayoutFinding {
             "Remove the link, and link the folder inside {} that the code uses.",
             shown(&link.target, base)
         )),
+        key: format!("links-group {}", shown(&link.entry, base)),
     };
 }
 
@@ -210,6 +222,31 @@ pub fn group_loops(
     grouped: &FolderUses,
     base: &Path,
 ) -> Vec<LayoutFinding> {
+    let (node_list, entries): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
+    return use_loops(
+        &node_list,
+        &entries,
+        base,
+        "groups and folders",
+        Some(groups),
+    );
+}
+
+/// What:
+///  The entries of a package and the uses between them,
+///  each use kept with the smallest reference that proves it.
+/// Why:
+///  A use of a folder inside a group is a use of the group,
+///  and that is the graph the entry loops and an allow-list entry about one use are read from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function entryUses(groups: Set<Path>, grouped: FolderUses): [Path[], FolderUses];
+/// ```
+pub fn entry_uses(
+    groups: &BTreeSet<PathBuf>,
+    grouped: &FolderUses,
+) -> (Vec<PathBuf>, FolderUses) {
     let mut entries: FolderUses = FolderUses::new();
     let mut nodes: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for (from, targets) in grouped {
@@ -228,15 +265,8 @@ pub fn group_loops(
         }
     }
     let node_list: Vec<PathBuf> = nodes.into_iter().collect::<Vec<PathBuf>>();
-    return use_loops(
-        &node_list,
-        &entries,
-        base,
-        "groups and folders",
-        Some(groups),
-    );
+    return (node_list, entries);
 }
-
 /// Controls of the group checks stay outside release artifacts.
 #[cfg(test)]
 #[path = "layout_group_folders_tests.rs"]

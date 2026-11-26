@@ -17,12 +17,16 @@
 /// Every process this platform can read,
 ///  as one scan of the file's holders found them.
 use crate::index_lock_holders::HolderEvidence;
+/// One file call of a removal handed to the blocking pool,
+///  so a disk that makes it wait holds no worker of the runtime.
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The scan's reason for a process another account owns,
 ///  which a platform without leases acts through.
 #[cfg(not(target_os = "linux"))]
 use crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON;
-/// `Path` is a borrowed filesystem path of raw OS bytes.
-use std::path::Path;
+/// `Path` is a borrowed filesystem path of raw OS bytes,
+/// and `PathBuf` is the owned one a job of the pool can carry.
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  The proof that nothing but this command can write into one file,
@@ -73,6 +77,31 @@ impl ProofNothingCanWrite {
             drop(lease);
         }
         return outcome;
+    }
+
+    /// What:
+    ///  Remove the file this proof is about,
+    ///  as a job of the blocking pool,
+    ///  with the proof held until the job's own end.
+    /// Why:
+    ///   A removal is a file call that can wait on a disk,
+    /// so a step that runs on a task hands it to the pool,
+    ///  and the lease travels into the job,
+    ///  so it is released only once the name is gone.
+    /// A refused thread answers an error,
+    /// because the name may still be there.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const outcome = await proof.removeOnTheBlockingPool(aside); // rm(aside) with this.lease held in the job
+    /// ```
+    pub(crate) async fn remove_on_the_blocking_pool(self, aside: &Path) -> std::io::Result<()> {
+        let named: PathBuf = aside.to_path_buf();
+        return match run_blocking_job_within_the_budget(move || return self.remove(named.as_path())).await {
+            Ok(outcome) => outcome,
+            // The system gave the pool no thread: the name was not removed here, and the queued job may remove it later.
+            Err(refused) => Err(std::io::Error::other(refused.to_string())),
+        };
     }
 }
 

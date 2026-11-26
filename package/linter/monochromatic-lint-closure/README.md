@@ -200,6 +200,31 @@ build the library and run the tests before relying on the lint,
 and fix the source if the compiler's API changed.
 The `dylint_linting` and `dylint_testing` crates and the two tools must stay on the same Dylint release.
 
+#### What a nightly bump has needed so far
+
+Measured on `nightly-2026-11-16`:
+
+- No Dylint release had to change.
+  Dylint publishes when a nightly breaks its crates;
+  the newest `dylint_linting`,
+  6.4.0 (published 2026-11-10),
+  compiles against this nightly,
+  its own lint template pins `nightly-2026-08-20`,
+  and the crates and tools were already on 6.4.0.
+  A compile failure after a bump is therefore first a question about this crate's own source,
+  not about the version floor.
+- `src/lib.rs` enables `#![feature(default_field_values)]`.
+  The `declare_late_lint!` macro expands to rustc's own `declare_lint!`,
+  which builds its `Lint` record with a struct update that leaves defaulted fields out,
+  and that macro does not carry a permission of its own for the feature,
+  so the crate that expands it must enable the feature.
+- `src/static_bound.rs` reads the callee's environment through `non_trait_clauses().iter()`.
+  `ParamEnv::caller_bounds()` returns a caller-bounds accessor over clause filters rather than a list,
+  and the outlives clauses this lint reads are non-trait clauses.
+
+The driver the tests and the linter build can fail before either reaches this package's code;
+`doc/troubleshooting/dylint-driver-build-needs-a-rustup-proxy-cargo.md` (repository root) records that failure and its workaround.
+
 ### Tasks
 
 [`mise.toml`](mise.toml) defines this package's tasks.

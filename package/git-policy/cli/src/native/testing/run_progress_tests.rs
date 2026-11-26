@@ -11,7 +11,7 @@
 //! and that a stuck run ends its process.
 
 use super::*;
-use crate::test_support::{arm_watchdog, fixture, forbid_core_dumps, remove, spawn_owned, this_test_binary};
+use crate::test_support::{arm_watchdog, fixture, forbid_core_dumps, remove, spawn_owned};
 use std::os::unix::process::ExitStatusExt as _;
 
 /// What:
@@ -403,74 +403,15 @@ fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Optio
 /// const status = await withDeadline(child, deadline); // kill and return undefined when it passes
 /// ```
 fn run_child_with_stderr_within(name: &str, stderr: std::process::Stdio, deadline: Duration) -> Option<std::process::Output> {
-    let mut child: std::process::Child = std::process::Command::new(this_test_binary().expect("the test binary"))
-        .args(["--exact", child_path(name).as_str(), "--ignored", "--nocapture", "--test-threads=1"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(stderr)
-        .spawn()
-        .expect("the child test starts");
-    let started: Instant = Instant::now();
-    let status: std::process::ExitStatus = loop {
-        match child.try_wait().expect("the child is waited for") {
-            Some(ended) => break ended,
-            None if started.elapsed() >= deadline => {
-                child.kill().expect("the child that outlived the deadline is killed");
-                let _reaped = child.wait();
-                return None;
-            }
-            None => std::thread::sleep(Duration::from_millis(100)),
-        }
-    };
-    let collected_out: Vec<u8> = read_a_pipe_until_it_ends(child.stdout.take());
-    let collected_err: Vec<u8> = read_a_pipe_until_it_ends(child.stderr.take());
-    return Some(std::process::Output { status, stdout: collected_out, stderr: collected_err });
-}
-
-/// What:
-///  Every byte a pipe still holds once the child that wrote it has ended,
-/// read without waiting for the pipe to end.
-/// Why:
-///   A process the child started inherits the child's standard output and error,
-/// and the pipe ends only when every process holding it lets go,
-///  which one that never ends never does;
-/// so a read that waits for the end of the pipe waits for a process the control never started to watch,
-///  where everything the child wrote is already in the pipe when the child ends.
-/// The read is non-blocking for that reason,
-/// and it stops at the first moment the pipe has nothing left to give.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function drain(pipe) { const bytes = []; for (;;) { const chunk = read(pipe, { nonBlocking: true }); if (chunk.length === 0) return bytes; bytes.push(...chunk) } }
-/// ```
-fn read_a_pipe_until_it_ends(pipe: Option<impl std::io::Read + std::os::fd::AsRawFd>) -> Vec<u8> {
-    let Some(mut unending) = pipe else { return Vec::new() };
-    let descriptor: std::os::fd::RawFd = unending.as_raw_fd();
-    // SAFETY: the descriptor belongs to `pipe`, which outlives both calls, and neither takes a pointer.
-    let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
-    if flags < 0 {
-        eprintln!("the child's output pipe could not be read without waiting for its end (errno {flags}): nothing of it is collected");
-        return Vec::new();
-    }
-    // The flag is set on this copy of the descriptor only, and its read end is closed with the child that held it.
-    // SAFETY: as above.
-    let _set: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
-    let mut collected: Vec<u8> = Vec::new();
-    let mut buffer: [u8; 8_192] = [0; 8_192];
-    loop {
-        match unending.read(buffer.as_mut_slice()) {
-            // The pipe ended, so everything the child wrote has been read.
-            Ok(0) => return collected,
-            Ok(read) => collected.extend_from_slice(buffer.get(..read).unwrap_or(buffer.as_slice())),
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            // Nothing is there now, and the child has ended, so nothing of the child's will come later.
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return collected,
-            Err(error) => {
-                eprintln!("the child's output pipe ended in an error ({error}): what is collected is what came before it");
-                return collected;
-            }
-        }
-    }
+    let path: String = child_path(name);
+    // The child is this test binary on its own watchdog body, and the deadline here is the control's own, short one.
+    return crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: path.as_str(),
+        ignored: true,
+        standard_error: stderr,
+        deadline,
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:
