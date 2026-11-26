@@ -30,8 +30,10 @@
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
 //! - `add_registration.rs`: the scan of `<common>/worktrees` and what it settles.
 //! - `add_zfs.rs`: the pool's reads, the snapshot, the clone, the inventories and the mount request.
-//! - `add_plan_clone_presence.rs`: what the pool answers about the clone a standing plan records.
-//! - `add_plan_stop.rs`: the stop a standing plan leaves, with the command that ends it.
+//! - `add_plan_clone_presence.rs`:
+//!   what the pool answers about the clone a standing plan records.
+//! - `add_plan_stop.rs`: the stop a standing plan leaves,
+//!   with the command that ends it.
 //! - `add_grants.rs`: the account's effective delegation, refused unless it is the decided one.
 //! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
 //! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
@@ -72,7 +74,8 @@ pub mod add_registration;
 pub mod add_zfs;
 /// What the pool answers about the clone a standing removal plan records.
 pub mod add_plan_clone_presence;
-/// The stop a standing removal plan leaves, with the one command that ends it.
+/// The stop a standing removal plan leaves,
+/// with the one command that ends it.
 pub mod add_plan_stop;
 /// The account's effective delegation over the route's two datasets.
 pub mod add_grants;

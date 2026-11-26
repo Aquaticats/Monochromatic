@@ -4,7 +4,8 @@
 //!  a settling record with no clone GUID names the add again,
 //!  each head word of a standing plan names the command the plan design gives
 //!  it,
-//!  a plan's recorded name answering another clone names no command, and
+//!  a plan's recorded name answering another clone names no command,
+//!  and
 //!  the printed settling line carries placeholders rather than the digits.
 
 use crate::worktree_clone_binding_record::add_state_commands::{ClonePresence, NextCommand, PlanHeadWord, SETTLING_COMMAND_WORDS, StateFacts, command_for};

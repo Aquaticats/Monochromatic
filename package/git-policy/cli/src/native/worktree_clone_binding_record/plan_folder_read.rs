@@ -7,7 +7,8 @@
 //!  An add that closed its binding over a standing plan would leave the plan with no clone,
 //!  no binding and no command,
 //!  and the plan is the record of what a refused removal had already destroyed
-//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`;
+//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//!  `V24`;
 //!  the project kept the choice on 2026-11-23 and builds the read in step 10).
 //!  The person who meets a standing plan reads the one command that ends it,
 //!  which the plan's head word and the clone the pool can find decide
@@ -60,7 +61,8 @@ const ATTEMPT_FIELD: &str = "tuple=";
 /// The outcome word a plan's first write records for every snapshot it planned.
 /// A plan whose every attempt line holds it witnesses nothing destroyed,
 /// which is the state the cancel command is named beside
-/// (`doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`).
+/// (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+/// `V24`).
 const PLANNED_OUTCOME: &str = "planned";
 
 /// How many whitespace-separated words of an attempt line come before its
@@ -262,43 +264,42 @@ pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGu
 /// ```
 fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheClone, PlanUnreadable> {
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
-    let mut clone_dataset: Option<String> = None;
-    let mut clone_guid: Option<DatasetGuid> = None;
-    let mut head: Option<PlanHeadWord> = None;
+    let mut recorded_dataset: Option<String> = None;
+    let mut recorded_guid: Option<DatasetGuid> = None;
+    let mut recorded_head: Option<PlanHeadWord> = None;
     let mut every_tuple_planned: bool = true;
     for line in text.lines() {
         if let Some(found) = line.strip_prefix(CLONE_DATASET_FIELD) {
-            clone_dataset = Some(String::from(found.trim()));
+            recorded_dataset = Some(String::from(found.trim()));
             continue;
         }
         if let Some(found) = line.strip_prefix(CLONE_GUID_FIELD) {
             let word: &str = found.trim();
             let guid: DatasetGuid = DatasetGuid::parse(word).map_err(|refusal| return unreadable(path, format!("its `cloneGuid=` line does not hold a canonical dataset GUID ({refusal:?})").as_str()))?;
-            clone_guid = Some(guid);
+            recorded_guid = Some(guid);
             continue;
         }
         if let Some(found) = line.strip_prefix(HEAD_FIELD) {
             let word: &str = found.trim();
             let parsed: PlanHeadWord = PlanHeadWord::parse(word).ok_or_else(|| return unreadable(path, format!("its `head=` line holds `{word}`, which is not one of the five words the plan design's grammar allows").as_str()))?;
-            head = Some(parsed);
+            recorded_head = Some(parsed);
             continue;
         }
         if line.starts_with(ATTEMPT_FIELD) && !says_planned(line) {
             every_tuple_planned = false;
         }
     }
-    let Some(clone_dataset) = clone_dataset else {
+    let Some(clone_dataset) = recorded_dataset else {
         return Err(unreadable(path, "it carries no `cloneDataset=` line, so this add cannot tell which clone's record it is"));
     };
-    let Some(clone_guid) = clone_guid else {
+    let Some(clone_guid) = recorded_guid else {
         return Err(unreadable(path, "it carries no `cloneGuid=` line, so nothing proves which clone's absence the pool would be asked about"));
     };
-    let Some(head) = head else {
+    let Some(head) = recorded_head else {
         return Err(unreadable(path, "it carries no `head=` line, so this add cannot tell which command the plan's head gives"));
     };
     // What:     `Ok(APlanThatNamesTheClone { .. })` builds the success variant
-    //           of `Result`, wrapping the four values the stop reads. No
-    //           trailing `;` means this is the function's tail expression.
+    //           of `Result`, wrapping the four values the stop reads.
     // Why:      Hand the add's stop a whole record, or one sentence saying
     //           which field refused it.
     //
@@ -306,7 +307,7 @@ fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheC
     // ```ts
     // return { plan, cloneDataset: clone_dataset, cloneGuid: clone_guid, head, everyTuplePlanned: every_tuple_planned };
     // ```
-    Ok(APlanThatNamesTheClone { plan: PathBuf::from(path), clone_dataset, clone_guid, head, every_tuple_planned })
+    return Ok(APlanThatNamesTheClone { plan: PathBuf::from(path), clone_dataset, clone_guid, head, every_tuple_planned });
 }
 
 /// Whether one attempt line records the `planned` outcome,
@@ -347,14 +348,14 @@ fn read_a_plan(path: &Path) -> Result<Vec<u8>, PlanUnreadable> {
         return Err(unreadable(path, "it does not begin with this route's plan header"));
     }
     // What:     `Ok(bytes)` wraps the plan's bytes in the success variant of
-    //           `Result`. It is the tail expression, so it is the return.
+    //           `Result`.
     // Why:      The caller parses the bytes this read proved to be one plan.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // return bytes;
     // ```
-    Ok(bytes)
+    return Ok(bytes);
 }
 
 /// Controls stay out of the release executable.

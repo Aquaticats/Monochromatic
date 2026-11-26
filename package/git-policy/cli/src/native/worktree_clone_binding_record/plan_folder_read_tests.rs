@@ -70,9 +70,9 @@ fn a_plan_naming_this_clone_by_its_field_is_found() {
     assert_eq!(the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer"), Ok(None));
     let ours: PathBuf = folder.join("222");
     std::fs::write(ours.as_path(), plan_text(clone_guid().file_name().as_str(), "tank/clones/add-cache-layer", "requested", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the plan is written");
-    let found: Option<APlanThatNamesTheClone> =
+    let answer: Option<APlanThatNamesTheClone> =
         the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer").expect("a readable plan naming the clone is found");
-    let found: APlanThatNamesTheClone = found.expect("the plan names this clone");
+    let found: APlanThatNamesTheClone = answer.expect("the plan names this clone");
     assert_eq!(found.plan, ours.as_path());
     assert_eq!(found.clone_dataset, "tank/clones/add-cache-layer");
     assert_eq!(found.clone_guid, clone_guid());
@@ -88,9 +88,9 @@ fn a_plan_under_this_clones_key_is_this_clones() {
     let (_root, folder) = with_plans("plans-key");
     let ours: PathBuf = folder.join(clone_guid().file_name());
     std::fs::write(ours.as_path(), plan_text("999", "tank/clones/another-name", "gone", &[A_PLANNED_ATTEMPT]).as_bytes()).expect("the file under the key is written");
-    let found: Option<APlanThatNamesTheClone> =
+    let answer: Option<APlanThatNamesTheClone> =
         the_plan_naming_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer").expect("the plan under the key is found");
-    let found: APlanThatNamesTheClone = found.expect("the key names this clone");
+    let found: APlanThatNamesTheClone = answer.expect("the key names this clone");
     assert_eq!(found.plan, ours.as_path());
     assert_eq!(found.head, PlanHeadWord::Gone);
 }

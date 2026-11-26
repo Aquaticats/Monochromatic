@@ -6,12 +6,14 @@
 //!  not one sentence for every state
 //!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
 //!  choice 2C;
-//!  `doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`).
+//!  `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//!  `V24`).
 //!  Two facts decide that command:
 //!  the plan's head word,
 //!  and whether a child of the clone container still carries the clone the
 //!  plan records.
-//!  So the stop is built here, after the add has opened its device,
+//!  So the stop is built here,
+//!  after the add has opened its device,
 //!  and both of the add's plan reads call this one function,
 //!  because the same state must not print two different sentences.
 //!  The command's own words are never repeated here:
@@ -51,7 +53,8 @@ use crate::worktree_clone_removal_cancel::cancel_arguments::CANCEL_COMMAND_WORD;
 ///  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
 ///  choice 2C).
 ///  The read stands after the device opens because the presence is a pool
-///  answer, so a plan that stops the add no longer stops it before the device
+///  answer,
+///  so a plan that stops the add no longer stops it before the device
 ///  opens.
 ///
 /// # Errors
@@ -86,7 +89,8 @@ pub fn refuse_while_a_plan_stands(route: &RouteFacts, probe: &dyn DatasetReader)
 ///  kept,
 ///  so a plan whose tuples are all `planned` and whose head still stands must
 ///  name it beside the removal
-///  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`).
+///  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+///  `V24`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,7 +159,8 @@ fn names_the_cancel_command(plan: &APlanThatNamesTheClone, presence: &ClonePrese
 }
 
 /// What:
-///  The pool's answer about the plan's clone, in one clause of a sentence.
+///  The pool's answer about the plan's clone,
+///  in one clause of a sentence.
 /// Why:
 ///  The command that follows depends on this answer,
 ///  so the person must read which answer the add was given,

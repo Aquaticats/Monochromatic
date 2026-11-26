@@ -2,8 +2,8 @@
 //!  it makes the delegation read once,
 //!  that read answers before the claim is taken,
 //!  a removal's plan that still names the clone stops the preflight after the
-//!  device opens, in the stop's own words and with the command that ends the
-//!  plan,
+//!  device opens,
+//!  in the stop's own words and with the command that ends the plan,
 //!  a checkout whose source the fill's own restore would refuse makes the
 //!  preflight decline, so the add takes the ladder and nothing of the route's is
 //!  written,
@@ -15,9 +15,11 @@
 //!  a worktree-scope configuration and an unfinished merge still fail the add.
 //!
 //! Why the source's answers are driven on fixtures:
-//!  the source check, the plan read and the slot's parent stand before the device
-//!  is opened, so a fixture decides every answer they give and no control needs a
-//!  pool.
+//!  the source check and the slot's parent stand before the device is opened,
+//!  so a fixture decides every answer they give and no control needs a pool.
+//!  The plan's stop stands after the device,
+//!  so its sentence is controlled in `add_plan_stop_tests.rs`,
+//!  and what only the preflight can show is the source read below.
 //!  The route's entry point reads this host's mount table and answers no route on
 //!  any machine before plan step 19's migration, so the controls start at the
 //!  preflight and, in `add_route_run_tests.rs`, at the runner that entry point
@@ -125,7 +127,8 @@ fn the_preflight_refuses_through_the_grant_read() {
 /// Why:
 ///  The command the person reads beside a plan needs the clone the pool can find,
 ///  so the read stands after `OpenedDevice::open`
-///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`, "What 2C costs"),
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  "What 2C costs"),
 ///  and no host control can drive the preflight that far:
 ///  the device is the real `/dev/zfs`.
 ///  The refusal is the whole of what the person gets,

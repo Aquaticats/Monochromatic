@@ -83,10 +83,12 @@ fn a_command_with_no_plan_is_never_the_route_s() {
 ///  so it must print what the preflight's read prints for the same state.
 ///  The device is a file this control opens because a host control may not open
 ///  `/dev/zfs`:
-///  every pool read through it refuses, which is the absence no pool could prove,
+///  every pool read through it refuses,
+///  which is the absence no pool could prove,
 ///  and a `present` head beside it is the settling command's state.
-///  The plan holds no attempt line, so it witnesses nothing destroyed and the
-///  cancel command is named beside the removal.
+///  The plan holds no attempt line,
+///  so it witnesses nothing destroyed,
+///  and the cancel command is named beside the removal.
 ///  No Rust `Debug` rendering of the stop may reach the person (issue 6450).
 ///
 /// In TS you'd write (pseudocode):

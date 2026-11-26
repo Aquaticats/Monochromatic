@@ -14,8 +14,9 @@
 //!  So this file asks the removal's proof and translates its answer,
 //!  rather than walking the container a second way.
 //!  The walk is bounded here:
-//!  the add waits on it, and the step 8 record treats growth on a waiting path
-//!  as a defect, so a container with more children than one sweep takes answers
+//!  the add waits on it,
+//!  and the step 8 record treats growth on a waiting path as a defect,
+//!  so a container with more children than one sweep takes answers
 //!  "the absence cannot be proved" instead of walking for ever.
 //!
 //! In TS you'd write (pseudocode):
@@ -105,15 +106,14 @@ impl DatasetReader for TheBoundedListing<'_> {
         }
         self.handed.set(self.handed.get() + 1);
         // What:     `Ok(Some(child))` wraps the next child in the two variants
-        //           that mean "a child, and no error". It is the tail
-        //           expression, so it is the return.
+        //           that mean "a child, and no error".
         // Why:      The proof asks again until this answer is `Ok(None)`.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return child;
         // ```
-        Ok(Some(child))
+        return Ok(Some(child));
     }
 }
 

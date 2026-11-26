@@ -63,7 +63,8 @@
 //! - `registration_recipe.rs`:
 //!   the eight removals and the one lock completion.
 //! - `plan_folder_read.rs`:
-//!   the plan that names the add's clone, and the fields its stop reads.
+//!   the plan that names the add's clone,
+//!   and the fields its stop reads.
 //! - `add_state_commands.rs`:
 //!   the command each state names.
 //!

@@ -9,7 +9,8 @@
 //!  nothing destroyed
 //!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
 //!  choice 2C;
-//!  `doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`).
+//!  `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//!  `V24`).
 //!  The pool is scripted because no control on a person's machine may open
 //!  `/dev/zfs`,
 //!  and the plan is a fixture file under the clone's own GUID,
@@ -215,8 +216,8 @@ fn a_plan_witnessing_a_destroy_names_no_cancel_command() {
     assert!(!sentence.contains(THE_CANCEL_WORDS), "an attempt past `planned` names no cancel command: {sentence}");
     for head in ["requested", "gone", "unknown"] {
         let route: RouteFacts = a_route_with_a_plan(format!("stop-cancel-head-{head}").as_str(), head, &[A_PLANNED_ATTEMPT]);
-        let sentence: String = the_stop(&route, &the_clone_stands());
-        assert!(!sentence.contains(THE_CANCEL_WORDS), "head `{head}` names no cancel command: {sentence}");
+        let words: String = the_stop(&route, &the_clone_stands());
+        assert!(!words.contains(THE_CANCEL_WORDS), "head `{head}` names no cancel command: {words}");
     }
 }
 
