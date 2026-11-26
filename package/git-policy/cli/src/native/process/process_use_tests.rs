@@ -1,7 +1,7 @@
 //! Controls for the scan of processes that use a directory or a file.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, spawn_owned};
 use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
@@ -38,7 +38,7 @@ impl Sleeper {
             Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
             None => command.stdin(std::process::Stdio::null()),
         };
-        return Sleeper(command.spawn().expect("the sleeper starts"));
+        return Sleeper(spawn_owned(&mut command).expect("the sleeper starts"));
     }
 
     /// The sleeper's process number.
@@ -152,7 +152,7 @@ fn a_descriptor_is_matched_by_device_and_inode() {
     drop(holder);
     // A table this process cannot ask the kernel about is an error, never a guess from the text of a link: the record
     // names the lock's inode and the link resolves to the lock, and still nothing is concluded.
-    let mut gone: std::process::Child = Command::new("true").spawn().expect("start true");
+    let mut gone: std::process::Child = spawn_owned(&mut Command::new("true")).expect("start true");
     let gone_pid: u32 = gone.id();
     gone.wait().expect("reap true");
     let table: PathBuf = root.join("table").join(gone_pid.to_string());

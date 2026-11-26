@@ -143,17 +143,6 @@ merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a l
 merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/child_awaited_through_a_pidfd_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/child_waited_for_within_a_ceiling_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/open_file_of_a_descriptor_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_tree_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/stuck_children_reaped_when_the_kernel_lets_go_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 push/auto_push_reconcile_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_awaiting_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
