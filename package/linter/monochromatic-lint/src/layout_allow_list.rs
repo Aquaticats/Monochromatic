@@ -57,25 +57,30 @@ use std::{
 
 /// What:
 ///  The largest list file this reader accepts:
-///  one mebibyte.
+///  four mebibytes.
 /// Why:
 ///  This repository's largest lists are the git wrapper's,
 ///  measured on 2026-11-25 from the branch that builds them:
 ///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 `missing-link` lines,
 ///  `file-rule.txt` 53,048 bytes with 544 `file-uses` lines and 42 `no-file-list` lines.
-///  A mebibyte is about 18 times the larger one,
-///  so it leaves room for a decade of growth and still bounds a file a person controls.
-///  The siblings a reader might expect are an unbounded read
-///  and a per-entry limit;
-///  a bound on the whole file is the one that keeps a mistyped path from reading a disk image,
+///  The list a loop needs is one line per use inside it,
+///  and the dense shape of the alpha.15 release pass
+///  (200 groups whose own files use one folder that uses a child of each of them,
+///  60,100 uses in one loop)
+///  needs 60,300 lines and 1,681,290 bytes,
+///  measured on 2026-11-26 while that pass's findings were fixed:
+///  one mebibyte refused the very list the rule asked the round to write.
+///  Four mebibytes leave room for about 150,000 recorded uses
+///  and still bound a file a person controls:
+///  the bound is what keeps a mistyped path from reading a disk image,
 ///  and the read itself is bounded too,
 ///  so a file that grows between the check and the read is refused rather than swallowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAX_BYTES = 1024 * 1024;
+/// const MAX_BYTES = 4 * 1024 * 1024;
 /// ```
-pub const MAX_BYTES: u64 = 1024 * 1024;
+pub const MAX_BYTES: u64 = 4 * 1024 * 1024;
 
 /// What:
 ///  The entries of one list file.
