@@ -139,7 +139,8 @@ fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
 /// held through the walk of a deeper path,
 /// they take the descriptors its root's clone and its first directory need,
 /// and a directory that is there is refused as unreachable.
-/// The limit is lowered in a child process of this test's own, as in the control above.
+/// The limit is lowered in a child process of this test's own,
+/// as in the control above.
 #[test]
 fn a_path_past_the_bound_is_answered_after_a_path_at_the_bound_filled_the_chain() {
     // The fixture this process works in: the one the parent made, or nothing and the parent's own arm runs.

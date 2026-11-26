@@ -504,28 +504,25 @@ pub(crate) fn open_descriptors() -> usize {
 }
 
 /// What:
-///  Sets the soft descriptor limit, in the child of a control's own where a test may,
+///  Sets the soft descriptor limit,
+///  in the child of a control's own where a test may lower it,
 ///  and answers the one it replaced,
 ///  so the caller restores it.
 /// Why:
 ///   A descriptor limit is the privilege-free way to make an open fail at `EMFILE`,
 ///  which is how a control makes the reads of `/proc` a look needs fail.
-///   The limit belongs to the whole process, and `cargo test` runs a crate's tests as threads of one process,
+///   The limit belongs to the whole process,
+///  and `cargo test` runs a crate's tests as threads of one process,
 ///  so a lowering here reaches every other test of the run (issue 6492):
-///  the refusal turns that into a failure of the control that asked, every time it runs.
+///  the refusal turns that into a failure of the control that asked,
+///  every time it runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// assert(thisProcessIsTheChild()); const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
+/// refuseOutsideTheChild(); const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
 /// ```
 pub(crate) fn set_soft_limit(soft: u64) -> rustix::process::Rlimit {
-    assert!(
-        crate::descriptor_limit_child_test_support::this_process_is_the_child(),
-        "the soft descriptor limit belongs to the whole process, and `cargo test` runs a crate's tests as threads of \
-         one process, so lowering it here fails every other test of this run with `EMFILE`: lower it in a child of \
-         the control's own, which `crate::descriptor_limit_child_test_support::started_this_test_in_a_child` \
-         starts"
-    );
+    crate::descriptor_limit_child_test_support::refuse_outside_the_child();
     let before: rustix::process::Rlimit =
         rustix::process::getrlimit(rustix::process::Resource::Nofile);
     let lowered: rustix::process::Rlimit = rustix::process::Rlimit {
