@@ -197,10 +197,11 @@ async function build(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    // Two jobs keep rustc and the linker inside the guest's memory: the host backs the guest's pages, and a build
-    // that runs one compiler per vCPU peaked above what the guest could take when the host was short.
+    // Two jobs and a debug build keep rustc and the linker inside the guest's memory: the host backs the guest's
+    // pages, and a release build at one compiler per vCPU was SIGKILLed by the guest's own killer while the host was
+    // short. The arm runs the same test binary either way.
     'export CARGO_BUILD_JOBS=2',
-    'if cargo build --release --locked --bins --tests > /root/sanoid-coverage-build.log 2>&1; then status=0; else status=$?; fi',
+    'if cargo build --locked --tests > /root/sanoid-coverage-build.log 2>&1; then status=0; else status=$?; fi',
     'grep --extended-regexp "^(error|warning)" --after-context=6 /root/sanoid-coverage-build.log | tail --lines=80 || true',
     'tail --lines=5 /root/sanoid-coverage-build.log',
     'exit $status',
@@ -218,7 +219,7 @@ function arm(chosen: Options): void {
     'export CARGO_BUILD_JOBS=2',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
     `export ${POOL_VARIABLE}=${POOL}`,
-    'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if /root/.cargo/bin/cargo nextest run --locked --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_sanoid_coverage_guest)" > /root/sanoid-coverage-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/sanoid-coverage-arm.log',
     'exit $status',
