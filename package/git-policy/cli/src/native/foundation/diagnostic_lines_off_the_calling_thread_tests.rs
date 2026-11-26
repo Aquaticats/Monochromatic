@@ -163,42 +163,42 @@ fn read_while_it_keeps_coming(
 #[cfg(target_os = "linux")]
 #[test]
 fn a_stream_nobody_drains_holds_no_caller() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_stream_nobody_drains_holds_no_caller",
-    ) {
-        return;
-    }
-    let (reader, writer) = a_pipe_that_is_full();
-    give_the_thread(Box::new(writer));
-    let lines: usize = QUEUED_LINES.saturating_mul(2);
-    let began: Instant = Instant::now();
-    for index in 0..lines {
-        write(format!("a diagnostic line that nobody reads {index}\n").as_str());
-    }
-    let elapsed: Duration = began.elapsed();
-    let queued: usize = queued();
-    let dropped: u64 = dropped_so_far();
-    // The thread holds at most one line in its own write, so the queue and the count account for every line handed over.
-    assert!(
-        queued <= QUEUED_LINES,
-        "the queue never grows past its bound: {queued}"
+        || {
+            let (reader, writer) = a_pipe_that_is_full();
+            give_the_thread(Box::new(writer));
+            let lines: usize = QUEUED_LINES.saturating_mul(2);
+            let began: Instant = Instant::now();
+            for index in 0..lines {
+                write(format!("a diagnostic line that nobody reads {index}\n").as_str());
+            }
+            let elapsed: Duration = began.elapsed();
+            let queued: usize = queued();
+            let dropped: u64 = dropped_so_far();
+            // The thread holds at most one line in its own write, so the queue and the count account for every line handed over.
+            assert!(
+                queued <= QUEUED_LINES,
+                "the queue never grows past its bound: {queued}"
+            );
+            assert!(
+                dropped > 0,
+                "a stream nobody drains makes the queue drop lines rather than hold the caller: {queued} queued, {dropped} dropped"
+            );
+            assert!(
+                the_reader_stopped(),
+                "a reader that took no line within the bound is remembered as one that is not taking lines"
+            );
+            // One bound is what the first line costs, and no later line waits at all: two bounds leave room for a loaded host
+            //  without leaving room for a wait per line, which the whole loop would then take.
+            assert!(
+                elapsed < WARNING_WRITE_CEILING.saturating_mul(4),
+                "no caller waits for the reader past one bound: {lines} lines took {elapsed:?}"
+            );
+            drop(reader);
+        },
     );
-    assert!(
-        dropped > 0,
-        "a stream nobody drains makes the queue drop lines rather than hold the caller: {queued} queued, {dropped} dropped"
-    );
-    assert!(
-        the_reader_stopped(),
-        "a reader that took no line within the bound is remembered as one that is not taking lines"
-    );
-    // One bound is what the first line costs, and no later line waits at all: two bounds leave room for a loaded host
-    //  without leaving room for a wait per line, which the whole loop would then take.
-    assert!(
-        elapsed < WARNING_WRITE_CEILING.saturating_mul(4),
-        "no caller waits for the reader past one bound: {lines} lines took {elapsed:?}"
-    );
-    drop(reader);
 }
 
 /// What:
@@ -216,31 +216,31 @@ fn a_stream_nobody_drains_holds_no_caller() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_stream_that_drains_gets_the_lines_in_the_order_they_were_said() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_stream_that_drains_gets_the_lines_in_the_order_they_were_said",
-    ) {
-        return;
-    }
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    give_the_thread(Box::new(writer));
-    let said: [&str; 3] = [
-        "[warn] the first line\n",
-        "[debug] the second line\n",
-        "[warn] the third line\n",
-    ];
-    for line in said {
-        write(line);
-    }
-    let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
-    assert_eq!(
-        text,
-        said.concat(),
-        "every line reached the stream, in the order it was said"
-    );
-    assert!(
-        !the_reader_stopped(),
-        "a reader that takes every line is never taken for one that stopped"
+        || {
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let said: [&str; 3] = [
+                "[warn] the first line\n",
+                "[debug] the second line\n",
+                "[warn] the third line\n",
+            ];
+            for line in said {
+                write(line);
+            }
+            let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+            assert_eq!(
+                text,
+                said.concat(),
+                "every line reached the stream, in the order it was said"
+            );
+            assert!(
+                !the_reader_stopped(),
+                "a reader that takes every line is never taken for one that stopped"
+            );
+        },
     );
 }
 
@@ -259,24 +259,24 @@ fn a_stream_that_drains_gets_the_lines_in_the_order_they_were_said() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_line_handed_before_the_end_waits_and_reaches_the_stream",
-    ) {
-        return;
-    }
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    give_the_thread(Box::new(writer));
-    let line: &str = "[warn] the last line before this process ends\n";
-    write(line);
-    assert!(
-        write_what_waits(WAIT_BEFORE_AN_EXIT),
-        "the queue was empty and nothing was being written"
-    );
-    let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
-    assert_eq!(
-        text, line,
-        "what the end waited for is what the stream holds"
+        || {
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let line: &str = "[warn] the last line before this process ends\n";
+            write(line);
+            assert!(
+                write_what_waits(WAIT_BEFORE_AN_EXIT),
+                "the queue was empty and nothing was being written"
+            );
+            let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+            assert_eq!(
+                text, line,
+                "what the end waited for is what the stream holds"
+            );
+        },
     );
 }
 
@@ -296,27 +296,27 @@ fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_end_gives_up_at_its_bound_on_a_stream_nobody_drains() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_end_gives_up_at_its_bound_on_a_stream_nobody_drains",
-    ) {
-        return;
-    }
-    let (reader, writer) = a_pipe_that_is_full();
-    give_the_thread(Box::new(writer));
-    write("[warn] a line that waits for a reader\n");
-    let began: Instant = Instant::now();
-    let written: bool = write_what_waits(Duration::from_millis(100));
-    let elapsed: Duration = began.elapsed();
-    assert!(
-        !written,
-        "a stream nobody drains leaves the line unwritten at the end"
+        || {
+            let (reader, writer) = a_pipe_that_is_full();
+            give_the_thread(Box::new(writer));
+            write("[warn] a line that waits for a reader\n");
+            let began: Instant = Instant::now();
+            let written: bool = write_what_waits(Duration::from_millis(100));
+            let elapsed: Duration = began.elapsed();
+            assert!(
+                !written,
+                "a stream nobody drains leaves the line unwritten at the end"
+            );
+            assert!(
+                elapsed >= Duration::from_millis(100),
+                "the end waits for its bound before giving up: {elapsed:?}"
+            );
+            drop(reader);
+        },
     );
-    assert!(
-        elapsed >= Duration::from_millis(100),
-        "the end waits for its bound before giving up: {elapsed:?}"
-    );
-    drop(reader);
 }
 
 /// What:
@@ -334,28 +334,28 @@ fn the_end_gives_up_at_its_bound_on_a_stream_nobody_drains() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_the_queue_could_not_take_is_counted_and_said_before_the_next() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_line_the_queue_could_not_take_is_counted_and_said_before_the_next",
-    ) {
-        return;
-    }
-    let (mut reader, writer) = a_pipe_that_is_full();
-    give_the_thread(Box::new(writer));
-    let lines: usize = QUEUED_LINES.saturating_mul(2);
-    for index in 0..lines {
-        write(format!("a diagnostic line that nobody reads {index}\n").as_str());
-    }
-    assert!(
-        dropped_so_far() > 0,
-        "a queue that is full counts its lines rather than growing"
-    );
-    // The reader comes back: what the thread held reaches the stream, and the first line it takes after the gap says how
-    //  many were dropped before it.
-    let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
-    assert!(
-        text.contains(DROPPED_NOTICE),
-        "the stream states the gap it took: {text:?}"
+        || {
+            let (mut reader, writer) = a_pipe_that_is_full();
+            give_the_thread(Box::new(writer));
+            let lines: usize = QUEUED_LINES.saturating_mul(2);
+            for index in 0..lines {
+                write(format!("a diagnostic line that nobody reads {index}\n").as_str());
+            }
+            assert!(
+                dropped_so_far() > 0,
+                "a queue that is full counts its lines rather than growing"
+            );
+            // The reader comes back: what the thread held reaches the stream, and the first line it takes after the gap says how
+            //  many were dropped before it.
+            let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+            assert!(
+                text.contains(DROPPED_NOTICE),
+                "the stream states the gap it took: {text:?}"
+            );
+        },
     );
 }
 
@@ -376,34 +376,36 @@ fn a_line_the_queue_could_not_take_is_counted_and_said_before_the_next() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines",
-    ) {
-        return;
-    }
-    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines",
         || {
-            let (mut reader, writer) = std::io::pipe().expect("a pipe");
-            give_the_thread(Box::new(writer));
-            let first: &str = "[warn] the line a process at its process limit would have lost\n";
-            let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
-            write(first);
-            write(last);
-            let said: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
-            assert!(
-                said.contains("ulimit -u"),
-                "the refusal names the process limit that refused the thread, and not only the system's error: {said}"
-            );
-            assert!(
-                said.contains(first),
-                "the line said as the refusal is written where it is said: {said}"
-            );
-            assert!(
-                said.contains(last),
-                "the line said after the refusal is written where it is said too: {said}"
+            crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
+                module_path!(),
+                "a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines",
+                || {
+                    let (mut reader, writer) = std::io::pipe().expect("a pipe");
+                    give_the_thread(Box::new(writer));
+                    let first: &str =
+                        "[warn] the line a process at its process limit would have lost\n";
+                    let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
+                    write(first);
+                    write(last);
+                    let said: String =
+                        read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+                    assert!(
+                        said.contains("ulimit -u"),
+                        "the refusal names the process limit that refused the thread, and not only the system's error: {said}"
+                    );
+                    assert!(
+                        said.contains(first),
+                        "the line said as the refusal is written where it is said: {said}"
+                    );
+                    assert!(
+                        said.contains(last),
+                        "the line said after the refusal is written where it is said too: {said}"
+                    );
+                },
             );
         },
     );

@@ -9,6 +9,235 @@
 //!  The service is a mode of the one executable with a life of its own:
 //! the operating system starts it on demand.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `earlier_unix_sockets_that_listen.rs`:
+//!   whether a socket of an earlier release's unit listens,
+//!   read from the table of unix sockets.
+//! - `journald_native_socket_target.rs`:
+//!   the address native journal entries are sent to.
+//! - `journald_native.rs`:
+//!   the native journal protocol and the standard error fallback the service's entries go through.
+//! - `client_journal.rs`:
+//!   one entry from the wrapper a person ran to the journal,
+//!   sent without waiting.
+//! - `service_busy_answers_and_name_checks.rs`:
+//!   the answers the landing board gives and the checks on the names it keeps.
+//! - `service_client_interrupted.rs`:
+//!   the signals a waiting commit answers by withdrawing its request,
+//!   and the flag they set for the wait.
+//! - `service_client_why_withdrawn.rs`:
+//!   why a request a commit sent is given up,
+//!   and the failure that says what became of the commit.
+//! - `service_fault.rs`:
+//!   test-only fault points of the commit service.
+//! - `service_journal_folder_of_an_instance.rs`:
+//!   the journal folder the unit gives an instance,
+//!   and the state folder that holds it.
+//! - `service_journal_restored_at_start.rs`:
+//!   the plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
+//!   read at a service's start on a thread of its own.
+//! - `service_log_lines_off_the_calling_thread.rs`:
+//!   the service's log lines on standard error,
+//!   written by a thread of their own so no landing waits for the stream.
+//! - `service_plans_of_a_gone_repository.rs`:
+//!   the pushes a service owes a repository that no longer exists:
+//!   the retry plan of each branch whose Git directory is proven gone ends.
+//! - `service_provision_slow_manager_notice.rs`:
+//!   the line a commit prints when the service manager has not answered its provisioning within a moment.
+//! - `service_provision_unit_file_ownership_and_writes.rs`:
+//!   checks and writes on the unit files of the commit service.
+//! - `service_push_programs_held_in_memory.rs`:
+//!   the program search list and the transport settings of the command that asked for a push,
+//!   held only in the memory of the service that runs it.
+//! - `service_protocol_programs_of_a_request.rs`:
+//!   the programs and transport settings one request or wake carries,
+//!   read from the socket.
+//! - `service_queue_received_on_the_runtime.rs`:
+//!   the wait of a thread on a queue the runtime owns:
+//!   an item,
+//!   the end of the wait at its bound,
+//!   or the end of the queue.
+//! - `service_repository_scratch_sweep.rs`:
+//!   the collection of the repository scratch directory a killed command left,
+//!   beside the landing loop.
+//! - `service_review_key.rs`:
+//!   the standards-review credential:
+//!   redacted when printed,
+//!   read from the wrapper's environment,
+//!   sent in the work message.
+//! - `service_protocol_messages_and_name_checks.rs`:
+//!   the protocol messages as typed values,
+//!   and the checks on the names they carry.
+//! - `service_protocol_decode_lines_to_messages.rs`:
+//!   reads one line of the protocol as a client message or a service message,
+//!   checking every field.
+//! - `service_protocol_encode_messages_to_lines.rs`:
+//!   writes protocol messages as one JSON object per line.
+//! - `service_protocol.rs`:
+//!   messages between the wrapper and the resident commit service.
+//! - `service_journal_intent_text_and_parse.rs`:
+//!   the text form of a batch intent:
+//!   written and parsed.
+//! - `service_protocol_forgetting_programs.rs`:
+//!   reads protocol lines as messages,
+//!   checking every field.
+//!   The reader of the message that names the push records which can no longer run.
+//! - `service_reply.rs`:
+//!   the connection of one waiting client,
+//!   answered by the landing thread and kept alive by a beat from the reading thread.
+//! - `service_scratch_release_removal.rs`:
+//!   the removal of a commit's scratch directory once the client that held it is gone,
+//!   beside the landing loop.
+//! - `service_scratch_trees_of_queued_requests.rs`:
+//!   the commit scratch trees the requests this service holds still name,
+//!   which a collection is not to remove by age.
+//! - `service_server_socket_binding.rs`:
+//!   gets the listening socket of the commit service.
+//! - `service_shadow_pool_fill.rs`:
+//!   the fill of the shadow pool a commit takes its private repository from,
+//!   beside the landing loop.
+//! - `service_shadow_draw.rs`:
+//!   the service's stock of finished shadows drawn ahead of the commits that ask for one.
+//! - `service_timing.rs`:
+//!   the lines the commit service writes about its life and about the time each request took.
+//! - `service_server_land_group_answer_log.rs`:
+//!   what one batch's answer says about that batch:
+//!   the times it shares,
+//!   its figures,
+//!   and the log line of each answer.
+//! - `service_server_queue_types_and_send.rs`:
+//!   the shapes the connection threads and the landing thread pass between them,
+//!   and the one-message send.
+//! - `service_signal.rs`:
+//!   the line the commit service writes when a signal ends it.
+//! - `service_warm_request_control_window.rs`:
+//!   the answers service warm request control window holds.
+//! - `systemd_dbus_wire_format.rs`:
+//!   the D-Bus wire format of the user manager client:
+//!   calls written,
+//!   replies read.
+//! - `systemd_dbus.rs`:
+//!   a minimal D-Bus client for the user session bus,
+//!   for the provisioning's two calls.
+//! - `service_provision_host_and_manager.rs`:
+//!   what provisioning knows about the machine and the manager it asks,
+//!   the earlier release's unit names and what a refused call is to the person.
+//! - `service_instance.rs`:
+//!   which commit service instance belongs to a worktree:
+//!   its name,
+//!   socket and unit instances.
+//! - `service_own_socket_of_a_retire_that_served_nothing.rs`:
+//!   the socket a service stops when it was retired before it served anything.
+//! - `wait_ceilings.rs`:
+//!   the longest the wrapper waits for each thing it waits for,
+//!   with the measurement beside each number.
+//! - `service_is_gone_after_a_stop.rs`:
+//!   whether a stopped service's processes are gone,
+//!   which is what lets the journal it writes be removed.
+//! - `service_journal_record_age.rs`:
+//!   how old a finished batch's record is,
+//!   read from the clocks the record itself carries.
+//! - `service_journal.rs`:
+//!   the commit service's journal and its restart decisions.
+//! - `service_busy.rs`:
+//!   what the one landing thread is doing,
+//!   shared with the threads that talk to waiting clients.
+//! - `service_busy_step_record_on_this_thread.rs`:
+//!   the step record a thread keeps while it is inside a write that is never ended.
+//! - `service_files_of_a_stopped_instance.rs`:
+//!   the files an instance of the commit service keeps between runs:
+//!   the note beside its socket,
+//!   the note and socket file that say it has units,
+//!   and the journal that remembers its batches.
+//! - `service_provision_loaded_unit_texts.rs`:
+//!   the record of the unit texts the service manager last read for one instance,
+//!   which tells an installation it runs from files a kill left behind.
+//! - `service_review.rs`:
+//!   the service's handler for a review work item,
+//!   bounded by a call deadline and a total budget.
+//! - `service_runtime_build_report.rs`:
+//!   how the service's own runtime was built,
+//!   and the words a task that cannot get a worker ends the service with.
+//! - `service_server_connection_handling.rs`:
+//!   handles one client connection of the commit service.
+//! - `service_server_accept_connections_as_tasks.rs`:
+//!   the acceptor of connections:
+//!   one task that starts a task per connection.
+//! - `service_server_land_group_owed_pushes.rs`:
+//!   what a batch of landings owes,
+//!   and takes before its branch moves.
+//! - `service_server_land_group.rs`:
+//!   lands one group of queued requests as a batch and answers each client.
+//! - `service_server_shutdown_after_a_stop.rs`:
+//!   the service's own shutdown after a stop:
+//!   it tells the waiters,
+//!   waits a bounded time for the Gits and the landing in flight,
+//!   and ends the process by the signal.
+//! - `service_server_work_loop_awaiting.rs`:
+//!   the same loop as a task of the runtime,
+//!   with the two storage steps only it makes.
+//! - `service_server_work_loop.rs`:
+//!   the loop of the commit service's after-commit work asked by a thread outside the runtime.
+//! - `service_unit_folders_and_the_worktree_of_an_instance.rs`:
+//!   the two folders every question about an instance's units is asked of,
+//!   which worktree a unit instance belongs to,
+//!   and whether that worktree is certainly gone.
+//! - `service_instances_with_units_and_their_survey.rs`:
+//!   which instances have a unit or a journal,
+//!   and the survey that sorts them by whether their worktree is gone.
+//! - `service_units_of_removed_worktrees.rs`:
+//!   the commit service units of worktrees that no longer exist:
+//!   which worktree a unit belongs to,
+//!   whether it is gone,
+//!   and the stop of its units through the manager.
+//! - `service_server.rs`:
+//!   the commit service's loop.
+//! - `service_address_of_a_worktree.rs`:
+//!   the address one worktree's service listens at:
+//!   a socket file under the runtime directory when that path fits one socket address,
+//!   and an abstract name when it does not.
+//! - `service_client_connect_within_a_bound.rs`:
+//!   the connect itself,
+//!   waited for with a bound because a socket whose queue of unaccepted connections is full takes no connection until
+//!   something accepts.
+//! - `service_client_listen_and_ask_to_retire.rs`:
+//!   connecting to the service,
+//!   reading one line from it,
+//!   writing a request within a bound,
+//!   and asking an older service to retire.
+//! - `service_client_shadow_hand_out.rs`:
+//!   the question a commit asks its service for the finished shadow drawn ahead of it.
+//! - `service_main.rs`:
+//!   the service as a mode of the one executable:
+//!   the words that select it and the start of the service.
+//! - `service_provision_earlier_service_retirement.rs`:
+//!   the retirement of the single service of the earlier releases.
+//! - `service_provision_instance_unloaded.rs`:
+//!   dropping the service manager's copy of one worktree's units,
+//!   so the next start reads the unit files as they are.
+//! - `service_provision_refusals_before_the_wait.rs`:
+//!   the states in which provisioning already knows no service can answer this command,
+//!   so the command says why instead of waiting out the start ceiling.
+//! - `service_provision.rs`:
+//!   the wrapper's own provisioning of the commit service's socket activation.
+//! - `service_client_settings_and_watches.rs`:
+//!   the settings of one client run and the watch on the service manager's answer.
+//! - `service_client_reach_service.rs`:
+//!   reaching the commit service,
+//!   starting it when nothing answers.
+//! - `service_client_waiting_words.rs`:
+//!   the words a waiting command is told about its own wait.
+//! - `service_client_wake.rs`:
+//!   the client's one-way message that work items were written for a repository.
+//! - `service_client.rs`:
+//!   the wrapper's side of a commit through the commit service.
+//! - `service_server_own_worktree_question.rs`:
+//!   the question the serving loop asks about the worktree whose units are its own.
+//! - `service_warm_request.rs`:
+//!   the client's one-way request to a running service to compile a repository's rules.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // service/index.ts: one `export * from './file'` per module below.

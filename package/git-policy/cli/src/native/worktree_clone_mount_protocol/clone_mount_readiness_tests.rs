@@ -120,6 +120,18 @@ fn the_no_waiter_readiness_refusal_names_the_checkout() {
     let message: String = refusal.message();
     assert!(message.contains(CHECKOUT), "{message}");
     assert!(message.contains("No clone was attached"), "{message}");
+    assert!(
+        message.contains("`git monochromatic-git-policy-cli doctor`"),
+        "the doctor is named as a person types it: {message}"
+    );
+    assert!(
+        message.contains("installs no handler unit"),
+        "and the sentence says this release installs the unit nowhere: {message}"
+    );
+    assert!(
+        !message.contains("once plan step 10"),
+        "and claims no `doctor` line a later step would add: {message}"
+    );
 }
 
 /// A record from another boot,
@@ -269,7 +281,9 @@ fn each_value_has_its_rule() {
     ));
 }
 
-/// Every refusal says nothing was attached on the record.
+/// Every refusal says nothing was attached on the record,
+/// and the one for a file in the readiness directory names the typed `doctor`
+/// command and the unit this release installs nowhere.
 #[test]
 fn every_parse_refusal_says_nothing_was_attached() {
     let time: String = ready().text().replace(TIME, "yesterday");
@@ -277,6 +291,18 @@ fn every_parse_refusal_says_nothing_was_attached() {
         parse_readiness(time.as_str()).expect_err("a foreign time is refused");
     assert!(
         refusal.message().contains("Nothing was attached"),
+        "{}",
+        refusal.message()
+    );
+    assert!(
+        refusal
+            .message()
+            .contains("`git monochromatic-git-policy-cli doctor`"),
+        "{}",
+        refusal.message()
+    );
+    assert!(
+        refusal.message().contains("installs no handler unit"),
         "{}",
         refusal.message()
     );

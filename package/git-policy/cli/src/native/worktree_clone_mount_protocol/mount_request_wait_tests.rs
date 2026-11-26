@@ -160,7 +160,18 @@ fn a_stale_receipt_is_not_an_answer_and_is_reported() {
     let message: String = refusal.message();
     assert!(message.contains(NONCE), "{message}");
     assert!(message.contains("not this request's answer"), "{message}");
-    assert!(message.contains("doctor"), "{message}");
+    assert!(
+        message.contains("`git monochromatic-git-policy-cli doctor`"),
+        "the doctor is named as a person types it: {message}"
+    );
+    assert!(
+        message.contains("installs no handler unit"),
+        "the sentence says this release installs the journal's unit nowhere: {message}"
+    );
+    assert!(
+        !message.contains("once plan step 10") && !message.contains("whose unit plan step 19"),
+        "and claims no `doctor` line or unit a later step would add: {message}"
+    );
     assert!(
         message.contains("A deadline is not cancellation"),
         "{message}"

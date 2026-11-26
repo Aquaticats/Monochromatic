@@ -53,6 +53,7 @@ use crate::single_owner_claim::{
     take_claim,
 };
 use crate::worktree_clone_mount::slot_name_refusal;
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT;
 use std::ffi::{
     CString,
     OsStr,
@@ -187,7 +188,7 @@ impl ClaimRefusal {
             ),
         };
         return format!(
-            "{reason}. Nothing was opened on the clone's behalf, no mount was attached or taken down and no durable intent was changed. Ways forward: a held slot is retried by the slot's next trigger (a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge); a wrong owner, a wrong mode or an unreadable claim record needs an administrator, and the `doctor` command reports a claim once plan step 10 adds it."
+            "{reason}. Nothing was opened on the clone's behalf, no mount was attached or taken down and no durable intent was changed. Ways forward: a held slot is retried by the slot's next trigger (a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge); a wrong owner, a wrong mode or an unreadable claim record needs an administrator. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}."
         );
     }
 }

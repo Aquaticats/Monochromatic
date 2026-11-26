@@ -28,7 +28,7 @@
 //!  and the wiring step is the one that calls it after the fill.
 //!
 //! Files in this folder,
-//! each using only the file listed before it:
+//! each using only files listed before it:
 //!
 //! - `watch_rebinding.rs`: the comparison, the sentence and the one call the
 //!   wiring step makes.

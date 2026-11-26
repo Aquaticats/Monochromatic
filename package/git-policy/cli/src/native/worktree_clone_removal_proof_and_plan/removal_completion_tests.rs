@@ -44,6 +44,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ClearingDevice,
     EpochProbe,
     LivePool,
+    MarkedAfterTheBatch,
     ORIGIN_OWN_NAME,
     ScriptedHead,
     ScriptedHolders,
@@ -51,6 +52,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     TheCompletion,
     a_clear_scan,
     a_fixture,
+    a_marked_checks_pool,
     a_record_stands,
     a_scan_with_a_holder,
     complete,
@@ -264,6 +266,92 @@ fn a_holder_seen_before_the_first_request_stops_the_removal_and_sends_nothing() 
             .map(|held| return held.outcome == SnapshotOutcome::Intact)
             .unwrap_or(false)),
         "every name is settled as `intact` by the run's own fresh read, and no line claims a request"
+    );
+    assert!(
+        locate(&fixture, binding_name("fix-flaky-test").as_str()),
+        "the binding stands"
+    );
+}
+
+/// What:
+///  A mark set on the origin between the batch's request and the head destroy refuses the
+///  head and sends no request of its own.
+/// Why:
+///  `SPEC.md` promises the deferred-origin check again before the head,
+///  after a fresh enumeration of the clone,
+///  and the mark is the one field only that second check reads:
+///  the batch's check met an unmarked origin and went ahead,
+///  so a removal that kept that answer and destroyed the head would reap a snapshot a mark
+///  had just been set on.
+///  The control that marks the origin before the head in `removal_destruction_tests` drives the
+///  destruction step,
+///  not this one,
+///  so this is the only control that holds the second check's place in the whole removal.
+#[test]
+fn a_mark_set_after_the_batch_refuses_before_the_head() {
+    let fixture: RemovalFixture = a_fixture("completion-mark-before-the-head");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    let unmarked: Pool = the_checks_pool();
+    let marked: Pool = a_marked_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: the_checks_pool(),
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    // The batch's chunk is checked unmarked, and the head's check meets the mark.
+    let check: MarkedAfterTheBatch<'_> = MarkedAfterTheBatch {
+        before: &unmarked,
+        after: &marked,
+        device: &device,
+    };
+    let head: ScriptedHead = ScriptedHead::succeeding(
+        fixture.plan_folder(),
+        fixture.recorded().clone_guid,
+        Rc::clone(&hidden),
+    );
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let stop: RemovalStop = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &check,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        budget: the_budget(),
+    })
+    .expect_err("a mark set after the batch stops the head destroy");
+    match &stop {
+        RemovalStop::OriginCheckRefused {
+            refusal,
+            ..
+        } => {
+            assert_eq!(
+                refusal.cause_name(),
+                "origin-marked-for-deferred-destroy",
+                "the refusal is the marked origin's own cause"
+            );
+        }
+        other => panic!("a marked origin refuses as the check's cause, not {other:?}"),
+    }
+    assert_eq!(
+        device.sent.borrow().len(),
+        1,
+        "the batch's one request was sent and no other"
+    );
+    assert!(
+        head.sent.borrow().is_empty(),
+        "the head request is not sent"
+    );
+    let plan: DestructionPlan =
+        read_the_plan(fixture.common(), fixture.recorded().clone_guid).expect("the plan stands");
+    assert_eq!(plan.head, HeadWord::Present, "no head request was recorded");
+    assert!(
+        the_names_not_destroyed(&plan).is_empty(),
+        "the batch's names are destroyed"
     );
     assert!(
         locate(&fixture, binding_name("fix-flaky-test").as_str()),

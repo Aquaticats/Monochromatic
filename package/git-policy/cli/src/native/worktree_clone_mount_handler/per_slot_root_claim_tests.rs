@@ -390,3 +390,31 @@ fn a_foreign_claim_record_or_a_linked_directory_is_refused() {
         & 0o777;
     assert_eq!(mode, 0o700, "a refused prepare changed nothing");
 }
+
+/// What:
+///  The refusal's way forward names the typed `doctor` command and says this
+///  release prints no line for a claim and installs no handler unit.
+/// Why:
+///  The sentence said the `doctor` command reports a claim once plan step 10
+///  adds it:
+///  step 10 built the claim, `doctor` reaches none of the route's checks, and a
+///  person who typed the bare words got Git's own refusal instead of a line.
+#[test]
+fn the_refusal_names_the_typed_doctor_and_no_claim_line() {
+    let refusal: ClaimRefusal = ClaimRefusal::Held {
+        slot: String::from("one"),
+    };
+    let message: String = refusal.message();
+    assert!(
+        message.contains("`git monochromatic-git-policy-cli doctor`"),
+        "the doctor is named as a person types it: {message}"
+    );
+    assert!(
+        message.contains("installs no handler unit"),
+        "the sentence says this release installs the unit nowhere: {message}"
+    );
+    assert!(
+        !message.contains("once plan step 10"),
+        "and claims no claim line a later step would add: {message}"
+    );
+}

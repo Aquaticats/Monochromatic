@@ -56,8 +56,8 @@ use crate::push_retry_failure::{
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{
     options_for,
-    review_item,
-    review_item_awaiting,
+    review_item_in,
+    review_item_in_awaiting,
     review_variables,
 };
 use crate::service_review_key::ReviewKey;
@@ -366,6 +366,15 @@ pub struct GitHandlers {
     /// so no test reaches the real endpoint.
     #[cfg(test)]
     review_endpoint: Option<String>,
+    /// The runner a test's reviews take a job of,
+    /// when the control gives the handlers one of its own;
+    /// `None` is the runner the whole service process shares.
+    /// Why:
+    ///   A runner admits one review and answers every other caller `Contained::Busy`,
+    /// and a crate's tests run as threads of one process,
+    /// so a control that reviewed in the shared one failed while another control's review held it (issue 6500).
+    #[cfg(test)]
+    review_runner: Option<&'static crate::standards_review_run::Containment>,
     /// Variables a test adds to the environment of the push,
     /// such as a short stall window.
     #[cfg(test)]
@@ -382,6 +391,8 @@ impl GitHandlers {
             review_keys: std::collections::HashMap::new(),
             #[cfg(test)]
             review_endpoint: None,
+            #[cfg(test)]
+            review_runner: None,
             #[cfg(test)]
             push_environment: Vec::new(),
         };
@@ -417,9 +428,41 @@ impl GitHandlers {
         return self;
     }
 
+    /// What:
+    ///  The same handlers whose reviews take a job of `runner`,
+    /// a `Containment` of the control's own;
+    /// tests only.
+    /// Why:
+    ///   A runner admits one job and answers every other caller `Contained::Busy`,
+    /// and a crate's tests run as threads of one process,
+    /// so two controls that reviewed in the service's runner refused one another (issue 6500).
+    ///  A control declares `static OWN: Containment` and hands it here,
+    /// as one that reviews an item itself calls `review_item_in(&OWN, ..)`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// handlers.withReviewRunner(own)
+    /// ```
+    #[cfg(test)]
+    pub fn with_review_runner(
+        mut self,
+        runner: &'static crate::standards_review_run::Containment,
+    ) -> GitHandlers {
+        // What: `Some(runner)` is this instance's answer from now on: a runner of the control's, never the shared one.
+        // Why: the control's reviews then see only each other's jobs, and never another control's.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.reviewRunner = runner;
+        // ```
+        self.review_runner = Some(runner);
+        return self;
+    }
+
     /// A copy of these handlers that holds `keys` as the review credentials of one round;
     /// the copy is dropped with the round.
     /// The test-only settings (the review endpoint,
+    /// the review runner,
     /// the push environment) are carried into the copy,
     /// so a round runs the way the
     /// handlers it was made from are set to run.
@@ -433,8 +476,49 @@ impl GitHandlers {
             #[cfg(test)]
             review_endpoint: self.review_endpoint.clone(),
             #[cfg(test)]
+            review_runner: self.review_runner,
+            #[cfg(test)]
             push_environment: self.push_environment.clone(),
         };
+    }
+
+    /// What:
+    ///  The runner this instance's reviews take a job of:
+    /// the one a control gave it (`with_review_runner`),
+    /// or the one the whole service process shares.
+    /// Why:
+    ///   The service runs one review at a time for the whole process
+    /// (`SPEC.md`,
+    /// "The whole review of a commit is waited for `REVIEW_CEILING` ... no other review starts meanwhile"),
+    /// and a control must not,
+    /// because a run holds many of them at once in one process (issue 6500).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reviewRunnerOf(): Containment { return this.reviewRunner ?? RUNNER; }
+    /// ```
+    fn review_runner_of(&self) -> &'static crate::standards_review_run::Containment {
+        #[cfg(test)]
+        {
+            // What: `Some(own)` is the runner a control handed these handlers, and it wins over the shared one.
+            // Why: a control's reviews must not meet another control's job in one runner.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (this.reviewRunner) return this.reviewRunner;
+            // ```
+            if let Some(own) = self.review_runner {
+                return own;
+            }
+        }
+        // What: `&crate::standards_review_run::RUNNER` is the one runner of the service's process, borrowed for the job's life.
+        // Why: a release has one service and one review at a time, which is what `SPEC.md` states.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return RUNNER;
+        // ```
+        return &crate::standards_review_run::RUNNER;
     }
 
     /// The credential held for this repository,
@@ -991,7 +1075,13 @@ impl WorkHandlers for GitHandlers {
         if let Some(endpoint) = self.review_endpoint.as_ref() {
             options.endpoint = endpoint.clone();
         }
-        return review_item(&self.context, item, options);
+        return review_item_in(
+            self.review_runner_of(),
+            &self.context,
+            item,
+            options,
+            crate::wait_ceilings::REVIEW_CEILING,
+        );
     }
 
     /// What:
@@ -1025,7 +1115,14 @@ impl WorkHandlers for GitHandlers {
             if let Some(endpoint) = self.review_endpoint.as_ref() {
                 options.endpoint = endpoint.clone();
             }
-            return review_item_awaiting(&self.context, item, options).await;
+            return review_item_in_awaiting(
+                self.review_runner_of(),
+                &self.context,
+                item,
+                options,
+                crate::wait_ceilings::REVIEW_CEILING,
+            )
+            .await;
         });
     }
 }

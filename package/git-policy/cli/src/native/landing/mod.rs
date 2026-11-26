@@ -7,6 +7,504 @@
 //! Why:
 //!  The landing is the service's core and changes together.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `conclusion_state_copy.rs`:
+//!   the copy the service keeps of the conclusion state a landed commit removes.
+//! - `earlier_service_look_paths.rs`:
+//!   the questions about the file system that the look at an earlier commit service asks:
+//!   the bytes that spell a path,
+//!   the part of a path the file system knows,
+//!   and the identity of each earlier journal that exists.
+//! - `earlier_service_unsure_program.rs`:
+//!   the description of one running program that the look for an earlier commit service could not rule out,
+//!   for the message that names it.
+//! - `earlier_service_command_line_read.rs`:
+//!   what one process of the process table says about itself:
+//!   its command line up to the largest line any program can carry,
+//!   and the report of a line that cannot be proved.
+//! - `held_commit_record.rs`:
+//!   the record of a commit a reference lock keeps off its branch:
+//!   what the branch was,
+//!   what it goes to,
+//!   the locks that held the write off,
+//!   and when the commit was held.
+//! - `held_commit_settle_move.rs`:
+//!   the one branch write of a settlement,
+//!   and what the batch owes around it.
+//! - `held_push_commit_on_the_remote.rs`:
+//!   whether Git's own record of a branch's remote says a held push's commit has reached it.
+//! - `housekeeping_of_one_round.rs`:
+//!   how long one round may go on starting housekeeping,
+//!   and what it leaves for a later round.
+//! - `landed_summary.rs`:
+//!   the one summary line a landed commit prints,
+//!   with the abbreviated name Git would print.
+//! - `landing_location.rs`:
+//!   the landing location a forwarded index writer coordinates with:
+//!   the real index and the registry.
+//! - `maintenance_decision.rs`:
+//!   automatic maintenance decision:
+//!   config record parsing and the enable and detach rules.
+//! - `maintenance_run.rs`:
+//!   running automatic maintenance after a landing:
+//!   the config read,
+//!   then `git maintenance run --auto`.
+//! - `owed_index_entries.rs`:
+//!   how the repair reads one entry of a tree or an index,
+//!   and the listings it compares.
+//! - `preparation_notice.rs`:
+//!   the preparation of a commit that the service lands,
+//!   for every command line.
+//!   The notices a commit's preparation prints on standard error,
+//!   given to the descriptor under a ceiling.
+//! - `scan_awaited_under_a_ceiling.rs`:
+//!   a scan of the processes run on the blocking pool and awaited under a ceiling.
+//! - `earlier_service_process_look.rs`:
+//!   the look at the running processes that tells whether a commit service of an earlier release may still run for a
+//!   worktree.
+//! - `service_captures.rs`:
+//!   the service's memory of when the bytes of the commits it landed were captured,
+//!   per worktree.
+//! - `service_claim_watch_note_format.rs`:
+//!   the bytes of one note the claim watch keeps:
+//!   the format words,
+//!   the bound on its length,
+//!   and the spelling of a path in hexadecimal.
+//! - `service_claim_watch_whose_repository_it_is.rs`:
+//!   whether a Git directory is the repository of the instance whose journal a note is written into.
+//! - `service_claim_watch_writing_a_note.rs`:
+//!   writing a note:
+//!   the landing's own write,
+//!   and the store's write under the first free name.
+//! - `service_commit_args_editor_opening.rs`:
+//!   whether a `commit` command line opens an editor.
+//! - `service_commit_args.rs`:
+//!   which commit command lines the commit service covers,
+//!   and the message they stand for.
+//! - `service_commit_saved_message.rs`:
+//!   the file a typed message is kept in when the commit it belonged to cannot be made.
+//! - `service_durable_syncs.rs`:
+//!   the syncs one landing made,
+//!   what each was for and how long it took,
+//!   and the words its answer gives for them.
+//! - `landing_state_carried_by_its_task.rs`:
+//!   the state one landing keeps,
+//!   carried by the task that runs the landing and not by a thread.
+//! - `service_durable.rs`:
+//!   where the landing's own syncs wait:
+//!   queued for a background thread when the landing publishes,
+//!   made before return otherwise.
+//! - `service_head.rs`:
+//!   whether a worktree's head still names the branch a commit was prepared on.
+//! - `service_index_marker.rs`:
+//!   the marker the service writes into the index lock and the questions asked of a marker.
+//! - `service_index_ownership.rs`:
+//!   whether the index lock is still the file the holder placed,
+//!   and the record of a lock that could not be settled.
+//! - `service_index_refused_lock.rs`:
+//!   the foreign index lock that already outlasted a commit's wait,
+//!   so the commits queued behind it are not made to wait again.
+//! - `service_index_same.rs`:
+//!   whether a new index file holds the live index's bytes.
+//! - `service_index_hold.rs`:
+//!   the service's hold on a placed index lock:
+//!   the check that it is still the holder's,
+//!   the release and the removal.
+//! - `service_index_unheld_removal.rs`:
+//!   the removal of an index lock that no process holds and no Git lock PID file stands behind,
+//!   on a proof written to the service journal.
+//! - `service_index_watch.rs`:
+//!   the inotify watch the wait for the index lock blocks on.
+//! - `service_land_batch_import_stream_and_overlaps.rs`:
+//!   the `fast-import` stream that makes one commit per request of a batch,
+//!   the marks it exports,
+//!   and the tests of which requests of a batch touch the same paths.
+//! - `service_land_branch_move_transaction.rs`:
+//!   the two command lines a landing writes for its branch:
+//!   the question that reads the commit it names and the transaction that moves it.
+//! - `service_land_context.rs`:
+//!   what the commit service needs to land a batch.
+//! - `service_land_copy.rs`:
+//!   what the commit service's landing does once the branch has moved:
+//!   index entries and conclusion state.
+//! - `service_land_finish_branch_questions.rs`:
+//!   the answers service land finish branch questions holds.
+//! - `service_land_follow_index_reset.rs`:
+//!   the answers service land follow index reset holds.
+//! - `service_land_follow.rs`:
+//!   the answers service land follow holds.
+//! - `service_land_reference_lock.rs`:
+//!   what a landing does when its branch write is refused while the branch is still where the batch found it:
+//!   the reference locks that stand,
+//!   the bounded wait for a live holder,
+//!   and the words for the locks nothing proves gone.
+//! - `service_land_reflog.rs`:
+//!   the reflog message the branch move writes:
+//!   the commit's kind in Git's own words and the first line of its message.
+//! - `service_land_start.rs`:
+//!   the witness of the live index file as the landing found it under the index lock,
+//!   recorded in the journal,
+//!   and the comparison a replay makes with it.
+//! - `owed_index_repair.rs`:
+//!   the repair that repeats a landed batch's owed index update for the entries the landing left.
+//! - `service_message.rs`:
+//!   the message and identities of a service commit,
+//!   made as native `git commit` makes them.
+//! - `service_amend.rs`:
+//!   what an amend takes from the commit it replaces:
+//!   parents,
+//!   message and author.
+//! - `service_messages_of_a_failure.rs`:
+//!   the word each failure of a commit goes by in the timing record,
+//!   declared beside the renderings because they are at their line bound.
+//! - `service_messages_of_a_manager_that_did_not_answer.rs`:
+//!   the words for a manager that answered nothing in the time one exchange is given,
+//!   which says nothing about whether it is there.
+//! - `service_messages_of_a_platform.rs`:
+//!   the sentence a platform without a user service manager leaves the person,
+//!   used by every failure that needed one.
+//! - `service_messages_of_a_service_that_stopped.rs`:
+//!   the words for a commit whose service said nothing,
+//!   stopped reading its request,
+//!   or stopped answering it.
+//! - `service_messages_of_a_start_that_cannot_come.rs`:
+//!   the words for a start that cannot come at all,
+//!   because the address cannot exist or the manager made the service listen elsewhere.
+//! - `service_messages_of_a_start_that_was_asked_and_did_not_come.rs`:
+//!   the words for a wait that ended without a greeting,
+//!   built from the unit the manager was asked about,
+//!   what it answered,
+//!   and what this command asked it to do.
+//! - `service_messages_of_a_wait_for_the_service.rs`:
+//!   what a commit says while it waits for the service,
+//!   and that the service is restarted or the commit built again.
+//! - `service_messages.rs`:
+//!   what the user is told when the commit service cannot land a commit.
+//! - `service_commit_tree_ownership.rs`:
+//!   which end of a commit's scratch tree a submitted request leaves it to.
+//! - `service_commit_waiting_notices.rs`:
+//!   the submission of a prepared commit whose waiting notices are written away from the thread that waits.
+//! - `service_messages_of_a_work_that_was_not_handed_over.rs`:
+//!   the words for work a hand-off could not hand to the commit service,
+//!   in the words of what stopped it.
+//! - `service_messages_of_an_interrupted_commit.rs`:
+//!   the words for a commit the person interrupted,
+//!   which the service either gave up or left unsettled.
+//! - `service_native.rs`:
+//!   the commits real Git builds for the service:
+//!   an editor,
+//!   a signature,
+//!   and what the service does not embed.
+//! - `service_object_questions_left_to_git.rs`:
+//!   the object questions a declined in-process reader leaves to Git:
+//!   a commit's own bytes and whether the objects a request names are gone.
+//! - `service_built_checks.rs`:
+//!   what a commit Git built adds to the branch,
+//!   answered from the object store without starting Git.
+//! - `service_prepare_selection_refusals.rs`:
+//!   the findings a preparation ends with when the selection the command line makes cannot be committed.
+//! - `service_prepare_unmerged_staging.rs`:
+//!   the staging start that puts every unmerged file's working copy into the commit's own index.
+//! - `service_prepare_own_git_steps.rs`:
+//!   the two Git steps a service preparation starts itself,
+//!   with the face a task of the runtime asks.
+//! - `service_pruned.rs`:
+//!   how a commit headed for the service notices that its prepared content was removed before it landed.
+//! - `service_replay_capture_order.rs`:
+//!   the capture order of every shared path of a replay,
+//!   from one walk over the history.
+//! - `service_replay_conclusion.rs`:
+//!   the refusal of a conclusion whose operation another command ended while the commit was prepared.
+//! - `service_replay_line_text.rs`:
+//!   the small text steps of the replay of captured changes.
+//! - `service_retry.rs`:
+//!   the repositories the service looks at again when a claim another instance holds may have run out.
+//! - `service_route.rs`:
+//!   which way a commit goes:
+//!   through the service,
+//!   set up first,
+//!   or the earlier path.
+//! - `held_push_release_wakes_the_service.rs`:
+//!   the wake a command gives the service when it releases a held push by itself.
+//! - `service_commit_input_notes_and_embedded_commit.rs`:
+//!   the small steps of a service commit and the commit the service builds itself.
+//! - `service_rules_precompile.rs`:
+//!   the service's warm of the compiled forbidden-strings rules,
+//!   off the commit's path.
+//! - `service_scratch_abandonment.rs`:
+//!   which commit scratch trees a later command takes for abandoned,
+//!   and which it leaves alone because their owner still runs.
+//! - `service_scratch_ref_of_a_dropped_batch.rs`:
+//!   the two side references of a landing,
+//!   and the scratch reference a restart removes once a batch it dropped has its commit kept.
+//! - `held_commit_words.rs`:
+//!   what the wrapper says about a commit that a reference lock keeps off its branch.
+//! - `held_commit_settle_outcomes.rs`:
+//!   what became of one held commit when a settlement looked at it,
+//!   and the journal line the service writes about it.
+//! - `service_scratch_ref_marker_of_a_batch.rs`:
+//!   the record that names the worktree of a batch's scratch reference,
+//!   so a restart can remove a reference whose landing was killed before its intent.
+//! - `service_scratch_renewal.rs`:
+//!   the renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
+//! - `service_prepare_ready_shapes.rs`:
+//!   the shapes a service preparation hands back.
+//! - `service_prepare_changes_config_and_pathspec_steps.rs`:
+//!   the smaller steps of a service preparation.
+//! - `service_replay.rs`:
+//!   the retry of a commit the service sent back:
+//!   the captured change merged onto the branch,
+//!   never prepared again from the worktree.
+//! - `claim_time.rs`:
+//!   the clocks a claim's lease is judged by.
+//! - `held_push_holder_and_verdict.rs`:
+//!   which command will decide a held commit's post-commit checks,
+//!   and the verdict that command left.
+//! - `service_amend_replayed.rs`:
+//!   the commit an amend makes when the branch moved under it:
+//!   the amended commit's own author,
+//!   committer,
+//!   message and signature,
+//!   on the replayed tree,
+//!   on top of the branch as it is now.
+//! - `held_commit_replay.rs`:
+//!   the change of a held commit put onto the branch as it is now,
+//!   when that branch moved while the lock stood.
+//! - `service_commit_line_reissued.rs`:
+//!   the command line a commit is built again with once its editor has run and the branch moved.
+//! - `service_index_identity.rs`:
+//!   who a marker's holder is:
+//!   the identity a process writes,
+//!   and the answers a reader gives (gone,
+//!   running,
+//!   unknown).
+//! - `service_index_found.rs`:
+//!   what an acquisition of the index lock found when it had to wait,
+//!   for the service's log.
+//! - `service_index_placement.rs`:
+//!   how the service's marked file becomes the index lock,
+//!   and the cleanup of staging files.
+//! - `service_index_reclaim.rs`:
+//!   the removal of a stale index lock,
+//!   by a rename and a second look.
+//! - `service_index_staging.rs`:
+//!   the staging files of the index lock.
+//! - `service_index_attempts.rs`:
+//!   the attempts and the wait of an acquisition of the index lock.
+//! - `service_index_claim.rs`:
+//!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
+//! - `service_index_lock.rs`:
+//!   the commit service's hold on Git's index lock across a landing.
+//! - `service_index_prestage.rs`:
+//!   the marker of the next batch's index lock,
+//!   made and flushed while the service is idle.
+//! - `service_index_wait.rs`:
+//!   the wait of a wrapped index writer for the commit service's own hold on the index.
+//! - `service_hold_retry.rs`:
+//!   a forwarded index writer started again when the commit service took the index before its Git did.
+//! - `service_land_outcomes.rs`:
+//!   what became of one request of a batch,
+//!   and the announcement a landing makes when none of its clients is told anything.
+//! - `service_land_requests_whose_client_is_gone.rs`:
+//!   which requests of a batch a landing still makes,
+//!   given which of their clients went away before their commits landed.
+//! - `service_land_side_reference_write.rs`:
+//!   the write of a landing's own side reference:
+//!   made once more only when the wait for it ended without an answer,
+//!   never replacing a reference another command wrote,
+//!   answered by the reference's own value,
+//!   and what the landing does with a commit whose reference it could not prove.
+//! - `service_land_git_steps_and_import_stream.rs`:
+//!   the Git steps of a landing,
+//!   the import stream of a batch and the overlap tests of its requests.
+//! - `service_land_hold_a_batch.rs`:
+//!   what a landing does when a reference lock keeps its branch where it is,
+//!   and what it gives back when a batch will never land.
+//! - `service_land_kept_commit.rs`:
+//!   the commit of a batch a recovery drops,
+//!   kept on `refs/cli-git/kept/<number>`.
+//! - `service_land_record_the_batch.rs`:
+//!   the record a landing puts in the journal before it moves a branch,
+//!   and the reflog row that move writes.
+//! - `service_land_take_index_lock.rs`:
+//!   takes the index lock for a batch that is ready to land,
+//!   notes the wait in the timing and the log,
+//!   starts making the markers of the two batches after it,
+//!   and cleans up when the lock is refused.
+//! - `service_land_without_its_scratch_reference.rs`:
+//!   the batch whose own scratch reference the write did not prove:
+//!   it lands as real Git lands a commit,
+//!   and the person is told once that the extra protection was not in place.
+//! - `service_work_branch_questions.rs`:
+//!   whether a branch exists and the commit it names,
+//!   which the service's push asks before it sends anything.
+//! - `service_work_common_directory.rs`:
+//!   the common Git directory a linked worktree's Git directory names,
+//!   and whether it belongs to a repository with no main worktree.
+//! - `service_round.rs`:
+//!   the drain of several repositories of one round,
+//!   side by side and without a lock.
+//! - `service_work_push_environment.rs`:
+//!   the environment every Git child of a service push receives,
+//!   and where its program search list comes from.
+//! - `side_reference_written_here.rs`:
+//!   the reference that keeps a batch's commits reachable until its branch moves,
+//!   written by the landing itself where that write is provably Git's,
+//!   and left to Git everywhere else.
+//! - `service_land_settings.rs`:
+//!   takes the index lock for a batch that is ready to land.
+//!   What became of one request of a batch,
+//!   and the announcement a landing makes when nobody is told.
+//!   What a landing starts with:
+//!   how many times its batch may be built again,
+//!   and what it reads once.
+//! - `service_land_objects_of_batch.rs`:
+//!   the objects a batch lands:
+//!   the commit Git built,
+//!   or the commits made from the requests' changes.
+//! - `unreachable_git_dir_proven_gone.rs`:
+//!   what the filesystem proves about a Git directory the service can no longer resolve.
+//! - `work_item_kinds_and_their_names.rs`:
+//!   the kinds of work a landed object can ask for,
+//!   and the names that pick a consumer's handler.
+//! - `work_item_ids_and_names.rs`:
+//!   the digest a push's id carries for its branch,
+//!   and what may follow the kind in an id.
+//! - `work_item_state_directories_and_claim_names.rs`:
+//!   the state folders of the work queue,
+//!   the names of claim files,
+//!   and the listing of a folder oldest first.
+//! - `work_item.rs`:
+//!   the durable work-item record for asynchronous work (review,
+//!   push,
+//!   maintenance) left for a resident consumer.
+//! - `owed_index_update.rs`:
+//!   the record of an index update a landed batch owes.
+//! - `held_commit_settle.rs`:
+//!   moving the branch of a held commit once nothing stands in the way,
+//!   and finishing what the landing owes after the move.
+//! - `service_claim_renewal.rs`:
+//!   the renewal that keeps the claims of a shared work directory from looking abandoned while their holder works.
+//! - `service_claim_renewal_running.rs`:
+//!   the task of a running claim renewal,
+//!   its driver for controls,
+//!   and its stop.
+//! - `service_land_finish.rs`:
+//!   the answers service land finish holds.
+//! - `service_land_batch_body.rs`:
+//!   the landing itself:
+//!   one batch written,
+//!   journaled and moved onto a branch.
+//! - `service_land.rs`:
+//!   the commit service's serialized step.
+//! - `earlier_service_journal_adopted.rs`:
+//!   the batches the commit service of an earlier release left open,
+//!   finished by the service of this release when none runs.
+//! - `service_prepare.rs`:
+//!   the answers service prepare holds.
+//! - `service_branch_shows.rs`:
+//!   what the branch shows once the commit service went silent after a commit was prepared.
+//! - `service_commit_looking_for_what_landed.rs`:
+//!   the look for the commit a request that was already sent made,
+//!   once its answer was lost.
+//! - `service_commit_after_a_failure.rs`:
+//!   what a commit does when the service answered without landing it:
+//!   the words for content a prune removed,
+//!   and the aftermath of a service that failed or went silent.
+//! - `service_commit_rebuild_ceiling.rs`:
+//!   how long a commit whose branch moved under its build is built again,
+//!   and the line that says so.
+//! - `service_commit_after_a_moved_branch.rs`:
+//!   what a commit does when the service answers that the branch moved under it.
+//! - `service_commit_requests_and_landing_report.rs`:
+//!   the requests of a service commit and what a landed commit leaves for the person.
+//! - `service_commit_fitting_request.rs`:
+//!   whether the request the embedded route would send fits the one line the service reads.
+//! - `service_commit_request_of.rs`:
+//!   the request one attempt of a commit sends:
+//!   the amended commit landing as a new one,
+//!   the commit Git builds,
+//!   or the commit the service builds from captured changes.
+//! - `service_work_branch_is_gone.rs`:
+//!   the notice for a push whose branch the person deleted.
+//! - `work_item_enqueue.rs`:
+//!   writing one producer's record,
+//!   or a round of them,
+//!   to the queue,
+//!   and finding what is already there.
+//! - `work_item_holding.rs`:
+//!   the steps of a work item that waits for its producer's approval.
+//! - `work_item_queued_ids.rs`:
+//!   the ids the queue still owes work for,
+//!   asked by a producer that writes a record and by a consumer that takes a name away.
+//! - `work_item_recovery.rs`:
+//!   the answers work item recovery holds.
+//! - `service_work_handlers_replanning_and_acceptance.rs`:
+//!   the kinds,
+//!   handlers,
+//!   acceptance rules,
+//!   settling and replanning of the service's work.
+//! - `service_work.rs`:
+//!   the service's consumer of after-commit push and upkeep work.
+//! - `push_record_of_a_moved_branch.rs`:
+//!   the push record a command that moves a branch leaves,
+//!   and the hand-off that wakes the service to run it with that command's programs.
+//! - `service_claim_watch_watched_repositories.rs`:
+//!   what the notes of one claim watch say about the repositories they name,
+//!   read without keeping anything.
+//! - `service_claim_watch.rs`:
+//!   the Git directories the service looks at by itself when it starts.
+//! - `service_claim_watch_note_within_a_ceiling.rs`:
+//!   the wait a landing gives the note that names its repository to the next service.
+//! - `service_handoff_queued_push_words.rs`:
+//!   the words a waiting push record is named with:
+//!   the bound a running service looks in and how long the record has waited.
+//! - `service_handoff.rs`:
+//!   the wrapper's side of after-commit work:
+//!   records and the wake.
+//! - `service_commit.rs`:
+//!   the commit command's path through the commit service.
+//! - `service_landed_aftermath.rs`:
+//!   what a landed commit leaves the command to do:
+//!   its result and the work after it.
+//! - `service_work_drain_waves_of_one_kind.rs`:
+//!   the bodies a wave of one kind asks of its handler,
+//!   and the line one answer that is done writes.
+//! - `service_work_run_round.rs`:
+//!   runs one round of the service's work over several directories.
+//! - `service_work_storage_awaited.rs`:
+//!   the storage steps of one drain of work,
+//!   each a job of the blocking pool awaited by a task.
+//! - `service_work_drains_a_snapshot_ahead.rs`:
+//!   the drain of the snapshots the commit service makes ahead of the next add,
+//!   as one step of a round.
+//! - `service_work_drains_awaiting.rs`:
+//!   the drains of one directory and of a common directory,
+//!   awaited by a task of the runtime.
+//! - `service_work_settling_a_verdict.rs`:
+//!   what a drained push's verdict does to its records,
+//!   its retry plan and the person.
+//! - `service_work_drain_pushes_of_each_branch.rs`:
+//!   the push step of one round:
+//!   the pushes grouped by branch,
+//!   the branches run beside each other,
+//!   and each settled as its own answer comes.
+//! - `service_work_settling_with_words.rs`:
+//!   how one item whose kind answers with words is settled,
+//!   with the line the person reads for it.
+//! - `service_work_drain_deletes_subvolumes.rs`:
+//!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_pending_claims.rs`:
+//!   drains the pending items of one work directory.
+//! - `service_work_items_side_by_side.rs`:
+//!   which items of one batch of that drain run at once and how many of them.
+//! - `service_work_slow_lane.rs`:
+//!   the service's work that can take minutes:
+//!   a lane of its own,
+//!   beside the round that serves the person's pushes.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // landing/index.ts: one `export * from './file'` per module below.
