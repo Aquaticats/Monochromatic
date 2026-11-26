@@ -36,10 +36,16 @@ use mpm_shadow::cli::names_a_declared_verb;
 use mpm_shadow::constants::SHADOWED_NAME;
 
 /// Imports the launcher mode.
-use mpm_shadow::toolchain::launcher::{launch_record_of_current_exe, run_launcher};
+use mpm_shadow::toolchain::launcher::{
+    launch_record_of_current_exe,
+    run_launcher,
+};
 
 /// Imports the shadow-mode function and the name check that picks it.
-use mpm_shadow::shim::{invoked_as_name, run_shim};
+use mpm_shadow::shim::{
+    invoked_as_name,
+    run_shim,
+};
 
 /// Imports the owned operating-system text type.
 use std::ffi::OsString;
@@ -84,7 +90,10 @@ fn main() {
         // const first = process.argv[2];
         // if (first !== undefined && namesADeclaredVerb(first)) process.exit(runCli(textOf(process.argv.slice(1))));
         // ```
-        if let Some(first) = all_arguments.get(1).map(std::ffi::OsString::as_os_str).and_then(std::ffi::OsStr::to_str)
+        if let Some(first) = all_arguments
+            .get(1)
+            .map(std::ffi::OsString::as_os_str)
+            .and_then(std::ffi::OsStr::to_str)
             && names_a_declared_verb(first)
         {
             // argv[0] stays `mpm`, so the usage lines say `mpm install`, the command the person typed.

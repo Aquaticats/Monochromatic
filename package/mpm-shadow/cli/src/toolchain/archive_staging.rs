@@ -35,7 +35,10 @@
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -50,8 +53,15 @@ pub const COMPLETE_MARKER: &str = ".mpm-shadow-installed";
 
 /// `<parent>/.<name>.<purpose>.<process id>`,
 /// a hidden sibling of `version_dir` that no version scan lists.
-fn hidden_sibling(version_dir: &Path, purpose: &str) -> PathBuf {
-    let name: String = format!(".{}.{purpose}.{}", file_name_text(version_dir), std::process::id());
+fn hidden_sibling(
+    version_dir: &Path,
+    purpose: &str,
+) -> PathBuf {
+    let name: String = format!(
+        ".{}.{purpose}.{}",
+        file_name_text(version_dir),
+        std::process::id()
+    );
     return version_dir.with_file_name(name);
 }
 
@@ -71,10 +81,17 @@ pub fn has_complete_marker(dir: &Path) -> bool {
 
 /// Writes the completion marker into `dir`;
 /// call it after everything else in the install has been checked.
-pub fn write_complete_marker(dir: &Path, tool_id: &str, version: &str) -> Result<(), ToolchainError> {
+pub fn write_complete_marker(
+    dir: &Path,
+    tool_id: &str,
+    version: &str,
+) -> Result<(), ToolchainError> {
     let marker: PathBuf = dir.join(COMPLETE_MARKER);
     if let Err(error) = fs::write(&marker, format!("{tool_id} {version}\n")) {
-        return Err(ToolchainError::failure(format!("cannot write {}: {error}", marker.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot write {}: {error}",
+            marker.display()
+        )));
     }
     return Ok(());
 }
@@ -113,7 +130,11 @@ pub fn discard_path(path: &Path) {
 /// ```ts
 /// export function publishStaged(staging: string, finalDir: string, firstBin: string): void  // throws
 /// ```
-pub fn publish_staged(staging: &Path, final_dir: &Path, first_bin: &str) -> Result<(), ToolchainError> {
+pub fn publish_staged(
+    staging: &Path,
+    final_dir: &Path,
+    first_bin: &str,
+) -> Result<(), ToolchainError> {
     if is_finished(final_dir, first_bin) {
         discard_path(staging);
         return Ok(());
@@ -141,7 +162,10 @@ pub fn publish_staged(staging: &Path, final_dir: &Path, first_bin: &str) -> Resu
             )));
         }
         discard_path(staging);
-        return Err(ToolchainError::failure(format!("cannot move the finished install to {}: {error}", final_dir.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot move the finished install to {}: {error}",
+            final_dir.display()
+        )));
     }
     if had_copy {
         discard_path(&aside);

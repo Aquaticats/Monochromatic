@@ -22,7 +22,10 @@
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
@@ -31,11 +34,20 @@ use super::error::ToolchainError;
 /// Imports `DEFAULT_MAX_DOWNLOAD_BYTES` from `super::http`.
 use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
 /// Imports what this module uses from `super::model`.
-use super::model::{Artifact, LockedTool};
+use super::model::{
+    Artifact,
+    LockedTool,
+};
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+};
 /// Imports the shared named helpers.
-use super::util::{file_name_os, file_name_text};
+use super::util::{
+    file_name_os,
+    file_name_text,
+};
 
 /// How many levels below the install directory `restore_exec_bits` looks for the launchers.
 const EXEC_SCAN_MAX_DEPTH: usize = 3;
@@ -55,7 +67,10 @@ pub const ARCHIVE_SUFFIXES: [&str; 6] = [".tar.gz", ".tgz", ".tar.xz", ".tar.bz2
 /// ```ts
 /// export function artifactForHost(tool: LockedTool, platform: string): Artifact  // throws
 /// ```
-pub fn artifact_for_host<'a>(tool: &'a LockedTool, platform: &str) -> Result<&'a Artifact, ToolchainError> {
+pub fn artifact_for_host<'a>(
+    tool: &'a LockedTool,
+    platform: &str,
+) -> Result<&'a Artifact, ToolchainError> {
     for (row_platform, artifact) in &tool.artifacts {
         if row_platform == platform {
             return Ok(artifact);
@@ -82,12 +97,24 @@ pub fn artifact_for_host<'a>(tool: &'a LockedTool, platform: &str) -> Result<&'a
 /// ```ts
 /// export function failedStep(what: string, tool: string, outcome: RunOutcome): ToolchainError
 /// ```
-pub fn failed_step(what: &str, tool_id: &str, outcome: &RunOutcome) -> ToolchainError {
-    return ToolchainError::failure(format!("{what} failed for {tool_id}: {}", outcome.failure_text()));
+pub fn failed_step(
+    what: &str,
+    tool_id: &str,
+    outcome: &RunOutcome,
+) -> ToolchainError {
+    return ToolchainError::failure(format!(
+        "{what} failed for {tool_id}: {}",
+        outcome.failure_text()
+    ));
 }
 
 /// Runs a request and turns a non-zero exit into a `failed_step` error naming `what` and the tool.
-pub fn run_checked(ctx: &Context, request: &RunRequest, what: &str, tool_id: &str) -> Result<RunOutcome, ToolchainError> {
+pub fn run_checked(
+    ctx: &Context,
+    request: &RunRequest,
+    what: &str,
+    tool_id: &str,
+) -> Result<RunOutcome, ToolchainError> {
     let outcome: RunOutcome = ctx.run(request);
     if !outcome.succeeded() {
         return Err(failed_step(what, tool_id, &outcome));
@@ -111,11 +138,19 @@ pub fn run_checked(ctx: &Context, request: &RunRequest, what: &str, tool_id: &st
 /// ```ts
 /// export function downloadVerified(ctx: Context, url: string, target: string, sha256: string): string
 /// ```
-pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) -> Result<PathBuf, ToolchainError> {
+pub fn download_verified(
+    ctx: &Context,
+    url: &str,
+    target: &Path,
+    sha256: &str,
+) -> Result<PathBuf, ToolchainError> {
     let mut temporary_name = file_name_os(target);
     temporary_name.push(".download");
     let temporary: PathBuf = target.with_file_name(temporary_name);
-    let observed: String = match ctx.http.download(url, &temporary, DEFAULT_MAX_DOWNLOAD_BYTES) {
+    let observed: String = match ctx
+        .http
+        .download(url, &temporary, DEFAULT_MAX_DOWNLOAD_BYTES)
+    {
         Ok(hash) => hash,
         Err(error) => {
             // Best effort: a partial download is useless, and the error below is what matters.
@@ -133,7 +168,10 @@ pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) 
     if let Err(error) = fs::rename(&temporary, target) {
         // Best effort: the verified temporary is useless at its name, and the error below is what matters.
         let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot move the verified download to {}: {error}", target.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot move the verified download to {}: {error}",
+            target.display()
+        )));
     }
     return Ok(target.to_path_buf());
 }
@@ -151,21 +189,44 @@ pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) 
 /// ```ts
 /// export function extractArchive(ctx: Context, archive: string, into: string): void
 /// ```
-pub fn extract_archive(ctx: &Context, archive: &Path, into: &Path) -> Result<(), ToolchainError> {
+pub fn extract_archive(
+    ctx: &Context,
+    archive: &Path,
+    into: &Path,
+) -> Result<(), ToolchainError> {
     if let Err(error) = fs::create_dir_all(into) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", into.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            into.display()
+        )));
     }
     let archive_text: String = archive.to_string_lossy().to_string();
     let into_text: String = into.to_string_lossy().to_string();
     let request: RunRequest = if archive_text.ends_with(".zip") {
         RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &into_text])
     } else {
-        RunRequest::new("tar", &["--extract", "--file", &archive_text, "--directory", &into_text])
+        RunRequest::new(
+            "tar",
+            &[
+                "--extract",
+                "--file",
+                &archive_text,
+                "--directory",
+                &into_text,
+            ],
+        )
     };
     let outcome: RunOutcome = ctx.run(&request.with_env(ctx.path_env()));
     if !outcome.succeeded() {
-        let program: &str = if archive_text.ends_with(".zip") { "unzip" } else { "tar" };
-        return Err(ToolchainError::failure(format!("{program} failed for {archive_text}: {}", outcome.failure_text())));
+        let program: &str = if archive_text.ends_with(".zip") {
+            "unzip"
+        } else {
+            "tar"
+        };
+        return Err(ToolchainError::failure(format!(
+            "{program} failed for {archive_text}: {}",
+            outcome.failure_text()
+        )));
     }
     return Ok(());
 }
@@ -183,20 +244,33 @@ pub fn extract_archive(ctx: &Context, archive: &Path, into: &Path) -> Result<(),
 /// ```ts
 /// export function extractConda(ctx: Context, archive: string, into: string): void
 /// ```
-pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), ToolchainError> {
+pub fn extract_conda(
+    ctx: &Context,
+    archive: &Path,
+    into: &Path,
+) -> Result<(), ToolchainError> {
     let staging: PathBuf = into.join(".conda-staging");
     // Best effort: a staging directory left by a killed run is cleared; absence is the normal case.
     let _ = fs::remove_dir_all(&staging);
     if let Err(error) = fs::create_dir_all(&staging) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", staging.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            staging.display()
+        )));
     }
     let archive_text: String = archive.to_string_lossy().to_string();
     let staging_text: String = staging.to_string_lossy().to_string();
-    let opened: RunOutcome = ctx.run(&RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &staging_text]).with_env(ctx.path_env()));
+    let opened: RunOutcome = ctx.run(
+        &RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &staging_text])
+            .with_env(ctx.path_env()),
+    );
     if !opened.succeeded() {
         // Best effort: the staging directory only held the outer archive's members, and the error below is what matters.
         let _ = fs::remove_dir_all(&staging);
-        return Err(ToolchainError::failure(format!("unzip failed for {archive_text}: {}", opened.failure_text())));
+        return Err(ToolchainError::failure(format!(
+            "unzip failed for {archive_text}: {}",
+            opened.failure_text()
+        )));
     }
     let mut names: Vec<PathBuf> = Vec::new();
     if let Ok(entries) = fs::read_dir(&staging) {
@@ -216,15 +290,33 @@ pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), T
     let Some(payload_path) = payload else {
         // Best effort: the staging directory only held the outer archive's members, and the error below is what matters.
         let _ = fs::remove_dir_all(&staging);
-        return Err(ToolchainError::failure(format!("{archive_text} holds no pkg-*.tar.zst payload")));
+        return Err(ToolchainError::failure(format!(
+            "{archive_text} holds no pkg-*.tar.zst payload"
+        )));
     };
     let payload_text: String = payload_path.to_string_lossy().to_string();
     let into_text: String = into.to_string_lossy().to_string();
-    let unpacked: RunOutcome = ctx.run(&RunRequest::new("tar", &["--extract", "--zstd", "--file", &payload_text, "--directory", &into_text]).with_env(ctx.path_env()));
+    let unpacked: RunOutcome = ctx.run(
+        &RunRequest::new(
+            "tar",
+            &[
+                "--extract",
+                "--zstd",
+                "--file",
+                &payload_text,
+                "--directory",
+                &into_text,
+            ],
+        )
+        .with_env(ctx.path_env()),
+    );
     // Best effort: the staging directory only held the outer archive's members.
     let _ = fs::remove_dir_all(&staging);
     if !unpacked.succeeded() {
-        return Err(ToolchainError::failure(format!("tar --zstd failed for {payload_text}: {}", unpacked.failure_text())));
+        return Err(ToolchainError::failure(format!(
+            "tar --zstd failed for {payload_text}: {}",
+            unpacked.failure_text()
+        )));
     }
     return Ok(());
 }
@@ -237,7 +329,10 @@ pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {
         /// Imports `PermissionsExt` from `std::os::unix::fs`.
         use std::os::unix::fs::PermissionsExt;
         if let Err(error) = fs::set_permissions(path, fs::Permissions::from_mode(0o755)) {
-            return Err(ToolchainError::failure(format!("cannot mark {} executable: {error}", path.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot mark {} executable: {error}",
+                path.display()
+            )));
         }
     }
     #[cfg(not(unix))]
@@ -257,7 +352,10 @@ pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {
 /// ```ts
 /// export function restoreExecBits(root: string, names: string[]): string[]
 /// ```
-pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
+pub fn restore_exec_bits(
+    root: &Path,
+    names: &[String],
+) -> Vec<String> {
     let mut fixed: Vec<String> = Vec::new();
     let mut level: Vec<PathBuf> = vec![root.to_path_buf()];
     for depth in 0..=EXEC_SCAN_MAX_DEPTH {
@@ -277,7 +375,8 @@ pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
                     if depth < EXEC_SCAN_MAX_DEPTH {
                         next.push(path);
                     }
-                } else if path.is_file() && names.contains(&name) && make_executable(&path).is_ok() {
+                } else if path.is_file() && names.contains(&name) && make_executable(&path).is_ok()
+                {
                     fixed.push(name);
                 }
             }
@@ -299,11 +398,17 @@ pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
 /// ```ts
 /// export function atomicSymlink(linkPath: string, target: string): void
 /// ```
-pub fn atomic_symlink(link_path: &Path, target: &Path) -> Result<(), ToolchainError> {
+pub fn atomic_symlink(
+    link_path: &Path,
+    target: &Path,
+) -> Result<(), ToolchainError> {
     if let Some(parent) = link_path.parent()
         && let Err(error) = fs::create_dir_all(parent)
     {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            parent.display()
+        )));
     }
     let mut temporary_name = std::ffi::OsString::from(".");
     temporary_name.push(link_path.file_name().unwrap_or_default());
@@ -324,7 +429,10 @@ pub fn atomic_symlink(link_path: &Path, target: &Path) -> Result<(), ToolchainEr
     }
     if let Err(error) = fs::rename(&temporary, link_path) {
         let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot place the link {}: {error}", link_path.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot place the link {}: {error}",
+            link_path.display()
+        )));
     }
     return Ok(());
 }

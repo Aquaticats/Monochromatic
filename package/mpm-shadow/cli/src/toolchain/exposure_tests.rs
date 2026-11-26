@@ -16,12 +16,21 @@ use std::path::PathBuf;
 use super::cargo_installs::current_link;
 /// Imports `rebuild_exposure`,
 /// `expose_running_shadow` from `super::exposure`.
-use super::exposure::{expose_running_shadow, rebuild_exposure};
+use super::exposure::{
+    expose_running_shadow,
+    rebuild_exposure,
+};
 /// Imports what this module uses from `super::fakes`.
-use super::fakes::{Rig, write_executable};
+use super::fakes::{
+    Rig,
+    write_executable,
+};
 /// Imports `parse_record`,
 /// `record_path` from `super::launcher`.
-use super::launcher::{parse_record, record_path};
+use super::launcher::{
+    parse_record,
+    record_path,
+};
 
 /// The id the sample plan gives `mpm-shadow`.
 const SHADOW_TOOL_ID: &str = "cargo:monochromatic-mpm-shadow";
@@ -48,7 +57,12 @@ const SHADOW_PROGRAM: &str = "mpm-shadow";
 /// the program below `bin`,
 /// and the tool's `current` link naming the version.
 fn installed_shadow(rig: &Rig) -> PathBuf {
-    let version_dir: PathBuf = rig.scope.toolchain_root.join("cargo").join(SHADOW_CRATE).join(INSTALLED);
+    let version_dir: PathBuf = rig
+        .scope
+        .toolchain_root
+        .join("cargo")
+        .join(SHADOW_CRATE)
+        .join(INSTALLED);
     let program: PathBuf = version_dir.join("bin").join(SHADOW_PROGRAM);
     write_executable(&program);
     fs::write(
@@ -56,7 +70,11 @@ fn installed_shadow(rig: &Rig) -> PathBuf {
         format!("[v1]\n\"{SHADOW_CRATE} {INSTALLED} (registry+https://example.invalid/index)\" = [\"{SHADOW_PROGRAM}\"]\n"),
     )
     .expect("write cargo's record");
-    symlink(INSTALLED, current_link(&rig.scope.toolchain_root, SHADOW_CRATE)).expect("link current");
+    symlink(
+        INSTALLED,
+        current_link(&rig.scope.toolchain_root, SHADOW_CRATE),
+    )
+    .expect("link current");
     return program;
 }
 
@@ -71,16 +89,21 @@ fn uninstalled_shadow(rig: &Rig) -> PathBuf {
 #[test]
 fn the_farm_links_the_running_shadow_under_its_own_name() {
     let mut rig = Rig::new();
-    rig.lock.tools.retain(|tool| return tool.declaration.id != SHADOW_TOOL_ID);
+    rig.lock
+        .tools
+        .retain(|tool| return tool.declaration.id != SHADOW_TOOL_ID);
     let program: PathBuf = installed_shadow(&rig);
 
-    let linked: Option<String> = expose_running_shadow(&rig.context(), &program).expect("the farm is writable");
+    let linked: Option<String> =
+        expose_running_shadow(&rig.context(), &program).expect("the farm is writable");
 
     assert_eq!(linked, Some(SHADOW_PROGRAM.to_string()));
     let link: PathBuf = rig.scope.exposure_dir.join(SHADOW_PROGRAM);
     assert_eq!(
         fs::read_link(&link).expect("a symlink"),
-        current_link(&rig.scope.toolchain_root, SHADOW_CRATE).join("bin").join(SHADOW_PROGRAM),
+        current_link(&rig.scope.toolchain_root, SHADOW_CRATE)
+            .join("bin")
+            .join(SHADOW_PROGRAM),
         "the link names the program through the tool's `current` link, so a later version move never leaves it dangling"
     );
     assert_eq!(
@@ -93,12 +116,21 @@ fn the_farm_links_the_running_shadow_under_its_own_name() {
 #[test]
 fn a_shadow_that_belongs_to_no_install_links_nothing() {
     let mut rig = Rig::new();
-    rig.lock.tools.retain(|tool| return tool.declaration.id != SHADOW_TOOL_ID);
+    rig.lock
+        .tools
+        .retain(|tool| return tool.declaration.id != SHADOW_TOOL_ID);
 
-    let linked: Option<String> = expose_running_shadow(&rig.context(), &uninstalled_shadow(&rig)).expect("nothing to do");
+    let linked: Option<String> =
+        expose_running_shadow(&rig.context(), &uninstalled_shadow(&rig)).expect("nothing to do");
 
-    assert_eq!(linked, None, "a build folder is not an install, so it never goes on the machine's PATH");
-    assert!(!rig.scope.exposure_dir.join(SHADOW_PROGRAM).exists(), "the farm holds no link for it");
+    assert_eq!(
+        linked, None,
+        "a build folder is not an install, so it never goes on the machine's PATH"
+    );
+    assert!(
+        !rig.scope.exposure_dir.join(SHADOW_PROGRAM).exists(),
+        "the farm holds no link for it"
+    );
 }
 
 #[test]
@@ -106,9 +138,13 @@ fn a_plan_that_declares_the_name_keeps_its_own_link() {
     let rig = Rig::new();
     let program: PathBuf = installed_shadow(&rig);
 
-    let linked: Option<String> = expose_running_shadow(&rig.context(), &program).expect("nothing to do");
+    let linked: Option<String> =
+        expose_running_shadow(&rig.context(), &program).expect("nothing to do");
 
-    assert_eq!(linked, None, "the plan's own row owns the farm link for the bin it declares");
+    assert_eq!(
+        linked, None,
+        "the plan's own row owns the farm link for the bin it declares"
+    );
     let tool = rig.tool(SHADOW_TOOL_ID);
     rebuild_exposure(&rig.context(), &[&tool]).expect("rebuilt");
     assert_eq!(
@@ -116,7 +152,13 @@ fn a_plan_that_declares_the_name_keeps_its_own_link() {
         rig.scope.launcher_dir.join(SHADOW_PROGRAM),
         "a declared bin goes through this tree's launcher, so its record warns about that row"
     );
-    let record = parse_record(&fs::read_to_string(record_path(&rig.scope.launcher_dir.join(SHADOW_PROGRAM))).expect("a record"))
-        .expect("it parses");
-    assert_eq!(record.tool_id, SHADOW_TOOL_ID, "the record names the row the farm link belongs to");
+    let record = parse_record(
+        &fs::read_to_string(record_path(&rig.scope.launcher_dir.join(SHADOW_PROGRAM)))
+            .expect("a record"),
+    )
+    .expect("it parses");
+    assert_eq!(
+        record.tool_id, SHADOW_TOOL_ID,
+        "the record names the row the farm link belongs to"
+    );
 }

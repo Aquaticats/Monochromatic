@@ -25,7 +25,10 @@ use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `is_repository_published` from `super::cargo_installs`.
 use super::cargo_installs::is_repository_published;
@@ -38,13 +41,23 @@ use super::install_support::atomic_symlink;
 /// Imports `ensure_launcher` from `super::launcher`.
 use super::launcher::ensure_launcher;
 /// Imports what this module uses from `super::launcher_source`.
-use super::launcher_source::{newest_installed_shadow, program_name, running_program};
+use super::launcher_source::{
+    newest_installed_shadow,
+    program_name,
+    running_program,
+};
 /// Imports `find_tool_bin` from `super::layout`.
 use super::layout::find_tool_bin;
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Postinstall};
+use super::model::{
+    LockedTool,
+    Postinstall,
+};
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
@@ -75,7 +88,12 @@ fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
 /// ```ts
 /// function exposedTarget(scope: Scope, tool: LockedTool, name: string, found: string): string
 /// ```
-fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) -> Result<PathBuf, ToolchainError> {
+fn exposed_target(
+    scope: &Scope,
+    tool: &LockedTool,
+    name: &str,
+    found: &Path,
+) -> Result<PathBuf, ToolchainError> {
     if is_repository_published(tool) {
         return ensure_launcher(scope, &tool.declaration.id, name, found);
     }
@@ -99,13 +117,24 @@ fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) ->
 /// ```ts
 /// export function rebuildExposure(ctx: Context, tools: LockedTool[]): ExposureReport
 /// ```
-pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<ExposureReport, ToolchainError> {
+pub fn rebuild_exposure(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> Result<ExposureReport, ToolchainError> {
     if let Err(error) = fs::create_dir_all(&ctx.scope.exposure_dir) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", ctx.scope.exposure_dir.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            ctx.scope.exposure_dir.display()
+        )));
     }
     let mut report: ExposureReport = ExposureReport::default();
     for tool in tools {
-        let aliases: Vec<(String, String)> = tool.declaration.options.bin_aliases.clone().unwrap_or_default();
+        let aliases: Vec<(String, String)> = tool
+            .declaration
+            .options
+            .bin_aliases
+            .clone()
+            .unwrap_or_default();
         for name in &tool.declaration.bins {
             let mut primary: String = name.clone();
             for (alias, primary_name) in &aliases {
@@ -153,7 +182,10 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
 /// ```ts
 /// export function exposeRunningShadow(ctx: Context, running: string): string | undefined
 /// ```
-pub fn expose_running_shadow(ctx: &Context, running: &Path) -> Result<Option<String>, ToolchainError> {
+pub fn expose_running_shadow(
+    ctx: &Context,
+    running: &Path,
+) -> Result<Option<String>, ToolchainError> {
     let Some(installed) = newest_installed_shadow(ctx.scope, running) else {
         return Ok(None);
     };
@@ -171,7 +203,10 @@ pub fn expose_running_shadow(ctx: &Context, running: &Path) -> Result<Option<Str
 }
 
 /// Whether a tool of the scope's lock declares `name` as one of its bins.
-fn declares_bin(tools: &[LockedTool], name: &str) -> bool {
+fn declares_bin(
+    tools: &[LockedTool],
+    name: &str,
+) -> bool {
     for tool in tools {
         for bin in &tool.declaration.bins {
             if bin == name {
@@ -187,12 +222,19 @@ fn declares_bin(tools: &[LockedTool], name: &str) -> bool {
 /// or relative to the scope root),
 /// or the
 /// scope's link directory.
-pub fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
+pub fn link_directory(
+    scope: &Scope,
+    link_dir: &Option<String>,
+) -> PathBuf {
     return match link_dir {
         None => scope.link_dir.clone(),
         Some(directory) => {
             let path: &Path = Path::new(directory);
-            if path.is_absolute() { path.to_path_buf() } else { scope.root.join(path) }
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                scope.root.join(path)
+            }
         }
     };
 }
@@ -226,13 +268,18 @@ pub struct MadeLinks {
 /// and reports every link made even when a later one failed.
 /// Why:
 /// The cleanup of links the lock no longer declares needs the full path and target of each link made.
-pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks {
+pub fn make_postinstall_links(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> MadeLinks {
     let mut outcome: MadeLinks = MadeLinks::default();
     for tool in tools {
         let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
             continue;
         };
-        let Some(found) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
+        let Some(found) =
+            find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+        else {
             continue;
         };
         let target: PathBuf = match exposed_target(ctx.scope, tool, &link.source_bin, &found) {
@@ -247,7 +294,11 @@ pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks
             outcome.error = Some(error);
             return outcome;
         }
-        outcome.made.push(MadeLink { name: link.link_name.clone(), path, target });
+        outcome.made.push(MadeLink {
+            name: link.link_name.clone(),
+            path,
+            target,
+        });
     }
     return outcome;
 }
@@ -262,7 +313,10 @@ pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks
 /// ```ts
 /// export function runPostinstallLinks(ctx: Context, tools: LockedTool[]): string[]
 /// ```
-pub fn run_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Vec<String>, ToolchainError> {
+pub fn run_postinstall_links(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> Result<Vec<String>, ToolchainError> {
     let outcome: MadeLinks = make_postinstall_links(ctx, tools);
     if let Some(error) = outcome.error {
         return Err(error);
@@ -329,9 +383,16 @@ fn path_text(path: std::ffi::OsString) -> String {
 /// ```ts
 /// export function runPostinstallCommands(ctx: Context, tools: LockedTool[]): CommandReport
 /// ```
-pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> CommandReport {
+pub fn run_postinstall_commands(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> CommandReport {
     let mut report: CommandReport = CommandReport::default();
-    let joined: String = match postinstall_path(&ctx.scope.exposure_dir, &ctx.scope.toolchain_bin_dir, ctx.env.get("PATH")) {
+    let joined: String = match postinstall_path(
+        &ctx.scope.exposure_dir,
+        &ctx.scope.toolchain_bin_dir,
+        ctx.env.get("PATH"),
+    ) {
         Ok(path) => path,
         Err(error) => {
             // Refusing beats running the command on the inherited PATH alone, where it would miss the tools the
@@ -355,7 +416,9 @@ pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> Command
         let Some(Postinstall::Run(step)) = &tool.declaration.options.postinstall else {
             continue;
         };
-        let Some(target) = find_tool_bin(tool, &step.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
+        let Some(target) =
+            find_tool_bin(tool, &step.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+        else {
             continue;
         };
         let request: RunRequest = RunRequest {
@@ -384,7 +447,10 @@ pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> Command
 }
 
 /// The declared binary names of `tools` whose exposure link does not resolve.
-pub fn unresolvable_bins(scope: &Scope, tools: &[&LockedTool]) -> Vec<String> {
+pub fn unresolvable_bins(
+    scope: &Scope,
+    tools: &[&LockedTool],
+) -> Vec<String> {
     let mut unresolved: Vec<String> = Vec::new();
     for tool in tools {
         for name in &tool.declaration.bins {
