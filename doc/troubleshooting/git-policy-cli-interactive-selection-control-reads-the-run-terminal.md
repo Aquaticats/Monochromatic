@@ -115,10 +115,11 @@ With a terminal on the run's standard input, on this host:
 - after, both selection controls together answered `ok. 2 passed; 0 failed`.
 
 After `main` renamed the child helper (`run_the_body_in_a_child_of_its_own`, which takes the body as a
-closure) and this branch merged it again, the same runs answered
-`test result: ok. 230 passed; 0 failed` in 17.94 s with a terminal on the run's standard input,
+closure) and generalised the guards' shared scan (`source_guard/process_wide_fact_readers_tests.rs`),
+and this branch merged both again, the same runs answered
+`test result: ok. 230 passed; 0 failed` in 17.92 s with a terminal on the run's standard input,
 `ok. 52 passed; 0 failed` for `commit::commit_index::`,
-`ok. 148 passed; 0 failed` for `source_guard::`
+`ok. 157 passed; 0 failed` for `source_guard::`
 and `ok. 2 passed; 0 failed` for `testing::process_wide_state_child_test_support`;
 the run left no Git process behind, and its capped scope ended with it.
 

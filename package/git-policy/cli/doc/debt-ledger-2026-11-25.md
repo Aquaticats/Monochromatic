@@ -820,11 +820,14 @@ the starter was restored.
 and `source_guard::` `ok. 144 passed; 0 failed`.
 After `main` renamed the helper to `run_the_body_in_a_child_of_its_own`
 (which takes the body as a closure),
-the controls and both guards follow the new name and the runs were made again:
+the controls follow the new name and main generalised the guards' shared scan
+(`source_guard/process_wide_fact_readers_tests.rs`),
+so this ban states a `Requirement` there and its own copy of the scan is gone;
+the runs were made again:
 the issue's `index::` filter with a terminal on the run's standard input answered
-`test result: ok. 230 passed; 0 failed` in 17.94 s,
+`test result: ok. 230 passed; 0 failed` in 17.92 s,
 `commit::commit_index::` `ok. 52 passed; 0 failed`,
-`source_guard::` `ok. 148 passed; 0 failed`
+`source_guard::` `ok. 157 passed; 0 failed`
 and `testing::process_wide_state_child_test_support` `ok. 2 passed; 0 failed`;
 the guarded control without its child answered `FAILED. 2 passed; 1 failed`
 naming `commit/commit_index_tests.rs:981`,
