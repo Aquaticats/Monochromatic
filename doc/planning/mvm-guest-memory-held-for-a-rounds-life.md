@@ -1,5 +1,22 @@
 # How mvm guests could hold less of the host's memory
 
+## Shelved until the crate split (owner, 2026-11-26T00:20-05:00)
+
+After four revisions and four gate reads,
+the fourth read found that no figure here flips a recommendation
+but that three of the questions still rest on evidence that does not support them:
+the second quotes arm times of a driver outside its scope,
+the third recommends a move with a measured host cost (a 9.0 GiB container build) and no measured gain,
+and the first pools guests without the reporting balloon with guests that have it.
+Asked what should happen to the proposal,
+the owner answered "Shelve until the split (Recommended)":
+nearly every figure measures guests building today's single wrapper crate,
+which the crate split in `doc/planning/cli-git-source-layout.md` replaces with smaller crates.
+So no question here goes to the owner,
+guests keep `mvm`'s 8,192 MiB default,
+and guest memory is measured again once the split's crates build in a guest,
+starting from the fourth read's findings.
+
 This draft is written by an agent and is unapproved:
 it proposes,
 it changes no code and no `mvm` default,
