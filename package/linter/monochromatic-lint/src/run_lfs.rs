@@ -156,7 +156,8 @@ impl LfsRepos {
         let Some(repo): Option<Arc<LfsImageRepo>> = self.repository_at(&root)? else {
             return Ok(None);
         };
-        let context: LfsImageContext = prepare_lfs_image_context(&repo, file_path, document)?;
+        let context: LfsImageContext =
+            prepare_lfs_image_context(&repo, file_path, document, setting.max_image_bytes)?;
         return Ok(Some(context));
     }
 }

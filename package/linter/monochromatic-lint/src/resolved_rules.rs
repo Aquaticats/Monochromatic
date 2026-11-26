@@ -16,6 +16,8 @@ use crate::config_data::{
 };
 /// Import the configuration error type returned when completed rules fail validation.
 use crate::config_error::ConfigError;
+/// Import the default bound the `markdown/lfs-image-url` rule reads one tracked image under.
+use crate::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 /// Import the same exact JSONC representation used by parsing and merging.
 use monochromatic_jsonc_edit::{
     JsoncEntry,
@@ -60,6 +62,7 @@ pub(crate) fn complete_rules(mut rules: JsoncValue) -> Result<JsoncValue, Config
         let mut severity_present = false;
         let mut max_present = false;
         let mut exclude_present = false;
+        let mut max_image_bytes_present = false;
         for option in options.iter() {
             let name = key_text(&option.key.units)?;
             if name == "severity" {
@@ -74,6 +77,8 @@ pub(crate) fn complete_rules(mut rules: JsoncValue) -> Result<JsoncValue, Config
                 max_present = true;
             } else if name == "exclude" {
                 exclude_present = true;
+            } else if name == "max-image-bytes" {
+                max_image_bytes_present = true;
             }
         }
         if !severity_present {
@@ -102,6 +107,16 @@ pub(crate) fn complete_rules(mut rules: JsoncValue) -> Result<JsoncValue, Config
             options.push(JsoncEntry {
                 key: JsoncKey::from_text("exclude"),
                 value: JsoncValue::array(Vec::new()),
+            });
+        }
+        if id == "markdown/lfs-image-url" && !max_image_bytes_present {
+            // The literal comes from the constant the rule reads, so the default exists once.
+            let default: String = DEFAULT_MAX_IMAGE_BYTES.to_string();
+            let value = JsoncValue::number_from_token(default.as_str())
+                .expect("default image bound is a JSON number");
+            options.push(JsoncEntry {
+                key: JsoncKey::from_text("max-image-bytes"),
+                value,
             });
         }
     }

@@ -36,6 +36,7 @@ fn setting(exclude: &[&str]) -> LfsSetting {
     return LfsSetting {
         severity: Severity::Error,
         exclude: PathPatterns::new(patterns.as_slice()).expect("patterns compile"),
+        max_image_bytes: crate::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES,
     };
 }
 
