@@ -12,11 +12,22 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    Expectation, GENERATED_SHAPES, GeneratedReply, check_batch_reply, check_batch_reply_within,
-    check_generated_reply, generated_reply, object_of, read_within, render_found,
+    Expectation,
+    GENERATED_SHAPES,
+    GeneratedReply,
+    check_batch_reply,
+    check_batch_reply_within,
+    check_generated_reply,
+    generated_reply,
+    object_of,
+    read_within,
+    render_found,
     request_and_stream,
 };
-use git_policy_cli::candidate_batch::{BatchReply, ObjectKind};
+use git_policy_cli::candidate_batch::{
+    BatchReply,
+    ObjectKind,
+};
 use git_policy_cli::candidate_error::CandidateFailure;
 
 /// Raw bytes split at the first line feed only;

@@ -11,7 +11,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared checks.
-use git_policy_cli_fuzz::dbus_reply::{check_generated_reply, check_raw_reply};
+use git_policy_cli_fuzz::dbus_reply::{
+    check_generated_reply,
+    check_raw_reply,
+};
 use libfuzzer_sys::fuzz_target;
 
 // The `|data: &[u8]|` form is the macro's input grammar, not a closure.

@@ -10,8 +10,13 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    check_copy_owner_token, check_generated_copy_owner_token, check_owner_file_names, check_stat,
-    check_transaction_owner, generated_copy_owner_token, generated_stat,
+    check_copy_owner_token,
+    check_generated_copy_owner_token,
+    check_owner_file_names,
+    check_stat,
+    check_transaction_owner,
+    generated_copy_owner_token,
+    generated_stat,
 };
 
 /// Inputs of three bytes over a spread of values,
