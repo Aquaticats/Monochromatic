@@ -1,6 +1,26 @@
 //! Controls for the service's log lines on a thread of their own:
 //! a stream that never drains holds no caller,
 //! the queue is bounded and says how many lines it dropped.
+//!
+//! These controls need one process per test:
+//!  the queue, its thread and the stream they write are one for the process,
+//! `give_the_thread` puts a control's stream in the one place they write,
+//!  `queued()` and `dropped_so_far()` read the one queue every control of the run hands lines to,
+//!  and a control whose reader goes
+//! ends that thread for good.
+//! A run that shares one process between them therefore fails them:
+//! measured on 2026-11-26 on `main`'s code at `4674e5b44a`,
+//!  a threaded run of this module failed 5 of its 6 controls (`1 passed; 5 failed`),
+//!  `--test-threads=1` failed 2 of the 6 (`4 passed; 2 failed`),
+//!  and each of the six passed alone in a process of its own.
+//! A probe of the threaded run named the sharing:
+//!  four controls gave that one queue a stream in one process,
+//!  and the line of one control took ticket 5 after the four lines of the others,
+//!  the ticket being one counter for the process.
+//! So each control runs its body in a child process of its own
+//! (`testing/process_wide_state_child_test_support.rs`),
+//!  which is also how the package's gate runs them (`cargo nextest`),
+//!  and the module's controls pass a threaded run now (issue 6521).
 
 use super::*;
 
@@ -60,44 +80,50 @@ fn one_pipe_s_holding() -> usize {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_stream_nobody_drains_holds_no_caller() {
-    let capacity: usize = one_pipe_s_holding();
-    let (reader, writer) = std::io::pipe().expect("a pipe");
-    // The stream is full before the thread is given it, so the thread's first write is the one that waits.
-    let mut filled: Box<dyn Write + Send> =
-        Box::new(writer.try_clone().expect("a second write end"));
-    let block: Vec<u8> = vec![b'.'; capacity];
-    filled
-        .write_all(block.as_slice())
-        .expect("the stream fills");
-    give_the_thread(Box::new(writer));
-    // Twice the queue's length: whatever the thread has taken, the rest cannot all fit, and every line that does not fit
-    //  is counted rather than waited for.
-    let lines: usize = QUEUED_LINES.saturating_mul(2);
-    for index in 0..lines {
-        let line: String = format!("a log line that nobody reads {index}\n");
-        let _taken = hand(line.as_str());
-    }
-    let queued: usize = queued();
-    let dropped: u64 = dropped_so_far();
-    // The thread holds at most one line in its own write, so the queue and the count account for every line handed over.
-    assert!(
-        queued <= QUEUED_LINES,
-        "the queue never grows past its bound: {queued}"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_stream_nobody_drains_holds_no_caller",
+        || {
+            let capacity: usize = one_pipe_s_holding();
+            let (reader, writer) = std::io::pipe().expect("a pipe");
+            // The stream is full before the thread is given it, so the thread's first write is the one that waits.
+            let mut filled: Box<dyn Write + Send> =
+                Box::new(writer.try_clone().expect("a second write end"));
+            let block: Vec<u8> = vec![b'.'; capacity];
+            filled
+                .write_all(block.as_slice())
+                .expect("the stream fills");
+            give_the_thread(Box::new(writer));
+            // Twice the queue's length: whatever the thread has taken, the rest cannot all fit, and every line that does not fit
+            //  is counted rather than waited for.
+            let lines: usize = QUEUED_LINES.saturating_mul(2);
+            for index in 0..lines {
+                let line: String = format!("a log line that nobody reads {index}\n");
+                let _taken = hand(line.as_str());
+            }
+            let queued: usize = queued();
+            let dropped: u64 = dropped_so_far();
+            // The thread holds at most one line in its own write, so the queue and the count account for every line handed over.
+            assert!(
+                queued <= QUEUED_LINES,
+                "the queue never grows past its bound: {queued}"
+            );
+            assert!(
+                dropped > 0,
+                "a stream nobody drains makes the queue drop lines rather than hold the caller: {queued} queued, {dropped} dropped"
+            );
+            assert!(
+                u64::try_from(queued)
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(dropped)
+                    <= u64::try_from(lines).unwrap_or(u64::MAX),
+                "no line is counted twice: {queued} queued and {dropped} dropped of {lines}"
+            );
+            // The stream is closed, so the waiting thread finds it closed instead of standing in a write for the life of this process.
+            drop(reader);
+            drop(filled);
+        },
     );
-    assert!(
-        dropped > 0,
-        "a stream nobody drains makes the queue drop lines rather than hold the caller: {queued} queued, {dropped} dropped"
-    );
-    assert!(
-        u64::try_from(queued)
-            .unwrap_or(u64::MAX)
-            .saturating_add(dropped)
-            <= u64::try_from(lines).unwrap_or(u64::MAX),
-        "no line is counted twice: {queued} queued and {dropped} dropped of {lines}"
-    );
-    // The stream is closed, so the waiting thread finds it closed instead of standing in a write for the life of this process.
-    drop(reader);
-    drop(filled);
 }
 
 /// What:
@@ -120,61 +146,67 @@ fn a_stream_nobody_drains_holds_no_caller() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    give_the_thread(Box::new(writer));
-    let line: &str = "the last line before this process ends\n";
-    assert!(hand(line), "the queue has room for one line");
-    assert!(
-        write_what_waits(WAIT_BEFORE_AN_EXIT),
-        "the line reached the stream within the bound"
-    );
-    // The stream is read the moment nothing is waiting to write it, so a non-blocking read has the whole line or nothing.
-    // SAFETY: `fcntl` takes a descriptor this process owns and an integer command, and writes no memory here.
-    let flags: std::ffi::c_int =
-        unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETFL) };
-    assert!(flags >= 0, "the read end's flags are readable");
-    // SAFETY: the same descriptor, with the flags it already had plus the one that makes a read return instead of waiting.
-    let set: std::ffi::c_int = unsafe {
-        libc::fcntl(
-            std::os::fd::AsRawFd::as_raw_fd(&reader),
-            libc::F_SETFL,
-            flags | libc::O_NONBLOCK,
-        )
-    };
-    assert_eq!(set, 0, "the read end is made non-blocking");
-    let mut text: String = String::new();
-    let _taken = std::io::Read::read_to_string(&mut reader, &mut text);
-    assert_eq!(
-        text, line,
-        "what the end waited for is what the stream holds"
-    );
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_handed_before_the_end_waits_and_reaches_the_stream",
+        || {
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let line: &str = "the last line before this process ends\n";
+            assert!(hand(line), "the queue has room for one line");
+            assert!(
+                write_what_waits(WAIT_BEFORE_AN_EXIT),
+                "the line reached the stream within the bound"
+            );
+            // The stream is read the moment nothing is waiting to write it, so a non-blocking read has the whole line or nothing.
+            // SAFETY: `fcntl` takes a descriptor this process owns and an integer command, and writes no memory here.
+            let flags: std::ffi::c_int =
+                unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETFL) };
+            assert!(flags >= 0, "the read end's flags are readable");
+            // SAFETY: the same descriptor, with the flags it already had plus the one that makes a read return instead of waiting.
+            let set: std::ffi::c_int = unsafe {
+                libc::fcntl(
+                    std::os::fd::AsRawFd::as_raw_fd(&reader),
+                    libc::F_SETFL,
+                    flags | libc::O_NONBLOCK,
+                )
+            };
+            assert_eq!(set, 0, "the read end is made non-blocking");
+            let mut text: String = String::new();
+            let _taken = std::io::Read::read_to_string(&mut reader, &mut text);
+            assert_eq!(
+                text, line,
+                "what the end waited for is what the stream holds"
+            );
 
-    // The arm that proves the bound: a stream already full, and a line the thread takes and stands in.
-    let capacity: usize = one_pipe_s_holding();
-    let (unread_end, write_end) = std::io::pipe().expect("a pipe");
-    let mut filled: Box<dyn Write + Send> =
-        Box::new(write_end.try_clone().expect("a second write end"));
-    filled
-        .write_all(vec![b'.'; capacity].as_slice())
-        .expect("the stream fills");
-    give_the_thread(Box::new(write_end));
-    assert!(hand("a line nobody can read\n"), "the queue has room");
-    let began: std::time::Instant = std::time::Instant::now();
-    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
-    assert!(
-        !written,
-        "a stream nobody drains is not written, and the end is told so rather than waiting forever"
+            // The arm that proves the bound: a stream already full, and a line the thread takes and stands in.
+            let capacity: usize = one_pipe_s_holding();
+            let (unread_end, write_end) = std::io::pipe().expect("a pipe");
+            let mut filled: Box<dyn Write + Send> =
+                Box::new(write_end.try_clone().expect("a second write end"));
+            filled
+                .write_all(vec![b'.'; capacity].as_slice())
+                .expect("the stream fills");
+            give_the_thread(Box::new(write_end));
+            assert!(hand("a line nobody can read\n"), "the queue has room");
+            let began: std::time::Instant = std::time::Instant::now();
+            let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+            assert!(
+                !written,
+                "a stream nobody drains is not written, and the end is told so rather than waiting forever"
+            );
+            assert!(
+                began.elapsed() < WAIT_BEFORE_AN_EXIT.saturating_mul(8),
+                "the end waited its bound ({} ms) and no longer: {:?}",
+                WAIT_BEFORE_AN_EXIT.as_millis(),
+                began.elapsed()
+            );
+            // The stream is closed behind the standing write, so the thread that waits there ends with this stream rather than
+            //  with the process.
+            drop(unread_end);
+            drop(filled);
+        },
     );
-    assert!(
-        began.elapsed() < WAIT_BEFORE_AN_EXIT.saturating_mul(8),
-        "the end waited its bound ({} ms) and no longer: {:?}",
-        WAIT_BEFORE_AN_EXIT.as_millis(),
-        began.elapsed()
-    );
-    // The stream is closed behind the standing write, so the thread that waits there ends with this stream rather than
-    //  with the process.
-    drop(unread_end);
-    drop(filled);
 }
 
 /// What:
@@ -278,36 +310,45 @@ fn what_the_stream_gives_within(
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_a_stream_has_no_room_for_is_written_when_the_room_appears() {
-    let capacity: usize = one_pipe_s_holding();
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    let mut filling: std::io::PipeWriter = writer.try_clone().expect("a second write end");
-    // The empty pipe takes exactly what the kernel says it holds, which leaves no room for one more byte.
-    filling
-        .write_all(vec![b'.'; capacity].as_slice())
-        .expect("the stream fills");
-    drop(filling);
-    make_nonblocking(&writer, "write end");
-    give_the_thread(Box::new(writer));
-    let line: &str = "the refusal a reader makes room for\n";
-    assert!(hand(line), "the queue has room for one line");
-    // The room appears well inside the bound the end of the process is given.
-    let drainer = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(50));
-        return what_the_stream_gives_within(&mut reader, WAIT_BEFORE_AN_EXIT.saturating_mul(2));
-    });
-    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
-    let captured: Vec<u8> = drainer.join().expect("the reader's thread");
-    assert!(written, "the end is told the line reached the stream");
-    assert!(
-        captured.len() >= capacity,
-        "the bytes that filled the stream came back: {} of {capacity}",
-        captured.len()
-    );
-    let after: &[u8] = &captured[capacity..];
-    assert_eq!(
-        after,
-        line.as_bytes(),
-        "the line the reader made room for follows the bytes that filled the stream"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_a_stream_has_no_room_for_is_written_when_the_room_appears",
+        || {
+            let capacity: usize = one_pipe_s_holding();
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            let mut filling: std::io::PipeWriter = writer.try_clone().expect("a second write end");
+            // The empty pipe takes exactly what the kernel says it holds, which leaves no room for one more byte.
+            filling
+                .write_all(vec![b'.'; capacity].as_slice())
+                .expect("the stream fills");
+            drop(filling);
+            make_nonblocking(&writer, "write end");
+            give_the_thread(Box::new(writer));
+            let line: &str = "the refusal a reader makes room for\n";
+            assert!(hand(line), "the queue has room for one line");
+            // The room appears well inside the bound the end of the process is given.
+            let drainer = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(50));
+                return what_the_stream_gives_within(
+                    &mut reader,
+                    WAIT_BEFORE_AN_EXIT.saturating_mul(2),
+                );
+            });
+            let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+            let captured: Vec<u8> = drainer.join().expect("the reader's thread");
+            assert!(written, "the end is told the line reached the stream");
+            assert!(
+                captured.len() >= capacity,
+                "the bytes that filled the stream came back: {} of {capacity}",
+                captured.len()
+            );
+            let after: &[u8] = &captured[capacity..];
+            assert_eq!(
+                after,
+                line.as_bytes(),
+                "the line the reader made room for follows the bytes that filled the stream"
+            );
+        },
     );
 }
 
@@ -328,33 +369,39 @@ fn a_line_a_stream_has_no_room_for_is_written_when_the_room_appears() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_no_stream_will_take_is_not_reported_written() {
-    let capacity: usize = one_pipe_s_holding();
-    let (_reader, writer) = std::io::pipe().expect("a pipe");
-    let mut filling: std::io::PipeWriter = writer.try_clone().expect("a second write end");
-    filling
-        .write_all(vec![b'.'; capacity].as_slice())
-        .expect("the stream fills");
-    drop(filling);
-    make_nonblocking(&writer, "write end");
-    give_the_thread(Box::new(writer));
-    assert!(
-        hand("a line the stream never takes\n"),
-        "the queue has room for one line"
-    );
-    let began: Instant = Instant::now();
-    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
-    let took: Duration = began.elapsed();
-    assert!(
-        !written,
-        "the end is told the line did not reach the stream"
-    );
-    assert!(
-        took >= WAIT_BEFORE_AN_EXIT,
-        "the end waited its bound for room that never came: {took:?}"
-    );
-    assert!(
-        took < WAIT_BEFORE_AN_EXIT.saturating_mul(5),
-        "the end waited its bound and no longer: {took:?}"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_no_stream_will_take_is_not_reported_written",
+        || {
+            let capacity: usize = one_pipe_s_holding();
+            let (_reader, writer) = std::io::pipe().expect("a pipe");
+            let mut filling: std::io::PipeWriter = writer.try_clone().expect("a second write end");
+            filling
+                .write_all(vec![b'.'; capacity].as_slice())
+                .expect("the stream fills");
+            drop(filling);
+            make_nonblocking(&writer, "write end");
+            give_the_thread(Box::new(writer));
+            assert!(
+                hand("a line the stream never takes\n"),
+                "the queue has room for one line"
+            );
+            let began: Instant = Instant::now();
+            let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+            let took: Duration = began.elapsed();
+            assert!(
+                !written,
+                "the end is told the line did not reach the stream"
+            );
+            assert!(
+                took >= WAIT_BEFORE_AN_EXIT,
+                "the end waited its bound for room that never came: {took:?}"
+            );
+            assert!(
+                took < WAIT_BEFORE_AN_EXIT.saturating_mul(5),
+                "the end waited its bound and no longer: {took:?}"
+            );
+        },
     );
 }
 
@@ -372,27 +419,33 @@ fn a_line_no_stream_will_take_is_not_reported_written() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_stream_whose_reader_is_gone_is_answered_at_once() {
-    // SAFETY: this process ignores `SIGPIPE` for the rest of its life, so the write answers `EPIPE` instead of ending the
-    //  process that runs the controls. A test binary starts with that same disposition, and the call is stated here
-    //  because this control depends on it.
-    let _ignored = unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
-    let (reader, writer) = std::io::pipe().expect("a pipe");
-    drop(reader);
-    give_the_thread(Box::new(writer));
-    assert!(
-        hand("a line no reader can take\n"),
-        "the queue has room for one line"
-    );
-    let began: Instant = Instant::now();
-    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
-    let took: Duration = began.elapsed();
-    assert!(
-        !written,
-        "a stream that is gone does not report a line written"
-    );
-    assert!(
-        took < WAIT_BEFORE_AN_EXIT / 5,
-        "a stream no reader can take is answered at once, not after the bound: {took:?}"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_stream_whose_reader_is_gone_is_answered_at_once",
+        || {
+            // SAFETY: this process ignores `SIGPIPE` for the rest of its life, so the write answers `EPIPE` instead of ending the
+            //  process that runs the controls. A test binary starts with that same disposition, and the call is stated here
+            //  because this control depends on it.
+            let _ignored = unsafe { libc::signal(libc::SIGPIPE, libc::SIG_IGN) };
+            let (reader, writer) = std::io::pipe().expect("a pipe");
+            drop(reader);
+            give_the_thread(Box::new(writer));
+            assert!(
+                hand("a line no reader can take\n"),
+                "the queue has room for one line"
+            );
+            let began: Instant = Instant::now();
+            let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+            let took: Duration = began.elapsed();
+            assert!(
+                !written,
+                "a stream that is gone does not report a line written"
+            );
+            assert!(
+                took < WAIT_BEFORE_AN_EXIT / 5,
+                "a stream no reader can take is answered at once, not after the bound: {took:?}"
+            );
+        },
     );
 }
 
@@ -412,36 +465,45 @@ fn a_stream_whose_reader_is_gone_is_answered_at_once() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_longer_than_the_room_is_written_whole_before_the_next_begins() {
-    let capacity: usize = one_pipe_s_holding();
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    make_nonblocking(&writer, "write end");
-    give_the_thread(Box::new(writer));
-    // One byte more than the pipe holds, so that the write of this one line has to end short.
-    let long: String = format!("{}\n", "a".repeat(capacity.saturating_add(1)));
-    let next: &str = "the line that waits for the long one\n";
-    assert!(hand(long.as_str()), "the queue has room for the long line");
-    assert!(hand(next), "the queue has room for the next line");
-    let drainer = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(50));
-        return what_the_stream_gives_within(&mut reader, WAIT_BEFORE_AN_EXIT.saturating_mul(2));
-    });
-    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
-    let captured: Vec<u8> = drainer.join().expect("the reader's thread");
-    assert!(written, "the end is told both lines reached the stream");
-    assert!(
-        captured.len() == long.len().saturating_add(next.len()),
-        "the stream holds the whole of both lines: {} bytes of {}",
-        captured.len(),
-        long.len().saturating_add(next.len())
-    );
-    assert_eq!(
-        &captured[..long.len()],
-        long.as_bytes(),
-        "the long line is whole before the next one begins"
-    );
-    assert_eq!(
-        &captured[long.len()..],
-        next.as_bytes(),
-        "the next line follows the long one"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_longer_than_the_room_is_written_whole_before_the_next_begins",
+        || {
+            let capacity: usize = one_pipe_s_holding();
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            make_nonblocking(&writer, "write end");
+            give_the_thread(Box::new(writer));
+            // One byte more than the pipe holds, so that the write of this one line has to end short.
+            let long: String = format!("{}\n", "a".repeat(capacity.saturating_add(1)));
+            let next: &str = "the line that waits for the long one\n";
+            assert!(hand(long.as_str()), "the queue has room for the long line");
+            assert!(hand(next), "the queue has room for the next line");
+            let drainer = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(50));
+                return what_the_stream_gives_within(
+                    &mut reader,
+                    WAIT_BEFORE_AN_EXIT.saturating_mul(2),
+                );
+            });
+            let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+            let captured: Vec<u8> = drainer.join().expect("the reader's thread");
+            assert!(written, "the end is told both lines reached the stream");
+            assert!(
+                captured.len() == long.len().saturating_add(next.len()),
+                "the stream holds the whole of both lines: {} bytes of {}",
+                captured.len(),
+                long.len().saturating_add(next.len())
+            );
+            assert_eq!(
+                &captured[..long.len()],
+                long.as_bytes(),
+                "the long line is whole before the next one begins"
+            );
+            assert_eq!(
+                &captured[long.len()..],
+                next.as_bytes(),
+                "the next line follows the long one"
+            );
+        },
     );
 }
