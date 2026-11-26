@@ -742,7 +742,11 @@ with three or four other rounds' guests on the host:
   0.27 GiB swapped),
   with three other guests on the host,
   and the crate build's own `AnonPages` peak at 02:24:26Z.
-  Its swapped part peaked at 2.99 GiB at 02:21:23Z and fell back as the guest faulted pages in.
+  Its swapped part peaked at 2.99 GiB at 02:21:23Z and fell back as the guest faulted pages in,
+  so the guest's pages went past its 8,192 MiB request
+  and the charge sat just under it:
+  the figure is bounded by the request,
+  not a measure of what the guest needed.
 - the crate build:
   7 minutes 40 seconds.
 - the arm:
