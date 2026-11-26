@@ -114,7 +114,7 @@ pub(crate) use super::service_claim_watch_note_format::{
     watch_name,
 };
 #[cfg(test)]
-pub(crate) use super::service_claim_watch_writing_a_note::IN_THE_NEXT_SERVICE_NOTE;
+pub(crate) use super::service_claim_watch_writing_a_note::next_service_note_point;
 
 // The note's own format and reading, and the write this store makes of one.
 pub(crate) use super::service_claim_watch_note_format::{

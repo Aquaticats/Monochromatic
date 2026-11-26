@@ -85,6 +85,23 @@ The four share one comparison,
 which refuses a look where a task that is not the control's own moved between two looks
 and says which helper runs the body alone.
 
+A control that holds a fault point of the service
+(`service_fault_hooks_test_support.rs`)
+names the instance it owns in the point itself:
+the directory whose instance is read,
+the plan the start reads,
+the request whose beat reads its note,
+or the repository a note is written about
+(`instance_read_point`,
+`note_read_point`,
+`read_at_a_start_point`,
+`next_service_note_point`).
+The holds are a list of the whole process,
+so one slot for a run held nothing of a second control,
+and the module of three heartbeat controls failed all three (issue 6497);
+the registry refuses a second live hold of one point and names the composition the control must make,
+so a control that names one point twice fails at its own first line instead of in another control's wait.
+
 ## One fixture folder per test
 
 A test takes its folder from `testing/test_support.rs`.
