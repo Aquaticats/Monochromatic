@@ -488,7 +488,8 @@ impl GitHandlers {
     /// or the one the whole service process shares.
     /// Why:
     ///   The service runs one review at a time for the whole process
-    /// (`SPEC.md`, "The whole review of a commit is waited for `REVIEW_CEILING` ... no other review starts meanwhile"),
+    /// (`SPEC.md`,
+    /// "The whole review of a commit is waited for `REVIEW_CEILING` ... no other review starts meanwhile"),
     /// and a control must not,
     /// because a run holds many of them at once in one process (issue 6500).
     ///
