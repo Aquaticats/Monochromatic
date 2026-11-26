@@ -59,12 +59,24 @@
 //!   the shadow conclusion copies at preparation.
 //! - `git_report_answers.rs`:
 //!   the answers of one `git rev-parse` report the invocation capture reads.
+//! - `capture_invocation_git_questions.rs`:
+//!   the Git questions one invocation capture asks,
+//!   and the words a question that could not start is reported with.
+//! - `capture_invocation_layout_report.rs`:
+//!   the repository layout of one invocation:
+//!   the one report that answers every pathname,
+//!   and the questions asked one pathname at a time when that report cannot be split.
+//! - `capture_invocation_head_and_conclusion.rs`:
+//!   the symbolic `HEAD` of the owning worktree,
+//!   and the conclusion kind an amend or a sequencer marker decides.
+//! - `capture_invocation_ref_storage_and_base.rs`:
+//!   the ref storage backend,
+//!   the commit a ref names at invocation,
+//!   and the empty tree an unborn ref starts from.
 //! - `capture_invocation.rs`:
 //!   the invocation capture:
-//!   repository layout,
-//!   symbolic `HEAD`,
-//!   conclusion kind,
-//!   ref backend and base.
+//!   the facts it records,
+//!   and the two steps that record them.
 //! - `git_step_failure.rs`:
 //!   the last Git step of this process that failed,
 //!   and the status it exited with,
@@ -276,11 +288,27 @@ pub mod commit_build_part_durations;
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 
+/// The Git questions one invocation capture asks,
+/// and the words a question that could not start is reported with.
+pub mod capture_invocation_git_questions;
+
+/// The repository layout of one invocation:
+/// the one report that answers every pathname,
+/// and the questions asked one pathname at a time when that report cannot be split.
+pub mod capture_invocation_layout_report;
+
+/// The symbolic `HEAD` of the owning worktree,
+/// and the conclusion kind an amend or a sequencer marker decides.
+pub mod capture_invocation_head_and_conclusion;
+
+/// The ref storage backend,
+/// the commit a ref names at invocation,
+/// and the empty tree an unborn ref starts from.
+pub mod capture_invocation_ref_storage_and_base;
+
 /// The invocation capture:
-///  repository layout,
-/// symbolic `HEAD`,
-/// conclusion kind,
-/// ref backend and base.
+///  the facts it records,
+///  and the two steps that record them.
 pub mod capture_invocation;
 
 /// The answers of one `git rev-parse` report the invocation capture reads.
