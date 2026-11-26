@@ -417,7 +417,8 @@ issue 6489:
 a control of `landing/service_round_tests.rs` asserted a stall the release no longer has,
 and the whole container gate on `main` at `6543be0d1a` failed it after 10.016 s.
 The control left a named pipe at a worktree's `commondir`
-and spent ten seconds opening it for a writer, to end a read it believed was waiting there,
+and spent ten seconds opening it for a writer,
+to end a read it believed was waiting there,
 then asserted that the round's lane read had outlasted its ceiling.
 `98f943d61a` had already moved that file's reader onto `foundation/plain_file.rs`,
 which opens without blocking and takes the type from the open handle,
