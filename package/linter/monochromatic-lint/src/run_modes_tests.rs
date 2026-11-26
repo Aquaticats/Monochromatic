@@ -47,6 +47,32 @@ use monochromatic_jsonc_edit::{
 };
 use std::path::Path;
 
+/// The listing names every option its rule reads,
+///  so a reader of `--rules` learns that the image bound is an option of the LFS rule
+///  and that each layout rule takes the allow list its README documents.
+#[test]
+fn the_listing_names_the_options_each_rule_reads() {
+    let listing: String = rules_listing().expect("listing");
+    let lines: Vec<serde_json::Value> = records(listing.as_str());
+    for (id, expected) in [
+        ("markdown/lfs-image-url", vec!["exclude", "max-image-bytes"]),
+        ("rust/folder-uses-links", vec!["allow"]),
+        ("rust/file-order-in-folder", vec!["allow"]),
+    ] {
+        let row = lines
+            .iter()
+            .find(|row| return row["id"] == id)
+            .expect("every registered rule is listed");
+        let options: Vec<&str> = row["options"]
+            .as_array()
+            .expect("options")
+            .iter()
+            .map(|option| return option.as_str().expect("option name"))
+            .collect::<Vec<&str>>();
+        assert_eq!(options, expected, "{id}");
+    }
+}
+
 /// Markdown rules without a fixer:
 ///  their remedy is structural,
 ///  so no grouped edit can repair them.
