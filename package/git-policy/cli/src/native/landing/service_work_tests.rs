@@ -1546,6 +1546,20 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
+    // What:     `static OWN` is one `Containment`, the one-job-at-a-time runner this control's reviews take a job of,
+    //           and only this control's.
+    // Why:      `crate::standards_review_run::RUNNER` is the service's one runner for the whole process, and a runner
+    //           answers every caller but one `Contained::Busy`; a crate's tests run as threads of one process, so a
+    //           review here would refuse another control's review (issue 6500).
+    // Gotcha:   a `static` is not per thread and not per call: it is shared by every call of the one function that
+    //           declares it, which is why each control declares its own.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const own: Containment = containment();  // one per test, never a module-level singleton
+    // ```
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     use crate::standards_review_input::{
         TRACKED_LOG_RELATIVE,
         shared_log_path,
@@ -1598,8 +1612,9 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         common_dir: None,
         ..git_context()
     };
-    let handlers: GitHandlers =
-        GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
+    let handlers: GitHandlers = GitHandlers::new(service_context)
+        .with_review_endpoint(mock.url.as_str())
+        .with_review_runner(&OWN);
     let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(
         common.clone(),
         ReviewKey::new(SECRET).expect("the key this control serves with"),
@@ -2911,6 +2926,9 @@ fn a_repository_to_review(
 ///  caller's thread.
 #[test]
 fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     use crate::standards_review_input::shared_log_path;
     use crate::standards_review_mock::{
         Answer,
@@ -2940,9 +2958,11 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
     };
     let thread_handlers: GitHandlers = GitHandlers::new(git_context())
         .with_review_endpoint(thread_mock.url.as_str())
+        .with_review_runner(&OWN)
         .for_round(key(&thread_item));
     let task_handlers: GitHandlers = GitHandlers::new(git_context())
         .with_review_endpoint(task_mock.url.as_str())
+        .with_review_runner(&OWN)
         .for_round(key(&task_item));
     let from_a_thread: Verdict = thread_handlers.review(&thread_item);
     let from_a_task: Verdict =
@@ -2977,8 +2997,9 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
         transport: false,
         ..task_item.clone()
     };
-    let plain_handlers: GitHandlers =
-        GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
+    let plain_handlers: GitHandlers = GitHandlers::new(git_context())
+        .with_review_endpoint("http://127.0.0.1:9")
+        .with_review_runner(&OWN);
     assert_eq!(
         crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)),
         Verdict::Done,

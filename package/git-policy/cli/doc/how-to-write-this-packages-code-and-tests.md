@@ -70,6 +70,14 @@ A control declares `static OWN: Containment`
 and calls `review_item_in(&OWN, ..)`,
 and `source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that takes the
 production runner instead.
+A control that reviews through the service's real handlers reaches the same runner without naming any of those calls:
+`GitHandlers::review` and `GitHandlers::review_awaiting` run their job in it,
+so a control that points those handlers' review at a mock gateway hands them a runner of their own,
+`with_review_runner(&OWN)`,
+and the same guard refuses a control that does not
+(issue 6500:
+two such controls of `landing::service_work`, in one process, answered `1 passed; 1 failed` in each of three runs,
+and `2 passed; 0 failed` after the change).
 
 A control that gives this process room for blocking jobs,
 holds its bound on them,
