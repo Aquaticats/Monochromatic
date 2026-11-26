@@ -185,8 +185,19 @@
 //! - `worktree_removal_clears_the_pool.rs`:
 //!   the removal of the shadow pool a removed worktree's commits were served from,
 //!   taken after the removal proved the worktree is gone.
+//! - `worktree_removal_held_commits_words.rs`:
+//!   the words a person reads about a held commit,
+//!   and the paragraph that stops a removal and names the command that finishes it.
+//! - `worktree_removal_held_commits_keeping.rs`:
+//!   keeping one held commit a record names on a reference of the common Git directory,
+//!   at the batch's own kept name or beside a name another commit holds.
+//! - `worktree_removal_held_commits_unreadable_record.rs`:
+//!   the commit behind a held record this build cannot read,
+//!   read from its batch's own reference and kept the same way,
+//!   or the refusal that keeps the worktree.
 //! - `worktree_removal_held_commits.rs`:
-//!   what becomes of the commit a reference lock holds in a linked worktree that Git removes.
+//!   what becomes of the commit a reference lock holds in a linked worktree that Git removes:
+//!   the service of every linked worktree and the answer the sweep reads.
 //! - `worktree_removal_interrupted_destroy.rs`:
 //!   the finish of a removal whose destroy happened and whose registration did not go.
 //! - `worktree_removal_leaving_that_outlives_its_record.rs`:
@@ -498,7 +509,21 @@ pub mod worktree_completion_file_inspection;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
-/// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
+/// The words a person reads about a held commit,
+/// and the paragraph that stops a removal and names the command that finishes it.
+pub mod worktree_removal_held_commits_words;
+
+/// Keeping one held commit a record names on a reference of the common Git directory,
+/// at the batch's own kept name or beside a name another commit holds.
+pub mod worktree_removal_held_commits_keeping;
+
+/// The commit behind a held record this build cannot read,
+/// read from its batch's own reference and kept the same way,
+/// or the refusal that keeps the worktree.
+pub mod worktree_removal_held_commits_unreadable_record;
+
+/// What becomes of the commit a reference lock holds in a linked worktree that Git removes:
+/// the service of every linked worktree and the answer the sweep reads.
 pub mod worktree_removal_held_commits;
 
 /// The option table of `git worktree add`,
