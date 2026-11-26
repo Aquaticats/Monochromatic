@@ -93,6 +93,17 @@ pub fn check_managed_lock(facts: &ManagedLockFacts) -> CheckOutcome {
     // const words = theLines(facts.classification, facts.slot).join('; ');
     // ```
     let words: String = the_lines(&facts.classification, facts.slot.as_str()).join("; ");
+    // What:     The state decides which half of the pair a person looks at, and the verified lock is the one state the route intends.
+    // Why:      A finding's field is the words a report prints before the sentence, so it must name the fact that differs rather than the check.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (facts.classification.state.kind) {
+    //   case 'managed': return { kind: 'pass', detail: words };
+    //   case 'cut-short': case 'not-the-adds-words': case 'no-lock': return { kind: 'finding', field: 'lock', detail: words };
+    //   default: return { kind: 'finding', field: 'registration', detail: words };
+    // }
+    // ```
     return match &facts.classification.state {
         ManagedLockState::Managed { .. } => pass(words),
         ManagedLockState::CutShort { .. } | ManagedLockState::NotTheAddsWords { .. } | ManagedLockState::NoLock { .. } => finding("lock", words),
