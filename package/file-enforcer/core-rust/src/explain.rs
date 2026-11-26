@@ -28,7 +28,10 @@ use serde_json::Value;
 /// ```ts
 /// function normalizeTarget(root: string, path: string): string
 /// ```
-pub fn normalize_target(root: &std::path::Path, path: &str) -> String {
+pub fn normalize_target(
+    root: &std::path::Path,
+    path: &str,
+) -> String {
     let mut text = path.to_string();
     let prefix = format!("{}/", root.display());
     if let Some(rest) = text.strip_prefix(&prefix) {
@@ -51,7 +54,10 @@ pub fn normalize_target(root: &std::path::Path, path: &str) -> String {
 /// ```ts
 /// function explain(report: PlanReport, path: string): Event[]
 /// ```
-pub fn explain(report: &PlanReport, path: &str) -> Vec<Event> {
+pub fn explain(
+    report: &PlanReport,
+    path: &str,
+) -> Vec<Event> {
     let mut events: Vec<Event> = Vec::new();
     if let Some(rule_id) = report.owners.get(path) {
         let mut kind = String::new();

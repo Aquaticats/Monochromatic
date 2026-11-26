@@ -147,7 +147,10 @@ impl LocationNode {
     /// ```ts
     /// child(segment: string): LocationNode | undefined
     /// ```
-    fn child(&self, segment: &str) -> Option<&LocationNode> {
+    fn child(
+        &self,
+        segment: &str,
+    ) -> Option<&LocationNode> {
         if let Some(by_key) = &self.by_key {
             let index = by_key.get(segment)?;
             return self.items.get(*index);
@@ -180,14 +183,19 @@ impl ConfigLocations {
     /// ```ts
     /// walk(pointer: string): [LocationNode, boolean]
     /// ```
-    fn walk(&self, pointer: &str) -> (&LocationNode, bool) {
+    fn walk(
+        &self,
+        pointer: &str,
+    ) -> (&LocationNode, bool) {
         let mut node = &self.root;
         if pointer.is_empty() {
             return (node, true);
         }
         for raw in pointer.split('/').skip(1) {
             let segment = unescape_segment(raw);
-            let Some(found) = node.child(&segment) else { return (node, false) };
+            let Some(found) = node.child(&segment) else {
+                return (node, false);
+            };
             node = found;
         }
         return (node, true);
@@ -203,7 +211,10 @@ impl ConfigLocations {
     /// ```ts
     /// valueAt(pointer: string): Location
     /// ```
-    pub fn value_at(&self, pointer: &str) -> Location {
+    pub fn value_at(
+        &self,
+        pointer: &str,
+    ) -> Location {
         return self.walk(pointer).0.value;
     }
 
@@ -218,7 +229,10 @@ impl ConfigLocations {
     /// ```ts
     /// keyAt(pointer: string): Location
     /// ```
-    pub fn key_at(&self, pointer: &str) -> Location {
+    pub fn key_at(
+        &self,
+        pointer: &str,
+    ) -> Location {
         let (node, exact) = self.walk(pointer);
         if exact && let Some(key) = node.key {
             return key;
