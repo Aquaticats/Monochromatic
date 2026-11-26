@@ -523,7 +523,8 @@ fn a_new_mutual_use_inside_a_tolerated_loop_is_one_loop_finding() {
 }
 
 /// The help for a missing link warns what a link into a loop does to `cargo package`,
-///  because a looped crate that only reads `Create the link:` writes one into a hang.
+///  and the warning comes before the command it warns about,
+///  because a looped crate that copies `Create the link:` first writes one into a hang.
 #[test]
 fn the_missing_link_help_warns_about_a_looped_crate() {
     let fixture = package_with(&a_uses_b());
@@ -531,11 +532,28 @@ fn the_missing_link_help_warns_about_a_looped_crate() {
     let uses = collect_uses(&tree);
     let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), &fixture.path, None);
     let help: &str = found[0].help.as_deref().expect("a missing link has help");
-    assert!(help.starts_with("Create the link: "), "{help}");
+    assert!(
+        help.starts_with("A crate whose folders still use each other in a loop"),
+        "{help}"
+    );
     assert!(
         help.contains("`cargo package` follows a link into a loop"),
         "{help}"
     );
     assert!(help.contains("untangle that loop first"), "{help}");
     assert!(help.contains("exclude"), "{help}");
+    assert!(
+        help.contains("over 3038 paths with 109 links"),
+        "the warning names what was measured: {help}"
+    );
+    let hazard: usize = help
+        .find("untangle that loop first")
+        .expect("the help warns first");
+    let command: usize = help
+        .find("Then create the link: ")
+        .expect("the help gives the command");
+    assert!(
+        hazard < command,
+        "the warning must come before the command: {help}"
+    );
 }

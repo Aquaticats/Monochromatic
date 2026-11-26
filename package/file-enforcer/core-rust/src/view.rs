@@ -18,13 +18,16 @@ use crate::diagnostic::Diagnostic;
 /// `RealState`,
 /// `list_real`,
 /// `read_real`,
+/// `read_real_at_most`,
 /// `sha256_hex` from `crate::real_fs`.
 use crate::real_fs::{
     EntryKind,
     RealState,
     list_real,
     read_real,
+    read_real_at_most,
     sha256_hex,
+    too_large,
 };
 /// Imports `Change` from `crate::rule`.
 use crate::rule::Change;
@@ -249,16 +252,43 @@ impl View {
         &mut self,
         rel: &str,
     ) -> Result<Option<Vec<u8>>, Diagnostic> {
+        // `u64::MAX` is every size a filesystem reports, so this is the unbounded read.
+        return self.read_bytes_at_most(rel, u64::MAX);
+    }
+
+    /// What:
+    ///  Read a file's bytes as the run will see them,
+    /// refusing a file larger than `max_bytes` by name.
+    /// Why:
+    ///  A rule that parses a whole file needs the read itself bounded,
+    /// because a size check before a read still copies whatever the file grew to in between.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// readBytesAtMost(rel: string, maxBytes: number): Uint8Array | undefined
+    /// ```
+    pub fn read_bytes_at_most(
+        &mut self,
+        rel: &str,
+        max_bytes: u64,
+    ) -> Result<Option<Vec<u8>>, Diagnostic> {
         self.accesses.push((self.current_rule, rel.to_string()));
         match self.overlay.get(rel) {
             Some(Planned::File {
                 content,
                 ..
-            }) => return Ok(Some(content.clone())),
+            }) => {
+                // A planned file is bounded by the same limit as a real one, so a rule cannot plan a file
+                // the next rule refuses to read.
+                if content.len() as u64 > max_bytes {
+                    return Err(too_large(rel, content.len() as u64, max_bytes));
+                }
+                return Ok(Some(content.clone()));
+            }
             Some(Planned::Removed) => return Ok(None),
             None => {}
         }
-        match self.observe_file(rel)? {
+        match self.observe_file_at_most(rel, max_bytes)? {
             RealState::File {
                 content,
                 ..
@@ -290,7 +320,27 @@ impl View {
         &mut self,
         rel: &str,
     ) -> Result<Option<String>, Diagnostic> {
-        match self.read_bytes(rel)? {
+        // `u64::MAX` is every size a filesystem reports, so this is the unbounded read.
+        return self.read_text_at_most(rel, u64::MAX);
+    }
+
+    /// What:
+    ///  Read a file as UTF-8 text without reading more than `max_bytes` of it,
+    /// refusing a larger file by name.
+    /// Why:
+    ///  A rule that parses a whole manifest needs the bound on the read,
+    /// so the file's size is refused before its bytes are copied.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// readTextAtMost(rel: string, maxBytes: number): string | undefined
+    /// ```
+    pub fn read_text_at_most(
+        &mut self,
+        rel: &str,
+        max_bytes: u64,
+    ) -> Result<Option<String>, Diagnostic> {
+        match self.read_bytes_at_most(rel, max_bytes)? {
             None => return Ok(None),
             Some(bytes) => match String::from_utf8(bytes) {
                 Ok(text) => return Ok(Some(text)),
@@ -352,7 +402,28 @@ impl View {
         &mut self,
         rel: &str,
     ) -> Result<RealState, Diagnostic> {
-        let state = read_real(&self.root, rel)?;
+        // `u64::MAX` is every size a filesystem reports, so this is the unbounded read.
+        return self.observe_file_at_most(rel, u64::MAX);
+    }
+
+    /// What:
+    ///  Read the real state of a path,
+    /// refusing a file larger than `max_bytes` by name,
+    /// and remember how it looked.
+    /// Why:
+    ///  Revalidation compares the first observation of each path,
+    /// so a bounded read has to observe through the same record.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// observeFileAtMost(rel: string, maxBytes: number): RealState
+    /// ```
+    pub fn observe_file_at_most(
+        &mut self,
+        rel: &str,
+        max_bytes: u64,
+    ) -> Result<RealState, Diagnostic> {
+        let state = read_real_at_most(&self.root, rel, max_bytes)?;
         if !self.files.contains_key(rel) {
             self.files.insert(rel.to_string(), observed_of(&state));
         }

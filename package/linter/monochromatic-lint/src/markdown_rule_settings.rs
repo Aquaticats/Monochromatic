@@ -23,12 +23,42 @@ use crate::{
         validate_data,
     },
     config_error::ConfigError,
-    configuration_rules::validate_rules,
+    configuration_rules::{
+        count_option,
+        validate_rules,
+    },
     diagnostic::Severity,
     markdown_lfs_patterns::PathPatterns,
 };
 /// Import the exact JSONC representation.
 use monochromatic_jsonc_edit::JsoncValue;
+
+/// What:
+///  The most bytes of one LFS-tracked image the rule reads to compute its object id
+///  when configuration names no `max-image-bytes`:
+///  sixteen mebibytes.
+/// Why:
+///  An object id is the SHA-256 of the whole file,
+///  so the file must be read,
+///  and a bound keeps a mistyped destination or a file that grew far past its kind
+///  from filling memory in the middle of a lint run.
+///  The bound is the rule's `max-image-bytes` option,
+/// defaulted here,
+///  because a repository with a larger image must raise it without editing this crate,
+///  which ships as a published binary.
+///  This repository's largest tracked image is 3,380,183 bytes
+///  (a screenshot under `package/ide/app/design/screenshots`,
+///  measured 2026-11-25),
+///  and the next largest are between 2.1 and 2.8 mebibytes,
+///  so sixteen mebibytes leaves room for about five times that.
+///  The siblings a reader might expect are an unbounded read and a streamed hash;
+///  a bound on the bytes read is the one that also ends on a file that keeps growing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const DEFAULT_MAX_IMAGE_BYTES = 16 * 1024 * 1024;
+/// ```
+pub const DEFAULT_MAX_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// What:
 ///  The selected `markdown/lfs-image-url` rule with its compiled `exclude` option.
@@ -39,7 +69,7 @@ use monochromatic_jsonc_edit::JsoncValue;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LfsSetting = { severity: Severity; exclude: PathPatterns };
+/// type LfsSetting = { severity: Severity; exclude: PathPatterns; maxImageBytes: number };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LfsSetting {
@@ -49,6 +79,9 @@ pub struct LfsSetting {
     ///  relative to the repository root,
     ///  of files the rule leaves alone.
     pub exclude: PathPatterns,
+    /// The most bytes of one tracked image the rule reads to compute its object id,
+    ///  from the `max-image-bytes` option and `DEFAULT_MAX_IMAGE_BYTES` when it is absent.
+    pub max_image_bytes: u64,
 }
 
 /// What:
@@ -93,17 +126,22 @@ pub struct MarkdownRuleSettings {
 }
 
 /// What:
-///  Read a rule's severity and `exclude` list after ordinary schema validation.
+///  Read a rule's severity,
+///  its `exclude` list and its `max-image-bytes` bound after ordinary schema validation.
 /// Why:
-///  The outer `Option` distinguishes a missing severity (a configuration error) from `off`.
+///  The outer `Option` distinguishes a missing severity (a configuration error) from `off`,
+///  and the bound stays absent here so `markdown_rule_settings` decides its default once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function options(setting: JsoncValue): { severity?: Severity; exclude: string[] };
+/// function options(setting: JsoncValue): { severity?: Severity; exclude: string[]; maxImageBytes?: number };
 /// ```
-fn options(setting: &JsoncValue) -> Result<(Option<Severity>, Vec<String>), ConfigError> {
+fn options(
+    setting: &JsoncValue
+) -> Result<(Option<Severity>, Vec<String>, Option<u64>), ConfigError> {
     let mut selected: Option<Option<Severity>> = None;
     let mut exclude: Vec<String> = Vec::<String>::new();
+    let mut max_image_bytes: Option<u64> = None;
     for entry in setting
         .entries()
         .expect("rule settings validated as a record")
@@ -123,6 +161,11 @@ fn options(setting: &JsoncValue) -> Result<(Option<Severity>, Vec<String>), Conf
             });
         } else if key == "exclude" {
             exclude = strings(&entry.value, "exclude")?;
+        } else if key == "max-image-bytes" {
+            // The same exact-number grammar every count option uses, named as this option is written.
+            let bytes: usize =
+                count_option("markdown/lfs-image-url", "max-image-bytes", &entry.value)?;
+            max_image_bytes = Some(bytes as u64);
         }
     }
     let Some(severity): Option<Option<Severity>> = selected else {
@@ -130,7 +173,7 @@ fn options(setting: &JsoncValue) -> Result<(Option<Severity>, Vec<String>), Conf
             "A selected rule requires severity off, warn, or error before execution.",
         ));
     };
-    return Ok((severity, exclude));
+    return Ok((severity, exclude, max_image_bytes));
 }
 
 /// What:
@@ -154,7 +197,8 @@ pub fn markdown_rule_settings(rules: &JsoncValue) -> Result<MarkdownRuleSettings
         if !id.starts_with("markdown/") {
             continue;
         }
-        let (severity, exclude): (Option<Severity>, Vec<String>) = options(&entry.value)?;
+        let (severity, exclude, max_image_bytes): (Option<Severity>, Vec<String>, Option<u64>) =
+            options(&entry.value)?;
         match id.as_str() {
             "markdown/heading-increment" => result.heading_increment = severity,
             "markdown/commands-show-output" => result.commands_show_output = severity,
@@ -179,9 +223,16 @@ pub fn markdown_rule_settings(rules: &JsoncValue) -> Result<MarkdownRuleSettings
                     }
                 };
                 if let Some(value) = severity {
+                    // What: the bound the rule reads one tracked image under, defaulted when configuration names none.
+                    // Why: a repository with an image over the default raises it in its own configuration.
+                    let bound: u64 = match max_image_bytes {
+                        Some(bytes) => bytes,
+                        None => DEFAULT_MAX_IMAGE_BYTES,
+                    };
                     result.lfs_image_url = Some(LfsSetting {
                         severity: value,
                         exclude: compiled,
+                        max_image_bytes: bound,
                     });
                 }
             }

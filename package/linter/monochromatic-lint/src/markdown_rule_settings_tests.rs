@@ -13,6 +13,7 @@
 
 /// Import the conversion under test.
 use super::{
+    DEFAULT_MAX_IMAGE_BYTES,
     MarkdownRuleSettings,
     markdown_rule_settings,
 };
@@ -116,6 +117,44 @@ fn lfs_exclusions_are_compiled_from_the_option() {
             .exclude
             .matches("doc/a.md")
     );
+}
+
+/// The LFS rule's `max-image-bytes` option is the bound it reads one tracked image under,
+///  and the default applies when configuration names none.
+#[test]
+fn the_lfs_image_bound_is_read_from_its_option() {
+    let raised: u64 = DEFAULT_MAX_IMAGE_BYTES * 2;
+    let selected: MarkdownRuleSettings = settings(
+        format!(
+            r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{raised}}}}}"#
+        )
+        .as_str(),
+    );
+    assert_eq!(
+        selected
+            .lfs_image_url
+            .expect("selected rule")
+            .max_image_bytes,
+        raised
+    );
+    let plain: MarkdownRuleSettings = settings(r#"{"markdown/lfs-image-url":{"severity":"warn"}}"#);
+    assert_eq!(
+        plain.lfs_image_url.expect("selected rule").max_image_bytes,
+        DEFAULT_MAX_IMAGE_BYTES
+    );
+    // A spelling that is not an exact nonnegative integer is a configuration error naming the option.
+    for source in [
+        r#"{"markdown/lfs-image-url":{"severity":"error","max-image-bytes":"1048576"}}"#,
+        r#"{"markdown/lfs-image-url":{"severity":"error","max-image-bytes":-1}}"#,
+    ] {
+        let value: JsoncValue = parse_jsonc(source).expect("JSONC fixture");
+        let error = markdown_rule_settings(&value).expect_err("not a count");
+        assert!(
+            error.message.contains("max-image-bytes"),
+            "{}",
+            error.message
+        );
+    }
 }
 
 /// Invalid settings are configuration errors,

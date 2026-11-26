@@ -77,7 +77,9 @@ fn the_clone_step_reports_the_clones_mountpoint_before_it_publishes_the_inventor
         .map(str::trim_start)
         .filter(|line| return !line.starts_with("//"))
         .collect();
-    let joined: String = code.join("\n");
+    // The code is read without its blanks, so a call rustfmt breaks over lines (`steps` then `.device` then
+    //  `.clone_inventory(`) reads as the one expression it is.
+    let joined: String = code.join("\n").split_whitespace().collect();
     assert_eq!(
         joined
             .matches("refuse_a_clone_that_is_not_legacy_from_the_container(")
@@ -86,14 +88,14 @@ fn the_clone_step_reports_the_clones_mountpoint_before_it_publishes_the_inventor
         "the report is defined once and called once: {joined}"
     );
     let clone_step: usize = joined
-        .find("pub fn step_clone(")
+        .find("pubfnstep_clone(")
         .expect("the clone step is a function of this file");
     let call: usize = clone_step
         + joined[clone_step..]
             .find("refuse_a_clone_that_is_not_legacy_from_the_container(")
             .expect("the call is in the clone step");
     let inventory: usize = joined
-        .find("let inventory = steps.device.clone_inventory(")
+        .find("letinventory=steps.device.clone_inventory(")
         .expect("the clone step publishes the clone's inventory");
     assert!(
         call < inventory,

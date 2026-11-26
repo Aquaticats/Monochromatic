@@ -89,7 +89,8 @@ fn builds_a_lock_from_the_newest_data() {
     assert!(
         registry
             .requests()
-            .contains(&"/caniuse-lite/-/caniuse-lite-1.0.30009999.tgz".to_string())
+            .iter()
+            .any(|item| return item == "/caniuse-lite/-/caniuse-lite-1.0.30009999.tgz")
     );
 }
 

@@ -89,7 +89,12 @@ impl Harness {
     /// which made `watch_regenerates_on_input_changes_and_warns_on_hand_edits` fail
     /// (the trace showed `CLAUDE.md` holding the empty-file concatenation while `AGENTS.md` already had the new text).
     /// The staging file sits beside the target,
-    /// so the rename stays on one filesystem.
+    /// so the rename stays on one filesystem,
+    /// and it takes the target's mode before the rename,
+    /// because a rename carries the staging file's mode and would otherwise reset a fixture written executable.
+    /// The watcher may see the staging file appear in a directory listing;
+    /// that costs one replanned run,
+    /// and the rename has happened by the time that run reads the target.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -97,6 +102,7 @@ impl Harness {
     ///   const target = join(this.repo, path);
     ///   mkdirSync(dirname(target), { recursive: true });
     ///   writeFileSync(`${target}.staging`, text);
+    ///   if (existsSync(target)) chmodSync(`${target}.staging`, statSync(target).mode);
     ///   renameSync(`${target}.staging`, target);
     /// }
     /// ```
@@ -112,6 +118,9 @@ impl Harness {
             target.file_name().unwrap_or_default().to_string_lossy()
         ));
         std::fs::write(&staging, text).expect("write");
+        if let Ok(metadata) = std::fs::metadata(&target) {
+            std::fs::set_permissions(&staging, metadata.permissions()).expect("chmod");
+        }
         std::fs::rename(&staging, &target).expect("rename");
     }
 

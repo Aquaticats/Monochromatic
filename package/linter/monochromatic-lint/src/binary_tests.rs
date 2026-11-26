@@ -44,6 +44,8 @@ use monochromatic_lint::cli_options::{
 };
 /// The configuration filename the executable discovers.
 use monochromatic_lint::config_lookup::CONFIG_NAME;
+/// The default bound the `markdown/lfs-image-url` rule reads one tracked image under.
+use monochromatic_lint::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 /// The core diagnostic codes the controls expect.
 use monochromatic_lint::run_failure::{
     FIX_REFUSED,
@@ -1055,6 +1057,65 @@ fn standard_input_fixing_separates_source_from_findings() {
         broken_codes.push(String::from(record["code"].as_str().expect("code")));
     }
     assert_eq!(broken_codes, [FIX_REFUSED, PROCESSING_FAILURE]);
+}
+
+/// An LFS-tracked image over the rule's bound is refused with the option that raises it,
+///  and a configuration that raises the option reads the image,
+///  so a repository with a large image needs no edit to the linter's source.
+#[test]
+fn a_large_lfs_image_is_refused_until_configuration_raises_the_bound() {
+    let repository: Fixture = Fixture::new();
+    repository.write(".lfsconfig", "[lfs]\n\turl = https://lfs.example\n");
+    repository.write(
+        ".gitattributes",
+        "*.png filter=lfs diff=lfs merge=lfs -text\n",
+    );
+    // A sparse image one byte over the default bound: the bound is what the test needs, not the bytes.
+    let image: PathBuf = repository.write("pkg/asset/huge.png", "");
+    let file: std::fs::File = std::fs::File::create(&image).expect("fixture image");
+    file.set_len(DEFAULT_MAX_IMAGE_BYTES + 1)
+        .expect("sparse image one byte over the default bound");
+    drop(file);
+    let document: &[u8] = b"# Title.\n\n![huge](asset/huge.png)\n";
+    let arguments: [&str; 4] = [
+        "--stdin",
+        "--stdin-filename",
+        "pkg/README.md",
+        "--fix-content",
+    ];
+    repository.write(
+        CONFIG,
+        r#"[{ "files": ["**/*.md"], "rules": { "markdown/lfs-image-url": { "severity": "error" } } }]"#,
+    );
+    // The default bound refuses the image, and the message names the option rather than a source constant.
+    let refused: Run = run(&repository.path, &arguments, document);
+    assert_eq!(refused.status, 2, "{}", refused.stderr);
+    assert!(
+        refused.stderr.contains("max-image-bytes"),
+        "{}",
+        refused.stderr
+    );
+    assert!(
+        !refused.stderr.contains("src/markdown"),
+        "the refusal must not send the reader into the source: {}",
+        refused.stderr
+    );
+    // Raising the option in the configuration reads the image and rewrites its link.
+    let raised_bound: u64 = DEFAULT_MAX_IMAGE_BYTES * 2;
+    repository.write(
+        CONFIG,
+        format!(
+            r#"[{{ "files": ["**/*.md"], "rules": {{ "markdown/lfs-image-url": {{ "severity": "error", "max-image-bytes": {raised_bound} }} }} }}]"#
+        )
+        .as_str(),
+    );
+    let raised: Run = run(&repository.path, &arguments, document);
+    assert_eq!(raised.status, 0, "{}", raised.stderr);
+    assert!(
+        raised.stdout.contains("/pkg/asset/huge.png"),
+        "{}",
+        raised.stdout
+    );
 }
 
 /// The commit-time shape:

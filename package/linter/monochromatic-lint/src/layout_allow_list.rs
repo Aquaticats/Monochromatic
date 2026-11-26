@@ -152,10 +152,37 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
             path.display()
         );
     })?;
-    // What: at most one byte more than the cap, so the cap is enforced on what was read and not only on what was measured above.
-    // Why: a file that grows between the measurement and the read must be refused, not read whole.
+    let bytes: Vec<u8> = read_at_most(file, path)?;
+    let text: String = String::from_utf8(bytes).map_err(|error| {
+        return format!(
+            "The allow-list file {} cannot be read: {error}.",
+            path.display()
+        );
+    })?;
+    return parse_allow_list(text.as_str(), path);
+}
+
+/// What:
+///  Read at most the list cap from one reader,
+///  refusing anything longer.
+/// Why:
+///  The size of the file was measured before this read,
+///  and a file that grows between the measurement and the read would get past that check,
+///  so the read itself stops one byte past the cap and says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readAtMost(reader: ReadStream, path: Path): Uint8Array;
+/// ```
+fn read_at_most<R: std::io::Read>(
+    reader: R,
+    path: &Path,
+) -> Result<Vec<u8>, String> {
+    // What: at most one byte more than the cap, so the length read is known even when it is over.
+    // Why: reading the whole of a file that grew past the cap is what the bound exists to prevent.
     let mut bytes: Vec<u8> = Vec::<u8>::new();
-    file.take(MAX_BYTES + 1)
+    reader
+        .take(MAX_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|error| {
             return format!(
@@ -169,13 +196,7 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
             path.display()
         ));
     }
-    let text: String = String::from_utf8(bytes).map_err(|error| {
-        return format!(
-            "The allow-list file {} cannot be read: {error}.",
-            path.display()
-        );
-    })?;
-    return parse_allow_list(text.as_str(), path);
+    return Ok(bytes);
 }
 
 /// What:

@@ -245,27 +245,40 @@ fn a_stream_with_no_writer_says_nothing_and_counts_every_line() {
 ///  the descriptor's write takes no lock another writer of this process needs.
 #[test]
 fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
-    let submission: &str = include_str!("../landing/service_commit_waiting_notices.rs");
+    // Each source and each needle is read without its blanks, and without the trailing comma rustfmt writes when it breaks
+    //  a call over lines, so a layout change reads as the same code.
+    let squeeze = |code: &str| -> String {
+        return code
+            .split_whitespace()
+            .collect::<String>()
+            .replace(",)", ")");
+    };
+    let submission: String = squeeze(include_str!("../landing/service_commit_waiting_notices.rs"));
     assert!(
-        submission.contains("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(crate::standard_error_descriptor::StandardErrorDescriptor))"),
+        submission.contains(&squeeze("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(crate::standard_error_descriptor::StandardErrorDescriptor))")),
         "the submission starts the stream of its waiting notices on this process's standard error descriptor"
     );
     assert!(
-        !submission.contains("std::io::stderr()"),
+        !submission.contains(&squeeze("std::io::stderr()")),
         "no waiting notice goes to the shared standard error handle, whose one lock a held write would keep the command's own notes waiting on"
     );
     assert!(
-        submission.contains("submit_traced(&waiting_config, request, &mut notices, trace)"),
+        submission.contains(&squeeze(
+            "submit_traced(&waiting_config, request, &mut notices, trace)"
+        )),
         "the stream is what the client writes its notices to"
     );
     assert!(
-        submission.contains("notices.finish()"),
+        submission.contains(&squeeze("notices.finish()")),
         "the last line is given its ceiling before the command goes on"
     );
-    let commit_path: &str = include_str!("../landing/service_commit.rs");
-    assert!(commit_path.contains("submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit)"), "the commit path submits through it");
+    let commit_path: String = squeeze(include_str!("../landing/service_commit.rs"));
     assert!(
-        !commit_path.contains("submit_traced("),
+        commit_path.contains(&squeeze("submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit)")),
+        "the commit path submits through it"
+    );
+    assert!(
+        !commit_path.contains(&squeeze("submit_traced(")),
         "no submission of the commit path writes its notices itself"
     );
 }

@@ -158,6 +158,9 @@ mod layout_group_summary_links;
 /// What an index file (`mod.rs`,
 ///  or a crate root that is a folder's index) holds besides the index.
 mod layout_index_file_items;
+/// The bounded,
+/// one-read line spans a layout finding points at.
+mod layout_line_spans;
 /// The `uses` folder of one source folder,
 ///  entry by entry.
 mod layout_link_entries;
