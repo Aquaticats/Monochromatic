@@ -79,10 +79,13 @@ function stopIfRunning(pid: number,): boolean {
 
  @param budgetMs - longest wait before reporting that the run did not finish
 
- @returns what the command reported, or nothing when it overran the budget
+ @returns what the command reported, absent when it overran the budget
  */
-async function runWithinBudget(run: Promise<CommandResult>, budgetMs: number,): Promise<CommandResult | undefined> {
-  const outcome = await Promise.race([
+async function runWithinBudget(
+  run: Promise<CommandResult>,
+  budgetMs: number,
+): Promise<{ readonly result?: CommandResult }> {
+  return await Promise.race([
     run.then(function finished(result,) {
       return { result, };
     },),
@@ -90,7 +93,6 @@ async function runWithinBudget(run: Promise<CommandResult>, budgetMs: number,): 
       return {};
     },),
   ],);
-  return outcome.result;
 }
 
 /**
@@ -117,11 +119,21 @@ descendant.unref();`;
 
  @param pidFile - file the script wrote
 
- @returns the process id, or nothing when the file holds no number
+ @returns the process id
+
+ @throws Error when the file holds no number
  */
-async function readReportedPid(pidFile: string,): Promise<number | undefined> {
-  const pid = Math.trunc(Number(await readFile(pidFile, 'utf8',),),);
-  return Number.isNaN(pid,) ? undefined : pid;
+async function readReportedPid(pidFile: string,): Promise<number> {
+  /**
+   Text the script wrote.
+   */
+  const text = await readFile(pidFile, 'utf8',);
+  /**
+   Process id the text names.
+   */
+  const pid = Math.trunc(Number(text,),);
+  if (Number.isNaN(pid,)) throw new Error(`${pidFile} holds no process id`,);
+  return pid;
 }
 
 await describe({
@@ -236,10 +248,9 @@ await describe({
          */
         const startedAt = performance.now();
         /**
-         What the command reported, or nothing when it overran the timeout and the
-         margin.
+         What the command reported, absent when it overran the timeout and the margin.
          */
-        const result = await runWithinBudget(
+        const { result, } = await runWithinBudget(
           runCommand({
             command: process.execPath,
             args: [
@@ -258,7 +269,7 @@ await describe({
          Process id of the descendant holding the pipes, which the test must end.
          */
         const pid = await readReportedPid(pidFile,);
-        if (pid !== undefined) stopIfRunning(pid,);
+        stopIfRunning(pid,);
         expect(result,).toBeDefined();
         expect(result?.exitCode,).toBeUndefined();
         expect(result?.problem,).toContain(`${String(TEST_TIMEOUT_MS,)} ms`,);

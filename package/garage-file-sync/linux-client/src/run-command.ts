@@ -117,6 +117,23 @@ async function stopCommand(child: ChildProcess,): Promise<StopResult> {
 }
 
 /**
+ Drops a child's pipes, whatever its state.
+
+ The timeout's abort uses this because Node's own abort emits its error only when the
+ child could still be killed. A process the child started can inherit its stdout and
+ stderr and hold them open after the child itself exited, and then the abort reports
+ nothing and a pending stream read would wait for the descendant forever.
+
+ @param child - the started process whose pipes are dropped
+ */
+function releasePipes(child: ChildProcess,): void {
+  child.stdout
+    ?.destroy();
+  child.stderr
+    ?.destroy();
+}
+
+/**
  Runs a command to its end, or until the timeout stops it.
 
  @param command - executable name or absolute path
@@ -158,21 +175,14 @@ export async function runCommand({
     },
   );
   /**
-   Drops the child's pipes when the timeout fires.
-
-   Node's abort of a spawned child emits its error only when the child could still be
-   killed. A process the child started can inherit its stdout and stderr and hold them
-   open after the child itself exited, and then the abort reports nothing and the reads
-   below would wait for the descendant forever. Destroying the pipes ends those reads
-   whatever the child's state.
+   Drops the child's pipes when the timeout fires, so a descendant that inherited them
+   cannot keep this run waiting.
    */
-  const releasePipes = function releasePipes(): void {
-    started.stdout?.destroy();
-    started.stderr?.destroy();
-  };
   timeout.addEventListener(
     'abort',
-    releasePipes,
+    function releasePipesOnTimeout() {
+      releasePipes(started,);
+    },
     { once: true, },
   );
   try {
