@@ -206,6 +206,13 @@ Unprofiled development processes remain a residual risk.
   and accepts the browser's stop signals;
   `local/torbrowser` may lock its shader cache and create its PulseAudio folder.
   Snowflake connected afterwards (`check.torproject.org` reported `IsTor: true`).
+  The same change went upstream as apparmor.d issue #1328 and pull request #1329 (filed 2026-11-26T08:09:10Z).
+  Open: once an installed apparmor.d build has the fix
+  (test: `rg 'profile pluggable-transports' /etc/apparmor.d/torbrowser-tor` prints a line),
+  remove the `lyrebird` child, its `priority=1` rule and the signal rule from `local/torbrowser-tor`,
+  reload, and recheck Snowflake.
+  Until then nothing breaks: the local `priority=1` rule keeps sending `lyrebird` to the local child.
+  No watcher runs: the owner chose GitHub's own notification of the merge as the signal (2026-11-26T08:14:00-05:00).
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
 - Separately on 2026-11-26, an AppArmor test-created `~/.mozilla/firefox` directory made all three
