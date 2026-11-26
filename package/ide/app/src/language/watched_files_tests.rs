@@ -6,9 +6,18 @@
 //!  and servers that stopped.
 
 /// The registry and the merge rule under test.
-use super::{FORWARD_LIMIT, FORWARD_QUIET, WatchHost, WatchedFiles, merge};
+use super::{
+    FORWARD_LIMIT,
+    FORWARD_QUIET,
+    WatchHost,
+    WatchedFiles,
+    merge,
+};
 /// The changes the change watcher forwards.
-use crate::change_watch::{ServerChange, ServerChangeKind};
+use crate::change_watch::{
+    ServerChange,
+    ServerChangeKind,
+};
 /// Registrations are written as JSON;
 ///  the macro is `json!` with the one lint allowance the repository's `unwrap` ban needs.
 use crate::json_value;
@@ -26,8 +35,14 @@ use helix_lsp::lsp;
 use serde_json::from_value;
 /// Paths and the chosen times of each step.
 use std::{
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Decode registration options written as JSON.
@@ -36,7 +51,10 @@ fn options(watchers: serde_json::Value) -> lsp::DidChangeWatchedFilesRegistratio
 }
 
 /// One change at `path`.
-fn change(path: &str, kind: ServerChangeKind) -> ServerChange {
+fn change(
+    path: &str,
+    kind: ServerChangeKind,
+) -> ServerChange {
     return ServerChange {
         path: PathBuf::from(path),
         kind,
@@ -54,11 +72,17 @@ struct Servers {
 }
 
 impl WatchHost<u32> for Servers {
-    fn respell(&self, path: &Path) -> PathBuf {
+    fn respell(
+        &self,
+        path: &Path,
+    ) -> PathBuf {
         return path.to_path_buf();
     }
 
-    fn live(&self, server: u32) -> bool {
+    fn live(
+        &self,
+        server: u32,
+    ) -> bool {
         return match self.only {
             Some(only) => server == only,
             None => true,
@@ -97,7 +121,11 @@ fn pairs(events: &[lsp::FileEvent]) -> Vec<(String, i32)> {
 ///  and a replaced file changed.
 #[test]
 fn the_merged_kind_matches_the_final_state() {
-    use ServerChangeKind::{Changed, Created, Deleted};
+    use ServerChangeKind::{
+        Changed,
+        Created,
+        Deleted,
+    };
     assert_eq!(merge(None, Created), Created);
     assert_eq!(merge(Some(Created), Changed), Created);
     assert_eq!(merge(Some(Created), Deleted), Deleted);
@@ -141,7 +169,12 @@ fn glob_patterns_follow_the_protocol() {
     ] {
         watched.record(change(path, ServerChangeKind::Changed), now);
     }
-    let mut batches = watched.take(&Servers { only: None }, Path::new("/p"));
+    let mut batches = watched.take(
+        &Servers {
+            only: None,
+        },
+        Path::new("/p"),
+    );
     batches.sort_by(by_server);
     assert_eq!(batches.len(), 2);
     assert_eq!(
@@ -176,7 +209,12 @@ fn kinds_limit_what_a_watcher_hears() {
     watched.record(change("/p/new.txt", ServerChangeKind::Created), now);
     watched.record(change("/p/old.txt", ServerChangeKind::Changed), now);
     watched.record(change("/p/gone.txt", ServerChangeKind::Deleted), now);
-    let batches = watched.take(&Servers { only: None }, Path::new("/p"));
+    let batches = watched.take(
+        &Servers {
+            only: None,
+        },
+        Path::new("/p"),
+    );
     assert_eq!(batches.len(), 1);
     assert_eq!(
         pairs(&batches[0].1),
@@ -213,7 +251,12 @@ fn a_burst_is_sent_once_with_each_path_once() {
         "a burst that never pauses was not due at the limit"
     );
     assert_eq!(watched.wait(now + FORWARD_QUIET), Some(Duration::ZERO));
-    let batches = watched.take(&Servers { only: None }, Path::new("/p"));
+    let batches = watched.take(
+        &Servers {
+            only: None,
+        },
+        Path::new("/p"),
+    );
     assert_eq!(
         pairs(&batches[0].1),
         vec![
@@ -251,7 +294,12 @@ fn only_running_servers_with_watchers_hear_anything() {
     );
     assert!(watched.wanted());
     watched.record(change("/p/a.rs", ServerChangeKind::Changed), now);
-    let batches = watched.take(&Servers { only: Some(1) }, Path::new("/p"));
+    let batches = watched.take(
+        &Servers {
+            only: Some(1),
+        },
+        Path::new("/p"),
+    );
     assert_eq!(batches.len(), 1);
     assert_eq!(batches[0].0, 1);
     watched.unregister(1, "rust");

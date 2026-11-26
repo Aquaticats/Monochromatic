@@ -24,7 +24,10 @@ use std::collections::BTreeMap;
 
 /// The characters a release tag's name prefix may hold before its `-v<digit>` (`bun-v1.3.14`).
 fn is_tag_prefix_character(character: char) -> bool {
-    return character.is_ascii_alphanumeric() || character == '.' || character == '_' || character == '-';
+    return character.is_ascii_alphanumeric()
+        || character == '.'
+        || character == '_'
+        || character == '-';
 }
 
 /// What:
@@ -54,7 +57,10 @@ pub fn normalize_version(version: &str) -> String {
         let mut dash: usize = run_length;
         while dash > 1 {
             dash -= 1;
-            if bytes[dash] == b'-' && bytes.get(dash + 1) == Some(&b'v') && bytes.get(dash + 2).is_some_and(u8::is_ascii_digit) {
+            if bytes[dash] == b'-'
+                && bytes.get(dash + 1) == Some(&b'v')
+                && bytes.get(dash + 2).is_some_and(u8::is_ascii_digit)
+            {
                 return version[dash + 2..].to_string();
             }
         }
@@ -77,7 +83,10 @@ pub fn normalize_version(version: &str) -> String {
 /// ```ts
 /// export function versionMatches(observed: string, locked: string): boolean
 /// ```
-pub fn version_matches(observed: &str, locked: &str) -> bool {
+pub fn version_matches(
+    observed: &str,
+    locked: &str,
+) -> bool {
     let normalized_observed: String = normalize_version(observed);
     let normalized_locked: String = normalize_version(locked);
     return normalized_observed == normalized_locked
@@ -157,7 +166,11 @@ pub fn parse_bin_list(output: &str) -> BTreeMap<String, String> {
             continue;
         }
         let version_word: &str = columns[1].split_whitespace().next().unwrap_or("");
-        let marked: &str = if version_word.len() > 1 && version_word.starts_with('*') { &version_word[1..] } else { version_word };
+        let marked: &str = if version_word.len() > 1 && version_word.starts_with('*') {
+            &version_word[1..]
+        } else {
+            version_word
+        };
         if marked.is_empty() {
             continue;
         }
@@ -190,7 +203,11 @@ pub fn parse_uv_tool_list(output: &str) -> BTreeMap<String, String> {
             continue;
         };
         let key: String = name.replace('-', "_");
-        let version: String = if token.len() > 1 && token.starts_with('v') { token[1..].to_string() } else { token.to_string() };
+        let version: String = if token.len() > 1 && token.starts_with('v') {
+            token[1..].to_string()
+        } else {
+            token.to_string()
+        };
         versions.entry(key).or_insert(version);
     }
     return versions;

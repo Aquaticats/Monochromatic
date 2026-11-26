@@ -6,8 +6,18 @@
 ///  pointer helpers,
 ///  and the pinned layout measurements.
 use super::sidebar_tests::{
-    DIVIDER, HEADER, MINIMUM, REACH, SOURCE_MINIMUM, click, drag_to, fixture, motion, press,
-    release, settle,
+    DIVIDER,
+    HEADER,
+    MINIMUM,
+    REACH,
+    SOURCE_MINIMUM,
+    click,
+    drag_to,
+    fixture,
+    motion,
+    press,
+    release,
+    settle,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
@@ -16,8 +26,12 @@ use crate::native::waiting_tests::Waiting;
 ///  and the
 /// wheel event a windowing backend reports.
 use slint::{
-    ComponentHandle, LogicalPosition,
-    platform::{PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    platform::{
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 
 /// The last tree pixel left of the zone activates its row,

@@ -31,7 +31,10 @@ use std::process;
 ///  imports the wall-clock type used in the temp filename.
 /// Why:
 ///  a timestamp keeps successive temp names unique within one process.
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// What:
 ///  imports the JSON object and value types.
@@ -39,14 +42,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///  the snapshot is a shallow scalar object built explicitly (the `json!` macro expands to a
 ///      disallowed `unwrap`,
 ///  so the map is assembled by hand).
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 ///  imports the pure band math and its placement snapshot type.
 /// Why:
 ///  pinning and overlap facts are recomputed from placements plus scroll,
 ///  never from widgets.
-use crate::band::{self, Placement};
+use crate::band::{
+    self,
+    Placement,
+};
 /// What:
 ///  imports the state-path env-var name.
 /// Why:
@@ -99,7 +108,10 @@ pub(crate) fn write_observed_state(inputs: &ObservedInputs) {
         Value::from(band::root_pinned(&inputs.placements, inputs.scroll)),
     );
     snapshot.insert("scrolledDown".into(), Value::from(inputs.scroll > 0.0));
-    snapshot.insert("scrollTopPx".into(), Value::from(inputs.scroll.round() as i64));
+    snapshot.insert(
+        "scrollTopPx".into(),
+        Value::from(inputs.scroll.round() as i64),
+    );
     let snapshot_value = Value::Object(snapshot);
     let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),

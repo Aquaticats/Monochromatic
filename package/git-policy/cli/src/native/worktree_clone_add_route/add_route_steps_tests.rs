@@ -29,3 +29,37 @@ fn the_stop_switch_names_the_steps_the_guest_arms_kill_at() {
     assert!(at("mount") < at("exchange"));
     assert!(at("exchange") < at("filled"));
 }
+
+/// What:
+///  The clone step reports a clone whose `mountpoint` is not the container's
+///  `legacy`,
+///  every time the clone answers,
+///  before it publishes the clone's inventory.
+/// Why:
+///  The report is the add's half of the design's two checks,
+///  and a step that skipped it would record and mount a clone the handler's
+///  sweep refuses
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///  The step opens the kernel's device, so the shape a release file must have is
+///  read from the source,
+///  as the preflight's own controls do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(source.match(/refuseAClone/)).toHaveLength(2); // the definition and one call, in stepClone
+/// ```
+#[test]
+fn the_clone_step_reports_the_clones_mountpoint_before_it_publishes_the_inventory() {
+    let source: &str = include_str!("add_route_steps.rs");
+    let code: Vec<&str> = source
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| return !line.starts_with("//"))
+        .collect();
+    let joined: String = code.join("\n");
+    assert_eq!(joined.matches("refuse_a_clone_that_is_not_legacy_from_the_container(").count(), 2, "the report is defined once and called once: {joined}");
+    let clone_step: usize = joined.find("pub fn step_clone(").expect("the clone step is a function of this file");
+    let call: usize = clone_step + joined[clone_step..].find("refuse_a_clone_that_is_not_legacy_from_the_container(").expect("the call is in the clone step");
+    let inventory: usize = joined.find("let inventory = steps.device.clone_inventory(").expect("the clone step publishes the clone's inventory");
+    assert!(call < inventory, "the report stands before the clone is recorded, so a clone the add cannot use is never written down as its own");
+}

@@ -152,7 +152,10 @@ pub fn is_non_spacing_mark(character: char) -> bool {
 /// const attachesToPrevious = (c: string, afterJoiner: boolean) =>
 ///   afterJoiner || c === "\u200d" || /\p{Mn}/u.test(c) || /[\u1160-\u11ff\ud7b0-\ud7ff]/u.test(c);
 /// ```
-fn attaches_to_previous(character: char, after_joiner: bool) -> bool {
+fn attaches_to_previous(
+    character: char,
+    after_joiner: bool,
+) -> bool {
     let code_point: u32 = u32::from(character);
     return after_joiner
         || character == '\u{200D}'
@@ -181,7 +184,10 @@ fn attaches_to_previous(character: char, after_joiner: bool) -> bool {
 ///   return [clusters.slice(0, -count).join(""), clusters.slice(-count).join("")];
 /// };
 /// ```
-pub fn split_tail_clusters(text: &str, count: usize) -> (String, String) {
+pub fn split_tail_clusters(
+    text: &str,
+    count: usize,
+) -> (String, String) {
     let mut starts: Vec<usize> = Vec::new();
     let mut after_joiner = false;
     for (index, character) in text.char_indices() {

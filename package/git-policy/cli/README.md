@@ -4404,10 +4404,21 @@ and it ends in one of two states:
   and says that the next git command puts the person's own bytes back and that the merge is theirs to run
   again,
   which is what that command does.
-- A lock that meets a merge whose branch moved while it was prepared ends the same way:
-  the line says the branch moved and that this merge does not land,
-  no side reference is written for a merge that cannot be applied,
-  and the next git command puts the person's own bytes back.
+- A lock that meets a merge whose branch moved while it was prepared is never a save:
+  a save promises a later command that it finishes that very merge,
+  and no command can finish one built on a head the branch has moved past,
+  so the merge is neither applied nor kept.
+  The command settles its record,
+  writes no side reference,
+  and refuses with status 2,
+  saying the branch moved,
+  that nothing of the merge is in the checkout,
+  where the person's own bytes are,
+  and that running the merge again is safe
+  (issue 6473,
+  2026-11-25:
+  the line said the branch had not moved and exited 0,
+  and the caller read it as a merge that had been made).
 
 Every one of those lines states what the settle read,
 so none of them says the branch has not moved,
@@ -4431,6 +4442,13 @@ The merge is then computed again on the moved head and lands as a merge commit w
  up to twenty times in a row;
 each round says so on standard error.
 No `MERGE_HEAD` is ever left behind by a merge that did not finish.
+A round that finds the index still held by another command cannot land the merge either,
+ and a merge built on a head the branch has moved past cannot be saved for a later command,
+ so the command refuses with status 2:
+ the line names the branch,
+ says the merge does not land,
+ states what the checkout and the person's own bytes hold,
+ and says that running the merge again is safe and merges onto the branch as it is now.
 
 #### A conflict
 
@@ -4471,6 +4489,10 @@ Each with its cause:
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.
+- A branch that moved while the merge was prepared,
+  at the instant the merge would have been saved on a side reference for a later command (status 2):
+  nothing of the merge is in the checkout and none of it is kept,
+  and running the merge again lands it on the branch as it is now.
 - A form the wrapper does not complete and native Git runs unchanged:
   `--squash`,
   `--no-commit`,
@@ -5123,6 +5145,10 @@ which can name a remote.
 every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
+Those lines are written by a thread of their own,
+so a reader that stopped draining costs the command no wait.
+A process whose process limit refuses that thread says which limit refused it and writes every line on the thread that says it from then on,
+so a command that fails at its process limit still says why (issue 6476).
 
 ## Configuration
 
@@ -5790,8 +5816,12 @@ fractional or non-numeric value is ignored.
   a value it cannot start makes the failing child kill the connection's `ProxyCommand`,
   so a connection that ended 0 without one ends 255 with it.
   The wrapper adds no words of its own where a question was asked,
-  so this release names no next step at a new host key;
-  how such a text reaches a person is the project's next choice.
+  and that program still names no next step.
+  A typed `clone`,
+  `fetch`,
+  `pull` or `push` whose remote ssh carries gets its next step from the wrapper's own process instead,
+  which keeps Git as its child and prints one sentence after a refusal (see "What a typed network command says").
+  A command ssh does not carry names no next step and is still handed to Git as it always was.
   An SSH key whose passphrase no agent holds therefore fails at once,
   at a terminal or without one,
    while a key without a passphrase needs no agent at all,
@@ -6824,6 +6854,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+  Both build with the Cargo feature `test-only-switches`,
+  as the gate's image does,
+  because a control arms its own `CLI_GIT_TEST_ONLY_*` variable and a build without that feature reads none of them;
+  `native:clippy:test-only-switches` lints that build,
+  and `native:clippy` lints the release's, which holds no such read
+  (`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
 - The gate's tests keep their fixtures on a tmpfs the test container makes:
   `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
   `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`
@@ -7600,8 +7636,11 @@ A sentence stood there for one release to carry the next step at a new host key,
 and it went because a value OpenSSH cannot start kills a connection through a `ProxyCommand`
 (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md` holds the answer,
 and the SPEC's rule for `no_prompt_overlay` names the control that holds the ending).
-This release names no next step at a new host key;
-how that text reaches a person is the project's next choice.
+That program names no next step,
+and a typed `clone`,
+`fetch`,
+`pull` or `push` whose remote ssh carries gets one from the wrapper's own process,
+which is the process that owns the child (see "What a typed network command says").
 A control that compares a forwarded command's environment builds the rule from those two functions
 (`forward` in `src/native/invocation/entry_tests.rs`),
 so no control depends on the terminal the runner happens to have.
@@ -7613,6 +7652,38 @@ an agent's shell or a container started without `--tty`,
 which is how the campaigns start theirs (`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
 and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree,
 2026-11-10).
+
+### What a typed network command says
+
+A `clone`,
+`fetch`,
+`pull` or `push` whose remote ssh carries is the one place the wrapper still has a process after Git:
+it reads the remote first (`git remote get-url`,
+with `--push` for a push,
+or `git ls-remote --get-url` for a URL in a clone's own words),
+runs Git as its child with the error stream on a pseudo-terminal when the wrapper's own standard error is a terminal
+and on a pipe otherwise,
+relays those bytes as they arrive,
+and prints one sentence when the transcript reads as a refused host key or a key no agent can unlock
+(`src/native/invocation/typed_network_command_relay/`).
+At a terminal the person keeps the progress display,
+Git's colour and a security key's touch notice;
+in a capture the bytes are plain Git's,
+measured byte for byte against plain Git on a successful clone of the same repository.
+A transport ssh does not carry, an `https` or `file` remote for example,
+keeps the process replacement it always had,
+with its bytes and its signals.
+
+Four limits stand with it.
+`kill -9` of the typed process number is not one of the four signals the relay carries,
+so the wrapper ends at once and prints nothing.
+Under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
+so no sentence follows.
+A typed LFS push explains a refused key through the upload's own words,
+and the two faces print one sentence and not two.
+And a key whose options live only in `GIT_SSH_COMMAND`,
+`core.sshCommand` or `GIT_SSH` sends the advised plain `ssh` to other settings,
+where it may read another `known_hosts` file.
 
 ### Controls that depend on timing
 

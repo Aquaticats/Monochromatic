@@ -2,21 +2,42 @@
 //!  against a throwaway in-memory database.
 
 use super::*;
-use crate::decision::{Decision, DecisionKind};
-use crate::policy::{CacheIdentity, SCHEMA_VERSION};
+use crate::decision::{
+    Decision,
+    DecisionKind,
+};
+use crate::policy::{
+    CacheIdentity,
+    SCHEMA_VERSION,
+};
 
 // A fixed identity for the tests; every key column matters for a hit.
 // It carries the current schema version, as every shipped identity does.
 fn identity() -> CacheIdentity {
-    return CacheIdentity { policy_id: 11, meter_id: 22, decoder_stack_id: 33, schema_version: SCHEMA_VERSION }
+    return CacheIdentity {
+        policy_id: 11,
+        meter_id: 22,
+        decoder_stack_id: 33,
+        schema_version: SCHEMA_VERSION,
+    };
 }
 
 fn probe(gain: f32) -> Decision {
-    return Decision { gain, kind: DecisionKind::ProbeEstimate, measured_peak: 0.9, duration_secs: 200.0 }
+    return Decision {
+        gain,
+        kind: DecisionKind::ProbeEstimate,
+        measured_peak: 0.9,
+        duration_secs: 200.0,
+    };
 }
 
 fn exact(gain: f32) -> Decision {
-    return Decision { gain, kind: DecisionKind::FullScanExact, measured_peak: 1.5, duration_secs: 200.0 }
+    return Decision {
+        gain,
+        kind: DecisionKind::FullScanExact,
+        measured_peak: 1.5,
+        duration_secs: 200.0,
+    };
 }
 
 // A stored decision reads back unchanged for a matching key.
@@ -56,7 +77,10 @@ async fn misses_on_absent_or_mismatched_key() {
             .expect("absent decision lookup should succeed")
             .is_none()
     );
-    let other = CacheIdentity { policy_id: 999, ..identity() };
+    let other = CacheIdentity {
+        policy_id: 999,
+        ..identity()
+    };
     assert!(
         cache
             .get(42, other)
@@ -128,12 +152,18 @@ async fn exact_fingerprints_lists_only_exact_rows() {
         .put(2, identity(), &probe(0.8))
         .await
         .expect("probe decision should be cached");
-    let short = Decision { kind: DecisionKind::ShortFullScan, ..exact(0.6) };
+    let short = Decision {
+        kind: DecisionKind::ShortFullScan,
+        ..exact(0.6)
+    };
     cache
         .put(3, identity(), &short)
         .await
         .expect("short full-scan decision should be cached");
-    let other = CacheIdentity { policy_id: 999, ..identity() };
+    let other = CacheIdentity {
+        policy_id: 999,
+        ..identity()
+    };
     cache
         .put(4, other, &exact(0.4))
         .await
@@ -169,7 +199,10 @@ async fn remove_drops_only_the_named_key() {
         "positive control: the row should exist before removal"
     );
 
-    let removed = cache.remove(1, identity()).await.expect("remove should run");
+    let removed = cache
+        .remove(1, identity())
+        .await
+        .expect("remove should run");
     assert!(removed, "removing a stored key should report a removed row");
     assert!(
         cache
@@ -195,7 +228,10 @@ async fn remove_of_absent_key_reports_false() {
         .await
         .expect("in-memory cache should open");
 
-    let removed = cache.remove(99, identity()).await.expect("remove should run");
+    let removed = cache
+        .remove(99, identity())
+        .await
+        .expect("remove should run");
     assert!(!removed, "an absent key should report nothing removed");
 }
 
@@ -209,7 +245,10 @@ async fn remove_is_scoped_to_identity() {
         .put(42, identity(), &exact(0.5))
         .await
         .expect("exact decision should be cached");
-    let other = CacheIdentity { policy_id: 999, ..identity() };
+    let other = CacheIdentity {
+        policy_id: 999,
+        ..identity()
+    };
 
     let removed = cache.remove(42, other).await.expect("remove should run");
     assert!(!removed, "a mismatched identity must remove nothing");
@@ -233,7 +272,10 @@ async fn probe_is_stored_after_an_exact_row_is_removed() {
         .put(42, identity(), &exact(0.5))
         .await
         .expect("exact decision should be cached");
-    cache.remove(42, identity()).await.expect("remove should run");
+    cache
+        .remove(42, identity())
+        .await
+        .expect("remove should run");
     cache
         .put(42, identity(), &probe(0.8))
         .await
@@ -249,7 +291,10 @@ async fn probe_is_stored_after_an_exact_row_is_removed() {
 
 // The path of a throwaway database file unique to this process and test name.
 fn scratch_db_path(name: &str) -> std::path::PathBuf {
-    return crate::test_scratch::scratch_root().join(format!("truepeak-core-cache-{}-{name}.db", std::process::id()))
+    return crate::test_scratch::scratch_root().join(format!(
+        "truepeak-core-cache-{}-{name}.db",
+        std::process::id()
+    ));
 }
 
 // Delete the throwaway database and any sibling journal files Turso created.
@@ -262,7 +307,11 @@ fn remove_scratch_db(path: &std::path::Path) {
 }
 
 // Insert a row with an explicit schema-version literal, bypassing `put`, as an older build wrote it.
-async fn insert_row_at_version(cache: &DecisionCache, fingerprint: i64, schema_version: i64) {
+async fn insert_row_at_version(
+    cache: &DecisionCache,
+    fingerprint: i64,
+    schema_version: i64,
+) {
     cache
         .conn
         .execute(
@@ -290,14 +339,19 @@ async fn count_rows(cache: &DecisionCache) -> i64 {
         .get_value(0)
         .expect("count column should exist")
         .as_integer()
-        .expect("count should be an integer")
+        .expect("count should be an integer");
 }
 
 // The shipped schema version is above the first one, so rows written under the retired gxhash
 // fingerprint (version 1) can never match a current read.
 #[test]
 fn the_schema_version_moved_past_the_gxhash_rows() {
-    const { assert!(SCHEMA_VERSION >= 2, "version 1 rows hold gxhash fingerprints and must not match") };
+    const {
+        assert!(
+            SCHEMA_VERSION >= 2,
+            "version 1 rows hold gxhash fingerprints and must not match"
+        )
+    };
 }
 
 // A row left by the gxhash build (schema version written as the literal 1) is a miss for the
@@ -317,8 +371,15 @@ async fn reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows() {
         .await
         .expect("current-version decision should be cached");
     insert_row_at_version(&cache, 0x9999, i64::from(SCHEMA_VERSION) + 1).await;
-    assert_eq!(count_rows(&cache).await, 3, "positive control: three rows before the reopen");
-    let legacy_identity = CacheIdentity { schema_version: 1, ..identity() };
+    assert_eq!(
+        count_rows(&cache).await,
+        3,
+        "positive control: three rows before the reopen"
+    );
+    let legacy_identity = CacheIdentity {
+        schema_version: 1,
+        ..identity()
+    };
     assert!(
         cache
             .get(0x1234_5678, legacy_identity)
@@ -332,13 +393,20 @@ async fn reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows() {
         .await
         .expect("current lookup should succeed")
         .expect("the current-version row should be found");
-    assert_eq!(current.gain, 0.7, "the current identity must see the current row, never the legacy one");
+    assert_eq!(
+        current.gain, 0.7,
+        "the current identity must see the current row, never the legacy one"
+    );
     drop(cache);
 
     let reopened = DecisionCache::open(path_text)
         .await
         .expect("database should reopen");
-    assert_eq!(count_rows(&reopened).await, 2, "the version 1 row should be deleted on open");
+    assert_eq!(
+        count_rows(&reopened).await,
+        2,
+        "the version 1 row should be deleted on open"
+    );
     assert!(
         reopened
             .get(0x1234_5678, legacy_identity)
@@ -355,7 +423,10 @@ async fn reopen_removes_gxhash_era_rows_and_keeps_current_and_newer_rows() {
             .is_some(),
         "the current-version row must survive"
     );
-    let newer = CacheIdentity { schema_version: SCHEMA_VERSION + 1, ..identity() };
+    let newer = CacheIdentity {
+        schema_version: SCHEMA_VERSION + 1,
+        ..identity()
+    };
     assert!(
         reopened
             .get(0x9999, newer)
@@ -404,17 +475,22 @@ fn invented_fingerprint(index: u64) -> u64 {
     let mut mixed = index.wrapping_add(0x9E37_79B9_7F4A_7C15);
     mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    return mixed ^ (mixed >> 31)
+    return mixed ^ (mixed >> 31);
 }
 
 // Read an environment variable the benchmark needs, or fail with how to set it.
-fn bench_setting(name: &str, fallback: Option<&str>) -> String {
+fn bench_setting(
+    name: &str,
+    fallback: Option<&str>,
+) -> String {
     if let Ok(value) = std::env::var(name) {
         return value;
     }
     return fallback
-        .unwrap_or_else(|| panic!("set {name}; see the `bench:cache` task in truepeak-core/mise.toml"))
-        .to_string()
+        .unwrap_or_else(|| {
+            panic!("set {name}; see the `bench:cache` task in truepeak-core/mise.toml")
+        })
+        .to_string();
 }
 
 // Benchmark, skipped in normal runs: store `CACHE_BENCH_ROWS` (default 10,000) invented exact decisions into a
@@ -451,7 +527,9 @@ async fn bench_cold_write() {
             .await
             .expect("synchronous pragma should apply");
     }
-    let entries: Vec<(u64, Decision)> = (0..rows).map(|index| return (invented_fingerprint(index), exact(0.5))).collect();
+    let entries: Vec<(u64, Decision)> = (0..rows)
+        .map(|index| return (invented_fingerprint(index), exact(0.5)))
+        .collect();
     let started = std::time::Instant::now();
     if mode.starts_with("batch") {
         for chunk in entries.chunks(batch_size) {
@@ -469,7 +547,10 @@ async fn bench_cold_write() {
         }
     }
     let elapsed = started.elapsed();
-    assert_eq!(count_rows(&cache).await, i64::try_from(rows).expect("row count fits i64"));
+    assert_eq!(
+        count_rows(&cache).await,
+        i64::try_from(rows).expect("row count fits i64")
+    );
     println!(
         "CACHE_BENCH mode={mode} rows={rows} batch={batch_size} wall_ms={:.1}",
         elapsed.as_secs_f64() * 1000.0
@@ -555,10 +636,20 @@ async fn a_refused_row_does_not_discard_its_neighbours() {
         .put_batch(identity(), &entries)
         .await
         .expect_err("the refused row should be reported");
-    assert!(error.message.contains("1 of 3"), "unexpected message: {}", error.message);
+    assert!(
+        error.message.contains("1 of 3"),
+        "unexpected message: {}",
+        error.message
+    );
     assert_eq!(count_rows(&cache).await, 2);
-    assert_eq!(cache.get(1, identity()).await.expect("lookup should run"), Some(exact(0.1)));
-    assert_eq!(cache.get(3, identity()).await.expect("lookup should run"), Some(exact(0.3)));
+    assert_eq!(
+        cache.get(1, identity()).await.expect("lookup should run"),
+        Some(exact(0.1))
+    );
+    assert_eq!(
+        cache.get(3, identity()).await.expect("lookup should run"),
+        Some(exact(0.3))
+    );
 }
 
 //endregion
@@ -623,17 +714,29 @@ struct CrashOutcome {
 // Run `cycles` rounds: start the child on the same database file, wait until it has reported a few commits, kill it
 // with SIGKILL (`Child::kill`), then reopen the file and check it is a consistent prefix of the invented keys.
 // Returns what each round found, for the caller's alignment assertion.
-async fn run_crash_cycles(write: &str, sync: &str, cycles: u32) -> Vec<CrashOutcome> {
+async fn run_crash_cycles(
+    write: &str,
+    sync: &str,
+    cycles: u32,
+) -> Vec<CrashOutcome> {
     use std::io::BufRead;
     let path = scratch_db_path(&format!("crash-{write}-{sync}"));
     remove_scratch_db(&path);
-    let path_text = path.to_str().expect("crash path should be UTF-8").to_string();
+    let path_text = path
+        .to_str()
+        .expect("crash path should be UTF-8")
+        .to_string();
     let executable = std::env::current_exe().expect("the test binary should know its own path");
     let mut outcomes = Vec::new();
     let mut start: u64 = 0;
     for cycle in 0..cycles {
         let mut child = std::process::Command::new(&executable)
-            .args(["--exact", "cache::tests::crash_writer_child", "--ignored", "--nocapture"])
+            .args([
+                "--exact",
+                "cache::tests::crash_writer_child",
+                "--ignored",
+                "--nocapture",
+            ])
             .env("CACHE_CRASH_DB", &path_text)
             .env("CACHE_CRASH_START", start.to_string())
             .env("CACHE_CRASH_WRITE", write)
@@ -641,7 +744,8 @@ async fn run_crash_cycles(write: &str, sync: &str, cycles: u32) -> Vec<CrashOutc
             .stdout(std::process::Stdio::piped())
             .spawn()
             .expect("the crash writer should start");
-        let reader = std::io::BufReader::new(child.stdout.take().expect("the child's stdout is piped"));
+        let reader =
+            std::io::BufReader::new(child.stdout.take().expect("the child's stdout is piped"));
         // The line iterator stays alive until after the kill: closing the pipe early would make the child's next
         // `println!` panic and end it before the kill, which the test would then mistake for a kill.
         let mut lines = reader.lines();
@@ -655,11 +759,16 @@ async fn run_crash_cycles(write: &str, sync: &str, cycles: u32) -> Vec<CrashOutc
                 }
             }
         }
-        assert!(reported >= start + 5 * CRASH_BATCH, "the child stopped before it wrote enough");
+        assert!(
+            reported >= start + 5 * CRASH_BATCH,
+            "the child stopped before it wrote enough"
+        );
         // The child commits a batch in about a millisecond, so a kill sent the instant its line arrives always
         // lands between batches. A varying pause (0 to 3.999 ms, from a fixed mix of the cycle number) spreads the
         // kills across the batch.
-        std::thread::sleep(std::time::Duration::from_micros(invented_fingerprint(u64::from(cycle)) % 4000));
+        std::thread::sleep(std::time::Duration::from_micros(
+            invented_fingerprint(u64::from(cycle)) % 4000,
+        ));
         child.kill().expect("SIGKILL should reach the child");
         child.wait().expect("the killed child should be reaped");
         drop(lines);
@@ -671,24 +780,48 @@ async fn run_crash_cycles(write: &str, sync: &str, cycles: u32) -> Vec<CrashOutc
             .query("PRAGMA integrity_check", ())
             .await
             .expect("integrity check should run");
-        let verdict = check.next().await.expect("integrity row should be read").expect("integrity returns a row");
-        assert_eq!(verdict.get_value(0).expect("integrity cell").as_text().map(String::as_str), Some("ok"));
+        let verdict = check
+            .next()
+            .await
+            .expect("integrity row should be read")
+            .expect("integrity returns a row");
+        assert_eq!(
+            verdict
+                .get_value(0)
+                .expect("integrity cell")
+                .as_text()
+                .map(String::as_str),
+            Some("ok")
+        );
         let found = u64::try_from(count_rows(&reopened).await).expect("row count is not negative");
         let present = reopened
             .exact_fingerprints(identity())
             .await
             .expect("fingerprints should be read");
-        assert!(found >= reported, "rows the child reported as committed were lost: {found} < {reported}");
-        assert_eq!(present.len() as u64, found, "every row should be exact under the test identity");
+        assert!(
+            found >= reported,
+            "rows the child reported as committed were lost: {found} < {reported}"
+        );
+        assert_eq!(
+            present.len() as u64,
+            found,
+            "every row should be exact under the test identity"
+        );
         for index in 0..found {
-            assert!(present.contains(&invented_fingerprint(index)), "row {index} of the prefix is missing");
+            assert!(
+                present.contains(&invented_fingerprint(index)),
+                "row {index} of the prefix is missing"
+            );
         }
-        outcomes.push(CrashOutcome { reported, found });
+        outcomes.push(CrashOutcome {
+            reported,
+            found,
+        });
         start = found;
         drop(reopened);
     }
     remove_scratch_db(&path);
-    return outcomes
+    return outcomes;
 }
 
 // After a kill -9 during batched writes the database opens, passes the integrity check, holds every committed
@@ -714,9 +847,14 @@ async fn batched_writes_survive_kill_nine_with_whole_batches_only() {
 async fn row_writes_after_kill_nine_leave_partial_batches() {
     let outcomes = run_crash_cycles("row", "full", 12).await;
     assert!(
-        outcomes.iter().any(|outcome| return outcome.found % CRASH_BATCH != 0),
+        outcomes
+            .iter()
+            .any(|outcome| return outcome.found % CRASH_BATCH != 0),
         "no kill landed inside a batch of row commits: {:?}",
-        outcomes.iter().map(|outcome| return (outcome.reported, outcome.found)).collect::<Vec<_>>()
+        outcomes
+            .iter()
+            .map(|outcome| return (outcome.reported, outcome.found))
+            .collect::<Vec<_>>()
     );
 }
 

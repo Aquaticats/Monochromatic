@@ -1,22 +1,48 @@
 //! File-open success is the only boundary that replaces displayed source or promotes history.
 
 /// Native source state and tree presentation share one event-loop thread.
-use super::{AppWindow, Navigation, State, line, present};
+use super::{
+    AppWindow,
+    Navigation,
+    State,
+    line,
+    present,
+};
 /// A language target names a file and a place in it;
 ///  the caret goes there once the file is shown.
-use crate::native::language::{Jump, place};
+use crate::native::language::{
+    Jump,
+    place,
+};
 /// Reuse the same revision-aware classification application as external reloads;
 ///  `rows` maps the new text.
-use crate::native::{reload::apply_syntax, render, rows};
+use crate::native::{
+    reload::apply_syntax,
+    render,
+    rows,
+};
 /// Identity exhaustion reports an error rather than reusing an obsolete file generation.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// New source documents arrive only after successful project-boundary resolution and reading.
-use ide_app::{file_open::OpenedFile, source_style::SourceStyles};
+use ide_app::{
+    file_open::OpenedFile,
+    source_style::SourceStyles,
+};
 /// File context remains a display-only native-path label;
 ///  `ComponentHandle` reaches the window's display scale.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 /// Shared source state never crosses the background-reader thread.
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{
+    cell::RefCell,
+    path::PathBuf,
+    rc::Rc,
+};
 
 /// Focus the source after an open,
 ///  unless the find input is being typed into.
@@ -122,7 +148,11 @@ pub(in crate::native) fn request_jump(
 }
 
 /// Read failures do not replace readable source or promote a failed path into history.
-pub(super) fn failed(window: &AppWindow, source: &Rc<RefCell<State>>, message: String) {
+pub(super) fn failed(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+    message: String,
+) {
     tracing::warn!(%message, "project source open failed; retaining displayed source");
     let mut current = source.borrow_mut();
     current.navigation_error = Some(message);

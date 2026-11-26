@@ -14,9 +14,16 @@ use std::path::Path;
 /// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
-use crate::lean_identity::{Deadline, now_seconds};
+use crate::lean_identity::{
+    Deadline,
+    now_seconds,
+};
 /// Imports the names this file uses from `crate::lean_run_records`.
-use crate::lean_run_records::{RecordsOutcome, RetentionPolicy, sweep_run_records};
+use crate::lean_run_records::{
+    RecordsOutcome,
+    RetentionPolicy,
+    sweep_run_records,
+};
 
 /// What:
 /// `pub fn sweep_records_directory(directory: &Path, dry_run: bool, deadline: &Deadline, environment: &GuardEnvironment, max_age_seconds: i64, max_bytes: u64, protect_seconds: i64) -> RecordsOutcome`
@@ -38,7 +45,19 @@ pub fn sweep_records_directory(
     protect_seconds: i64,
 ) -> RecordsOutcome {
     let mut log: Vec<String> = Vec::new();
-    let policy: RetentionPolicy = RetentionPolicy { max_age_seconds, max_bytes, protect_seconds };
-    let outcome: RecordsOutcome = sweep_run_records(directory, &policy, environment, now_seconds(), dry_run, deadline, &mut log);
+    let policy: RetentionPolicy = RetentionPolicy {
+        max_age_seconds,
+        max_bytes,
+        protect_seconds,
+    };
+    let outcome: RecordsOutcome = sweep_run_records(
+        directory,
+        &policy,
+        environment,
+        now_seconds(),
+        dry_run,
+        deadline,
+        &mut log,
+    );
     return outcome;
 }

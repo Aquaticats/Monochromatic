@@ -33,9 +33,18 @@
 //! ```
 
 /// The reader-neutral declaration this walk reads.
-use super::declaration::{ContainerKind, DeclaredMember, DeclaredType, Declaration};
+use super::declaration::{
+    ContainerKind,
+    Declaration,
+    DeclaredMember,
+    DeclaredType,
+};
 /// The expectation table this walk compares against.
-use super::expectations::{ExpectedContainer, ExpectedMember, ZFS_CMD};
+use super::expectations::{
+    ExpectedContainer,
+    ExpectedMember,
+    ZFS_CMD,
+};
 /// The one difference value this walk returns.
 use super::mismatch::Mismatch;
 /// The step one difference is reported as.
@@ -186,7 +195,11 @@ fn match_member<'a>(
 /// The index one expectation covers:
 /// by name,
 /// or by kind and bit offset for an anonymous container.
-fn covered_index(module: &dyn Declaration, found: &[DeclaredMember], wanted: &ExpectedMember) -> Option<usize> {
+fn covered_index(
+    module: &dyn Declaration,
+    found: &[DeclaredMember],
+    wanted: &ExpectedMember,
+) -> Option<usize> {
     for (index, member) in found.iter().enumerate() {
         if covers(module, wanted, member) {
             return Some(index);
@@ -196,7 +209,11 @@ fn covered_index(module: &dyn Declaration, found: &[DeclaredMember], wanted: &Ex
 }
 
 /// Whether one member of the module is the one an expectation covers.
-fn covers(module: &dyn Declaration, wanted: &ExpectedMember, member: &DeclaredMember) -> bool {
+fn covers(
+    module: &dyn Declaration,
+    wanted: &ExpectedMember,
+    member: &DeclaredMember,
+) -> bool {
     return match (wanted.name, wanted.container) {
         (Some(name), _) => member.name.as_deref() == Some(name),
         (None, Some(kind)) => {
@@ -210,7 +227,11 @@ fn covers(module: &dyn Declaration, wanted: &ExpectedMember, member: &DeclaredMe
 
 /// Why an expectation found no member,
 /// naming the container that stands where it was expected.
-fn not_found(found: &[DeclaredMember], wanted: &ExpectedMember, path: &str) -> Mismatch {
+fn not_found(
+    found: &[DeclaredMember],
+    wanted: &ExpectedMember,
+    path: &str,
+) -> Mismatch {
     let field: String = field_path(path, wanted);
     for member in found {
         if member.bit_offset != wanted.bit_offset {
@@ -247,7 +268,11 @@ fn check_array(
     element_bytes: u32,
     field: &str,
 ) -> Result<(), Mismatch> {
-    let Some(DeclaredType::Array { element, .. }) = module.declared(member.type_id) else {
+    let Some(DeclaredType::Array {
+        element,
+        ..
+    }) = module.declared(member.type_id)
+    else {
         return Err(Mismatch {
             step: Step::Type,
             detail: format!("{field} is not an array of whole elements"),
@@ -277,10 +302,17 @@ fn check_array(
 }
 
 /// Why a container's own entry is not the container the expectation names.
-fn not_a_container(path: &str, kind: &str, expected: &ExpectedContainer) -> Mismatch {
+fn not_a_container(
+    path: &str,
+    kind: &str,
+    expected: &ExpectedContainer,
+) -> Mismatch {
     return Mismatch {
         step: Step::Type,
-        detail: format!("{path} is {kind} where {} was expected", expected.kind_name()),
+        detail: format!(
+            "{path} is {kind} where {} was expected",
+            expected.kind_name()
+        ),
     };
 }
 
@@ -294,7 +326,10 @@ fn member_name(member: &DeclaredMember) -> String {
 }
 
 /// The path one member is read as.
-fn field_path(path: &str, wanted: &ExpectedMember) -> String {
+fn field_path(
+    path: &str,
+    wanted: &ExpectedMember,
+) -> String {
     return match wanted.name {
         Some(name) => format!("{path}.{name}"),
         None => format!("{path}.{{anonymous {}}}", anonymous_word(wanted)),
@@ -312,7 +347,11 @@ fn anonymous_word(wanted: &ExpectedMember) -> &'static str {
 
 /// The first member the expectation does not cover,
 /// as the words a member-count mismatch ends with.
-fn first_extra(module: &dyn Declaration, found: &[DeclaredMember], expected: &ExpectedContainer) -> String {
+fn first_extra(
+    module: &dyn Declaration,
+    found: &[DeclaredMember],
+    expected: &ExpectedContainer,
+) -> String {
     for member in found {
         let covered: bool = expected.members.iter().any(|wanted| {
             return covers(module, wanted, member);

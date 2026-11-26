@@ -17,7 +17,11 @@
 /// Import the borrowed operating-system string type that environment variables arrive as.
 use std::ffi::OsString;
 /// Import the path types and the component enum used to resolve `..` without touching the file system.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 /// Import the once-per-process cell that caches the environment's roots.
 use std::sync::OnceLock;
 
@@ -99,7 +103,10 @@ impl OwnSource {
     /// ```ts
     /// function fromValues(manifestDir?: string, outDir?: string): OwnSource;
     /// ```
-    pub fn from_values(manifest_dir: Option<OsString>, out_dir: Option<OsString>) -> OwnSource {
+    pub fn from_values(
+        manifest_dir: Option<OsString>,
+        out_dir: Option<OsString>,
+    ) -> OwnSource {
         return OwnSource {
             manifest_dir: manifest_dir.map(normal_of_text),
             out_dir: out_dir.map(normal_of_text),
@@ -123,7 +130,10 @@ impl OwnSource {
     ///   return isAbsolute(normal) && this.manifestDir !== undefined && !isInside(normal, this.manifestDir);
     /// }
     /// ```
-    pub fn excludes(&self, path: &Path) -> bool {
+    pub fn excludes(
+        &self,
+        path: &Path,
+    ) -> bool {
         let normal: PathBuf = lexically_normal(path);
         if let Some(out_dir) = &self.out_dir
             && normal.starts_with(out_dir)

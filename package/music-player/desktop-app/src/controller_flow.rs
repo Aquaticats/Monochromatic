@@ -80,10 +80,16 @@ impl Controller {
         // D128: a selected row that is not loaded (restored, or its open failed) is tried again where it stands; only
         // a Play with nothing selected walks past unreadable files to the first playable one.
         let loaded: bool = if selected.is_some() {
-            tracing::info!(index, "Play was asked with a selected row that is not loaded; loading that row");
+            tracing::info!(
+                index,
+                "Play was asked with a selected row that is not loaded; loading that row"
+            );
             self.load_selected()
         } else {
-            tracing::info!(index, "Play was asked with nothing loaded; starting the first track of the page");
+            tracing::info!(
+                index,
+                "Play was asked with nothing loaded; starting the first track of the page"
+            );
             self.queue.play_index(index);
             self.load_current()
         };
@@ -241,7 +247,10 @@ impl Controller {
     /// ```ts
     /// reportUnplayable(failed: string[]): void { this.reportUnplayableOnce(failed); }
     /// ```
-    pub(crate) fn report_unplayable(&self, failed: Vec<PathBuf>) {
+    pub(crate) fn report_unplayable(
+        &self,
+        failed: Vec<PathBuf>,
+    ) {
         self.report_unplayable_once(failed);
     }
 
@@ -257,11 +266,17 @@ impl Controller {
     /// ```ts
     /// emitUnplayable(failed: string[]): void { if (failed.length) this.emit({ kind: "unplayable", paths: failed }); }
     /// ```
-    pub(crate) fn emit_unplayable(&self, failed: Vec<PathBuf>) {
+    pub(crate) fn emit_unplayable(
+        &self,
+        failed: Vec<PathBuf>,
+    ) {
         if failed.is_empty() {
             return;
         }
-        tracing::warn!(files = failed.len(), "files that could not be opened are reported to the window");
+        tracing::warn!(
+            files = failed.len(),
+            "files that could not be opened are reported to the window"
+        );
         self.emit(Update::Unplayable(failed));
     }
 }

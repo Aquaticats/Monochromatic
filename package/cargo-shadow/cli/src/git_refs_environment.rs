@@ -10,7 +10,7 @@
 /// The predicate that finds a blocking variable that is set.
 use crate::git_refs::is_set;
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 /// Re-exports the configuration reader,
 /// which lives in `git_settings.rs`.
@@ -123,7 +123,12 @@ impl Default for GitProgram {
         // ```ts
         // // TS has one type for this: T[] / Set / Map / number
         // ```
-        return GitProgram { program: PathBuf::from("git"), bound: std::time::Duration::from_secs(GIT_CALL_SECONDS), clean_environment: false, environment: Vec::new() };
+        return GitProgram {
+            program: PathBuf::from("git"),
+            bound: std::time::Duration::from_secs(GIT_CALL_SECONDS),
+            clean_environment: false,
+            environment: Vec::new(),
+        };
     }
 }
 
@@ -201,7 +206,10 @@ impl NativeEnvironment {
         // ```ts
         // // TS has one type for this: string
         // ```
-        let blocking_variable: Option<String> = BLOCKING_VARIABLES.iter().find(is_set).map(ToString::to_string);
+        let blocking_variable: Option<String> = BLOCKING_VARIABLES
+            .iter()
+            .find(is_set)
+            .map(ToString::to_string);
         // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
         // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
         //
@@ -212,6 +220,13 @@ impl NativeEnvironment {
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
         // Typed binding: `other_system_configs: Vec<PathBuf>`.
-        return NativeEnvironment { home, xdg_config_home, system_config: None, blocking_variable, git: GitProgram::default(), user_id: current_user_id() };
+        return NativeEnvironment {
+            home,
+            xdg_config_home,
+            system_config: None,
+            blocking_variable,
+            git: GitProgram::default(),
+            user_id: current_user_id(),
+        };
     }
 }

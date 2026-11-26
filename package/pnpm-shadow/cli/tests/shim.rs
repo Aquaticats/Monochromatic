@@ -3,13 +3,22 @@
 //! against a fake pnpm on PATH.
 
 /// Imports the link helper and the executable-mode helper.
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{
+    PermissionsExt,
+    symlink,
+};
 /// Imports `.signal()` on an exit status.
 use std::os::unix::process::ExitStatusExt;
 /// Imports the path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the child-process builder and its captured output.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// The built `pnpm-shadow` binary,
 /// which Cargo builds before running these tests.
@@ -53,7 +62,8 @@ struct World {
 
 fn make_world() -> World {
     std::fs::create_dir_all(SCRATCH_ROOT).expect("make the scratch root");
-    let guard: tempfile::TempDir = tempfile::tempdir_in(SCRATCH_ROOT).expect("make a scratch directory");
+    let guard: tempfile::TempDir =
+        tempfile::tempdir_in(SCRATCH_ROOT).expect("make a scratch directory");
     let shadow_directory: PathBuf = guard.path().join("shadow");
     let fake_directory: PathBuf = guard.path().join("fake");
     let workspace: PathBuf = guard.path().join("workspace");
@@ -67,8 +77,14 @@ fn make_world() -> World {
         "#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nif [ \"${{{KILL_VARIABLE}:-}}\" = 1 ]; then kill -TERM $$; fi\nif [ \"$1\" = nested ]; then pnpm inner; fi\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n"
     );
     std::fs::write(&fake, script).expect("write the fake pnpm");
-    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
-    return World { _guard: guard, shadow_directory, fake_directory, workspace };
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755))
+        .expect("make it executable");
+    return World {
+        _guard: guard,
+        shadow_directory,
+        fake_directory,
+        workspace,
+    };
 }
 
 fn path_of(directories: &[&Path]) -> String {
@@ -79,7 +95,12 @@ fn path_of(directories: &[&Path]) -> String {
     return parts.join(":");
 }
 
-fn run_shadow(world: &World, path: &str, arguments: &[&str], fake_exit: i32) -> Output {
+fn run_shadow(
+    world: &World,
+    path: &str,
+    arguments: &[&str],
+    fake_exit: i32,
+) -> Output {
     return Command::new(world.shadow_directory.join("pnpm"))
         .args(arguments)
         .current_dir(&world.workspace)
@@ -89,8 +110,15 @@ fn run_shadow(world: &World, path: &str, arguments: &[&str], fake_exit: i32) -> 
         .expect("start the shadow");
 }
 
-fn write_workspace(world: &World, manifest: &str) {
-    std::fs::write(world.workspace.join("pnpm-workspace.yaml"), "packages: []\n").expect("write the marker");
+fn write_workspace(
+    world: &World,
+    manifest: &str,
+) {
+    std::fs::write(
+        world.workspace.join("pnpm-workspace.yaml"),
+        "packages: []\n",
+    )
+    .expect("write the marker");
     std::fs::write(world.workspace.join("package.json"), manifest).expect("write the manifest");
 }
 
@@ -103,11 +131,19 @@ fn a_violation_warns_on_stderr_and_pnpm_runs_with_its_own_output_and_status() {
     write_workspace(&world, LITERAL);
     let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
 
-    let output = run_shadow(&world, &path, &["install", "--frozen-lockfile"], DISTINCT_EXIT_CODE);
+    let output = run_shadow(
+        &world,
+        &path,
+        &["install", "--frozen-lockfile"],
+        DISTINCT_EXIT_CODE,
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(stdout.trim_end(), format!("{FAKE_MARKER} install --frozen-lockfile"));
+    assert_eq!(
+        stdout.trim_end(),
+        format!("{FAKE_MARKER} install --frozen-lockfile")
+    );
     assert!(stderr.contains("warning:"));
     // The wrapper names itself only after `--version` and `--help`, never in a warning.
     assert!(!stderr.contains("pnpm-shadow"));
@@ -125,7 +161,10 @@ fn a_clean_workspace_is_silent_and_pnpm_runs() {
     let output = run_shadow(&world, &path, &["list"], 0);
 
     assert!(output.stderr.is_empty());
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} list"));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end(),
+        format!("{FAKE_MARKER} list")
+    );
     assert_eq!(output.status.code(), Some(0));
 }
 
@@ -165,8 +204,14 @@ fn help_prints_pnpms_text_then_a_section_naming_the_wrapper() {
         let output = run_shadow(&world, &path, &[word], 0);
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.starts_with(&format!("{FAKE_MARKER} {word}\n\n")), "word {word}");
-        assert!(stdout.contains(&expected_version_line(&world)), "word {word}");
+        assert!(
+            stdout.starts_with(&format!("{FAKE_MARKER} {word}\n\n")),
+            "word {word}"
+        );
+        assert!(
+            stdout.contains(&expected_version_line(&world)),
+            "word {word}"
+        );
         assert!(stdout.contains("never blocks pnpm"), "word {word}");
     }
 }
@@ -182,7 +227,11 @@ fn a_commands_own_help_and_every_ordinary_run_print_exactly_pnpms_text() {
         let output = run_shadow(&world, &path, command_line, 0);
 
         let expected = format!("{FAKE_MARKER} {}\n", command_line.join(" "));
-        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "{command_line:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "{command_line:?}"
+        );
     }
 }
 
@@ -196,7 +245,10 @@ fn a_lone_version_or_help_word_does_no_scan_even_in_a_workspace_with_a_violation
         let output = run_shadow(&world, &path, &[word], 0);
 
         assert!(output.stderr.is_empty(), "word {word} must not scan");
-        assert!(String::from_utf8_lossy(&output.stdout).contains("shadowing pnpm at"), "word {word}");
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("shadowing pnpm at"),
+            "word {word}"
+        );
     }
 }
 
@@ -231,10 +283,20 @@ fn only_commands_that_resolve_or_change_dependencies_warn() {
     for command_line in warns {
         let output = run_shadow(&world, &path, command_line, 0);
 
-        assert!(String::from_utf8_lossy(&output.stderr).contains("left-pad"), "{command_line:?} must warn");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("left-pad"),
+            "{command_line:?} must warn"
+        );
     }
 
-    let silent: [&[&str]; 6] = [&["run", "build"], &["list"], &["root"], &["exec", "ls"], &["test"], &["--filter", "install", "list"]];
+    let silent: [&[&str]; 6] = [
+        &["run", "build"],
+        &["list"],
+        &["root"],
+        &["exec", "ls"],
+        &["test"],
+        &["--filter", "install", "list"],
+    ];
     for command_line in silent {
         let output = run_shadow(&world, &path, command_line, 0);
 
@@ -284,8 +346,13 @@ fn put_a_launcher_in_front(world: &World) {
     let launcher_directory: PathBuf = world.shadow_directory.join("..").join("launcher");
     std::fs::create_dir_all(&launcher_directory).expect("make the launcher directory");
     let launcher: PathBuf = launcher_directory.join("pnpm-shadow-launcher");
-    std::fs::write(&launcher, format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n")).expect("write the launcher");
-    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    std::fs::write(
+        &launcher,
+        format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n"),
+    )
+    .expect("write the launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755))
+        .expect("make it executable");
     // The toolchain writes a record beside every launcher it makes; the shadow reads it to see that the launcher leads back to a shadow and
     // skips it without starting it. A launcher with no record is covered by `never_start_another_shadow.rs`.
     std::fs::write(
@@ -300,7 +367,11 @@ fn put_a_launcher_in_front(world: &World) {
 
 /// Runs the link under `timeout`,
 /// so a loop fails the test instead of hanging it.
-fn run_limited(world: &World, path: &str, arguments: &[&str]) -> Output {
+fn run_limited(
+    world: &World,
+    path: &str,
+    arguments: &[&str],
+) -> Output {
     // The notice handshake keeps its marker files in the per-user runtime directory; this world gets one of its own.
     let runtime: PathBuf = world.shadow_directory.join("..").join("runtime");
     std::fs::create_dir_all(&runtime).expect("make the runtime directory");
@@ -326,13 +397,27 @@ fn through_a_launcher_both_start_paths_reach_the_real_pnpm_without_looping() {
     let exec_path = run_limited(&world, &path, &["install"]);
     let spawn_path = run_limited(&world, &path, &["--version"]);
 
-    assert_ne!(exec_path.status.code(), Some(TIMED_OUT_EXIT_CODE), "the exec path looped");
-    assert_ne!(spawn_path.status.code(), Some(TIMED_OUT_EXIT_CODE), "the spawn path looped");
-    assert_eq!(String::from_utf8_lossy(&exec_path.stdout), format!("{FAKE_MARKER} install\n"));
+    assert_ne!(
+        exec_path.status.code(),
+        Some(TIMED_OUT_EXIT_CODE),
+        "the exec path looped"
+    );
+    assert_ne!(
+        spawn_path.status.code(),
+        Some(TIMED_OUT_EXIT_CODE),
+        "the spawn path looped"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&exec_path.stdout),
+        format!("{FAKE_MARKER} install\n")
+    );
     assert_eq!(exec_path.status.code(), Some(0));
     // The notice appears once, after pnpm's own line, whatever the chain between the link and pnpm.
     let version_stdout = String::from_utf8_lossy(&spawn_path.stdout);
-    assert_eq!(version_stdout, format!("{FAKE_MARKER} --version\n{}", expected_version_line(&world)));
+    assert_eq!(
+        version_stdout,
+        format!("{FAKE_MARKER} --version\n{}", expected_version_line(&world))
+    );
     assert_eq!(spawn_path.status.code(), Some(0));
 }
 
@@ -346,7 +431,11 @@ fn through_a_launcher_a_violation_warns_exactly_once() {
     let output = run_limited(&world, &path, &["install"]);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(stderr.matches("problem in the package manifests").count(), 1, "stderr: {stderr}");
+    assert_eq!(
+        stderr.matches("problem in the package manifests").count(),
+        1,
+        "stderr: {stderr}"
+    );
     assert_eq!(output.status.code(), Some(0));
 }
 
@@ -380,7 +469,10 @@ fn a_launcher_with_no_real_pnpm_behind_it_ends_with_127_and_does_not_loop() {
         let output = run_limited(&world, &path, &arguments);
 
         assert_eq!(output.status.code(), Some(127), "{arguments:?}");
-        assert!(String::from_utf8_lossy(&output.stderr).contains("no real pnpm found on PATH"), "{arguments:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("no real pnpm found on PATH"),
+            "{arguments:?}"
+        );
     }
 }
 
@@ -392,7 +484,10 @@ fn a_failing_version_run_gets_no_notice() {
 
     let output = run_shadow(&world, &path, &["--version"], DISTINCT_EXIT_CODE);
 
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{FAKE_MARKER} --version\n"));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{FAKE_MARKER} --version\n")
+    );
     assert_eq!(output.status.code(), Some(DISTINCT_EXIT_CODE));
 }
 

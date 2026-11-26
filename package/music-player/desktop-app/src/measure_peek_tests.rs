@@ -8,14 +8,22 @@ use super::*;
 
 use std::time::Duration;
 
-use truepeak_core::{Decision, DecisionKind};
+use truepeak_core::{
+    Decision,
+    DecisionKind,
+};
 
-use crate::peakcache::{self, CacheHandle};
+use crate::peakcache::{
+    self,
+    CacheHandle,
+};
 
 // What:     `fn fixture(name: &str) -> PathBuf` names a committed fixture file under the package.
 // Why:      The tones have a known header length, so the peek can be checked against a real file.
 fn fixture(name: &str) -> PathBuf {
-    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixture").join(name);
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("fixture")
+        .join(name);
 }
 
 #[test]

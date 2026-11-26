@@ -4,14 +4,26 @@
 /// The tree and the answer type it stores.
 use ide_app::{
     file_tree::FileTree,
-    git_ignore::{IgnoreAnswer, RuleStamps, Stamp},
+    git_ignore::{
+        IgnoreAnswer,
+        RuleStamps,
+        Stamp,
+    },
     workspace::DirectoryEntry,
 };
 /// Synthetic roots keep these tests independent of filesystem timing.
-use std::{collections::BTreeSet, ffi::OsString, path::Path};
+use std::{
+    collections::BTreeSet,
+    ffi::OsString,
+    path::Path,
+};
 
 /// Build a synthetic child without performing filesystem I/O.
-fn child(parent: &str, name: &str, is_directory: bool) -> DirectoryEntry {
+fn child(
+    parent: &str,
+    name: &str,
+    is_directory: bool,
+) -> DirectoryEntry {
     return DirectoryEntry {
         name: name.into(),
         path: Path::new(parent).join(name),

@@ -22,14 +22,26 @@
 use music_player::session::Session;
 /// Imports the size limits,
 /// the text element and the sizes type.
-use music_player::text_size::{MAX_TEXT_SIZE_PX, MIN_TEXT_SIZE_PX, TextElement, TextSizes};
+use music_player::text_size::{
+    MAX_TEXT_SIZE_PX,
+    MIN_TEXT_SIZE_PX,
+    TextElement,
+    TextSizes,
+};
 /// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, write_screen};
+use crate::ui_screen::{
+    project,
+    read_screen,
+    write_screen,
+};
 /// Imports the window and the generated text size global.
-use crate::{AppWindow, TextSize};
+use crate::{
+    AppWindow,
+    TextSize,
+};
 
 /// What:
 /// `SaveTextSizes` is the function that persists the four text sizes.
@@ -99,18 +111,36 @@ pub(crate) fn wire_callbacks(app: &AppWindow) {
 /// follows at once,
 /// a press past an end changes nothing and saves nothing,
 /// and an index outside the four is logged.
-fn step_text_size(window: &AppWindow, index: i32, step: i32) {
+fn step_text_size(
+    window: &AppWindow,
+    index: i32,
+    step: i32,
+) {
     let Some(element) = TextElement::from_index(index) else {
-        tracing::warn!(index, step, "ignored a step of a text size stepper that does not exist");
+        tracing::warn!(
+            index,
+            step,
+            "ignored a step of a text size stepper that does not exist"
+        );
         return;
     };
     let current = read_screen().text_sizes;
     let next = current.stepped(element, step);
     if next == current {
-        tracing::debug!(?element, step, px = current.get(element), "the text size is at its limit; nothing changes");
+        tracing::debug!(
+            ?element,
+            step,
+            px = current.get(element),
+            "the text size is at its limit; nothing changes"
+        );
         return;
     }
-    tracing::info!(?element, from = current.get(element), to = next.get(element), "stepped a text size");
+    tracing::info!(
+        ?element,
+        from = current.get(element),
+        to = next.get(element),
+        "stepped a text size"
+    );
     apply(window, next);
 }
 
@@ -139,7 +169,10 @@ fn reset_text_sizes(window: &AppWindow) {
 /// a failed
 /// save is logged and leaves the sizes in force for this run,
 /// and the end-to-end run reads the sizes from the log line.
-fn apply(window: &AppWindow, sizes: TextSizes) {
+fn apply(
+    window: &AppWindow,
+    sizes: TextSizes,
+) {
     {
         let mut state = write_screen();
         state.text_sizes = sizes;

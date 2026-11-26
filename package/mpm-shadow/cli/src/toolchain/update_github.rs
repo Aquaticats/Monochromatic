@@ -19,18 +19,31 @@
 use serde_json::Value;
 
 /// Imports what this module uses from `crate::version`.
-use crate::version::{compare_versions, is_whole_version};
+use crate::version::{
+    compare_versions,
+    is_whole_version,
+};
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports the model types the resolver builds.
-use super::model::{Artifact, Declaration};
+use super::model::{
+    Artifact,
+    Declaration,
+};
 /// Imports the version normalizer shared with `list`.
 use super::parse_output::normalize_version;
 /// Imports the asset chooser.
 use super::update_github_assets::pick_asset;
 /// Imports the shared resolver helpers.
-use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, hash_download, text_at};
+use super::update_resolve::{
+    LINUX_PLATFORMS,
+    Resolution,
+    ResolveError,
+    get_json,
+    hash_download,
+    text_at,
+};
 
 /// What:
 /// Whether `name` matches `pattern`,
@@ -42,7 +55,10 @@ use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json,
 /// ```ts
 /// export function globMatches(pattern: string, name: string): boolean
 /// ```
-pub fn glob_matches(pattern: &str, name: &str) -> bool {
+pub fn glob_matches(
+    pattern: &str,
+    name: &str,
+) -> bool {
     let parts: Vec<&str> = pattern.split('*').collect();
     if parts.len() == 1 {
         return name == pattern;
@@ -67,7 +83,10 @@ pub fn glob_matches(pattern: &str, name: &str) -> bool {
 /// the API version and the token when there is one.
 pub fn api_headers(ctx: &Context) -> Vec<(String, String)> {
     let mut headers: Vec<(String, String)> = vec![
-        ("accept".to_string(), "application/vnd.github+json".to_string()),
+        (
+            "accept".to_string(),
+            "application/vnd.github+json".to_string(),
+        ),
         ("x-github-api-version".to_string(), "2022-11-28".to_string()),
     ];
     if let Some(token) = ctx.github_token() {
@@ -79,7 +98,10 @@ pub fn api_headers(ctx: &Context) -> Vec<(String, String)> {
 /// The latest release object of a repository:
 /// `releases/latest`,
 /// or the first of `releases?per_page=1` when the repository publishes only prereleases.
-fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
+fn latest_release(
+    ctx: &Context,
+    repo: &str,
+) -> Result<Value, ResolveError> {
     let headers: Vec<(String, String)> = api_headers(ctx);
     let latest_url: String = format!("https://api.github.com/repos/{repo}/releases/latest");
     if let Ok(release) = get_json(ctx, &latest_url, &headers) {
@@ -93,14 +115,23 @@ fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     };
     return match first {
         Some(release) => Ok(release.clone()),
-        None => Err(ResolveError::Failed(format!("{list_url}: the repository has no releases"))),
+        None => Err(ResolveError::Failed(format!(
+            "{list_url}: the repository has no releases"
+        ))),
     };
 }
 
 /// The asset of `release` with exactly this name,
 /// or `None`.
-pub fn find_asset<'a>(release: &'a Value, name: &str) -> Option<&'a Value> {
-    let assets: &[Value] = release.get("assets").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+pub fn find_asset<'a>(
+    release: &'a Value,
+    name: &str,
+) -> Option<&'a Value> {
+    let assets: &[Value] = release
+        .get("assets")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
     for asset in assets {
         if text_at(asset, &["name"]) == Some(name) {
             return Some(asset);
@@ -129,8 +160,15 @@ fn encode_path_segment(text: &str) -> String {
 }
 
 /// The release object of one tag of a repository.
-pub fn release_by_tag(ctx: &Context, repo: &str, tag: &str) -> Result<Value, ResolveError> {
-    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", encode_path_segment(tag));
+pub fn release_by_tag(
+    ctx: &Context,
+    repo: &str,
+    tag: &str,
+) -> Result<Value, ResolveError> {
+    let url: String = format!(
+        "https://api.github.com/repos/{repo}/releases/tags/{}",
+        encode_path_segment(tag)
+    );
     return get_json(ctx, &url, &api_headers(ctx));
 }
 
@@ -140,8 +178,16 @@ pub fn release_by_tag(ctx: &Context, repo: &str, tag: &str) -> Result<Value, Res
 /// Why:
 /// GitHub may report a digest of another algorithm (or none),
 /// and recording that text as the SHA-256 would write a lock row that can never verify.
-pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, ResolveError> {
-    if let Some(sha256) = asset.get("digest").and_then(Value::as_str).and_then(|digest| return digest.strip_prefix("sha256:")) {
+pub fn asset_digest(
+    ctx: &Context,
+    asset: &Value,
+    url: &str,
+) -> Result<String, ResolveError> {
+    if let Some(sha256) = asset
+        .get("digest")
+        .and_then(Value::as_str)
+        .and_then(|digest| return digest.strip_prefix("sha256:"))
+    {
         return Ok(sha256.to_string());
     }
     return hash_download(ctx, url);
@@ -170,19 +216,33 @@ pub(super) const PREFIX_SEARCH_PAGES: u32 = 10;
 /// ```ts
 /// function latestReleaseWithPrefix(ctx: Context, repo: string, prefix: string): Release
 /// ```
-fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result<Value, ResolveError> {
+fn latest_release_with_prefix(
+    ctx: &Context,
+    repo: &str,
+    prefix: &str,
+) -> Result<Value, ResolveError> {
     let headers: Vec<(String, String)> = api_headers(ctx);
     let mut best: Option<(String, Value)> = None;
     let mut stopped_at_cap: bool = false;
     for page in 1..=PREFIX_SEARCH_PAGES {
-        let url: String = format!("https://api.github.com/repos/{repo}/releases?per_page={RELEASES_PER_PAGE}&page={page}");
+        let url: String = format!(
+            "https://api.github.com/repos/{repo}/releases?per_page={RELEASES_PER_PAGE}&page={page}"
+        );
         let list: Value = get_json(ctx, &url, &headers)?;
         let Some(releases) = list.as_array() else {
-            return Err(ResolveError::Failed(format!("{url}: the answer is not a list of releases")));
+            return Err(ResolveError::Failed(format!(
+                "{url}: the answer is not a list of releases"
+            )));
         };
         for release in releases {
-            let skipped: bool = release.get("draft").and_then(Value::as_bool).unwrap_or(false)
-                || release.get("prerelease").and_then(Value::as_bool).unwrap_or(false);
+            let skipped: bool = release
+                .get("draft")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+                || release
+                    .get("prerelease")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
             let Some(tag) = text_at(release, &["tag_name"]) else {
                 continue;
             };
@@ -235,9 +295,16 @@ fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result
 /// ```ts
 /// function versionAfterPrefix(tag: string, prefix: string): string | undefined
 /// ```
-fn version_after_prefix<'a>(tag: &'a str, prefix: &str) -> Option<&'a str> {
+fn version_after_prefix<'a>(
+    tag: &'a str,
+    prefix: &str,
+) -> Option<&'a str> {
     let rest: &str = tag.strip_prefix(prefix)?;
-    let version: &str = if prefix.ends_with('v') { rest } else { rest.strip_prefix('v').unwrap_or(rest) };
+    let version: &str = if prefix.ends_with('v') {
+        rest
+    } else {
+        rest.strip_prefix('v').unwrap_or(rest)
+    };
     if is_whole_version(version) {
         return Some(version);
     }
@@ -247,7 +314,12 @@ fn version_after_prefix<'a>(tag: &'a str, prefix: &str) -> Option<&'a str> {
 /// The release of a wanted version of the program a prefix names:
 /// the prefix and the range as written,
 /// then the prefix and `v` and the range (unless the prefix already ends in `v`).
-fn release_of_prefixed_range(ctx: &Context, repo: &str, prefix: &str, range: &str) -> Result<Value, ResolveError> {
+fn release_of_prefixed_range(
+    ctx: &Context,
+    repo: &str,
+    prefix: &str,
+    range: &str,
+) -> Result<Value, ResolveError> {
     return match release_by_tag(ctx, repo, &format!("{prefix}{range}")) {
         Ok(release) => Ok(release),
         // A prefix that already ends in `v` has spelled the `v` out.
@@ -262,7 +334,11 @@ fn release_of_prefixed_range(ctx: &Context, repo: &str, prefix: &str, range: &st
 /// The release of a wanted tag:
 /// the range as written,
 /// then with a `v` in front (people write `0.64.3` for the tag `v0.64.3`).
-fn release_of_range(ctx: &Context, repo: &str, range: &str) -> Result<Value, ResolveError> {
+fn release_of_range(
+    ctx: &Context,
+    repo: &str,
+    range: &str,
+) -> Result<Value, ResolveError> {
     return match release_by_tag(ctx, repo, range) {
         Ok(release) => Ok(release),
         Err(first) => match release_by_tag(ctx, repo, &format!("v{range}")) {
@@ -284,9 +360,16 @@ fn release_of_range(ctx: &Context, repo: &str, range: &str) -> Result<Value, Res
 /// ```ts
 /// export function resolveGithub(ctx: Context, declaration: Declaration, repo: string, wanted?: string): Resolution
 /// ```
-pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_github(
+    ctx: &Context,
+    declaration: &Declaration,
+    repo: &str,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     if repo.split('/').count() != 2 || repo.contains(char::is_whitespace) || repo.contains("..") {
-        return Err(ResolveError::Failed(format!("{repo:?} is not a GitHub repository (write github:<owner>/<repo>)")));
+        return Err(ResolveError::Failed(format!(
+            "{repo:?} is not a GitHub repository (write github:<owner>/<repo>)"
+        )));
     }
     let tag_prefix: Option<&str> = declaration.options.tag_prefix.as_deref();
     let release: Value = match (tag_prefix, wanted) {
@@ -296,24 +379,47 @@ pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, want
         (None, None) => latest_release(ctx, repo)?,
     };
     let Some(tag) = text_at(&release, &["tag_name"]) else {
-        return Err(ResolveError::Failed(format!("github.com/{repo} reports no release tag")));
+        return Err(ResolveError::Failed(format!(
+            "github.com/{repo} reports no release tag"
+        )));
     };
-    let assets: &[Value] = release.get("assets").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+    let assets: &[Value] = release
+        .get("assets")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     let mut missing: Vec<String> = Vec::new();
     for platform in LINUX_PLATFORMS {
-        match pick_asset(assets, platform, declaration.options.asset.as_deref(), repo, tag)? {
+        match pick_asset(
+            assets,
+            platform,
+            declaration.options.asset.as_deref(),
+            repo,
+            tag,
+        )? {
             Some(asset) => {
                 let Some(url) = text_at(asset, &["browser_download_url"]) else {
-                    return Err(ResolveError::Failed(format!("a release asset of github.com/{repo} {tag} carries no download URL")));
+                    return Err(ResolveError::Failed(format!(
+                        "a release asset of github.com/{repo} {tag} carries no download URL"
+                    )));
                 };
-                artifacts.push((platform.to_string(), Artifact { url: url.to_string(), sha256: asset_digest(ctx, asset, url)? }));
+                artifacts.push((
+                    platform.to_string(),
+                    Artifact {
+                        url: url.to_string(),
+                        sha256: asset_digest(ctx, asset, url)?,
+                    },
+                ));
             }
             None => missing.push(platform.to_string()),
         }
     }
     if artifacts.is_empty() {
-        return Err(ResolveError::Failed(format!("github.com/{repo} {tag} has no Linux asset (platforms looked for: {})", missing.join(", "))));
+        return Err(ResolveError::Failed(format!(
+            "github.com/{repo} {tag} has no Linux asset (platforms looked for: {})",
+            missing.join(", ")
+        )));
     }
     let version: String = match tag_prefix {
         Some(start) => match version_after_prefix(tag, start) {
@@ -326,5 +432,8 @@ pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, want
         },
         None => normalize_version(tag),
     };
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }

@@ -3,11 +3,20 @@
 /// Consumer APIs use the same stamp as the native rendering boundary.
 use ide_app::{
     code_colors::CodeColors,
-    document::{Document, ReadingPosition},
-    find::{FindRange, FindRanges},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    find::{
+        FindRange,
+        FindRanges,
+    },
     shaped_text::Viewport,
     source_frame::FrameStamp,
-    source_style::{SourceStyles, StyleSpan},
+    source_style::{
+        SourceStyles,
+        StyleSpan,
+    },
 };
 
 /// Source-image fixture with explicit physical geometry and system colors.
@@ -170,10 +179,19 @@ fn find_matches_invalidate_and_equal_lists_reuse() {
     // ```ts
     // const first: ReadonlyArray<FindRange> = [{ start: 0, end: 6 }];
     // ```
-    let first = FindRanges::from([FindRange { start: 0, end: 6 }]);
+    let first = FindRanges::from([FindRange {
+        start: 0,
+        end: 6,
+    }]);
     let both = FindRanges::from([
-        FindRange { start: 0, end: 6 },
-        FindRange { start: 11, end: 17 },
+        FindRange {
+            start: 0,
+            end: 6,
+        },
+        FindRange {
+            start: 11,
+            end: 17,
+        },
     ]);
     // What: `clone` on a shared list copies its pointer, not its ranges.
     // Why: Two stamps holding the same allocation must compare equal without scanning.
@@ -192,7 +210,11 @@ fn find_matches_invalidate_and_equal_lists_reuse() {
         "the same shared match list must reuse the frame"
     );
     assert!(
-        marked == stamp(&document).with_matches(FindRanges::from([FindRange { start: 0, end: 6 }])),
+        marked
+            == stamp(&document).with_matches(FindRanges::from([FindRange {
+                start: 0,
+                end: 6
+            }])),
         "an equal match list in another allocation must reuse the frame"
     );
     assert!(

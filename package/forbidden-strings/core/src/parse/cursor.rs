@@ -83,7 +83,10 @@ impl<'a> Cursor<'a> {
     /// }
     /// ```
     pub fn new(src: &'a [u8]) -> Self {
-        return Cursor { src, pos: 0 }
+        return Cursor {
+            src,
+            pos: 0,
+        };
     }
 
     /// Returns the current byte offset.
@@ -101,7 +104,7 @@ impl<'a> Cursor<'a> {
     /// }
     /// ```
     pub fn pos(&self) -> usize {
-        return self.pos
+        return self.pos;
     }
 
     /// Reports whether the cursor is at or past the end.
@@ -118,7 +121,7 @@ impl<'a> Cursor<'a> {
     /// }
     /// ```
     pub fn eof(&self) -> bool {
-        return self.pos >= self.src.len()
+        return self.pos >= self.src.len();
     }
 
     /// Returns the current byte without advancing.
@@ -135,7 +138,7 @@ impl<'a> Cursor<'a> {
     /// }
     /// ```
     pub fn peek(&self) -> Option<u8> {
-        return self.src.get(self.pos).copied()
+        return self.src.get(self.pos).copied();
     }
 
     /// Returns the byte `offset` ahead without advancing.
@@ -152,8 +155,11 @@ impl<'a> Cursor<'a> {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn peek_at(&self, offset: usize) -> Option<u8> {
-        return self.src.get(self.pos + offset).copied()
+    pub fn peek_at(
+        &self,
+        offset: usize,
+    ) -> Option<u8> {
+        return self.src.get(self.pos + offset).copied();
     }
 
     /// Returns the current byte and advances past it.
@@ -175,7 +181,7 @@ impl<'a> Cursor<'a> {
         if b.is_some() {
             self.pos += 1;
         }
-        return b
+        return b;
     }
 
     /// Reports whether the cursor sits at the first column of a line.
@@ -193,7 +199,7 @@ impl<'a> Cursor<'a> {
     /// }
     /// ```
     fn at_line_start(&self) -> bool {
-        return self.pos == 0 || self.src.get(self.pos - 1) == Some(&b'\n')
+        return self.pos == 0 || self.src.get(self.pos - 1) == Some(&b'\n');
     }
 
     /// Skips verbose-mode whitespace and first-column comments.

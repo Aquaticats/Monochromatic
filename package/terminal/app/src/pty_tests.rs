@@ -10,7 +10,10 @@
 
 // What:     `use super::{...};` imports PTY items from the parent module.
 // Why:      Tests exercise the public spawn path and event enum.
-use super::{PtyEvent, PtySession};
+use super::{
+    PtyEvent,
+    PtySession,
+};
 // What:     `use crate::engine::ViewportGeometry;` imports the shared geometry type.
 // Why:      PTY tests need the same size object as the app.
 use crate::engine::ViewportGeometry;
@@ -24,7 +27,10 @@ use crate::scroll::DEFAULT_CELL_WIDTH_PX;
 use portable_pty::CommandBuilder;
 // What:     `use std::{...};` imports channels and timeouts for the test.
 // Why:      The test waits for output without blocking forever.
-use std::{sync::mpsc, time::Duration};
+use std::{
+    sync::mpsc,
+    time::Duration,
+};
 // What:     `use anyhow::Result;` imports the same one-parameter error result
 //           alias the production PTY functions return.
 // Why:      The test can use `?` across PTY, channel, and UTF-8-adjacent helpers
@@ -51,5 +57,5 @@ fn spawns_command_and_reads_output() -> Result<()> {
     } else {
         panic!("expected PTY output event");
     }
-    return Ok(())
+    return Ok(());
 }

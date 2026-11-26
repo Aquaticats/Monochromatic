@@ -23,8 +23,14 @@
 /// ```
 use helix_core::{
     RopeSlice,
-    chars::{CharCategory, categorize_char},
-    graphemes::{next_grapheme_boundary, prev_grapheme_boundary},
+    chars::{
+        CharCategory,
+        categorize_char,
+    },
+    graphemes::{
+        next_grapheme_boundary,
+        prev_grapheme_boundary,
+    },
     line_ending::line_end_char_index,
 };
 
@@ -98,7 +104,10 @@ enum Class {
 /// ```ts
 /// function classAt(text: RopeSlice, position: number): Class;
 /// ```
-fn class_at(text: RopeSlice, position: usize) -> Class {
+fn class_at(
+    text: RopeSlice,
+    position: usize,
+) -> Class {
     let category = categorize_char(text.char(position));
     if category == CharCategory::Whitespace || category == CharCategory::Eol {
         return Class::Blank;
@@ -118,7 +127,10 @@ fn class_at(text: RopeSlice, position: usize) -> Class {
 /// ```ts
 /// function lineStart(text: RopeSlice, position: number): number;
 /// ```
-pub fn line_start(text: RopeSlice, position: usize) -> usize {
+pub fn line_start(
+    text: RopeSlice,
+    position: usize,
+) -> usize {
     return text.line_to_char(text.char_to_line(position.min(text.len_chars())));
 }
 
@@ -129,7 +141,10 @@ pub fn line_start(text: RopeSlice, position: usize) -> usize {
 /// ```ts
 /// function lineEnd(text: RopeSlice, position: number): number;
 /// ```
-pub fn line_end(text: RopeSlice, position: usize) -> usize {
+pub fn line_end(
+    text: RopeSlice,
+    position: usize,
+) -> usize {
     let row = text.char_to_line(position.min(text.len_chars()));
     // What: `&text` lends the rope view to Helix's lookup, which takes it by reference.
     // Why: Helix knows which terminators the rope treats as line breaks.
@@ -149,7 +164,10 @@ pub fn line_end(text: RopeSlice, position: usize) -> usize {
 /// ```ts
 /// function wordRight(text: RopeSlice, position: number): number;
 /// ```
-pub fn word_right(text: RopeSlice, position: usize) -> usize {
+pub fn word_right(
+    text: RopeSlice,
+    position: usize,
+) -> usize {
     let end = text.len_chars();
     let mut index = position.min(end);
     while index < end && class_at(text, index) == Class::Blank {
@@ -173,7 +191,10 @@ pub fn word_right(text: RopeSlice, position: usize) -> usize {
 /// ```ts
 /// function wordLeft(text: RopeSlice, position: number): number;
 /// ```
-pub fn word_left(text: RopeSlice, position: usize) -> usize {
+pub fn word_left(
+    text: RopeSlice,
+    position: usize,
+) -> usize {
     let mut index = position.min(text.len_chars());
     // The grapheme before `index` starts at the previous boundary; its first character decides the class.
     while index > 0 && class_at(text, prev_grapheme_boundary(text, index)) == Class::Blank {
@@ -195,7 +216,11 @@ pub fn word_left(text: RopeSlice, position: usize) -> usize {
 /// ```ts
 /// function moved(text: RopeSlice, head: number, motion: Motion): number;
 /// ```
-pub fn moved(text: RopeSlice, head: usize, motion: Motion) -> usize {
+pub fn moved(
+    text: RopeSlice,
+    head: usize,
+    motion: Motion,
+) -> usize {
     if motion == Motion::Left {
         return prev_grapheme_boundary(text, head);
     }
@@ -237,7 +262,10 @@ pub fn moved(text: RopeSlice, head: usize, motion: Motion) -> usize {
 /// ```ts
 /// function wordRange(text: RopeSlice, position: number): [number, number];
 /// ```
-pub fn word_range(text: RopeSlice, position: usize) -> (usize, usize) {
+pub fn word_range(
+    text: RopeSlice,
+    position: usize,
+) -> (usize, usize) {
     let bounded = position.min(text.len_chars());
     let first = line_start(text, bounded);
     let last = line_end(text, bounded);
@@ -274,7 +302,10 @@ pub fn word_range(text: RopeSlice, position: usize) -> (usize, usize) {
 /// ```ts
 /// function lineRange(text: RopeSlice, position: number): [number, number];
 /// ```
-pub fn line_range(text: RopeSlice, position: usize) -> (usize, usize) {
+pub fn line_range(
+    text: RopeSlice,
+    position: usize,
+) -> (usize, usize) {
     let bounded = position.min(text.len_chars());
     let row = text.char_to_line(bounded);
     let start = text.line_to_char(row);

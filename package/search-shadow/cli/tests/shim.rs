@@ -47,8 +47,14 @@ use std::path::Path;
 
 /// Imports `Command` (start a program) and `Output` (its result)
 /// and `Stdio` (what its standard input is attached to).
-use std::process::{Command, Output, Stdio};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 
+/// Imports the exit code for a missing real tool and the priority level the shim uses.
+use search_shadow::constants::NOT_FOUND_EXIT_CODE;
 /// What:
 /// `use search_shadow::constants::SHADOWED_NAMES;` imports the names the `link` subcommand shadows,
 /// the same declaration that subcommand iterates.
@@ -61,8 +67,6 @@ use std::process::{Command, Output, Stdio};
 /// import { SHADOWED_NAMES } from 'search_shadow/constants';
 /// ```
 use search_shadow::constants::SHADOWED_NAMES;
-/// Imports the exit code for a missing real tool and the priority level the shim uses.
-use search_shadow::constants::NOT_FOUND_EXIT_CODE;
 use search_shadow::priority::LOWEST_BEST_EFFORT_LEVEL;
 
 /// What:
@@ -88,10 +92,15 @@ const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_search-shadow");
 /// ```ts
 /// function writeScript(directory: string, name: string, body: string): void { ... }
 /// ```
-fn write_script(directory: &Path, name: &str, body: &str) {
+fn write_script(
+    directory: &Path,
+    name: &str,
+    body: &str,
+) {
     // `.expect("...")` unwraps a `Result` and stops the test with that message on error.
     fs::write(directory.join(name), format!("#!/bin/sh\n{body}\n")).expect("write the script");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("make the script executable");
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755))
+        .expect("make the script executable");
 }
 
 /// A fake real `rg` that prints its arguments and the disk priority it runs with.
@@ -117,12 +126,17 @@ fn make_world() -> (tempfile::TempDir, String) {
     fs::create_dir(&real_directory).expect("make the real directory");
     // Shadow links and fake real tools for the three tools the tests drive; grep and find print which tool answered.
     for name in ["rg", "grep", "find"] {
-        std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join(name)).expect("make the shadow link");
+        std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join(name))
+            .expect("make the shadow link");
     }
     write_script(&real_directory, "rg", REAL_RG_BODY);
     write_script(&real_directory, "grep", "printf 'REAL grep %s\\n' \"$*\"");
     write_script(&real_directory, "find", "printf 'REAL find %s\\n' \"$*\"");
-    let path_variable = format!("{}:{}:/usr/bin:/bin", shadow_directory.display(), real_directory.display());
+    let path_variable = format!(
+        "{}:{}:/usr/bin:/bin",
+        shadow_directory.display(),
+        real_directory.display()
+    );
     return (root, path_variable);
 }
 
@@ -140,8 +154,21 @@ fn make_world() -> (tempfile::TempDir, String) {
 /// ```ts
 /// function runRg(root, args, cwd, pathVariable, env): SpawnSyncReturns<Buffer> { ... }
 /// ```
-fn run_rg(root: &Path, arguments: &[OsString], working_directory: &Path, path_variable: &str, extra_env: &[(&str, &str)]) -> Output {
-    return run_tool(root, "rg", arguments, working_directory, path_variable, extra_env);
+fn run_rg(
+    root: &Path,
+    arguments: &[OsString],
+    working_directory: &Path,
+    path_variable: &str,
+    extra_env: &[(&str, &str)],
+) -> Output {
+    return run_tool(
+        root,
+        "rg",
+        arguments,
+        working_directory,
+        path_variable,
+        extra_env,
+    );
 }
 
 /// What:
@@ -154,7 +181,14 @@ fn run_rg(root: &Path, arguments: &[OsString], working_directory: &Path, path_va
 /// ```ts
 /// function runTool(root, name, args, cwd, pathVariable, env): SpawnSyncReturns<Buffer> { ... }
 /// ```
-fn run_tool(root: &Path, name: &str, arguments: &[OsString], working_directory: &Path, path_variable: &str, extra_env: &[(&str, &str)]) -> Output {
+fn run_tool(
+    root: &Path,
+    name: &str,
+    arguments: &[OsString],
+    working_directory: &Path,
+    path_variable: &str,
+    extra_env: &[(&str, &str)],
+) -> Output {
     let mut command = Command::new(root.join("shadow").join(name));
     command.args(arguments);
     command.current_dir(working_directory);
@@ -198,7 +232,12 @@ fn texts(items: &[&str]) -> Vec<OsString> {
 /// ```ts
 /// function runRgWithPipedStdin(root, args, cwd, pathVariable): SpawnSyncReturns<Buffer> { ... }
 /// ```
-fn run_rg_with_piped_stdin(root: &Path, arguments: &[OsString], working_directory: &Path, path_variable: &str) -> Output {
+fn run_rg_with_piped_stdin(
+    root: &Path,
+    arguments: &[OsString],
+    working_directory: &Path,
+    path_variable: &str,
+) -> Output {
     let mut command = Command::new(root.join("shadow").join("rg"));
     command.args(arguments);
     command.current_dir(working_directory);
@@ -220,16 +259,32 @@ fn run_rg_with_piped_stdin(root: &Path, arguments: &[OsString], working_director
 #[test]
 fn runs_the_real_tool_with_the_arguments_at_the_lowest_best_effort_priority() {
     let (root, path_variable) = make_world();
-    let output = run_rg(root.path(), &texts(&["foo", "bar"]), root.path(), &path_variable, &[]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["foo", "bar"]),
+        root.path(),
+        &path_variable,
+        &[],
+    );
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
     // `assert!(condition, "message")` stops the test with the message when the condition is false (a macro).
-    assert!(output.status.success(), "the shadow failed: {}", String::from_utf8_lossy(&output.stderr));
-    assert!(stdout.contains("REAL foo bar"), "arguments did not arrive: {stdout}");
+    assert!(
+        output.status.success(),
+        "the shadow failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("REAL foo bar"),
+        "arguments did not arrive: {stdout}"
+    );
     // Only assert the class where `ionice` exists, since the shim runs the tool at normal priority without it.
     if Path::new("/usr/bin/ionice").exists() {
         let expected = format!("best-effort: prio {LOWEST_BEST_EFFORT_LEVEL}");
-        assert!(stdout.contains(&expected), "the tool did not run at {expected}: {stdout}");
+        assert!(
+            stdout.contains(&expected),
+            "the tool did not run at {expected}: {stdout}"
+        );
     }
 }
 
@@ -241,7 +296,10 @@ fn the_fake_tool_alone_does_not_run_at_level_seven() {
         return;
     }
     let (root, _path_variable) = make_world();
-    let direct = Command::new(root.path().join("real").join("rg")).env("PATH", "/usr/bin:/bin").output().expect("run the script");
+    let direct = Command::new(root.path().join("real").join("rg"))
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .expect("run the script");
     let seventh = format!("prio {LOWEST_BEST_EFFORT_LEVEL}");
     assert!(!String::from_utf8_lossy(&direct.stdout).contains(&seventh));
 }
@@ -254,7 +312,13 @@ fn refuses_a_wide_walk_with_no_path_at_a_repository_root() {
     let repository = root.path().join("repository");
     fs::create_dir_all(repository.join(".git")).expect("make a repository root");
 
-    let output = run_rg(root.path(), &texts(&["--hidden", "foo"]), &repository, &path_variable, &[]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["--hidden", "foo"]),
+        &repository,
+        &path_variable,
+        &[],
+    );
 
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("refused"));
@@ -268,7 +332,13 @@ fn refuses_a_wide_walk_with_no_path_at_a_repository_root() {
 fn refuses_the_short_r_flag_with_an_explanation() {
     let (root, path_variable) = make_world();
 
-    let output = run_rg(root.path(), &texts(&["-rl", "foo"]), root.path(), &path_variable, &[]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["-rl", "foo"]),
+        root.path(),
+        &path_variable,
+        &[],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     assert_eq!(output.status.code(), Some(2));
@@ -276,7 +346,13 @@ fn refuses_the_short_r_flag_with_an_explanation() {
     assert!(output.stdout.is_empty(), "the real tool must not have run");
 
     // The long form is explicit and must still run.
-    let long_form = run_rg(root.path(), &texts(&["--replace", "X", "foo"]), root.path(), &path_variable, &[]);
+    let long_form = run_rg(
+        root.path(),
+        &texts(&["--replace", "X", "foo"]),
+        root.path(),
+        &path_variable,
+        &[],
+    );
     assert!(String::from_utf8_lossy(&long_form.stdout).contains("REAL --replace X foo"));
 }
 
@@ -288,7 +364,13 @@ fn runs_a_wide_search_when_a_path_is_named() {
     let repository = root.path().join("repository");
     fs::create_dir_all(repository.join(".git")).expect("make a repository root");
 
-    let output = run_rg(root.path(), &texts(&["--hidden", "foo", ".github"]), &repository, &path_variable, &[]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["--hidden", "foo", ".github"]),
+        &repository,
+        &path_variable,
+        &[],
+    );
 
     assert!(String::from_utf8_lossy(&output.stdout).contains("REAL --hidden foo .github"));
 }
@@ -300,7 +382,13 @@ fn the_escape_variable_lets_a_full_walk_through() {
     let repository = root.path().join("repository");
     fs::create_dir_all(repository.join(".git")).expect("make a repository root");
 
-    let output = run_rg(root.path(), &texts(&["--hidden", "foo"]), &repository, &path_variable, &[("SEARCH_SHADOW_ALLOW_WIDE", "1")]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["--hidden", "foo"]),
+        &repository,
+        &path_variable,
+        &[("SEARCH_SHADOW_ALLOW_WIDE", "1")],
+    );
 
     assert!(String::from_utf8_lossy(&output.stdout).contains("REAL --hidden foo"));
 }
@@ -312,7 +400,13 @@ fn exits_127_when_the_real_tool_is_missing() {
     let (root, _path_variable) = make_world();
     let only_shadow = format!("{}", root.path().join("shadow").display());
 
-    let output = run_rg(root.path(), &texts(&["foo"]), root.path(), &only_shadow, &[]);
+    let output = run_rg(
+        root.path(),
+        &texts(&["foo"]),
+        root.path(),
+        &only_shadow,
+        &[],
+    );
 
     assert_eq!(output.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(String::from_utf8_lossy(&output.stderr).contains("no real `rg`"));
@@ -323,7 +417,11 @@ fn exits_127_when_the_real_tool_is_missing() {
 fn passes_a_non_utf8_argument_through_unchanged() {
     let (root, path_variable) = make_world();
     // A script that prints the bytes of its first argument as hex.
-    write_script(&root.path().join("real"), "rg", "printf '%s' \"$1\" | od -An -tx1");
+    write_script(
+        &root.path().join("real"),
+        "rg",
+        "printf '%s' \"$1\" | od -An -tx1",
+    );
     let arguments: Vec<OsString> = vec![OsString::from_vec(vec![0xff, 0x61])];
 
     let output = run_rg(root.path(), &arguments, root.path(), &path_variable, &[]);
@@ -342,24 +440,43 @@ fn the_link_subcommand_links_only_present_tools_and_help_mentions_it() {
     let real_directory = world.path().join("real");
     let only_fakes = real_directory.to_string_lossy().to_string();
 
-    let linked = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links_directory).env_clear().env("PATH", &only_fakes).output().expect("run link");
+    let linked = Command::new(SHADOW_EXECUTABLE)
+        .arg("link")
+        .arg(&links_directory)
+        .env_clear()
+        .env("PATH", &only_fakes)
+        .output()
+        .expect("run link");
     let stdout = String::from_utf8_lossy(&linked.stdout).to_string();
 
-    assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+    assert!(
+        linked.status.success(),
+        "{}",
+        String::from_utf8_lossy(&linked.stderr)
+    );
     // A tool without a real binary gets no link, so `command -v` stays honest. Both sets come from
     // the source list and the fake world's real tools, so every shadowed name gets one assertion.
     for name in SHADOWED_NAMES {
         let link = links_directory.join(name);
         if real_directory.join(name).exists() {
-            assert!(link.symlink_metadata().is_ok(), "{name} link missing although the fake world has its real tool");
+            assert!(
+                link.symlink_metadata().is_ok(),
+                "{name} link missing although the fake world has its real tool"
+            );
         } else {
-            assert!(link.symlink_metadata().is_err(), "{name} must not be linked when no real tool is on PATH");
+            assert!(
+                link.symlink_metadata().is_err(),
+                "{name} must not be linked when no real tool is on PATH"
+            );
         }
     }
     assert!(stdout.contains("linked"), "{stdout}");
     assert!(stdout.contains("skipped, no real tool on PATH"), "{stdout}");
 
-    let help = Command::new(SHADOW_EXECUTABLE).arg("--help").output().expect("run help");
+    let help = Command::new(SHADOW_EXECUTABLE)
+        .arg("--help")
+        .output()
+        .expect("run help");
     assert!(help.status.success());
     assert!(String::from_utf8_lossy(&help.stdout).contains("link"));
 }
@@ -373,8 +490,22 @@ fn refuses_a_recursive_grep_from_a_repository_root_but_runs_a_bounded_one() {
     fs::create_dir_all(repository.join(".git")).expect("make a repository root");
     fs::create_dir_all(repository.join("package")).expect("make a subdirectory");
 
-    let refused = run_tool(root.path(), "grep", &texts(&["-rn", "foo"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
-    let allowed = run_tool(root.path(), "grep", &texts(&["-rn", "foo", "package"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
+    let refused = run_tool(
+        root.path(),
+        "grep",
+        &texts(&["-rn", "foo"]),
+        &repository,
+        &path_variable,
+        &[("HOME", "/nonexistent")],
+    );
+    let allowed = run_tool(
+        root.path(),
+        "grep",
+        &texts(&["-rn", "foo", "package"]),
+        &repository,
+        &path_variable,
+        &[("HOME", "/nonexistent")],
+    );
 
     assert_eq!(refused.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&refused.stderr).contains("a whole repository"));
@@ -421,8 +552,15 @@ fn runs_a_piped_search_that_names_no_path() {
 
     let output = run_rg_with_piped_stdin(root.path(), &texts(&["X"]), root.path(), &path_variable);
 
-    assert!(output.status.success(), "the shadow failed: {}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("REAL X"), "the real tool did not run");
+    assert!(
+        output.status.success(),
+        "the shadow failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("REAL X"),
+        "the real tool did not run"
+    );
 }
 
 /// An unbounded find from a repository root is refused,
@@ -433,9 +571,30 @@ fn refuses_an_unbounded_find_from_a_repository_root_but_runs_a_bounded_one() {
     let repository = root.path().join("repository");
     fs::create_dir_all(repository.join(".git")).expect("make a repository root");
 
-    let refused = run_tool(root.path(), "find", &texts(&[".", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
-    let allowed = run_tool(root.path(), "find", &texts(&[".", "-maxdepth", "2", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
-    let escaped = run_tool(root.path(), "find", &texts(&[".", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent"), ("SEARCH_SHADOW_ALLOW_WIDE", "1")]);
+    let refused = run_tool(
+        root.path(),
+        "find",
+        &texts(&[".", "-name", "x"]),
+        &repository,
+        &path_variable,
+        &[("HOME", "/nonexistent")],
+    );
+    let allowed = run_tool(
+        root.path(),
+        "find",
+        &texts(&[".", "-maxdepth", "2", "-name", "x"]),
+        &repository,
+        &path_variable,
+        &[("HOME", "/nonexistent")],
+    );
+    let escaped = run_tool(
+        root.path(),
+        "find",
+        &texts(&[".", "-name", "x"]),
+        &repository,
+        &path_variable,
+        &[("HOME", "/nonexistent"), ("SEARCH_SHADOW_ALLOW_WIDE", "1")],
+    );
 
     assert_eq!(refused.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&refused.stderr).contains("-maxdepth 3"));

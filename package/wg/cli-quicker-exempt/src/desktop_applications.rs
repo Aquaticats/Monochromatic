@@ -28,8 +28,7 @@ const GHOSTTY_SURFACE_PREFIX: &str = "app-ghostty-surface-transient-";
 /// ```
 const STEAM_SERVICE_PREFIX: &str = "app-steam@";
 /// Helium desktop integration service prefix observed from its Chrome application ID.
-const HELIUM_SERVICE_PREFIX: &str =
-    "app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@";
+const HELIUM_SERVICE_PREFIX: &str = "app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@";
 /// Firefox Nightly service prefix produced by its configured remoting name.
 const FIREFOX_NIGHTLY_SERVICE_PREFIX: &str = "app-firefox\\x2dnightly@";
 /// Firefox release service prefix produced by the `firefox.desktop` launcher.
@@ -81,8 +80,7 @@ pub fn is_helium_service_name(name: &str) -> bool {
 
 /// Reports Firefox Nightly desktop-integration service name.
 pub fn is_firefox_nightly_service_name(name: &str) -> bool {
-    return name.starts_with(FIREFOX_NIGHTLY_SERVICE_PREFIX)
-        && name.ends_with(".service");
+    return name.starts_with(FIREFOX_NIGHTLY_SERVICE_PREFIX) && name.ends_with(".service");
 }
 
 /// What:
@@ -97,8 +95,7 @@ pub fn is_firefox_nightly_service_name(name: &str) -> bool {
 /// }
 /// ```
 pub fn is_firefox_release_service_name(name: &str) -> bool {
-    return name.starts_with(FIREFOX_RELEASE_SERVICE_PREFIX)
-        && name.ends_with(".service");
+    return name.starts_with(FIREFOX_RELEASE_SERVICE_PREFIX) && name.ends_with(".service");
 }
 
 /// Reports ChatGPT desktop-integration service name.
@@ -167,7 +164,10 @@ fn executable_name(path: &Path) -> Option<std::borrow::Cow<'_, str>> {
 ///
 /// The families are the same ones `is_exempt_application_executable` matches,
 /// so a name and a program can never disagree about what an application is.
-pub fn is_application_executable(application: DesktopApplication, path: &Path) -> bool {
+pub fn is_application_executable(
+    application: DesktopApplication,
+    path: &Path,
+) -> bool {
     let Some(name) = executable_name(path) else {
         return false;
     };

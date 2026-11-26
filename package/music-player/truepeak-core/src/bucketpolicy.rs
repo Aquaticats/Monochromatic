@@ -70,7 +70,7 @@ impl TrackProvenance {
     ///
     /// @example `resolve_decision` uses this for callers that pass no provenance.
     pub fn unknown() -> TrackProvenance {
-        return TrackProvenance::default()
+        return TrackProvenance::default();
     }
 
     /// Select the probe dial for this provenance from `table`.
@@ -81,15 +81,23 @@ impl TrackProvenance {
     /// everything else is bare.
     ///  Why:
     ///  the priority mirrors how reliable each signal is.
-    pub fn select(&self, table: &BucketTable, bones_present: bool) -> BucketProbe {
+    pub fn select(
+        &self,
+        table: &BucketTable,
+        bones_present: bool,
+    ) -> BucketProbe {
         if self.lossless {
-            if bones_present { return table.lossless_bones } else { return table.lossless }
+            if bones_present {
+                return table.lossless_bones;
+            } else {
+                return table.lossless;
+            }
         } else if self.store_tagged {
-            return table.store
+            return table.store;
         } else if self.youtube_tagged {
-            return table.youtube
+            return table.youtube;
         } else {
-            return table.bare
+            return table.bare;
         }
     }
 }

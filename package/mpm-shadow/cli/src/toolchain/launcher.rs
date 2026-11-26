@@ -30,30 +30,58 @@ use std::ffi::OsString;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `Command` from `std::process`.
 use std::process::Command;
 
 /// Imports `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports the exit codes the shadow already uses.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
+use crate::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+};
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
+use super::cargo_installs::{
+    is_newer_than_locked,
+    older_lock_message_for,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports the check that follows a launcher chain and names a loop or a broken record.
 use super::launcher_chain::chain_problem;
 /// Imports what this module uses from `super::launcher_current_link`.
-use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
+use super::launcher_current_link::{
+    MissingProgram,
+    locked_version,
+    missing_program_advice,
+    program_to_run,
+    version_that_runs,
+};
 /// Imports what this module uses from `super::launcher_source`.
-use super::launcher_source::{launcher_source, running_program};
+use super::launcher_source::{
+    launcher_source,
+    running_program,
+};
 /// Imports what this module uses from `super::repository_link_cause`.
-use super::repository_link_cause::{CHECK_DEADLINE, LinkVerdict, repository_link_verdict};
+use super::repository_link_cause::{
+    CHECK_DEADLINE,
+    LinkVerdict,
+    repository_link_verdict,
+};
 /// Imports what this module uses from `super::scope`.
-use super::scope::{Scope, ScopeKind};
+use super::scope::{
+    Scope,
+    ScopeKind,
+};
 /// Imports the one atomic write the launcher and the lock share.
 use super::util::write_atomically;
 
@@ -91,8 +119,14 @@ pub fn render_record(record: &LaunchRecord) -> String {
     // Built field by field: the `json!` macro unwraps a conversion that clippy.toml disallows.
     let mut fields: Map<String, Value> = Map::new();
     fields.insert("toolId".to_string(), Value::String(record.tool_id.clone()));
-    fields.insert("lockFile".to_string(), Value::String(record.lock_file.to_string_lossy().to_string()));
-    fields.insert("real".to_string(), Value::String(record.real.to_string_lossy().to_string()));
+    fields.insert(
+        "lockFile".to_string(),
+        Value::String(record.lock_file.to_string_lossy().to_string()),
+    );
+    fields.insert(
+        "real".to_string(),
+        Value::String(record.real.to_string_lossy().to_string()),
+    );
     let scope: &str = match record.scope {
         ScopeKind::Repo => "repo",
         ScopeKind::Global => "global",
@@ -121,7 +155,10 @@ pub fn parse_record(text: &str) -> Option<LaunchRecord> {
 /// Whether both paths name the same file (the same device and inode),
 /// which a rename between two links of one file would silently leave as two names.
 #[cfg(unix)]
-fn is_same_file(first: &Path, second: &Path) -> bool {
+fn is_same_file(
+    first: &Path,
+    second: &Path,
+) -> bool {
     /// Imports `MetadataExt` from `std::os::unix::fs`.
     use std::os::unix::fs::MetadataExt;
     return match (fs::metadata(first), fs::metadata(second)) {
@@ -132,7 +169,10 @@ fn is_same_file(first: &Path, second: &Path) -> bool {
 
 /// Without inodes every placement replaces the target.
 #[cfg(not(unix))]
-fn is_same_file(_first: &Path, _second: &Path) -> bool {
+fn is_same_file(
+    _first: &Path,
+    _second: &Path,
+) -> bool {
     return false;
 }
 
@@ -147,7 +187,10 @@ fn is_same_file(_first: &Path, _second: &Path) -> bool {
 /// and its relative target then resolves beside the launcher instead of beside the version directory,
 /// so the launcher dangled and the tool it was made for stopped starting.
 /// The file the link resolves to is what a launcher must be.
-fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
+fn place_binary(
+    source: &Path,
+    target: &Path,
+) -> Result<(), ToolchainError> {
     let mut temporary_name: OsString = OsString::from(".");
     temporary_name.push(target.file_name().unwrap_or_default());
     temporary_name.push(format!(".{}.bin", std::process::id()));
@@ -165,10 +208,17 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
     if fs::hard_link(&file, &temporary).is_err()
         && let Err(error) = fs::copy(&file, &temporary)
     {
-        return Err(ToolchainError::failure(format!("cannot copy {} to {}: {error}", source.display(), temporary.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot copy {} to {}: {error}",
+            source.display(),
+            temporary.display()
+        )));
     }
     if let Err(error) = fs::rename(&temporary, target) {
-        return Err(ToolchainError::failure(format!("cannot place {}: {error}", target.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot place {}: {error}",
+            target.display()
+        )));
     }
     return Ok(());
 }
@@ -187,18 +237,33 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 /// ```ts
 /// export function ensureLauncher(scope: Scope, tool: LockedTool, name: string, real: string): string
 /// ```
-pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) -> Result<PathBuf, ToolchainError> {
+pub fn ensure_launcher(
+    scope: &Scope,
+    tool_id: &str,
+    name: &str,
+    real: &Path,
+) -> Result<PathBuf, ToolchainError> {
     // A launcher folder under a repository whose link to the 860 drive does not resolve is never made:
     // the plain message of the repository link check comes before any write.
-    if let LinkVerdict::NotReady { message } = repository_link_verdict(&scope.home, &scope.launcher_dir, CHECK_DEADLINE) {
+    if let LinkVerdict::NotReady {
+        message,
+    } = repository_link_verdict(&scope.home, &scope.launcher_dir, CHECK_DEADLINE)
+    {
         return Err(ToolchainError::failure(message));
     }
     if let Err(error) = fs::create_dir_all(&scope.launcher_dir) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", scope.launcher_dir.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            scope.launcher_dir.display()
+        )));
     }
     let launcher: PathBuf = scope.launcher_dir.join(name);
-    let record: LaunchRecord =
-        LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
+    let record: LaunchRecord = LaunchRecord {
+        tool_id: tool_id.to_string(),
+        lock_file: scope.lock_file.clone(),
+        real: real.to_path_buf(),
+        scope: scope.kind,
+    };
     write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
     let source: PathBuf = launcher_source(scope, running_program()?, cfg!(target_os = "linux"))?;
     place_binary(&source, &launcher)?;
@@ -236,20 +301,32 @@ pub struct Launch {
 /// ```ts
 /// export function prepareLaunch(record: LaunchRecord, lockText?: string): Launch
 /// ```
-pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch {
+pub fn prepare_launch(
+    record: &LaunchRecord,
+    lock_text: Option<&str>,
+) -> Launch {
     let mut warning: Option<String> = None;
     if let Some(used) = version_that_runs(&record.real)
         && let Some(text) = lock_text
         && let Some(locked) = locked_version(text, &record.tool_id)
         && is_newer_than_locked(&used, &locked)
     {
-        warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used, &record.lock_file));
+        warning = Some(older_lock_message_for(
+            record.scope,
+            &record.tool_id,
+            &locked,
+            &used,
+            &record.lock_file,
+        ));
     }
     let program: PathBuf = program_to_run(&record.real);
     if let Some(message) = &warning {
         warning = Some(warning_naming_program(message, &program));
     }
-    return Launch { warning, program };
+    return Launch {
+        warning,
+        program,
+    };
 }
 
 /// What:
@@ -263,7 +340,10 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
 /// ```ts
 /// export function warningNamingProgram(message: string, program: string): string
 /// ```
-pub fn warning_naming_program(message: &str, program: &Path) -> String {
+pub fn warning_naming_program(
+    message: &str,
+    program: &Path,
+) -> String {
     return format!("{message}; starting {}", program.display());
 }
 
@@ -271,7 +351,10 @@ pub fn warning_naming_program(message: &str, program: &Path) -> String {
 /// keeping `arguments` (argv[0] included) as they were;
 /// returns only when that failed.
 #[cfg(unix)]
-fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
+fn exec_program(
+    program: &Path,
+    arguments: &[OsString],
+) -> std::io::Error {
     /// Imports `CommandExt` from `std::os::unix::process`.
     use std::os::unix::process::CommandExt;
     let mut command: Command = Command::new(program);
@@ -285,8 +368,14 @@ fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
 /// Runs `program` and waits (a platform without `exec`),
 /// exiting the way it did.
 #[cfg(not(unix))]
-fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
-    return match Command::new(program).args(arguments.iter().skip(1)).status() {
+fn exec_program(
+    program: &Path,
+    arguments: &[OsString],
+) -> std::io::Error {
+    return match Command::new(program)
+        .args(arguments.iter().skip(1))
+        .status()
+    {
         Ok(status) => std::process::exit(status.code().unwrap_or(1)),
         Err(error) => error,
     };
@@ -312,16 +401,29 @@ fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
 /// ```ts
 /// function refreshStaleRecord(record: LaunchRecord, program: string): void  // throws
 /// ```
-fn refresh_stale_record(record: &LaunchRecord, program: &Path) -> Result<(), ToolchainError> {
+fn refresh_stale_record(
+    record: &LaunchRecord,
+    program: &Path,
+) -> Result<(), ToolchainError> {
     if program == record.real || !program.exists() {
         return Ok(());
     }
     let executable: PathBuf = match std::env::current_exe() {
         Ok(found) => found,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot find this launcher's own path: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "cannot find this launcher's own path: {error}"
+            )));
+        }
     };
-    let refreshed: LaunchRecord = LaunchRecord { real: program.to_path_buf(), ..record.clone() };
-    return write_atomically(&record_path(&executable), render_record(&refreshed).as_bytes());
+    let refreshed: LaunchRecord = LaunchRecord {
+        real: program.to_path_buf(),
+        ..record.clone()
+    };
+    return write_atomically(
+        &record_path(&executable),
+        render_record(&refreshed).as_bytes(),
+    );
 }
 
 /// What:
@@ -340,11 +442,21 @@ fn say_why_the_lock_is_unreadable(lock_file: &Path) {
         return;
     };
     match repository_link_verdict(Path::new(&home), lock_file, CHECK_DEADLINE) {
-        LinkVerdict::NotReady { message } => {
-            eprintln!("mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway: {message}", lock_file.display());
+        LinkVerdict::NotReady {
+            message,
+        } => {
+            eprintln!(
+                "mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway: {message}",
+                lock_file.display()
+            );
         }
-        LinkVerdict::CheckUnavailable { why } => {
-            eprintln!("mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway; the cause is unknown: {why}", lock_file.display());
+        LinkVerdict::CheckUnavailable {
+            why,
+        } => {
+            eprintln!(
+                "mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway; the cause is unknown: {why}",
+                lock_file.display()
+            );
         }
         LinkVerdict::NotConfigured | LinkVerdict::Ready => {}
     }
@@ -362,7 +474,10 @@ fn say_why_the_lock_is_unreadable(lock_file: &Path) {
 /// ```ts
 /// export function runLauncher(record: LaunchRecord, args: string[]): number
 /// ```
-pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
+pub fn run_launcher(
+    record: &LaunchRecord,
+    arguments: &[OsString],
+) -> i32 {
     let lock_text: Option<String> = fs::read_to_string(&record.lock_file).ok();
     if lock_text.is_none() {
         say_why_the_lock_is_unreadable(&record.lock_file);
@@ -384,10 +499,15 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
         return EXEC_FAILED_EXIT_CODE;
     }
     if let Err(error) = refresh_stale_record(record, &launch.program) {
-        eprintln!("mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}");
+        eprintln!(
+            "mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}"
+        );
     }
     let error: std::io::Error = exec_program(&launch.program, arguments);
-    eprintln!("mpm-shadow: could not start {}: {error}", launch.program.display());
+    eprintln!(
+        "mpm-shadow: could not start {}: {error}",
+        launch.program.display()
+    );
     if error.kind() == std::io::ErrorKind::NotFound {
         // The file vanished between the check and the start (another install deleted it): the same advice applies.
         eprintln!("mpm-shadow: {}", advice_for(record, lock_text.as_deref()));
@@ -399,7 +519,10 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
 /// The sentence that says no program was found for `record`,
 /// with the tool,
 /// both versions and the command that makes the links again.
-fn advice_for(record: &LaunchRecord, lock_text: Option<&str>) -> String {
+fn advice_for(
+    record: &LaunchRecord,
+    lock_text: Option<&str>,
+) -> String {
     return missing_program_advice(MissingProgram {
         tool_id: &record.tool_id,
         scope: record.scope,
@@ -422,8 +545,15 @@ fn advice_for(record: &LaunchRecord, lock_text: Option<&str>) -> String {
 /// ```ts
 /// function reportProgramNotFound(record: LaunchRecord, program: string, lockText?: string): number
 /// ```
-fn report_program_not_found(record: &LaunchRecord, program: &Path, lock_text: Option<&str>) -> i32 {
-    eprintln!("mpm-shadow: not starting {}: no file exists there", program.display());
+fn report_program_not_found(
+    record: &LaunchRecord,
+    program: &Path,
+    lock_text: Option<&str>,
+) -> i32 {
+    eprintln!(
+        "mpm-shadow: not starting {}: no file exists there",
+        program.display()
+    );
     eprintln!("mpm-shadow: {}", advice_for(record, lock_text));
     return NOT_FOUND_EXIT_CODE;
 }

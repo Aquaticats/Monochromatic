@@ -53,7 +53,10 @@ use std::io;
 use std::os::unix::fs::symlink;
 
 /// Imports `Path` (borrowed) and `PathBuf` (owned) path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the list of names that get a shadow link.
 use crate::constants::SHADOWED_NAMES;
@@ -108,7 +111,10 @@ pub struct LinkReport {
 ///   return realpathSync(linkPath) === ownRealPath || shadowBehind(linkPath) !== undefined;
 /// };
 /// ```
-fn is_a_shadow_link(link_path: &Path, own_real_path: &Path) -> bool {
+fn is_a_shadow_link(
+    link_path: &Path,
+    own_real_path: &Path,
+) -> bool {
     // `symlink_metadata` describes the link itself rather than the file it points at, so a broken link still
     // answers; `.is_err()` means nothing is there at all.
     let Ok(metadata) = link_path.symlink_metadata() else {
@@ -156,7 +162,11 @@ fn is_a_shadow_link(link_path: &Path, own_real_path: &Path) -> bool {
 /// ```ts
 /// export function linkShadows(directory: string, executable: string, pathVariable: string): LinkReport { // throws on I/O errors
 /// ```
-pub fn link_shadows(directory: &Path, executable: &Path, path_variable: &str) -> io::Result<LinkReport> {
+pub fn link_shadows(
+    directory: &Path,
+    executable: &Path,
+    path_variable: &str,
+) -> io::Result<LinkReport> {
     // What:     `fs::create_dir_all(directory)?;` makes the directory and any missing parents. The trailing `?` means "if this
     // returned an error, stop and return that error to my caller; otherwise continue".
     // Why:      The links need somewhere to live.

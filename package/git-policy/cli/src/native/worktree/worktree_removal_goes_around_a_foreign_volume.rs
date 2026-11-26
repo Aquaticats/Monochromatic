@@ -651,7 +651,8 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
         }
         // The record is read before it is claimed, so a file this program did not write is neither shown nor moved:
         // renaming it first and finding it unreadable would take something of the person's out of its own name.
-        let Some(record) = std::fs::read_to_string(path.as_path()).ok().and_then(|text| return parse_record(text.as_str())) else { continue };
+        // A name that holds a named pipe answers as unreadable at once rather than waiting for a writer.
+        let Some(record) = crate::plain_file::read_plain_text(path.as_path()).ok().and_then(|text| return parse_record(text.as_str())) else { continue };
         let Some(claimed) = claim(path.as_path(), &token) else { continue };
         let text: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());
         notices.push(Notice { record: path, claim: claimed, text });
@@ -672,7 +673,7 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
 /// const notice = noticeAt(claimed); // Notice | undefined
 /// ```
 fn notice_at(claimed: &Path) -> Option<Notice> {
-    let read: String = std::fs::read_to_string(claimed).ok()?;
+    let read: String = crate::plain_file::read_plain_text(claimed).ok()?;
     let record: LeftRecord = parse_record(read.as_str())?;
     let original: PathBuf = claimed.with_file_name(record_of_claim(claimed.file_name()?.to_string_lossy().as_ref())?);
     let words: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());

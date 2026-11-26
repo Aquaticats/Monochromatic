@@ -27,6 +27,10 @@ mod checked_name;
 mod name_field;
 
 /// The checked name and its refusal.
-pub use checked_name::{CheckedName, NameError, NameProblem};
+pub use checked_name::{
+    CheckedName,
+    NameError,
+    NameProblem,
+};
 /// The field a name is bound for.
 pub use name_field::NameField;

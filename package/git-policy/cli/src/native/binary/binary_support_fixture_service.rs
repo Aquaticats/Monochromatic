@@ -16,6 +16,7 @@ use git_policy_cli::service_server::Bind;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use crate::fixture_support_shared_by_both_test_targets::{KEEP_FIXTURES_VARIABLE, settle_fixture};
 use crate::support_fixture_service_readiness::{SERVICE_QUIET_WINDOW, SignsOfWork, service_is_serving, wait_until_nothing_listens};
 use crate::support_resource_limits::{ServiceLaunch, restrict_to_one_cpu};
 
@@ -57,195 +58,20 @@ pub enum ServiceEnd {
     NotServed,
 }
 
-/// The process groups the helper processes of one test thread lead,
-/// killed when the thread ends however its test ended.
-pub struct OwnedGroups {
-    /// The group numbers,
-    /// which are the numbers of the group leaders.
-    groups: std::cell::RefCell<Vec<libc::pid_t>>,
-}
-
-/// A panic unwinds the test thread,
-/// and a thread that ends runs this.
-impl Drop for OwnedGroups {
-    fn drop(&mut self) {
-        for group in self.groups.borrow().iter() {
-            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
-            unsafe { libc::killpg(*group, libc::SIGKILL) };
-        }
-    }
-}
-
-thread_local! {
-    /// The helper groups of the running test thread.
-    static OWNED_GROUPS: OwnedGroups = const { OwnedGroups { groups: std::cell::RefCell::new(Vec::new()) } };
-}
-
 /// What:
-///  Make the process group a child leads die with the test thread that started it,
-/// whether the test passes,
-/// fails or panics.
+///  The process-group helpers this file used to define,
+///  named here so every `crate::support_fixture_service::name` and `support::name` path stays the same.
 /// Why:
-///   `Child` does not kill on drop,
-/// so a helper that a failing assertion never reached the end of (a service whose idle exit is
-///  hours away,
-/// a shell loop) kept running after its test.
-/// The child must lead a group of its own already (`process_group(0)`
-///  before the start),
-/// so what it starts is killed with it.
-///  A child that does not lead one is a defect of its control, not a helper:
-/// the number registered here would name no group,
-/// the kill below would send its signal nowhere,
-/// and what the helper started would outlive the test.
-/// So the group is read back and a control that got this wrong fails here,
-/// naming the child and the group it is in.
-pub fn own_group(child: &Child) {
-    let group: libc::pid_t = group_of(child);
-    assert_eq!(
-        group, libc::pid_t::try_from(child.id()).expect("a pid fits the pid type"),
-        "the helper {} was registered as a process group but is in group {group}: it must be started with `process_group(0)` (spawn_owned does that), or nothing it starts dies with the test",
-        child.id()
-    );
-    OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
-}
-
-/// What:
-///  Start a helper process in a group of its own that dies with the test thread that started it,
-///  and with this process however this process ends.
-/// Why:
-///   The same reason as `own_group`,
-/// for a child started here,
-/// and one more: a test binary killed outright runs no guard at all,
-/// so the child carries `PR_SET_PDEATHSIG` and the kernel kills it when the thread that started it is gone
-/// (which is the thread's end, or every thread's at once when the process is killed).
-pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
-    use std::os::unix::process::CommandExt as _;
-    command.process_group(0);
-    // SAFETY: between fork and exec only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
-    unsafe {
-        command.pre_exec(|| {
-            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-            return Ok(());
-        });
-    }
-    let child: Child = command.spawn()?;
-    own_group(&child);
-    return Ok(child);
-}
-
-/// What:
-///  The process group `child` is in, asked while the child is still there.
-/// Why:
-///   A helper a control started right leads its own group,
-///  and one it started wrong is in its parent's;
-///  the number has to be read before the child is ended and reaped,
-///  or the question cannot be answered at all.
+///  Every target now reads one copy of `spawn_owned`, `own_group` and `group_of`
+///  (`../testing/test_process_owner.rs`),
+///  which the library's tests and both other targets include by path,
+///  so a fix to either lands in all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const group = getpgid(child.pid)
+/// export { spawnOwned, ownGroup, groupOf } from '../testing/test_process_owner';
 /// ```
-pub fn group_of(child: &Child) -> libc::pid_t {
-    let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    // SAFETY: `getpgid` answers for a child of this process and touches no memory.
-    let group: libc::pid_t = unsafe { libc::getpgid(pid) };
-    assert!(group > 0, "the group of the helper {pid} is asked while it is there: {}", std::io::Error::last_os_error());
-    return group;
-}
-
-/// What:
-///  Every process still in `group`,
-///  except this process and the programs that started it,
-///  each with the command line that names it.
-/// Why:
-///   A helper that a control started in a group of its own takes its children into that group,
-///  and a child keeps its group even when it is reparented to the manager,
-///  so the group is where a stand-in that outlived its test is still visible
-///  (integration pass 31,
-///  2026-11-14,
-///  its report's first finding).
-///  A helper started outside a group of its own shares the group of the test,
-///  so that group's other members are this process and its own starters,
-///  which are not what a control is looking for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const left = procTable().filter((p) => p.pgrp === group && !ours.has(p.pid)); left.map((p) => [p.pid, p.cmdline]);
-/// ```
-pub fn processes_in_group(group: libc::pid_t) -> Vec<(u32, String)> {
-    let ours: Vec<u32> = this_process_and_its_starters();
-    let mut found: Vec<(u32, String)> = Vec::new();
-    let Ok(table) = std::fs::read_dir("/proc") else { return found };
-    for entry in table.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.is_empty() || !name.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
-            continue;
-        }
-        let Ok(pid) = name.parse::<u32>() else { continue };
-        if ours.contains(&pid) {
-            continue;
-        }
-        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else { continue };
-        // The group is the fifth field of `stat`, after the program's name, which may hold spaces and brackets.
-        let Some((_before, after_name)) = stat.rsplit_once(')') else { continue };
-        let fields: Vec<&str> = after_name.split_whitespace().collect();
-        let Some(in_group) = fields.get(2).and_then(|text| { return text.parse::<libc::pid_t>().ok(); }) else { continue };
-        if in_group != group {
-            continue;
-        }
-        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { continue };
-        let said: String = String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ");
-        found.push((pid, said.trim_end().to_owned()));
-    }
-    return found;
-}
-
-/// What:
-///  This process and the programs that started it, by process number,
-///  up to the first one whose parent is outside them.
-/// Why:
-///   A helper started outside a group of its own shares the group of this process,
-///  and a check that listed that group's members would answer with the test binary, the test runner and the shell.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ours = [pid, ...ancestors(pid)]
-/// ```
-fn this_process_and_its_starters() -> Vec<u32> {
-    let mut ours: Vec<u32> = vec![std::process::id()];
-    let mut parent: u32 = parent_of(std::process::id());
-    while parent != 0 && !ours.contains(&parent) {
-        ours.push(parent);
-        parent = parent_of(parent);
-    }
-    return ours;
-}
-
-/// The process number that started `pid`,
-/// or 0 when it cannot be read.
-fn parent_of(pid: u32) -> u32 {
-    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return 0 };
-    let Some((_before, after_name)) = stat.rsplit_once(')') else { return 0 };
-    let fields: Vec<&str> = after_name.split_whitespace().collect();
-    return fields.get(1).and_then(|text| { return text.parse::<u32>().ok(); }).unwrap_or(0);
-}
-
-/// What:
-///  Fails the control when any process of `group` is still there after the control ended its helper.
-/// Why:
-///  A helper that outlives its control keeps the `systemd-run` scope of the test alive,
-///  and holds a process nothing will ever read;
-///  a control that started one asserts this before it ends,
-///  so such a leak fails a test instead of waiting for someone to notice it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// expect(processesInGroup(group)).toEqual([])
-/// ```
-pub fn assert_nothing_in_group(group: libc::pid_t) {
-    let left: Vec<(u32, String)> = processes_in_group(group);
-    assert!(left.is_empty(), "processes of the group this control's helper was in are still there after the control ended it: {left:?}");
-}
+pub(crate) use crate::test_process_owner::{group_of, own_group, spawn_owned};
 
 /// The commit services of one fixture,
 /// one per worktree as in production,
@@ -299,62 +125,20 @@ pub fn kill_with_everything_it_started(child: &mut Child) {
     let _waited = child.wait();
 }
 
-/// The executable Cargo built for this test run,
-/// which is the wrapper and,
-/// started with the service mode words,
-/// the resident
-///  service.
-pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-
 /// What:
-///  The command that starts the resident service of this build:
-/// the one executable followed by the words of its service mode,
-/// with no runtime directory and no session bus inherited from the process that runs the tests.
+///  The executable and the runtime directory a fixture's service starts with,
+///  the process-lifetime start,
+///  and the manager's restart,
+///  in a file of their own because the lifecycle file is over the per-file line budget.
 /// Why:
-///   The service is a mode of the wrapper's executable (`service_main.rs`),
-/// so every control that starts one names these words
-///  first and its own options after them.
-/// A control must never reach the owner's real user manager:
-/// a service that inherited a developer's `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` could make that manager start,
-/// or stop,
-///  a unit for a throwaway worktree,
-/// and hundreds of units of deleted throwaway repositories were measured there on 2026-11-10
-/// (`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`).
-/// A control that needs a bus or a runtime directory gives its own after this call,
-/// so nothing a control starts can find one by inheritance.
-pub fn service_command() -> Command {
-    let mut command: Command = Command::new(SERVICE_PROGRAM);
-    command
-        .args(git_policy_cli::service_main::SERVICE_WORDS)
-        .env_remove("XDG_RUNTIME_DIR")
-        .env_remove("DBUS_SESSION_BUS_ADDRESS");
-    return command;
-}
-
-/// The path of the executable that runs as the service when started with the service mode words.
-pub const fn service_executable() -> &'static str {
-    return SERVICE_PROGRAM;
-}
-
-/// Numbers the runtime directories of one test process.
-pub static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// What:
-///  Makes the runtime directory a fixture's services listen in;
-/// no service runs until a worktree asks for one.
-/// Why:
-///  A socket path holds about a hundred bytes,
-/// which the fixture tree's depth does not allow,
-/// so the runtime directory is
-///  in the short agent scratch directory under the home.
-/// A control of the address a long runtime directory takes gives its own instead
-///  (`start_fixture_service_in`).
-/// Each service gets the parent-death signal,
-/// so a control that panics
-///  or is killed leaves no service behind.
-pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    return start_fixture_service_in(short_runtime_directory(fixture));
-}
+///  A caller that named one of them through this module goes on working,
+///  and the file that holds them describes how a service is started rather than the fixture's lifecycle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './binary_support_fixture_service_start.rs';
+/// ```
+pub(crate) use crate::support_fixture_service_start::*;
 
 /// What:
 ///  Makes the runtime directory `runtime` the one a fixture's services listen in.
@@ -371,70 +155,6 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
         log_copies: std::sync::Mutex::new(Vec::new()),
         runtime,
     };
-}
-
-/// What:
-///  A directory of this fixture's own,
-///  short enough to hold a socket name.
-/// Why:
-///   A Unix socket's name must fit `SUN_LEN`,
-/// which is 108 bytes,
-/// and a fixture root under a deep checkout does not.
-/// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
-///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat;
-/// and it then depended on the length of the home directory as well (2026-11-15),
-///  so the folder now comes from `socket_folder`,
-/// which asks every place this account offers and names them when none
-///  is short enough.
-/// The service's own socket already lives in such a directory,
-/// and this is the one place that makes it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt3f9a1c/rt-0`
-/// ```
-pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
-    let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let name: String = format!("rt-{number}");
-    // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
-    //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
-    let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
-    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
-    let folder: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("rt", longest_folder);
-    let runtime: PathBuf = folder.join(name.as_str());
-    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
-    return runtime;
-}
-/// What:
-///  Starts `command` from a thread that lives as long as this test process,
-/// and returns the child.
-/// Why:
-///   `PR_SET_PDEATHSIG` is sent when the thread that spawned the child ends,
-/// not when the process does.
-/// Controls start their
-///  services from whichever of their threads gets there first (two worktrees committing at once),
-/// so a child spawned there
-///  died when that thread's closure returned,
-/// and the other thread's commit found its work claimed by a dead service.
-/// This
-///  thread ends only with the process,
-/// which is the moment the signal is meant for.
-pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
-    type Job = (Command, std::sync::mpsc::Sender<std::io::Result<Child>>);
-    static SPAWNER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Job>>> = std::sync::OnceLock::new();
-    let spawner = SPAWNER.get_or_init(|| {
-        let (sender, receiver) = std::sync::mpsc::channel::<Job>();
-        std::thread::spawn(move || {
-            for (mut job, reply) in receiver {
-                let _sent = reply.send(job.spawn());
-            }
-        });
-        return std::sync::Mutex::new(sender);
-    });
-    let (reply, answer) = std::sync::mpsc::channel();
-    spawner.lock().expect("the spawner's sender").send((command, reply)).expect("the spawner thread runs");
-    return answer.recv().expect("the spawner thread answers");
 }
 
 impl FixtureService {
@@ -765,66 +485,6 @@ pub fn wait_for_the_service_to_end(fixture: &Fixture, worktree_or_its_git_dir: &
             return ServiceEnd::StillRunning;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-}
-
-/// What:
-///  Does what the user manager does when a service has ended:
-/// starts the worktree's service again,
-/// as production runs it,
-///  with no tracer and no fault.
-/// Why:
-///   The manager owns the socket and starts the service at the next connection.
-/// A control that kills the service during a
-///  commit relies on that start for the client's resend,
-/// so it calls this while the commit runs.
-pub fn restart_ended_services(fixture: &Fixture) {
-    let service = fixture.service.lock().expect("the fixture's service lock");
-    let Some(services) = service.as_ref() else { return };
-    if services.forget_ended() {
-        *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
-        services.serve_worktrees(fixture);
-    }
-}
-
-/// The runtime directory of the fixture's services,
-/// with a service running for every worktree of the fixture,
-/// so a wrapped
-///  commit takes the route a person's commit takes:
-/// the commit path has no other writer.
-pub fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
-    let mut service = fixture.service.lock().expect("the fixture's service lock");
-    if service.is_none() {
-        *service = Some(start_fixture_service(fixture));
-    }
-    let started = service.as_ref()?;
-    started.serve_worktrees(fixture);
-    return Some(started.runtime.clone());
-}
-
-/// Environment variable that keeps every fixture on disk after its test ends,
-/// for looking at a failure.
-pub const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
-
-/// What:
-///  Remove a fixture tree unless the person asked to keep it,
-/// trying again for up to five seconds.
-/// Why:
-///   A landed commit may leave a maintenance child finishing for a moment,
-/// and removing a directory that still gains
-///  entries fails;
-/// a tree already gone is the explicit `remove` having run first,
-/// not a failure.
-pub fn settle_fixture(root: &Path, keep: bool) {
-    if keep {
-        return;
-    }
-    for _ in 0..50 {
-        match std::fs::remove_dir_all(root) {
-            Ok(()) => return,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
-            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
-        }
     }
 }
 

@@ -16,9 +16,16 @@ use crate::checks::CheckOutcome;
 /// Imports the snapshot type.
 use crate::crates::LockSnapshot;
 /// Imports the update request and error and the error constructor.
-use crate::update::{UpdateError, UpdateRequest, other};
+use crate::update::{
+    UpdateError,
+    UpdateRequest,
+    other,
+};
 /// Imports the verification an install runs on the lockfiles it leaves.
-use crate::verify::{verify_added_since_base_outcome, verify_locked_entries_outcome};
+use crate::verify::{
+    verify_added_since_base_outcome,
+    verify_locked_entries_outcome,
+};
 
 /// What:
 /// `pub(crate) fn verify_update(request, snapshots) -> Result<CheckOutcome, UpdateError>` judges the lockfiles an update leaves.
@@ -33,7 +40,10 @@ use crate::verify::{verify_added_since_base_outcome, verify_locked_entries_outco
 /// ```ts
 /// function verifyUpdate(request: UpdateRequest, snapshots: LockSnapshot[]): CheckOutcome
 /// ```
-pub(crate) fn verify_update(request: &UpdateRequest, snapshots: &[LockSnapshot]) -> Result<CheckOutcome, UpdateError> {
+pub(crate) fn verify_update(
+    request: &UpdateRequest,
+    snapshots: &[LockSnapshot],
+) -> Result<CheckOutcome, UpdateError> {
     if request.settings.trust_lockfile {
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
         // Why:      Absence is a value the caller must check; there is no `null`.
@@ -54,8 +64,22 @@ pub(crate) fn verify_update(request: &UpdateRequest, snapshots: &[LockSnapshot])
         let reader = factory().map_err(other)?;
         // Borrow `&*reader`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        return verify_added_since_base_outcome(snapshots, &*reader, request.settings, request.registry, request.now).map_err(other);
+        return verify_added_since_base_outcome(
+            snapshots,
+            &*reader,
+            request.settings,
+            request.registry,
+            request.now,
+        )
+        .map_err(other);
     }
     // `.map_err(...)`: converts the callee's error into this function's error type.
-    return verify_locked_entries_outcome(request.root, snapshots, request.settings, request.registry, request.now).map_err(other);
+    return verify_locked_entries_outcome(
+        request.root,
+        snapshots,
+        request.settings,
+        request.registry,
+        request.now,
+    )
+    .map_err(other);
 }

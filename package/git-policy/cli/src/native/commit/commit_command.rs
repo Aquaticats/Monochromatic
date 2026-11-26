@@ -23,6 +23,9 @@ use crate::commit_timing::CommitTiming;
 /// Why the commit did not land,
 /// by the route that stopped it.
 use crate::commit_stop_reason::{CommitStopReason, reason_of_events, reason_of_stop};
+/// Standard error as a stream whose whole lines a thread of their own writes,
+/// and the writer that counts the time they took.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
@@ -127,18 +130,21 @@ fn stop_of_an_ending(result: &TransactionResult) -> Option<CommitStopReason> {
 /// What:
 ///  Write text to standard error,
 /// ignoring a closed stream,
-///  and counting the wait for its reader.
+///  and counting the wait for the thread that writes it.
 /// Why:
-///   The exit status already carries the result.
-///  The write is the one place a slow reader becomes time the commit spends,
+///   The exit status already carries the result,
+///  and a note of the commit is a line a person can live without,
+///  so a reader that stopped draining costs the command the hand-over's bound and no more
+///  (`standard_error_off_the_calling_thread.rs`, issue 6421).
+///  The write is still the one place a slow reader becomes time the commit spends,
 ///  which the timing record states as `stderrMs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.stderr.write(text);
+/// process.stderr.write(text); // handed to the thread that writes it, waited for at most one bound
 /// ```
 fn write_stderr(text: &str) {
-    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(text.as_bytes());
     let _ = stream.flush();
 }
@@ -378,13 +384,15 @@ fn reason_name(why: Unanswered) -> &'static str {
 ///   A refusal Git printed is bytes,
 ///  and a path or a message the person typed may hold a byte that is not UTF-8;
 ///  decoding it would change what they see.
+///  The bytes go to the thread that writes standard error,
+///  so a reader that stopped draining holds nothing of this command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.stderr.write(bytes);
+/// process.stderr.write(bytes); // handed to the thread that writes it
 /// ```
 fn write_stderr_bytes(bytes: &[u8]) {
-    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(bytes);
     let _ = stream.flush();
 }
@@ -429,8 +437,8 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
     //  push, the upkeep and the notice of them) is written after this point (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
-    //  finding 3). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it, so a command that is not a test reaches
-    //  nothing.
+    //  finding 3). A release build holds no read of `CLI_GIT_TEST_ONLY_SERVICE_FAULT`, so a command that is not a control
+    //  reaches nothing, and a build made for a control reaches it only when its variable names this point.
     crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     // Why nothing landed, read before the result is taken apart for the work after a landing.
@@ -477,7 +485,10 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         controls: command.controls.clone(),
         start_directory: command.start_directory.clone(),
     };
-    let mut stderr: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    // What: The notes of the hand-off go to the thread that writes standard error.
+    // Why:  The push record outlives the command, and a reader that stopped draining must cost the
+    //       hand-off one bound rather than the command itself.
+    let mut stderr: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
     //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
 
@@ -518,7 +529,8 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     }
     // A test kills the wrapper here: the push record is runnable and nothing has been woken for it yet, so the service finds it
     //  only through the note the landing wrote (`service_claim_watch.rs`), and the person only through the line the next command
-    //  reads from the record (`held_push_notices`). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it.
+    //  reads from the record (`held_push_notices`). A release build holds no read of `CLI_GIT_TEST_ONLY_SERVICE_FAULT`, so only
+    //  a build made for a control reaches this point with its variable naming it.
     crate::service_fault::reach(crate::service_fault::AFTER_PROMOTE);
     let handing_over: Instant = Instant::now();
     let handed = hand_over(handoff, landed, &mut stderr);

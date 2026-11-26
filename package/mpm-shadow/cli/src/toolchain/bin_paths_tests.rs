@@ -2,13 +2,28 @@
 //! the output shape the IDE launcher pins,
 //! built from a disposable scope.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::fs;
 
-use super::bin_paths::{bin_paths_output, document_fields, render_bin_paths};
-use super::fixtures::{SAMPLE_PLAN, sample_plan};
+use super::bin_paths::{
+    bin_paths_output,
+    document_fields,
+    render_bin_paths,
+};
+use super::fixtures::{
+    SAMPLE_PLAN,
+    sample_plan,
+};
 use super::plan::parse_plan;
-use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, global_scope, repo_scope};
+use super::scope::{
+    EXPOSURE_DIR_RELATIVE,
+    EnvMap,
+    global_scope,
+    repo_scope,
+};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -29,11 +44,17 @@ fn the_output_has_the_three_keys_the_ide_parser_requires_and_lists_only_existing
         .iter()
         .map(|(key, _)| return *key)
         .collect();
-    assert_eq!(object.keys().map(String::as_str).collect::<Vec<_>>(), declared_keys);
+    assert_eq!(
+        object.keys().map(String::as_str).collect::<Vec<_>>(),
+        declared_keys
+    );
     assert_eq!(document["exposureDir"], EXPOSURE_DIR_RELATIVE);
     let bins = document["bins"].as_object().expect("an object");
     assert_eq!(bins.keys().collect::<Vec<_>>(), vec!["uv", "node"]);
-    assert_eq!(bins["node"], scope.exposure_dir.join("node").to_str().expect("utf-8"));
+    assert_eq!(
+        bins["node"],
+        scope.exposure_dir.join("node").to_str().expect("utf-8")
+    );
     let dirs = document["pathDirs"].as_array().expect("an array");
     assert_eq!(dirs.len(), 1, "only the exposure directory exists");
     assert_eq!(dirs[0], scope.exposure_dir.to_str().expect("utf-8"));
@@ -45,7 +66,10 @@ fn the_output_has_the_three_keys_the_ide_parser_requires_and_lists_only_existing
 #[test]
 fn a_binary_declared_twice_is_refused() {
     let source = SAMPLE_PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"slopo\"]");
-    assert!(parse_plan(&source, "plan").is_err(), "the plan reader already refuses the duplicate");
+    assert!(
+        parse_plan(&source, "plan").is_err(),
+        "the plan reader already refuses the duplicate"
+    );
     let mut plan = sample_plan();
     let conflicting = plan
         .tools
@@ -74,7 +98,10 @@ fn the_rendered_text_is_pretty_json_with_a_trailing_newline() {
         "{{\n  \"{}\": \"{}\",\n  \"{}\": [",
         declared_keys[0], scope.exposure_dir_relative, declared_keys[1]
     );
-    assert!(text.starts_with(&prefix), "the rendered document starts with the declaration order: {prefix:?}");
+    assert!(
+        text.starts_with(&prefix),
+        "the rendered document starts with the declaration order: {prefix:?}"
+    );
     assert!(text.ends_with("}\n"));
     let parsed: Value = serde_json::from_str(&text).expect("JSON");
     assert_eq!(parsed, document);

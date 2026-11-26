@@ -16,7 +16,10 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use forbidden_strings::fuzz_api::{escape_literal, RegexSet};
+use forbidden_strings::fuzz_api::{
+    RegexSet,
+    escape_literal,
+};
 use forbidden_strings_fuzz::generators::redacted_fingerprint;
 
 // Cap on literal length: a pure literal compiles linearly, so any bounded length is

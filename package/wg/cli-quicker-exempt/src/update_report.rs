@@ -7,25 +7,32 @@
 
 /// Slice and cgroup names.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
+/// The install roots that were left out,
+/// and the installed tool names.
+use crate::install_roots::{
+    RefusedRoot,
+    installed_tool_names,
+};
 /// Escaping of untrusted text.
 use crate::log_line::sanitize;
 /// Names a user chose,
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
-/// The install roots that were left out,
-/// and the installed tool names.
-use crate::install_roots::{installed_tool_names, RefusedRoot};
 /// Why a process matched.
 use crate::update_entry_points::MatchReason;
 /// Install root paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Retry waits.
 use std::time::Duration;
 
 /// Name of the policy the process watcher enforces,
 /// used in every report,
 /// and the same text the TypeScript package prints.
-pub const POLICY_PROCESS_WATCH: &str = "process watch: update entry points, toolchain install roots and Pi stay outside the tunnel";
+pub const POLICY_PROCESS_WATCH: &str =
+    "process watch: update entry points, toolchain install roots and Pi stay outside the tunnel";
 
 /// The words that mark every loud report,
 /// which the starting command also looks for in the watcher log to relay startup failures.
@@ -35,9 +42,16 @@ pub const POLICY_NOT_IN_FORCE_MARKER: &str = "POLICY NOT IN FORCE";
 /// so anyone using the wg tools knows before traffic flows.
 /// `install_roots` are the watched user's toolchain roots,
 /// whose entries the notice lists as installed now.
-pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
+pub fn policy_notice(
+    install_roots: &[PathBuf],
+    home: &Path,
+) -> String {
     let installed = installed_tool_names(install_roots, home);
-    let installed_text = if installed.is_empty() { "nothing yet".to_string() } else { installed.join(", ") };
+    let installed_text = if installed.is_empty() {
+        "nothing yet".to_string()
+    } else {
+        installed.join(", ")
+    };
     return [
         "wg-quicker-exempt: POLICY NOTICE. By the repository's policy, and without any switch, this traffic leaves outside the tunnel".to_string(),
         "wherever wg-quicker installed its bypass rules (with Table = off it installs none, and the socket marks then decide nothing):".to_string(),
@@ -97,7 +111,10 @@ and links are never followed",
 /// the journal
 /// and a terminal.
 pub fn policy_failure(detail: &str) -> String {
-    return format!("wg-quicker-exempt: {POLICY_NOT_IN_FORCE_MARKER}: {POLICY_PROCESS_WATCH}: {}", sanitize(detail));
+    return format!(
+        "wg-quicker-exempt: {POLICY_NOT_IN_FORCE_MARKER}: {POLICY_PROCESS_WATCH}: {}",
+        sanitize(detail)
+    );
 }
 
 /// What considering one process led to.
@@ -184,16 +201,34 @@ impl Outcome {
     /// because the text embeds names a user chose.
     pub fn failure_kind(&self) -> Option<&'static str> {
         return match self {
-            Outcome::Skipped { .. } => Some("move skipped"),
-            Outcome::Failed { .. } => Some("move failed"),
-            Outcome::Deferred { .. } => Some("move postponed"),
-            Outcome::ScopeLimits { .. } => Some("scope limits not applied"),
-            Outcome::Unreadable { .. } => Some("process unreadable"),
-            Outcome::ScanFailed { .. } => Some("process list unreadable"),
-            Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Covered { .. } | Outcome::Adopted { .. } => None,
+            Outcome::Skipped {
+                ..
+            } => Some("move skipped"),
+            Outcome::Failed {
+                ..
+            } => Some("move failed"),
+            Outcome::Deferred {
+                ..
+            } => Some("move postponed"),
+            Outcome::ScopeLimits {
+                ..
+            } => Some("scope limits not applied"),
+            Outcome::Unreadable {
+                ..
+            } => Some("process unreadable"),
+            Outcome::ScanFailed {
+                ..
+            } => Some("process list unreadable"),
+            Outcome::Ignored
+            | Outcome::AlreadyInSlice
+            | Outcome::Covered {
+                ..
+            }
+            | Outcome::Adopted {
+                ..
+            } => None,
         };
     }
-
 }
 
 /// Formats an outcome for the watcher log,
@@ -201,13 +236,23 @@ impl Outcome {
 pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
     return match outcome {
         Outcome::Ignored | Outcome::AlreadyInSlice => None,
-        Outcome::Covered { pid } => Some(format!(
+        Outcome::Covered {
+            pid,
+        } => Some(format!(
             "wg-quicker-exempt: pid {pid} matched and its own cgroup carries the socket mark, so it is covered without a move"
         )),
-        Outcome::Deferred { pid, why } => Some(policy_failure(&format!(
+        Outcome::Deferred {
+            pid,
+            why,
+        } => Some(policy_failure(&format!(
             "pid {pid} matched but its move was postponed ({why}); it is tried again on a later pass, and until then its traffic uses the tunnel"
         ))),
-        Outcome::Adopted { pid, reason, count, left_behind } => {
+        Outcome::Adopted {
+            pid,
+            reason,
+            count,
+            left_behind,
+        } => {
             let mut line = format!(
                 "wg-quicker-exempt: moved pid {pid} ({}) and {} descendant(s) into {TOOLCHAIN_UPDATES_SLICE}",
                 reason.describe(),
@@ -218,18 +263,36 @@ pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
             }
             Some(line)
         }
-        Outcome::Skipped { pid, why } => Some(policy_failure(&format!("pid {pid} matched but was not moved: {why}"))),
-        Outcome::Failed { pid, error, attempt, retry_in } => Some(policy_failure(&format!(
+        Outcome::Skipped {
+            pid,
+            why,
+        } => Some(policy_failure(&format!(
+            "pid {pid} matched but was not moved: {why}"
+        ))),
+        Outcome::Failed {
+            pid,
+            error,
+            attempt,
+            retry_in,
+        } => Some(policy_failure(&format!(
             "pid {pid} matched but the move failed (attempt {attempt}, next attempt in {retry_in:?}; the limits of its old cgroup are never dropped to make it succeed): {error}"
         ))),
-        Outcome::ScopeLimits { scope, error } => Some(policy_failure(&format!(
+        Outcome::ScopeLimits {
+            scope,
+            error,
+        } => Some(policy_failure(&format!(
             "the scope {} could not be given the current limits of its origin cgroup, so the processes in it keep the limits it has now, which may be older than the cgroup's: {error}",
             quote_name(scope)
         ))),
-        Outcome::Unreadable { pid, error } => Some(policy_failure(&format!(
+        Outcome::Unreadable {
+            pid,
+            error,
+        } => Some(policy_failure(&format!(
             "pid {pid} could not be inspected, so if it is an update entry point it was not moved: {error}"
         ))),
-        Outcome::ScanFailed { error } => Some(policy_failure(&format!(
+        Outcome::ScanFailed {
+            error,
+        } => Some(policy_failure(&format!(
             "the list of processes could not be read, so only exec events find update entry points until it can: {error}"
         ))),
     };

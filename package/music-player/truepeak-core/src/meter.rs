@@ -89,7 +89,13 @@ const WINDOW: usize = 4;
 /// ```ts
 /// function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number { ... }
 /// ```
-fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+fn catmull_rom(
+    p0: f32,
+    p1: f32,
+    p2: f32,
+    p3: f32,
+    t: f32,
+) -> f32 {
     // What:     `let t2 = t * t;` and `let t3 = t2 * t;`. The square and cube of `t`.
     //           Plain float multiplies (TS-identical).
     // Why:      The cubic polynomial below uses t, t^2, t^3.
@@ -112,10 +118,11 @@ fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
     // ```ts
     // return 0.5 * (2*p1 + (p2-p0)*t + (2*p0-5*p1+4*p2-p3)*t2 + (3*p1-3*p2+p3-p0)*t3);
     // ```
-    return HALF * (2.0 * p1
-        + (p2 - p0) * t
-        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
-        + (3.0 * p1 - 3.0 * p2 + p3 - p0) * t3)
+    return HALF
+        * (2.0 * p1
+            + (p2 - p0) * t
+            + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+            + (3.0 * p1 - 3.0 * p2 + p3 - p0) * t3);
 }
 
 /// What:
@@ -264,7 +271,7 @@ impl TruePeakMeter {
             filled: vec![0; channels],
             cursor: 0,
             peak: 0.0,
-        }
+        };
     }
 
     /// What:
@@ -282,7 +289,10 @@ impl TruePeakMeter {
     /// ```ts
     /// feed(chunk: number[]): void { ... }
     /// ```
-    pub fn feed(&mut self, chunk: &[f32]) {
+    pub fn feed(
+        &mut self,
+        chunk: &[f32],
+    ) {
         // What:     `for &sample in chunk { ... }`. Iterate the slice; the `&sample`
         //           pattern COPIES each `f32` out by value (deref in the pattern).
         // Why:      Each sample is routed to the channel named by the running cursor.
@@ -342,7 +352,7 @@ impl TruePeakMeter {
         // ```ts
         // return this.peak;
         // ```
-        return self.peak
+        return self.peak;
     }
 
     /// What:
@@ -403,7 +413,7 @@ impl TruePeakMeter {
         // ```ts
         // return peak;
         // ```
-        return peak
+        return peak;
     }
 
     /// What:
@@ -420,7 +430,11 @@ impl TruePeakMeter {
     /// ```ts
     /// push(channel: number, sample: number): void { ... }
     /// ```
-    fn push(&mut self, channel: usize, sample: f32) {
+    fn push(
+        &mut self,
+        channel: usize,
+        sample: f32,
+    ) {
         // What:     `let window = self.win[channel];`. COPY the 4-array out (arrays of
         //           `Copy` types are `Copy`), so we can read it without holding a
         //           borrow of `self` while we also write `self.peak` below.
@@ -550,7 +564,10 @@ impl TruePeakMeter {
 /// ```ts
 /// function truePeakInterleaved(samples: Float32Array, channels: number): number { ... }
 /// ```
-pub fn true_peak_interleaved(samples: &[f32], channels: usize) -> f32 {
+pub fn true_peak_interleaved(
+    samples: &[f32],
+    channels: usize,
+) -> f32 {
     // What:     `if channels == 0 { return 0.0; }`. Guard a zero-channel request,
     //           returning a `0.0` (silence) peak.
     // Why:      Avoids the divide-by-zero `% channels` routing in `feed`; a zero peak
@@ -588,7 +605,7 @@ pub fn true_peak_interleaved(samples: &[f32], channels: usize) -> f32 {
     // ```ts
     // return meter.peak;
     // ```
-    return meter.peak()
+    return meter.peak();
 }
 
 /// What:

@@ -11,9 +11,22 @@
 ///  and the shared state.
 use super::{
     record::wake,
-    server_scan::{Scan, bases, scan},
-    server_watch::{ServerWatches, forget_below},
-    shared::{ServerChange, ServerChangeKind, ServerRequests, Shared, lock},
+    server_scan::{
+        Scan,
+        bases,
+        scan,
+    },
+    server_watch::{
+        ServerWatches,
+        forget_below,
+    },
+    shared::{
+        ServerChange,
+        ServerChangeKind,
+        ServerRequests,
+        Shared,
+        lock,
+    },
 };
 /// What:
 ///  ordered sets of owned paths;
@@ -29,9 +42,19 @@ use super::{
 /// ```
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, mpsc::SyncSender},
-    thread::{self, JoinHandle},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        mpsc::SyncSender,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 /// The queue into the language worker,
 ///  for the creations a newly watched folder may have missed.

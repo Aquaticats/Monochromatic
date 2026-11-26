@@ -16,20 +16,32 @@
 /// ```ts
 /// import { Rope, type Configuration } from 'helix-core';
 /// ```
-use helix_core::{Rope, syntax::config::Configuration};
+use helix_core::{
+    Rope,
+    syntax::config::Configuration,
+};
 /// The application-owned engine,
 ///  its manifest reader,
 ///  and the runtime directory it reads.
 use ide_app::{
-    runtime::{self, RuntimeSource},
-    syntax::{SyntaxEngine, provisioned_grammars},
+    runtime::{
+        self,
+        RuntimeSource,
+    },
+    syntax::{
+        SyntaxEngine,
+        provisioned_grammars,
+    },
 };
 /// Sets hold grammar ids;
 ///  paths name sample files and manifest fixtures.
 use std::{
     collections::HashSet,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -85,7 +97,8 @@ fn write_manifest(content: &str) -> tempfile::TempDir {
     // ```ts
     // const directory = mkdtempSync(join(tmpdir(), 'manifest-')); // throws on failure
     // ```
-    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
+    let directory =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
     fs::write(directory.path().join("manifest.json"), content).expect("write manifest fixture");
     return directory;
 }
@@ -194,7 +207,8 @@ fn manifest_lists_grammar_ids_without_the_library_suffix() {
 /// A missing manifest names the file and the task that prepares it.
 #[test]
 fn missing_manifest_names_the_file_and_the_remedy() {
-    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
+    let directory =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
     let manifest = directory.path().join("manifest.json");
     let error = provisioned_grammars(&manifest).expect_err("missing manifest");
     let message = format!("{error:#}");

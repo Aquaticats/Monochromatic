@@ -5,7 +5,10 @@
 
 /// The reader whose binding reports the server's state,
 ///  and the server's name.
-use super::test_support::{LanguageReader, SERVER};
+use super::test_support::{
+    LanguageReader,
+    SERVER,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Server states as the binding reports them.

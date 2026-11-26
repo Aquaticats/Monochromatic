@@ -3,17 +3,26 @@
 //! and the marker links retained for each target cgroup.
 
 /// Marker links on a target cgroup.
-use crate::bpf::{attach_marker_unpinned, MarkerLinks};
+use crate::bpf::{
+    MarkerLinks,
+    attach_marker_unpinned,
+};
+/// Shutdown signal descriptors.
+use crate::signal_descriptor::owned_descriptor;
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    OwnedFd,
+};
 /// Raw Unix path bytes for inotify watch registration.
 use std::os::unix::ffi::OsStrExt;
 /// Target paths.
-use std::path::{Path, PathBuf};
-/// Shutdown signal descriptors.
-use crate::signal_descriptor::owned_descriptor;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Buffer size for draining cgroup directory inotify records.
 const INOTIFY_BUFFER_SIZE: usize = 16_384;
@@ -32,7 +41,10 @@ fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
 }
 
 /// Reports whether `target` already has an attachment.
-pub fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
+pub fn is_attached(
+    active: &[ActiveAttachment],
+    target: &Path,
+) -> bool {
     for attachment in active {
         if attachment.path == target {
             return true;
@@ -44,10 +56,10 @@ pub fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
 /// Creates inotify descriptor and installs watch before first target scan.
 pub fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
     // SAFETY: init returns newly owned descriptor on success.
-    let inotify = owned_descriptor(unsafe {
-        libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK)
-    })?;
-    let path = std::ffi::CString::new(app_slice.as_os_str().as_bytes()).map_err(app_slice_contains_nul)?;
+    let inotify =
+        owned_descriptor(unsafe { libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK) })?;
+    let path =
+        std::ffi::CString::new(app_slice.as_os_str().as_bytes()).map_err(app_slice_contains_nul)?;
     let mask = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM;
     // SAFETY: descriptor is inotify instance and path remains NUL-terminated through call.
     let watch = unsafe { libc::inotify_add_watch(inotify.as_raw_fd(), path.as_ptr(), mask) };
@@ -58,7 +70,10 @@ pub fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
 }
 
 /// Opens cgroup and transactionally creates four links when target still exists.
-pub fn attach_target(path: &Path, mark: u32) -> io::Result<Option<ActiveAttachment>> {
+pub fn attach_target(
+    path: &Path,
+    mark: u32,
+) -> io::Result<Option<ActiveAttachment>> {
     let cgroup = match std::fs::File::open(path) {
         Ok(file) => file,
         Err(error) if crate::process_info::means_vanished(&error) => return Ok(None),

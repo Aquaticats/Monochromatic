@@ -788,7 +788,9 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
     let work: PathBuf = work_directory(common_dir);
     for (id, _queued) in crate::work_item::entries_oldest_first(work.as_path(), FAILED) {
         let failed: PathBuf = state_directory(work.as_path(), FAILED).join(id.as_str());
-        let Ok(text) = std::fs::read_to_string(failed.as_path()) else { continue };
+        // A record that is not a plain file is one this command cannot read: a named pipe there answers at once instead of
+        // waiting for a writer that may never come (`crate::plain_file::read_plain_text`).
+        let Ok(text) = crate::plain_file::read_plain_text(failed.as_path()) else { continue };
         let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
         if item.kind != WorkKind::SubvolumeDelete || item.branch_ref != WORKTREE_REMOVAL_REFERENCE || item.tries != 0 {
             continue;
@@ -891,7 +893,8 @@ fn forget_begun(common_dir: &Path, id: &str) {
 /// const begun = begunIdentity(commonDir, id); // string | undefined
 /// ```
 fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
-    let text: String = std::fs::read_to_string(common_dir.join(BEGUN_FOLDER).join(id)).ok()?;
+    // The begun record is this program's own, so a name that holds a named pipe answers as no record at once.
+    let text: String = crate::plain_file::read_plain_text(&common_dir.join(BEGUN_FOLDER).join(id)).ok()?;
     let identity: &str = text.trim_end();
     return (!identity.is_empty()).then(|| return identity.to_owned());
 }
@@ -921,7 +924,7 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 ///    no registered worktree inside it,
 ///    no lock,
 ///    no unfinished operation,
-///    no process working in it,
+///    no process working in it, read in the process table `proc_root` names,
 ///    no ignored file the worktree the proof was made from does not hold,
 ///    and every record of its own Git directory copied into a removal snapshot.
 ///
@@ -929,11 +932,16 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 /// which the next command of any worktree shows,
 /// so nothing is kept in silence.
 ///
+/// `proc_root` is the process table the holder scan reads:
+/// the release hands in this machine's `/proc`,
+/// and a control hands in one of its fixture's own,
+/// so a control's verdict is not decided by the programs the machine runs beside it.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeTheWorktreeOf(item): Verdict
+/// removeTheWorktreeOf(item, procRoot): Verdict
 /// ```
-fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
+fn remove_the_worktree_of(item: &WorkItem, proc_root: &Path) -> Verdict {
     let target: PathBuf = PathBuf::from(item.parent.as_str());
     if !target.is_absolute() {
         return Verdict::Failed(format!("the record names no absolute path to remove: {}", item.parent));
@@ -986,7 +994,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     let look: SecondLook<'_> = SecondLook {
         context: &context,
         common_dir: item.git_dir.as_path(),
-        proc_root: Path::new(PROCESS_TABLE),
+        proc_root,
         source: source.as_deref(),
     };
     if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
@@ -1165,7 +1173,9 @@ fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &
 /// const poolOf = (target) => { const admin = gitDirOf(target); return [commonDirectoryOf(admin), admin]; };
 /// ```
 fn the_pool_of(target: &Path) -> Option<(PathBuf, PathBuf)> {
-    let pointer: Vec<u8> = std::fs::read(target.join(".git")).ok()?;
+    // A `.git` pointer that is a named pipe is read at once or refused, and never waited on (`SPEC.md`: a `.git` that is not a
+    // plain file ends the run with a reason).
+    let pointer: Vec<u8> = crate::plain_file::read_plain_file(target.join(".git").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
     let text: String = String::from_utf8_lossy(pointer.as_slice()).into_owned();
     let named: PathBuf = PathBuf::from(text.trim_end().strip_prefix("gitdir: ")?.trim());
     let admin: PathBuf = if named.is_absolute() { named } else { target.join(named) };
@@ -1228,7 +1238,25 @@ fn the_service_git(item: &WorkItem) -> Result<GitContext, String> {
 }
 
 /// What:
+///  The service's own call for one handed-over record,
+///  as the release runs it:
+///  the delete of `delete_subvolume_of_with` over this machine's own process table (`/proc`).
+/// Why:
+///  Nothing in the release picks a process table,
+///  so the call that does the work takes one as an argument and this one supplies the machine's,
+///  and every caller that must see the real processes keeps reading them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deleteSubvolumeOf = (item) => deleteSubvolumeOfWith(item, '/proc');
+/// ```
+pub fn delete_subvolume_of(item: &WorkItem) -> Verdict {
+    return delete_subvolume_of_with(item, Path::new(PROCESS_TABLE));
+}
+
+/// What:
 ///  The service's own delete of one handed-over subvolume,
+///  or, for a record written for a whole worktree, Git's own removal of it read against `proc_root`,
 /// with the words for what became of it.
 /// Why:
 ///  A path that is gone is nothing to delete:
@@ -1257,14 +1285,21 @@ fn the_service_git(item: &WorkItem) -> Result<GitContext, String> {
 /// because the files stay;
 /// anything else may pass and is tried again.
 ///
+///  `proc_root` is the process table the removal of a whole worktree reads to see whether anything works in it,
+///  and the release hands in this machine's `/proc`:
+///  a control hands in a table of its own,
+///  because a removal that read the machine's processes was decided by whatever ran beside it
+///  (issue 6475: a container gate refused a removal over another test's process,
+///  and the test it failed was written to read Git's own sentence).
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// deleteSubvolumeOf(item): Verdict
+/// deleteSubvolumeOfWith(item, procRoot): Verdict
 /// ```
-pub fn delete_subvolume_of(item: &WorkItem) -> Verdict {
+pub(crate) fn delete_subvolume_of_with(item: &WorkItem, proc_root: &Path) -> Verdict {
     // A record written for a whole worktree is Git's own removal, and one written for a renamed subvolume is the kernel's delete.
     if item.branch_ref == WORKTREE_REMOVAL_REFERENCE {
-        return remove_the_worktree_of(item);
+        return remove_the_worktree_of(item, proc_root);
     }
     let path: PathBuf = PathBuf::from(item.parent.as_str());
     if !path.is_absolute() {

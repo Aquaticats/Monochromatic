@@ -13,7 +13,7 @@
 
 /// Error text built only on failure,
 /// from a `format_args!` value.
-use crate::lazy_error_text::{ExplainedError};
+use crate::lazy_error_text::ExplainedError;
 /// Imports `std::fmt` for this file.
 use std::fmt;
 
@@ -23,36 +23,52 @@ use std::fs;
 /// Imports `std::io` for this file.
 use std::io;
 
-
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
 /// Imports `std::os::unix::fs::{FileExt, MetadataExt}` for this file.
-use std::os::unix::fs::{MetadataExt};
+use std::os::unix::fs::MetadataExt;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `std::sync::Arc` for this file.
 use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// Imports `std::process::{Command, Stdio}` for this file.
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// Imports `std::time::{Duration, Instant}` for this file.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the limits the scope of a run carries from its caller.
-use crate::inherited_limits::{InheritedLimits, caller_limits};
-
+use crate::inherited_limits::{
+    InheritedLimits,
+    caller_limits,
+};
 
 /// Imports `rustix::fs::{AtFlags, CWD, StatxFlags, statx}` for this file.
-use rustix::fs::{AtFlags, CWD, StatxFlags, statx};
-
-
+use rustix::fs::{
+    AtFlags,
+    CWD,
+    StatxFlags,
+    statx,
+};
 
 /// Where the unified control group hierarchy is mounted.
 pub(crate) const CGROUP_ROOT: &str = "/sys/fs/cgroup";
@@ -121,7 +137,10 @@ impl fmt::Display for GroupUnavailable {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.reason);
     }
 }
@@ -148,7 +167,10 @@ impl fmt::Display for View {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}:{}", self.mount, self.inode);
     }
 }
@@ -167,16 +189,34 @@ impl fmt::Display for View {
 pub(crate) fn view_of(path: &Path) -> io::Result<View> {
     // The unique id is asked for alone first (a kernel before 6.8 ignores the bit); the reusable one is the fallback.
     let unique_bit: StatxFlags = StatxFlags::from_bits_retain(STATX_MNT_ID_UNIQUE);
-    let unique = statx(CWD, path, AtFlags::empty(), unique_bit | StatxFlags::INO).map_err(io::Error::from)?;
-    if StatxFlags::from_bits_retain(unique.stx_mask).contains(unique_bit) && StatxFlags::from_bits_retain(unique.stx_mask).contains(StatxFlags::INO) {
-        return Ok(View { mount: unique.stx_mnt_id, inode: unique.stx_ino });
+    let unique = statx(CWD, path, AtFlags::empty(), unique_bit | StatxFlags::INO)
+        .map_err(io::Error::from)?;
+    if StatxFlags::from_bits_retain(unique.stx_mask).contains(unique_bit)
+        && StatxFlags::from_bits_retain(unique.stx_mask).contains(StatxFlags::INO)
+    {
+        return Ok(View {
+            mount: unique.stx_mnt_id,
+            inode: unique.stx_ino,
+        });
     }
-    let found = statx(CWD, path, AtFlags::empty(), StatxFlags::MNT_ID | StatxFlags::INO).map_err(io::Error::from)?;
+    let found = statx(
+        CWD,
+        path,
+        AtFlags::empty(),
+        StatxFlags::MNT_ID | StatxFlags::INO,
+    )
+    .map_err(io::Error::from)?;
     let reported: StatxFlags = StatxFlags::from_bits_retain(found.stx_mask);
     if !reported.contains(StatxFlags::MNT_ID) || !reported.contains(StatxFlags::INO) {
-        return Err(io::Error::other(format!("the kernel did not report the mount id and inode of {}", path.display())));
+        return Err(io::Error::other(format!(
+            "the kernel did not report the mount id and inode of {}",
+            path.display()
+        )));
     }
-    return Ok(View { mount: found.stx_mnt_id, inode: found.stx_ino });
+    return Ok(View {
+        mount: found.stx_mnt_id,
+        inode: found.stx_ino,
+    });
 }
 
 /// What the discovery of the route uses,
@@ -327,23 +367,37 @@ pub(crate) fn is_executable_file(candidate: &Path) -> bool {
 /// ```ts
 /// function runPlain(program: string, args: string[], env: [string, string | undefined][]): string  // throws the reason
 /// ```
-pub(crate) fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<String>)], bound: Duration) -> Result<String, String> {
+pub(crate) fn run_plain(
+    program: &str,
+    arguments: &[&str],
+    environment: &[(String, Option<String>)],
+    bound: Duration,
+) -> Result<String, String> {
     let mut command: Command = Command::new(program);
-    command.args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command
+        .args(arguments)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     for (name, value) in environment {
         match value {
             Some(set) => command.env(name, set),
             None => command.env_remove(name),
         };
     }
-    let mut child = command.spawn().explained(format_args!("{program} could not be started"))?;
+    let mut child = command
+        .spawn()
+        .explained(format_args!("{program} could not be started"))?;
     // One deadline for the reading, the killing and the reaping (contract V6; round 10, 9a D3).
     let deadline: Instant = Instant::now() + bound;
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
         let _ = child.kill();
         let reaped: bool = reap_within(&mut child, deadline);
-        return Err(format!("{program} has no output pipes{}", unreaped_note(reaped)));
+        return Err(format!(
+            "{program} has no output pipes{}",
+            unreaped_note(reaped)
+        ));
     };
     let out_reader = crate::bounded_io::collect(OwnedFd::from(out_pipe), Arc::clone(&cancel));
     let err_reader = crate::bounded_io::collect(OwnedFd::from(err_pipe), Arc::clone(&cancel));
@@ -370,7 +424,9 @@ pub(crate) fn run_plain(program: &str, arguments: &[&str], environment: &[(Strin
         Ok(Ok(bytes)) => bytes,
         _ => {
             let note: &str = end_child(&mut child, &cancel, deadline);
-            return Err(format!("{program} did not answer within {bound:?} (its output was not closed){note}"));
+            return Err(format!(
+                "{program} did not answer within {bound:?} (its output was not closed){note}"
+            ));
         }
     };
     let err_wait: Duration = deadline.saturating_duration_since(Instant::now());
@@ -378,13 +434,18 @@ pub(crate) fn run_plain(program: &str, arguments: &[&str], environment: &[(Strin
         Ok(Ok(bytes)) => bytes,
         _ => {
             let note: &str = end_child(&mut child, &cancel, deadline);
-            return Err(format!("{program} did not answer within {bound:?} (its error output was not closed){note}"));
+            return Err(format!(
+                "{program} did not answer within {bound:?} (its error output was not closed){note}"
+            ));
         }
     };
     cancel.store(true, Ordering::Relaxed);
     if !status.success() {
         let message: String = String::from_utf8_lossy(&err).to_string();
-        return Err(format!("{program} failed ({})", message.lines().next().unwrap_or("no message").trim()));
+        return Err(format!(
+            "{program} failed ({})",
+            message.lines().next().unwrap_or("no message").trim()
+        ));
     }
     return Ok(String::from_utf8_lossy(&out).to_string());
 }
@@ -397,7 +458,11 @@ pub(crate) fn run_plain(program: &str, arguments: &[&str], environment: &[(Strin
 /// Every exit from the wait ends the child this way,
 /// and a function replaces the closure that captured the deadline.
 /// It returns the text that says so when the child was not reaped in time.
-pub(crate) fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicBool>, deadline: Instant) -> &'static str {
+pub(crate) fn end_child(
+    running: &mut std::process::Child,
+    readers: &Arc<AtomicBool>,
+    deadline: Instant,
+) -> &'static str {
     readers.store(true, Ordering::Relaxed);
     let _ = running.kill();
     return unreaped_note(reap_within(running, deadline));
@@ -416,7 +481,11 @@ pub(crate) fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicB
 /// function unreapedNote(reaped: boolean): string
 /// ```
 pub(crate) fn unreaped_note(reaped: bool) -> &'static str {
-    return if reaped { "" } else { "; the killed program could not be reaped before the deadline" };
+    return if reaped {
+        ""
+    } else {
+        "; the killed program could not be reaped before the deadline"
+    };
 }
 
 /// What:
@@ -435,7 +504,10 @@ pub(crate) fn unreaped_note(reaped: bool) -> &'static str {
 /// ```ts
 /// function reapWithin(child: ChildProcess, deadline: number): boolean
 /// ```
-pub(crate) fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool {
+pub(crate) fn reap_within(
+    child: &mut std::process::Child,
+    deadline: Instant,
+) -> bool {
     // A test makes the killed child look unreapable for as long as the budget lasts.
     #[cfg(test)]
     let stuck: bool = crate::failpoints::fires(crate::failpoints::Point::ReapStuck);
@@ -446,7 +518,11 @@ pub(crate) fn reap_within(child: &mut std::process::Child, deadline: Instant) ->
     #[cfg(not(test))]
     let injected_error: bool = false;
     loop {
-        let waited: io::Result<Option<std::process::ExitStatus>> = if injected_error { Err(io::Error::other("injected wait failure")) } else { child.try_wait() };
+        let waited: io::Result<Option<std::process::ExitStatus>> = if injected_error {
+            Err(io::Error::other("injected wait failure"))
+        } else {
+            child.try_wait()
+        };
         if !stuck && matches!(waited, Ok(Some(_))) {
             return true;
         }
@@ -477,7 +553,9 @@ pub(crate) fn kill_file_present(directory: &Path) -> bool {
 /// Why:
 /// A function replaces the closure that `detect_route` called at every refusal.
 pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
-    return GroupUnavailable { reason };
+    return GroupUnavailable {
+        reason,
+    };
 }
 
 /// What:
@@ -497,56 +575,135 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable> {
     match is_cgroup2(&settings.cgroup_root) {
         Ok(true) => {}
-        Ok(false) => return Err(unavailable(format!("{} is not a cgroup v2 mount", settings.cgroup_root.display()))),
-        Err(error) => return Err(unavailable(format!("{} cannot be examined ({error})", settings.cgroup_root.display()))),
+        Ok(false) => {
+            return Err(unavailable(format!(
+                "{} is not a cgroup v2 mount",
+                settings.cgroup_root.display()
+            )));
+        }
+        Err(error) => {
+            return Err(unavailable(format!(
+                "{} cannot be examined ({error})",
+                settings.cgroup_root.display()
+            )));
+        }
     }
     if !on_path(&settings.systemd_run) {
-        return Err(unavailable(format!("{} is not installed", settings.systemd_run)));
+        return Err(unavailable(format!(
+            "{} is not installed",
+            settings.systemd_run
+        )));
     }
     // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
     // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
     if settings.question.is_none() {
-        let started: Result<String, String> = run_plain(&settings.systemctl, &["--user", "start", &settings.slice], &settings.environment, settings.discovery_bound);
+        let started: Result<String, String> = run_plain(
+            &settings.systemctl,
+            &["--user", "start", &settings.slice],
+            &settings.environment,
+            settings.discovery_bound,
+        );
         if let Err(reason) = started {
-            return Err(unavailable(format!("the user manager cannot start {} ({reason})", settings.slice)));
+            return Err(unavailable(format!(
+                "the user manager cannot start {} ({reason})",
+                settings.slice
+            )));
         }
     }
-    let ordinary: Vec<String> = vec!["--user".to_string(), "show".to_string(), settings.slice.clone(), "--property=ControlGroup".to_string(), "--value".to_string()];
-    let question: Vec<&str> = settings.question.as_ref().unwrap_or(&ordinary).iter().map(String::as_str).collect();
-    let asked: Result<String, String> = run_plain(&settings.systemctl, &question, &settings.environment, settings.discovery_bound);
+    let ordinary: Vec<String> = vec![
+        "--user".to_string(),
+        "show".to_string(),
+        settings.slice.clone(),
+        "--property=ControlGroup".to_string(),
+        "--value".to_string(),
+    ];
+    let question: Vec<&str> = settings
+        .question
+        .as_ref()
+        .unwrap_or(&ordinary)
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let asked: Result<String, String> = run_plain(
+        &settings.systemctl,
+        &question,
+        &settings.environment,
+        settings.discovery_bound,
+    );
     let answer: String = match asked {
         Ok(text) => text,
-        Err(reason) => return Err(unavailable(format!("the user manager cannot be asked where {} is ({reason})", settings.slice))),
+        Err(reason) => {
+            return Err(unavailable(format!(
+                "the user manager cannot be asked where {} is ({reason})",
+                settings.slice
+            )));
+        }
     };
     let reported: &str = answer.trim();
     if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
-        return Err(unavailable(format!("the user manager reports no control group for {}", settings.slice)));
+        return Err(unavailable(format!(
+            "the user manager reports no control group for {}",
+            settings.slice
+        )));
     }
     let slice_dir: PathBuf = settings.cgroup_root.join(reported.trim_start_matches('/'));
     if slice_dir.to_str().is_none() {
-        return Err(unavailable(format!("{} is not UTF-8, which the journal record cannot hold", slice_dir.display())));
+        return Err(unavailable(format!(
+            "{} is not UTF-8, which the journal record cannot hold",
+            slice_dir.display()
+        )));
     }
     let slice_is_directory: bool = match fs::metadata(&slice_dir) {
         Ok(found) => found.is_dir(),
         Err(_) => false,
     };
     if !slice_is_directory {
-        return Err(unavailable(format!("{} does not exist in the cgroup file system", slice_dir.display())));
+        return Err(unavailable(format!(
+            "{} does not exist in the cgroup file system",
+            slice_dir.display()
+        )));
     }
     if !kill_file_present(&slice_dir) {
-        return Err(unavailable(format!("{} has no cgroup.kill; Linux 5.14 or later is needed", slice_dir.display())));
+        return Err(unavailable(format!(
+            "{} has no cgroup.kill; Linux 5.14 or later is needed",
+            slice_dir.display()
+        )));
     }
     let namespace: u64 = match namespace_id() {
         Ok(found) => found,
-        Err(error) => return Err(unavailable(format!("the cgroup namespace cannot be identified ({error})"))),
+        Err(error) => {
+            return Err(unavailable(format!(
+                "the cgroup namespace cannot be identified ({error})"
+            )));
+        }
     };
     let slice_view: View = match view_of(&slice_dir) {
         Ok(found) => found,
-        Err(error) => return Err(unavailable(format!("{} cannot be examined ({error})", slice_dir.display()))),
+        Err(error) => {
+            return Err(unavailable(format!(
+                "{} cannot be examined ({error})",
+                slice_dir.display()
+            )));
+        }
     };
-    let limits: InheritedLimits = match caller_limits(&settings.own_cgroup_file, &settings.cgroup_root, &slice_dir) {
+    let limits: InheritedLimits = match caller_limits(
+        &settings.own_cgroup_file,
+        &settings.cgroup_root,
+        &slice_dir,
+    ) {
         Ok(found) => found,
-        Err(error) => return Err(unavailable(format!("the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run"))),
+        Err(error) => {
+            return Err(unavailable(format!(
+                "the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run"
+            )));
+        }
     };
-    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view, limits: Arc::new(limits) });
+    return Ok(Route {
+        systemd_run: settings.systemd_run.clone(),
+        slice: settings.slice.clone(),
+        slice_dir,
+        namespace,
+        slice_view,
+        limits: Arc::new(limits),
+    });
 }

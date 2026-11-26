@@ -1,6 +1,11 @@
 //! Scanner-owned envelope round-trip and hostile-framing tests.
 
-use super::{decode, encode, EnvelopeError, MAGIC};
+use super::{
+    EnvelopeError,
+    MAGIC,
+    decode,
+    encode,
+};
 use crate::runtime_cache::path::source_digest;
 
 /// Encodes one named tail-format fixture.
@@ -8,23 +13,25 @@ fn named_artifact() -> (Vec<u8>, crate::runtime_cache::path::SourceDigest) {
     let source = "==> qqq-one <==\nALPHA_LITERAL_LONG\n==> qqq-two <==\n/BETA[0-9]{2}/\n";
     let digest = source_digest(source.as_bytes()).expect("digest");
     let compiled = crate::runtime_matcher::RuntimeRules::compile(source).expect("compile");
-    return (encode(&compiled, digest).expect("encode"), digest)
+    return (encode(&compiled, digest).expect("encode"), digest);
 }
 
 /// Locates engine-length field in valid fixture envelope.
 fn engine_length_offset(bytes: &[u8]) -> usize {
     let mut offset = MAGIC.len() + 4;
     let version_length = usize::from(u16::from_le_bytes(
-        bytes[offset..offset + 2].try_into().expect("version length"),
+        bytes[offset..offset + 2]
+            .try_into()
+            .expect("version length"),
     ));
     offset += 2 + version_length;
     let platform_length = usize::from(u16::from_le_bytes(
-        bytes[offset..offset + 2].try_into().expect("platform length"),
+        bytes[offset..offset + 2]
+            .try_into()
+            .expect("platform length"),
     ));
     offset += 2 + platform_length + 32;
-    let rule_count = u32::from_le_bytes(
-        bytes[offset..offset + 4].try_into().expect("rule count"),
-    );
+    let rule_count = u32::from_le_bytes(bytes[offset..offset + 4].try_into().expect("rule count"));
     offset += 4;
     for _ in 0..rule_count {
         let marker = bytes[offset];
@@ -37,28 +44,33 @@ fn engine_length_offset(bytes: &[u8]) -> usize {
             offset += 4 + name_length;
         }
     }
-    let literal_count = u32::from_le_bytes(
-        bytes[offset..offset + 4].try_into().expect("literal count"),
-    );
+    let literal_count =
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().expect("literal count"));
     offset += 4;
     for _ in 0..literal_count {
         let literal_length = usize::try_from(u32::from_le_bytes(
-            bytes[offset..offset + 4].try_into().expect("literal length"),
+            bytes[offset..offset + 4]
+                .try_into()
+                .expect("literal length"),
         ))
         .expect("literal length fits");
         offset += 4 + literal_length;
         let id_count = usize::try_from(u32::from_le_bytes(
-            bytes[offset..offset + 4].try_into().expect("literal id count"),
+            bytes[offset..offset + 4]
+                .try_into()
+                .expect("literal id count"),
         ))
         .expect("literal id count fits");
         offset += 4 + id_count * 4;
     }
     let regex_id_count = usize::try_from(u32::from_le_bytes(
-        bytes[offset..offset + 4].try_into().expect("regex id count"),
+        bytes[offset..offset + 4]
+            .try_into()
+            .expect("regex id count"),
     ))
     .expect("regex id count fits");
     offset += 4 + regex_id_count * 4;
-    return offset + 32
+    return offset + 32;
 }
 
 /// Named rules retain exact identities and matching behavior.
@@ -70,7 +82,10 @@ fn named_rules_round_trip() {
         decoded.names(),
         &[Some("qqq-one".to_string()), Some("qqq-two".to_string())],
     );
-    assert_eq!(decoded.line_matches(b"ALPHA_LITERAL_LONG", &[0]), vec![(0, 0)]);
+    assert_eq!(
+        decoded.line_matches(b"ALPHA_LITERAL_LONG", &[0]),
+        vec![(0, 0)]
+    );
     assert_eq!(decoded.line_matches(b"BETA42", &[0]), vec![(0, 1)]);
     assert!(decoded.line_matches(b"clean", &[0]).is_empty());
 }
@@ -90,7 +105,10 @@ fn legacy_rules_round_trip() {
 fn every_truncation_is_invalid() {
     let (bytes, digest) = named_artifact();
     for end in 0..bytes.len() {
-        assert!(decode(&bytes[..end], digest).is_err(), "accepted truncation at {end}");
+        assert!(
+            decode(&bytes[..end], digest).is_err(),
+            "accepted truncation at {end}"
+        );
     }
 }
 
@@ -115,8 +133,7 @@ fn trailing_engine_bytes_are_invalid() {
             .try_into()
             .expect("engine length"),
     );
-    bytes[length_offset..length_offset + 8]
-        .copy_from_slice(&(original_length + 1).to_le_bytes());
+    bytes[length_offset..length_offset + 8].copy_from_slice(&(original_length + 1).to_le_bytes());
     bytes.push(0);
     assert_eq!(
         decode(&bytes, digest).err().expect("trailing engine bytes"),
@@ -168,7 +185,11 @@ fn schema_mismatch_is_incompatible() {
 fn scanner_version_mismatch_is_incompatible() {
     let (mut bytes, digest) = named_artifact();
     let version_start = MAGIC.len() + 4 + 2;
-    bytes[version_start] = if bytes[version_start] == b'0' { b'1' } else { b'0' };
+    bytes[version_start] = if bytes[version_start] == b'0' {
+        b'1'
+    } else {
+        b'0'
+    };
     assert_eq!(
         decode(&bytes, digest).err().expect("version mismatch"),
         EnvelopeError::Incompatible,
@@ -180,7 +201,9 @@ fn scanner_version_mismatch_is_incompatible() {
 fn unknown_name_marker_is_invalid() {
     let (mut bytes, digest) = named_artifact();
     let version_length = usize::from(u16::from_le_bytes(
-        bytes[MAGIC.len() + 4..MAGIC.len() + 6].try_into().expect("version length"),
+        bytes[MAGIC.len() + 4..MAGIC.len() + 6]
+            .try_into()
+            .expect("version length"),
     ));
     let platform_length_offset = MAGIC.len() + 6 + version_length;
     let platform_length = usize::from(u16::from_le_bytes(

@@ -322,7 +322,9 @@ fn a_merge_does_not_wait_for_a_lock_nothing_proves_the_owner_of() {
 /// The id of a process that has ended,
 /// so a PID file can name one that is gone.
 fn gone_process_id() -> u32 {
-    let mut child = std::process::Command::new("true").spawn().expect("a short process starts");
+    let mut command: std::process::Command = std::process::Command::new("true");
+    // Owned, so even this short-lived stand-in is the test thread's if an assertion unwinds before it is reaped.
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("a short process starts");
     let id: u32 = child.id();
     child.wait().expect("it ends");
     return id;
@@ -413,15 +415,10 @@ const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: Duration = Duration::from_secs(20);
 ///  The control waits on the same scan the wrapper reads,
 /// so it waits on the fact the wrapper will find.
 fn hold_open_until_the_scan_sees_it(lock: &std::path::Path) -> Helper {
-    let holder: Helper = Helper(
-        std::process::Command::new("sh")
-            .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("a holder starts"),
-    );
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")]);
+    // Quiet and owned: nothing reads this holder's output, and the `sleep` behind its shell goes with the test.
+    let holder: Helper = Helper(crate::test_support::spawn_owned_quiet(&mut command).expect("a holder starts"));
     let began: std::time::Instant = std::time::Instant::now();
     while !the_scan_sees(lock, holder.pid()) {
         assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.pid());

@@ -90,7 +90,7 @@ pub fn minimize(dfa: &Dfa) -> Dfa {
         color = next_color;
         count = next_count;
     }
-    return rebuild(dfa, &color, count, nc)
+    return rebuild(dfa, &color, count, nc);
 }
 
 /// Assigns each state an initial color from its acceptance mask.
@@ -107,14 +107,17 @@ pub fn minimize(dfa: &Dfa) -> Dfa {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn initial_colors(dfa: &Dfa, n: usize) -> Vec<u32> {
+fn initial_colors(
+    dfa: &Dfa,
+    n: usize,
+) -> Vec<u32> {
     let mut map: HashMap<u8, u32> = HashMap::new();
     let mut color = vec![0u32; n];
     for (state, slot) in color.iter_mut().enumerate() {
         let next = map.len() as u32;
         *slot = *map.entry(dfa.accept[state]).or_insert(next);
     }
-    return color
+    return color;
 }
 
 /// Refines a coloring once,
@@ -134,7 +137,12 @@ fn initial_colors(dfa: &Dfa, n: usize) -> Vec<u32> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn refine(dfa: &Dfa, color: &[u32], n: usize, nc: usize) -> (Vec<u32>, usize) {
+fn refine(
+    dfa: &Dfa,
+    color: &[u32],
+    n: usize,
+    nc: usize,
+) -> (Vec<u32>, usize) {
     let mut map: HashMap<Vec<u32>, u32> = HashMap::new();
     let mut next = vec![0u32; n];
     for (state, slot) in next.iter_mut().enumerate() {
@@ -154,7 +162,7 @@ fn refine(dfa: &Dfa, color: &[u32], n: usize, nc: usize) -> (Vec<u32>, usize) {
         *slot = *map.entry(signature).or_insert(id);
     }
     let count = map.len();
-    return (next, count)
+    return (next, count);
 }
 
 /// Counts the distinct colors in a coloring.
@@ -175,7 +183,7 @@ fn distinct_count(color: &[u32]) -> usize {
     let mut seen: Vec<u32> = color.to_vec();
     seen.sort_unstable();
     seen.dedup();
-    return seen.len()
+    return seen.len();
 }
 
 /// What:
@@ -208,7 +216,12 @@ mod tests;
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn rebuild(dfa: &Dfa, color: &[u32], count: usize, nc: usize) -> Dfa {
+fn rebuild(
+    dfa: &Dfa,
+    color: &[u32],
+    count: usize,
+    nc: usize,
+) -> Dfa {
     // What: first state seen for each color is its representative. Why: any member
     // of a color has identical behavior, so the first works.
     //
@@ -249,5 +262,5 @@ fn rebuild(dfa: &Dfa, color: &[u32], count: usize, nc: usize) -> Dfa {
         accept,
         color[dfa.start as usize] as u16,
         count as u16,
-    )
+    );
 }

@@ -10,7 +10,11 @@
 //! converts them into Slint values and writes window properties.
 
 /// Imports the cell that holds the screen state on the window thread and the guards that borrow it.
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::{
+    Ref,
+    RefCell,
+    RefMut,
+};
 /// Imports the shared ownership type that shares models with the window.
 use std::rc::Rc;
 
@@ -24,17 +28,37 @@ use music_player::track_measure::apply_measures;
 use music_player::track_supporting_line::supporting_line_from_template;
 /// Imports the component handle,
 /// the model types and the shared string that fill the window.
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 
 /// Imports the conversion of the playback mode to the window's integer.
 use crate::ui_playback::playback_mode_to_int;
 /// Imports the scroll request type and its decision.
-use crate::ui_screen_scroll::{ScrollRequest, next_scroll_request, scroll_offset_for};
+use crate::ui_screen_scroll::{
+    ScrollRequest,
+    next_scroll_request,
+    scroll_offset_for,
+};
 /// Imports the screen state and view types and the projection.
-use crate::ui_screen_view::{ScreenState, ScreenView, view};
+use crate::ui_screen_view::{
+    ScreenState,
+    ScreenView,
+    view,
+};
 /// Imports the window,
 /// its generated row types and the time formatter.
-use crate::{AppWindow, DeckState, FolderName, FolderRailCell, TrackListRow, format_time};
+use crate::{
+    AppWindow,
+    DeckState,
+    FolderName,
+    FolderRailCell,
+    TrackListRow,
+    format_time,
+};
 
 thread_local! {
     /// What:
@@ -59,13 +83,14 @@ thread_local! {
 /// ```ts
 /// function applyUpdate(app: AppWindow, update: Update): void { ... }
 /// ```
-pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
+pub(crate) fn apply_update(
+    app: &AppWindow,
+    update: &Update,
+) {
     match update {
         Update::Library(paths) => {
-            {
-                let mut state = write_screen();
-                state.paths = paths.clone();
-            }
+            let mut state = write_screen();
+            state.paths = paths.clone();
         }
         Update::Queue(names) => {
             let library = {
@@ -77,19 +102,34 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
                 state.unplayable.clear();
                 library
             };
-            tracing::info!(names = library.len(), "queue applied; the library rows are projected next");
+            tracing::info!(
+                names = library.len(),
+                "queue applied; the library rows are projected next"
+            );
             crate::ui_search::feed_library_names(library);
             project(app);
             tracing::info!("queue projected");
         }
-        Update::NowPlaying { index, name, duration } => {
+        Update::NowPlaying {
+            index,
+            name,
+            duration,
+        } => {
             set_now_playing(app, *index, name, *duration);
             follow_playing(*index);
             project(app);
             crate::ui_state_log::emit(app, "now-playing");
         }
-        Update::Reconciled { names, index, name, duration } => {
-            tracing::info!(rows = names.len(), "the library list was reconciled in the window");
+        Update::Reconciled {
+            names,
+            index,
+            name,
+            duration,
+        } => {
+            tracing::info!(
+                rows = names.len(),
+                "the library list was reconciled in the window"
+            );
             let library = {
                 let mut state = write_screen();
                 let library = state.set_names_keeping_place(names);
@@ -142,7 +182,9 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
             }
         }
         // The window draws no analysis indicator (D107); the system indicator takes this update in main.rs.
-        Update::Analysis { .. } => {}
+        Update::Analysis {
+            ..
+        } => {}
         Update::SourceRoot(name) => {
             {
                 let mut state = write_screen();
@@ -151,8 +193,12 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
             project(app);
         }
         // The Search index takes scan batches on the engine thread (main.rs); the window has nothing to draw for them.
-        Update::ScanBatch { .. } => {}
-        Update::Reading { name } => {
+        Update::ScanBatch {
+            ..
+        } => {}
+        Update::Reading {
+            name,
+        } => {
             tracing::info!(name = %name, "the folder is being read");
             {
                 let mut state = write_screen();
@@ -164,23 +210,34 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
         // The window marks the rows only (D122): the words about these files go to the desktop as a system notification,
         // which main.rs hands to the unplayable notifier on the engine thread, so no message is drawn here.
         Update::Unplayable(paths) => {
-            tracing::warn!(files = paths.len(), "files that cannot be played are marked on their rows");
+            tracing::warn!(
+                files = paths.len(),
+                "files that cannot be played are marked on their rows"
+            );
             {
                 let mut state = write_screen();
                 state.unplayable.extend(paths.iter().cloned());
             }
             project(app);
         }
-        Update::AudioUnavailable { reason } => {
+        Update::AudioUnavailable {
+            reason,
+        } => {
             tracing::warn!(%reason, "no audio output is available; the window tells the person");
             crate::ui_overlays::show_notice(app, crate::ui_notices::audio_unavailable_message());
         }
-        Update::FileGone { path, was_playing } => {
+        Update::FileGone {
+            path,
+            was_playing,
+        } => {
             tracing::info!(path = %path.display(), was_playing, "the selected track's file left the folder");
             if crate::ui_files::was_just_trashed(path) {
                 tracing::debug!(path = %path.display(), "the trash message already explains the missing file");
             } else {
-                crate::ui_overlays::show_notice(app, &crate::ui_notices::file_gone_message(path, *was_playing));
+                crate::ui_overlays::show_notice(
+                    app,
+                    &crate::ui_notices::file_gone_message(path, *was_playing),
+                );
             }
         }
         Update::Duration(duration) => {
@@ -238,7 +295,12 @@ fn reset_position(app: &AppWindow) {
 ///  app.trackName = name; app.duration = duration; app.durationText = formatTime(duration); app.currentIndex = index ?? -1;
 /// }
 /// ```
-pub(crate) fn set_now_playing(app: &AppWindow, index: Option<usize>, name: &str, duration: f64) {
+pub(crate) fn set_now_playing(
+    app: &AppWindow,
+    index: Option<usize>,
+    name: &str,
+    duration: f64,
+) {
     {
         let mut state = write_screen();
         state.track_name = name.to_string();
@@ -278,7 +340,11 @@ fn follow_playing(index: Option<usize>) {
 /// so the list reads the new offset when the tick changes;
 /// without a
 /// request the list keeps its scroll position.
-fn apply_scroll_request(app: &AppWindow, pending: Option<ScrollRequest>, rows: &[crate::ui_screen_rows::ListRow]) {
+fn apply_scroll_request(
+    app: &AppWindow,
+    pending: Option<ScrollRequest>,
+    rows: &[crate::ui_screen_rows::ListRow],
+) {
     let Some(request) = pending else {
         return;
     };
@@ -311,7 +377,11 @@ pub(crate) fn project(app: &AppWindow) {
     };
     // With no folder page (reading, empty or without audio) the folded header would show only a caret (EM5): it shows
     // the library's name instead. The two-pane layout keeps its own heading, which names the library already.
-    let header_title: String = if screen.folder_title.is_empty() { read_screen().library_heading() } else { screen.folder_title.clone() };
+    let header_title: String = if screen.folder_title.is_empty() {
+        read_screen().library_heading()
+    } else {
+        screen.folder_title.clone()
+    };
     app.set_folded_title(header_title.as_str().into());
     app.set_folder_title(screen.folder_title.as_str().into());
     let view_ms = started.elapsed().as_millis();
@@ -351,15 +421,22 @@ pub(crate) fn project(app: &AppWindow) {
     app.set_deck_subtitle(screen.deck_subtitle.as_str().into());
     app.set_shuffle_folder_label(screen.shuffle_folder_label.as_str().into());
     // D1 shortens a long name in the middle; the deck draws the head with an ellipsis and then the last three characters.
-    let (shuffle_head, shuffle_tail) = music_player::non_spacing_mark::split_tail_clusters(&screen.shuffle_folder_label, 3);
+    let (shuffle_head, shuffle_tail) =
+        music_player::non_spacing_mark::split_tail_clusters(&screen.shuffle_folder_label, 3);
     app.set_shuffle_folder_head(shuffle_head.as_str().into());
     app.set_shuffle_folder_tail(shuffle_tail.as_str().into());
-    app.global::<DeckState>().set_disabled(read_state(ScreenState::deck_disabled));
+    app.global::<DeckState>()
+        .set_disabled(read_state(ScreenState::deck_disabled));
     app.set_picker_open(read_screen().picker_open);
     app.set_route(read_screen().route.to_int());
     crate::ui_overlays::project(app);
     crate::ui_settings::project_pages(app);
-    tracing::debug!(rows = screen.rows.len(), view_ms, total_ms = started.elapsed().as_millis(), "the library screen was projected");
+    tracing::debug!(
+        rows = screen.rows.len(),
+        view_ms,
+        total_ms = started.elapsed().as_millis(),
+        "the library screen was projected"
+    );
 }
 
 /// What:

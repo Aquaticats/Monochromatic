@@ -26,11 +26,20 @@ use super::error::Error;
 /// The typed request numbers.
 use super::operation::Operation;
 /// The reply buffer and what it is for.
-use super::reply::{ReplyBuffer, ReplyUse};
+use super::reply::{
+    ReplyBuffer,
+    ReplyUse,
+};
 /// The buffer and struct a request writes into.
-use crate::layout::{CommandBuffer, ZfsCmd};
+use crate::layout::{
+    CommandBuffer,
+    ZfsCmd,
+};
 /// The checked name types and their field bounds.
-use crate::names::{CheckedName, NameField};
+use crate::names::{
+    CheckedName,
+    NameField,
+};
 /// The codec list type.
 use crate::nvlist::NvList;
 /// The formatting traits the diagnostics implement.
@@ -57,7 +66,10 @@ impl Request {
     /// Build a request whose `zc_name` is `name`,
     /// with a reply buffer sized
     /// for the request's use.
-    pub fn new(operation: Operation, name: CheckedName) -> Request {
+    pub fn new(
+        operation: Operation,
+        name: CheckedName,
+    ) -> Request {
         let mut command: CommandBuffer = CommandBuffer::new();
         name.write_into(command.command_mut());
         let use_of_reply: ReplyUse = reply_use(operation);
@@ -126,7 +138,10 @@ impl Request {
     /// # Throws
     ///
     /// [`Error::Encode`] when the list cannot be packed.
-    pub fn attach_input(&mut self, list: &NvList) -> Result<(), Error> {
+    pub fn attach_input(
+        &mut self,
+        list: &NvList,
+    ) -> Result<(), Error> {
         let packed: Vec<u8> = list.pack().map_err(|source| {
             return Error::Encode {
                 operation: self.operation,
@@ -148,7 +163,10 @@ impl Request {
     /// # Throws
     ///
     /// [`Error::Refuse`] when the reply may not grow.
-    pub fn grow_reply(&mut self, requested: u64) -> Result<usize, Error> {
+    pub fn grow_reply(
+        &mut self,
+        requested: u64,
+    ) -> Result<usize, Error> {
         let size: usize = self.reply.grow_to_requested(requested).map_err(|source| {
             return Error::Refuse {
                 operation: self.operation,
@@ -206,7 +224,10 @@ impl Request {
 impl fmt::Debug for Request {
     /// Shows the request identity and buffer sizes,
     /// not their bytes.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return formatter
             .debug_struct("Request")
             .field("operation", &self.operation)

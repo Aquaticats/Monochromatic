@@ -13,7 +13,11 @@
 /// ```ts
 /// import { CODE_ROW, Place, RowMap } from 'ide-app/row-map';
 /// ```
-use ide_app::row_map::{CODE_ROW, Place, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    Place,
+    RowMap,
+};
 
 /// A place on a code row.
 fn code(line: usize) -> Place {

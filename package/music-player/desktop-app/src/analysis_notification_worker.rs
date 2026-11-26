@@ -17,7 +17,11 @@
 use std::collections::VecDeque;
 
 /// Imports the channel ends and the receive error through which the worker thread takes its inputs.
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+    Sender,
+};
 
 /// Imports the instant type that paces the indicator updates.
 use std::time::Instant;
@@ -26,17 +30,34 @@ use std::time::Instant;
 use zbus::Connection;
 
 /// Imports the identity and the configuration that the thread is started from.
-use crate::analysis_notification::{Identity, NotifierConfig};
+use crate::analysis_notification::{
+    Identity,
+    NotifierConfig,
+};
 
 /// Imports the pure state machine and the effects,
 /// views and outcomes it exchanges with this thread.
-use crate::analysis_notification_logic::{Effect, IndicatorView, Machine, Outcome};
+use crate::analysis_notification_logic::{
+    Effect,
+    IndicatorView,
+    Machine,
+    Outcome,
+};
 
 /// Imports the D-Bus names,
 /// signals and call wrappers that carry the indicator over the bus.
 use crate::analysis_notification_wire::{
-    ACTION_PAUSE, ACTION_RESUME, Backend, BusSignal, CLOSED_BY_EXPIRY, CLOSED_BY_USER, FdoNotification, JobView, KUISERVER,
-    has_owner, spawn_listener,
+    ACTION_PAUSE,
+    ACTION_RESUME,
+    Backend,
+    BusSignal,
+    CLOSED_BY_EXPIRY,
+    CLOSED_BY_USER,
+    FdoNotification,
+    JobView,
+    KUISERVER,
+    has_owner,
+    spawn_listener,
 };
 
 /// What:
@@ -118,7 +139,10 @@ impl Worker {
     /// ```ts
     /// const worker = new Worker(config, events);
     /// ```
-    pub(crate) fn new(config: NotifierConfig, events: Sender<Input>) -> Worker {
+    pub(crate) fn new(
+        config: NotifierConfig,
+        events: Sender<Input>,
+    ) -> Worker {
         return Worker {
             config_identity: config.identity,
             suspendable: config.suspendable,
@@ -142,7 +166,10 @@ impl Worker {
     /// Why:
     /// one wait point serves progress,
     /// signals and the rate limit's trailing flush.
-    pub(crate) fn run(mut self, receiver: &Receiver<Input>) {
+    pub(crate) fn run(
+        mut self,
+        receiver: &Receiver<Input>,
+    ) {
         tracing::debug!("analysis notifier thread running");
         loop {
             let received = match self.machine.deadline() {
@@ -154,7 +181,10 @@ impl Worker {
             };
             let now = Instant::now();
             let effects = match received {
-                Ok(Input::Progress { done, total }) => self.machine.progress(now, done, total),
+                Ok(Input::Progress {
+                    done,
+                    total,
+                }) => self.machine.progress(now, done, total),
                 Ok(Input::Fail(message)) => self.machine.failed(message),
                 Ok(Input::Signal(signal)) => self.on_signal(now, &signal),
                 Err(RecvTimeoutError::Timeout) => self.machine.tick(now),
@@ -175,9 +205,20 @@ impl Worker {
     /// `on_signal` turns a button press or a dismissal into machine input.
     /// Why:
     /// only the sender and the job path or notification id this thread opened may act on the analysis.
-    fn on_signal(&mut self, now: Instant, signal: &BusSignal) -> Vec<Effect> {
+    fn on_signal(
+        &mut self,
+        now: Instant,
+        signal: &BusSignal,
+    ) -> Vec<Effect> {
         match signal {
-            BusSignal::JobSuspend { sender, path } | BusSignal::JobResume { sender, path } => {
+            BusSignal::JobSuspend {
+                sender,
+                path,
+            }
+            | BusSignal::JobResume {
+                sender,
+                path,
+            } => {
                 let ours = match self.job.as_ref() {
                     Some(job) => job.owns(sender, path),
                     None => false,
@@ -189,7 +230,11 @@ impl Worker {
                 let pause = matches!(signal, BusSignal::JobSuspend { .. });
                 return self.machine.set_paused(now, pause);
             }
-            BusSignal::ActionInvoked { sender, id, key } => {
+            BusSignal::ActionInvoked {
+                sender,
+                id,
+                key,
+            } => {
                 let ours = match self.notification.as_ref() {
                     Some(open) => open.owns(sender, *id),
                     None => false,
@@ -207,13 +252,21 @@ impl Worker {
                     }
                 };
             }
-            BusSignal::NotificationClosed { sender, id, reason } => {
+            BusSignal::NotificationClosed {
+                sender,
+                id,
+                reason,
+            } => {
                 let ours = match self.notification.as_ref() {
                     Some(open) => open.owns(sender, *id),
                     None => false,
                 };
                 if !ours || (*reason != CLOSED_BY_USER && *reason != CLOSED_BY_EXPIRY) {
-                    tracing::debug!(id, reason, "close signal ignored: not ours or not a user action");
+                    tracing::debug!(
+                        id,
+                        reason,
+                        "close signal ignored: not ours or not a user action"
+                    );
                     return Vec::new();
                 }
                 self.notification = None;
@@ -228,7 +281,10 @@ impl Worker {
     /// Why:
     /// once a call fails the remaining ones would fail the same way,
     /// and only the pause release still matters.
-    fn apply(&mut self, effects: Vec<Effect>) {
+    fn apply(
+        &mut self,
+        effects: Vec<Effect>,
+    ) {
         let mut queue: VecDeque<Effect> = VecDeque::from(effects);
         while let Some(effect) = queue.pop_front() {
             let outcome = match effect {
@@ -271,7 +327,9 @@ impl Worker {
             return Ok(existing.clone());
         }
         let Some(connect) = self.connect.take() else {
-            return Err(zbus::Error::Failure("the session bus connection was already attempted".to_string()));
+            return Err(zbus::Error::Failure(
+                "the session bus connection was already attempted".to_string(),
+            ));
         };
         let made = connect()?;
         tracing::info!("analysis notifier connected to the session bus");
@@ -283,7 +341,11 @@ impl Worker {
     /// `ensure_listener` starts the signal listener of `backend` once.
     /// Why:
     /// it must be subscribed before the first request so an early button press is not lost.
-    fn ensure_listener(&mut self, connection: &Connection, backend: Backend) -> zbus::Result<()> {
+    fn ensure_listener(
+        &mut self,
+        connection: &Connection,
+        backend: Backend,
+    ) -> zbus::Result<()> {
         let already = match backend {
             Backend::Job => self.listening_job,
             Backend::Notification => self.listening_notification,
@@ -292,7 +354,9 @@ impl Worker {
             return Ok(());
         }
         let events = self.events.clone();
-        spawn_listener(connection, backend, move |signal| return events.send(Input::Signal(signal)).is_ok())?;
+        spawn_listener(connection, backend, move |signal| {
+            return events.send(Input::Signal(signal)).is_ok();
+        })?;
         match backend {
             Backend::Job => self.listening_job = true,
             Backend::Notification => self.listening_notification = true,
@@ -307,7 +371,10 @@ impl Worker {
     /// Why:
     /// Plasma's own notification server ignores the progress hint,
     /// so on KDE the job is the only real bar.
-    fn open(&mut self, view: &IndicatorView) -> zbus::Result<()> {
+    fn open(
+        &mut self,
+        view: &IndicatorView,
+    ) -> zbus::Result<()> {
         let connection = self.connection()?;
         if has_owner(&connection, KUISERVER)? {
             self.ensure_listener(&connection, Backend::Job)?;
@@ -324,7 +391,8 @@ impl Worker {
             tracing::info!("no job server on the session bus; trying a notification");
         }
         self.ensure_listener(&connection, Backend::Notification)?;
-        let posted = FdoNotification::open(&connection, &self.config_identity, self.suspendable, view)?;
+        let posted =
+            FdoNotification::open(&connection, &self.config_identity, self.suspendable, view)?;
         self.notification = Some(posted);
         return Ok(());
     }
@@ -334,7 +402,10 @@ impl Worker {
     /// Why:
     /// the machine only returns an update while open,
     /// so a missing indicator means a dismissal raced it.
-    fn update(&mut self, view: &IndicatorView) -> zbus::Result<()> {
+    fn update(
+        &mut self,
+        view: &IndicatorView,
+    ) -> zbus::Result<()> {
         if let Some(job) = self.job.as_ref() {
             return job.update(view, false);
         }
@@ -349,7 +420,10 @@ impl Worker {
     /// `close` ends whichever indicator is open and forgets it.
     /// Why:
     /// the next sweep opens a fresh one.
-    fn close(&mut self, outcome: &Outcome) -> zbus::Result<()> {
+    fn close(
+        &mut self,
+        outcome: &Outcome,
+    ) -> zbus::Result<()> {
         if let Some(job) = self.job.take() {
             return job.terminate(outcome);
         }

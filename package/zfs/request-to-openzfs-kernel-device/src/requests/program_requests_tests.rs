@@ -12,7 +12,10 @@
 //!  caller whose tests would find it.
 
 use super::*;
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 use crate::requests::Operation;
 
 /// The request with every optional member set.
@@ -46,7 +49,12 @@ fn the_program_request_names_the_pool_and_carries_every_member() {
             value: "pool/clone".to_string()
         })
     );
-    assert_eq!(input.get("sync"), Some(&NvData::Boolean { value: true }));
+    assert_eq!(
+        input.get("sync"),
+        Some(&NvData::Boolean {
+            value: true
+        })
+    );
     assert_eq!(input.get_u64("instrlimit"), Some(1_000));
     assert_eq!(input.get_u64("memlimit"), Some(2_048));
 }

@@ -2,6 +2,15 @@
 //!  generated help,
 //!  and parent/child argument separation.
 
+/// The `--gpu` grammar.
+use crate::gpu_choice::GpuChoice;
+/// The output-scale grammar shared with the runtime `scale` verb.
+use crate::screen_geometry::OutputScale;
+/// Typed value parsers preserve u32 limits and the existing size validator.
+use clap::builder::{
+    RangedU64ValueParser,
+    ValueParser,
+};
 /// What:
 ///  Import clap's command and argument builders.
 /// Why:
@@ -11,13 +20,11 @@
 /// ```ts
 /// import { Command, Arg } from 'cli-parser';
 /// ```
-use clap::{Arg, ArgAction, Command};
-/// Typed value parsers preserve u32 limits and the existing size validator.
-use clap::builder::{RangedU64ValueParser, ValueParser};
-/// The output-scale grammar shared with the runtime `scale` verb.
-use crate::screen_geometry::OutputScale;
-/// The `--gpu` grammar.
-use crate::gpu_choice::GpuChoice;
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+};
 
 /// Construct the CLI independently of process arguments or a display server.
 pub(super) fn command() -> Command {
@@ -36,7 +43,7 @@ pub(super) fn command() -> Command {
     command = command.arg_required_else_help(true);
     command = command.after_help(
         "The first client command starts child arguments. Use -- to separate parent options.\n\
-         Example: monochromatic-nested-wayland-session --size 800x600 -- app --help"
+         Example: monochromatic-nested-wayland-session --size 800x600 -- app --help",
     );
 
     // Define one owned socket path; repeated parent options retain last-value behavior.
@@ -48,7 +55,8 @@ pub(super) fn command() -> Command {
     let mut size = Arg::new("size");
     size = size.long("size").value_name("WIDTHxHEIGHT");
     size = size.default_value("1280x720");
-    size = size.help("Initial nested-screen size in logical pixels; screenshots are this times --scale");
+    size = size
+        .help("Initial nested-screen size in logical pixels; screenshots are this times --scale");
     size = size.value_parser(ValueParser::new(super::size::parse_size));
     command = command.arg(size);
 
@@ -57,7 +65,7 @@ pub(super) fn command() -> Command {
     scale = scale.default_value("1");
     scale = scale.help(
         "Initial output scale, 0.5 to 3 in steps of 1/120 (such as 1, 1.25, 1.5, 2); \
-         the scale control command changes it while the child runs"
+         the scale control command changes it while the child runs",
     );
     // What: ValueParser::new wraps a plain function that returns Result<OutputScale, String>.
     // Why: The startup option and the runtime verb share one grammar and one message.
@@ -74,7 +82,7 @@ pub(super) fn command() -> Command {
     scheme = scheme.value_parser(["dark", "light"]);
     scheme = scheme.help(
         "Give the child a private appearance portal without changing the host theme; \
-         the color-scheme control command switches it while the child runs"
+         the color-scheme control command switches it while the child runs",
     );
     command = command.arg(scheme);
 
@@ -105,7 +113,7 @@ pub(super) fn command() -> Command {
     launcher_log = launcher_log.long("launcher-log").action(ArgAction::SetTrue);
     launcher_log = launcher_log.help(
         "Give the child a private session bus and record its taskbar progress; \
-         the launcher control commands read the record"
+         the launcher control commands read the record",
     );
     command = command.arg(launcher_log);
 
@@ -140,10 +148,12 @@ pub(super) fn command() -> Command {
     command = command.arg(tasks);
 
     let mut accessibility = Arg::new("accessibility");
-    accessibility = accessibility.long("accessibility").action(ArgAction::SetTrue);
+    accessibility = accessibility
+        .long("accessibility")
+        .action(ArgAction::SetTrue);
     accessibility = accessibility.help(
         "Give the child a private AT-SPI accessibility bus that reports accessibility as enabled, \
-         and read the tree it publishes with the a11y control command"
+         and read the tree it publishes with the a11y control command",
     );
     command = command.arg(accessibility);
 
@@ -153,7 +163,7 @@ pub(super) fn command() -> Command {
     repeat_rate = repeat_rate.value_parser(clap::value_parser!(i32).range(0..=1000));
     repeat_rate = repeat_rate.help(
         "Key repeat rate announced to the child in repeats per second (0 turns repeat off); \
-         the child generates the repeats itself, as on every Wayland compositor"
+         the child generates the repeats itself, as on every Wayland compositor",
     );
     command = command.arg(repeat_rate);
 
@@ -163,7 +173,7 @@ pub(super) fn command() -> Command {
     repeat_delay = repeat_delay.value_parser(clap::value_parser!(i32).range(0..=10000));
     repeat_delay = repeat_delay.help(
         "Wait before a held key starts repeating, announced to the child; \
-         the repeat-info control command changes the pair while the child runs"
+         the repeat-info control command changes the pair while the child runs",
     );
     command = command.arg(repeat_delay);
 
@@ -196,7 +206,9 @@ pub(super) fn command() -> Command {
     command = command.arg(list_gpus);
 
     let mut child = Arg::new("command");
-    child = child.value_name("COMMAND").required_unless_present("list-gpus");
+    child = child
+        .value_name("COMMAND")
+        .required_unless_present("list-gpus");
     // What: 1.. accepts at least one positional value; trailing_var_arg hands
     // subsequent tokens to the child, including tokens that look like our flags.
     // Why: app --help must reach app, while parent --help still belongs to clap.

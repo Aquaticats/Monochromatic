@@ -3,13 +3,28 @@
 //! their level,
 //!  and the re-labelled record as the application's subscriber writes it.
 
-use super::{Matched, RELABEL, Shape, matched, shape};
+use super::{
+    Matched,
+    RELABEL,
+    Shape,
+    matched,
+    shape,
+};
 use crate::logging::stderr_tail;
 use std::{
-    io::{self, Write},
-    sync::{Arc, Mutex},
+    io::{
+        self,
+        Write,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
-use tracing_log::log::{self, Log};
+use tracing_log::log::{
+    self,
+    Log,
+};
 use tracing_subscriber::fmt::MakeWriter;
 
 const TRANSPORT: &str = "helix_lsp::transport";
@@ -18,7 +33,10 @@ const TRANSPORT: &str = "helix_lsp::transport";
 struct Capture(Arc<Mutex<Vec<u8>>>);
 
 impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.0.lock().expect("capture").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -42,7 +60,12 @@ impl<'writer> MakeWriter<'writer> for Capture {
 ///  under a subscriber
 /// with `filter`,
 ///  and return what the subscriber wrote.
-fn written(filter: &str, target: &str, level: log::Level, text: &str) -> String {
+fn written(
+    filter: &str,
+    target: &str,
+    level: log::Level,
+    text: &str,
+) -> String {
     let capture = Capture::default();
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(filter)

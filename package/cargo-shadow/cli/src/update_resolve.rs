@@ -45,7 +45,13 @@ use crate::cargo_run::CargoOutcome;
 /// ```ts
 /// import { LockSnapshot, readLocks } from 'crate/crates';
 /// ```
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
+/// Imports `Claim`,
+/// what the ownership evidence says about a file a child wrote.
+use crate::file_owner::Claim;
 /// What:
 /// `use crate::journal::run_recording;` imports the function that runs a child and records the lockfile it wrote.
 /// Why:
@@ -57,9 +63,6 @@ use crate::crates::{LockSnapshot, read_locks};
 /// import { runRecording } from 'crate/journal';
 /// ```
 use crate::journal::run_recording;
-/// Imports `Claim`,
-/// what the ownership evidence says about a file a child wrote.
-use crate::file_owner::Claim;
 /// What:
 /// `use crate::update::{UpdateError, UpdateRequest, excluded_update_specs, other, other_text, run_or_fail};` imports the update's request and error types and the helpers that run cargo and wrap errors.
 /// Why:
@@ -69,7 +72,14 @@ use crate::file_owner::Claim;
 /// ```ts
 /// import { UpdateError, UpdateRequest, excludedUpdateSpecs, other, otherText, runOrFail } from 'crate/update';
 /// ```
-use crate::update::{UpdateError, UpdateRequest, excluded_update_specs, other, other_text, run_or_fail};
+use crate::update::{
+    UpdateError,
+    UpdateRequest,
+    excluded_update_specs,
+    other,
+    other_text,
+    run_or_fail,
+};
 
 /// What:
 /// `struct ResolveWork<'a> { request, crate_dir, cutoff }` is the work of re-resolving one crate root under a cutoff.
@@ -110,7 +120,11 @@ impl crate::file_owner::RecordedWork<Result<bool, UpdateError>> for ResolveWork<
 /// ```ts
 /// async function resolveCrate(args): Promise<boolean>  // throws
 /// ```
-fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Result<bool, UpdateError> {
+fn resolve_crate(
+    request: &UpdateRequest,
+    crate_dir: &str,
+    cutoff: &str,
+) -> Result<bool, UpdateError> {
     // `let mut`: a binding that may change.
     // Typed binding: `constrained: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -120,7 +134,12 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
         constrained.push("generate-lockfile".to_string());
     } else {
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        constrained.extend(["-Zunstable-options".to_string(), "generate-lockfile".to_string(), "--publish-time".to_string(), cutoff.to_string()]);
+        constrained.extend([
+            "-Zunstable-options".to_string(),
+            "generate-lockfile".to_string(),
+            "--publish-time".to_string(),
+            cutoff.to_string(),
+        ]);
     }
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     constrained.extend(request.forward.iter().cloned());
@@ -129,7 +148,10 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
     // Borrow `&request.root.join`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `first: CargoOutcome`.
-    let first: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &constrained).map_err(other)?;
+    let first: CargoOutcome = request
+        .runner
+        .run(&request.root.join(crate_dir), &constrained)
+        .map_err(other)?;
     if first.ok {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(false);
@@ -144,10 +166,16 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", constrained.join(" ")), output: first.output });
+        return Err(UpdateError::Cargo {
+            crate_dir: crate_dir.to_string(),
+            command: format!("cargo {}", constrained.join(" ")),
+            output: first.output,
+        });
     }
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
-    eprintln!("cargo-shadow: {crate_dir}: no resolution satisfies the release-age cutoff {cutoff}; resolving without it (minimumReleaseAgeStrict is false, or minimumReleaseAgeExclude lists crates that may be young), then holding every crate that is not exempt to the cutoff");
+    eprintln!(
+        "cargo-shadow: {crate_dir}: no resolution satisfies the release-age cutoff {cutoff}; resolving without it (minimumReleaseAgeStrict is false, or minimumReleaseAgeExclude lists crates that may be young), then holding every crate that is not exempt to the cutoff"
+    );
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `let mut`: a binding that may change.
     // Typed binding: `fallback: Vec<String>`.
@@ -172,7 +200,11 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
 /// ```ts
 /// async function resolveAll(args): Promise<string[]>
 /// ```
-pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, UpdateError> {
+pub(crate) fn resolve_all(
+    request: &UpdateRequest,
+    cutoff: &str,
+    produced: &RefCell<Vec<LockSnapshot>>,
+) -> Result<Vec<String>, UpdateError> {
     // `let mut`: a binding that may change.
     // Typed binding: `fell_back: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -180,10 +212,27 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
     for crate_dir in request.crate_dirs {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        eprintln!("cargo-shadow: resolving {crate_dir}{}", if cutoff.is_empty() { String::new() } else { format!(" with releases published before {cutoff}") });
+        eprintln!(
+            "cargo-shadow: resolving {crate_dir}{}",
+            if cutoff.is_empty() {
+                String::new()
+            } else {
+                format!(" with releases published before {cutoff}")
+            }
+        );
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Recorded whether the resolution succeeded or failed (see `run_recording`).
-        let (resolved, _claim): (Result<bool, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, ResolveWork { request, crate_dir, cutoff }).map_err(other_text)?;
+        let (resolved, _claim): (Result<bool, UpdateError>, Claim) = run_recording(
+            request.root,
+            crate_dir,
+            produced,
+            ResolveWork {
+                request,
+                crate_dir,
+                cutoff,
+            },
+        )
+        .map_err(other_text)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Typed binding: `moved_to_fallback: bool`.
         let moved_to_fallback: bool = resolved?;
@@ -203,7 +252,8 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `snapshots: Vec<LockSnapshot>`.
-        let snapshots: Vec<LockSnapshot> = read_locks(request.root, std::slice::from_ref(crate_dir)).map_err(other_text)?;
+        let snapshots: Vec<LockSnapshot> =
+            read_locks(request.root, std::slice::from_ref(crate_dir)).map_err(other_text)?;
         // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
@@ -222,13 +272,18 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
         // list.map(f).filter(g)
         // ```
         // Typed binding: `source: &str`.
-        let source: &str = snapshots.first().map(LockSnapshot::source_str).unwrap_or("");
+        let source: &str = snapshots
+            .first()
+            .map(LockSnapshot::source_str)
+            .unwrap_or("");
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|message|`: an anonymous function, like a TS arrow function.
         // Borrow `&request.settings.minimum_release_age_exclu...`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `specs: Vec<String>`.
-        let specs: Vec<String> = excluded_update_specs(source, &request.settings.minimum_release_age_exclude).map_err(other)?;
+        let specs: Vec<String> =
+            excluded_update_specs(source, &request.settings.minimum_release_age_exclude)
+                .map_err(other)?;
         if !specs.is_empty() {
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `let mut`: a binding that may change.
@@ -240,7 +295,18 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
             args.extend(request.forward.iter().cloned());
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&args`: lends the value without copying or giving it away.
-            let (updated, _update_claim): (Result<CargoOutcome, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, crate::update::CargoRun { request, crate_dir, args: &args }).map_err(other_text)?;
+            let (updated, _update_claim): (Result<CargoOutcome, UpdateError>, Claim) =
+                run_recording(
+                    request.root,
+                    crate_dir,
+                    produced,
+                    crate::update::CargoRun {
+                        request,
+                        crate_dir,
+                        args: &args,
+                    },
+                )
+                .map_err(other_text)?;
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             updated?;
         }

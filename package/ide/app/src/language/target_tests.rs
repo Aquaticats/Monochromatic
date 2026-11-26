@@ -1,8 +1,15 @@
 //! Target verdicts against a disposable project and a disposable outside directory.
 
-use super::{Classified, TargetRefusal, classify};
+use super::{
+    Classified,
+    TargetRefusal,
+    classify,
+};
 use helix_lsp::lsp;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 /// A project with one source file,

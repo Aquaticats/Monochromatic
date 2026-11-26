@@ -13,7 +13,7 @@
 ///  path and process types used by the fixtures.
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
@@ -53,201 +53,33 @@ pub(crate) fn arm_watchdog() {
 }
 
 /// What:
-///  Forbid core dumps for this test process and everything it starts,
-/// once.
+///  The fixture lifecycle both this target and the binary controls run on,
+///  in one file both include by `#[path]` so a fix lands in both.
 /// Why:
-///   Tests make services abort or kill them on purpose,
-/// and each dump costs the system's core-dump handler processor time and
-///  disk writes on a disk other sessions share (several hundred dumps of `cli-git-service` from test runs on 2026-11-03).
-/// A
-///  process limit is inherited across `fork` and `exec` and the hard limit stops a child from raising it;
-/// this is the
-///  harness's,
-/// and the product sets none.
-pub(crate) fn forbid_core_dumps() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
-        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
-    });
-}
-
-/// Environment variable that keeps every fixture on disk after its test ends,
-/// for looking at a failure.
-pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
-
-/// Environment variable that moves the fixture root,
-/// for example onto a tmpfs for speed.
-pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
-
-/// What:
-///  The directory this process's fixtures are created in:
-///  `test-fixtures/process-<pid>` beside the build output of the running test executable
-/// (`<target>/debug/deps/<test>` has the target directory three levels up),
-/// never `/tmp`.
-/// Why:
-///   The build output is shared by every checkout that builds into the same target directory,
-/// so `test-fixtures` itself is
-///  shared by every checkout and every test process of this host.
-/// The names under it that are not the fixtures' own (the scratch home the product keeps
-///  its per-user state in,
-/// the marker `refused-push-ran`,
-/// the repositories `repository(root, name)` makes beside the fixtures)
-///  were one fixed
-///  name for all of them,
-/// so two runs at once shared them:
-/// two checkouts started at the same moment reported three subvolume controls failing in
-///  ten to twenty seconds while the same three passed alone.
-/// A directory of the process's own makes every fixed name below it the process's,
-/// and nothing else changes:
-///  fixtures are still removed by their own test and kept for inspection on request.
+///  The two targets each kept a copy of these helpers and the copies drifted apart
+/// (`doc/debt-ledger-2026-11-25.md`, item 11),
+/// so every helper below is written once in `fixture_support_shared_by_both_test_targets.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const root = join(target, 'test-fixtures', `process-${process.pid}`);
+/// // shared/fixture-support.ts
 /// ```
-pub(crate) fn fixture_root() -> PathBuf {
-    let base: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
-        || {
-            let target: Option<PathBuf> = this_test_binary()
-                .ok()
-                .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
-            return target
-                .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
-                .join("test-fixtures");
-        },
-        PathBuf::from,
-    );
-    let root: PathBuf = base.join(format!("process-{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("fixture root");
-    return root;
-}
+#[path = "fixture_support_shared_by_both_test_targets.rs"]
+mod fixture_support_shared_by_both_test_targets;
 
-/// What:
-///  Every directory that is a system temporary directory:
-///  `/tmp`,
-///  `/var/tmp`,
-///  and `TMPDIR` when the run sets it to one.
-/// Why:
-///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
-/// so the location control compares the root it uses against this list.
-///  Reading `TMPDIR` compares against it
-/// without calling the temporary-directory function that the lint configuration bans.
-///  An empty `TMPDIR` names no directory and is left out,
-/// and an entry is what its path resolves to,
-///  because a `TMPDIR` that is a link to the root is that root.
-pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
-    let listed: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
-    let set: Option<PathBuf> = std::env::var_os("TMPDIR")
-        .map(PathBuf::from)
-        .filter(|directory| { return !directory.as_os_str().is_empty(); });
-    return listed
-        .into_iter()
-        .chain(set)
-        .map(|directory| { return std::fs::canonicalize(&directory).unwrap_or(directory); })
-        .collect();
-}
-
-/// What:
-///  Give this user back the read,
-/// write and search permission on every directory of a tree that has lost it,
-///  without following a symbolic link.
-/// Why:
-///   A control that writes a directory its owner may not write (`0500`,
-/// `0555`,
-/// `0000`) proves what the product does with one,
-/// and removing that directory afterwards needs read to list it and write and search to unlink what it holds,
-/// so a fixture left in that state outlived the test that made it
-/// (issue 6282:
-/// fixtures named `rollback-read-only`,
-/// `remove-old-read-only`,
-/// `migrate-unreadable-dir` and `sync-unreadable-dir`),
-/// and a build-tree sweeper could not delete the tree they sat in.
-/// Only directories are changed,
-/// only ones this user owns,
-/// and only the owner's three bits:
-/// a file with no permissions of its own is unlinked from a writable directory,
-/// and a group or other-user bit a control set stays as it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function restoreOwnerAccess(root: string): void // lstat each entry, chmod OWNER_RWX on the directories this user owns
-/// ```
-#[cfg(unix)]
-pub(crate) fn restore_owner_access(root: &Path) {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
-    // SAFETY: `geteuid` takes no arguments and cannot fail.
-    let own: u32 = unsafe { libc::geteuid() };
-    let owner_bits: u32 = 0o700;
-    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
-    while let Some(directory) = stack.pop() {
-        let Ok(metadata) = std::fs::symlink_metadata(&directory) else {
-            continue;
-        };
-        if !metadata.is_dir() {
-            continue;
-        }
-        let mode: u32 = metadata.mode() & 0o7777;
-        if metadata.uid() == own && mode & owner_bits != owner_bits {
-            let _widened = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode | owner_bits));
-        }
-        // The directory may have been closed to this user until a moment ago, so it is listed after the mode is restored.
-        let Ok(entries) = std::fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path: PathBuf = entry.path();
-            let Ok(found) = std::fs::symlink_metadata(&path) else {
-                continue;
-            };
-            if found.is_dir() {
-                stack.push(path);
-            }
-        }
-    }
-}
-
-/// What:
-///  On a platform without Unix permissions there is nothing to give back.
-/// Why:
-///   The teardown calls this on every platform.
-#[cfg(not(unix))]
-pub(crate) fn restore_owner_access(_root: &Path) {}
-
-/// What:
-///  Remove a fixture tree unless the person asked to keep it,
-/// trying again for up to five seconds.
-/// Why:
-///   A landed commit may leave a maintenance child finishing for a moment;
-/// a tree already gone is the explicit
-///  `remove` having run first,
-/// not a failure.
-/// A control that made a directory read-only inside its fixture is answered here,
-/// so the fixture goes however the control ended,
-/// panic included.
-pub(crate) fn settle_fixture(root: &Path, keep: bool) {
-    if keep {
-        return;
-    }
-    restore_owner_access(root);
-    for _ in 0..50 {
-        match std::fs::remove_dir_all(root) {
-            Ok(()) => return,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
-            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
-        }
-    }
-}
-
+/// The shared helpers, named here so every `crate::test_support::name` path stays the same.
+pub(crate) use self::fixture_support_shared_by_both_test_targets::{
+    FIXTURE_ROOT_VARIABLE, KEEP_FIXTURES_VARIABLE, forbid_core_dumps, fixture_root, made_fixture_folder, restore_owner_access,
+    settle_fixture, system_temporary_directories, this_test_binary,
+};
 /// The fixtures one test thread created,
 /// removed when the thread ends however the test ended.
+/// Why:
+///  The helper process groups are owned by `test_process_owner.rs`,
+///  so this registry holds only the folders.
 struct ThreadFixtures {
     /// Roots to remove.
     roots: std::cell::RefCell<Vec<PathBuf>>,
-    /// Process groups of the helper processes the thread started with `spawn_owned`,
-    /// killed when the thread ends.
-    groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
 /// A panic unwinds the test thread,
@@ -255,10 +87,7 @@ struct ThreadFixtures {
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
         // The helpers die first, so no process is left in a directory that is about to be removed.
-        for group in self.groups.borrow().iter() {
-            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
-            unsafe { libc::killpg(*group, libc::SIGKILL) };
-        }
+        super::test_process_owner::end_owned_groups();
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
             end_processes_working_in(root.as_path());
@@ -269,76 +98,88 @@ impl Drop for ThreadFixtures {
 
 thread_local! {
     /// The fixtures of the running test thread.
-    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()), groups: std::cell::RefCell::new(Vec::new()) } };
+    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
 }
 
 /// What:
-///  Start a helper process that dies with the test thread that started it,
-/// whether the test passes,
-/// fails or panics.
+///  The owner of every helper process a control starts,
+///  named here so every `crate::test_support::name` path stays the same.
+///  The owner is a file of its own because the binary controls' crate and the candidate consumer's crate include it by
+///  path, and the library's test-only modules are invisible to them.
 /// Why:
-///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture.
-/// The
-///  helper leads a process group of its own,
-/// so what it starts (a `sleep` of the loop) is killed with it,
-/// and the group is
-///  killed when the thread's fixtures are dropped,
-/// the same moment the fixture directories go.
-pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
-    use std::os::unix::process::CommandExt as _;
-    command.process_group(0);
-    let child: std::process::Child = command.spawn()?;
-    own_group(&child);
-    return Ok(child);
+///  One shape starts such a helper, so one file decides when it dies.
+///  `own_group` is not named here: the library's own controls all start their helper through `spawn_owned`, and a target
+///  that starts one without it names the owner directly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { spawnOwned } from './test_process_owner';
+/// ```
+pub(crate) use super::test_process_owner::spawn_owned;
+
+/// What:
+///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
+/// Why:
+///  A stand-in that `exec`s a long sleep inherits this run's output pipe and holds it open,
+///  so a caller that pipes the run's output waits for a process the run has already lost (issue 6463);
+///  a program whose output nobody reads gives the pipe back by holding none.
+/// Gotcha:
+///  This overrides whatever streams the caller set,
+///  so a control that reads its child's output starts it with `spawn_owned` and says which stream it pipes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawnOwned(command, { stdio: 'ignore' });
+/// ```
+pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<Child> {
+    command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    return spawn_owned(command);
 }
 
 /// What:
-///  Make the process group a child leads die with the test thread,
-/// as `spawn_owned` does for the children it starts.
-/// Why:
-///   A helper that must become a session leader (a terminal helper calls `setsid` between `fork` and `exec`) cannot also be put in
-///  a group by `spawn_owned`,
-/// because a group leader cannot start a session.
-/// Such a child leads a group of its own already,
-///  so only the thread's list of groups to end needs its number.
-pub(crate) fn own_group(child: &std::process::Child) {
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
-}
-
-/// This test process's own executable,
-/// for the helper processes a control starts from the test binary.
-///  A test starts the test binary,
-/// never the wrapper:
-/// the ban on `std::env::current_exe` (`clippy.toml`) is about the
-///  wrapper starting itself,
-/// so this is the one place the lint is excused for tests.
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
-pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
-    return std::env::current_exe();
-}
-
-/// Create one empty fixture directory owned by this test process and test name,
+///  Make one empty fixture directory for this call of this test,
 ///  under a prefix that keeps the fixtures of different support modules apart.
+/// Why:
+///   Every call names a folder of its own,
+/// so two tests that pass the same name never share one,
+///  and neither removes the other's live folder:
+/// the folder carries the process's number and the number this call took,
+/// and the name the test writes.
+/// A folder of a run that was killed may carry this process's number and this call's number,
+///  so one that exists is removed first.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
     forbid_core_dumps();
-    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
-    if root.exists() {
-        // A fixture an earlier run was killed in the middle of may hold a directory it closed, so the permission is given back first.
-        restore_owner_access(&root);
-        std::fs::remove_dir_all(&root).expect("remove stale fixture");
-    }
-    std::fs::create_dir(&root).expect("fresh fixture");
-    // Canonical form so comparisons with Git's canonical output are exact.
-    let canonical: PathBuf = std::fs::canonicalize(&root).expect("canonical fixture");
-    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(canonical.clone()); });
-    return canonical;
+    let root: PathBuf = made_fixture_folder(fixture_root().as_path(), prefix, name);
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.clone()); });
+    return root;
 }
 
-/// Create one empty fixture directory owned by this test process and test name.
+/// Create one empty fixture directory for this call of this test.
 pub(crate) fn fixture(name: &str) -> PathBuf {
     return fixture_with_prefix("native-unit", name);
+}
+
+/// What:
+///  An empty stand-in process table for one fixture:
+///  a folder under the fixture's root that holds no process,
+///  which a removal reads in place of this machine's `/proc`.
+/// Why:
+///   A removal of a whole worktree reads every process of the account to see whether one works in it,
+///  and a control that read the machine's own table would depend on every program every other session runs:
+///  a program started after the fixture's worktree was made keeps that worktree,
+///  and issue 6475's container gate refused a removal over another test's process.
+///  A control about a process working inside the worktree writes the entry it needs here instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = anEmptyProcessTable(fixtureRoot); // a folder that holds no process
+/// ```
+pub(crate) fn an_empty_process_table(root: &Path) -> PathBuf {
+    let table: PathBuf = root.join("proc");
+    // A table that cannot be made is no table at all, so the control stops here rather than reading the machine's.
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    return table;
 }
 
 /// What:
@@ -436,9 +277,6 @@ pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
-
-#[path = "child_test_process.rs"]
-pub(crate) mod child_test_process;
 
 #[path = "fixture_executable.rs"]
 mod fixture_executable;

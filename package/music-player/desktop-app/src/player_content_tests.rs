@@ -24,7 +24,10 @@ const FIXTURE_DURATION_SEC: f64 = 275.0;
 // What:     `fn page_entry(index: usize, name: &str) -> PageEntry` test helper: builds a page entry from
 //           a queue index and a display path.
 // Why:      Expected inputs are written with explicit queue positions, which keeps the test readable.
-fn page_entry(index: usize, name: &str) -> PageEntry {
+fn page_entry(
+    index: usize,
+    name: &str,
+) -> PageEntry {
     return PageEntry {
         index,
         name: name.to_string(),
@@ -41,9 +44,17 @@ fn no_line(_fields: &TrackFields) -> Option<String> {
 // What:     `fn build(labels, selected_page, items, current_index) -> PlayerContentModel` test helper:
 //           builds the content for one state, with the Kotlin defaults of in-order mode and playing.
 // Why:      Most cases differ only in labels, page, items and playing index.
-fn build(labels: &[&str], selected_page: usize, items: Vec<PageEntry>, current_index: Option<usize>) -> PlayerContentModel {
+fn build(
+    labels: &[&str],
+    selected_page: usize,
+    items: Vec<PageEntry>,
+    current_index: Option<usize>,
+) -> PlayerContentModel {
     let input = PlayerContentInput {
-        page_labels: labels.iter().map(|label| return label.to_string()).collect(),
+        page_labels: labels
+            .iter()
+            .map(|label| return label.to_string())
+            .collect(),
         selected_page,
         page_items: items,
         current_index,
@@ -62,9 +73,14 @@ fn build(labels: &[&str], selected_page: usize, items: Vec<PageEntry>, current_i
 fn row_keys(entries: &[TrackListEntry]) -> Vec<String> {
     return entries
         .iter()
-        .map(|entry| return match entry {
-            TrackListEntry::RowEntry(row) => format!("row:{}", row.index_in_library),
-            TrackListEntry::HeaderEntry { name, track_count } => format!("header:{name}:{track_count}"),
+        .map(|entry| {
+            return match entry {
+                TrackListEntry::RowEntry(row) => format!("row:{}", row.index_in_library),
+                TrackListEntry::HeaderEntry {
+                    name,
+                    track_count,
+                } => format!("header:{name}:{track_count}"),
+            };
         })
         .collect();
 }
@@ -75,9 +91,13 @@ fn row_keys(entries: &[TrackListEntry]) -> Vec<String> {
 fn rows_of(entries: &[TrackListEntry]) -> Vec<&TrackRowModel> {
     return entries
         .iter()
-        .filter_map(|entry| return match entry {
-            TrackListEntry::RowEntry(row) => Some(row),
-            TrackListEntry::HeaderEntry { .. } => None,
+        .filter_map(|entry| {
+            return match entry {
+                TrackListEntry::RowEntry(row) => Some(row),
+                TrackListEntry::HeaderEntry {
+                    ..
+                } => None,
+            };
         })
         .collect();
 }
@@ -133,7 +153,10 @@ fn playing_track_inside_page_marks_its_row_and_deck() {
         page_entry(10, "Camellia/02 Other.flac"),
     ];
     let content = build(&["Camellia"], 0, items, Some(10));
-    let current_rows: Vec<bool> = rows_of(&content.entries).iter().map(|row| return row.is_current).collect();
+    let current_rows: Vec<bool> = rows_of(&content.entries)
+        .iter()
+        .map(|row| return row.is_current)
+        .collect();
     assert_eq!(current_rows, vec![false, true]);
     assert_eq!(content.deck.title, "02 Other");
     assert_eq!(content.deck.subtitle, "2 of 2");
@@ -145,7 +168,11 @@ fn playing_track_inside_page_marks_its_row_and_deck() {
 fn playing_track_outside_page_gives_empty_deck_text() {
     let items = vec![page_entry(9, "Camellia/01 Song.flac")];
     let content = build(&["Camellia"], 0, items, Some(40));
-    assert!(rows_of(&content.entries).iter().all(|row| return !row.is_current));
+    assert!(
+        rows_of(&content.entries)
+            .iter()
+            .all(|row| return !row.is_current)
+    );
     assert_eq!(content.deck.title, "");
     assert_eq!(content.deck.subtitle, "");
 }
@@ -243,7 +270,10 @@ fn with_load_indices_replaces_track_positions_only() {
         }),
         header.clone(),
     ];
-    assert_eq!(with_load_indices(vec![track, header], &page_items), expected);
+    assert_eq!(
+        with_load_indices(vec![track, header], &page_items),
+        expected
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.

@@ -6,7 +6,10 @@
 //        pins one line per routing path on both outcomes, and the generated sweep varies
 //        the rulesets; together they prove the check can see a match and its absence.
 
-use arbitrary::{Arbitrary, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Unstructured,
+};
 use forbidden_regex::RegexSet;
 
 use super::generators::RulesetAndBuffer;
@@ -31,21 +34,31 @@ const CASE_BYTES: usize = 1024;
 // Why:   the two tables are the positive and negative controls for every agreement check
 //        below; without them a matcher that never matched anything would pass.
 fn matching_lines() -> Vec<&'static [u8]> {
-    return vec![b"AKIA2345", b"deny-code:7", b"x 4000000000000000 y"]
+    return vec![b"AKIA2345", b"deny-code:7", b"x 4000000000000000 y"];
 }
 
 fn unmatched_lines() -> Vec<&'static [u8]> {
-    return vec![b"", b"all clear", b"A K I A"]
+    return vec![b"", b"all clear", b"A K I A"];
 }
 
 // What:  asserts one line's verdict through both faces, and that both equal `expected`.
 // Why:   a single comparison per line keeps the failure message naming the line and both
 //        faces, which is what a future regression needs to be diagnosable.
-fn assert_verdict(set: &RegexSet, line: &[u8], expected: bool) {
+fn assert_verdict(
+    set: &RegexSet,
+    line: &[u8],
+    expected: bool,
+) {
     let boolean = set.is_match(line);
     let attributed = set.matches(line).next().is_some();
-    assert_eq!(boolean, attributed, "is_match and matches disagreed on line {line:?}");
-    assert_eq!(boolean, expected, "is_match({line:?}) should report {expected}");
+    assert_eq!(
+        boolean, attributed,
+        "is_match and matches disagreed on line {line:?}"
+    );
+    assert_eq!(
+        boolean, expected,
+        "is_match({line:?}) should report {expected}"
+    );
 }
 
 // What:  one reproducible generator input: byte `offset` of case `index` is
@@ -58,7 +71,7 @@ fn assert_verdict(set: &RegexSet, line: &[u8], expected: bool) {
 fn case_bytes(index: usize) -> Vec<u8> {
     return (0..CASE_BYTES)
         .map(|offset| return (index as u8) ^ (offset as u8) ^ ((offset >> 8) as u8))
-        .collect()
+        .collect();
 }
 
 #[test]
@@ -75,7 +88,11 @@ fn boolean_face_agrees_with_attribution_face() {
     all_lines.extend(unmatched_lines());
     let batch = set.is_match_batch(&all_lines);
     for (index, line) in all_lines.iter().enumerate() {
-        assert_eq!(batch[index], set.is_match(line), "is_match_batch disagreed with is_match on line {index}: {line:?}");
+        assert_eq!(
+            batch[index],
+            set.is_match(line),
+            "is_match_batch disagreed with is_match on line {index}: {line:?}"
+        );
     }
 }
 
@@ -104,11 +121,9 @@ fn generated_rulesets_agree_on_every_line() {
                 input.patterns,
             );
             assert_eq!(
-                batch[line_index],
-                boolean,
+                batch[line_index], boolean,
                 "case {index} batch verdict disagreed on line {line_index}: batch={}, scalar={boolean}, patterns={:?}, line={line:?}",
-                batch[line_index],
-                input.patterns,
+                batch[line_index], input.patterns,
             );
             if boolean {
                 matched_lines += 1;
@@ -119,7 +134,10 @@ fn generated_rulesets_agree_on_every_line() {
 
         for (line_index, rule) in set.line_matches(&input.buf, &input.starts) {
             let line = lines[line_index];
-            assert!(set.is_match(line), "case {index} attributed rule {rule} on line {line_index} that is_match denies: {line:?}");
+            assert!(
+                set.is_match(line),
+                "case {index} attributed rule {rule} on line {line_index} that is_match denies: {line:?}"
+            );
             assert!(
                 set.matches(line).any(|matched| return matched == rule),
                 "case {index} attributed rule {rule} on line {line_index} that matches does not name: {line:?}",
@@ -127,7 +145,10 @@ fn generated_rulesets_agree_on_every_line() {
         }
     }
 
-    assert!(matched_lines > 0, "the sweep saw no matching line, so it could not catch a matcher that never matches");
+    assert!(
+        matched_lines > 0,
+        "the sweep saw no matching line, so it could not catch a matcher that never matches"
+    );
     assert!(
         unmatched_lines_seen > 0,
         "the sweep saw no unmatched line, so it could not catch a matcher that always matches",

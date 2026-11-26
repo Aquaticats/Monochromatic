@@ -3,14 +3,31 @@
 //!  the second process that must leave it alone,
 //!  and the removal of what an ended process left.
 
-use super::{lock_path, scratch_name};
-use crate::language::launch::{ServerLaunch, prepare};
+use super::{
+    lock_path,
+    scratch_name,
+};
+use crate::language::launch::{
+    ServerLaunch,
+    prepare,
+};
 use std::{
     collections::HashMap,
     fs,
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
-    process::{Child, ChildStdout, Command, Stdio},
+    io::{
+        BufRead,
+        BufReader,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        ChildStdout,
+        Command,
+        Stdio,
+    },
 };
 
 /// Where the helper process finds the state root and the project of the test that started it.
@@ -26,7 +43,10 @@ fn canonical(directory: &tempfile::TempDir) -> PathBuf {
 
 /// Prepare the launch of a server named `server` the way the confining policy does,
 /// from this process.
-fn prepare_here(state: &Path, project: &Path) -> PathBuf {
+fn prepare_here(
+    state: &Path,
+    project: &Path,
+) -> PathBuf {
     let server = state.join("server");
     let scratch = server.join(scratch_name());
     let wanted = ServerLaunch {
@@ -86,7 +106,10 @@ impl Helper {
     }
 }
 
-fn start_helper(state: &Path, project: &Path) -> Helper {
+fn start_helper(
+    state: &Path,
+    project: &Path,
+) -> Helper {
     let module = module_path!()
         .split_once("::")
         .expect("module path below the crate")

@@ -18,19 +18,28 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `DriftReason` from `crate::drift`.
-use crate::drift::{Drift, DriftReason};
+use crate::drift::{
+    Drift,
+    DriftReason,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `Match` from `ignore`.
 use ignore::Match;
 /// Imports `Gitignore`,
 /// `GitignoreBuilder` from `ignore::gitignore`.
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use ignore::gitignore::{
+    Gitignore,
+    GitignoreBuilder,
+};
 /// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which outputs a `check` or `write` covers.
@@ -146,22 +155,39 @@ fn ignore_file_of(dir: &str) -> String {
 /// ```ts
 /// function loadMatcher(view: View, dir: string): Gitignore | undefined
 /// ```
-fn load_matcher(view: &mut View, dir: &str) -> Result<Option<Gitignore>, Diagnostic> {
+fn load_matcher(
+    view: &mut View,
+    dir: &str,
+) -> Result<Option<Gitignore>, Diagnostic> {
     let file = ignore_file_of(dir);
-    let Some(text) = view.read_text(&file)? else { return Ok(None) };
-    let base: PathBuf = if dir.is_empty() { view.root().to_path_buf() } else { view.root().join(dir) };
+    let Some(text) = view.read_text(&file)? else {
+        return Ok(None);
+    };
+    let base: PathBuf = if dir.is_empty() {
+        view.root().to_path_buf()
+    } else {
+        view.root().join(dir)
+    };
     let mut builder = GitignoreBuilder::new(base);
     for line in text.lines() {
         if let Err(error) = builder.add_line(None, line) {
-            let message = format!("{file} holds a pattern that cannot be compiled, so outputs cannot be split into committed and local: {error}");
-            return Err(Diagnostic::new("gitignore-invalid", &message).with_path(&file).with_hint("fix the pattern, or run without --outputs"));
+            let message = format!(
+                "{file} holds a pattern that cannot be compiled, so outputs cannot be split into committed and local: {error}"
+            );
+            return Err(Diagnostic::new("gitignore-invalid", &message)
+                .with_path(&file)
+                .with_hint("fix the pattern, or run without --outputs"));
         }
     }
     match builder.build() {
         Ok(matcher) => return Ok(Some(matcher)),
         Err(error) => {
-            let message = format!("{file} cannot be compiled, so outputs cannot be split into committed and local: {error}");
-            return Err(Diagnostic::new("gitignore-invalid", &message).with_path(&file).with_hint("fix the file, or run without --outputs"));
+            let message = format!(
+                "{file} cannot be compiled, so outputs cannot be split into committed and local: {error}"
+            );
+            return Err(Diagnostic::new("gitignore-invalid", &message)
+                .with_path(&file)
+                .with_hint("fix the file, or run without --outputs"));
         }
     }
 }
@@ -176,7 +202,11 @@ fn load_matcher(view: &mut View, dir: &str) -> Result<Option<Gitignore>, Diagnos
 /// ```ts
 /// function ensureMatcher(view: View, matchers: Matchers, dir: string): void
 /// ```
-fn ensure_matcher(view: &mut View, matchers: &mut Matchers, dir: &str) -> Result<(), Diagnostic> {
+fn ensure_matcher(
+    view: &mut View,
+    matchers: &mut Matchers,
+    dir: &str,
+) -> Result<(), Diagnostic> {
     if matchers.contains_key(dir) {
         return Ok(());
     }
@@ -201,7 +231,12 @@ fn ensure_matcher(view: &mut View, matchers: &mut Matchers, dir: &str) -> Result
 /// ```ts
 /// function isIgnored(view: View, matchers: Matchers, rel: string, isDir: boolean): boolean
 /// ```
-fn is_ignored(view: &mut View, matchers: &mut Matchers, rel: &str, is_dir: bool) -> Result<bool, Diagnostic> {
+fn is_ignored(
+    view: &mut View,
+    matchers: &mut Matchers,
+    rel: &str,
+    is_dir: bool,
+) -> Result<bool, Diagnostic> {
     let root = view.root().to_path_buf();
     let segments: Vec<&str> = rel.split('/').collect();
     let mut dirs: Vec<String> = vec![String::new()];
@@ -234,11 +269,20 @@ fn is_ignored(view: &mut View, matchers: &mut Matchers, rel: &str, is_dir: bool)
 /// ```ts
 /// function prefixIsIgnored(view: View, matchers: Matchers, dirs: string[], root: string, prefix: string, isDir: boolean): boolean
 /// ```
-fn prefix_is_ignored(view: &mut View, matchers: &mut Matchers, dirs: &[String], root: &Path, prefix: &str, is_dir: bool) -> Result<bool, Diagnostic> {
+fn prefix_is_ignored(
+    view: &mut View,
+    matchers: &mut Matchers,
+    dirs: &[String],
+    root: &Path,
+    prefix: &str,
+    is_dir: bool,
+) -> Result<bool, Diagnostic> {
     let target = root.join(prefix);
     for dir in dirs.iter().rev() {
         ensure_matcher(view, matchers, dir)?;
-        let Some(Some(matcher)) = matchers.get(dir) else { continue };
+        let Some(Some(matcher)) = matchers.get(dir) else {
+            continue;
+        };
         match matcher.matched(&target, is_dir) {
             Match::Ignore(_) => return Ok(true),
             Match::Whitelist(_) => return Ok(false),
@@ -260,7 +304,11 @@ fn prefix_is_ignored(view: &mut View, matchers: &mut Matchers, dirs: &[String], 
 /// ```ts
 /// function selectDrifts(view: View, drifts: Drift[], scope: OutputScope): Drift[]
 /// ```
-pub fn select_drifts(view: &mut View, drifts: Vec<Drift>, scope: OutputScope) -> Result<Vec<Drift>, Diagnostic> {
+pub fn select_drifts(
+    view: &mut View,
+    drifts: Vec<Drift>,
+    scope: OutputScope,
+) -> Result<Vec<Drift>, Diagnostic> {
     if scope == OutputScope::All {
         return Ok(drifts);
     }

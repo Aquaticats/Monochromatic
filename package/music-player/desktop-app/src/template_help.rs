@@ -10,14 +10,25 @@
 ///  imports the function table and the field helpers.
 /// Why:
 ///  Help reads the same table as evaluation.
-use crate::template_model::{FunctionName, TemplateField, field_modes, template_function};
+use crate::template_model::{
+    FunctionName,
+    TemplateField,
+    field_modes,
+    template_function,
+};
 /// What:
 ///  imports the formula tree,
 ///  the parts,
 ///  and the caret rule.
 /// Why:
 ///  Help walks the same tree that evaluation walks.
-use crate::template_parse::{CallNode, FormulaNode, TemplatePart, formula_holds_caret, parse_template};
+use crate::template_parse::{
+    CallNode,
+    FormulaNode,
+    TemplatePart,
+    formula_holds_caret,
+    parse_template,
+};
 
 /// What:
 ///  `pub struct TemplateHelp` is the signature and argument the caret is inside.
@@ -50,9 +61,14 @@ pub struct TemplateHelp {
 /// ```ts
 /// const pending = parts.filter(p => p.kind === "formula" && inside(p)).map(p => p.tree);
 /// ```
-fn formula_tree_at(part: &TemplatePart, caret: usize) -> Option<&FormulaNode> {
+fn formula_tree_at(
+    part: &TemplatePart,
+    caret: usize,
+) -> Option<&FormulaNode> {
     return match part {
-        TemplatePart::Formula(formula) if formula_holds_caret(formula, caret) => Some(&formula.tree),
+        TemplatePart::Formula(formula) if formula_holds_caret(formula, caret) => {
+            Some(&formula.tree)
+        }
         _ => None,
     };
 }
@@ -66,7 +82,10 @@ fn formula_tree_at(part: &TemplatePart, caret: usize) -> Option<&FormulaNode> {
 /// ```ts
 /// const inside = caret >= node.open && (node.close === undefined || caret <= node.close);
 /// ```
-fn call_contains(call: &CallNode, caret: usize) -> bool {
+fn call_contains(
+    call: &CallNode,
+    caret: usize,
+) -> bool {
     let before_close: bool = match call.close {
         Some(close) => caret <= close,
         None => true,
@@ -84,7 +103,10 @@ fn call_contains(call: &CallNode, caret: usize) -> bool {
 /// ```ts
 /// function innermostCall(parts: TemplatePart[], caret: number): CallNode | undefined { ... }
 /// ```
-fn innermost_call(parts: &[TemplatePart], caret: usize) -> Option<&CallNode> {
+fn innermost_call(
+    parts: &[TemplatePart],
+    caret: usize,
+) -> Option<&CallNode> {
     let mut pending: Vec<&FormulaNode> = Vec::new();
     for part in parts {
         if let Some(tree) = formula_tree_at(part, caret) {
@@ -122,7 +144,11 @@ fn innermost_call(parts: &[TemplatePart], caret: usize) -> Option<&CallNode> {
 /// ```ts
 /// function helpForCall(call: CallNode, caret: number, fields: Field[]): Help | undefined { ... }
 /// ```
-fn help_for_call(call: &CallNode, caret: usize, fields: &[TemplateField]) -> Option<TemplateHelp> {
+fn help_for_call(
+    call: &CallNode,
+    caret: usize,
+    fields: &[TemplateField],
+) -> Option<TemplateHelp> {
     let definition = template_function(&call.name)?;
     let mut commas_before: usize = 0;
     for separator in &call.separators {
@@ -155,7 +181,11 @@ fn help_for_call(call: &CallNode, caret: usize, fields: &[TemplateField]) -> Opt
 /// ```ts
 /// function helpAt(text: string, caret: number, fields = trackFields): Help | undefined { ... }
 /// ```
-pub fn help_at(text: &str, caret: usize, fields: &[TemplateField]) -> Option<TemplateHelp> {
+pub fn help_at(
+    text: &str,
+    caret: usize,
+    fields: &[TemplateField],
+) -> Option<TemplateHelp> {
     let parsed = parse_template(text);
     let innermost = innermost_call(&parsed.parts, caret)?;
     return help_for_call(innermost, caret, fields);

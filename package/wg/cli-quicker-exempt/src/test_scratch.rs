@@ -2,7 +2,10 @@
 //! placed in the build directory so no test writes under `/tmp`.
 
 /// Imports `Path` and `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory fixtures are created in:
 /// `test-scratch` in the build directory of the running test executable,

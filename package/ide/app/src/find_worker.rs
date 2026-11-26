@@ -2,9 +2,16 @@
 //!  the newest request replaces any waiting one.
 
 /// The worker calls the same matching function the reference test pins.
-use crate::find::{FindMatches, find_in_source};
+use crate::find::{
+    FindMatches,
+    find_in_source,
+};
 /// Worker-start and unexpected-disconnect failures stay visible diagnostics.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Rope clones share immutable text chunks,
 ///  so a request does not copy the document.
 use helix_core::Rope;
@@ -19,8 +26,16 @@ use helix_core::Rope;
 /// const worker = new Worker('in-file-find'); // messages are owned snapshots
 /// ```
 use std::{
-    sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
-    thread::{self, JoinHandle},
+    sync::mpsc::{
+        Receiver,
+        SyncSender,
+        TryRecvError,
+        sync_channel,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 
 /// What:
@@ -54,7 +69,10 @@ impl FindIdentity {
     /// True only when the reply describes the wanted file,
     ///  revision,
     ///  and query.
-    pub fn is_current(&self, wanted: &FindIdentity) -> bool {
+    pub fn is_current(
+        &self,
+        wanted: &FindIdentity,
+    ) -> bool {
         return self.file == wanted.file
             && self.revision == wanted.revision
             && self.query == wanted.query;
@@ -111,7 +129,10 @@ pub struct FindWorker {
 }
 
 /// Own the blocking receive loop entirely outside native state.
-fn run(requests: Receiver<FindRequest>, replies: SyncSender<FindReply>) {
+fn run(
+    requests: Receiver<FindRequest>,
+    replies: SyncSender<FindReply>,
+) {
     tracing::debug!("in-file find worker started");
     loop {
         // What: `match` extracts either an owned request or the closed-channel condition.
@@ -199,7 +220,10 @@ impl FindWorker {
 
     /// Make this the only wanted request;
     ///  a job already running finishes and its reply is discarded.
-    pub fn request(&mut self, request: FindRequest) -> Result<()> {
+    pub fn request(
+        &mut self,
+        request: FindRequest,
+    ) -> Result<()> {
         tracing::debug!(identity = ?request.identity, "requested in-file find");
         self.wanted = Some(request.identity);
         self.waiting = Some(request);

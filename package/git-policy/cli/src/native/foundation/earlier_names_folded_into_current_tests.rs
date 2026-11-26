@@ -4,6 +4,7 @@
 //! so no control looks at this machine's processes or touches its Git directories.
 
 use super::*;
+use crate::earlier_log_lines_added_to_current_log::NeverStopped;
 use crate::service_instance::instance_of;
 use crate::wrapper_names_old_and_new::{COMMIT_TIMING_LOG, DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER};
 use std::path::PathBuf;

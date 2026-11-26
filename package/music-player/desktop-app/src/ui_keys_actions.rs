@@ -13,7 +13,10 @@
 //! window tests can press every key through a recording host.
 
 /// Imports the commands and the playback mode that shortcuts send to the engine.
-use music_player::command::{Command, PlaybackMode};
+use music_player::command::{
+    Command,
+    PlaybackMode,
+};
 /// Imports the shortcut action type that `run` matches.
 use music_player::keymap::ShortcutAction;
 
@@ -27,14 +30,26 @@ use crate::ui_host::Host;
 /// Imports the key context that tells where the key was pressed.
 use crate::ui_keys::KeyContext;
 /// Imports the focus target and the calls that move keyboard focus.
-use crate::ui_keys_focus::{FocusTarget, request_focus, set_target};
+use crate::ui_keys_focus::{
+    FocusTarget,
+    request_focus,
+    set_target,
+};
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, read_state, write_screen};
+use crate::ui_screen::{
+    project,
+    read_screen,
+    read_state,
+    write_screen,
+};
 /// Imports the scroll request that revealing the playing row sends.
 use crate::ui_screen_scroll::ScrollRequest;
 /// Imports the route,
 /// the screen state and the page scope lookup.
-use crate::ui_screen_view::{Route, selected_page_scope};
+use crate::ui_screen_view::{
+    Route,
+    selected_page_scope,
+};
 
 /// Seconds a plain seek moves.
 const SEEK_SHORT_SECONDS: f64 = 10.0;
@@ -52,7 +67,12 @@ const SEEK_LONG_SECONDS: f64 = 60.0;
 /// ```ts
 /// function run(win: AppWindow, host: Host, action: ShortcutAction, context: KeyContext): boolean { ... }
 /// ```
-pub(crate) fn run(window: &AppWindow, host: &dyn Host, action: ShortcutAction, context: &KeyContext) -> bool {
+pub(crate) fn run(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: ShortcutAction,
+    context: &KeyContext,
+) -> bool {
     return match action {
         ShortcutAction::Owner | ShortcutAction::Unbound => false,
         ShortcutAction::IgnoreRepeat => true,
@@ -88,7 +108,9 @@ pub(crate) fn run(window: &AppWindow, host: &dyn Host, action: ShortcutAction, c
         | ShortcutAction::ListPageUp
         | ShortcutAction::ListPageDown
         | ShortcutAction::ListActivate
-        | ShortcutAction::ListLetter(_) => crate::ui_lists::apply(window, host, context.zone, action),
+        | ShortcutAction::ListLetter(_) => {
+            crate::ui_lists::apply(window, host, context.zone, action)
+        }
         ShortcutAction::RowMenu
         | ShortcutAction::RowTrash
         | ShortcutAction::RowCopy
@@ -113,7 +135,10 @@ pub(crate) fn run(window: &AppWindow, host: &dyn Host, action: ShortcutAction, c
 /// `run_playback_action` runs the actions that end as engine commands or process requests.
 /// Why:
 /// they need the host and no window.
-fn run_playback_action(host: &dyn Host, action: ShortcutAction) -> bool {
+fn run_playback_action(
+    host: &dyn Host,
+    action: ShortcutAction,
+) -> bool {
     match action {
         ShortcutAction::Toggle => crate::ui_wire::toggle_play(host),
         ShortcutAction::Previous => host.send(Command::Prev),
@@ -161,7 +186,10 @@ fn cycle_mode(host: &dyn Host) {
 /// `set_mode` scopes the engine to the selected page and picks a playback mode.
 /// Why:
 /// a shuffle of the folder or an in-order run must start from the page the user is looking at.
-fn set_mode(host: &dyn Host, mode: PlaybackMode) {
+fn set_mode(
+    host: &dyn Host,
+    mode: PlaybackMode,
+) {
     let scope = read_state(selected_page_scope);
     host.send(Command::SetPageScope(scope));
     host.send(Command::SetPlaybackMode(mode));
@@ -173,7 +201,11 @@ fn set_mode(host: &dyn Host, mode: PlaybackMode) {
 /// Why:
 /// a seek never leaves the track,
 /// and with no duration there is nothing to seek in.
-pub fn seek_target(position: f64, duration: f64, delta: f64) -> Option<f64> {
+pub fn seek_target(
+    position: f64,
+    duration: f64,
+    delta: f64,
+) -> Option<f64> {
     if duration <= 0.0 {
         return None;
     }
@@ -184,8 +216,14 @@ pub fn seek_target(position: f64, duration: f64, delta: f64) -> Option<f64> {
 /// `seek_by` seeks `delta` seconds from the current position.
 /// Why:
 /// Alt+Left and Alt+Right move 10 seconds and Shift makes it 60 (D106).
-fn seek_by(host: &dyn Host, delta: f64) {
-    let (position, duration) = { let state = read_screen(); (state.position, state.duration) };
+fn seek_by(
+    host: &dyn Host,
+    delta: f64,
+) {
+    let (position, duration) = {
+        let state = read_screen();
+        (state.position, state.duration)
+    };
     match seek_target(position, duration, delta) {
         Some(target) => host.send(Command::Seek(target)),
         None => tracing::debug!("a seek key was ignored: no track is loaded"),
@@ -197,7 +235,11 @@ fn seek_by(host: &dyn Host, delta: f64) {
 /// the folder or the focus on the player page.
 /// Why:
 /// they act on the window and the screen state.
-fn run_player_page_action(window: &AppWindow, host: &dyn Host, action: ShortcutAction) -> bool {
+fn run_player_page_action(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: ShortcutAction,
+) -> bool {
     match action {
         ShortcutAction::Search => crate::ui_search::open_search_route(window),
         ShortcutAction::Settings => crate::ui_settings::open_settings(window),
@@ -300,7 +342,11 @@ fn close_picker(window: &AppWindow) {
 /// Why:
 /// Alt+Up and Alt+Down move to the previous and next folder (D106);
 /// the ends do not wrap.
-fn step_folder(window: &AppWindow, host: &dyn Host, delta: isize) {
+fn step_folder(
+    window: &AppWindow,
+    host: &dyn Host,
+    delta: isize,
+) {
     let chosen: Option<Vec<usize>> = {
         let mut state = write_screen();
         let target_identity = {
@@ -395,7 +441,11 @@ fn show_playing_page(request: ScrollRequest) {
 /// the list's Escape closes Settings,
 /// and
 /// the editor page's Escape leaves it like Back.
-fn run_settings_action(window: &AppWindow, action: ShortcutAction, context: &KeyContext) -> bool {
+fn run_settings_action(
+    window: &AppWindow,
+    action: ShortcutAction,
+    context: &KeyContext,
+) -> bool {
     match action {
         ShortcutAction::Back => match context.route {
             Route::Settings => crate::ui_settings::close_settings(window),
@@ -423,7 +473,10 @@ fn run_settings_action(window: &AppWindow, action: ShortcutAction, context: &Key
 /// so leaving means returning to
 /// the list.
 /// On the single-column Settings list there is no editor to apply.
-fn apply_template(window: &AppWindow, context: &KeyContext) -> bool {
+fn apply_template(
+    window: &AppWindow,
+    context: &KeyContext,
+) -> bool {
     match context.route {
         Route::TemplateEditor => crate::ui_settings::editor_back(window),
         Route::Settings if window.get_unfolded() => {
@@ -440,7 +493,10 @@ fn apply_template(window: &AppWindow, context: &KeyContext) -> bool {
 /// Why:
 /// the editor page and the two-pane Settings page have an editor with a Reset control;
 /// the single-column list has none.
-fn reset_template(window: &AppWindow, context: &KeyContext) -> bool {
+fn reset_template(
+    window: &AppWindow,
+    context: &KeyContext,
+) -> bool {
     let has_editor = match context.route {
         Route::TemplateEditor => true,
         Route::Settings => window.get_unfolded(),
@@ -458,7 +514,11 @@ fn reset_template(window: &AppWindow, context: &KeyContext) -> bool {
 /// Down and Enter on the Search page.
 /// Why:
 /// the query field keeps the typing focus while these move through the results (D106).
-fn run_search_action(window: &AppWindow, host: &dyn Host, action: ShortcutAction) -> bool {
+fn run_search_action(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: ShortcutAction,
+) -> bool {
     match action {
         ShortcutAction::SearchUp => crate::ui_search::move_ring(window, -1),
         ShortcutAction::SearchDown => crate::ui_search::move_ring(window, 1),

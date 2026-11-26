@@ -15,14 +15,30 @@
 
 use crate::error::BrowserslistError;
 use crate::fake_registry::FakeRegistry;
-use crate::fixture::{fixture_lock, fixture_registry, scratch};
+use crate::fixture::{
+    fixture_lock,
+    fixture_registry,
+    scratch,
+};
 use crate::integrity::cache_key;
-use crate::source::{DataSource, load_data, pinned_tarball, tarball_url, write_atomically};
+use crate::source::{
+    DataSource,
+    load_data,
+    pinned_tarball,
+    tarball_url,
+    write_atomically,
+};
 use std::fs;
 
 /// Build a source over a scratch cache and a fake registry.
-fn source_for(registry: &FakeRegistry, cache: &std::path::Path) -> DataSource {
-    return DataSource { cache_dir: cache.join("cache"), registry_url: registry.url() };
+fn source_for(
+    registry: &FakeRegistry,
+    cache: &std::path::Path,
+) -> DataSource {
+    return DataSource {
+        cache_dir: cache.join("cache"),
+        registry_url: registry.url(),
+    };
 }
 
 /// A cold cache fetches exactly the two pinned tarballs;
@@ -68,7 +84,10 @@ fn corrupted_cache_entry_is_refetched() {
     let source = source_for(&registry, directory.path());
     let lock = fixture_lock();
     load_data(&lock, &source).expect("cold load");
-    let path = source.cache_dir.join(format!("{}.tgz", cache_key(&lock.caniuse_lite.integrity).expect("key")));
+    let path = source.cache_dir.join(format!(
+        "{}.tgz",
+        cache_key(&lock.caniuse_lite.integrity).expect("key")
+    ));
     fs::write(&path, b"tampered").expect("corrupt the entry");
     load_data(&lock, &source).expect("recovers");
     assert_eq!(registry.requests().len(), 3);
@@ -80,13 +99,22 @@ fn corrupted_cache_entry_is_refetched() {
 #[test]
 fn tampered_download_is_rejected_and_not_cached() {
     let registry = fixture_registry();
-    registry.set_route("/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz", 200, b"evil bytes".to_vec());
+    registry.set_route(
+        "/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz",
+        200,
+        b"evil bytes".to_vec(),
+    );
     let directory = scratch();
     let source = source_for(&registry, directory.path());
     let lock = fixture_lock();
     let error = pinned_tarball(&lock.caniuse_lite, &source).expect_err("rejected");
-    assert!(matches!(error, BrowserslistError::Integrity { .. }), "{error}");
-    let cached = fs::read_dir(&source.cache_dir).map(|entries| return entries.count()).unwrap_or(0);
+    assert!(
+        matches!(error, BrowserslistError::Integrity { .. }),
+        "{error}"
+    );
+    let cached = fs::read_dir(&source.cache_dir)
+        .map(|entries| return entries.count())
+        .unwrap_or(0);
     assert_eq!(cached, 0);
 }
 
@@ -96,8 +124,13 @@ fn missing_tarball_is_a_network_error() {
     let registry = FakeRegistry::start(Vec::new());
     let directory = scratch();
     let source = source_for(&registry, directory.path());
-    let message = load_data(&fixture_lock(), &source).expect_err("404").to_string();
-    assert!(message.contains("caniuse-lite-1.0.30001820.tgz"), "{message}");
+    let message = load_data(&fixture_lock(), &source)
+        .expect_err("404")
+        .to_string();
+    assert!(
+        message.contains("caniuse-lite-1.0.30001820.tgz"),
+        "{message}"
+    );
 }
 
 /// Verified bytes that are not a usable package fail in the decoder,
@@ -111,8 +144,13 @@ fn unusable_package_contents_are_reported() {
     let junk = crate::fixture::build_tgz(&[("package/readme", b"hi")]);
     lock.caniuse_lite.integrity = crate::integrity::integrity_of(&junk);
     registry.set_route("/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz", 200, junk);
-    let message = load_data(&lock, &source).expect_err("missing files").to_string();
-    assert!(message.contains("package/data/agents.js is missing"), "{message}");
+    let message = load_data(&lock, &source)
+        .expect_err("missing files")
+        .to_string();
+    assert!(
+        message.contains("package/data/agents.js is missing"),
+        "{message}"
+    );
 }
 
 /// Atomic writes create parent directories and replace existing files.
@@ -123,7 +161,9 @@ fn atomic_write_replaces_files() {
     write_atomically(&path, b"one").expect("first write");
     write_atomically(&path, b"two").expect("second write");
     assert_eq!(fs::read(&path).expect("file"), b"two".to_vec());
-    let leftovers = fs::read_dir(path.parent().expect("parent")).expect("dir").count();
+    let leftovers = fs::read_dir(path.parent().expect("parent"))
+        .expect("dir")
+        .count();
     assert_eq!(leftovers, 1);
 }
 

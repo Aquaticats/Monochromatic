@@ -1,0 +1,6 @@
+RUN-AT=2026-11-25T23:28:21+00:00
+git version 2.43.0
+monochromatic-git-policy-cli 0.6.1-alpha.44, shadowing git at /usr/bin/git
+f816e2b two hundred files
+fatal: 'main' is already used by worktree at '/root/work/repo'
+DONE=128

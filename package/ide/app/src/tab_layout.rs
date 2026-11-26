@@ -10,7 +10,10 @@
 
 /// The shaper owns fonts and scratch space;
 ///  this module only decides tab corrections.
-use crate::shaped_text::{LineRequest, TextShaper};
+use crate::shaped_text::{
+    LineRequest,
+    TextShaper,
+};
 /// Pixel tab-stop arithmetic,
 ///  independent of fonts.
 use crate::tab_stop::tab_spacings;
@@ -25,7 +28,11 @@ use crate::text_projection::Projection;
 /// ```ts
 /// import { Affinity, Cursor, Layout } from 'parley';
 /// ```
-use parley::{Affinity, Cursor, Layout};
+use parley::{
+    Affinity,
+    Cursor,
+    Layout,
+};
 
 /// Physical x of the boundary before display byte `byte`.
 ///
@@ -33,7 +40,10 @@ use parley::{Affinity, Cursor, Layout};
 /// ```ts
 /// function xBefore(layout: Layout, byte: number): number;
 /// ```
-fn x_before(layout: &Layout<u32>, byte: usize) -> f32 {
+fn x_before(
+    layout: &Layout<u32>,
+    byte: usize,
+) -> f32 {
     let cursor = Cursor::from_byte_index(layout, byte, Affinity::Downstream);
     // What: `as f32` narrows the engine's 64-bit coordinate (sibling `f64`) to the advance unit.
     // Why: Tab-stop arithmetic works in the same 32-bit floats as glyph advances.
@@ -175,7 +185,10 @@ const SPACING_TOLERANCE: f32 = 0.001;
 /// ```ts
 /// function tabsOnFirstRow(layout: Layout, tabs: number[]): boolean;
 /// ```
-pub(crate) fn tabs_on_first_row(layout: &Layout<u32>, tabs: &[usize]) -> bool {
+pub(crate) fn tabs_on_first_row(
+    layout: &Layout<u32>,
+    tabs: &[usize],
+) -> bool {
     let Some(first) = layout.lines().next() else {
         return true;
     };
@@ -195,7 +208,10 @@ pub(crate) fn tabs_on_first_row(layout: &Layout<u32>, tabs: &[usize]) -> bool {
 /// ```ts
 /// function rowOf(layout: Layout, byte: number): number;
 /// ```
-fn row_of(layout: &Layout<u32>, byte: usize) -> usize {
+fn row_of(
+    layout: &Layout<u32>,
+    byte: usize,
+) -> usize {
     // What: Row starts ascend, so the rows that start at or before the byte are a prefix; a binary search finds its end.
     // Why: A line of thousands of rows asks this once for every tab in every pass.
     //
@@ -274,7 +290,10 @@ fn wrapped_spacings(
 
 /// Whether two correction lists name the same tabs with the same extra advance,
 /// within `SPACING_TOLERANCE`.
-fn same_spacings(left: &[(usize, f32)], right: &[(usize, f32)]) -> bool {
+fn same_spacings(
+    left: &[(usize, f32)],
+    right: &[(usize, f32)],
+) -> bool {
     if left.len() != right.len() {
         return false;
     }

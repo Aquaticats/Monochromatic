@@ -3,6 +3,15 @@
 //! a stream that drains gets the lines in the order they were said,
 //! the queue is bounded and says how many lines it dropped,
 //! and the end of a process waits for what it handed over and no longer.
+//!
+//! These controls are written for one process per test, which is how the package's gate runs them
+//! (`cargo nextest`): the queue and its thread belong to the process, `give_the_thread` puts a
+//! control's stream in the one place they write, and a control whose reader goes ends that thread
+//! for good.
+//! A run that shares one process between them, which `cargo test --lib` does, therefore fails them
+//! whichever order it takes: measured on 2026-11-25, `cargo test --lib diagnostic_lines_off_the_calling_thread`
+//! failed 3 of the 5 on the pristine tree and 4 of the 5 after an unrelated change to the door,
+//! `--test-threads=1` failed 2 of the 5, and each of the five passed alone in a process of its own.
 
 use super::*;
 
@@ -250,4 +259,36 @@ fn a_line_the_queue_could_not_take_is_counted_and_said_before_the_next() {
     //  many were dropped before it.
     let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
     assert!(text.contains(DROPPED_NOTICE), "the stream states the gap it took: {text:?}");
+}
+
+/// What:
+///  A process whose process limit refuses the thread that writes its lines says which limit refused it,
+///  and every line the process says after that refusal reaches the stream.
+/// Why:
+///   A commit at its process limit failed on 2026-11-25 saying nothing at all (issue 6476):
+/// its refusal waited in a queue that no thread would ever write.
+///  The body runs in a child whose process limit is one,
+/// which is the one state in which the thread is refused,
+///  and the two lines after the refusal are a command's first word and its last.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inChild(() => { const [reader, writer] = pipe(); giveTheThread(writer); write(first); write(last); expect(read()).toContain('ulimit -u'); expect(read()).toContain(first); expect(read()).toContain(last) })
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines") {
+        return;
+    }
+    let (mut reader, writer) = std::io::pipe().expect("a pipe");
+    give_the_thread(Box::new(writer));
+    let first: &str = "[warn] the line a process at its process limit would have lost\n";
+    let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
+    write(first);
+    write(last);
+    let said: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+    assert!(said.contains("ulimit -u"), "the refusal names the process limit that refused the thread, and not only the system's error: {said}");
+    assert!(said.contains(first), "the line said as the refusal is written where it is said: {said}");
+    assert!(said.contains(last), "the line said after the refusal is written where it is said too: {said}");
 }

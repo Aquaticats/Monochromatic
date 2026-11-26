@@ -156,7 +156,9 @@ pub fn jsonc_key_path<'a>(keys: impl IntoIterator<Item = &'a str>) -> Vec<JsoncP
     // ```
     let mut path: Vec<JsoncPathSegment> = Vec::new();
     for key in keys {
-        path.push(JsoncPathSegment::Key { key: String::from(key) });
+        path.push(JsoncPathSegment::Key {
+            key: String::from(key),
+        });
     }
     return path;
 }

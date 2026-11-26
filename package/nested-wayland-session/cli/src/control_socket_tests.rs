@@ -2,14 +2,26 @@
 
 use std::{
     os::unix::{
-        fs::{FileTypeExt, PermissionsExt},
-        net::{UnixListener, UnixStream},
+        fs::{
+            FileTypeExt,
+            PermissionsExt,
+        },
+        net::{
+            UnixListener,
+            UnixStream,
+        },
     },
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
-use super::{bind_listener, SOCKET_MODE};
+use super::{
+    SOCKET_MODE,
+    bind_listener,
+};
 
 /// Environment variable that makes the child test in this file do its work.
 const CHILD_FLAG: &str = "NWS_CONTROL_SOCKET_UMASK_CHILD";
@@ -30,11 +42,15 @@ impl Scratch {
     ///  a Unix socket path holds at most `SOCKET_PATH_LIMIT` bytes,
     /// which the build directory's path already exceeds.
     fn new(name: &str) -> Scratch {
-        let runtime = std::env::var_os("XDG_RUNTIME_DIR").expect("XDG_RUNTIME_DIR holds the short socket directory");
-        let directory = PathBuf::from(runtime).join(format!("nws-socket-{}-{name}", std::process::id()));
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+            .expect("XDG_RUNTIME_DIR holds the short socket directory");
+        let directory =
+            PathBuf::from(runtime).join(format!("nws-socket-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).expect("creating the scratch directory");
-        return Scratch { directory }
+        return Scratch {
+            directory,
+        };
     }
 }
 
@@ -47,7 +63,11 @@ impl Drop for Scratch {
 /// The permission bits of a path,
 ///  without the file type bits.
 fn mode_of(path: &Path) -> u32 {
-    return std::fs::metadata(path).expect("reading the metadata of the path").permissions().mode() & 0o777
+    return std::fs::metadata(path)
+        .expect("reading the metadata of the path")
+        .permissions()
+        .mode()
+        & 0o777;
 }
 
 /// A new socket is a socket file only its owner can open.
@@ -56,7 +76,9 @@ fn the_bound_socket_is_owner_only() {
     let scratch = Scratch::new("owner-only");
     let path = scratch.directory.join("control.sock");
     let _listener = bind_listener(&path).expect("binding the control socket");
-    let file_type = std::fs::metadata(&path).expect("reading the socket metadata").file_type();
+    let file_type = std::fs::metadata(&path)
+        .expect("reading the socket metadata")
+        .file_type();
     assert!(file_type.is_socket(), "{file_type:?}");
     assert_eq!(mode_of(&path), SOCKET_MODE, "mode is {:o}", mode_of(&path));
 }
@@ -74,7 +96,12 @@ fn umask_child_binds_under_a_permissive_umask() {
     // so an owner-only result below comes from bind_listener and not from the environment.
     let plain = scratch.directory.join("plain.sock");
     let _plain_listener = UnixListener::bind(&plain).expect("binding a plain socket");
-    assert_eq!(mode_of(&plain), 0o777, "umask 000 must leave a plain bind open; got {:o}", mode_of(&plain));
+    assert_eq!(
+        mode_of(&plain),
+        0o777,
+        "umask 000 must leave a plain bind open; got {:o}",
+        mode_of(&plain)
+    );
 
     let path = scratch.directory.join("control.sock");
     let _listener = bind_listener(&path).expect("binding the control socket under umask 000");
@@ -87,20 +114,30 @@ fn umask_child_binds_under_a_permissive_umask() {
 fn a_looser_umask_does_not_widen_the_socket() {
     let executable = std::env::current_exe().expect("locating this test binary");
     // libtest names a test by its module path without the crate name.
-    let (_crate_name, module) = module_path!().split_once("::").expect("a module path below the crate name");
+    let (_crate_name, module) = module_path!()
+        .split_once("::")
+        .expect("a module path below the crate name");
     let output = Command::new("sh")
         .args(["-c", "umask 000 && exec \"$0\" \"$@\""])
         .arg(&executable)
-        .arg(format!("{module}::umask_child_binds_under_a_permissive_umask"))
+        .arg(format!(
+            "{module}::umask_child_binds_under_a_permissive_umask"
+        ))
         .args(["--exact", "--nocapture"])
         .env(CHILD_FLAG, "1")
         .output()
         .expect("starting the umask child through sh");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "child failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        output.status.success(),
+        "child failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
     // The child must have run its one test, not matched nothing.
-    assert!(stdout.contains("1 passed"), "child ran no test\nstdout:\n{stdout}");
+    assert!(
+        stdout.contains("1 passed"),
+        "child ran no test\nstdout:\n{stdout}"
+    );
 }
 
 /// A leftover file at the path is replaced,
@@ -152,5 +189,10 @@ fn a_missing_directory_is_an_error_naming_the_path() {
     let error = bind_listener(&path).expect_err("binding below a missing directory");
     let message = format!("{error:#}");
     assert!(message.contains(&path.display().to_string()), "{message}");
-    assert_eq!(std::fs::read_dir(&scratch.directory).expect("listing the scratch directory").count(), 0);
+    assert_eq!(
+        std::fs::read_dir(&scratch.directory)
+            .expect("listing the scratch directory")
+            .count(),
+        0
+    );
 }

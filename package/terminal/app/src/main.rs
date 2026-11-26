@@ -152,7 +152,14 @@ use i_slint_backend_winit::Backend;
 /// ```ts
 /// import { Color, VecModel } from "slint";
 /// ```
-use slint::{Color, ComponentHandle, SharedString, Timer, TimerMode, VecModel};
+use slint::{
+    Color,
+    ComponentHandle,
+    SharedString,
+    Timer,
+    TimerMode,
+    VecModel,
+};
 
 /// What:
 ///      `use terminal_app::{...};` imports this package's library modules.
@@ -165,11 +172,20 @@ use slint::{Color, ComponentHandle, SharedString, Timer, TimerMode, VecModel};
 /// import { encodeTerminalKey, TerminalEngine, PtySession, ViewportGeometry } from "terminal-app";
 /// ```
 use terminal_app::{
-    engine::{TerminalEngine, ViewportGeometry},
+    engine::{
+        TerminalEngine,
+        ViewportGeometry,
+    },
     input::encode_terminal_key,
     launcher,
-    pty::{PtyEvent, PtySession},
-    render::{Rgb, TerminalSnapshot},
+    pty::{
+        PtyEvent,
+        PtySession,
+    },
+    render::{
+        Rgb,
+        TerminalSnapshot,
+    },
 };
 
 /// What:
@@ -238,7 +254,7 @@ fn install_backend() -> Result<()> {
         .expect("no Slint platform should already be set");
     // What:     `Ok(())` returns success from a unit-returning `Result`.
     // Why:      The platform is installed.
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -250,7 +266,7 @@ fn color_from_rgb(rgb: Rgb) -> Color {
     // What:     `Color::from_rgb_u8(...)` constructs a Slint color from 8-bit
     //           channels. `::` calls an associated function.
     // Why:      Both Ghostty and Slint use byte RGB for this path.
-    return Color::from_rgb_u8(rgb.red, rgb.green, rgb.blue)
+    return Color::from_rgb_u8(rgb.red, rgb.green, rgb.blue);
 }
 
 /// What:
@@ -273,7 +289,7 @@ fn to_slint_cell(cell: &terminal_app::render::TerminalCell) -> TerminalCell {
         italic: cell.italic,
         inverse: cell.inverse,
         underline: cell.underline,
-    }
+    };
 }
 
 /// What:
@@ -281,7 +297,10 @@ fn to_slint_cell(cell: &terminal_app::render::TerminalCell) -> TerminalCell {
 ///           the Slint window and consumes one owned engine snapshot.
 /// Why:
 ///       One function updates every UI property derived from a render frame.
-fn apply_snapshot(app: &AppWindow, snapshot: TerminalSnapshot) {
+fn apply_snapshot(
+    app: &AppWindow,
+    snapshot: TerminalSnapshot,
+) {
     // What:     `let cells: Vec<TerminalCell> = ...collect()` maps engine cells to
     //           generated Slint cells and gathers them into a vector.
     // Why:      Slint array properties are backed by Rust models.
@@ -342,7 +361,7 @@ fn refresh_from_scroll(
     // Why:      Avoid nested mutable borrows if Slint emits another notification.
     drop(engine);
     apply_snapshot(app, snapshot);
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -360,12 +379,8 @@ fn refresh_from_resize(
     cell_width_px: f32,
     cell_height_px: f32,
 ) -> Result<()> {
-    let geometry = ViewportGeometry::from_pixels(
-        width_px,
-        height_px,
-        cell_width_px,
-        cell_height_px,
-    );
+    let geometry =
+        ViewportGeometry::from_pixels(width_px, height_px, cell_width_px, cell_height_px);
     let mut engine = engine_cell.borrow_mut();
     engine.resize(geometry)?;
     pty.borrow().resize(geometry)?;
@@ -374,7 +389,7 @@ fn refresh_from_resize(
     let snapshot = engine.snapshot(mapping)?;
     drop(engine);
     apply_snapshot(app, snapshot);
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -457,7 +472,7 @@ fn refresh_from_pty_events(
     }
     // What:     `Ok(())` returns success.
     // Why:      All ready PTY events were handled.
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -481,7 +496,7 @@ fn write_terminal_key(
     }
     // What:     `Ok(())` returns success.
     // Why:      The key was either written or intentionally ignored.
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -489,7 +504,10 @@ fn write_terminal_key(
 ///           fallible callback work to stderr.
 /// Why:
 ///       Slint callbacks cannot return errors to the event loop.
-fn log_callback_error(context: &str, error: anyhow::Error) {
+fn log_callback_error(
+    context: &str,
+    error: anyhow::Error,
+) {
     // What:     `tracing::error!(...)` emits a structured error event to the subscriber.
     // Why:      Prototype failures should be visible when launched from a terminal.
     tracing::error!(context, error = %error, "callback error");
@@ -548,9 +566,10 @@ fn main() -> Result<()> {
     let scroll_engine = Rc::clone(&shared_engine);
     app.on_scroll_changed(move |pixel_scroll| {
         if let Some(window) = weak_for_scroll.upgrade()
-            && let Err(error) = refresh_from_scroll(&window, &scroll_engine, pixel_scroll) {
-                log_callback_error("scroll refresh failed", error);
-            }
+            && let Err(error) = refresh_from_scroll(&window, &scroll_engine, pixel_scroll)
+        {
+            log_callback_error("scroll refresh failed", error);
+        }
     });
 
     let weak_for_resize = app.as_weak();
@@ -566,9 +585,10 @@ fn main() -> Result<()> {
                 height_px,
                 cell_width_px,
                 cell_height_px,
-            ) {
-                log_callback_error("resize refresh failed", error);
-            }
+            )
+        {
+            log_callback_error("resize refresh failed", error);
+        }
     });
 
     let key_pty = Rc::clone(&shared_pty);
@@ -586,13 +606,14 @@ fn main() -> Result<()> {
         Duration::from_millis(OUTPUT_POLL_INTERVAL_MS),
         move || {
             if let Some(window) = weak_for_output.upgrade()
-                && let Err(error) = refresh_from_pty_events(&window, &output_engine, &pty_receiver) {
-                    log_callback_error("PTY output refresh failed", error);
-                }
+                && let Err(error) = refresh_from_pty_events(&window, &output_engine, &pty_receiver)
+            {
+                log_callback_error("PTY output refresh failed", error);
+            }
         },
     );
 
     app.run()?;
     output_timer.stop();
-    return Ok(())
+    return Ok(());
 }

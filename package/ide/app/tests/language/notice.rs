@@ -11,10 +11,18 @@
 //!  and hint steps make each state happen at a named request,
 //!  so no test depends on how busy the machine is.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
     hints::HintWindow,
-    reply::{RequestKind, RequestOutcome},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
 };
 
 /// The lines every test that needs hints reports.

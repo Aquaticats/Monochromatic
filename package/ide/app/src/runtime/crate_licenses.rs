@@ -187,7 +187,10 @@ fn crate_relative(source: &str) -> &str {
 /// ```ts
 /// function wrap(prefix: string, items: string[]): string[]
 /// ```
-fn wrap(prefix: &str, items: &[String]) -> Vec<String> {
+fn wrap(
+    prefix: &str,
+    items: &[String],
+) -> Vec<String> {
     let indent = " ".repeat(prefix.len());
     let mut lines = Vec::new();
     let mut line = prefix.to_string();

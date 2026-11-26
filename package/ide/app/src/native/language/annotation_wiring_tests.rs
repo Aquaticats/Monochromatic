@@ -9,24 +9,49 @@
 ///  the scripted server,
 ///  and real key and pointer events.
 use super::test_support::{
-    TEXT_TOP, above, address, caret, caret_x, control_click, definitions, hover, idle, location,
-    move_to, point, popup, project, reader, ready, rows,
+    TEXT_TOP,
+    above,
+    address,
+    caret,
+    caret_x,
+    control_click,
+    definitions,
+    hover,
+    idle,
+    location,
+    move_to,
+    point,
+    popup,
+    project,
+    reader,
+    ready,
+    rows,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// The stamp of the displayed text and the production repaint.
-use crate::native::{annotate::displayed, render};
+use crate::native::{
+    annotate::displayed,
+    render,
+};
 /// One hint record and its snapshot,
 ///  exactly as the Language module builds them.
 use ide_app::language::{
-    hints::{HintKind, HintsSnapshot, InlayHint},
+    hints::{
+        HintKind,
+        HintsSnapshot,
+        InlayHint,
+    },
     identity::ServerIdentity,
 };
 /// Snapshots arrive behind shared pointers;
 ///  a scroll has a moment.
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Two lines.

@@ -3,19 +3,38 @@
 
 use std::collections::HashMap;
 
+use super::support::{
+    Fixture,
+    Signals,
+    err_message,
+    error_reply,
+    field,
+    ok_data,
+    proxy,
+    start,
+};
+use nested_wayland_session::bus_test_client::Proxy;
 use nested_wayland_session::{
     control_notification::run,
     notification_mode::NotificationMode,
-    notification_service::{CAPABILITIES, NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH},
+    notification_service::{
+        CAPABILITIES,
+        NOTIFICATIONS_INTERFACE,
+        NOTIFICATIONS_NAME,
+        NOTIFICATIONS_PATH,
+    },
     protocol::NotificationCommand,
 };
-use super::support::{err_message, error_reply, field, ok_data, proxy, start, Fixture, Signals};
-use nested_wayland_session::bus_test_client::Proxy;
 use zbus::Variant;
 
 /// Opens the client's proxy to the fake service by its well-known name.
 fn notifications_proxy(fixture: &Fixture) -> anyhow::Result<Proxy<'static>> {
-    return proxy(&fixture.client, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE);
+    return proxy(
+        &fixture.client,
+        NOTIFICATIONS_NAME,
+        NOTIFICATIONS_PATH,
+        NOTIFICATIONS_INTERFACE,
+    );
 }
 
 /// Calls `Notify` with every argument spelled out.
@@ -28,12 +47,24 @@ fn notify(
 ) -> anyhow::Result<u32> {
     return Ok(client.call(
         "Notify",
-        &("Example App", replaces_id, "dialog-information", summary, "Body text", actions, hints, 5000_i32),
+        &(
+            "Example App",
+            replaces_id,
+            "dialog-information",
+            summary,
+            "Body text",
+            actions,
+            hints,
+            5000_i32,
+        ),
     )?);
 }
 
 /// Runs a notification verb against the fixture's services.
-fn verb(fixture: &Fixture, command: &NotificationCommand) -> nested_wayland_session::protocol::Response {
+fn verb(
+    fixture: &Fixture,
+    command: &NotificationCommand,
+) -> nested_wayland_session::protocol::Response {
     return run(Some(&fixture.services), command);
 }
 
@@ -63,13 +94,22 @@ fn notify_and_replacement() -> anyhow::Result<()> {
     assert_eq!(first, 1);
     let shown = ok_data(verb(&fixture, &NotificationCommand::List));
     assert!(shown.starts_with("1 id=1 app=Example%20App icon=dialog-information summary=Analysis%20started body=Body%20text actions=default=Open "), "{shown}");
-    assert_eq!(field(&shown, "hints"), Some("category:s:transfer,transient:b:true,urgency:y:2,value:i:50"));
+    assert_eq!(
+        field(&shown, "hints"),
+        Some("category:s:transfer,transient:b:true,urgency:y:2,value:i:50")
+    );
     assert_eq!(field(&shown, "expire"), Some("5000"));
     assert_eq!(field(&shown, "replaced"), Some("0"));
 
     // Replace it twice: the id is returned unchanged and the count follows.
-    assert_eq!(notify(&client, first, "Analysis 40 percent", &[], &HashMap::new())?, first);
-    assert_eq!(notify(&client, first, "Analysis done", &[], &HashMap::new())?, first);
+    assert_eq!(
+        notify(&client, first, "Analysis 40 percent", &[], &HashMap::new())?,
+        first
+    );
+    assert_eq!(
+        notify(&client, first, "Analysis done", &[], &HashMap::new())?,
+        first
+    );
     let second = notify(&client, 0, "Other", &[], &HashMap::new())?;
     assert_eq!(second, 2);
 
@@ -81,18 +121,45 @@ fn notify_and_replacement() -> anyhow::Result<()> {
     assert_eq!(field(&list[0], "actions"), Some(""));
     assert_eq!(field(&list[1], "id"), Some("2"));
 
-    let log = ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 }));
+    let log = ok_data(verb(
+        &fixture,
+        &NotificationCommand::Log {
+            count: 64,
+        },
+    ));
     let entries = records(&log);
     assert_eq!(entries.len(), 4, "{log}");
-    let replaces: Vec<&str> = entries.iter().filter_map(|entry| return field(entry, "replaces")).collect();
+    let replaces: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| return field(entry, "replaces"))
+        .collect();
     assert_eq!(replaces, ["0", "1", "1", "0"]);
-    assert!(entries.iter().all(|entry| return entry.contains(" notify id=")));
+    assert!(
+        entries
+            .iter()
+            .all(|entry| return entry.contains(" notify id="))
+    );
     let times: Vec<u64> = entries
         .iter()
-        .map(|entry| return entry.split(' ').next().and_then(|part| return part.strip_prefix("t=")).and_then(|digits| return digits.parse().ok()).unwrap_or(u64::MAX))
+        .map(|entry| {
+            return entry
+                .split(' ')
+                .next()
+                .and_then(|part| return part.strip_prefix("t="))
+                .and_then(|digits| return digits.parse().ok())
+                .unwrap_or(u64::MAX);
+        })
         .collect();
-    assert!(times.windows(2).all(|pair| return pair[0] <= pair[1]), "{times:?}");
-    let newest = ok_data(verb(&fixture, &NotificationCommand::Log { count: 1 }));
+    assert!(
+        times.windows(2).all(|pair| return pair[0] <= pair[1]),
+        "{times:?}"
+    );
+    let newest = ok_data(verb(
+        &fixture,
+        &NotificationCommand::Log {
+            count: 1,
+        },
+    ));
     assert!(newest.starts_with("1 t="), "{newest}");
     assert_eq!(field(&newest, "id"), Some("2"));
     return Ok(());
@@ -103,14 +170,28 @@ fn notify_and_replacement() -> anyhow::Result<()> {
 fn hostile_text_stays_on_one_line() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Freedesktop)?;
     let client = notifications_proxy(&fixture)?;
-    let id = notify(&client, 0, "done\nerr injected; id=99 x=1", &["a b", "L;1"], &HashMap::new())?;
+    let id = notify(
+        &client,
+        0,
+        "done\nerr injected; id=99 x=1",
+        &["a b", "L;1"],
+        &HashMap::new(),
+    )?;
     for payload in [
         ok_data(verb(&fixture, &NotificationCommand::List)),
-        ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 })),
+        ok_data(verb(
+            &fixture,
+            &NotificationCommand::Log {
+                count: 64,
+            },
+        )),
     ] {
         assert!(!payload.contains('\n'), "{payload:?}");
         assert_eq!(payload.matches("; ").count(), 0, "{payload:?}");
-        assert_eq!(field(&payload, "summary"), Some("done%0Aerr%20injected%3B%20id%3D99%20x%3D1"));
+        assert_eq!(
+            field(&payload, "summary"),
+            Some("done%0Aerr%20injected%3B%20id%3D99%20x%3D1")
+        );
         assert_eq!(field(&payload, "actions"), Some("a%20b=L%3B1"));
     }
     assert_eq!(id, 1);
@@ -126,17 +207,37 @@ fn close_reasons_reach_the_client() -> anyhow::Result<()> {
     let closed = Signals::subscribe(&client, "NotificationClosed")?;
     for reason in 1..=4_u32 {
         let id = notify(&client, 0, "temporary", &[], &HashMap::new())?;
-        assert_eq!(ok_data(verb(&fixture, &NotificationCommand::Close { id, reason })), "");
+        assert_eq!(
+            ok_data(verb(
+                &fixture,
+                &NotificationCommand::Close {
+                    id,
+                    reason
+                }
+            )),
+            ""
+        );
         let message = closed.next("NotificationClosed");
         let (got_id, got_reason): (u32, u32) = message.body().deserialize()?;
         assert_eq!((got_id, got_reason), (id, reason));
     }
     assert!(ok_data(verb(&fixture, &NotificationCommand::List)).starts_with("0"));
     // A notification that is no longer visible cannot be closed again, and no signal leaves.
-    let message = err_message(verb(&fixture, &NotificationCommand::Close { id: 1, reason: 2 }));
+    let message = err_message(verb(
+        &fixture,
+        &NotificationCommand::Close {
+            id: 1,
+            reason: 2,
+        },
+    ));
     assert_eq!(message, "no visible notification with id 1");
     assert!(!closed.arrives_soon());
-    let log = ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 }));
+    let log = ok_data(verb(
+        &fixture,
+        &NotificationCommand::Log {
+            count: 64,
+        },
+    ));
     assert_eq!(log.matches(" closed id=").count(), 4, "{log}");
     return Ok(());
 }
@@ -154,13 +255,25 @@ fn client_close_is_announced_like_plasma() -> anyhow::Result<()> {
     let (got_id, reason): (u32, u32) = closed.next("NotificationClosed").body().deserialize()?;
     assert_eq!((got_id, reason), (id, 3));
     client.call::<_, _, ()>("CloseNotification", &(4040_u32,))?;
-    let (unknown, unknown_reason): (u32, u32) = closed.next("NotificationClosed").body().deserialize()?;
+    let (unknown, unknown_reason): (u32, u32) =
+        closed.next("NotificationClosed").body().deserialize()?;
     assert_eq!((unknown, unknown_reason), (4040, 3));
     assert!(ok_data(verb(&fixture, &NotificationCommand::List)).starts_with("0"));
-    let log = ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 }));
+    let log = ok_data(verb(
+        &fixture,
+        &NotificationCommand::Log {
+            count: 64,
+        },
+    ));
     let entries = records(&log);
-    let kinds: Vec<&str> = entries.iter().filter_map(|entry| return entry.split(' ').nth(1)).collect();
-    assert_eq!(kinds, ["notify", "close-call", "closed", "close-call", "closed"]);
+    let kinds: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| return entry.split(' ').nth(1))
+        .collect();
+    assert_eq!(
+        kinds,
+        ["notify", "close-call", "closed", "close-call", "closed"]
+    );
     assert!(log.contains("close-call id=4040 known=false"), "{log}");
     return Ok(());
 }
@@ -171,20 +284,56 @@ fn action_invocation_reaches_the_client() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Freedesktop)?;
     let client = notifications_proxy(&fixture)?;
     let invoked = Signals::subscribe(&client, "ActionInvoked")?;
-    let id = notify(&client, 0, "Pick", &["default", "Open", "Action 1", "One"], &HashMap::new())?;
+    let id = notify(
+        &client,
+        0,
+        "Pick",
+        &["default", "Open", "Action 1", "One"],
+        &HashMap::new(),
+    )?;
     for key in ["default", "Action 1"] {
-        assert_eq!(ok_data(verb(&fixture, &NotificationCommand::Action { id, key: key.to_owned() })), "");
-        let (got_id, got_key): (u32, String) = invoked.next("ActionInvoked").body().deserialize()?;
+        assert_eq!(
+            ok_data(verb(
+                &fixture,
+                &NotificationCommand::Action {
+                    id,
+                    key: key.to_owned()
+                }
+            )),
+            ""
+        );
+        let (got_id, got_key): (u32, String) =
+            invoked.next("ActionInvoked").body().deserialize()?;
         assert_eq!((got_id, got_key.as_str()), (id, key));
     }
-    let refusal = err_message(verb(&fixture, &NotificationCommand::Action { id, key: "snooze".to_owned() }));
-    assert_eq!(refusal, "notification 1 offers no action snooze (offered: default, Action 1)");
-    let missing = err_message(verb(&fixture, &NotificationCommand::Action { id: 9, key: "default".to_owned() }));
+    let refusal = err_message(verb(
+        &fixture,
+        &NotificationCommand::Action {
+            id,
+            key: "snooze".to_owned(),
+        },
+    ));
+    assert_eq!(
+        refusal,
+        "notification 1 offers no action snooze (offered: default, Action 1)"
+    );
+    let missing = err_message(verb(
+        &fixture,
+        &NotificationCommand::Action {
+            id: 9,
+            key: "default".to_owned(),
+        },
+    ));
     assert_eq!(missing, "no visible notification with id 9");
     assert!(!invoked.arrives_soon());
     // Invoking an action does not close the notification: the recorder leaves that to the test.
     assert!(ok_data(verb(&fixture, &NotificationCommand::List)).starts_with("1 "));
-    let log = ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 }));
+    let log = ok_data(verb(
+        &fixture,
+        &NotificationCommand::Log {
+            count: 64,
+        },
+    ));
     assert!(log.contains("action-invoked id=1 key=Action%201"), "{log}");
     return Ok(());
 }
@@ -197,7 +346,15 @@ fn clear_forgets_records_and_keeps_ids_unique() -> anyhow::Result<()> {
     assert_eq!(notify(&client, 0, "a", &[], &HashMap::new())?, 1);
     assert_eq!(ok_data(verb(&fixture, &NotificationCommand::Clear)), "");
     assert_eq!(ok_data(verb(&fixture, &NotificationCommand::List)), "0");
-    assert_eq!(ok_data(verb(&fixture, &NotificationCommand::Log { count: 64 })), "0");
+    assert_eq!(
+        ok_data(verb(
+            &fixture,
+            &NotificationCommand::Log {
+                count: 64
+            }
+        )),
+        "0"
+    );
     assert_eq!(notify(&client, 0, "b", &[], &HashMap::new())?, 2);
     return Ok(());
 }
@@ -210,10 +367,20 @@ fn capabilities_and_server_information() -> anyhow::Result<()> {
     let capabilities: Vec<String> = client.call("GetCapabilities", &())?;
     assert_eq!(capabilities, CAPABILITIES);
     for required in ["actions", "body", "persistence"] {
-        assert!(capabilities.iter().any(|capability| return capability == required), "{required}");
+        assert!(
+            capabilities
+                .iter()
+                .any(|capability| return capability == required),
+            "{required}"
+        );
     }
     for unsupported in ["sound", "inline-reply", "inhibitions"] {
-        assert!(!capabilities.iter().any(|capability| return capability == unsupported), "{unsupported}");
+        assert!(
+            !capabilities
+                .iter()
+                .any(|capability| return capability == unsupported),
+            "{unsupported}"
+        );
     }
     let (name, vendor, version, specification): (String, String, String, String) =
         client.call("GetServerInformation", &())?;
@@ -229,17 +396,29 @@ fn capabilities_and_server_information() -> anyhow::Result<()> {
 #[test]
 fn freedesktop_mode_has_no_job_server() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Freedesktop)?;
-    let job_proxy = proxy(&fixture.client, "org.kde.kuiserver", "/JobViewServer", "org.kde.JobViewServerV2")?;
-    let attempt = job_proxy.call::<_, _, zbus::OwnedObjectPath>("requestView", &("org.example", 3_i32, HashMap::<&str, Variant<'_>>::new()));
+    let job_proxy = proxy(
+        &fixture.client,
+        "org.kde.kuiserver",
+        "/JobViewServer",
+        "org.kde.JobViewServerV2",
+    )?;
+    let attempt = job_proxy.call::<_, _, zbus::OwnedObjectPath>(
+        "requestView",
+        &("org.example", 3_i32, HashMap::<&str, Variant<'_>>::new()),
+    );
     let Err(error) = &attempt else {
         panic!("expected a bus error, got {attempt:?}");
     };
-    let (name, _) = error_reply(error).unwrap_or_else(|| panic!("expected a bus error reply, got {error:?}"));
+    let (name, _) =
+        error_reply(error).unwrap_or_else(|| panic!("expected a bus error reply, got {error:?}"));
     assert_eq!(name, "org.freedesktop.DBus.Error.ServiceUnknown");
     let refusal = err_message(nested_wayland_session::control_job::run(
         Some(&fixture.services),
         &nested_wayland_session::protocol::JobCommand::List,
     ));
-    assert_eq!(refusal, "no Plasma job service (start with --notifications kde)");
+    assert_eq!(
+        refusal,
+        "no Plasma job service (start with --notifications kde)"
+    );
     return Ok(());
 }

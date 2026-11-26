@@ -11,9 +11,17 @@ fn last_n_is_a_window_over_the_newest_events() {
     for number in 0..5_u32 {
         ring.push(u64::from(number) * 10, number);
     }
-    let all: Vec<u32> = ring.last_n(64).iter().map(|timed| return timed.event).collect();
+    let all: Vec<u32> = ring
+        .last_n(64)
+        .iter()
+        .map(|timed| return timed.event)
+        .collect();
     assert_eq!(all, [0, 1, 2, 3, 4]);
-    let newest: Vec<u64> = ring.last_n(2).iter().map(|timed| return timed.at_ms).collect();
+    let newest: Vec<u64> = ring
+        .last_n(2)
+        .iter()
+        .map(|timed| return timed.at_ms)
+        .collect();
     assert_eq!(newest, [30, 40]);
 }
 
@@ -25,7 +33,12 @@ fn the_oldest_event_is_evicted_at_capacity() {
         ring.push(0, number);
     }
     assert_eq!(ring.len(), EVENT_RING_CAPACITY);
-    assert_eq!(ring.last_n(usize::MAX).first().map(|timed| return timed.event), Some(3));
+    assert_eq!(
+        ring.last_n(usize::MAX)
+            .first()
+            .map(|timed| return timed.event),
+        Some(3)
+    );
 }
 
 /// Clearing empties the ring and a new event starts a fresh sequence.

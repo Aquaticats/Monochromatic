@@ -36,18 +36,26 @@ fn cell_label_of(name: &str) -> String {
 // What:     `fn labels_of(cells: &[RailCell]) -> Vec<&str>` test helper: returns the cell labels in order.
 // Why:      Most assertions compare label sequences.
 fn labels_of(cells: &[RailCell]) -> Vec<&str> {
-    return cells.iter().map(|cell| return cell.label.as_str()).collect();
+    return cells
+        .iter()
+        .map(|cell| return cell.label.as_str())
+        .collect();
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      A Latin-only library gives one section whose cells run A to Z regardless of input order.
 #[test]
 fn latin_only_gives_one_section_with_ato_z_cells_in_order() {
-    let names: Vec<String> = ('A'..='Z').rev().map(|letter| return format!("{letter}x")).collect();
+    let names: Vec<String> = ('A'..='Z')
+        .rev()
+        .map(|letter| return format!("{letter}x"))
+        .collect();
     let section = single_section(&names);
     assert_eq!(section.script, RailScript::Latin);
     assert_eq!(section.label, "A");
-    let letters: Vec<String> = ('A'..='Z').map(|letter| return letter.to_string()).collect();
+    let letters: Vec<String> = ('A'..='Z')
+        .map(|letter| return letter.to_string())
+        .collect();
     assert_eq!(labels_of(&section.cells), letters);
     assert_eq!(section.cells[0].names, vec!["Ax"]);
 }
@@ -70,9 +78,15 @@ fn japanese_only_opens_on_kana_cell() {
 #[test]
 fn mixed_latin_and_japanese_shows_latin_section_first() {
     let sections = rail_for(&["あいさつ", "Camellia"]);
-    let scripts: Vec<RailScript> = sections.iter().map(|section| return section.script).collect();
+    let scripts: Vec<RailScript> = sections
+        .iter()
+        .map(|section| return section.script)
+        .collect();
     assert_eq!(scripts, vec![RailScript::Latin, RailScript::Japanese]);
-    let labels: Vec<&str> = sections.iter().map(|section| return section.label.as_str()).collect();
+    let labels: Vec<&str> = sections
+        .iter()
+        .map(|section| return section.label.as_str())
+        .collect();
     assert_eq!(labels, vec!["A", "あ"]);
 }
 
@@ -105,11 +119,25 @@ fn kana_rows_include_small_and_voiced_forms() {
 // Why:      One name per kana row and one kanji name produce cells in gojuon order with kanji last.
 #[test]
 fn kana_cells_sort_in_gojuon_order_before_kanji() {
-    let names = ["わたし", "らくだ", "やさい", "まど", "なつ", "はる", "さくら", "たぬき", "かさ", "あさ", "漢字"];
+    let names = [
+        "わたし",
+        "らくだ",
+        "やさい",
+        "まど",
+        "なつ",
+        "はる",
+        "さくら",
+        "たぬき",
+        "かさ",
+        "あさ",
+        "漢字",
+    ];
     let section = single_section(&names);
     assert_eq!(
         labels_of(&section.cells),
-        vec!["あ", "か", "さ", "た", "な", "は", "ま", "や", "ら", "わ", "漢"],
+        vec![
+            "あ", "か", "さ", "た", "な", "は", "ま", "や", "ら", "わ", "漢"
+        ],
     );
 }
 
@@ -227,7 +255,10 @@ fn eszett_uppercases_to_ss_like_the_js_model() {
 #[test]
 fn sections_follow_latin_japanese_cyrillic_greek_hangul_other() {
     let sections = rail_for(&["123", "한국", "Αλφα", "Бор", "中国", "あ", "Zed"]);
-    let scripts: Vec<RailScript> = sections.iter().map(|section| return section.script).collect();
+    let scripts: Vec<RailScript> = sections
+        .iter()
+        .map(|section| return section.script)
+        .collect();
     assert_eq!(
         scripts,
         vec![
@@ -239,6 +270,9 @@ fn sections_follow_latin_japanese_cyrillic_greek_hangul_other() {
             RailScript::Other,
         ],
     );
-    let labels: Vec<&str> = sections.iter().map(|section| return section.label.as_str()).collect();
+    let labels: Vec<&str> = sections
+        .iter()
+        .map(|section| return section.label.as_str())
+        .collect();
     assert_eq!(labels, vec!["A", "あ", "А", "Α", "가", "#"]);
 }

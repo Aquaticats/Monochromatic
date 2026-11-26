@@ -36,7 +36,10 @@
 //! ```
 
 /// Imports `std::cell::{Cell, RefCell}` for this file.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 
 /// Imports `std::io` for this file.
 use std::io;
@@ -47,12 +50,17 @@ use std::marker::PhantomData;
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
-
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 /// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
-use std::process::{Child, Command, ExitStatus, Output, Stdio};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Output,
+    Stdio,
+};
 
 /// Imports `std::rc::Rc` for this file.
 use std::rc::Rc;
@@ -61,42 +69,66 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{AtomicBool};
+use std::sync::atomic::AtomicBool;
 
 /// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
-
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+};
 
 /// Imports `std::time::{Duration, Instant}` for this file.
-use std::time::{Duration, Instant};
-
-
-
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
-use rustix::process::{Pid};
+use rustix::process::Pid;
 
 /// Imports `crate::bounded_io::{collect, feed}` for this file.
-use crate::bounded_io::{collect, feed};
+use crate::bounded_io::{
+    collect,
+    feed,
+};
 
-
-/// The containment of a run:
-/// its choice,
-/// start and stop (split out of the bounded run module).
-pub(crate) use crate::bounded_run_containment::{wait_for_exit, Containment, contain, stop_everything, settle, fail_started, finished, CancelOnDrop, lose, reason_of, open_pidfd, start_contained};
 /// The items that only the tests of the bounded run use.
 #[cfg(test)]
 pub(crate) use crate::bounded_run_containment::weaker_notice;
+/// The containment of a run:
+/// its choice,
+/// start and stop (split out of the bounded run module).
+pub(crate) use crate::bounded_run_containment::{
+    CancelOnDrop,
+    Containment,
+    contain,
+    fail_started,
+    finished,
+    lose,
+    open_pidfd,
+    reason_of,
+    settle,
+    start_contained,
+    stop_everything,
+    wait_for_exit,
+};
 
 /// The write of one containment record (split out of the bounded run module).
-pub(crate) use crate::bounded_run_record_writes::{append_record, append_record_with};
+pub(crate) use crate::bounded_run_record_writes::{
+    append_record,
+    append_record_with,
+};
 
 /// The cache of the control group route (split out of the bounded run module).
 #[cfg(not(test))]
-pub(crate) use crate::bounded_run_route_cache::{find_route};
+pub(crate) use crate::bounded_run_route_cache::find_route;
 /// The test-only items of the same module.
 #[cfg(test)]
-pub(crate) use crate::bounded_run_route_cache::{RouteCache, find_route, use_route_settings_for_test};
+pub(crate) use crate::bounded_run_route_cache::{
+    RouteCache,
+    find_route,
+    use_route_settings_for_test,
+};
 
 /// The route types of the test-only route override.
 #[cfg(test)]
@@ -152,7 +184,8 @@ pub(crate) const READER_GRACE: Duration = Duration::from_secs(2);
 /// V6:
 /// no wait the runner controls may
 /// depend on another run's slow write).
-pub(crate) static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// A test holds this lock to keep the winner of the notice inside its emission,
 /// so that another run can show it does not wait for it.
@@ -161,7 +194,8 @@ pub(crate) static NOTICE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Set when the winner of the notice reached its emission (a test build only).
 #[cfg(test)]
-pub(crate) static NOTICE_ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) static NOTICE_ENTERED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 thread_local! {
     /// The command the user ran,
@@ -248,7 +282,9 @@ pub(crate) fn trace(event: std::fmt::Arguments<'_>) {
 /// ```
 #[cfg(test)]
 pub(crate) fn trace_text(text: String) {
-    TRACE.with(|slot| { slot.borrow_mut().push(text); });
+    TRACE.with(|slot| {
+        slot.borrow_mut().push(text);
+    });
 }
 
 /// The production build keeps no trace.
@@ -266,7 +302,9 @@ pub(crate) fn trace(_event: std::fmt::Arguments<'_>) {}
 /// ```
 #[cfg(test)]
 pub(crate) fn take_trace_for_test() -> Vec<String> {
-    return TRACE.with(|slot| { return std::mem::take(&mut *slot.borrow_mut()); });
+    return TRACE.with(|slot| {
+        return std::mem::take(&mut *slot.borrow_mut());
+    });
 }
 
 /// What:
@@ -281,7 +319,9 @@ pub(crate) fn take_trace_for_test() -> Vec<String> {
 /// ```
 #[cfg(test)]
 pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>) {
-    STARTUP_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
+    STARTUP_HOOK.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What a scope remembers.
@@ -327,12 +367,20 @@ impl RunScope {
     pub fn open(group_log: PathBuf) -> RunScope {
         let id: u64 = NEXT_SCOPE.get();
         NEXT_SCOPE.set(id + 1);
-        let state: Rc<ScopeState> = Rc::new(ScopeState { log: group_log, lost: Cell::new(false), process_group_only: Cell::new(false) });
+        let state: Rc<ScopeState> = Rc::new(ScopeState {
+            log: group_log,
+            lost: Cell::new(false),
+            process_group_only: Cell::new(false),
+        });
         // The stack is taken out of its cell and put back, so no closure holds the borrow; nothing else runs in between.
         let mut stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
         stack.push((id, Rc::clone(&state)));
         SCOPES.set(stack);
-        return RunScope { id, state, _on_one_thread: PhantomData };
+        return RunScope {
+            id,
+            state,
+            _on_one_thread: PhantomData,
+        };
     }
 
     /// What:
@@ -452,19 +500,38 @@ impl std::fmt::Display for RunError {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             RunError::Io(error) => write!(formatter, "{error}"),
-            RunError::TimedOut { what, limit, rerun } => write!(
+            RunError::TimedOut {
+                what,
+                limit,
+                rerun,
+            } => write!(
                 formatter,
                 "{what} did not finish within {limit:?}; it and every process it started were stopped. It may have changed files before it was stopped; this tool did not restore or remove anything because of that. Run {rerun} again when it can finish"
             ),
-            RunError::NotQuiescent { what } => write!(
+            RunError::NotQuiescent {
+                what,
+            } => write!(
                 formatter,
                 "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; this tool changed no file because of that and the journal of the run was kept"
             ),
-            RunError::IncompleteOutput { what } => write!(formatter, "the output of {what} could not be read to its end; the partial output was discarded"),
-            RunError::IncompleteInput { what } => write!(formatter, "{what} did not take all of its input, so its answer is not trusted"),
+            RunError::IncompleteOutput {
+                what,
+            } => write!(
+                formatter,
+                "the output of {what} could not be read to its end; the partial output was discarded"
+            ),
+            RunError::IncompleteInput {
+                what,
+            } => write!(
+                formatter,
+                "{what} did not take all of its input, so its answer is not trusted"
+            ),
         };
     }
 }
@@ -499,7 +566,9 @@ fn current_scope() -> Option<Rc<ScopeState>> {
 /// ```
 #[cfg(test)]
 pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
-    START_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
+    START_HOOK.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What:
@@ -517,7 +586,9 @@ pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
 /// ```
 #[cfg(test)]
 pub(crate) fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>) {
-    AFTER_LAUNCH_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
+    AFTER_LAUNCH_HOOK.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What:
@@ -532,7 +603,9 @@ pub(crate) fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>) {
 /// ```
 pub(crate) fn run_after_launch_hook(pid: u32) {
     #[cfg(test)]
-    if let Some(hook) = AFTER_LAUNCH_HOOK.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(hook) = AFTER_LAUNCH_HOOK.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         hook(pid);
     }
     #[cfg(not(test))]
@@ -553,7 +626,11 @@ pub(crate) fn run_after_launch_hook(pid: u32) {
 /// ```ts
 /// export function outputWithin(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 /// ```
-pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound) -> Result<Output, RunError> {
+pub fn output_within(
+    command: &mut Command,
+    input: Option<&[u8]>,
+    bound: &Bound,
+) -> Result<Output, RunError> {
     return run_bounded(command, input, bound, false);
 }
 
@@ -569,7 +646,11 @@ pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound)
 /// ```ts
 /// export function outputWithinCleanEnvironment(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 /// ```
-pub fn output_within_clean_environment(command: &mut Command, input: Option<&[u8]>, bound: &Bound) -> Result<Output, RunError> {
+pub fn output_within_clean_environment(
+    command: &mut Command,
+    input: Option<&[u8]>,
+    bound: &Bound,
+) -> Result<Output, RunError> {
     return run_bounded(command, input, bound, true);
 }
 
@@ -582,8 +663,18 @@ pub fn output_within_clean_environment(command: &mut Command, input: Option<&[u8
 /// ```ts
 /// function configureStdio(command: Command, hasInput: boolean): void
 /// ```
-pub(crate) fn configure_stdio(command: &mut Command, has_input: bool) {
-    command.stdin(if has_input { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+pub(crate) fn configure_stdio(
+    command: &mut Command,
+    has_input: bool,
+) {
+    command
+        .stdin(if has_input {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 }
 
 /// What:
@@ -595,12 +686,23 @@ pub(crate) fn configure_stdio(command: &mut Command, has_input: bool) {
 /// ```ts
 /// function runBounded(command: Command, input: Buffer | undefined, bound: Bound, cleanEnvironment: boolean): Output  // throws RunError
 /// ```
-fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean_environment: bool) -> Result<Output, RunError> {
+fn run_bounded(
+    command: &mut Command,
+    input: Option<&[u8]>,
+    bound: &Bound,
+    clean_environment: bool,
+) -> Result<Output, RunError> {
     let scope: Option<Rc<ScopeState>> = current_scope();
     let deadline: Instant = Instant::now() + bound.limit;
     configure_stdio(command, input.is_some());
     let containment: Containment = contain();
-    let mut child: Child = match start_contained(command, &containment, scope.as_ref(), input.is_some(), clean_environment) {
+    let mut child: Child = match start_contained(
+        command,
+        &containment,
+        scope.as_ref(),
+        input.is_some(),
+        clean_environment,
+    ) {
         Ok(started) => started,
         Err(error) => {
             // Nothing was started (the launcher could not be spawned or the record could not be written): the scope will never be made.
@@ -610,40 +712,82 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
     };
     // A test decides here, after the program has started, whether the completion of the startup fails (certification group 2).
     #[cfg(test)]
-    if let Some(hook) = STARTUP_HOOK.with(|slot| { return slot.borrow().clone(); })
-        && hook()
+    if let Some(hook) = STARTUP_HOOK.with(|slot| {
+        return slot.borrow().clone();
+    }) && hook()
     {
-        return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(io::Error::other("injected failure to complete the startup"))));
+        return Err(fail_started(
+            &containment,
+            &mut child,
+            &scope,
+            bound,
+            RunError::Io(io::Error::other("injected failure to complete the startup")),
+        ));
     }
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let _cancel_on_exit: CancelOnDrop = CancelOnDrop(Arc::clone(&cancel));
     let writer: Option<Receiver<io::Result<()>>> = match (input, child.stdin.take()) {
-        (Some(bytes), Some(stdin)) => Some(feed(OwnedFd::from(stdin), bytes.to_vec(), Arc::clone(&cancel))),
+        (Some(bytes), Some(stdin)) => Some(feed(
+            OwnedFd::from(stdin),
+            bytes.to_vec(),
+            Arc::clone(&cancel),
+        )),
         _ => None,
     };
-    let (Some(stdout_handle), Some(stderr_handle)) = (child.stdout.take(), child.stderr.take()) else {
-        return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(io::Error::other("no standard output or error pipe"))));
+    let (Some(stdout_handle), Some(stderr_handle)) = (child.stdout.take(), child.stderr.take())
+    else {
+        return Err(fail_started(
+            &containment,
+            &mut child,
+            &scope,
+            bound,
+            RunError::Io(io::Error::other("no standard output or error pipe")),
+        ));
     };
     let stdout = collect(OwnedFd::from(stdout_handle), Arc::clone(&cancel));
     let stderr = collect(OwnedFd::from(stderr_handle), Arc::clone(&cancel));
     // A descriptor that becomes readable when the child ends, so the wait wakes at the exit instead of at the next poll.
-    let exit_watch: Option<OwnedFd> = Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).and_then(open_pidfd);
+    let exit_watch: Option<OwnedFd> =
+        Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).and_then(open_pidfd);
     let status: ExitStatus = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
             Ok(None) => {}
-            Err(error) => return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(error))),
+            Err(error) => {
+                return Err(fail_started(
+                    &containment,
+                    &mut child,
+                    &scope,
+                    bound,
+                    RunError::Io(error),
+                ));
+            }
         }
         if Instant::now() >= deadline {
-            let timed_out: RunError = RunError::TimedOut { what: bound.what.clone(), limit: bound.limit, rerun: bound.rerun.clone() };
-            return Err(fail_started(&containment, &mut child, &scope, bound, timed_out));
+            let timed_out: RunError = RunError::TimedOut {
+                what: bound.what.clone(),
+                limit: bound.limit,
+                rerun: bound.rerun.clone(),
+            };
+            return Err(fail_started(
+                &containment,
+                &mut child,
+                &scope,
+                bound,
+                timed_out,
+            ));
         }
-        wait_for_exit(exit_watch.as_ref(), deadline.saturating_duration_since(Instant::now()));
+        wait_for_exit(
+            exit_watch.as_ref(),
+            deadline.saturating_duration_since(Instant::now()),
+        );
     };
     // A normal exit still stops what the child left behind, and the call returns only with the proof that nothing is left.
     if !stop_everything(&containment, &mut child) {
         lose(&scope);
-        return Err(RunError::NotQuiescent { what: bound.what.clone() });
+        return Err(RunError::NotQuiescent {
+            what: bound.what.clone(),
+        });
     }
     settle(&containment, &scope);
     let out: Vec<u8> = finished(&stdout, &bound.what)?;
@@ -653,10 +797,18 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
             Ok(Ok(())) => {}
             Ok(Err(error)) if error.kind() == io::ErrorKind::BrokenPipe => {}
             Ok(Err(error)) => return Err(RunError::Io(error)),
-            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => return Err(RunError::IncompleteInput { what: bound.what.clone() }),
+            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => {
+                return Err(RunError::IncompleteInput {
+                    what: bound.what.clone(),
+                });
+            }
         }
     }
-    return Ok(Output { status, stdout: out, stderr: err });
+    return Ok(Output {
+        status,
+        stdout: out,
+        stderr: err,
+    });
 }
 
 /// What:

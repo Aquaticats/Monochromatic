@@ -242,7 +242,11 @@ pub fn access_label(action: TrackMenuAction) -> (String, String, String) {
     return match found {
         Some((offset, character)) => {
             let end: usize = offset + character.len_utf8();
-            (text[..offset].to_string(), text[offset..end].to_string(), text[end..].to_string())
+            (
+                text[..offset].to_string(),
+                text[offset..end].to_string(),
+                text[end..].to_string(),
+            )
         }
         None => (text.to_string(), String::new(), String::new()),
     };

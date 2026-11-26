@@ -13,33 +13,57 @@
 //! `user@<uid>.service`,
 //! so other processes are reported and left where they are.
 
+/// The lock an origin stop and a move share.
+use crate::adoption_gate;
+/// A call's reply and the arguments of a call.
+use crate::dbus_wire::{
+    Message,
+    MethodCall,
+};
 /// The limits the scope carries.
 use crate::inherited_limits::InheritedLimits;
+/// The seam that runs one call against the user's manager.
+use crate::manager_socket::{
+    ManagerCaller,
+    ManagerError,
+    PrivateSocketManager,
+};
 /// Whether the process is on its way out.
 use crate::process_info::parse_stat_fields;
 /// Names a user chose,
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
 /// The calls of the manager.
-use crate::scope_calls::{attach_call, create_call, ensure_slice_call, scope_description, set_properties_call, stop_call};
+use crate::scope_calls::{
+    attach_call,
+    create_call,
+    ensure_slice_call,
+    scope_description,
+    set_properties_call,
+    stop_call,
+};
 /// The names of the scope of an origin,
 /// and the path of that scope as procfs spells it.
-use crate::scope_naming::{origin_scope_names, scope_cgroup_directory, scope_cgroup_path};
+use crate::scope_naming::{
+    origin_scope_names,
+    scope_cgroup_directory,
+    scope_cgroup_path,
+};
 /// Why a process is kept outside the tunnel,
 /// which the scope's description names.
 use crate::update_entry_points::MatchReason;
-/// The seam that runs one call against the user's manager.
-use crate::manager_socket::{ManagerCaller, ManagerError, PrivateSocketManager};
-/// The lock an origin stop and a move share.
-use crate::adoption_gate;
-/// A call's reply and the arguments of a call.
-use crate::dbus_wire::{Message, MethodCall};
 /// Syscall and process failures.
 use std::io;
 /// Fake procfs and cgroup roots in tests.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the adopted pid may take to appear in the slice after the job is queued.
 const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
@@ -152,11 +176,22 @@ pub enum AdoptError {
 /// Wording for reports.
 impl std::fmt::Display for AdoptError {
     /// Writes the plain text of the failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            AdoptError::Vanished => write!(formatter, "the process exited before it could be moved"),
-            AdoptError::MemberVanished => write!(formatter, "a process of the group exited before the group could be moved"),
-            AdoptError::ScopeGone => write!(formatter, "the scope ended before its limits could be applied"),
+            AdoptError::Vanished => {
+                write!(formatter, "the process exited before it could be moved")
+            }
+            AdoptError::MemberVanished => write!(
+                formatter,
+                "a process of the group exited before the group could be moved"
+            ),
+            AdoptError::ScopeGone => write!(
+                formatter,
+                "the scope ended before its limits could be applied"
+            ),
             AdoptError::Deferred => write!(formatter, "{ADOPTION_DEFERRED}"),
             AdoptError::Failed(text) | AdoptError::TimedOut(text) => write!(formatter, "{text}"),
         };
@@ -166,16 +201,32 @@ impl std::fmt::Display for AdoptError {
 /// Seam between the policy and the user's service manager.
 pub trait Adopter {
     /// Creates the slice when it does not exist.
-    fn ensure_slice(&self, uid: u32, slice: &str, slice_directory: &Path) -> io::Result<()>;
+    fn ensure_slice(
+        &self,
+        uid: u32,
+        slice: &str,
+        slice_directory: &Path,
+    ) -> io::Result<()>;
     /// The name of the scope of `origin` that is running right now,
     /// current spelling or an earlier one,
     /// so its later processes join it instead of one more scope with the same cap.
-    fn existing_scope_name(&self, uid: u32, slice: &str, origin: &str) -> Option<String>;
+    fn existing_scope_name(
+        &self,
+        uid: u32,
+        slice: &str,
+        origin: &str,
+    ) -> Option<String>;
     /// Moves the requested processes into the scope of their origin,
     /// creating the scope with the request's limits when it does not exist.
-    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError>;
+    fn adopt(
+        &self,
+        request: &AdoptRequest<'_>,
+    ) -> Result<Joined, AdoptError>;
     /// Gives a running scope the limits of its origin as they are now.
-    fn apply_limits(&self, request: &LimitRequest<'_>) -> Result<(), AdoptError>;
+    fn apply_limits(
+        &self,
+        request: &LimitRequest<'_>,
+    ) -> Result<(), AdoptError>;
 }
 
 /// Adopts over the user manager's own private socket.
@@ -212,7 +263,10 @@ fn unified_cgroup_path(text: &str) -> Option<&str> {
 }
 
 /// Reports whether one `/proc/<pid>/cgroup` text names `destination` or a cgroup below it.
-fn names_destination(text: &str, destination: &str) -> bool {
+fn names_destination(
+    text: &str,
+    destination: &str,
+) -> bool {
     let Some(cgroup) = unified_cgroup_path(text) else {
         return false;
     };
@@ -226,7 +280,10 @@ fn names_destination(text: &str, destination: &str) -> bool {
 /// `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` holds every character of
 /// `app-monochromatic\x2dupdates.slice`,
 /// and a check on the text alone takes that lookalike for a move.
-fn is_within(cgroup: &str, destination: &str) -> bool {
+fn is_within(
+    cgroup: &str,
+    destination: &str,
+) -> bool {
     if cgroup == destination {
         return true;
     }
@@ -247,11 +304,17 @@ impl PrivateSocketAdopter {
     }
 
     /// Runs one call and turns its failure into the adoption's error.
-    fn run(&self, uid: u32, call: &MethodCall) -> Result<Message, AdoptError> {
+    fn run(
+        &self,
+        uid: u32,
+        call: &MethodCall,
+    ) -> Result<Message, AdoptError> {
         return match self.caller.call(uid, call) {
             Ok(reply) => Ok(reply),
             Err(ManagerError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
-            Err(ManagerError::Refused(text) | ManagerError::Failed(text)) => Err(AdoptError::Failed(text)),
+            Err(ManagerError::Refused(text) | ManagerError::Failed(text)) => {
+                Err(AdoptError::Failed(text))
+            }
         };
     }
 
@@ -265,10 +328,19 @@ impl PrivateSocketAdopter {
     /// or cannot be parsed,
     /// leaves it unknown,
     /// and an unknown process is never counted as gone.
-    fn presence(&self, pid: i32, start_time: Option<u64>) -> Presence {
+    fn presence(
+        &self,
+        pid: i32,
+        start_time: Option<u64>,
+    ) -> Presence {
         let text = match std::fs::read(self.proc_root.join(pid.to_string()).join("stat")) {
             Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-            Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH) => return Presence::Gone,
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || error.raw_os_error() == Some(libc::ESRCH) =>
+            {
+                return Presence::Gone;
+            }
             Err(_unreadable) => return Presence::Unknown,
         };
         let Some(fields) = parse_stat_fields(&text) else {
@@ -292,7 +364,12 @@ impl PrivateSocketAdopter {
     /// and a zombie keeps its old cgroup path,
     /// so waiting out the timeout would report a failure for a process that is simply gone.
     /// A process whose state cannot be established is waited for like a living one.
-    fn confirm_moved(&self, pid: i32, destination: &str, start_time: Option<u64>) -> Result<(), AdoptError> {
+    fn confirm_moved(
+        &self,
+        pid: i32,
+        destination: &str,
+        start_time: Option<u64>,
+    ) -> Result<(), AdoptError> {
         let path = self.proc_root.join(pid.to_string()).join("cgroup");
         let started = Instant::now();
         loop {
@@ -303,10 +380,17 @@ impl PrivateSocketAdopter {
                         return Err(AdoptError::Vanished);
                     }
                 }
-                Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH) => {
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        || error.raw_os_error() == Some(libc::ESRCH) =>
+                {
                     return Err(AdoptError::Vanished);
                 }
-                Err(error) => return Err(AdoptError::Failed(format!("reading the cgroup of pid {pid} failed: {error}"))),
+                Err(error) => {
+                    return Err(AdoptError::Failed(format!(
+                        "reading the cgroup of pid {pid} failed: {error}"
+                    )));
+                }
             }
             if started.elapsed() > self.confirmation_timeout {
                 return Err(AdoptError::Failed(format!(
@@ -319,12 +403,23 @@ impl PrivateSocketAdopter {
     }
 
     /// The directory of the scope of `request` in the cgroup filesystem.
-    fn directory_of(&self, request: &AdoptRequest<'_>) -> PathBuf {
-        return scope_cgroup_directory(&self.cgroup_root, request.uid, request.slice, request.scope_name);
+    fn directory_of(
+        &self,
+        request: &AdoptRequest<'_>,
+    ) -> PathBuf {
+        return scope_cgroup_directory(
+            &self.cgroup_root,
+            request.uid,
+            request.slice,
+            request.scope_name,
+        );
     }
 
     /// Reports whether any of the processes is established as gone or on its way out.
-    fn any_gone(&self, pids: &[i32]) -> bool {
+    fn any_gone(
+        &self,
+        pids: &[i32],
+    ) -> bool {
         for pid in pids {
             if self.presence(*pid, None) == Presence::Gone {
                 return true;
@@ -344,7 +439,12 @@ impl PrivateSocketAdopter {
     /// Anything else stays a failure,
     /// including a process whose state could not be read,
     /// because a failed move of a living process must not be hidden.
-    fn call(&self, request: &AdoptRequest<'_>, first: i32, call: &MethodCall) -> Result<(), AdoptError> {
+    fn call(
+        &self,
+        request: &AdoptRequest<'_>,
+        first: i32,
+        call: &MethodCall,
+    ) -> Result<(), AdoptError> {
         return match self.run(request.uid, call) {
             Ok(_reply) => Ok(()),
             Err(AdoptError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
@@ -370,7 +470,10 @@ impl PrivateSocketAdopter {
     /// a scope whose directory is gone has ended and holds nothing either.
     /// Stopping is best effort:
     /// the manager may have stopped an emptied scope itself.
-    fn stop_if_empty(&self, request: &AdoptRequest<'_>) -> bool {
+    fn stop_if_empty(
+        &self,
+        request: &AdoptRequest<'_>,
+    ) -> bool {
         let events = self.directory_of(request).join("cgroup.events");
         let Ok(text) = std::fs::read_to_string(events) else {
             return true;
@@ -386,7 +489,12 @@ impl PrivateSocketAdopter {
     /// and stops a scope the move left empty.
     /// The emptiness check runs after a failed confirmation too,
     /// because a process that was exiting never moves and leaves a new scope empty.
-    fn settle(&self, request: &AdoptRequest<'_>, first: i32, joined: Joined) -> Result<Joined, AdoptError> {
+    fn settle(
+        &self,
+        request: &AdoptRequest<'_>,
+        first: i32,
+        joined: Joined,
+    ) -> Result<Joined, AdoptError> {
         let destination = scope_cgroup_path(request.uid, request.slice, request.scope_name);
         let confirmed = self.confirm_moved(first, &destination, request.first_start_time);
         let emptied = self.stop_if_empty(request);
@@ -401,7 +509,12 @@ impl PrivateSocketAdopter {
 /// The production seam to the user's manager.
 impl Adopter for PrivateSocketAdopter {
     /// Requests the slice through the manager and waits for its cgroup directory.
-    fn ensure_slice(&self, uid: u32, slice: &str, slice_directory: &Path) -> io::Result<()> {
+    fn ensure_slice(
+        &self,
+        uid: u32,
+        slice: &str,
+        slice_directory: &Path,
+    ) -> io::Result<()> {
         if slice_directory.is_dir() {
             return Ok(());
         }
@@ -411,7 +524,10 @@ impl Adopter for PrivateSocketAdopter {
         let started = Instant::now();
         while !slice_directory.is_dir() {
             if started.elapsed() > self.confirmation_timeout {
-                return Err(io::Error::other(format!("{slice} was requested but {} never appeared", quote_name(&slice_directory.display().to_string()))));
+                return Err(io::Error::other(format!(
+                    "{slice} was requested but {} never appeared",
+                    quote_name(&slice_directory.display().to_string())
+                )));
             }
             std::thread::sleep(POLL_INTERVAL);
         }
@@ -420,7 +536,12 @@ impl Adopter for PrivateSocketAdopter {
 
     /// The first of the origin's scope names whose cgroup directory exists,
     /// so a scope that earlier builds named differently still receives the origin's processes.
-    fn existing_scope_name(&self, uid: u32, slice: &str, origin: &str) -> Option<String> {
+    fn existing_scope_name(
+        &self,
+        uid: u32,
+        slice: &str,
+        origin: &str,
+    ) -> Option<String> {
         for name in origin_scope_names(origin, uid) {
             if scope_cgroup_directory(&self.cgroup_root, uid, slice, &name).is_dir() {
                 return Some(name);
@@ -437,7 +558,10 @@ impl Adopter for PrivateSocketAdopter {
     /// so no state is kept here and a restarted watcher finds the scopes of the one before.
     /// A failure is never retried without the limits,
     /// because a process that kept its place keeps its caps and one moved without them would lose them.
-    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
+    fn adopt(
+        &self,
+        request: &AdoptRequest<'_>,
+    ) -> Result<Joined, AdoptError> {
         let Some(first) = request.pids.first() else {
             return Err(AdoptError::Failed("no pid to adopt".to_string()));
         };
@@ -449,11 +573,19 @@ impl Adopter for PrivateSocketAdopter {
         let _held = match adoption_gate::try_acquire(&self.gate_root, request.uid) {
             Ok(Some(held)) => held,
             Ok(None) => return Err(AdoptError::Deferred),
-            Err(error) => return Err(AdoptError::Failed(format!("the adoption gate could not be taken: {error}"))),
+            Err(error) => {
+                return Err(AdoptError::Failed(format!(
+                    "the adoption gate could not be taken: {error}"
+                )));
+            }
         };
         let directory = self.directory_of(request);
         if directory.is_dir() {
-            match self.call(request, *first, &attach_call(request.scope_name, request.pids)) {
+            match self.call(
+                request,
+                *first,
+                &attach_call(request.scope_name, request.pids),
+            ) {
                 Ok(()) => return self.settle(request, *first, Joined::Attached),
                 Err(error) if directory.is_dir() => return Err(error),
                 // The scope ended while it was being attached to: create it afresh.
@@ -461,17 +593,38 @@ impl Adopter for PrivateSocketAdopter {
             }
         }
         let description = scope_description(request.origin, request.reason);
-        self.call(request, *first, &create_call(request.scope_name, request.slice, request.pids, request.limits, &description))?;
+        self.call(
+            request,
+            *first,
+            &create_call(
+                request.scope_name,
+                request.slice,
+                request.pids,
+                request.limits,
+                &description,
+            ),
+        )?;
         return self.settle(request, *first, Joined::Created);
     }
 
     /// Gives the running scope the limits through `SetUnitProperties`.
-    fn apply_limits(&self, request: &LimitRequest<'_>) -> Result<(), AdoptError> {
-        let directory = scope_cgroup_directory(&self.cgroup_root, request.uid, request.slice, request.scope_name);
+    fn apply_limits(
+        &self,
+        request: &LimitRequest<'_>,
+    ) -> Result<(), AdoptError> {
+        let directory = scope_cgroup_directory(
+            &self.cgroup_root,
+            request.uid,
+            request.slice,
+            request.scope_name,
+        );
         if !directory.is_dir() {
             return Err(AdoptError::ScopeGone);
         }
-        return match self.run(request.uid, &set_properties_call(request.scope_name, request.limits)) {
+        return match self.run(
+            request.uid,
+            &set_properties_call(request.scope_name, request.limits),
+        ) {
             Ok(_reply) => Ok(()),
             Err(AdoptError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
             Err(error) if directory.is_dir() => Err(error),

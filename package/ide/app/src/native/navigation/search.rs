@@ -7,13 +7,19 @@ use anyhow::Result;
 /// Search presentation never needs a second project boundary or a mutable source snapshot.
 use ide_app::{
     search::SearchHit,
-    search_input::{DoubleShift, SearchInput},
+    search_input::{
+        DoubleShift,
+        SearchInput,
+    },
     search_worker::SearchWorker,
     workspace::Workspace,
 };
 /// Native paths are kept separately from lossy labels;
 ///  monotonic clocks drive debounce and gestures.
-use std::{path::PathBuf, time::Instant};
+use std::{
+    path::PathBuf,
+    time::Instant,
+};
 
 /// Input and overlay lifecycle callbacks retain the navigation owner.
 mod bindings;

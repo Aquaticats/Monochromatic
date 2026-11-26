@@ -223,7 +223,10 @@ impl Work {
     /// ```ts
     /// private merge(other: Work): Work { /* either everything -> everything; else union of both sets, then capped */ }
     /// ```
-    fn merge(self, other: Work) -> Work {
+    fn merge(
+        self,
+        other: Work,
+    ) -> Work {
         // What:     `return match (self, other) { ... };` matches the pair of both values at once, as a tuple. The first arm,
         //           `(Work::Everything, _) | (_, Work::Everything)`, matches when either side is `Everything` (`|` is "or"
         //           between patterns, `_` ignores that side). The second arm names the two file sets `left` (changeable,
@@ -432,7 +435,10 @@ impl RefreshCoalescer {
     /// ```ts
     /// private start(work: Work): Launch { this.nextId += 1; this.running = this.nextId; return { id: this.nextId, work }; }
     /// ```
-    fn start(&mut self, work: Work) -> Launch {
+    fn start(
+        &mut self,
+        work: Work,
+    ) -> Launch {
         // What:     `self.next_id += 1;` adds one to the counter. `+=` is the same compound assignment as in TypeScript.
         // Why:      The new sweep needs a number nobody used before.
         // Gotcha:   Integer overflow panics in a debug build and wraps in a release build, unlike TypeScript's `number`; a
@@ -461,7 +467,10 @@ impl RefreshCoalescer {
         // ```ts
         // return { id: this.nextId, work };
         // ```
-        return Launch { id: self.next_id, work };
+        return Launch {
+            id: self.next_id,
+            work,
+        };
     }
 
     /// What:
@@ -479,7 +488,10 @@ impl RefreshCoalescer {
     /// ```ts
     /// submit(requested: Work): Launch | null { /* start now if idle, else merge into pending and return null */ }
     /// ```
-    pub(crate) fn submit(&mut self, requested: Work) -> Option<Launch> {
+    pub(crate) fn submit(
+        &mut self,
+        requested: Work,
+    ) -> Option<Launch> {
         // What:     `let work: Work = requested.capped();` applies the cap to the request. `capped` takes its value by move, so
         //           `requested` is used up and `work` is the result.
         // Why:      A request that is itself past the cap is already "everything".
@@ -517,7 +529,10 @@ impl RefreshCoalescer {
             // ```ts
             // logger.debug({ id: this.nextId + 1 }, "refresh starts at once; none is running");
             // ```
-            tracing::debug!(id = self.next_id + 1, "refresh starts at once; none is running");
+            tracing::debug!(
+                id = self.next_id + 1,
+                "refresh starts at once; none is running"
+            );
             // What:     `return Some(self.start(work));` starts the sweep and wraps its launch in `Some`, the present case of
             //           `Option`, so the caller sees "start this one now".
             // Why:      The caller is told which sweep to run.
@@ -574,7 +589,10 @@ impl RefreshCoalescer {
     /// ```ts
     /// finished(id: number): Launch | null { /* ignore a stale id; else start the pending follow-up if any */ }
     /// ```
-    pub(crate) fn finished(&mut self, id: u64) -> Option<Launch> {
+    pub(crate) fn finished(
+        &mut self,
+        id: u64,
+    ) -> Option<Launch> {
         // What:     `if self.running != Some(id) { ... }` compares the running slot with `Some(id)`, an `Option` built from the
         //           ended sweep's number; two `Option`s compare equal only when both are `Some` of equal numbers or both
         //           `None`. `!=` is TypeScript's `!==`.

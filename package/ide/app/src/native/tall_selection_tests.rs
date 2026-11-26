@@ -14,20 +14,42 @@
 ///  the device the harness opens,
 ///  and how far two renders may differ.
 use super::{
-    gpu_snapshot::{install_gpu_platform, install_uncapped_gpu_platform},
-    tile_reads::{RENDER_NOISE, rendered_tile, same_pixels},
+    gpu_snapshot::{
+        install_gpu_platform,
+        install_uncapped_gpu_platform,
+    },
+    tile_reads::{
+        RENDER_NOISE,
+        rendered_tile,
+        same_pixels,
+    },
 };
 /// The document with a selection,
 ///  the rows of a tile,
 ///  and the shaper that lays them out.
 use ide_app::{
     code_colors::CodeColors,
-    document::{Document, ReadingAffinity, ReadingPosition},
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{TextShaper, Viewport, texture_dimension, texture_fits},
+    document::{
+        Document,
+        ReadingAffinity,
+        ReadingPosition,
+    },
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        TextShaper,
+        Viewport,
+        texture_dimension,
+        texture_fits,
+    },
 };
 /// The pixels the GPU drew.
-use slint::{Rgba8Pixel, SharedPixelBuffer};
+use slint::{
+    Rgba8Pixel,
+    SharedPixelBuffer,
+};
 
 /// Black text,
 /// red selected text,

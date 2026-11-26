@@ -56,7 +56,7 @@ use crate::merge_isolation_carry_place::{explained_entries, judged_of};
 /// The paths the merge changes,
 /// the state a path holds now,
 /// and the identity the write step checks before it replaces anything.
-use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, worktree_path, worktree_state, worktree_state_awaiting};
+use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, worktree_path, worktree_state_awaiting};
 /// The entries a killed step left under a private name,
 /// which go back before a path is judged.
 use crate::merge_isolation_take_asides::put_back_stranded_takes_awaiting;
@@ -524,26 +524,6 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     }
     let _written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Restore, out).await?;
     return Ok(());
-}
-
-/// Whether nothing but the branch's own content is at a captured path,
-/// which is what a merge that never landed leaves behind.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function onlyTheBranchesContent(context, root, changes, capture): Promise<boolean>;
-/// ```
-pub fn only_the_branches_content(context: &GitContext, root: &Path, changes: &[Change], capture: &Capture) -> Result<bool, String> {
-    for entry in &capture.paths {
-        let Some(change) = change_for(changes, entry) else { continue };
-        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice())?;
-        let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
-        let old_object: Option<&str> = old_oid_of(change);
-        if !explained(&state, &[captured_object, old_object]) {
-            return Ok(false);
-        }
-    }
-    return Ok(true);
 }
 
 /// The writing half of a carry,

@@ -35,32 +35,69 @@
 
 /// Sets,
 /// paths and time.
-use std::{collections::HashSet, path::{Path, PathBuf}, time::Duration};
+use std::{
+    collections::HashSet,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::Duration,
+};
 
 /// Imports the names this file uses from `crate::lean_build_trees`.
-use crate::lean_build_trees::{Tree, TreeKind, list_trees, profile_dirs_of};
+use crate::lean_build_trees::{
+    Tree,
+    TreeKind,
+    list_trees,
+    profile_dirs_of,
+};
 /// Imports the names this file uses from `crate::lean_checkouts`.
 use crate::lean_checkouts::list_checkouts;
 /// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
-/// Imports the names this file uses from `crate::lean_run_trees`.
-use crate::lean_run_trees::{tree_report, trees_in_order};
 /// Imports the names this file uses from `crate::lean_keyed_folder`.
 use crate::lean_keyed_folder::configured_base;
 /// Imports the names this file uses from `crate::lean_policy`.
-use crate::lean_policy::{GRACE_SECONDS, HOST_PROFILE_CAP_BYTES, IN_TREE_PROFILE_CAP_BYTES};
+use crate::lean_policy::{
+    GRACE_SECONDS,
+    HOST_PROFILE_CAP_BYTES,
+    IN_TREE_PROFILE_CAP_BYTES,
+};
 /// Imports the names this file uses from `crate::lean_progress`.
-use crate::lean_progress::{LongPass, Progress, resume_index, state_directory};
+use crate::lean_progress::{
+    LongPass,
+    Progress,
+    resume_index,
+    state_directory,
+};
+/// Imports the names this file uses from `crate::lean_run_discovery`.
+use crate::lean_run_discovery::{
+    target_directories,
+    verification_directories,
+};
+/// Imports the names this file uses from `crate::lean_run_report`.
+use crate::lean_run_report::{
+    Place,
+    measure_places,
+    space_lines,
+};
+/// Imports the names this file uses from `crate::lean_run_steps`.
+use crate::lean_run_steps::{
+    UnitsPass,
+    run_podman,
+    run_records,
+    run_toolchains,
+    sweep_and_cap,
+};
+/// Imports the names this file uses from `crate::lean_run_trees`.
+use crate::lean_run_trees::{
+    tree_report,
+    trees_in_order,
+};
 /// Imports the names this file uses from `crate::lean_rustup_toolchains`.
 use crate::lean_rustup_toolchains::dated_nightly_name;
-/// Imports the names this file uses from `crate::lean_run_discovery`.
-use crate::lean_run_discovery::{target_directories, verification_directories};
-/// Imports the names this file uses from `crate::lean_run_report`.
-use crate::lean_run_report::{Place, measure_places, space_lines};
-/// Imports the names this file uses from `crate::lean_run_steps`.
-use crate::lean_run_steps::{UnitsPass, run_podman, run_records, run_toolchains, sweep_and_cap};
 
 /// The mechanisms of the run,
 /// by the name `--only` takes.
@@ -110,7 +147,13 @@ pub struct RunOptions {
 /// which reached about 700 of several thousand profile directories in 40 minutes.
 /// A pass that a deadline cuts off waits for the next run;
 /// a pass put last therefore starves only itself.
-pub const RUN_ORDER: [Mechanism; 5] = [Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units];
+pub const RUN_ORDER: [Mechanism; 5] = [
+    Mechanism::Records,
+    Mechanism::Toolchains,
+    Mechanism::Podman,
+    Mechanism::Trees,
+    Mechanism::Units,
+];
 
 /// What:
 /// `pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism>` is the mechanisms of a run in the order it takes them.
@@ -142,7 +185,10 @@ pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism> {
 /// ```ts
 /// function retiredToolchainNames(trees: Tree[], pinned: Set<string>): Set<string>
 /// ```
-pub(crate) fn retired_toolchain_names(trees: &[Tree], pinned: &HashSet<String>) -> HashSet<String> {
+pub(crate) fn retired_toolchain_names(
+    trees: &[Tree],
+    pinned: &HashSet<String>,
+) -> HashSet<String> {
     let mut retired: HashSet<String> = HashSet::new();
     for tree in trees {
         if let TreeKind::Keyed(name) = &tree.kind
@@ -182,7 +228,10 @@ pub struct MechanismReport {
 /// ```ts
 /// function say(summary: string[], lines: string[]): void
 /// ```
-fn say(summary: &mut Vec<String>, lines: Vec<String>) {
+fn say(
+    summary: &mut Vec<String>,
+    lines: Vec<String>,
+) {
     for line in lines {
         crate::lean_run_report::summary_line(&line);
         summary.push(line);
@@ -201,7 +250,10 @@ fn say(summary: &mut Vec<String>, lines: Vec<String>) {
 /// ```ts
 /// function unitProfiles(base: string | undefined, checkouts: string[]): [string, number][]
 /// ```
-fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)> {
+fn unit_profiles(
+    base: Option<&Path>,
+    checkouts: &[PathBuf],
+) -> Vec<(PathBuf, u64)> {
     let mut profiles: Vec<(PathBuf, u64)> = Vec::new();
     for checkout in checkouts {
         for target in target_directories(checkout) {
@@ -233,7 +285,10 @@ fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u6
 /// ```ts
 /// const byProfile = (left: [string, number], right: [string, number]): number => left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0;
 /// ```
-fn by_profile(left: &(PathBuf, u64), right: &(PathBuf, u64)) -> std::cmp::Ordering {
+fn by_profile(
+    left: &(PathBuf, u64),
+    right: &(PathBuf, u64),
+) -> std::cmp::Ordering {
     return left.0.cmp(&right.0);
 }
 
@@ -248,7 +303,10 @@ fn by_profile(left: &(PathBuf, u64), right: &(PathBuf, u64)) -> std::cmp::Orderi
 /// ```ts
 /// const sameProfile = (left: [string, number], right: [string, number]): boolean => left[0] === right[0];
 /// ```
-fn same_profile(left: &mut (PathBuf, u64), right: &mut (PathBuf, u64)) -> bool {
+fn same_profile(
+    left: &mut (PathBuf, u64),
+    right: &mut (PathBuf, u64),
+) -> bool {
     return left.0 == right.0;
 }
 
@@ -304,7 +362,10 @@ pub fn long_pass(mechanism: Mechanism) -> Option<LongPass> {
 /// ```ts
 /// function runMechanism(mechanism: Mechanism, context: RunContext): MechanismReport
 /// ```
-pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> MechanismReport {
+pub(crate) fn run_mechanism(
+    mechanism: Mechanism,
+    context: &RunContext,
+) -> MechanismReport {
     return match mechanism {
         Mechanism::Trees => match context.base {
             Some(found) => {
@@ -314,10 +375,20 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
                     keys.push(tree.path.clone());
                 }
                 let start: usize = resume_index(&keys, context.progress.after(LongPass::Trees));
-                tree_report(&trees, start, context.options, &context.deadline, context.environment, found, context.pinned)
+                tree_report(
+                    &trees,
+                    start,
+                    context.options,
+                    &context.deadline,
+                    context.environment,
+                    found,
+                    context.pinned,
+                )
             }
             None => MechanismReport {
-                lines: vec![String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")],
+                lines: vec![String::from(
+                    "idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base",
+                )],
                 resume_after: None,
             },
         },
@@ -333,14 +404,33 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
             }
             let start: usize = resume_index(&keys, context.progress.after(LongPass::Units));
             let chosen: &[(PathBuf, u64)] = &profiles[start..];
-            let UnitsPass { mut lines, judged } = sweep_and_cap(chosen, context.options.dry_run, &context.deadline, context.environment);
-            let last_judged: Option<&(PathBuf, u64)> = if judged > 0 { Some(&chosen[judged - 1]) } else { None };
+            let UnitsPass {
+                mut lines,
+                judged,
+            } = sweep_and_cap(
+                chosen,
+                context.options.dry_run,
+                &context.deadline,
+                context.environment,
+            );
+            let last_judged: Option<&(PathBuf, u64)> = if judged > 0 {
+                Some(&chosen[judged - 1])
+            } else {
+                None
+            };
             let resume_after: Option<PathBuf> = match (judged < chosen.len(), last_judged) {
                 (true, Some(last)) => Some(last.0.clone()),
                 (true, None) if start > 0 => Some(profiles[start - 1].0.clone()),
                 _ => None,
             };
-            lines.insert(1, format!("  listed {} profile directories in {} s", profiles.len(), listing_seconds));
+            lines.insert(
+                1,
+                format!(
+                    "  listed {} profile directories in {} s",
+                    profiles.len(),
+                    listing_seconds
+                ),
+            );
             // The position notes come before the notes of what was skipped or left alone.
             if let (true, Some(last)) = (judged < chosen.len(), last_judged) {
                 lines.insert(1, format!("  the deadline passed after {judged} of {} profile directories, at {}; the next run continues after it", chosen.len(), last.0.display()));
@@ -348,17 +438,34 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
             if start > 0 {
                 lines.insert(1, format!("  this pass started after {}, the profile directory the last run stopped at", profiles[start - 1].0.display()));
             }
-            MechanismReport { lines, resume_after }
+            MechanismReport {
+                lines,
+                resume_after,
+            }
         }
         Mechanism::Records => {
             let mut targets: Vec<PathBuf> = Vec::new();
             for checkout in context.checkouts {
                 targets.extend(target_directories(checkout));
             }
-            MechanismReport { lines: run_records(&verification_directories(&targets), context.options.dry_run, &context.deadline, context.environment), resume_after: None }
+            MechanismReport {
+                lines: run_records(
+                    &verification_directories(&targets),
+                    context.options.dry_run,
+                    &context.deadline,
+                    context.environment,
+                ),
+                resume_after: None,
+            }
         }
         Mechanism::Toolchains => MechanismReport {
-            lines: run_toolchains(&context.rustup_home.join("toolchains"), context.pinned, context.options.dry_run, &context.deadline, context.environment),
+            lines: run_toolchains(
+                &context.rustup_home.join("toolchains"),
+                context.pinned,
+                context.options.dry_run,
+                &context.deadline,
+                context.environment,
+            ),
             resume_after: None,
         },
         Mechanism::Podman => {
@@ -367,11 +474,19 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
                 None => match context.checkouts.first() {
                     Some(first) => first.clone(),
                     None => {
-                        return MechanismReport { lines: vec![String::from("podman: no checkout was found, so nothing was judged")], resume_after: None };
+                        return MechanismReport {
+                            lines: vec![String::from(
+                                "podman: no checkout was found, so nothing was judged",
+                            )],
+                            resume_after: None,
+                        };
                     }
                 },
             };
-            MechanismReport { lines: run_podman(&main, context.options.dry_run, &context.deadline), resume_after: None }
+            MechanismReport {
+                lines: run_podman(&main, context.options.dry_run, &context.deadline),
+                resume_after: None,
+            }
         }
     };
 }
@@ -391,10 +506,15 @@ pub fn run_lean(options: &RunOptions) -> i32 {
     let environment: GuardEnvironment = GuardEnvironment::real();
     let checkouts: Vec<PathBuf> = list_checkouts(&options.start);
     if checkouts.is_empty() {
-        eprintln!("cargo-shadow: lean run: {} is not inside a Git checkout, so no checkout was found; start it from the repository", options.start.display());
+        eprintln!(
+            "cargo-shadow: lean run: {} is not inside a Git checkout, so no checkout was found; start it from the repository",
+            options.start.display()
+        );
         return 1;
     }
-    let home: PathBuf = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let home: PathBuf = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
     let cargo_home: PathBuf = match std::env::var_os("CARGO_HOME") {
         Some(chosen) => PathBuf::from(chosen),
         None => home.join(".cargo"),
@@ -404,13 +524,27 @@ pub fn run_lean(options: &RunOptions) -> i32 {
         None => home.join(".rustup"),
     };
     let base: Option<PathBuf> = configured_base(&cargo_home);
-    let mut places: Vec<(String, PathBuf)> = vec![(String::from("/"), PathBuf::from("/")), (String::from("home"), home.clone())];
+    let mut places: Vec<(String, PathBuf)> = vec![
+        (String::from("/"), PathBuf::from("/")),
+        (String::from("home"), home.clone()),
+    ];
     if let Some(found) = &base {
         places.push((String::from("host build base"), found.clone()));
     }
     let measured: Vec<Place> = measure_places(&places);
     let mut summary: Vec<String> = Vec::new();
-    say(&mut summary, vec![format!("lean run: {} checkouts, {}", checkouts.len(), if options.dry_run { "dry run (nothing is removed)" } else { "removing" })]);
+    say(
+        &mut summary,
+        vec![format!(
+            "lean run: {} checkouts, {}",
+            checkouts.len(),
+            if options.dry_run {
+                "dry run (nothing is removed)"
+            } else {
+                "removing"
+            }
+        )],
+    );
     let mut progress: Progress = Progress::default();
     let state: Option<PathBuf> = state_directory();
     match &state {
@@ -419,29 +553,61 @@ pub fn run_lean(options: &RunOptions) -> i32 {
             progress = recorded;
             say(&mut summary, notes);
         }
-        None => say(&mut summary, vec![String::from("lean progress: neither XDG_STATE_HOME nor HOME names a state directory, so every pass starts at the front")]),
+        None => say(
+            &mut summary,
+            vec![String::from(
+                "lean progress: neither XDG_STATE_HOME nor HOME names a state directory, so every pass starts at the front",
+            )],
+        ),
     }
-    let pinned: HashSet<String> = crate::lean_rustup_toolchains::pinned_by(&checkouts, &rustup_home.join("settings.toml"));
+    let pinned: HashSet<String> =
+        crate::lean_rustup_toolchains::pinned_by(&checkouts, &rustup_home.join("settings.toml"));
     for mechanism in run_order(&options.only) {
-        let context: RunContext = RunContext { options, deadline, environment: &environment, checkouts: &checkouts, pinned: &pinned, base: base.as_deref(), rustup_home: &rustup_home, progress: &progress };
+        let context: RunContext = RunContext {
+            options,
+            deadline,
+            environment: &environment,
+            checkouts: &checkouts,
+            pinned: &pinned,
+            base: base.as_deref(),
+            rustup_home: &rustup_home,
+            progress: &progress,
+        };
         let report: MechanismReport = run_mechanism(mechanism, &context);
         say(&mut summary, report.lines);
         // A dry run removes nothing and reaches nothing new, so it never moves the recorded position.
-        if let (Some(directory), Some(pass), false) = (state.as_deref(), long_pass(mechanism), options.dry_run) {
+        if let (Some(directory), Some(pass), false) =
+            (state.as_deref(), long_pass(mechanism), options.dry_run)
+        {
             progress.set(pass, report.resume_after);
             match progress.save(directory) {
                 Ok(()) => {}
-                Err(reason) => say(&mut summary, vec![format!("lean progress: could not record where this run stopped: {reason}")]),
+                Err(reason) => say(
+                    &mut summary,
+                    vec![format!(
+                        "lean progress: could not record where this run stopped: {reason}"
+                    )],
+                ),
             }
         }
     }
     say(&mut summary, space_lines(&measured));
     if deadline.passed() {
         let where_it_continues: String = match &state {
-            Some(directory) => format!(", and the idle-trees and units passes record where they stopped in {}", directory.join(crate::lean_progress::PROGRESS_FILE_NAME).display()),
+            Some(directory) => format!(
+                ", and the idle-trees and units passes record where they stopped in {}",
+                directory
+                    .join(crate::lean_progress::PROGRESS_FILE_NAME)
+                    .display()
+            ),
             None => String::new(),
         };
-        say(&mut summary, vec![format!("the run's deadline passed: what was not reached waits for the next run{where_it_continues}")]);
+        say(
+            &mut summary,
+            vec![format!(
+                "the run's deadline passed: what was not reached waits for the next run{where_it_continues}"
+            )],
+        );
     }
     return 0;
 }

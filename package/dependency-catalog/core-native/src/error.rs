@@ -101,23 +101,41 @@ impl fmt::Display for Error {
     /// ```ts
     /// error.message
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
-            Error::Toml { path, message } => {
+            Error::Toml {
+                path,
+                message,
+            } => {
                 return write!(formatter, "{path} is not valid TOML: {message}");
             }
-            Error::Catalog { source_path, issues } => {
+            Error::Catalog {
+                source_path,
+                issues,
+            } => {
                 write!(
                     formatter,
                     "{source_path} has {} problem(s) the Rust dependency catalog cannot accept:",
                     issues.len()
                 )?;
                 for issue in issues {
-                    write!(formatter, "\n- {}: {}.\n  Fix: {}.", issue.location, issue.problem, issue.remedy)?;
+                    write!(
+                        formatter,
+                        "\n- {}: {}.\n  Fix: {}.",
+                        issue.location, issue.problem, issue.remedy
+                    )?;
                 }
-                return write!(formatter, "\nSee doc/decision/rust-dependency-catalog.md for the catalog format.");
+                return write!(
+                    formatter,
+                    "\nSee doc/decision/rust-dependency-catalog.md for the catalog format."
+                );
             }
-            Error::Sync { issues } => {
+            Error::Sync {
+                issues,
+            } => {
                 write!(
                     formatter,
                     "The Rust dependency catalog sync found {} problem(s); nothing was written:",

@@ -26,21 +26,42 @@ use std::collections::HashMap;
 use toml_edit::DocumentMut;
 
 /// Imports `crate::adopt::{AdoptionPlan, plan_adoption}`.
-use crate::adopt::{AdoptionPlan, plan_adoption};
+use crate::adopt::{
+    AdoptionPlan,
+    plan_adoption,
+};
 /// Imports `crate::catalog::parse_catalog`.
 use crate::catalog::parse_catalog;
 /// Imports `crate::change::Change`.
 use crate::change::Change;
 /// Imports `crate::crate_info::{CrateInfo, ManifestFile, read_crate_info}`.
-use crate::crate_info::{CrateInfo, ManifestFile, read_crate_info};
+use crate::crate_info::{
+    CrateInfo,
+    ManifestFile,
+    read_crate_info,
+};
 /// Imports `crate::edit_catalog::edit_catalog`.
 use crate::edit_catalog::edit_catalog;
 /// Imports `crate::edit_manifest::{TableChange, inherit_site, item_mut, set_path_version, sync_generated_table}`.
-use crate::edit_manifest::{TableChange, inherit_site, item_mut, set_path_version, sync_generated_table};
+use crate::edit_manifest::{
+    TableChange,
+    inherit_site,
+    item_mut,
+    set_path_version,
+    sync_generated_table,
+};
 /// Imports `crate::error::{Error, SyncIssue}`.
-use crate::error::{Error, SyncIssue};
+use crate::error::{
+    Error,
+    SyncIssue,
+};
 /// Imports `crate::resolve::{PendingEdit, Resolved, Usage, resolve_crate}`.
-use crate::resolve::{PendingEdit, Resolved, Usage, resolve_crate};
+use crate::resolve::{
+    PendingEdit,
+    Resolved,
+    Usage,
+    resolve_crate,
+};
 /// Imports `crate::types::CatalogDocument`.
 use crate::types::CatalogDocument;
 
@@ -131,7 +152,10 @@ impl SyncOutput {
     }
 
     /// The expected text of one manifest by path.
-    pub fn expected_manifest(&self, path: &str) -> Option<&str> {
+    pub fn expected_manifest(
+        &self,
+        path: &str,
+    ) -> Option<&str> {
         for manifest in &self.manifests {
             if manifest.path == path {
                 return Some(&manifest.expected);
@@ -150,7 +174,11 @@ fn dotted(path: &[String]) -> String {
 /// Entry paths no crate uses:
 /// default-catalog names first,
 /// then each named catalog's names.
-fn unused_paths(document: &CatalogDocument, default_catalog: &crate::types::EntryMap, usage: &Usage) -> Vec<Vec<String>> {
+fn unused_paths(
+    document: &CatalogDocument,
+    default_catalog: &crate::types::EntryMap,
+    usage: &Usage,
+) -> Vec<Vec<String>> {
     let mut unused: Vec<Vec<String>> = Vec::new();
     for (name, _) in default_catalog.iter() {
         if !usage.default_names.contains(name) {
@@ -159,8 +187,15 @@ fn unused_paths(document: &CatalogDocument, default_catalog: &crate::types::Entr
     }
     for (catalog_name, entries) in &document.catalogs {
         for (name, _) in entries.iter() {
-            if !usage.named_names.contains(&(catalog_name.clone(), name.clone())) {
-                unused.push(vec!["catalogs".to_string(), catalog_name.clone(), name.clone()]);
+            if !usage
+                .named_names
+                .contains(&(catalog_name.clone(), name.clone()))
+            {
+                unused.push(vec![
+                    "catalogs".to_string(),
+                    catalog_name.clone(),
+                    name.clone(),
+                ]);
             }
         }
     }
@@ -169,11 +204,18 @@ fn unused_paths(document: &CatalogDocument, default_catalog: &crate::types::Entr
 
 /// Applies one crate's pending edits and generated table;
 /// returns the new text and the changes made.
-fn apply_crate(info: &mut CrateInfo, resolved: &Resolved) -> (String, Vec<Change>) {
+fn apply_crate(
+    info: &mut CrateInfo,
+    resolved: &Resolved,
+) -> (String, Vec<Change>) {
     let mut changes: Vec<Change> = Vec::new();
     for edit in &resolved.edits {
         match edit {
-            PendingEdit::Inherit { table, name, location } => {
+            PendingEdit::Inherit {
+                table,
+                name,
+                location,
+            } => {
                 if let Some(item) = item_mut(info.document.as_table_mut(), table, name) {
                     inherit_site(item);
                     changes.push(Change::SiteInherited {
@@ -181,7 +223,12 @@ fn apply_crate(info: &mut CrateInfo, resolved: &Resolved) -> (String, Vec<Change
                     });
                 }
             }
-            PendingEdit::PathVersion { table, name, version, location } => {
+            PendingEdit::PathVersion {
+                table,
+                name,
+                version,
+                location,
+            } => {
                 if let Some(item) = item_mut(info.document.as_table_mut(), table, name)
                     && set_path_version(item, version)
                 {
@@ -232,18 +279,29 @@ pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error> {
             internal.insert(info.crate_dir.clone(), info);
         }
         for info in &crates {
-            resolutions.push(resolve_crate(info, &plan.default_catalog, &document, &internal, &mut usage, &mut issues));
+            resolutions.push(resolve_crate(
+                info,
+                &plan.default_catalog,
+                &document,
+                &internal,
+                &mut usage,
+                &mut issues,
+            ));
         }
     }
     let unused: Vec<Vec<String>> = unused_paths(&document, &plan.default_catalog, &usage);
     if !issues.is_empty() {
-        return Err(Error::Sync { issues });
+        return Err(Error::Sync {
+            issues,
+        });
     }
     let mut manifests: Vec<FileResult> = Vec::new();
     let mut affected_crates: Vec<String> = Vec::new();
     for (info, resolved) in crates.iter_mut().zip(resolutions.iter()) {
         let (expected, changes) = apply_crate(info, resolved);
-        if changes.contains(&Change::GeneratedTableWritten) || changes.contains(&Change::GeneratedTableRemoved) {
+        if changes.contains(&Change::GeneratedTableWritten)
+            || changes.contains(&Change::GeneratedTableRemoved)
+        {
             affected_crates.push(info.crate_dir.clone());
         }
         manifests.push(FileResult {
@@ -255,7 +313,8 @@ pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error> {
     }
     let prune: bool = document.settings.catalog_prune;
     let prunes: Vec<Vec<String>> = if prune { unused.clone() } else { Vec::new() };
-    let parsed_catalog: Result<DocumentMut, toml_edit::TomlError> = input.catalog_source.parse::<DocumentMut>();
+    let parsed_catalog: Result<DocumentMut, toml_edit::TomlError> =
+        input.catalog_source.parse::<DocumentMut>();
     let mut catalog_document: DocumentMut = match parsed_catalog {
         Ok(value) => value,
         Err(error) => {
@@ -268,7 +327,9 @@ pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error> {
     edit_catalog(&mut catalog_document, input.catalog_source, &plan, &prunes);
     let mut catalog_changes: Vec<Change> = Vec::new();
     for (name, _) in &plan.additions {
-        catalog_changes.push(Change::CatalogEntryAdded { name: name.clone() });
+        catalog_changes.push(Change::CatalogEntryAdded {
+            name: name.clone(),
+        });
     }
     for (name, requirement) in &plan.floor_raises {
         catalog_changes.push(Change::CatalogFloorRaised {
@@ -277,7 +338,9 @@ pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error> {
         });
     }
     for path in &prunes {
-        catalog_changes.push(Change::CatalogEntryPruned { path: dotted(path) });
+        catalog_changes.push(Change::CatalogEntryPruned {
+            path: dotted(path),
+        });
     }
     let mut warnings: Vec<String> = Vec::new();
     if !prune {

@@ -11,7 +11,12 @@
 /// The visible subset of the snapshots,
 ///  hint labels,
 ///  and the severity order.
-use crate::annotation::{Label, Mark, Visible, rank};
+use crate::annotation::{
+    Label,
+    Mark,
+    Visible,
+    rank,
+};
 /// The side of a soft-wrap offset a position is read on.
 use crate::document::ReadingAffinity;
 /// Severities as the Language module names them.
@@ -21,9 +26,17 @@ use crate::shaped_row::ShapedRow;
 /// The frame's shaped rows,
 ///  the selected-terminator width,
 ///  and the shaper that sets virtual-row text.
-use crate::shaped_text::{ShapedView, TERMINATOR_MARK, TextShaper};
+use crate::shaped_text::{
+    ShapedView,
+    TERMINATOR_MARK,
+    TextShaper,
+};
 /// Placed hints and the spacing of virtual rows.
-use crate::virtual_row::{CONTINUATION_INDENT, HINT_GAP, HintPlace};
+use crate::virtual_row::{
+    CONTINUATION_INDENT,
+    HINT_GAP,
+    HintPlace,
+};
 /// What:
 ///  `Layout<u32>` is a shaped paragraph whose glyph brushes are numbers.
 /// Why:
@@ -67,7 +80,10 @@ pub struct AnnotationColors {
 /// Pick the ink of one severity.
 impl AnnotationColors {
     /// The underline ink of `severity`.
-    pub fn severity(&self, severity: Severity) -> [u8; 4] {
+    pub fn severity(
+        &self,
+        severity: Severity,
+    ) -> [u8; 4] {
         if severity == Severity::Error {
             return self.error;
         }
@@ -187,7 +203,12 @@ pub struct AnnotationFrame {
 /// ```ts
 /// function runs(row: ShapedRow, mark: Mark, scale: number, out: Underline[]): void;
 /// ```
-fn runs(row: &ShapedRow, mark: Mark, scale: f32, out: &mut Vec<Underline>) {
+fn runs(
+    row: &ShapedRow,
+    mark: Mark,
+    scale: f32,
+    out: &mut Vec<Underline>,
+) {
     let row_end = row.source_start + row.source_len();
     // The end of the text is on the last visual row of the line.
     let end = row.caret_at(row_end, ReadingAffinity::Upstream, scale);

@@ -28,7 +28,10 @@
 use memchr::memchr_iter;
 
 /// Imports the unwind boundary that turns an engine panic into a fail-closed finding.
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
 
 /// Imports the loaded rule sets scanned against each file.
 use crate::frx_load::LoadedRules;
@@ -61,7 +64,7 @@ fn line_starts(buf: &[u8]) -> Vec<usize> {
             starts.push(next);
         }
     }
-    return starts
+    return starts;
 }
 
 /// Renders the stable opaque identity of one matching rule.
@@ -69,7 +72,11 @@ fn line_starts(buf: &[u8]) -> Vec<usize> {
 /// Named rules use their section name;
 ///  unnamed rules use the set's base offset.
 /// This shared formatter keeps content and pathname findings consistent.
-pub(crate) fn rule_token(base: usize, names: &[Option<String>], rule_id: usize) -> String {
+pub(crate) fn rule_token(
+    base: usize,
+    names: &[Option<String>],
+    rule_id: usize,
+) -> String {
     // A borrowed name is copied only when a finding is emitted.
     if let Some(name) = names.get(rule_id).and_then(Option::as_deref) {
         return name.to_string();
@@ -104,12 +111,12 @@ where
                     rule: rule_token(base, names, rule_id),
                 });
             }
-            return findings
+            return findings;
         }
         Err(_) => {
             // Fail closed: a caught engine panic becomes a redacted synthetic finding
             // so the run reports the file and exits non-zero instead of clean.
-            return vec![ScanFinding::EngineError]
+            return vec![ScanFinding::EngineError];
         }
     }
 }
@@ -123,7 +130,10 @@ where
 /// Empty input yields no findings.
 ///  The caller supplies candidate identity and
 /// a sanitized display path outside this content-matching boundary.
-pub(crate) fn scan_content(buf: &[u8], loaded: &LoadedRules) -> Vec<ScanFinding> {
+pub(crate) fn scan_content(
+    buf: &[u8],
+    loaded: &LoadedRules,
+) -> Vec<ScanFinding> {
     if buf.is_empty() {
         return Vec::new();
     }
@@ -144,7 +154,7 @@ pub(crate) fn scan_content(buf: &[u8], loaded: &LoadedRules) -> Vec<ScanFinding>
         let matcher = AssertUnwindSafe(|| return scan_set.matcher.line_matches(buf, &starts));
         hits.extend(scan_one_set(scan_set.base, &scan_set.names, matcher));
     }
-    return hits
+    return hits;
 }
 
 /// What:
@@ -157,7 +167,11 @@ pub(crate) fn scan_content(buf: &[u8], loaded: &LoadedRules) -> Vec<ScanFinding>
 /// ```ts
 /// function scanFile(safeDisplayPath, bytes, loaded): string[];
 /// ```
-pub fn scan_file(path: &str, buf: &[u8], loaded: &LoadedRules) -> Vec<String> {
+pub fn scan_file(
+    path: &str,
+    buf: &[u8],
+    loaded: &LoadedRules,
+) -> Vec<String> {
     // Vec owns the variable-length terminal records, independently of the borrowed file bytes.
     let mut lines: Vec<String> = Vec::<String>::new();
     for finding in scan_content(buf, loaded) {

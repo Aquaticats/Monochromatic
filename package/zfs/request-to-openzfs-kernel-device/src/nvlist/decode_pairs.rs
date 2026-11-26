@@ -22,7 +22,12 @@
 /// The wire constants,
 /// type numbers,
 /// alignment and version check.
-use super::data_type::{NVLIST_STRUCT_SIZE, NVPAIR_HDR_SIZE, align8, check_version};
+use super::data_type::{
+    NVLIST_STRUCT_SIZE,
+    NVPAIR_HDR_SIZE,
+    align8,
+    check_version,
+};
 /// The decoder for values that stay inside their pair.
 use super::decode_scalar_value::decode_scalar_value;
 /// The codec own refusal type.
@@ -31,7 +36,11 @@ use super::error::NvError;
 use super::stream_cursor::Cursor;
 /// The decoded list,
 /// pair and value types.
-use super::value::{NvData, NvList, NvPair};
+use super::value::{
+    NvData,
+    NvList,
+    NvPair,
+};
 /// The byte width of the element types.
 use std::mem::size_of;
 
@@ -42,7 +51,10 @@ use std::mem::size_of;
 /// [`NvError`] on a malformed pair header or name,
 /// or on nesting past
 /// `MAX_DEPTH`.
-pub fn decode_pairs(cursor: &mut Cursor<'_>, depth: usize) -> Result<Vec<NvPair>, NvError> {
+pub fn decode_pairs(
+    cursor: &mut Cursor<'_>,
+    depth: usize,
+) -> Result<Vec<NvPair>, NvError> {
     if depth > super::data_type::MAX_DEPTH {
         return Err(NvError::TooDeep);
     }
@@ -72,7 +84,10 @@ pub fn decode_pairs(cursor: &mut Cursor<'_>, depth: usize) -> Result<Vec<NvPair>
 /// a negative element count,
 /// or a value that
 /// runs past the pair.
-fn decode_pair(cursor: &mut Cursor<'_>, depth: usize) -> Result<NvPair, NvError> {
+fn decode_pair(
+    cursor: &mut Cursor<'_>,
+    depth: usize,
+) -> Result<NvPair, NvError> {
     let size: i32 = cursor.peek_i32()?;
     let blob: &[u8] = cursor.take(size as usize)?;
     let name_size: i16 = i16::from_le_bytes(le(&blob[4..6]));
@@ -107,7 +122,10 @@ fn decode_pair(cursor: &mut Cursor<'_>, depth: usize) -> Result<NvPair, NvError>
     }
     let value: &[u8] = blob.get(align8(name_end)..).unwrap_or(&[]);
     let data: NvData = decode_value(cursor, &name, data_type, elements as usize, value, depth)?;
-    return Ok(NvPair { name, data });
+    return Ok(NvPair {
+        name,
+        data,
+    });
 }
 
 /// Decode one pair's value,
@@ -175,7 +193,9 @@ fn decode_list_array(
 ) -> Result<NvData, NvError> {
     let total: usize = elements
         .checked_mul(size_of::<u64>() + NVLIST_STRUCT_SIZE)
-        .ok_or(NvError::Overflow { elements })?;
+        .ok_or(NvError::Overflow {
+            elements,
+        })?;
     let Some(headers) = value.get(..total) else {
         return Err(NvError::ValueOverflow {
             name: name.to_string(),
@@ -196,7 +216,9 @@ fn decode_list_array(
             pairs,
         });
     }
-    return Ok(NvData::ListArray { value: lists });
+    return Ok(NvData::ListArray {
+        value: lists,
+    });
 }
 
 /// Take a fixed-width little-endian group out of a checked slice.

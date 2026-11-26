@@ -1,42 +1,60 @@
 //! Exercises persisted cgroup links and all supported socket-address hooks as root.
 
-/// Direct marker attach used to force a partial pin transaction failure.
-use crate::bpf::{
-    attach_marker_unpinned,
-    attach_marker_unpinned_failing_after,
-    HOOK_NAMES,
-};
 /// Production user app-slice path used by watcher service fixture.
 use crate::application_targets::user_app_slice;
+/// Direct marker attach used to force a partial pin transaction failure.
+use crate::bpf::{
+    HOOK_NAMES,
+    attach_marker_unpinned,
+    attach_marker_unpinned_failing_after,
+};
 /// Process start-time reader for wrong-owner state fixture.
 use crate::keeper_process::process_start_time;
 /// Runtime keeper state used to verify fail-closed identity cleanup.
 use crate::keeper_state::{
+    KeeperProcess,
     active_state,
     read_state,
     replacing_state,
     write_state,
-    KeeperProcess,
 };
 /// Production lifecycle and pin paths under test.
 use crate::pin::{
+    BPF_FS,
+    PIN_ROOT,
     commit_staging_for_test,
     detach_cgroup,
     pin_dir_for,
     remove_exact_pin_dir_for_test,
-    BPF_FS,
-    PIN_ROOT,
 };
 /// Standard I/O failures used by syscall helpers.
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{
+    self,
+    BufRead,
+    BufReader,
+    Write,
+};
 /// Raw descriptor access and ownership for sockets.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 /// Child setup hook that moves itself before executing socket assertions.
 use std::os::unix::process::CommandExt;
 /// Paths for disposable cgroups and pin directories.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Child process launcher for cross-process persistence checks.
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{
+    Child,
+    ChildStdin,
+    ChildStdout,
+    Command,
+    Stdio,
+};
 
 /// Environment flag selecting socket-check child behavior.
 const CHILD_FLAG: &str = "WG_QUICKER_EXEMPT_SOCKET_CHILD";
@@ -129,8 +147,14 @@ fn spawn_holder_candidate(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    let input = child.stdin.take().ok_or_else(|| return io::Error::other("holder stdin absent"))?;
-    let stdout = child.stdout.take().ok_or_else(|| return io::Error::other("holder stdout absent"))?;
+    let input = child
+        .stdin
+        .take()
+        .ok_or_else(|| return io::Error::other("holder stdin absent"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| return io::Error::other("holder stdout absent"))?;
     let mut output = BufReader::new(stdout);
     let mut readiness = String::new();
     output.read_line(&mut readiness)?;
@@ -181,19 +205,22 @@ impl Drop for Fixture {
 
 /// Creates unique leaf cgroup under host's unified cgroup v2 mount.
 fn create_fixture(label: &str) -> io::Result<Fixture> {
-    let cgroup = Path::new("/sys/fs/cgroup").join(format!(
-        "wg-quicker-exempt-{label}-{}",
-        std::process::id()
-    ));
+    let cgroup = Path::new("/sys/fs/cgroup")
+        .join(format!("wg-quicker-exempt-{label}-{}", std::process::id()));
     if cgroup.exists() {
         std::fs::remove_dir(&cgroup)?;
     }
     std::fs::create_dir(&cgroup)?;
-    return Ok(Fixture { cgroup });
+    return Ok(Fixture {
+        cgroup,
+    });
 }
 
 /// Creates owned socket descriptor for one address family and transport type.
-fn socket(domain: libc::c_int, socket_type: libc::c_int) -> io::Result<OwnedFd> {
+fn socket(
+    domain: libc::c_int,
+    socket_type: libc::c_int,
+) -> io::Result<OwnedFd> {
     // SAFETY: domain and type are Linux socket constants and successful result is newly owned.
     let raw_fd = unsafe { libc::socket(domain, socket_type | libc::SOCK_CLOEXEC, 0) };
     if raw_fd < 0 {
@@ -301,10 +328,18 @@ fn ipv6_mark(socket_type: libc::c_int) -> io::Result<u32> {
 }
 
 /// Runs all four hook operations in subprocess moved into fixture cgroup before exec.
-fn assert_marks_from_child(cgroup: &Path, expected_mark: u32) -> io::Result<()> {
-    let cgroup_procs = std::ffi::CString::new(cgroup.join("cgroup.procs").as_os_str().as_encoded_bytes()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "cgroup.procs path contains NUL");
-    })?;
+fn assert_marks_from_child(
+    cgroup: &Path,
+    expected_mark: u32,
+) -> io::Result<()> {
+    let cgroup_procs =
+        std::ffi::CString::new(cgroup.join("cgroup.procs").as_os_str().as_encoded_bytes())
+            .map_err(|_| {
+                return io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "cgroup.procs path contains NUL",
+                );
+            })?;
     let mut command = Command::new(std::env::current_exe()?);
     command
         .arg("--exact")
@@ -329,7 +364,9 @@ fn assert_marks_from_child(cgroup: &Path, expected_mark: u32) -> io::Result<()> 
     }
     let status = command.status()?;
     if !status.success() {
-        return Err(io::Error::other(format!("socket child failed with {status}")));
+        return Err(io::Error::other(format!(
+            "socket child failed with {status}"
+        )));
     }
     return Ok(());
 }
@@ -356,10 +393,8 @@ fn socket_child() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 mount"]
 fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<()> {
-    let app_slice = Path::new("/sys/fs/cgroup").join(format!(
-        "wg-quicker-exempt-watch-{}",
-        std::process::id()
-    ));
+    let app_slice =
+        Path::new("/sys/fs/cgroup").join(format!("wg-quicker-exempt-watch-{}", std::process::id()));
     let service = app_slice.join("app-com.mitchellh.ghostty@fixture.service");
     let surface = app_slice.join("app-ghostty-surface-transient-123.scope");
     let firefox_nightly = app_slice.join("app-firefox\\x2dnightly@fixture.service");
@@ -380,8 +415,14 @@ fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    let mut input = watcher.stdin.take().ok_or_else(|| return io::Error::other("watcher stdin absent"))?;
-    let stdout = watcher.stdout.take().ok_or_else(|| return io::Error::other("watcher stdout absent"))?;
+    let mut input = watcher
+        .stdin
+        .take()
+        .ok_or_else(|| return io::Error::other("watcher stdin absent"))?;
+    let stdout = watcher
+        .stdout
+        .take()
+        .ok_or_else(|| return io::Error::other("watcher stdout absent"))?;
     let mut output = BufReader::new(stdout);
     let mut readiness = String::new();
     output.read_line(&mut readiness)?;
@@ -439,8 +480,12 @@ fn application_watcher_service_starts_and_stops() -> io::Result<()> {
     assert_marks_from_child(&service, 0)?;
     std::fs::remove_dir(&service)?;
     std::fs::remove_dir(&app_slice)?;
-    let user_service = app_slice.parent().ok_or_else(|| return io::Error::other("app slice lacks service parent"))?;
-    let user_slice = user_service.parent().ok_or_else(|| return io::Error::other("user service lacks slice parent"))?;
+    let user_service = app_slice
+        .parent()
+        .ok_or_else(|| return io::Error::other("app slice lacks service parent"))?;
+    let user_slice = user_service
+        .parent()
+        .ok_or_else(|| return io::Error::other("user service lacks slice parent"))?;
     std::fs::remove_dir(user_service)?;
     std::fs::remove_dir(user_slice)?;
     return Ok(());
@@ -501,10 +546,7 @@ fn recovery_adopts_committed_candidate() -> io::Result<()> {
         .to_str()
         .ok_or_else(|| return io::Error::other("non-UTF-8 cgroup fixture"))?;
     let mut candidate = spawn_holder_candidate(&fixture.cgroup, FIRST_MARK)?;
-    write_state(
-        &fixture.cgroup,
-        &replacing_state(None, candidate.process),
-    )?;
+    write_state(&fixture.cgroup, &replacing_state(None, candidate.process))?;
     commit_holder(&mut candidate)?;
     let mut candidate_child = candidate.child;
     let reaper = std::thread::spawn(move || return candidate_child.wait());
@@ -633,7 +675,10 @@ fn failed_attach_preserves_prior_attachment() -> io::Result<()> {
 }
 
 /// Creates ordinary files shaped like four link pins for transaction unit tests.
-fn write_pin_fixture(directory: &Path, marker: &[u8]) -> io::Result<()> {
+fn write_pin_fixture(
+    directory: &Path,
+    marker: &[u8],
+) -> io::Result<()> {
     std::fs::create_dir(directory)?;
     for hook_name in HOOK_NAMES {
         std::fs::write(directory.join(hook_name), marker)?;
@@ -644,7 +689,8 @@ fn write_pin_fixture(directory: &Path, marker: &[u8]) -> io::Result<()> {
 /// Atomic exchange makes all new files visible and removes all old files.
 #[test]
 fn replacement_exchange_commits_complete_pin_set() -> io::Result<()> {
-    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-exchange-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-pin-exchange-{}", std::process::id()));
     std::fs::create_dir(&scratch)?;
     let final_dir = scratch.join("final");
     let staging_dir = scratch.join("staging");
@@ -662,7 +708,8 @@ fn replacement_exchange_commits_complete_pin_set() -> io::Result<()> {
 /// Failed exchange leaves prior complete pin set untouched.
 #[test]
 fn failed_exchange_preserves_prior_pin_set() -> io::Result<()> {
-    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-failure-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-pin-failure-{}", std::process::id()));
     std::fs::create_dir(&scratch)?;
     let final_dir = scratch.join("final");
     let missing_staging = scratch.join("missing");
@@ -678,7 +725,8 @@ fn failed_exchange_preserves_prior_pin_set() -> io::Result<()> {
 /// Exact cleanup removes owned names but refuses an unrelated directory entry.
 #[test]
 fn exact_cleanup_preserves_unrelated_entry() -> io::Result<()> {
-    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-cleanup-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-pin-cleanup-{}", std::process::id()));
     write_pin_fixture(&scratch, b"owned")?;
     let unrelated = scratch.join("unrelated");
     std::fs::write(&unrelated, b"keep")?;
@@ -694,7 +742,8 @@ fn exact_cleanup_preserves_unrelated_entry() -> io::Result<()> {
 /// Hex path encoding distinguishes slash boundaries while avoiding reserved dots.
 #[test]
 fn canonical_pin_path_is_injective_for_slash_boundaries() -> io::Result<()> {
-    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-path-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-pin-path-{}", std::process::id()));
     let first = scratch.join("a").join("b__c.scope");
     let second = scratch.join("a__b").join("c.scope");
     std::fs::create_dir_all(&first)?;
@@ -702,8 +751,15 @@ fn canonical_pin_path_is_injective_for_slash_boundaries() -> io::Result<()> {
     let first_mapped = pin_dir_for(&first)?;
     let second_mapped = pin_dir_for(&second)?;
     assert_ne!(first_mapped, second_mapped);
-    for component in first_mapped.strip_prefix(PIN_ROOT).map_err(io::Error::other)?.components() {
-        let text = component.as_os_str().to_str().ok_or_else(|| return io::Error::other("non-UTF-8 key"))?;
+    for component in first_mapped
+        .strip_prefix(PIN_ROOT)
+        .map_err(io::Error::other)?
+        .components()
+    {
+        let text = component
+            .as_os_str()
+            .to_str()
+            .ok_or_else(|| return io::Error::other("non-UTF-8 key"))?;
         assert!(!text.contains('.'));
         assert!(text.len() <= 200);
     }

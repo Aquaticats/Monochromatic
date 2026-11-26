@@ -1,29 +1,34 @@
 //! Display-independent clap parser for the nested Wayland session.
 
-/// Validated configuration retains the library's existing public interface.
-#[path = "cli_config.rs"]
-mod config;
 /// Option grammar and generated help are separate from result conversion.
 #[path = "cli_command.rs"]
 mod command;
+/// Validated configuration retains the library's existing public interface.
+#[path = "cli_config.rs"]
+mod config;
 /// Existing size validation remains the single dimension parser.
 #[path = "cli_size.rs"]
 mod size;
 
+/// The device choice produced by the `--gpu` value parser.
+use crate::gpu_choice::GpuChoice;
+/// Validated output scale produced by the `--scale` value parser.
+use crate::screen_geometry::OutputScale;
+/// Existing private-portal values are unchanged.
+use crate::{
+    accent_color::AccentColor,
+    appearance_portal::ColorSchemePreference,
+    notification_mode::NotificationMode,
+};
+/// Preserve the public anyhow error interface while retaining clap's error type.
+use anyhow::{
+    Context,
+    Result,
+};
 /// Reexport the same configuration record consumed by the compositor.
 pub use config::Config;
 /// Own optional socket paths beyond the parser call.
 use std::path::PathBuf;
-/// Preserve the public anyhow error interface while retaining clap's error type.
-use anyhow::{Context, Result};
-/// Existing private-portal values are unchanged.
-use crate::{
-    accent_color::AccentColor, appearance_portal::ColorSchemePreference, notification_mode::NotificationMode,
-};
-/// Validated output scale produced by the `--scale` value parser.
-use crate::screen_geometry::OutputScale;
-/// The device choice produced by the `--gpu` value parser.
-use crate::gpu_choice::GpuChoice;
 
 /// Whether a character may appear in a systemd size such as `4G`,
 /// `512M`,
@@ -42,7 +47,7 @@ use crate::gpu_choice::GpuChoice;
 /// const isSizeCharacter = (c: string): boolean => /[A-Za-z0-9.%]/.test(c);
 /// ```
 fn is_size_character(character: char) -> bool {
-    return character.is_ascii_alphanumeric() || character == '.' || character == '%'
+    return character.is_ascii_alphanumeric() || character == '.' || character == '%';
 }
 
 /// Parse arguments excluding the executable name without starting application work.
@@ -81,9 +86,14 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
     // const matches = parser.tryParse(argv);
     // ```
     let matches = command::command().try_get_matches_from(argv)?;
-    let dimensions = matches.get_one::<(i32, i32)>("size").context("validated size is missing")?;
+    let dimensions = matches
+        .get_one::<(i32, i32)>("size")
+        .context("validated size is missing")?;
     // copied takes the small Copy value out of clap's matches; the option has a default.
-    let scale = matches.get_one::<OutputScale>("scale").copied().context("validated scale is missing")?;
+    let scale = matches
+        .get_one::<OutputScale>("scale")
+        .copied()
+        .context("validated scale is missing")?;
     // What: --list-gpus replaces the client command, so the command may be absent only then.
     // Why: A listing needs no client; every other start still requires one.
     let list_gpus = matches.get_flag("list-gpus");
@@ -158,10 +168,18 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
     if let Some(text) = &app_memory_max
         && !text.chars().all(is_size_character)
     {
-        anyhow::bail!("--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity");
+        anyhow::bail!(
+            "--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity"
+        );
     }
-    let repeat_rate = matches.get_one::<i32>("repeat-rate").copied().context("validated repeat rate is missing")?;
-    let repeat_delay = matches.get_one::<i32>("repeat-delay").copied().context("validated repeat delay is missing")?;
+    let repeat_rate = matches
+        .get_one::<i32>("repeat-rate")
+        .copied()
+        .context("validated repeat rate is missing")?;
+    let repeat_delay = matches
+        .get_one::<i32>("repeat-delay")
+        .copied()
+        .context("validated repeat delay is missing")?;
     // What: Ok wraps the validated configuration as the successful Result.
     // Why: The caller gets no partially parsed or display-dependent state.
     //

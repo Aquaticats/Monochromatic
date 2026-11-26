@@ -2,12 +2,31 @@
 //!  validates,
 //!  and stops detached application-cgroup watcher processes.
 
-/// Watch loop preparation and execution.
-use crate::application_watch::{prepare_application_watch, run_application_watch, ReporterIdentity};
-/// The sweep of the scopes of the earlier design.
-use crate::leftover_sweep::SweepSetup;
 /// Production target roots and app slice path.
-use crate::application_targets::{user_app_slice, ScanRoots};
+use crate::application_targets::{
+    ScanRoots,
+    user_app_slice,
+};
+/// Watch loop preparation and execution.
+use crate::application_watch::{
+    ReporterIdentity,
+    prepare_application_watch,
+    run_application_watch,
+};
+/// Watcher state and log paths.
+use crate::application_watch_state::{
+    WatchProcess,
+    ensure_watch_state_directory,
+    read_watch_state,
+    remove_watch_state,
+    watch_log_path,
+    write_watch_state,
+};
+/// The user's toolchain roots.
+use crate::install_roots::{
+    InstallRoots,
+    install_roots,
+};
 /// Generic exact process validation and shutdown,
 /// including the group a killed watcher left.
 use crate::keeper_process::{
@@ -16,46 +35,65 @@ use crate::keeper_process::{
     process_start_time,
     stop_command_process,
 };
-/// Watcher state and log paths.
-use crate::application_watch_state::{
-    ensure_watch_state_directory,
-    read_watch_state,
-    remove_watch_state,
-    watch_log_path,
-    write_watch_state,
-    WatchProcess,
+/// The sweep of the scopes of the earlier design.
+use crate::leftover_sweep::SweepSetup;
+/// Non-panicking output and escaping.
+use crate::log_line::{
+    log_line,
+    sanitize,
+    write_unchecked,
 };
-/// The relay of the start's loud lines.
-use crate::startup_relay::forward_startup_failures;
-/// The user's toolchain roots.
-use crate::install_roots::{install_roots, InstallRoots};
 /// Moves matched processes into the updates slice.
 use crate::scope_adoption::PrivateSocketAdopter;
-/// The watched user's account.
-use crate::user_account::lookup_user;
-/// Non-panicking output and escaping.
-use crate::log_line::{log_line, sanitize, write_unchecked};
 /// The sentinel of the watcher,
 /// started outside the watcher's cgroup.
-use crate::sentinel_launch::{launch_sentinel, SentinelRequest};
+use crate::sentinel_launch::{
+    SentinelRequest,
+    launch_sentinel,
+};
 /// The real steps of starting a sentinel.
 use crate::sentinel_system_steps::SystemSteps;
-/// The policy engine and its setup.
-use crate::update_routing::{RoutingSetup, UpdateRouting};
+/// The relay of the start's loud lines.
+use crate::startup_relay::forward_startup_failures;
 /// The start notice and the marker of a loud report.
-use crate::update_report::{policy_failure, policy_notice, refused_root_failures};
+use crate::update_report::{
+    policy_failure,
+    policy_notice,
+    refused_root_failures,
+};
+/// The policy engine and its setup.
+use crate::update_routing::{
+    RoutingSetup,
+    UpdateRouting,
+};
 /// The account of the watched user.
 use crate::user_account::UserAccount;
+/// The watched user's account.
+use crate::user_account::lookup_user;
 /// Handshake and file errors.
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{
+    self,
+    BufRead,
+    BufReader,
+    Write,
+};
 /// Unix log creation mode.
 use std::os::unix::fs::OpenOptionsExt;
 /// Child process session setup hook.
 use std::os::unix::process::CommandExt;
 /// Watcher application slice path.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Child process launch pipes.
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{
+    Child,
+    ChildStdin,
+    ChildStdout,
+    Command,
+    Stdio,
+};
 
 /// Child readiness after inotify installation and race-closing second scan.
 const READY: &str = "READY";
@@ -99,14 +137,21 @@ fn expected_watch_command(
 /// but not for longer than `limit`:
 /// the caller holds the lifecycle lock while it waits,
 /// so a watcher that never speaks must not keep it.
-fn read_message_within(output: &mut BufReader<ChildStdout>, limit: std::time::Duration, what: &str) -> io::Result<String> {
+fn read_message_within(
+    output: &mut BufReader<ChildStdout>,
+    limit: std::time::Duration,
+    what: &str,
+) -> io::Result<String> {
     return crate::line_ready::read_message_within(output, limit, what);
 }
 
 /// Waits for the candidate to end,
 /// and ends it when it does not,
 /// because a watcher whose parent is gone waits on a commit that never comes.
-fn wait_within(child: &mut Child, limit: std::time::Duration) -> io::Result<std::process::ExitStatus> {
+fn wait_within(
+    child: &mut Child,
+    limit: std::time::Duration,
+) -> io::Result<std::process::ExitStatus> {
     return crate::line_ready::wait_within(child, limit);
 }
 
@@ -223,7 +268,10 @@ fn spawn_watch_candidate(
             let log_text = read_watch_log(key)?;
             return Err(io::Error::new(
                 error.kind(),
-                format!("application watcher failed before readiness ({status}): {}", log_text.trim()),
+                format!(
+                    "application watcher failed before readiness ({status}): {}",
+                    log_text.trim()
+                ),
             ));
         }
     };
@@ -267,7 +315,8 @@ pub fn start_application_watch(
     }
     writeln!(candidate.input, "{COMMIT}")?;
     candidate.input.flush()?;
-    let acknowledgement = read_message_within(&mut candidate.output, HANDSHAKE_LIMIT, "its commit")?;
+    let acknowledgement =
+        read_message_within(&mut candidate.output, HANDSHAKE_LIMIT, "its commit")?;
     if acknowledgement != COMMITTED {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -334,7 +383,16 @@ pub fn run_application_watch_child(
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
         adopter: Box::new(PrivateSocketAdopter::new()),
     });
-    let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid }, Some(SweepSetup::production(uid, account.gid)))?;
+    let mut watch = prepare_application_watch(
+        roots,
+        mark,
+        routing,
+        ReporterIdentity {
+            uid,
+            gid: account.gid,
+        },
+        Some(SweepSetup::production(uid, account.gid)),
+    )?;
     writeln!(io::stdout(), "{READY}")?;
     io::stdout().flush()?;
     let mut commit = String::new();

@@ -11,7 +11,13 @@
 /// Renders a scene on the harness device and reads it back.
 use super::gpu_tile::render_scene;
 /// The inks and the helpers of the dense text's fixture.
-use super::minimap_dense_tests::{DARK, FILLS, INKS, Never, styles_of};
+use super::minimap_dense_tests::{
+    DARK,
+    FILLS,
+    INKS,
+    Never,
+    styles_of,
+};
 /// The comparison of two renders to within the renderer's own noise.
 use super::tile_reads::same_pixels;
 /// The minimap's build and its parts.
@@ -19,17 +25,35 @@ use ide_app::{
     document::Document,
     line_rows::LineRows,
     minimap::{
-        BAND, CHUNK_ROWS, Geometry, Input, LineCache, Source, build, chunk_rows, cut, slice_items,
+        BAND,
+        CHUNK_ROWS,
+        Geometry,
+        Input,
+        LineCache,
+        Source,
+        build,
+        chunk_rows,
+        cut,
+        slice_items,
         text_span,
     },
-    row_map::{CODE_ROW, RowMap},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
     shaped_text::TextShaper,
-    tile_scene::{TileScene, encode},
+    tile_scene::{
+        TileScene,
+        encode,
+    },
 };
 /// The texels of a read.
 use slint::Rgba8Pixel;
 /// A scene is placed by an affine transform.
-use vello::{Scene, kurbo::Affine};
+use vello::{
+    Scene,
+    kurbo::Affine,
+};
 
 /// The width the lines wrap at,
 ///  in logical pixels.
@@ -71,7 +95,11 @@ enum Mode {
 
 /// The scenes of the picture of the first `bands` bands at `scale` made in `mode`,
 /// and the rows the picture holds.
-fn scenes(scale: f32, bands: usize, mode: Mode) -> (Vec<TileScene>, usize) {
+fn scenes(
+    scale: f32,
+    bands: usize,
+    mode: Mode,
+) -> (Vec<TileScene>, usize) {
     let text = code_text(900);
     let document = Document::new(&text);
     let mut shaper = TextShaper::new();

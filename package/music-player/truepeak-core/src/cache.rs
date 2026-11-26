@@ -28,7 +28,10 @@
 /// ```ts
 /// import { Decision, DecisionKind } from "./decision";
 /// ```
-use crate::decision::{Decision, DecisionKind};
+use crate::decision::{
+    Decision,
+    DecisionKind,
+};
 
 /// What:
 ///      `use crate::policy::{CacheIdentity, SCHEMA_VERSION};`.
@@ -44,7 +47,10 @@ use crate::decision::{Decision, DecisionKind};
 /// ```ts
 /// import { CacheIdentity, SCHEMA_VERSION } from "./policy";
 /// ```
-use crate::policy::{CacheIdentity, SCHEMA_VERSION};
+use crate::policy::{
+    CacheIdentity,
+    SCHEMA_VERSION,
+};
 
 /// What:
 ///      `use std::collections::HashSet;`.
@@ -90,7 +96,10 @@ use std::fmt;
 /// ```ts
 /// import { Builder, Connection } from "turso";
 /// ```
-use turso::{Builder, Connection};
+use turso::{
+    Builder,
+    Connection,
+};
 
 /// What:
 ///      `const CREATE_TABLE: &str = "...";`.
@@ -262,8 +271,11 @@ pub struct CacheError {
 /// ```
 impl fmt::Display for CacheError {
     /// Write the cache error message on one line.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(formatter, "true-peak cache: {}", self.message)
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        return write!(formatter, "true-peak cache: {}", self.message);
     }
 }
 
@@ -292,7 +304,9 @@ impl std::error::Error for CacheError {}
 impl From<turso::Error> for CacheError {
     /// Wrap a turso error's text.
     fn from(error: turso::Error) -> CacheError {
-        return CacheError { message: error.to_string() }
+        return CacheError {
+            message: error.to_string(),
+        };
     }
 }
 
@@ -350,7 +364,9 @@ fn kind_from_int(value: i64) -> Result<DecisionKind, CacheError> {
         other => {
             // An unknown kind is row corruption or a future schema; fail loudly.
             tracing::error!(value = other, "unknown decision kind in cache row");
-            return Err(CacheError { message: format!("unknown decision kind {other}") })
+            return Err(CacheError {
+                message: format!("unknown decision kind {other}"),
+            });
         }
     }
 }
@@ -370,7 +386,10 @@ fn kind_from_int(value: i64) -> Result<DecisionKind, CacheError> {
 /// ```ts
 /// function realAt(row, index) { const v = row.getValue(index); if (v.kind !== "real") throw ...; return v.value; }
 /// ```
-fn real_at(row: &turso::Row, index: usize) -> Result<f64, CacheError> {
+fn real_at(
+    row: &turso::Row,
+    index: usize,
+) -> Result<f64, CacheError> {
     // What:     `row.get_value(index)?.as_real().copied()`. Read the cell (`?` propagates a
     //           turso error), then `.as_real()` yields `Option<&f64>`, `.copied()` an
     //           `Option<f64>`.
@@ -380,11 +399,18 @@ fn real_at(row: &turso::Row, index: usize) -> Result<f64, CacheError> {
     // ```ts
     // const real = row.getValue(index).asReal();
     // ```
-    return row.get_value(index)?
+    return row
+        .get_value(index)?
         .as_real()
         .copied()
-        .ok_or_else(|| return CacheError { message: format!("column {index} is not a real") })
-        .inspect_err(|error| tracing::error!(index, cause = %error.message, "cache real column corrupt"))
+        .ok_or_else(|| {
+            return CacheError {
+                message: format!("column {index} is not a real"),
+            };
+        })
+        .inspect_err(
+            |error| tracing::error!(index, cause = %error.message, "cache real column corrupt"),
+        );
 }
 
 /// What:
@@ -476,11 +502,20 @@ impl DecisionCache {
         // ```ts
         // const removed = await conn.execute(DELETE_STALE, [SCHEMA_VERSION]);
         // ```
-        let removed = conn.execute(DELETE_STALE, (i64::from(SCHEMA_VERSION),)).await?;
+        let removed = conn
+            .execute(DELETE_STALE, (i64::from(SCHEMA_VERSION),))
+            .await?;
         if removed > 0 {
-            tracing::info!(removed, schema_version = SCHEMA_VERSION, "stale decision rows removed on open");
+            tracing::info!(
+                removed,
+                schema_version = SCHEMA_VERSION,
+                "stale decision rows removed on open"
+            );
         } else {
-            tracing::debug!(schema_version = SCHEMA_VERSION, "no stale decision rows on open");
+            tracing::debug!(
+                schema_version = SCHEMA_VERSION,
+                "no stale decision rows on open"
+            );
         }
         // The cache is open and the table ensured; record the file it is backing.
         tracing::debug!(path, "decision cache opened");
@@ -491,7 +526,9 @@ impl DecisionCache {
         // ```ts
         // return new DecisionCache(conn);
         // ```
-        return Ok(DecisionCache { conn })
+        return Ok(DecisionCache {
+            conn,
+        });
     }
 
     /// What:
@@ -575,12 +612,12 @@ impl DecisionCache {
                     gain: real_at(&row, 1)? as f32,
                     measured_peak: real_at(&row, 2)? as f32,
                     duration_secs: real_at(&row, 3)?,
-                }))
+                }));
             }
             None => {
                 // No row for this key: a cache miss.
                 tracing::debug!(fingerprint, "cache get miss");
-                return Ok(None)
+                return Ok(None);
             }
         }
     }
@@ -623,7 +660,7 @@ impl DecisionCache {
         // ```ts
         // return;
         // ```
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -649,7 +686,7 @@ impl DecisionCache {
     ) -> Result<(), CacheError> {
         // An empty batch has nothing to store and must not open a transaction.
         if entries.is_empty() {
-            return Ok(())
+            return Ok(());
         }
         // What:     `match self.put_batch_in_transaction(identity, entries).await { Ok(()) => return Ok(()), Err(error) => ... }`.
         //           Try the single-transaction path first.
@@ -661,7 +698,7 @@ impl DecisionCache {
         // ```
         let Err(batch_error) = self.put_batch_in_transaction(identity, entries).await else {
             tracing::debug!(rows = entries.len(), "cache put batch committed");
-            return Ok(())
+            return Ok(());
         };
         tracing::warn!(error = %batch_error, rows = entries.len(), "cache put batch failed; retrying row by row");
         // What:     `for (fingerprint, decision) in entries { ... }`. Store each row in its own transaction and count
@@ -680,9 +717,11 @@ impl DecisionCache {
             }
         }
         if failed > 0 {
-            return Err(CacheError { message: format!("{failed} of {} rows could not be stored", entries.len()) })
+            return Err(CacheError {
+                message: format!("{failed} of {} rows could not be stored", entries.len()),
+            });
         }
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -711,11 +750,11 @@ impl DecisionCache {
                 if let Err(rollback_error) = transaction.rollback().await {
                     tracing::warn!(error = %rollback_error, "cache batch rollback failed");
                 }
-                return Err(error)
+                return Err(error);
             }
         }
         transaction.commit().await?;
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -765,7 +804,7 @@ impl DecisionCache {
             .await?;
         // The upsert ran; `affected == 0` means the precedence WHERE refused a probe downgrade.
         tracing::debug!(fingerprint, affected, applied = affected > 0, "cache put");
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -783,7 +822,11 @@ impl DecisionCache {
     /// ```ts
     /// async remove(fingerprint, identity): Promise<boolean> { ... }
     /// ```
-    pub async fn remove(&self, fingerprint: u64, identity: CacheIdentity) -> Result<bool, CacheError> {
+    pub async fn remove(
+        &self,
+        fingerprint: u64,
+        identity: CacheIdentity,
+    ) -> Result<bool, CacheError> {
         // What:     `let affected = self.conn.execute(DELETE_DECISION, params).await?;`. Run the
         //           delete with the same five key columns a read or write uses.
         // Why:      Only the one row for this exact key is removed.
@@ -814,7 +857,7 @@ impl DecisionCache {
         // ```ts
         // return affected > 0;
         // ```
-        return Ok(affected > 0)
+        return Ok(affected > 0);
     }
 
     /// What:
@@ -906,7 +949,7 @@ impl DecisionCache {
         // ```ts
         // return set;
         // ```
-        return Ok(set)
+        return Ok(set);
     }
 }
 

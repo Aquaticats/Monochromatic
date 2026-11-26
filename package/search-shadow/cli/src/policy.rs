@@ -349,7 +349,11 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
     }
 
     // With `--files`, or a pattern given by `-e` or `-f`, every positional is a path; otherwise the first is the pattern.
-    let first_path_index: usize = if files_mode || pattern_from_flag { 0 } else { 1 };
+    let first_path_index: usize = if files_mode || pattern_from_flag {
+        0
+    } else {
+        1
+    };
     let path_count: usize = positionals.len().saturating_sub(first_path_index);
     // `-` anywhere a path may stand is ripgrep's "read standard input", so the pipe is not lost there.
     let stdin_marker_named: bool = positionals
@@ -415,8 +419,11 @@ pub fn rg_refusal(
     // A pipe on standard input beside a named search path loses the caller's lines: ripgrep reads the paths and never
     // the pipe. This holds in any directory, so it comes before the repository-root question and has no wide-walk escape
     // hatch (`SEARCH_SHADOW_ALLOW_WIDE` names a full walk, not a dropped pipe).
-    let pipe_would_be_ignored: bool = stdin.is_pipe() && !walk.informational && !walk.files_mode
-        && !walk.stdin_marker_named && walk.path_count > 0;
+    let pipe_would_be_ignored: bool = stdin.is_pipe()
+        && !walk.informational
+        && !walk.files_mode
+        && !walk.stdin_marker_named
+        && walk.path_count > 0;
     if pipe_would_be_ignored {
         let pipe_message: String = format!(
             "search-shadow: refused `rg {}`. Its standard input is a pipe, and ripgrep reads the named search paths and never the pipe, so the piped lines would be dropped. To filter those lines, drop the search path: with no path ripgrep reads its standard input. To search the path, run the same command without a pipe. To read both, name `-` beside the path: ripgrep treats `-` as its standard input.",

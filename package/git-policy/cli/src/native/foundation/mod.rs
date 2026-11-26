@@ -75,6 +75,12 @@ pub mod js_text;
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
+/// Lines a caller hands over and a thread of its own writes:
+/// the bounded queue,
+/// its thread,
+/// and the wait the end of a process makes for them.
+pub mod lines_written_by_a_thread;
+
 /// The diagnostic lines themselves,
 /// written by a thread of their own,
 /// so a reader that stopped draining never holds the command that said them.
@@ -245,6 +251,10 @@ pub mod blocking_jobs_within_the_budget;
 /// for the controls that start the executable under limits.
 pub mod runtime_probe;
 
+/// The one read of every test-only switch,
+/// which a build the release ships holds not at all.
+pub mod test_only_switches;
+
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
 
@@ -264,6 +274,10 @@ pub mod work_awaited_within_a_ceiling;
 /// The process's own standard error descriptor,
 /// written without the lock the standard library's shared handle takes.
 pub mod standard_error_descriptor;
+
+/// This process's standard error as a stream whose every whole line is handed to the thread that
+/// writes it, so the thread that says a line never waits for the reader.
+pub mod standard_error_off_the_calling_thread;
 /// A stream of a command's notices written by a thread of its own,
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;

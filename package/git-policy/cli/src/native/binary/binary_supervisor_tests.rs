@@ -19,8 +19,8 @@
 use super::support::{Fixture, bounded, bounded_for, executable, fixture, own_group, remove, spawn_owned, supervised_wait, wrapper_first_path};
 use super::supervisor::{
     CPU_BUDGET, Judge, Limits, NO_PROGRESS_WINDOW, POLL, Reason, SHARED, SHARED_BACKSTOP_SECONDS, UNCLAIMED_EXIT_STATUS, UNCLAIMED_GRACE,
-    disk_wait_looks, end_command, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded, looks_of, plant_kill, take_kill,
-    unclaimed_kill, watch,
+    Occupied, disk_wait_looks, end_command, ending_the_command_of, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded,
+    kill_to_abort, looks_of, plant_kill, take_kill, unclaimed_kill, waiting_for, watch,
 };
 use super::supervisor_pin::{Delivered, Pin, end_tree};
 use super::supervisor_proc::{Look, Sample, children, describe, look_at, note_states, parse_io, parse_stat, stat_of, task_states, tick, tree_of, waits_for_an_answer};
@@ -704,6 +704,40 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     assert_eq!(unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE), None, "a claimed kill is not reported again");
 }
 
+/// A kill whose command a thread of this process is occupied with is never what aborts the process,
+/// however much time has passed:
+/// a wait claims that kill as soon as this host schedules its thread,
+/// and a kill whose ending is still going on cannot be claimed at all until the ending is over.
+/// Neither is how much wall time has passed.
+/// A kill nothing is occupied with is, once the grace has passed.
+#[test]
+fn a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process() {
+    let at: Instant = Instant::now();
+    let pid: i32 = i32::MAX - 6;
+    plant_kill(pid, "the planted kill", at);
+    let numbered: u32 = u32::try_from(pid).expect("positive");
+    let waiting: Occupied = waiting_for(numbered);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        None,
+        "a wait is inside for the command, so its claim is on the way and nothing aborts"
+    );
+    std::mem::drop(waiting);
+    let ending: Occupied = ending_the_command_of(pid);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        None,
+        "the ending is still going on, so nobody could have claimed it yet and nothing aborts"
+    );
+    std::mem::drop(ending);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        Some(String::from("the planted kill")),
+        "no thread is occupied with the kill, so the process aborts with its message"
+    );
+    assert_eq!(take_kill(numbered), Some(String::from("the planted kill")));
+}
+
 /// How much longer than the grace the ending of a command takes in the control below,
 /// as on a starved host.
 const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
@@ -751,14 +785,14 @@ fn unclaimed_exit_probe() {
 /// though the test it ran returned normally.
 #[test]
 fn an_unclaimed_kill_fails_the_process_at_its_exit() {
-    // Identification only: the first argument names the test executable this process was started from, to run one test of it again.
-    #[allow(clippy::disallowed_methods, reason = "identification only: the test harness starts this binary by its path, and the probe runs one test of the same binary again")]
-    let exe = std::env::args_os().next().expect("the test executable");
-    let output = Command::new(exe)
-        .args(["--exact", "supervisor_guard::unclaimed_exit_probe", "--nocapture", "--test-threads=1"])
-        .env(PROBE_VARIABLE, "1")
-        .output()
-        .expect("the probe starts");
+    // The probe's test passes while its process must fail, so this asks for the raw ending and judges the status itself.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(PROBE_VARIABLE, std::ffi::OsStr::new("1"))];
+    let output: std::process::Output = super::child_test_process::finished(super::child_test_process::ChildTest {
+        exact_test: "supervisor_guard::unclaimed_exit_probe",
+        environment: environment.as_slice(),
+        ..super::child_test_process::ChildTest::default()
+    })
+    .expect("the probe ends within the deadline");
     let text: String = String::from_utf8_lossy(&output.stderr).into_owned() + &String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("test supervisor_guard::unclaimed_exit_probe ... ok"), "the probe test itself passed: {text}");
     assert_eq!(output.status.code(), Some(UNCLAIMED_EXIT_STATUS), "{text}");

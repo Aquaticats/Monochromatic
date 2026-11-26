@@ -2,6 +2,8 @@
 //! where they live and that they go away however their test ends (issue 1809).
 
 use super::*;
+use std::path::PathBuf;
+use std::process::Child;
 
 /// A test thread that panics after creating a fixture leaves nothing behind.
 #[test]
@@ -497,3 +499,121 @@ fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
         assert!(!folder.exists(), "{} was left behind in a place this machine shares", folder.display());
     }
 }
+
+//region A child of a test dies with the process that started it (the debt audit of 2026-11-25, item 5)
+
+/// The variable that makes a run of this test the process whose child must die with it,
+/// carrying the fixture directory.
+const PARENT_DEATH_CHILD: &str = "CLI_GIT_TEST_SUPPORT_PARENT_DEATH_CHILD";
+
+/// The variable that makes a run of this test the child of that process,
+/// which is the one that must not outlive it.
+const PARENT_DEATH_GRANDCHILD: &str = "CLI_GIT_TEST_SUPPORT_PARENT_DEATH_GRANDCHILD";
+
+/// How long a waiting process here runs if nothing ends it,
+/// far past the control.
+const WAITING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// How long a wait here may take before the control fails,
+/// so a child that never dies is a failure and not a hung run.
+const PARENT_DEATH_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What:
+///  Start this test binary on one of this control's two waiting modes.
+/// Why:
+///  Both the process that is killed and the child that must go with it are this test binary,
+///  which is the shape a control's helper takes,
+///  and it needs two variables so each level knows which one it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const process = spawnOwned(binary, ['--exact', thisTest], { env: { VARIABLE: root } })
+/// ```
+fn spawn_a_waiting_process(variable: &str, root: &std::path::Path) -> Child {
+    // The waiting process answers nothing the parent reads: it records its own child through the fixture directory.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, root.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
+        environment: environment.as_slice(),
+        standard_output: std::process::Stdio::null(),
+        standard_error: std::process::Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
+}
+
+/// Whether a process number still names a running process:
+/// one that is gone,
+/// or one that has ended and only waits to be collected,
+/// is not running.
+fn running(pid: i32) -> bool {
+    let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
+    // The state is the third field, after the number and the name the parentheses hold; `Z` is a process that has ended,
+    //  and `X` one the kernel is taking down.
+    let state: &str = stat.rsplit_once(") ").map_or("", |(_name, rest)| return rest).split(' ').next().unwrap_or("");
+    return !matches!(state, "" | "Z" | "X");
+}
+
+/// What:
+///  A child a test started through `spawn_owned` goes when the process that started it is killed outright,
+///  which no guard of that process can arrange.
+/// Why:
+///   `ThreadFixtures::drop` is a guard,
+///  and `SIGKILL`, or `run_progress`'s `abort` when the run stops moving, runs no guard at all;
+///  the child then outlives the run it was started for,
+///  which is the leak the gate reported for the forced-removal fixtures (issue 6471 and the debt audit of 2026-11-25).
+///  The kernel's parent-death signal is the one thing that still runs,
+///  so this control ends the middle process with `SIGKILL` and requires its child to be gone.
+///  The child leads a process group of its own, so nothing but that signal can end it here,
+///  and a control that only worked through the group kill would fail this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const middle = spawnOwned(binary, [helperTest]); const child = await readPid(middle);
+/// process.kill(middle.pid, 'SIGKILL'); expect(await waitGone(child)).toBe(true)
+/// ```
+#[test]
+fn a_child_dies_with_the_test_process_that_started_it() {
+    if crate::helper_process_test_support::helper_directory(PARENT_DEATH_GRANDCHILD).is_some() {
+        // The child whose death is the assertion: it waits, and nothing but the kernel may end it.
+        std::thread::sleep(WAITING_PATIENCE);
+        return;
+    }
+    if let Some(directory) = crate::helper_process_test_support::helper_directory(PARENT_DEATH_CHILD) {
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(PARENT_DEATH_GRANDCHILD, directory.as_os_str())];
+        // The middle is killed outright, so this child is never waited on: the control is that it goes without one.
+        #[allow(clippy::zombie_processes, reason = "the control ends the middle with SIGKILL, so its child is never reaped by it")]
+        let child: Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
+            exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
+            environment: environment.as_slice(),
+            standard_output: std::process::Stdio::null(),
+            standard_error: std::process::Stdio::null(),
+            ..crate::child_test_process::ChildTest::default()
+        });
+        std::fs::write(directory.join("child"), child.id().to_string()).expect("the child's number");
+        std::thread::sleep(WAITING_PATIENCE);
+        return;
+    }
+    let root: PathBuf = fixture("parent-death");
+    let mut middle: Child = spawn_a_waiting_process(PARENT_DEATH_CHILD, &root);
+    let recorded: PathBuf = root.join("child");
+    let begun: std::time::Instant = std::time::Instant::now();
+    while !recorded.exists() {
+        assert!(begun.elapsed() < PARENT_DEATH_PATIENCE, "the middle process never recorded its child's number");
+        assert!(middle.try_wait().expect("the middle's status").is_none(), "the middle ended before it recorded its child");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let number: i32 = std::fs::read_to_string(recorded.as_path()).expect("the child's number").trim().parse().expect("a process number");
+    assert!(running(number), "the child runs before the middle is killed");
+    // SAFETY: `kill` takes a process number and a signal and reads no memory; this is the middle process this control started.
+    let killed: libc::c_int = unsafe { libc::kill(libc::pid_t::try_from(middle.id()).expect("a middle pid fits"), libc::SIGKILL) };
+    assert_eq!(killed, 0, "the middle is killed");
+    let _status: std::io::Result<std::process::ExitStatus> = middle.wait();
+    let watched_from: std::time::Instant = std::time::Instant::now();
+    while running(number) {
+        assert!(watched_from.elapsed() < PARENT_DEATH_PATIENCE, "the child {number} outlived the process that started it");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    remove(root.as_path());
+}
+
+//endregion

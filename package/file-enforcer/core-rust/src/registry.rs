@@ -17,7 +17,10 @@
 
 /// Imports `Config`,
 /// `RuleConfig` from `crate::config_types`.
-use crate::config_types::{Config, RuleConfig};
+use crate::config_types::{
+    Config,
+    RuleConfig,
+};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
 /// Imports `ConcatRule` from `crate::kind_concat`.
@@ -35,7 +38,11 @@ use crate::kind_toml_keys::TomlKeysRule;
 /// Imports `Rule`,
 /// `RuleBuilder`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Rule, RuleBuilder, RulePlan};
+use crate::rule::{
+    Rule,
+    RuleBuilder,
+    RulePlan,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `BTreeMap` from `std::collections`.
@@ -74,13 +81,31 @@ impl RuleBuilder for BuiltinBuilder {
     /// ```ts
     /// build(config: RuleConfig): Rule
     /// ```
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic> {
         match config {
-            RuleConfig::Concat { id, output, parts, mode } => {
+            RuleConfig::Concat {
+                id,
+                output,
+                parts,
+                mode,
+            } => {
                 return Ok(Box::new(ConcatRule::new(id, output, parts, mode)));
             }
-            RuleConfig::ModeOnly { id, path, mode } => return Ok(Box::new(ModeOnlyRule::new(id, path, mode))),
-            RuleConfig::PackageLicenses { id, manifests, directory, texts, requires } => {
+            RuleConfig::ModeOnly {
+                id,
+                path,
+                mode,
+            } => return Ok(Box::new(ModeOnlyRule::new(id, path, mode))),
+            RuleConfig::PackageLicenses {
+                id,
+                manifests,
+                directory,
+                texts,
+                requires,
+            } => {
                 return Ok(Box::new(PackageLicensesRule {
                     id: id.clone(),
                     manifests: manifests.clone(),
@@ -89,14 +114,33 @@ impl RuleBuilder for BuiltinBuilder {
                     requires: requires.clone(),
                 }));
             }
-            RuleConfig::Mirror { id, from, to } => {
-                if from == to || from.starts_with(&format!("{to}/")) || to.starts_with(&format!("{from}/")) {
-                    let message = format!("rule {id}: the mirror source {from} and target {to} must not contain each other");
+            RuleConfig::Mirror {
+                id,
+                from,
+                to,
+            } => {
+                if from == to
+                    || from.starts_with(&format!("{to}/"))
+                    || to.starts_with(&format!("{from}/"))
+                {
+                    let message = format!(
+                        "rule {id}: the mirror source {from} and target {to} must not contain each other"
+                    );
                     return Err(Diagnostic::new("config-invalid", &message).with_rule(id));
                 }
-                return Ok(Box::new(MirrorRule { id: id.clone(), from: from.clone(), to: to.clone() }));
+                return Ok(Box::new(MirrorRule {
+                    id: id.clone(),
+                    from: from.clone(),
+                    to: to.clone(),
+                }));
             }
-            RuleConfig::TomlKeys { id, manifests, only_dirs, edits, blocks } => {
+            RuleConfig::TomlKeys {
+                id,
+                manifests,
+                only_dirs,
+                edits,
+                blocks,
+            } => {
                 return Ok(Box::new(TomlKeysRule {
                     id: id.clone(),
                     manifests: manifests.clone(),
@@ -105,7 +149,12 @@ impl RuleBuilder for BuiltinBuilder {
                     blocks: blocks.clone(),
                 }));
             }
-            RuleConfig::MisePathList { id, output, directories, header } => {
+            RuleConfig::MisePathList {
+                id,
+                output,
+                directories,
+                header,
+            } => {
                 return Ok(Box::new(MisePathListRule {
                     id: id.clone(),
                     output: output.clone(),
@@ -175,13 +224,19 @@ impl Rule for NotWiredRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, _view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        _view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let message = format!(
             "the rule {} of kind {} was skipped: {} is not linked into this build, so its outputs are neither written nor checked",
             self.id, self.kind, self.owner
         );
         let warning = Diagnostic::new("kind-not-wired", &message).with_rule(&self.id);
-        return Ok(RulePlan { changes: Vec::new(), warnings: vec![warning] });
+        return Ok(RulePlan {
+            changes: Vec::new(),
+            warnings: vec![warning],
+        });
     }
 }
 
@@ -210,7 +265,10 @@ pub struct NotWiredBuilder {
 /// ```
 impl RuleBuilder for NotWiredBuilder {
     /// Build the placeholder rule for `config`.
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic> {
         return Ok(Box::new(NotWiredRule {
             id: config.id().to_string(),
             kind: config.kind().to_string(),
@@ -259,8 +317,17 @@ impl RuleRegistry {
     /// RuleRegistry.withDefaults()
     /// ```
     pub fn with_defaults() -> RuleRegistry {
-        let mut registry = RuleRegistry { builders: BTreeMap::new() };
-        for kind in ["concat", "mode-only", "package-licenses", "mirror", "toml-keys", "mise-path-list"] {
+        let mut registry = RuleRegistry {
+            builders: BTreeMap::new(),
+        };
+        for kind in [
+            "concat",
+            "mode-only",
+            "package-licenses",
+            "mirror",
+            "toml-keys",
+            "mise-path-list",
+        ] {
             registry.register(kind, Box::new(BuiltinBuilder));
         }
         let owners = [
@@ -269,7 +336,12 @@ impl RuleRegistry {
             ("jetbrains-harper", "the in-repo XML edit crate"),
         ];
         for (kind, owner) in owners {
-            registry.register(kind, Box::new(NotWiredBuilder { owner: owner.to_string() }));
+            registry.register(
+                kind,
+                Box::new(NotWiredBuilder {
+                    owner: owner.to_string(),
+                }),
+            );
         }
         return registry;
     }
@@ -284,7 +356,11 @@ impl RuleRegistry {
     /// ```ts
     /// register(kind: string, builder: RuleBuilder): void
     /// ```
-    pub fn register(&mut self, kind: &str, builder: Box<dyn RuleBuilder>) {
+    pub fn register(
+        &mut self,
+        kind: &str,
+        builder: Box<dyn RuleBuilder>,
+    ) {
         self.builders.insert(kind.to_string(), builder);
     }
 
@@ -299,7 +375,10 @@ impl RuleRegistry {
     /// ```ts
     /// build(config: Config): Rule[]
     /// ```
-    pub fn build(&self, config: &Config) -> Result<Vec<Box<dyn Rule>>, Vec<Diagnostic>> {
+    pub fn build(
+        &self,
+        config: &Config,
+    ) -> Result<Vec<Box<dyn Rule>>, Vec<Diagnostic>> {
         let mut rules: Vec<Box<dyn Rule>> = Vec::new();
         let mut errors: Vec<Diagnostic> = Vec::new();
         for entry in &config.rules {

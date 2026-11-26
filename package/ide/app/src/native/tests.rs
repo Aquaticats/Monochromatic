@@ -6,14 +6,27 @@ use super::gpu_snapshot::install_gpu_platform;
 /// Reuse production initialization,
 ///  viewport callbacks,
 ///  and raster presentation.
-use super::{AppWindow, State, bind_appearance, bind_viewport, render, tile_reads::tile_size};
+use super::{
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_viewport,
+    render,
+    tile_reads::tile_size,
+};
 /// Native toolkit events and component ownership are exercised without a host window.
 use slint::{
     ComponentHandle,
-    platform::{WindowEvent, update_timers_and_animations},
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// UI state remains on the test's event-loop thread.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Moving to a different display scale must not leave an old-resolution bitmap until the next keypress.
 #[test]

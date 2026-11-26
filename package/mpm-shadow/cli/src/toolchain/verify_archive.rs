@@ -18,15 +18,24 @@
 use std::path::Path;
 
 /// Imports what this module uses from `super::agree`.
-use super::agree::{compare, refusal};
+use super::agree::{
+    compare,
+    refusal,
+};
 /// Imports what this module uses from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::hash`.
 use super::hash::sha256_file;
 /// Imports what this module uses from `super::load`.
-use super::load::{Loaded, load};
+use super::load::{
+    Loaded,
+    load,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{Artifact, LockedTool};
+use super::model::{
+    Artifact,
+    LockedTool,
+};
 /// Imports what this module uses from `super::scope`.
 use super::scope::Scope;
 
@@ -42,7 +51,12 @@ use super::scope::Scope;
 /// ```ts
 /// export function runVerifyArchive(scope: Scope, platform: string, toolId: string, file: string): string
 /// ```
-pub fn run_verify_archive(scope: &Scope, platform: &str, tool_id: &str, file: &Path) -> Result<String, ToolchainError> {
+pub fn run_verify_archive(
+    scope: &Scope,
+    platform: &str,
+    tool_id: &str,
+    file: &Path,
+) -> Result<String, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let Some(parsed) = &loaded.lock else {
         return Err(ToolchainError::drift(format!(
@@ -56,7 +70,9 @@ pub fn run_verify_archive(scope: &Scope, platform: &str, tool_id: &str, file: &P
         return Err(refusal(&verdict));
     }
     let Some(tool): Option<&LockedTool> = parsed.lock.tool(tool_id) else {
-        return Err(ToolchainError::config(format!("the lock has no tool {tool_id:?}")));
+        return Err(ToolchainError::config(format!(
+            "the lock has no tool {tool_id:?}"
+        )));
     };
     let mut found: Option<&Artifact> = None;
     for (row_platform, row) in &tool.artifacts {
@@ -72,7 +88,11 @@ pub fn run_verify_archive(scope: &Scope, platform: &str, tool_id: &str, file: &P
         }
         return Err(ToolchainError::config(format!(
             "the lock has no artifact for {tool_id} on {platform}; it records: {}",
-            if known.is_empty() { "none".to_string() } else { known.join(", ") }
+            if known.is_empty() {
+                "none".to_string()
+            } else {
+                known.join(", ")
+            }
         )));
     };
     let observed: String = match sha256_file(file) {
@@ -87,5 +107,9 @@ pub fn run_verify_archive(scope: &Scope, platform: &str, tool_id: &str, file: &P
             artifact.url
         )));
     }
-    return Ok(format!("verified {}: SHA-256 {observed} matches the lock for {tool_id} {} on {platform}", file.display(), tool.version));
+    return Ok(format!(
+        "verified {}: SHA-256 {observed} matches the lock for {tool_id} {} on {platform}",
+        file.display(),
+        tool.version
+    ));
 }

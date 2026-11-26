@@ -132,7 +132,10 @@ fn a_reported_size_past_the_buffer_is_refused() {
         .expect_err("the kernel cannot have written past the buffer");
     assert!(matches!(
         error,
-        ReplyError::LargerThanBuffer { capacity: _, .. }
+        ReplyError::LargerThanBuffer {
+            capacity: _,
+            ..
+        }
     ));
     assert!(error.to_string().contains("holds"));
 }
@@ -142,7 +145,12 @@ fn a_filled_reply_that_is_not_a_list_is_refused() {
     let mut buffer: ReplyBuffer = ReplyBuffer::new(ReplyUse::Read, 0);
     buffer.as_mut_bytes()[..4].copy_from_slice(&[9, 9, 9, 9]);
     let error: ReplyError = buffer.decode(true, 4).expect_err("not a native list");
-    assert!(matches!(error, ReplyError::Decode { value: _ }));
+    assert!(matches!(
+        error,
+        ReplyError::Decode {
+            value: _
+        }
+    ));
     let as_error: &dyn std::error::Error = &error;
     assert!(as_error.source().is_some());
 }

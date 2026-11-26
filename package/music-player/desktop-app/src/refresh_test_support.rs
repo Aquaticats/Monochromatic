@@ -10,12 +10,21 @@
 //! and each needs the same small pieces.
 
 /// Imports the set and map types that the fake disk keeps its entries in.
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 /// Imports the path types that name the fake disk's entries.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the disk interface and the entry kind that the fake disk implements.
-use crate::disk_view::{Disk, EntryKind};
+use crate::disk_view::{
+    Disk,
+    EntryKind,
+};
 
 /// What:
 /// `TempTree` is a unique folder under the system temporary directory that is removed when it drops.
@@ -35,17 +44,25 @@ impl TempTree {
     /// the process id,
     /// the tag and the clock make the name unique across parallel tests.
     pub(crate) fn new(tag: &str) -> TempTree {
-        let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| return elapsed.as_nanos());
-        let root: PathBuf = crate::test_scratch::scratch_root().join(format!("mp-refresh-{}-{nanos}-{tag}", std::process::id()));
+        let nanos: u128 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| return elapsed.as_nanos());
+        let root: PathBuf = crate::test_scratch::scratch_root()
+            .join(format!("mp-refresh-{}-{nanos}-{tag}", std::process::id()));
         std::fs::create_dir_all(&root).expect("the test folder is created");
-        return TempTree { root };
+        return TempTree {
+            root,
+        };
     }
 
     /// What:
     /// `path` is the absolute path of a relative name.
     /// Why:
     /// tests talk in relative names.
-    pub(crate) fn path(&self, relative: &str) -> PathBuf {
+    pub(crate) fn path(
+        &self,
+        relative: &str,
+    ) -> PathBuf {
         return self.root.join(relative);
     }
 
@@ -55,9 +72,14 @@ impl TempTree {
     /// Why:
     /// replacing a file keeps its path;
     /// the text decides its size.
-    pub(crate) fn write(&self, relative: &str, text: &str) -> PathBuf {
+    pub(crate) fn write(
+        &self,
+        relative: &str,
+        text: &str,
+    ) -> PathBuf {
         let path: PathBuf = self.path(relative);
-        std::fs::create_dir_all(path.parent().expect("a file has a folder")).expect("the folder is created");
+        std::fs::create_dir_all(path.parent().expect("a file has a folder"))
+            .expect("the folder is created");
         std::fs::write(&path, text).expect("the file is written");
         return path;
     }
@@ -70,9 +92,15 @@ impl TempTree {
     /// random trees collide on names,
     /// and a collision is skipped,
     /// not a failure.
-    pub(crate) fn try_write(&self, relative: &str, text: &str) -> bool {
+    pub(crate) fn try_write(
+        &self,
+        relative: &str,
+        text: &str,
+    ) -> bool {
         let path: PathBuf = self.path(relative);
-        let Some(parent) = path.parent() else { return false };
+        let Some(parent) = path.parent() else {
+            return false;
+        };
         return std::fs::create_dir_all(parent).is_ok() && std::fs::write(&path, text).is_ok();
     }
 
@@ -127,9 +155,16 @@ fn folder_names_ignore_case() -> bool {
 ///      walk's paths.
 /// On a case-sensitive disk the list is used as given,
 /// so the sequences of random numbers stay as they were.
-pub(crate) fn pick_stem(all: &[&'static str], rng: &mut Rng) -> &'static str {
+pub(crate) fn pick_stem(
+    all: &[&'static str],
+    rng: &mut Rng,
+) -> &'static str {
     let mut seen: BTreeSet<String> = BTreeSet::new();
-    let usable: Vec<&'static str> = all.iter().copied().filter(|stem| return !folder_names_ignore_case() || seen.insert(stem.to_lowercase())).collect();
+    let usable: Vec<&'static str> = all
+        .iter()
+        .copied()
+        .filter(|stem| return !folder_names_ignore_case() || seen.insert(stem.to_lowercase()))
+        .collect();
     return usable[rng.below(usable.len())];
 }
 
@@ -150,7 +185,10 @@ impl Rng {
     /// exclusive.
     /// Why:
     /// every random choice is a bounded index.
-    pub(crate) fn below(&mut self, bound: usize) -> usize {
+    pub(crate) fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;
         self.0 ^= self.0 << 17;
@@ -185,40 +223,80 @@ impl Disk for MemoryDisk {
     /// Why:
     /// the pretend disk has only files;
     /// folders exist as their parents.
-    fn kind(&self, path: &Path) -> EntryKind {
+    fn kind(
+        &self,
+        path: &Path,
+    ) -> EntryKind {
         *self.asked.borrow_mut().entry("kind").or_insert(0) += 1;
         if self.files.contains(path) {
             return EntryKind::Track;
         }
         let prefix: PathBuf = path.join("");
-        let is_folder: bool = self.files.range(prefix.clone()..).next().is_some_and(|first| return first.starts_with(path) && first != path);
-        return if is_folder { EntryKind::Folder } else { EntryKind::Missing };
+        let is_folder: bool = self
+            .files
+            .range(prefix.clone()..)
+            .next()
+            .is_some_and(|first| return first.starts_with(path) && first != path);
+        return if is_folder {
+            EntryKind::Folder
+        } else {
+            EntryKind::Missing
+        };
     }
 
     /// What:
     /// `entries` lists the files and folders directly under a folder.
     /// Why:
     /// a folder event is answered from the folder's own entries.
-    fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)> {
+    fn entries(
+        &self,
+        folder: &Path,
+    ) -> Vec<(PathBuf, EntryKind)> {
         *self.asked.borrow_mut().entry("entries").or_insert(0) += 1;
         let mut found: BTreeSet<(PathBuf, bool)> = BTreeSet::new();
-        for file in self.files.range(folder.to_path_buf()..).take_while(|file| return file.starts_with(folder)) {
-            let Ok(below) = file.strip_prefix(folder) else { continue };
+        for file in self
+            .files
+            .range(folder.to_path_buf()..)
+            .take_while(|file| return file.starts_with(folder))
+        {
+            let Ok(below) = file.strip_prefix(folder) else {
+                continue;
+            };
             let mut parts = below.components();
             let Some(first) = parts.next() else { continue };
             let is_file: bool = parts.next().is_none();
             found.insert((folder.join(first.as_os_str()), is_file));
         }
-        return found.into_iter().map(|(path, is_file)| return (path, if is_file { EntryKind::Track } else { EntryKind::Folder })).collect();
+        return found
+            .into_iter()
+            .map(|(path, is_file)| {
+                return (
+                    path,
+                    if is_file {
+                        EntryKind::Track
+                    } else {
+                        EntryKind::Folder
+                    },
+                );
+            })
+            .collect();
     }
 
     /// What:
     /// `walk` lists every file under a folder in queue order.
     /// Why:
     /// a new folder is read once.
-    fn walk(&self, folder: &Path) -> Vec<PathBuf> {
+    fn walk(
+        &self,
+        folder: &Path,
+    ) -> Vec<PathBuf> {
         *self.asked.borrow_mut().entry("walk").or_insert(0) += 1;
-        let mut found: Vec<PathBuf> = self.files.iter().filter(|file| return file.starts_with(folder)).cloned().collect();
+        let mut found: Vec<PathBuf> = self
+            .files
+            .iter()
+            .filter(|file| return file.starts_with(folder))
+            .cloned()
+            .collect();
         found.sort_by(|left, right| return crate::walk_order::walk_cmp(&self.root, left, right));
         return found;
     }

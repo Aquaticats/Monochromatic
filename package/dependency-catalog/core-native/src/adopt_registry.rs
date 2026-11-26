@@ -23,13 +23,22 @@ use crate::error::SyncIssue;
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::requirement::{Operator, Requirement, satisfies, split_requirement}`.
-use crate::requirement::{Operator, Requirement, satisfies, split_requirement};
+use crate::requirement::{
+    Operator,
+    Requirement,
+    satisfies,
+    split_requirement,
+};
 /// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
 /// Imports `crate::types::Entry`.
 use crate::types::Entry;
 /// Imports `crate::version::{ParsedVersion, compare_versions, format_version}`.
-use crate::version::{ParsedVersion, compare_versions, format_version};
+use crate::version::{
+    ParsedVersion,
+    compare_versions,
+    format_version,
+};
 
 /// One candidate floor:
 /// the version text as written (keeping the author's precision) and its parse.
@@ -65,17 +74,30 @@ fn strip_operator(requirement: &str) -> String {
 /// ```ts
 /// function literalCandidates(args: { literals: UseSite[]; issues: SyncIssue[] }): FloorCandidate[]
 /// ```
-fn literal_candidates(literals: &[&UseSite], issues: &mut Vec<SyncIssue>) -> Vec<FloorCandidate> {
+fn literal_candidates(
+    literals: &[&UseSite],
+    issues: &mut Vec<SyncIssue>,
+) -> Vec<FloorCandidate> {
     let mut candidates: Vec<FloorCandidate> = Vec::new();
     for site in literals {
-        let Entry::Registry { version, .. } = &site.literal else {
+        let Entry::Registry {
+            version,
+            ..
+        } = &site.literal
+        else {
             continue;
         };
         match split_requirement(version) {
-            Ok(Requirement { operator: Operator::Exact, .. }) => issues.push(SyncIssue {
+            Ok(Requirement {
+                operator: Operator::Exact,
+                ..
+            }) => issues.push(SyncIssue {
                 file: site.manifest_path.clone(),
                 location: site.location(),
-                problem: format!("exact pin {} cannot become a `>=` floor in [catalog]", quote(version)),
+                problem: format!(
+                    "exact pin {} cannot become a `>=` floor in [catalog]",
+                    quote(version)
+                ),
                 remedy: named_catalog_remedy(site, version),
             }),
             Ok(split) => candidates.push(FloorCandidate {
@@ -85,8 +107,13 @@ fn literal_candidates(literals: &[&UseSite], issues: &mut Vec<SyncIssue>) -> Vec
             Err(error) => issues.push(SyncIssue {
                 file: site.manifest_path.clone(),
                 location: site.location(),
-                problem: format!("requirement {} is not one comparator the catalog can adopt ({error})", quote(version)),
-                remedy: "write a single requirement such as `\"1.2\"`, `\"~1.2.3\"`, or `\">=1.2\"`".to_string(),
+                problem: format!(
+                    "requirement {} is not one comparator the catalog can adopt ({error})",
+                    quote(version)
+                ),
+                remedy:
+                    "write a single requirement such as `\"1.2\"`, `\"~1.2.3\"`, or `\">=1.2\"`"
+                        .to_string(),
             }),
         }
     }
@@ -106,10 +133,18 @@ fn literal_candidates(literals: &[&UseSite], issues: &mut Vec<SyncIssue>) -> Vec
 /// ```ts
 /// export function planRegistryGroup(args: { name: string; literals: UseSite[]; existing: Entry[]; issues: SyncIssue[] }): Entry[]
 /// ```
-pub fn plan_registry_group(name: &str, literals: &[&UseSite], existing: Option<&Entry>, issues: &mut Vec<SyncIssue>) -> Option<Entry> {
+pub fn plan_registry_group(
+    name: &str,
+    literals: &[&UseSite],
+    existing: Option<&Entry>,
+    issues: &mut Vec<SyncIssue>,
+) -> Option<Entry> {
     let issues_before: usize = issues.len();
     let mut candidates: Vec<FloorCandidate> = literal_candidates(literals, issues);
-    if let Some(Entry::Registry { version, .. }) = existing
+    if let Some(Entry::Registry {
+        version,
+        ..
+    }) = existing
         && let Ok(split) = split_requirement(version)
     {
         candidates.push(FloorCandidate {
@@ -128,7 +163,11 @@ pub fn plan_registry_group(name: &str, literals: &[&UseSite], existing: Option<&
     }
     let highest_full: String = format_version(&highest.parsed);
     for site in literals {
-        let Entry::Registry { version, .. } = &site.literal else {
+        let Entry::Registry {
+            version,
+            ..
+        } = &site.literal
+        else {
             continue;
         };
         if !satisfies(&highest_full, version).unwrap_or(false) {
@@ -172,6 +211,10 @@ pub fn plan_registry_group(name: &str, literals: &[&UseSite], existing: Option<&
     let rename: String = renames.into_iter().next().unwrap_or_default();
     return Some(Entry::Registry {
         version: format!(">={}", highest.text),
-        package: if rename.is_empty() { None } else { Some(rename) },
+        package: if rename.is_empty() {
+            None
+        } else {
+            Some(rename)
+        },
     });
 }

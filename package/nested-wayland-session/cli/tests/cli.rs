@@ -9,7 +9,10 @@
 /// ```ts
 /// import { spawnSync } from 'node:child_process';
 /// ```
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Invoke the built consumer artifact with display discovery unavailable.
 fn execute(arguments: &[&str]) -> Output {
@@ -61,8 +64,12 @@ fn version_exits_successfully_without_startup() {
 ///  not a later missing-Wayland error.
 #[test]
 fn usage_errors_are_reported_before_startup() {
-    for input in [vec![], vec!["--unknown"], vec!["--socket"],
-        vec!["--size", "0x1", "app"]] {
+    for input in [
+        vec![],
+        vec!["--unknown"],
+        vec!["--socket"],
+        vec!["--size", "0x1", "app"],
+    ] {
         let output = execute(&input);
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
@@ -111,7 +118,10 @@ fn gpu_without_headless_fails_naming_headless() {
     let output = execute(&["--gpu", "software", "--", "true"]);
     assert_eq!(output.status.code(), Some(1), "{:?}", output);
     let text = String::from_utf8(output.stderr).expect("UTF-8 error");
-    assert!(text.contains("--gpu is only valid together with --headless"), "{text}");
+    assert!(
+        text.contains("--gpu is only valid together with --headless"),
+        "{text}"
+    );
 }
 
 /// A bad `--gpu` value is a usage error that names the choices.

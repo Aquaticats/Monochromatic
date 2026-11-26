@@ -4,16 +4,33 @@
 ///  size,
 ///  and weight properties.
 use parley::{
-    FontContext, FontFamily, FontFeature, FontFeatures, FontStyle, FontVariation, FontVariations,
-    FontWeight, Layout, LayoutContext, PositionedLayoutItem, StyleProperty, setting::Tag,
+    FontContext,
+    FontFamily,
+    FontFeature,
+    FontFeatures,
+    FontStyle,
+    FontVariation,
+    FontVariations,
+    FontWeight,
+    Layout,
+    LayoutContext,
+    PositionedLayoutItem,
+    StyleProperty,
+    setting::Tag,
 };
 /// Owned font bytes are shared with the font collection;
 ///  borrowed family text needs no allocation.
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::Arc,
+};
 
 /// Both real variable faces must be chosen from the bundled bytes,
 ///  never synthesized or discovered on the host.
-use ide_app::font_asset::{UI_ITALIC, UI_ROMAN};
+use ide_app::font_asset::{
+    UI_ITALIC,
+    UI_ROMAN,
+};
 
 /// Shape one UI label with explicit features and the registered real Inter faces.
 fn label_with_style(
@@ -57,7 +74,11 @@ fn label_with_style(
 }
 
 /// The native UI's ordinary request leaves the optical axis at its font default.
-fn label(text: &str, weight: f32, features: &[FontFeature]) -> Layout<u32> {
+fn label(
+    text: &str,
+    weight: f32,
+    features: &[FontFeature],
+) -> Layout<u32> {
     return label_with_style(text, weight, false, None, features);
 }
 

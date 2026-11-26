@@ -28,9 +28,15 @@ use std::os::fd::AsRawFd;
 /// The mode the gate file is created with.
 use std::os::unix::fs::OpenOptionsExt;
 /// Where the gate files live.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Directory the production gate files live in.
 pub const PRODUCTION_GATE_ROOT: &str = "/run";
@@ -45,7 +51,10 @@ const GATE_FILE_MODE: u32 = 0o600;
 const GATE_RETRY_PAUSE: Duration = Duration::from_millis(10);
 
 /// The lock file of one watched user.
-pub fn adoption_gate_path(root: &Path, uid: u32) -> PathBuf {
+pub fn adoption_gate_path(
+    root: &Path,
+    uid: u32,
+) -> PathBuf {
     return root.join(format!("wg-quicker-exempt-adoption-{uid}.lock"));
 }
 
@@ -58,7 +67,10 @@ pub struct AdoptionGate {
 
 /// Takes the kernel lock on the gate file,
 /// and answers absence when another holder has it.
-fn try_lock(root: &Path, uid: u32) -> io::Result<Option<AdoptionGate>> {
+fn try_lock(
+    root: &Path,
+    uid: u32,
+) -> io::Result<Option<AdoptionGate>> {
     let path = adoption_gate_path(root, uid);
     let file = std::fs::OpenOptions::new()
         .create(true)
@@ -70,7 +82,9 @@ fn try_lock(root: &Path, uid: u32) -> io::Result<Option<AdoptionGate>> {
     // SAFETY: `file` owns a valid descriptor and `flock` changes only its kernel lock state.
     let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if result == 0 {
-        return Ok(Some(AdoptionGate { _file: file }));
+        return Ok(Some(AdoptionGate {
+            _file: file,
+        }));
     }
     let error = io::Error::last_os_error();
     return match error.raw_os_error() {
@@ -82,7 +96,10 @@ fn try_lock(root: &Path, uid: u32) -> io::Result<Option<AdoptionGate>> {
 /// Takes the gate when it is free,
 /// and answers absence at once when another holder has it,
 /// so an adoption is deferred to the next scan instead of holding the watcher's loop.
-pub fn try_acquire(root: &Path, uid: u32) -> io::Result<Option<AdoptionGate>> {
+pub fn try_acquire(
+    root: &Path,
+    uid: u32,
+) -> io::Result<Option<AdoptionGate>> {
     return try_lock(root, uid);
 }
 
@@ -90,7 +107,11 @@ pub fn try_acquire(root: &Path, uid: u32) -> io::Result<Option<AdoptionGate>> {
 /// and answers absence when the limit passes with another holder still in it.
 /// The caller says what it waited for and leaves that work for the next pass,
 /// because a holder may have a slow manager call and the waiting work here is a cleanup.
-pub fn acquire_within(root: &Path, uid: u32, limit: Duration) -> io::Result<Option<AdoptionGate>> {
+pub fn acquire_within(
+    root: &Path,
+    uid: u32,
+    limit: Duration,
+) -> io::Result<Option<AdoptionGate>> {
     let deadline = Instant::now() + limit;
     loop {
         if let Some(gate) = try_lock(root, uid)? {

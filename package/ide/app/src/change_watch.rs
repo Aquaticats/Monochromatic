@@ -35,17 +35,32 @@ mod watch_thread;
 /// Directory watches are checked against the same canonical root as every project read.
 use crate::workspace::Workspace;
 /// Thread startup failures stay actionable.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// The watch-limit backoff and its intervals,
 ///  public so the schedule is tested with chosen times.
-pub use limit::{FIRST_LIMIT_RETRY, LONGEST_LIMIT_RETRY, LimitBackoff};
+pub use limit::{
+    FIRST_LIMIT_RETRY,
+    LONGEST_LIMIT_RETRY,
+    LimitBackoff,
+};
 /// The non-blocking wake shared with notify's event handler.
 use record::wake;
 /// Invalidation kinds returned by `ChangeWatcher::take`,
 ///  and the changes sent to the language servers.
-pub use shared::{Changes, ServerChange, ServerChangeKind, SourceChange};
+pub use shared::{
+    Changes,
+    ServerChange,
+    ServerChangeKind,
+    SourceChange,
+};
 /// Private shared state and its poison-tolerant lock.
-use shared::{Shared, lock};
+use shared::{
+    Shared,
+    lock,
+};
 /// What:
 ///  `Arc<Mutex<Shared>>` is a thread-safe shared owner of locked state (`Rc<RefCell<..>>` is the
 ///       single-thread sibling);
@@ -62,12 +77,23 @@ use shared::{Shared, lock};
 /// ```
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, MutexGuard,
-        mpsc::{SyncSender, sync_channel},
+    path::{
+        Path,
+        PathBuf,
     },
-    thread::{self, JoinHandle},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        mpsc::{
+            SyncSender,
+            sync_channel,
+        },
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 /// What:
 ///  `UnboundedSender` is the sending end of tokio's queue without a size limit.
@@ -155,7 +181,11 @@ impl ChangeWatcher {
 
     /// Watch exactly these directories plus the displayed file's parent;
     ///  unchanged requests are free.
-    pub fn watch_only(&mut self, directories: &BTreeSet<PathBuf>, file: Option<&Path>) {
+    pub fn watch_only(
+        &mut self,
+        directories: &BTreeSet<PathBuf>,
+        file: Option<&Path>,
+    ) {
         let mut wanted = directories.clone();
         // What: `and_then` maps `Some(file)` to its optional parent; `map` copies it into an owned path.
         // Why: Watching the parent (not the file) sees atomic replace and delete then recreate.
@@ -227,7 +257,10 @@ impl ChangeWatcher {
     /// ```ts
     /// feedServers(feed: Queue<ServerChange> | undefined): void
     /// ```
-    pub fn feed_servers(&mut self, feed: Option<UnboundedSender<ServerChange>>) {
+    pub fn feed_servers(
+        &mut self,
+        feed: Option<UnboundedSender<ServerChange>>,
+    ) {
         let feeding = feed.is_some();
         if feeding == self.feeding || self.stopped {
             return;
@@ -281,7 +314,10 @@ impl ChangeWatcher {
 
     /// Test seam:
     ///  record an event or error exactly as notify's handler would.
-    pub fn deliver(&self, event: notify::Result<notify::Event>) {
+    pub fn deliver(
+        &self,
+        event: notify::Result<notify::Event>,
+    ) {
         record::record(&self.shared, &self.wake, event);
     }
 }

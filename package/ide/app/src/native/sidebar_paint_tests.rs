@@ -8,9 +8,21 @@ use super::find_tests::key;
 /// Shared window fixture,
 ///  pointer helpers,
 ///  and the pinned layout measurements.
-use super::sidebar_tests::{HEADER, MINIMUM, drag_to, fixture, motion, press, release, settle};
+use super::sidebar_tests::{
+    HEADER,
+    MINIMUM,
+    drag_to,
+    fixture,
+    motion,
+    press,
+    release,
+    settle,
+};
 /// Generated window and tree row types from the shipped markup.
-use super::{AppWindow, ui::TreeEntry};
+use super::{
+    AppWindow,
+    ui::TreeEntry,
+};
 /// What:
 ///  `Rgba8Pixel` is one pixel of four bytes;
 ///  `SharedPixelBuffer<Rgba8Pixel>` is a rendered frame
@@ -26,8 +38,16 @@ use super::{AppWindow, ui::TreeEntry};
 /// type Frame = { width: number; pixels: Pixel[] };
 /// ```
 use slint::{
-    ComponentHandle, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel,
-    platform::{Key, PointerEventButton},
+    ComponentHandle,
+    ModelRc,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    SharedString,
+    VecModel,
+    platform::{
+        Key,
+        PointerEventButton,
+    },
 };
 /// The replacement tree model is shared with the window like the fixture's own model.
 use std::rc::Rc;
@@ -87,7 +107,11 @@ fn painted(
 }
 
 /// One pixel of the frame at whole-pixel coordinates.
-pub(super) fn pixel(frame: &SharedPixelBuffer<Rgba8Pixel>, x: usize, y: usize) -> Rgba8Pixel {
+pub(super) fn pixel(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    x: usize,
+    y: usize,
+) -> Rgba8Pixel {
     return frame.as_slice()[y * frame.width() as usize + x];
 }
 

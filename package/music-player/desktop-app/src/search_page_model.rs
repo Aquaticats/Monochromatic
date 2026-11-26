@@ -14,11 +14,19 @@
 /// Highlight type,
 ///  whitespace test,
 ///  and UTF-16 offset helper from the matcher.
-use crate::search_matcher::{SearchHighlight, is_kotlin_whitespace, to_offset};
+use crate::search_matcher::{
+    SearchHighlight,
+    is_kotlin_whitespace,
+    to_offset,
+};
 /// Result rows,
 ///  their kinds,
 ///  and the search state the page shows.
-use crate::search_results::{SearchResult, SearchResultKind, SearchState};
+use crate::search_results::{
+    SearchResult,
+    SearchResultKind,
+    SearchState,
+};
 
 /// What:
 ///      `pub const SEARCH_PROMPT_TITLE: &str`.
@@ -352,7 +360,9 @@ pub fn search_status_line(state: &SearchState) -> Option<SearchStatusLine> {
             title: format!("{SEARCH_NO_MATCH_PREFIX}{query}{SEARCH_NO_MATCH_SUFFIX}"),
             detail: Some(SEARCH_NO_MATCH_DETAIL),
         }),
-        SearchState::Results { .. } => None,
+        SearchState::Results {
+            ..
+        } => None,
     };
 }
 
@@ -407,7 +417,10 @@ pub fn search_row_kind_label(result: &SearchResult) -> &'static str {
 /// ```ts
 /// const isCurrentTrackResult = (r, idx) => r.kind === "track" && idx !== null && r.indexInLibrary === idx;
 /// ```
-pub fn is_current_track_result(result: &SearchResult, current_track_index: Option<usize>) -> bool {
+pub fn is_current_track_result(
+    result: &SearchResult,
+    current_track_index: Option<usize>,
+) -> bool {
     if result.kind != SearchResultKind::Track {
         return false;
     }
@@ -438,7 +451,11 @@ pub fn search_row_action_label(
         return SEARCH_FOLDER_ACTION;
     }
     if !is_current_track_result(result, current_track_index) {
-        return if auto_play_on_select { SEARCH_TRACK_PLAY_ACTION } else { SEARCH_TRACK_SELECT_ACTION };
+        return if auto_play_on_select {
+            SEARCH_TRACK_PLAY_ACTION
+        } else {
+            SEARCH_TRACK_SELECT_ACTION
+        };
     }
     return match is_playing {
         Some(true) => SEARCH_TRACK_PAUSE_ACTION,
@@ -495,7 +512,12 @@ pub fn search_row_semantics(
 ) -> SearchRowSemantics {
     return SearchRowSemantics {
         kind_label: search_row_kind_label(result),
-        action_label: search_row_action_label(result, current_track_index, is_playing, auto_play_on_select),
+        action_label: search_row_action_label(
+            result,
+            current_track_index,
+            is_playing,
+            auto_play_on_select,
+        ),
         state_label: search_row_state_label(result, current_track_index, is_playing),
     };
 }
@@ -514,7 +536,10 @@ pub fn search_row_semantics(
 /// ```ts
 /// const searchEmphasisSpans = (text, hs) => hs.filter(h => h.start >= 0 && h.start < h.end && h.end <= text.length);
 /// ```
-pub fn search_emphasis_spans(text: &str, highlights: &[SearchHighlight]) -> Vec<SearchHighlight> {
+pub fn search_emphasis_spans(
+    text: &str,
+    highlights: &[SearchHighlight],
+) -> Vec<SearchHighlight> {
     let text_length: i32 = to_offset(text.chars().count());
     let mut spans: Vec<SearchHighlight> = Vec::new();
     for highlight in highlights.iter().copied() {
@@ -540,7 +565,10 @@ pub fn search_emphasis_spans(text: &str, highlights: &[SearchHighlight]) -> Vec<
 /// ```ts
 /// const initialQueryForVisit = (prev, same) => same ? (prev ?? "") : "";
 /// ```
-pub fn initial_query_for_visit(previous: Option<&str>, same_visit: bool) -> String {
+pub fn initial_query_for_visit(
+    previous: Option<&str>,
+    same_visit: bool,
+) -> String {
     if !same_visit {
         return String::new();
     }
@@ -573,7 +601,10 @@ pub fn should_request_query_focus(same_visit: bool) -> bool {
 /// ```ts
 /// const shouldPreserveRowVisibility = (prev, cur) => prev === cur;
 /// ```
-pub fn should_preserve_row_visibility(previous_query: &str, current_query: &str) -> bool {
+pub fn should_preserve_row_visibility(
+    previous_query: &str,
+    current_query: &str,
+) -> bool {
     return previous_query == current_query;
 }
 

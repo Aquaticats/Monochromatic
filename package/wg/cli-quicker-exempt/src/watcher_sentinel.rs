@@ -21,23 +21,35 @@
 //! nothing reports it.
 
 /// Persisted watcher identity.
-use crate::application_watch_state::{read_watch_state, WatchProcess};
-/// Facts about one process.
-use crate::process_info::read_start_time;
+use crate::application_watch_state::{
+    WatchProcess,
+    read_watch_state,
+};
 /// Non-panicking log.
 use crate::log_line::log_line;
+/// Facts about one process.
+use crate::process_info::read_start_time;
 /// Failure delivery.
 use crate::runtime_report::RuntimeReporter;
 /// The marker of a running sentinel.
 use crate::sentinel_marker::write_marker;
 /// Whether the whole system is stopping.
-use crate::system_state::{HostSystemState, SystemState};
+use crate::system_state::{
+    HostSystemState,
+    SystemState,
+};
 /// The words of the policy.
-use crate::update_report::{policy_failure, POLICY_PROCESS_WATCH};
+use crate::update_report::{
+    POLICY_PROCESS_WATCH,
+    policy_failure,
+};
 /// Syscall failures.
 use std::io;
 /// Raw descriptor ownership.
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+};
 /// Fake procfs roots in tests.
 use std::path::Path;
 /// Bounded waits.
@@ -100,9 +112,15 @@ impl StateSource for KeyedState<'_> {
 }
 
 /// Judges the end of the watcher from the state it left.
-pub fn judge(state_source: &dyn StateSource, pid: i32, start_time: u64) -> Verdict {
+pub fn judge(
+    state_source: &dyn StateSource,
+    pid: i32,
+    start_time: u64,
+) -> Verdict {
     return match state_source.read() {
-        Ok(Some(state)) if state.pid == pid && state.start_time == start_time => Verdict::Unexpected,
+        Ok(Some(state)) if state.pid == pid && state.start_time == start_time => {
+            Verdict::Unexpected
+        }
         Ok(_other) => Verdict::Expected,
         Err(error) => Verdict::Unknown(error.to_string()),
     };
@@ -125,7 +143,11 @@ fn open_pidfd(pid: i32) -> Option<OwnedFd> {
 /// so a reused pid is never mistaken for it;
 /// where the kernel has none,
 /// the start time in `proc_root` is polled instead.
-pub fn wait_for_exit(proc_root: &Path, pid: i32, start_time: u64) -> io::Result<()> {
+pub fn wait_for_exit(
+    proc_root: &Path,
+    pid: i32,
+    start_time: u64,
+) -> io::Result<()> {
     if let Some(descriptor) = open_pidfd(pid) {
         // The process may have been replaced between the start and the open.
         if read_start_time(proc_root, pid) != Some(start_time) {
@@ -153,7 +175,12 @@ pub fn wait_for_exit(proc_root: &Path, pid: i32, start_time: u64) -> io::Result<
 
 /// Waits by polling the start time of the process in `proc_root` every `interval`,
 /// until the process is gone or replaced by another with the same pid.
-pub fn poll_for_exit(proc_root: &Path, pid: i32, start_time: u64, interval: Duration) -> io::Result<()> {
+pub fn poll_for_exit(
+    proc_root: &Path,
+    pid: i32,
+    start_time: u64,
+    interval: Duration,
+) -> io::Result<()> {
     while read_start_time(proc_root, pid) == Some(start_time) {
         std::thread::sleep(interval);
     }
@@ -170,7 +197,10 @@ so neither is enforced any more; run wg-quicker up again"
 }
 
 /// The report for a watcher that ended while its state cannot be read.
-pub fn unknown_report(pid: i32, why: &str) -> String {
+pub fn unknown_report(
+    pid: i32,
+    why: &str,
+) -> String {
     return policy_failure(&format!(
         "the watcher (pid {pid}) is no longer running and its state cannot be read ({why}), so it cannot be told whether watch-stop asked for that; if not, neither the socket marking nor this policy is enforced any more"
     ));
@@ -192,7 +222,9 @@ pub fn run_sentinel(
     std::thread::sleep(grace);
     let judged = judge(state_source, pid, start_time);
     let verdict = if judged != Verdict::Expected && system_state.is_stopping() {
-        log_line(&format!("the watcher (pid {pid}) ended while the system is stopping, which is not a failure of the policies, so nothing is reported"));
+        log_line(&format!(
+            "the watcher (pid {pid}) ended while the system is stopping, which is not a failure of the policies, so nothing is reported"
+        ));
         Verdict::SystemStopping
     } else {
         judged
@@ -211,14 +243,32 @@ pub fn run_sentinel(
 }
 
 /// Runs the hidden sentinel command for the watcher stored under `key`.
-pub fn run_sentinel_command(key: &str, pid: i32, start_time: u64, uid: u32, gid: u32) -> io::Result<()> {
+pub fn run_sentinel_command(
+    key: &str,
+    pid: i32,
+    start_time: u64,
+    uid: u32,
+    gid: u32,
+) -> io::Result<()> {
     // The marker tells the process that started this one that it got as far as running.
     // A failure to write it does not stop the sentinel, which can still report,
     // but the starter will then say it could not confirm.
     if let Err(error) = write_marker(key, pid) {
-        log_line(&policy_failure(&format!("the sentinel could not leave its marker ({error}), so the start cannot confirm that it runs")));
+        log_line(&policy_failure(&format!(
+            "the sentinel could not leave its marker ({error}), so the start cannot confirm that it runs"
+        )));
     }
     let mut reporter = RuntimeReporter::new(uid, gid);
-    run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &HostSystemState, &mut reporter)?;
+    run_sentinel(
+        Path::new("/proc"),
+        pid,
+        start_time,
+        STOP_GRACE,
+        &KeyedState {
+            key,
+        },
+        &HostSystemState,
+        &mut reporter,
+    )?;
     return Ok(());
 }

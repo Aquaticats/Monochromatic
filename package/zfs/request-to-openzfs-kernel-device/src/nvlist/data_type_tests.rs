@@ -70,7 +70,12 @@ fn alignment_rounds_up_to_eight_bytes() {
 fn only_version_zero_is_accepted() {
     assert!(check_version(0).is_ok());
     let error = check_version(1).expect_err("version 1 is not read");
-    assert_eq!(error, NvError::UnsupportedVersion { version: 1 });
+    assert_eq!(
+        error,
+        NvError::UnsupportedVersion {
+            version: 1
+        }
+    );
     assert!(error.to_string().contains("only version 0"));
 }
 

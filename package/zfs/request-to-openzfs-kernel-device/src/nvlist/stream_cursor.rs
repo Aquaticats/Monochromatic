@@ -43,7 +43,10 @@ impl<'a> Cursor<'a> {
     /// # Throws
     ///
     /// [`NvError::Truncated`] when fewer remain.
-    pub fn take(&mut self, count: usize) -> Result<&'a [u8], NvError> {
+    pub fn take(
+        &mut self,
+        count: usize,
+    ) -> Result<&'a [u8], NvError> {
         if self.remaining() < count {
             return Err(NvError::Truncated {
                 at: self.position,

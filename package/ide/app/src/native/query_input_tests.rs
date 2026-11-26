@@ -11,18 +11,34 @@ use super::AppWindow;
 use super::find_clear_tests::opened;
 /// Real key events through the window and the wait for the find count,
 ///  shared with the find tests.
-use super::find_tests::{chord, key, status, type_text};
+use super::find_tests::{
+    chord,
+    key,
+    status,
+    type_text,
+};
 /// The range of ink lightness inside a region,
 ///  shared with the search box's paint tests.
 use super::query_input_paint_tests::ink_range;
 /// Rendered frames and single pixels,
 ///  shared with the sidebar paint tests.
-use super::sidebar_paint_tests::{frame, pixel};
+use super::sidebar_paint_tests::{
+    frame,
+    pixel,
+};
 /// Pointer helpers and the pinned width of the divider's line.
-use super::sidebar_tests::{DIVIDER, press, release, settle};
+use super::sidebar_tests::{
+    DIVIDER,
+    press,
+    release,
+    settle,
+};
 /// The scheme switch the desktop-settings watcher makes,
 ///  and color bytes.
-use super::theme_tests::{rgba, switch};
+use super::theme_tests::{
+    rgba,
+    switch,
+};
 /// What:
 ///  `ColorScheme` is the toolkit's scheme enum (`Unknown`,
 ///  `Dark`,
@@ -39,10 +55,19 @@ use super::theme_tests::{rgba, switch};
 /// ```ts
 /// import { ColorScheme } from 'slint/private';
 /// ```
-use slint::private_unstable_api::re_exports::{ColorScheme, WindowInner};
+use slint::private_unstable_api::re_exports::{
+    ColorScheme,
+    WindowInner,
+};
 use slint::{
-    ComponentHandle, Rgba8Pixel, SharedPixelBuffer,
-    platform::{Key, PointerEventButton, WindowEvent},
+    ComponentHandle,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// What:
 ///  `Rgba8Pixel` is one pixel of four bytes;
@@ -71,7 +96,10 @@ use slint::{
 /// ```ts
 /// import { setTimeout as sleep } from 'node:timers/promises';
 /// ```
-use std::{thread::sleep, time::Duration};
+use std::{
+    thread::sleep,
+    time::Duration,
+};
 
 /// What:
 ///  `steps: usize` is how many times Down is pressed (`usize` is the unsigned counting type;
@@ -92,7 +120,10 @@ use std::{thread::sleep, time::Duration};
 /// ```ts
 /// function menu(window: AppWindow, steps: number): void;
 /// ```
-fn menu(window: &AppWindow, steps: usize) {
+fn menu(
+    window: &AppWindow,
+    steps: usize,
+) {
     open_menu(window, Duration::ZERO);
     for _ in 0..steps {
         key(window, Key::DownArrow);
@@ -115,7 +146,10 @@ fn menu(window: &AppWindow, steps: usize) {
 /// ```ts
 /// function openMenu(window: AppWindow, holdMs: number): void;
 /// ```
-fn open_menu(window: &AppWindow, hold: Duration) {
+fn open_menu(
+    window: &AppWindow,
+    hold: Duration,
+) {
     settle(window);
     // The pointer goes on the left part of the text area:
     //  the box starts after the sidebar and its divider,
@@ -359,7 +393,10 @@ fn find_box_context_menu_runs_each_entry() {
 /// ```ts
 /// function pixels(frame: Frame, bounds: [number, number, number, number]): Pixel[];
 /// ```
-fn pixels(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) -> Vec<Rgba8Pixel> {
+fn pixels(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    bounds: [usize; 4],
+) -> Vec<Rgba8Pixel> {
     // What: `Vec::new()` is an empty growable array; `mut` allows pushing into it.
     // Why: The region is collected pixel by pixel with plain loops.
     //

@@ -47,7 +47,10 @@ use crate::track_measure::TrackMeasure;
 /// ```ts
 /// import { Serializable } from "some-json-lib";
 /// ```
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 // What:     `#[derive(...)]` is an ATTRIBUTE that runs the listed macros to
 //           auto-implement behaviour for the enum below:

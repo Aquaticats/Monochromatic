@@ -513,18 +513,21 @@ fn disk_wait_probe() {
 /// then `then`,
 /// and creating `announce` from inside the hold when it names a path.
 pub(crate) fn disk_wait_command(hold: Duration, then: &str, announce: Option<&std::path::Path>) -> Command {
-    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start the probe test of it as a process of its own")]
-    let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
-    let mut command: Command = Command::new(test_binary);
-    command
-        .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
-        .env(PROBE_HOLD_VARIABLE, hold.as_millis().to_string())
-        .env(PROBE_THEN_VARIABLE, then)
-        .stdin(Stdio::null());
+    let hold_text: String = hold.as_millis().to_string();
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> =
+        vec![(PROBE_HOLD_VARIABLE, std::ffi::OsStr::new(hold_text.as_str())), (PROBE_THEN_VARIABLE, std::ffi::OsStr::new(then))];
     if let Some(path) = announce {
-        command.env(PROBE_ANNOUNCE_VARIABLE, path);
+        environment.push((PROBE_ANNOUNCE_VARIABLE, path.as_os_str()));
     }
-    return command;
+    // The words are the one place's; one control writes them into a shell line and one release-code run starts them
+    //  with bounds of its own, so the probe's streams stay the ones that run had before.
+    return crate::child_test_process::command_of(crate::child_test_process::ChildTest {
+        exact_test: PROBE_NAME,
+        environment: environment.as_slice(),
+        standard_output: Stdio::inherit(),
+        standard_error: Stdio::inherit(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// Wait until the probe has created the file it announces its hold with.

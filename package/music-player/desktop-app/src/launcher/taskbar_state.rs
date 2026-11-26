@@ -285,7 +285,9 @@ impl TaskbarProgress {
         if !self.playing && !self.armed {
             return TaskbarUpdate::HIDDEN;
         }
-        let whole = (self.position_secs / duration * 100.0 + PERCENT_EDGE_TOLERANCE).floor().clamp(0.0, 100.0);
+        let whole = (self.position_secs / duration * 100.0 + PERCENT_EDGE_TOLERANCE)
+            .floor()
+            .clamp(0.0, 100.0);
         // The clamp above keeps the value inside 0 to 100, so the cast cannot truncate.
         return TaskbarUpdate {
             percent: whole as u8,
@@ -301,9 +303,16 @@ impl TaskbarProgress {
     /// because a seek must pass the seek bar's own rate limit;
     /// it reads the
     /// machine's position to tell a seek from a tick.
-    pub fn input_for(&self, update: &Update) -> Option<TaskbarInput> {
+    pub fn input_for(
+        &self,
+        update: &Update,
+    ) -> Option<TaskbarInput> {
         match update {
-            Update::NowPlaying { index, duration, .. } => {
+            Update::NowPlaying {
+                index,
+                duration,
+                ..
+            } => {
                 if index.is_none() {
                     return Some(TaskbarInput::Idle);
                 }
@@ -311,7 +320,10 @@ impl TaskbarProgress {
                     duration_secs: *duration,
                 });
             }
-            Update::Reconciled { index, .. } => {
+            Update::Reconciled {
+                index,
+                ..
+            } => {
                 // The same track keeps playing across a rescan, so only a vanished track changes the bar.
                 if index.is_none() {
                     return Some(TaskbarInput::Idle);
@@ -321,9 +333,13 @@ impl TaskbarProgress {
             Update::Position(secs) => {
                 let step = *secs - self.position_secs;
                 if !(-BACKWARD_NOISE_SECS..=SEEK_JUMP_SECS).contains(&step) {
-                    return Some(TaskbarInput::Seek { secs: *secs });
+                    return Some(TaskbarInput::Seek {
+                        secs: *secs,
+                    });
                 }
-                return Some(TaskbarInput::Position { secs: *secs });
+                return Some(TaskbarInput::Position {
+                    secs: *secs,
+                });
             }
             Update::Playing(on) => return Some(TaskbarInput::Playing(*on)),
             _ => return None,
@@ -335,7 +351,11 @@ impl TaskbarProgress {
     /// if any.
     /// Why:
     /// the whole bridge from engine messages to the launcher entry is this call.
-    pub fn apply_update(&mut self, update: &Update, now: Duration) -> Option<TaskbarUpdate> {
+    pub fn apply_update(
+        &mut self,
+        update: &Update,
+        now: Duration,
+    ) -> Option<TaskbarUpdate> {
         let input = self.input_for(update)?;
         return self.apply(input, now);
     }
@@ -346,31 +366,50 @@ impl TaskbarProgress {
     /// Why:
     /// it updates the state first,
     /// then asks `desired` what the bar should show and whether it may be sent now.
-    pub fn apply(&mut self, input: TaskbarInput, now: Duration) -> Option<TaskbarUpdate> {
+    pub fn apply(
+        &mut self,
+        input: TaskbarInput,
+        now: Duration,
+    ) -> Option<TaskbarUpdate> {
         tracing::trace!(?input, "taskbar progress input");
         match input {
-            TaskbarInput::NowPlaying { duration_secs } => {
+            TaskbarInput::NowPlaying {
+                duration_secs,
+            } => {
                 if duration_secs.is_finite() && duration_secs > 0.0 {
                     self.duration_secs = Some(duration_secs);
                     self.armed = self.armed || self.playing;
                 } else {
-                    tracing::debug!(duration_secs, "taskbar progress: track without a usable length, bar hidden");
+                    tracing::debug!(
+                        duration_secs,
+                        "taskbar progress: track without a usable length, bar hidden"
+                    );
                     self.duration_secs = None;
                     self.armed = false;
                 }
                 self.position_secs = 0.0;
             }
-            TaskbarInput::Position { secs } => {
+            TaskbarInput::Position {
+                secs,
+            } => {
                 if self.duration_secs.is_none() || !secs.is_finite() || secs < self.position_secs {
-                    tracing::trace!(secs, "taskbar progress: tick dropped (no track, not a number, or behind)");
+                    tracing::trace!(
+                        secs,
+                        "taskbar progress: tick dropped (no track, not a number, or behind)"
+                    );
                     return None;
                 }
                 self.position_secs = secs;
                 self.armed = self.armed || secs > 0.0;
             }
-            TaskbarInput::Seek { secs } => {
+            TaskbarInput::Seek {
+                secs,
+            } => {
                 if self.duration_secs.is_none() || !secs.is_finite() || secs < 0.0 {
-                    tracing::debug!(secs, "taskbar progress: seek dropped (no track or not a valid position)");
+                    tracing::debug!(
+                        secs,
+                        "taskbar progress: seek dropped (no track or not a valid position)"
+                    );
                     return None;
                 }
                 self.position_secs = secs;
@@ -395,16 +434,28 @@ impl TaskbarProgress {
             // Only while playing: the next playback tick then sends whatever is held. A paused bar has no next tick.
             let may_hold = self.playing
                 && match input {
-                    TaskbarInput::Position { .. } => true,
-                    TaskbarInput::Seek { .. } => sent.by_seek,
+                    TaskbarInput::Position {
+                        ..
+                    } => true,
+                    TaskbarInput::Seek {
+                        ..
+                    } => sent.by_seek,
                     _ => false,
                 };
             if may_hold && gap < MIN_UPDATE_GAP {
-                tracing::trace!(percent = desired.percent, "taskbar progress: change held for the rate limit");
+                tracing::trace!(
+                    percent = desired.percent,
+                    "taskbar progress: change held for the rate limit"
+                );
                 return None;
             }
         }
-        tracing::debug!(percent = desired.percent, visible = desired.visible, ?input, "taskbar progress: send");
+        tracing::debug!(
+            percent = desired.percent,
+            visible = desired.visible,
+            ?input,
+            "taskbar progress: send"
+        );
         self.sent = Some(Sent {
             value: desired,
             at: now,

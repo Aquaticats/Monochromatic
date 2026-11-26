@@ -24,9 +24,17 @@
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::lock`.
-use super::lock::{Lock, ParsedLock, lock_digest};
+use super::lock::{
+    Lock,
+    ParsedLock,
+    lock_digest,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{Declaration, LockedTool, expand_version};
+use super::model::{
+    Declaration,
+    LockedTool,
+    expand_version,
+};
 /// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
 
@@ -103,7 +111,10 @@ impl Disagreement {
             lines.push(format!("{id} is no longer in the plan"));
         }
         for (id, fields) in &self.projection_edits {
-            lines.push(format!("{id} now differs from the plan in: {}", fields.join(", ")));
+            lines.push(format!(
+                "{id} now differs from the plan in: {}",
+                fields.join(", ")
+            ));
         }
         if self.order_differs {
             lines.push("the tools follow the plan's order".to_string());
@@ -134,10 +145,16 @@ impl Disagreement {
             lines.push(format!("{id} is in the lock but no longer in the plan"));
         }
         for (id, fields) in &self.resolution_edits {
-            lines.push(format!("{id} changed in the plan in a way that moves its version or artifacts: {}", fields.join(", ")));
+            lines.push(format!(
+                "{id} changed in the plan in a way that moves its version or artifacts: {}",
+                fields.join(", ")
+            ));
         }
         for (id, fields) in &self.projection_edits {
-            lines.push(format!("{id} differs between the plan and the lock in: {}", fields.join(", ")));
+            lines.push(format!(
+                "{id} differs between the plan and the lock in: {}",
+                fields.join(", ")
+            ));
         }
         if self.order_differs {
             lines.push("the lock lists its tools in a different order than the plan".to_string());
@@ -172,7 +189,10 @@ impl Disagreement {
 /// ```ts
 /// function changedFields(plan: Declaration, locked: Declaration): { resolution: string[]; projection: string[] }
 /// ```
-fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec<String>) {
+fn changed_fields(
+    plan: &Declaration,
+    locked: &Declaration,
+) -> (Vec<String>, Vec<String>) {
     let mut resolution: Vec<String> = Vec::new();
     let mut projection: Vec<String> = Vec::new();
     if plan.request != locked.request {
@@ -230,7 +250,10 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
 }
 
 /// Whether the plan declares a tool with this id.
-fn plan_has(plan: &Plan, id: &str) -> bool {
+fn plan_has(
+    plan: &Plan,
+    id: &str,
+) -> bool {
     for declaration in &plan.tools {
         if declaration.id == id {
             return true;
@@ -253,13 +276,17 @@ fn plan_has(plan: &Plan, id: &str) -> bool {
 /// ```ts
 /// export function compare(plan: Plan, parsed: ParsedLock): Disagreement
 /// ```
-pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
+pub fn compare(
+    plan: &Plan,
+    parsed: &ParsedLock,
+) -> Disagreement {
     let lock: &Lock = &parsed.lock;
     let mut result: Disagreement = Disagreement::default();
     match &parsed.recorded_digest {
         None => {
             result.digest_problem = Some(
-                "toolchain.lock.json has no digest, so it was not written by mpm-shadow".to_string(),
+                "toolchain.lock.json has no digest, so it was not written by mpm-shadow"
+                    .to_string(),
             );
         }
         Some(recorded) => {
@@ -280,10 +307,14 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
         let expanded: Declaration = expand_version(declaration, &locked.version);
         let (resolution, projection) = changed_fields(&expanded, &locked.declaration);
         if !resolution.is_empty() {
-            result.resolution_edits.push((declaration.id.clone(), resolution));
+            result
+                .resolution_edits
+                .push((declaration.id.clone(), resolution));
         }
         if !projection.is_empty() {
-            result.projection_edits.push((declaration.id.clone(), projection));
+            result
+                .projection_edits
+                .push((declaration.id.clone(), projection));
         }
     }
     for locked in &lock.tools {
@@ -322,15 +353,17 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
 /// ```ts
 /// export function project(plan: Plan, lock: Lock): Lock  // throws when update is needed
 /// ```
-pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
+pub fn project(
+    plan: &Plan,
+    lock: &Lock,
+) -> Result<Lock, ToolchainError> {
     let mut tools: Vec<LockedTool> = Vec::new();
     for declaration in &plan.tools {
         let Some(locked) = lock.tool(&declaration.id) else {
             return Err(ToolchainError::drift(format!(
                 "{} is in the plan but not in the lock; run `mpm-shadow update {}` to resolve just that tool \
                  (every other row keeps its version)",
-                declaration.id,
-                declaration.id
+                declaration.id, declaration.id
             )));
         };
         let expanded: Declaration = expand_version(declaration, &locked.version);
@@ -350,7 +383,9 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
             artifacts: locked.artifacts.clone(),
         });
     }
-    return Ok(Lock { tools });
+    return Ok(Lock {
+        tools,
+    });
 }
 
 /// What:
@@ -369,7 +404,8 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
 /// ```
 pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
     let remedy: String = if disagreement.digest_problem.is_some() {
-        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`".to_string()
+        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`"
+            .to_string()
     } else if disagreement.needs_update() {
         format!(
             "run `mpm-shadow update {}` to resolve just those tools (it needs the network; every other row keeps its \

@@ -96,7 +96,10 @@ pub fn luminance(color: [u8; 4]) -> f32 {
 ///   return (high + 0.05) / (low + 0.05);
 /// }
 /// ```
-pub fn contrast(first: [u8; 4], second: [u8; 4]) -> f32 {
+pub fn contrast(
+    first: [u8; 4],
+    second: [u8; 4],
+) -> f32 {
     let one = luminance(first);
     let other = luminance(second);
     return (one.max(other) + 0.05) / (one.min(other) + 0.05);
@@ -118,7 +121,10 @@ pub fn contrast(first: [u8; 4], second: [u8; 4]) -> f32 {
 ///   return contrast(WHITE, background) >= WHITE_MINIMUM ? WHITE : BLACK;
 /// }
 /// ```
-pub fn legible_ink(background: [u8; 4], palette: [u8; 4]) -> [u8; 4] {
+pub fn legible_ink(
+    background: [u8; 4],
+    palette: [u8; 4],
+) -> [u8; 4] {
     if background[3] != 255 {
         return palette;
     }

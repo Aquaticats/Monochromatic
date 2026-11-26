@@ -8,7 +8,11 @@ use anyhow::Context;
 /// Process spawning,
 /// the re-executed test helpers,
 /// and timing that the moved bus code no longer brings in.
-use std::{process::Command, sync::mpsc, time::Duration};
+use std::{
+    process::Command,
+    sync::mpsc,
+    time::Duration,
+};
 
 /// Starts the portal on a fresh private bus that lives as long as the returned portal.
 ///
@@ -18,14 +22,20 @@ use std::{process::Command, sync::mpsc, time::Duration};
 ///       Production starts one bus and shares it;
 /// each test needs its own bus to stay isolated.
 fn start_portal(preference: ColorSchemePreference) -> anyhow::Result<AppearancePortal> {
-    return AppearancePortal::start(preference, Arc::new(PrivateBus::start()?))
+    return AppearancePortal::start(preference, Arc::new(PrivateBus::start()?));
 }
 
 /// Confirms CLI accepts exact supported scheme names and rejects others.
 #[test]
 fn color_scheme_parser_accepts_dark_and_light() {
-    assert_eq!(ColorSchemePreference::parse("dark").expect("dark is a valid color scheme"), ColorSchemePreference::Dark);
-    assert_eq!(ColorSchemePreference::parse("light").expect("light is a valid color scheme"), ColorSchemePreference::Light);
+    assert_eq!(
+        ColorSchemePreference::parse("dark").expect("dark is a valid color scheme"),
+        ColorSchemePreference::Dark
+    );
+    assert_eq!(
+        ColorSchemePreference::parse("light").expect("light is a valid color scheme"),
+        ColorSchemePreference::Light
+    );
     assert!(ColorSchemePreference::parse("system").is_err());
 }
 
@@ -47,7 +57,7 @@ fn private_portal_serves_light_scheme_without_host_bus() -> anyhow::Result<()> {
     drop(connection);
     drop(portal);
     assert!(!directory.exists());
-    return Ok(())
+    return Ok(());
 }
 
 /// Confirms standard `ReadAll` serves dark value for non-Slint portal clients.
@@ -70,7 +80,7 @@ fn private_portal_serves_dark_scheme_through_read_all() -> anyhow::Result<()> {
         .get(COLOR_SCHEME_KEY)
         .context("ReadAll omitted color-scheme")?;
     assert_eq!(value.downcast_ref::<u32>()?, 1);
-    return Ok(())
+    return Ok(());
 }
 
 /// Confirms unsupported settings return D-Bus errors instead of invented defaults.
@@ -86,7 +96,7 @@ fn private_portal_rejects_unknown_setting() -> anyhow::Result<()> {
     )?;
     let result = proxy.call::<_, _, OwnedVariant>("ReadOne", &("org.example", "missing"));
     assert!(result.is_err());
-    return Ok(())
+    return Ok(());
 }
 
 /// Marks the re-executed test process whose data directories hold a planted service file.
@@ -121,7 +131,7 @@ fn run_planted_role() -> anyhow::Result<()> {
         };
         assert!(message.contains(service), "{message}");
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Confirms a hosted client cannot make the private bus start a service from any service file.
@@ -148,7 +158,9 @@ fn private_bus_never_reads_service_files() -> anyhow::Result<()> {
     // The program path does not exist, so even a stock bus could never run anything here.
     std::fs::write(
         services.join(format!("{PLANTED_SERVICE}.service")),
-        format!("[D-BUS Service]\nName={PLANTED_SERVICE}\nExec=/nonexistent/monochromatic-planted-service\n"),
+        format!(
+            "[D-BUS Service]\nName={PLANTED_SERVICE}\nExec=/nonexistent/monochromatic-planted-service\n"
+        ),
     )?;
     let status = Command::new(std::env::current_exe()?)
         .arg("--exact")
@@ -160,8 +172,11 @@ fn private_bus_never_reads_service_files() -> anyhow::Result<()> {
         .status();
     std::fs::remove_dir_all(&root)?;
     let finished = status?;
-    assert!(finished.success(), "re-executed planted-service role failed: {finished}");
-    return Ok(())
+    assert!(
+        finished.success(),
+        "re-executed planted-service role failed: {finished}"
+    );
+    return Ok(());
 }
 
 /// Bounds how long a test waits for a signal that must already be on the private bus.
@@ -175,7 +190,9 @@ const SWITCH_ROLE_VARIABLE: &str = "NESTED_WAYLAND_SESSION_TEST_SWITCH_ROLE";
 /// The destination is the well-known portal name,
 ///  so zbus applies the same sender filter
 /// Slint's `receive_signal("SettingChanged")` subscription relies on.
-fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<crate::bus_test_client::Proxy<'static>> {
+fn settings_proxy(
+    portal: &AppearancePortal
+) -> anyhow::Result<crate::bus_test_client::Proxy<'static>> {
     let connection = crate::bus_test_client::connect(portal.bus_address())?;
     let proxy = crate::bus_test_client::Proxy::new(
         &connection,
@@ -183,7 +200,7 @@ fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<crate::bus_test_c
         PORTAL_OBJECT_PATH,
         SETTINGS_INTERFACE,
     )?;
-    return Ok(proxy)
+    return Ok(proxy);
 }
 
 /// Reads the color scheme through `ReadOne`,
@@ -191,7 +208,8 @@ fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<crate::bus_test_c
 ///  and `ReadAll`,
 ///  in that order.
 fn served_values(proxy: &crate::bus_test_client::Proxy<'_>) -> anyhow::Result<[u32; 3]> {
-    let read_one: OwnedVariant = proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
+    let read_one: OwnedVariant =
+        proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
     let read: OwnedVariant = proxy.call("Read", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
     let all: HashMap<String, HashMap<String, OwnedVariant>> =
         proxy.call("ReadAll", &Vec::<String>::new())?;
@@ -204,17 +222,19 @@ fn served_values(proxy: &crate::bus_test_client::Proxy<'_>) -> anyhow::Result<[u
         read_one.downcast_ref::<u32>()?,
         read.downcast_ref::<u32>()?,
         read_all.downcast_ref::<u32>()?,
-    ])
+    ]);
 }
 
 /// Decodes one `SettingChanged` body exactly as Slint 1.18.1 does,
 ///  plus its wire signature.
-fn decode_setting_changed(message: &zbus::Message) -> anyhow::Result<(String, String, u32, String)> {
+fn decode_setting_changed(
+    message: &zbus::Message
+) -> anyhow::Result<(String, String, u32, String)> {
     let body = message.body();
     // The wire header carries the body signature without the outer tuple parentheses.
     let signature = body.signature().to_string_no_parens();
     let (namespace, key, value): (String, String, OwnedVariant) = body.deserialize()?;
-    return Ok((namespace, key, value.downcast_ref::<u32>()?, signature))
+    return Ok((namespace, key, value.downcast_ref::<u32>()?, signature));
 }
 
 /// Confirms every read method serves the switched value,
@@ -224,11 +244,17 @@ fn runtime_switch_changes_value_served_by_every_read_method() -> anyhow::Result<
     let portal = start_portal(ColorSchemePreference::Dark)?;
     let proxy = settings_proxy(&portal)?;
     assert_eq!(served_values(&proxy)?, [1, 1, 1]);
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Light)?, SwitchOutcome::Changed);
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Light)?,
+        SwitchOutcome::Changed
+    );
     assert_eq!(served_values(&proxy)?, [2, 2, 2]);
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Dark)?, SwitchOutcome::Changed);
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Dark)?,
+        SwitchOutcome::Changed
+    );
     assert_eq!(served_values(&proxy)?, [1, 1, 1]);
-    return Ok(())
+    return Ok(());
 }
 
 /// Confirms `SettingChanged` reaches a toolkit-style subscriber for real changes only.
@@ -258,8 +284,14 @@ fn runtime_switch_emits_setting_changed_only_for_real_changes() -> anyhow::Resul
             }
         })?;
 
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Dark)?, SwitchOutcome::Unchanged);
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Light)?, SwitchOutcome::Changed);
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Dark)?,
+        SwitchOutcome::Unchanged
+    );
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Light)?,
+        SwitchOutcome::Changed
+    );
     let (first, first_read_back) = receiver
         .recv_timeout(SIGNAL_TIMEOUT)
         .context("no SettingChanged arrived after switching dark to light")?;
@@ -267,20 +299,36 @@ fn runtime_switch_emits_setting_changed_only_for_real_changes() -> anyhow::Resul
     assert_eq!(first_read_back?, [2, 2, 2]);
     assert_eq!(
         decode_setting_changed(&first)?,
-        (APPEARANCE_NAMESPACE.to_owned(), COLOR_SCHEME_KEY.to_owned(), 2, "ssv".to_owned()),
+        (
+            APPEARANCE_NAMESPACE.to_owned(),
+            COLOR_SCHEME_KEY.to_owned(),
+            2,
+            "ssv".to_owned()
+        ),
     );
 
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Light)?, SwitchOutcome::Unchanged);
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Dark)?, SwitchOutcome::Changed);
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Light)?,
+        SwitchOutcome::Unchanged
+    );
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Dark)?,
+        SwitchOutcome::Changed
+    );
     let (second, second_read_back) = receiver
         .recv_timeout(SIGNAL_TIMEOUT)
         .context("no SettingChanged arrived after switching light to dark")?;
     assert_eq!(second_read_back?, [1, 1, 1]);
     assert_eq!(
         decode_setting_changed(&second)?,
-        (APPEARANCE_NAMESPACE.to_owned(), COLOR_SCHEME_KEY.to_owned(), 1, "ssv".to_owned()),
+        (
+            APPEARANCE_NAMESPACE.to_owned(),
+            COLOR_SCHEME_KEY.to_owned(),
+            1,
+            "ssv".to_owned()
+        ),
     );
-    return Ok(())
+    return Ok(());
 }
 
 /// Performs one complete private switch;
@@ -288,9 +336,12 @@ fn runtime_switch_emits_setting_changed_only_for_real_changes() -> anyhow::Resul
 fn run_switch_role() -> anyhow::Result<()> {
     let portal = start_portal(ColorSchemePreference::Dark)?;
     let proxy = settings_proxy(&portal)?;
-    assert_eq!(portal.set_color_scheme(ColorSchemePreference::Light)?, SwitchOutcome::Changed);
+    assert_eq!(
+        portal.set_color_scheme(ColorSchemePreference::Light)?,
+        SwitchOutcome::Changed
+    );
     assert_eq!(served_values(&proxy)?, [2, 2, 2]);
-    return Ok(())
+    return Ok(());
 }
 
 /// Confirms a runtime switch never connects to the session bus named by the environment.
@@ -332,16 +383,19 @@ fn runtime_switch_never_contacts_environment_session_bus() -> anyhow::Result<()>
         .unique_name()
         .context("sentinel connection has no unique name")?
         .to_string();
-    let first = crate::bus_step_bound::block_on_bounded("waiting for the decoy bus to report a connection", async {
-        return futures_util::StreamExt::next(&mut connections)
-            .await
-            .context("decoy bus stopped before reporting the sentinel connection");
-    })?;
+    let first = crate::bus_step_bound::block_on_bounded(
+        "waiting for the decoy bus to report a connection",
+        async {
+            return futures_util::StreamExt::next(&mut connections)
+                .await
+                .context("decoy bus stopped before reporting the sentinel connection");
+        },
+    )?;
     let arguments = first.args()?;
     assert_eq!(
         arguments.name().to_string(),
         sentinel_name,
         "something connected to the environment session bus before the sentinel",
     );
-    return Ok(())
+    return Ok(());
 }

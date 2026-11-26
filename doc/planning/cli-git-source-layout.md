@@ -181,6 +181,18 @@ moved verbatim on 2026-11-23:
 - #6261 native-layer move:
   "Defer until branches merge (Recommended)".
 
+The owner chose the moment on 2026-11-25 at about 22:05 -05:00,
+asked whether to split to cut build memory
+(one build of the wrapper peaked around 6.6 GiB,
+and half its test code left out measured 4.7 GiB, 0.70 times,
+`package/git-policy/cli/doc/development-profile-measurements.md`, "Memory per build, measured 2026-11-25"):
+"Window after live rounds (Recommended)".
+So no new round starts in `package/git-policy/cli`;
+when the rounds open at that moment have merged,
+the crate is formatted by the root `rustfmt.toml` in one commit,
+then the split's rounds run on that tree,
+and the ZFS route's rounds resume on the new layout.
+
 ## What the code looks like now
 
 Measured on main at `2d82a3beb4`

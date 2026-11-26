@@ -8,7 +8,10 @@
 
 /// Imports `no_arguments`,
 ///  `Command` from `super`.
-use super::{no_arguments, Command};
+use super::{
+    Command,
+    no_arguments,
+};
 
 /// The number of records `notification-log` and `job-log` list when no count is given.
 const DEFAULT_LOG_COUNT: usize = 64;
@@ -58,7 +61,10 @@ pub enum NotificationCommand {
 ///  Rejects a second argument.
 /// Why:
 ///       A count of zero would answer with no records and hide a mistyped argument.
-pub(super) fn parse_count(tokens: &mut std::str::SplitWhitespace, verb: &str) -> Result<usize, String> {
+pub(super) fn parse_count(
+    tokens: &mut std::str::SplitWhitespace,
+    verb: &str,
+) -> Result<usize, String> {
     let count = match tokens.next() {
         Some(text) => match text.parse::<usize>() {
             Ok(number) => number,
@@ -77,7 +83,10 @@ pub(super) fn parse_count(tokens: &mut std::str::SplitWhitespace, verb: &str) ->
 
 /// Parse a notification or job id:
 ///  a whole number of at least one.
-pub(super) fn parse_id(text: &str, verb: &str) -> Result<u32, String> {
+pub(super) fn parse_id(
+    text: &str,
+    verb: &str,
+) -> Result<u32, String> {
     let Ok(id) = text.parse::<u32>() else {
         return Err(format!("{verb} id is not a whole number: {text}"));
     };
@@ -116,15 +125,30 @@ fn parse_reason(text: &str) -> Result<u32, String> {
 ///      `pub(super) fn parse(verb, tokens) -> Result<Command, String>`.
 ///  `notification-action` is parsed by `parse_action`,
 ///  which keeps the key verbatim.
-pub(super) fn parse(verb: &str, tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
+pub(super) fn parse(
+    verb: &str,
+    tokens: &mut std::str::SplitWhitespace,
+) -> Result<Command, String> {
     match verb {
-        "notifications" => return no_arguments(tokens, verb, Command::Notification(NotificationCommand::List)),
+        "notifications" => {
+            return no_arguments(
+                tokens,
+                verb,
+                Command::Notification(NotificationCommand::List),
+            );
+        }
         "notification-clear" => {
-            return no_arguments(tokens, verb, Command::Notification(NotificationCommand::Clear));
+            return no_arguments(
+                tokens,
+                verb,
+                Command::Notification(NotificationCommand::Clear),
+            );
         }
         "notification-log" => {
             let count = parse_count(tokens, verb)?;
-            return Ok(Command::Notification(NotificationCommand::Log { count }));
+            return Ok(Command::Notification(NotificationCommand::Log {
+                count,
+            }));
         }
         "notification-close" => {
             let Some(id_text) = tokens.next() else {
@@ -138,7 +162,10 @@ pub(super) fn parse(verb: &str, tokens: &mut std::str::SplitWhitespace) -> Resul
             if tokens.next().is_some() {
                 return Err("notification-close takes an id and an optional reason".to_string());
             }
-            return Ok(Command::Notification(NotificationCommand::Close { id, reason }));
+            return Ok(Command::Notification(NotificationCommand::Close {
+                id,
+                reason,
+            }));
         }
         other => return Err(format!("unknown command: {other}")),
     }
@@ -165,5 +192,8 @@ pub(super) fn parse_action(rest: &str) -> Result<Command, String> {
         return Err("notification-action requires an id and an action key".to_string());
     }
     let id = parse_id(id_text, "notification-action")?;
-    return Ok(Command::Notification(NotificationCommand::Action { id, key: key_text.to_string() }));
+    return Ok(Command::Notification(NotificationCommand::Action {
+        id,
+        key: key_text.to_string(),
+    }));
 }

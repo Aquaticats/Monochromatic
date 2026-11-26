@@ -5,11 +5,23 @@
 //!  because the kept lines are shared by
 //! the whole test process.
 
-use super::{AfterEnd, SETTLE, ended_unexpectedly, ended_unexpectedly_then, stopped_during_start};
+use super::{
+    AfterEnd,
+    SETTLE,
+    ended_unexpectedly,
+    ended_unexpectedly_then,
+    stopped_during_start,
+};
 use crate::logging::stderr_tail;
 use std::{
-    io::{self, Write},
-    sync::{Arc, Mutex},
+    io::{
+        self,
+        Write,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 use tracing_subscriber::fmt::MakeWriter;
@@ -18,7 +30,10 @@ use tracing_subscriber::fmt::MakeWriter;
 struct Handover(Arc<Mutex<Option<Vec<String>>>>);
 
 impl AfterEnd for Handover {
-    fn after_end(self, lines: Vec<String>) {
+    fn after_end(
+        self,
+        lines: Vec<String>,
+    ) {
         *self.0.lock().expect("sink") = Some(lines);
     }
 }
@@ -27,7 +42,10 @@ impl AfterEnd for Handover {
 struct Capture(Arc<Mutex<Vec<u8>>>);
 
 impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.0.lock().expect("capture").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -72,7 +90,10 @@ where
 }
 
 /// The lines of `text` that hold `message`.
-fn records_with<'text>(text: &'text str, message: &str) -> Vec<&'text str> {
+fn records_with<'text>(
+    text: &'text str,
+    message: &str,
+) -> Vec<&'text str> {
     let mut found: Vec<&'text str> = Vec::new();
     for line in text.lines() {
         if line.contains(message) {

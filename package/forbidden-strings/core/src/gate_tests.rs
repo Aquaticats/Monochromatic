@@ -28,7 +28,7 @@ fn three_rule_gate() -> SetGate {
         Some(vec![b"ghp_".to_vec()]),
         None,
     ];
-    return SetGate::build(&seeds)
+    return SetGate::build(&seeds);
 }
 
 #[test]

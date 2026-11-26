@@ -16,14 +16,23 @@
 // The `JsonSchema` derive expands to `Result::unwrap` calls inside its generated `json_schema` function, which
 // the repository's `clippy.toml` disallows. Evidence and the failed configuration attempts:
 // doc/troubleshooting/schemars-derive-trips-disallowed-methods.md.
-#![expect(clippy::disallowed_methods, reason = "the schemars JsonSchema derive expands to Result::unwrap")]
+#![expect(
+    clippy::disallowed_methods,
+    reason = "the schemars JsonSchema derive expands to Result::unwrap"
+)]
 
 /// Imports `HarperScopedServer`,
 /// `LicenseRequirement`,
 /// `TomlBlock`,
 /// `TomlEdit`,
 /// `ValueExpr` from `crate::config_parts`.
-use crate::config_parts::{HarperScopedServer, LicenseRequirement, TomlBlock, TomlEdit, ValueExpr};
+use crate::config_parts::{
+    HarperScopedServer,
+    LicenseRequirement,
+    TomlBlock,
+    TomlEdit,
+    ValueExpr,
+};
 /// Imports `JsonSchema` from `schemars`.
 use schemars::JsonSchema;
 /// Imports `BTreeMap` from `std::collections`.
@@ -41,7 +50,10 @@ use std::collections::BTreeMap;
 /// type Config = { $schema?: string; rules: RuleConfig[] };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(deny_unknown_fields, description = "The file-enforcer config: an ordered list of rules.")]
+#[schemars(
+    deny_unknown_fields,
+    description = "The file-enforcer config: an ordered list of rules."
+)]
 pub struct Config {
     /// Path or URL of the JSON Schema;
     /// editors read it,
@@ -216,15 +228,42 @@ impl RuleConfig {
     /// ```
     pub fn id(&self) -> &str {
         match self {
-            RuleConfig::Concat { id, .. } => return id,
-            RuleConfig::ModeOnly { id, .. } => return id,
-            RuleConfig::PackageLicenses { id, .. } => return id,
-            RuleConfig::Mirror { id, .. } => return id,
-            RuleConfig::TomlKeys { id, .. } => return id,
-            RuleConfig::MisePathList { id, .. } => return id,
-            RuleConfig::RustCatalog { id, .. } => return id,
-            RuleConfig::Browserslist { id, .. } => return id,
-            RuleConfig::JetbrainsHarper { id, .. } => return id,
+            RuleConfig::Concat {
+                id,
+                ..
+            } => return id,
+            RuleConfig::ModeOnly {
+                id,
+                ..
+            } => return id,
+            RuleConfig::PackageLicenses {
+                id,
+                ..
+            } => return id,
+            RuleConfig::Mirror {
+                id,
+                ..
+            } => return id,
+            RuleConfig::TomlKeys {
+                id,
+                ..
+            } => return id,
+            RuleConfig::MisePathList {
+                id,
+                ..
+            } => return id,
+            RuleConfig::RustCatalog {
+                id,
+                ..
+            } => return id,
+            RuleConfig::Browserslist {
+                id,
+                ..
+            } => return id,
+            RuleConfig::JetbrainsHarper {
+                id,
+                ..
+            } => return id,
         }
     }
 
@@ -239,15 +278,33 @@ impl RuleConfig {
     /// ```
     pub fn kind(&self) -> &'static str {
         match self {
-            RuleConfig::Concat { .. } => return "concat",
-            RuleConfig::ModeOnly { .. } => return "mode-only",
-            RuleConfig::PackageLicenses { .. } => return "package-licenses",
-            RuleConfig::Mirror { .. } => return "mirror",
-            RuleConfig::TomlKeys { .. } => return "toml-keys",
-            RuleConfig::MisePathList { .. } => return "mise-path-list",
-            RuleConfig::RustCatalog { .. } => return "rust-catalog",
-            RuleConfig::Browserslist { .. } => return "browserslist",
-            RuleConfig::JetbrainsHarper { .. } => return "jetbrains-harper",
+            RuleConfig::Concat {
+                ..
+            } => return "concat",
+            RuleConfig::ModeOnly {
+                ..
+            } => return "mode-only",
+            RuleConfig::PackageLicenses {
+                ..
+            } => return "package-licenses",
+            RuleConfig::Mirror {
+                ..
+            } => return "mirror",
+            RuleConfig::TomlKeys {
+                ..
+            } => return "toml-keys",
+            RuleConfig::MisePathList {
+                ..
+            } => return "mise-path-list",
+            RuleConfig::RustCatalog {
+                ..
+            } => return "rust-catalog",
+            RuleConfig::Browserslist {
+                ..
+            } => return "browserslist",
+            RuleConfig::JetbrainsHarper {
+                ..
+            } => return "jetbrains-harper",
         }
     }
 }

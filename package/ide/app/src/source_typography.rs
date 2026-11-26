@@ -1,9 +1,15 @@
 //! Immutable source typography selects real variable font instances and real italic faces.
 
 /// Invalid font requests fail visibly rather than creating non-finite layout coordinates.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Typed features preserve OpenType tags and values without an application-specific string syntax.
-use parley::{FontFeature, setting::Tag};
+use parley::{
+    FontFeature,
+    setting::Tag,
+};
 
 /// Font choices retained for one shaper;
 ///  creating a new shaper invalidates native frame state.

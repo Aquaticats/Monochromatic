@@ -6,7 +6,16 @@
 /// Waits,
 ///  kernel probes,
 ///  and fixture helpers shared by this crate.
-use super::support::{Arrival, kernel_watches, not_watching, quiet, set, settle, start, watching};
+use super::support::{
+    Arrival,
+    kernel_watches,
+    not_watching,
+    quiet,
+    set,
+    settle,
+    start,
+    watching,
+};
 /// Fixture files are created and moved through the ordinary filesystem API.
 use std::fs;
 /// The paths the overflow events name.
@@ -23,7 +32,10 @@ const UNSEEN_FILE: &str = "unseen.txt";
 /// The path is added here so that only the overflow branch of the recorder,
 /// never its path-less fallback,
 ///  can ask for the full reread.
-fn overflow_event(path: &Path, flagged: bool) -> notify::Event {
+fn overflow_event(
+    path: &Path,
+    flagged: bool,
+) -> notify::Event {
     let event = notify::Event::new(notify::EventKind::Other).add_path(path.to_path_buf());
     if flagged {
         return event.set_flag(notify::event::Flag::Rescan);

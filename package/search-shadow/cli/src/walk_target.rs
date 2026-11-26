@@ -17,7 +17,10 @@
 use std::fs;
 
 /// Imports `Path` (borrowed) and `PathBuf` (owned) path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `pub enum WalkTarget { ... }` declares a type that is exactly one of four named cases (like a TS union of
@@ -54,7 +57,11 @@ pub enum WalkTarget {
 /// ```ts
 /// export function classify(pathText: string, workingDirectory: string, home: string): WalkTarget { ... }
 /// ```
-pub fn classify(path_text: &str, working_directory: &Path, home: &Path) -> WalkTarget {
+pub fn classify(
+    path_text: &str,
+    working_directory: &Path,
+    home: &Path,
+) -> WalkTarget {
     // `working_directory.join(path_text)` appends a relative path; an absolute `path_text` replaces the base entirely.
     let candidate: PathBuf = working_directory.join(path_text);
 

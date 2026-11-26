@@ -23,7 +23,12 @@ const RESTORE_STEP: u32 = 5;
 /// ```ts
 /// function adjustCeiling(previous: number, sample: number, target: number, margin: number): number
 /// ```
-pub fn adjust_ceiling(previous: u32, sample: i32, target: i32, margin: i32) -> u32 {
+pub fn adjust_ceiling(
+    previous: u32,
+    sample: i32,
+    target: i32,
+    margin: i32,
+) -> u32 {
     if sample >= target {
         // What
         // Saturating subtraction clamps at zero when an unsigned difference would be negative.

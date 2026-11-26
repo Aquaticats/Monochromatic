@@ -13,11 +13,19 @@
 //! ```
 
 /// Imports the JSON value types.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports what this module uses from `super::model`.
-use super::model::{Declaration, LockedTool, Options, Postinstall, Request};
-
+use super::model::{
+    Declaration,
+    LockedTool,
+    Options,
+    Postinstall,
+    Request,
+};
 
 /// A JSON array of texts.
 fn text_array(items: &[String]) -> Value {
@@ -67,7 +75,10 @@ fn options_value(options: &Options) -> Value {
         if let Some(tool) = &bootstrap.requires_tool {
             boot.insert("requiresTool".to_string(), Value::String(tool.clone()));
         }
-        boot.insert("distribution".to_string(), Value::String(bootstrap.distribution.clone()));
+        boot.insert(
+            "distribution".to_string(),
+            Value::String(bootstrap.distribution.clone()),
+        );
         map.insert("bootstrap".to_string(), Value::Object(boot));
     }
     return Value::Object(map);
@@ -80,8 +91,14 @@ fn postinstall_value(step: &Postinstall) -> Value {
     match step {
         Postinstall::Link(link) => {
             let mut inner: Map<String, Value> = Map::new();
-            inner.insert("sourceBin".to_string(), Value::String(link.source_bin.clone()));
-            inner.insert("linkName".to_string(), Value::String(link.link_name.clone()));
+            inner.insert(
+                "sourceBin".to_string(),
+                Value::String(link.source_bin.clone()),
+            );
+            inner.insert(
+                "linkName".to_string(),
+                Value::String(link.link_name.clone()),
+            );
             if let Some(directory) = &link.link_dir {
                 inner.insert("linkDir".to_string(), Value::String(directory.clone()));
             }
@@ -89,7 +106,10 @@ fn postinstall_value(step: &Postinstall) -> Value {
         }
         Postinstall::Run(command) => {
             let mut inner: Map<String, Value> = Map::new();
-            inner.insert("sourceBin".to_string(), Value::String(command.source_bin.clone()));
+            inner.insert(
+                "sourceBin".to_string(),
+                Value::String(command.source_bin.clone()),
+            );
             inner.insert("args".to_string(), text_array(&command.args));
             map.insert("run".to_string(), Value::Object(inner));
         }
@@ -119,7 +139,10 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
     let mut map: Map<String, Value> = Map::new();
     map.insert("request".to_string(), request_value(&declaration.request));
     map.insert("version".to_string(), Value::String(tool.version.clone()));
-    map.insert("route".to_string(), Value::String(declaration.route.as_str().to_string()));
+    map.insert(
+        "route".to_string(),
+        Value::String(declaration.route.as_str().to_string()),
+    );
     if let Some(manager) = &declaration.manager {
         map.insert("manager".to_string(), Value::String(manager.clone()));
     }
@@ -168,7 +191,10 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
 pub fn added_plan_entry_value(declaration: &Declaration) -> Value {
     let mut map: Map<String, Value> = Map::new();
     map.insert("request".to_string(), request_value(&declaration.request));
-    map.insert("route".to_string(), Value::String(declaration.route.as_str().to_string()));
+    map.insert(
+        "route".to_string(),
+        Value::String(declaration.route.as_str().to_string()),
+    );
     map.insert("bins".to_string(), text_array(&declaration.bins));
     return Value::Object(map);
 }
@@ -186,5 +212,6 @@ pub fn added_plan_entry_value(declaration: &Declaration) -> Value {
 /// export function renderPrettyJson(document: Value): string  // throws
 /// ```
 pub fn render_pretty_json(document: &Value) -> String {
-    return serde_json::to_string_pretty(document).expect("an in-memory JSON value always serializes");
+    return serde_json::to_string_pretty(document)
+        .expect("an in-memory JSON value always serializes");
 }

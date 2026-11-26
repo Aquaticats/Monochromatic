@@ -126,14 +126,19 @@ impl std::fmt::Display for FeedbackError {
     /// ```ts
     /// toString(): string;
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::BlankId => formatter.write_str("Feedback message id must not be blank."),
             Self::BlankText => formatter.write_str("Feedback message text must not be blank."),
             Self::BlankActionLabel => {
                 formatter.write_str("Feedback action label must not be blank when present.")
             }
-            Self::DurationOutOfRange { duration_ms } => write!(
+            Self::DurationOutOfRange {
+                duration_ms,
+            } => write!(
                 formatter,
                 "Feedback duration must be between 1 and {FEEDBACK_MAX_DURATION_MS} ms, was {duration_ms}."
             ),
@@ -307,7 +312,10 @@ impl FeedbackEntry {
     /// ```ts
     /// isExpiredAt(nowMs: number): boolean { return nowMs - this.shownAtMs >= this.durationMs; }
     /// ```
-    fn is_expired_at(&self, now_ms: i64) -> bool {
+    fn is_expired_at(
+        &self,
+        now_ms: i64,
+    ) -> bool {
         let elapsed_ms = now_ms.saturating_sub(self.shown_at_ms);
         return elapsed_ms >= self.duration_ms;
     }
@@ -355,7 +363,9 @@ impl FeedbackQueue {
     /// ```ts
     /// static readonly EMPTY: FeedbackQueue = new FeedbackQueue([]);
     /// ```
-    pub const EMPTY: FeedbackQueue = FeedbackQueue { entries: Vec::new() };
+    pub const EMPTY: FeedbackQueue = FeedbackQueue {
+        entries: Vec::new(),
+    };
 
     /// What:
     ///      `show` returns a queue in which `message` is visible from `now_ms` for its kind's default time.
@@ -369,7 +379,11 @@ impl FeedbackQueue {
     /// ```ts
     /// show(message, nowMs, durationMs = defaults[message.kind]): FeedbackQueue
     /// ```
-    pub fn show(&self, message: FeedbackMessage, now_ms: i64) -> FeedbackQueue {
+    pub fn show(
+        &self,
+        message: FeedbackMessage,
+        now_ms: i64,
+    ) -> FeedbackQueue {
         let duration_ms = message.kind().default_duration_ms();
         return self.show_entry(message, now_ms, duration_ms);
     }
@@ -395,7 +409,9 @@ impl FeedbackQueue {
         duration_ms: i64,
     ) -> Result<FeedbackQueue, FeedbackError> {
         if !(1..=FEEDBACK_MAX_DURATION_MS).contains(&duration_ms) {
-            return Err(FeedbackError::DurationOutOfRange { duration_ms });
+            return Err(FeedbackError::DurationOutOfRange {
+                duration_ms,
+            });
         }
         return Ok(self.show_entry(message, now_ms, duration_ms));
     }
@@ -411,7 +427,12 @@ impl FeedbackQueue {
     /// ```ts
     /// const kept = entries.filter(e => e.message.id !== message.id && e.message.kind !== message.kind);
     /// ```
-    fn show_entry(&self, message: FeedbackMessage, now_ms: i64, duration_ms: i64) -> FeedbackQueue {
+    fn show_entry(
+        &self,
+        message: FeedbackMessage,
+        now_ms: i64,
+        duration_ms: i64,
+    ) -> FeedbackQueue {
         let mut entries: Vec<FeedbackEntry> = Vec::new();
         for entry in &self.entries {
             if entry.message.id() != message.id() && entry.message.kind() != message.kind() {
@@ -423,7 +444,9 @@ impl FeedbackQueue {
             shown_at_ms: now_ms,
             duration_ms,
         });
-        return FeedbackQueue { entries };
+        return FeedbackQueue {
+            entries,
+        };
     }
 
     /// What:
@@ -436,14 +459,19 @@ impl FeedbackQueue {
     /// ```ts
     /// dismiss(id: string): FeedbackQueue { return new FeedbackQueue(this.entries.filter(e => e.message.id !== id)); }
     /// ```
-    pub fn dismiss(&self, id: &str) -> FeedbackQueue {
+    pub fn dismiss(
+        &self,
+        id: &str,
+    ) -> FeedbackQueue {
         let mut entries: Vec<FeedbackEntry> = Vec::new();
         for entry in &self.entries {
             if entry.message.id() != id {
                 entries.push(entry.clone());
             }
         }
-        return FeedbackQueue { entries };
+        return FeedbackQueue {
+            entries,
+        };
     }
 
     /// What:
@@ -458,14 +486,19 @@ impl FeedbackQueue {
     ///   return new FeedbackQueue(this.entries.filter(e => !e.isExpiredAt(nowMs)));
     /// }
     /// ```
-    pub fn expire(&self, now_ms: i64) -> FeedbackQueue {
+    pub fn expire(
+        &self,
+        now_ms: i64,
+    ) -> FeedbackQueue {
         let mut entries: Vec<FeedbackEntry> = Vec::new();
         for entry in &self.entries {
             if !entry.is_expired_at(now_ms) {
                 entries.push(entry.clone());
             }
         }
-        return FeedbackQueue { entries };
+        return FeedbackQueue {
+            entries,
+        };
     }
 
     /// What:
@@ -501,11 +534,7 @@ impl FeedbackQueue {
     /// nextExpiryMs(): number | null { ... }
     /// ```
     pub fn next_expiry_ms(&self) -> Option<i64> {
-        return self
-            .entries
-            .iter()
-            .map(FeedbackEntry::expires_at_ms)
-            .min();
+        return self.entries.iter().map(FeedbackEntry::expires_at_ms).min();
     }
 }
 

@@ -9,14 +9,27 @@ use super::render;
 /// Shipped window setup shared with the watch tests.
 use super::watch_tests::open;
 /// The slow-writer helpers and texts of the asserting write-wait tests.
-use super::write_wait_tests::{NEW, OLD, PAUSE, baseline, until_text, watch_texts};
+use super::write_wait_tests::{
+    NEW,
+    OLD,
+    PAUSE,
+    baseline,
+    until_text,
+    watch_texts,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Reading positions,
 ///  and the shipped intervals named in the measurement output.
 use ide_app::{
     document::ReadingPosition,
-    refresh_policy::{SAFETY_SWEEP, WRITE_QUIET},
+    refresh_policy::{
+        SAFETY_SWEEP,
+        WRITE_QUIET,
+    },
 };
 /// `ComponentHandle` provides `hide` on the generated window.
 use slint::ComponentHandle;
@@ -32,9 +45,15 @@ use slint::ComponentHandle;
 /// const handle = openSync(path, 'w'); /* wait */ writeSync(handle, text); closeSync(handle);
 /// ```
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Each trial starts an in-place save,

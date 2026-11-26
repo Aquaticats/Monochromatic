@@ -8,8 +8,18 @@ use super::Item;
 /// and brushes.
 use vello::{
     Scene,
-    kurbo::{Affine, BezPath, Cap, Join, Rect, Stroke},
-    peniko::{Color, Fill},
+    kurbo::{
+        Affine,
+        BezPath,
+        Cap,
+        Join,
+        Rect,
+        Stroke,
+    },
+    peniko::{
+        Color,
+        Fill,
+    },
 };
 
 /// What:
@@ -44,7 +54,10 @@ fn brush(ink: [u8; 4]) -> Color {
 /// ```ts
 /// function encode(items: Item[], height: number): Scene;
 /// ```
-pub fn encode(items: &[Item], height: f32) -> Scene {
+pub fn encode(
+    items: &[Item],
+    height: f32,
+) -> Scene {
     let mut scene = Scene::new();
     for item in items {
         match item {

@@ -18,14 +18,24 @@ use std::time::Instant;
 /// Imports the embedded license notices.
 use music_player::licenses::NOTICES;
 /// Imports the model traits and the shared string that expose the notice text to the window.
-use slint::{ComponentHandle, Model, ModelRc, ModelTracker, SharedString};
+use slint::{
+    ComponentHandle,
+    Model,
+    ModelRc,
+    ModelTracker,
+    SharedString,
+};
 
-/// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, write_screen};
-/// Imports the route that tells which page is open.
-use crate::ui_screen_view::Route;
 /// Imports the window that shows the notices.
 use crate::AppWindow;
+/// Imports the projection and the state accessors of the screen.
+use crate::ui_screen::{
+    project,
+    read_screen,
+    write_screen,
+};
+/// Imports the route that tells which page is open.
+use crate::ui_screen_view::Route;
 
 /// What:
 /// `NoticeLines` is a read-only Slint model whose rows are the lines of a text,
@@ -55,7 +65,10 @@ impl NoticeLines {
         for (index, _newline) in text.match_indices('\n') {
             starts.push(index + 1);
         }
-        return Self { text, starts };
+        return Self {
+            text,
+            starts,
+        };
     }
 }
 
@@ -80,13 +93,18 @@ impl Model for NoticeLines {
     /// The window asks for rows as it scrolls;
     /// the line starts were found once in `new`,
     /// so a row is only sliced out.
-    fn row_data(&self, row: usize) -> Option<SharedString> {
+    fn row_data(
+        &self,
+        row: usize,
+    ) -> Option<SharedString> {
         let start = *self.starts.get(row)?;
         let end = match self.starts.get(row + 1) {
             Some(next) => next - 1,
             None => self.text.len(),
         };
-        return Some(SharedString::from(self.text[start..end].trim_end_matches('\r')));
+        return Some(SharedString::from(
+            self.text[start..end].trim_end_matches('\r'),
+        ));
     }
 
     /// What:
@@ -154,7 +172,11 @@ pub(crate) fn open_licenses(window: &AppWindow) {
         focus.set_label("".into());
     }
     project(window);
-    tracing::info!(line_count, build_us = started.elapsed().as_micros(), "opened the Licenses page");
+    tracing::info!(
+        line_count,
+        build_us = started.elapsed().as_micros(),
+        "opened the Licenses page"
+    );
     // The Licenses row handles Enter and Space itself, so no key line follows; the end-to-end run reads the route from this.
     crate::ui_state_log::emit(window, "licenses");
 }

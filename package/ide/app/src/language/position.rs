@@ -29,8 +29,12 @@ use helix_core::Rope;
 /// import { type OffsetEncoding, lsp, lspPosToPos, posToLspPos } from 'helix-lsp';
 /// ```
 use helix_lsp::{
-    OffsetEncoding, lsp,
-    util::{lsp_pos_to_pos, pos_to_lsp_pos},
+    OffsetEncoding,
+    lsp,
+    util::{
+        lsp_pos_to_pos,
+        pos_to_lsp_pos,
+    },
 };
 
 /// What:

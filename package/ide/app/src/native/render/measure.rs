@@ -10,7 +10,10 @@ use crate::native::{
     State,
     rewrap::Allowance,
     rows,
-    tile::{self, TileBounds},
+    tile::{
+        self,
+        TileBounds,
+    },
 };
 /// A wrap width must be a positive number of pixels.
 use ide_app::wrap::has_wrap_width;

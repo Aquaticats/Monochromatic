@@ -14,11 +14,24 @@
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
-use crate::cargo_run::{CargoRunner, RealCargo};
-use crate::shadow_identity::{ARRIVAL_VARIABLE, Arrival, StartMode, own_identity, parse_arrival, process_birth};
+use crate::cargo_run::{
+    CargoRunner,
+    RealCargo,
+};
+use crate::shadow_identity::{
+    ARRIVAL_VARIABLE,
+    Arrival,
+    StartMode,
+    own_identity,
+    parse_arrival,
+    process_birth,
+};
 use crate::test_scratch::scratch;
 
 /// The longest one cargo call may take here:
@@ -27,7 +40,11 @@ use crate::test_scratch::scratch;
 const SCRIPT_BOUND_SECONDS: u64 = 60;
 
 /// Writes an executable shell script named `name` into `directory`.
-fn executable_script(directory: &Path, name: &str, body: &str) -> PathBuf {
+fn executable_script(
+    directory: &Path,
+    name: &str,
+    body: &str,
+) -> PathBuf {
     let path: PathBuf = directory.join(name);
     fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write the script");
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("make it executable");
@@ -45,13 +62,22 @@ fn the_cargo_of_an_install_step_arrives_with_the_marker_of_the_shadow_that_start
     let body: String = format!("printf '%s' \"${ARRIVAL_VARIABLE}\"");
     let program: PathBuf = executable_script(directory.path(), "cargo", &body);
     let inherited: Option<String> = std::env::var(ARRIVAL_VARIABLE).ok();
-    let cargo = RealCargo { program, toolchain: String::new(), bound: Duration::from_secs(SCRIPT_BOUND_SECONDS) };
+    let cargo = RealCargo {
+        program,
+        toolchain: String::new(),
+        bound: Duration::from_secs(SCRIPT_BOUND_SECONDS),
+    };
 
-    let outcome = cargo.run(directory.path(), &["metadata".to_string()]).expect("the script starts");
+    let outcome = cargo
+        .run(directory.path(), &["metadata".to_string()])
+        .expect("the script starts");
 
     assert!(outcome.ok, "{outcome:?}");
     let marker: &str = outcome.stdout.trim();
-    assert!(inherited.as_deref() != Some(marker), "the install step gave its cargo no marker of its own; it printed the inherited {marker:?}");
+    assert!(
+        inherited.as_deref() != Some(marker),
+        "the install step gave its cargo no marker of its own; it printed the inherited {marker:?}"
+    );
     let arrival: Arrival = parse_arrival(marker).expect("the marker parses");
     assert_eq!(arrival.mode, StartMode::Spawn, "{marker}");
     assert_eq!(arrival.pid, std::process::id(), "{marker}");

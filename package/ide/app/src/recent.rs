@@ -10,7 +10,10 @@
 /// ```ts
 /// type Path = string;
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A default-constructible record owns a growable path list.
@@ -32,7 +35,10 @@ pub struct RecentFiles {
 /// Operations preserve the paused editor's push-to-front semantics.
 impl RecentFiles {
     /// Record a successful file open and promote existing entries.
-    pub fn opened(&mut self, path: PathBuf) {
+    pub fn opened(
+        &mut self,
+        path: PathBuf,
+    ) {
         // What: `drain(..)` moves every held path out one by one; those that differ from `path` are kept.
         // Why: Remove duplicates before inserting the new most-recent entry.
         //
@@ -53,7 +59,10 @@ impl RecentFiles {
     }
 
     /// Borrow a slot without promoting it until opening succeeds.
-    pub fn at(&self, index: usize) -> Option<&Path> {
+    pub fn at(
+        &self,
+        index: usize,
+    ) -> Option<&Path> {
         // What: get returns Some for an existing slot, None for an unfilled one.
         // Why: An empty Ctrl+digit slot is a normal no-op, not an error.
         //
@@ -77,7 +86,12 @@ impl RecentFiles {
 
 /// Decode exactly Ctrl+0 through Ctrl+9,
 ///  excluding Shift and Alt variants.
-pub fn shortcut_slot(key: &str, control: bool, shift: bool, alt: bool) -> Option<usize> {
+pub fn shortcut_slot(
+    key: &str,
+    control: bool,
+    shift: bool,
+    alt: bool,
+) -> Option<usize> {
     if !control || shift || alt || key.len() != 1 {
         return None;
     }

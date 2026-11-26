@@ -1,11 +1,21 @@
 //! Real child processes prove cancellation/reaping and configuration isolation without shell scripts.
 
 /// Test the production command construction and owned-child lifetime boundary.
-use super::{Stream, command, consume, execute, stop};
+use super::{
+    Stream,
+    command,
+    consume,
+    execute,
+    stop,
+};
 /// One retained cancellation flag wakes collection even when a pipe is silent.
 use crate::search_cancel::SearchCancellation;
 /// Tests create only disposable files and owned process pipes.
-use std::{fs, process::Stdio, time::Duration};
+use std::{
+    fs,
+    process::Stdio,
+    time::Duration,
+};
 /// Tokio supplies actual asynchronous child process handles and timer deadlines.
 use tokio::process::Command;
 

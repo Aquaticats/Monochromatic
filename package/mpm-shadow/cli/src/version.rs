@@ -75,7 +75,10 @@ pub struct EntryName {
 /// function isAllowedSuffixChar(character: string): boolean { return /[0-9A-Za-z.+-]/.test(character); }
 /// ```
 fn is_allowed_suffix_char(character: char) -> bool {
-    return character.is_ascii_alphanumeric() || character == '.' || character == '+' || character == '-';
+    return character.is_ascii_alphanumeric()
+        || character == '.'
+        || character == '+'
+        || character == '-';
 }
 
 /// What:
@@ -312,7 +315,10 @@ fn is_numeric_identifier(identifier: &str) -> bool {
 ///   return a < b ? -1 : a > b ? 1 : 0;
 /// }
 /// ```
-fn compare_numeric_identifiers(left: &str, right: &str) -> Ordering {
+fn compare_numeric_identifiers(
+    left: &str,
+    right: &str,
+) -> Ordering {
     // What:     `trim_start_matches('0')` returns the borrowed text without its leading `0` characters.
     // Why:      `007` and `7` spell the same number.
     //
@@ -354,7 +360,10 @@ fn compare_numeric_identifiers(left: &str, right: &str) -> Ordering {
 /// ```ts
 /// function compareIdentifiers(left: string, right: string): number { ... }
 /// ```
-fn compare_identifiers(left: &str, right: &str) -> Ordering {
+fn compare_identifiers(
+    left: &str,
+    right: &str,
+) -> Ordering {
     // What:     `(is_numeric_identifier(left), is_numeric_identifier(right))` builds a pair of two booleans, and
     //           `match` picks the arm that fits the pair.
     // Why:      Four cases: two numbers, a number then text, text then a number, and two texts.
@@ -396,7 +405,10 @@ fn compare_identifiers(left: &str, right: &str) -> Ordering {
 ///   return Math.sign(a.length - b.length);
 /// }
 /// ```
-fn compare_pre_releases(left: &str, right: &str) -> Ordering {
+fn compare_pre_releases(
+    left: &str,
+    right: &str,
+) -> Ordering {
     // What:     `left.split('.').collect()` cuts the text at each dot and gathers the pieces into a `Vec<&str>` (a
     //           growable list of borrowed texts; siblings `&[&str]`, a borrowed view of a list, and `[&str; N]`, a
     //           fixed-size array). The annotation names the list type so `collect` knows what to build.
@@ -418,7 +430,8 @@ fn compare_pre_releases(left: &str, right: &str) -> Ordering {
     // ```ts
     // for (let i = 0; i < Math.min(left_identifiers.length, right_identifiers.length); i++) { ... }
     // ```
-    for (left_identifier, right_identifier) in left_identifiers.iter().zip(right_identifiers.iter()) {
+    for (left_identifier, right_identifier) in left_identifiers.iter().zip(right_identifiers.iter())
+    {
         let by_identifier: Ordering = compare_identifiers(left_identifier, right_identifier);
         if by_identifier != Ordering::Equal {
             return by_identifier;
@@ -457,7 +470,10 @@ fn compare_pre_releases(left: &str, right: &str) -> Ordering {
 /// ```ts
 /// export function compareVersions(left: string, right: string): number { ... }
 /// ```
-pub fn compare_versions(left: &str, right: &str) -> Ordering {
+pub fn compare_versions(
+    left: &str,
+    right: &str,
+) -> Ordering {
     // What:     `numeric_core(left).cmp(&numeric_core(right))` compares two arrays element by element, first to last,
     //           and returns an `Ordering`. `&` lends the right array without moving it.
     // Why:      The numeric parts decide first.

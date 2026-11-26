@@ -4,8 +4,16 @@
 //!  and the margin-versus-clamp tradeoff.
 
 use super::*;
-use crate::test_fixtures::{bins_with_one_hot, flat_bins, levels_match, track};
-use truepeak_core::{default_policy, peak_dbtp};
+use crate::test_fixtures::{
+    bins_with_one_hot,
+    flat_bins,
+    levels_match,
+    track,
+};
+use truepeak_core::{
+    default_policy,
+    peak_dbtp,
+};
 
 /// The short-scan bound the policy uses,
 ///  so a track at or under it is decoded in full.
@@ -39,12 +47,22 @@ const COVERED_SEC: usize = 0;
 /// The policy ceiling,
 ///  which decides whether a track is loud enough to record an under-read.
 fn ceiling_dbtp() -> f64 {
-    return default_policy().ceiling_dbtp
+    return default_policy().ceiling_dbtp;
 }
 
 /// Probe the fixture corpus at `COVERAGE` and `WINDOW_SECS`.
-fn probe(tracks: &[Track], safe_paths: &HashSet<String>) -> (f64, Vec<UnderRead>) {
-    return evaluate_proportional(tracks, SHORT_SCAN_MAX_SECS, COVERAGE, WINDOW_SECS, ceiling_dbtp(), safe_paths)
+fn probe(
+    tracks: &[Track],
+    safe_paths: &HashSet<String>,
+) -> (f64, Vec<UnderRead>) {
+    return evaluate_proportional(
+        tracks,
+        SHORT_SCAN_MAX_SECS,
+        COVERAGE,
+        WINDOW_SECS,
+        ceiling_dbtp(),
+        safe_paths,
+    );
 }
 
 /// What:
@@ -52,12 +70,28 @@ fn probe(tracks: &[Track], safe_paths: &HashSet<String>) -> (f64, Vec<UnderRead>
 ///  and a long track costs only its coverage.
 #[test]
 fn the_coverage_cost_is_a_full_scan_for_shorts_and_a_fraction_for_longs() {
-    let short = track("short.flac", SHORT_SCAN_MAX_SECS as u64, HOT_PEAK, flat_bins(SHORT_SCAN_MAX_SECS as usize, HOT_PEAK));
-    let long = track("long.flac", LONG_SECS, QUIET_PEAK, flat_bins(LONG_SECS as usize, QUIET_PEAK));
+    let short = track(
+        "short.flac",
+        SHORT_SCAN_MAX_SECS as u64,
+        HOT_PEAK,
+        flat_bins(SHORT_SCAN_MAX_SECS as usize, HOT_PEAK),
+    );
+    let long = track(
+        "long.flac",
+        LONG_SECS,
+        QUIET_PEAK,
+        flat_bins(LONG_SECS as usize, QUIET_PEAK),
+    );
     let (decoded, under_reads) = probe(&[short, long], &HashSet::new());
     let expected = SHORT_SCAN_MAX_SECS + COVERAGE * LONG_SECS as f64;
-    assert!(levels_match(decoded, expected), "decoded {decoded} is not {expected}");
-    assert!(under_reads.is_empty(), "a track under the ceiling has no under-read");
+    assert!(
+        levels_match(decoded, expected),
+        "decoded {decoded} is not {expected}"
+    );
+    assert!(
+        under_reads.is_empty(),
+        "a track under the ceiling has no under-read"
+    );
 }
 
 /// What:
@@ -76,7 +110,11 @@ fn a_loud_long_track_records_the_level_its_probe_missed() {
     assert_eq!(under_reads.len(), 1);
     let under_read = under_reads[0];
     let expected = peak_dbtp(f64::from(HOT_PEAK)) - peak_dbtp(f64::from(QUIET_PEAK));
-    assert!(levels_match(under_read.under_read_db, expected), "under-read {}", under_read.under_read_db);
+    assert!(
+        levels_match(under_read.under_read_db, expected),
+        "under-read {}",
+        under_read.under_read_db
+    );
     assert!(under_read.safe, "the provenance set marks the track safe");
 }
 
@@ -93,7 +131,11 @@ fn a_loud_second_under_a_probe_window_has_no_under_read() {
     );
     let (_, under_reads) = probe(&[covered], &HashSet::new());
     assert_eq!(under_reads.len(), 1);
-    assert!(levels_match(under_reads[0].under_read_db, 0.0), "under-read {}", under_reads[0].under_read_db);
+    assert!(
+        levels_match(under_reads[0].under_read_db, 0.0),
+        "under-read {}",
+        under_reads[0].under_read_db
+    );
     assert!(!under_reads[0].safe, "no provenance set means unsafe");
 }
 
@@ -113,9 +155,11 @@ fn an_empty_corpus_decodes_and_records_nothing() {
 fn the_quantile_reads_the_sorted_under_reads() {
     let under_reads: Vec<UnderRead> = [1.0, 2.0, 3.0, 4.0]
         .iter()
-        .map(|&under_read_db| return UnderRead {
-            under_read_db,
-            safe: false,
+        .map(|&under_read_db| {
+            return UnderRead {
+                under_read_db,
+                safe: false,
+            };
         })
         .collect();
     assert_eq!(under_read_quantile(&under_reads, 0.0), 1.0);
@@ -134,9 +178,18 @@ fn the_quantile_reads_the_sorted_under_reads() {
 #[test]
 fn the_margin_tradeoff_counts_clamped_tracks_and_their_provenance() {
     let under_reads = vec![
-        UnderRead { under_read_db: 0.2, safe: true },
-        UnderRead { under_read_db: 1.0, safe: false },
-        UnderRead { under_read_db: 3.0, safe: true },
+        UnderRead {
+            under_read_db: 0.2,
+            safe: true,
+        },
+        UnderRead {
+            under_read_db: 1.0,
+            safe: false,
+        },
+        UnderRead {
+            under_read_db: 3.0,
+            safe: true,
+        },
     ];
     let policy = default_policy();
     let margin_db = 0.5;
@@ -148,7 +201,11 @@ fn the_margin_tradeoff_counts_clamped_tracks_and_their_provenance() {
     // Only the 3.0 dB under-read beats 0.5 dB of margin plus the policy's too-loud bound.
     assert_eq!(row.clamped, 1, "clamped count");
     assert_eq!(row.clamped_safe, 1, "the clamped track is safe-provenance");
-    assert!(levels_match(row.worst_quiet_db, -margin_db), "worst quiet {}", row.worst_quiet_db);
+    assert!(
+        levels_match(row.worst_quiet_db, -margin_db),
+        "worst quiet {}",
+        row.worst_quiet_db
+    );
 }
 
 /// What:

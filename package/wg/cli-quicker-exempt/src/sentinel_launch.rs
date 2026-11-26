@@ -99,8 +99,14 @@ impl LaunchOutcome {
             Some(Placement::BesideTheWatcher) => "beside the watcher, in its cgroup",
             None => "nowhere",
         };
-        let state = if self.confirmed { "and confirmed that it runs" } else { "and has not confirmed that it runs" };
-        return format!("wg-quicker-exempt: the sentinel that reports the watcher's own death was started {place} {state}");
+        let state = if self.confirmed {
+            "and confirmed that it runs"
+        } else {
+            "and has not confirmed that it runs"
+        };
+        return format!(
+            "wg-quicker-exempt: the sentinel that reports the watcher's own death was started {place} {state}"
+        );
     }
 }
 
@@ -108,25 +114,51 @@ impl LaunchOutcome {
 /// replaceable in tests.
 pub trait SentinelSteps {
     /// Starts the sentinel as a transient service with these `systemd-run` arguments.
-    fn start_as_service(&self, arguments: &[OsString]) -> Result<(), String>;
+    fn start_as_service(
+        &self,
+        arguments: &[OsString],
+    ) -> Result<(), String>;
     /// Stops the transient service with this unit name,
     /// and checks that no process of it is left.
     /// An error says why the unit cannot be shown to be gone.
-    fn stop_service(&self, unit: &str) -> Result<(), String>;
+    fn stop_service(
+        &self,
+        unit: &str,
+    ) -> Result<(), String>;
     /// Starts the sentinel as a detached process with these arguments after the program.
-    fn start_detached(&self, executable: &Path, arguments: &[OsString]) -> Result<(), String>;
+    fn start_detached(
+        &self,
+        executable: &Path,
+        arguments: &[OsString],
+    ) -> Result<(), String>;
     /// Reads the marker of the sentinel of the watcher under `key`.
-    fn read_marker(&self, key: &str) -> Option<SentinelMarker>;
+    fn read_marker(
+        &self,
+        key: &str,
+    ) -> Option<SentinelMarker>;
     /// Removes a marker an earlier sentinel left.
-    fn remove_marker(&self, key: &str);
+    fn remove_marker(
+        &self,
+        key: &str,
+    );
     /// Whether the process with this pid and start time runs.
-    fn is_alive(&self, pid: i32, start_time: u64) -> bool;
+    fn is_alive(
+        &self,
+        pid: i32,
+        start_time: u64,
+    ) -> bool;
     /// Waits between two checks.
-    fn pause(&self, duration: Duration);
+    fn pause(
+        &self,
+        duration: Duration,
+    );
 }
 
 /// Name of the transient service that holds the sentinel of one watcher.
-pub fn unit_name(watcher_pid: i32, watcher_start_time: u64) -> String {
+pub fn unit_name(
+    watcher_pid: i32,
+    watcher_start_time: u64,
+) -> String {
     return format!("wg-quicker-exempt-sentinel-{watcher_pid}-{watcher_start_time}");
 }
 
@@ -162,7 +194,10 @@ pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<OsString> {
         "--quiet".to_string(),
         "--collect".to_string(),
         "--no-ask-password".to_string(),
-        format!("--unit={}", unit_name(request.watcher_pid, request.watcher_start_time)),
+        format!(
+            "--unit={}",
+            unit_name(request.watcher_pid, request.watcher_start_time)
+        ),
         "--description=wg-quicker-exempt application watcher sentinel".to_string(),
         "--property=ManagedOOMPreference=omit".to_string(),
         "--".to_string(),
@@ -177,7 +212,11 @@ pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<OsString> {
 }
 
 /// Waits until the sentinel left a marker that names this watcher and its process runs.
-pub fn confirm_running(steps: &dyn SentinelSteps, key: &str, watcher_pid: i32) -> bool {
+pub fn confirm_running(
+    steps: &dyn SentinelSteps,
+    key: &str,
+    watcher_pid: i32,
+) -> bool {
     for _attempt in 0..CONFIRM_ATTEMPTS {
         if let Some(marker) = steps.read_marker(key)
             && marker.watcher_pid == watcher_pid
@@ -202,9 +241,15 @@ const BESIDE_COST: &str = "so it starts beside the watcher: a kill of the watche
 
 /// Starts the sentinel beside the watcher and confirms it,
 /// adding the loud reports for what did not go as intended.
-fn start_beside_the_watcher(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>, reports: &mut Vec<String>) -> (Option<Placement>, bool) {
+fn start_beside_the_watcher(
+    steps: &dyn SentinelSteps,
+    request: &SentinelRequest<'_>,
+    reports: &mut Vec<String>,
+) -> (Option<Placement>, bool) {
     steps.remove_marker(request.key);
-    if let Err(detached_error) = steps.start_detached(request.executable, &sentinel_arguments(request)) {
+    if let Err(detached_error) =
+        steps.start_detached(request.executable, &sentinel_arguments(request))
+    {
         reports.push(policy_failure(&format!(
             "the sentinel that reports the watcher's own death could not start at all ({detached_error}), \
 so if the watcher is killed or runs out of memory nothing will say so"
@@ -233,7 +278,10 @@ so if the watcher is killed or runs out of memory nothing may say so",
 /// a second report says that two sentinels may run.
 /// The start of the watcher is not failed,
 /// because the watcher itself is running.
-pub fn launch_sentinel(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>) -> LaunchOutcome {
+pub fn launch_sentinel(
+    steps: &dyn SentinelSteps,
+    request: &SentinelRequest<'_>,
+) -> LaunchOutcome {
     steps.remove_marker(request.key);
     let unit = unit_name(request.watcher_pid, request.watcher_start_time);
     let mut reports: Vec<String> = Vec::new();
@@ -244,17 +292,29 @@ pub fn launch_sentinel(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>)
             request.executable.display()
         )));
         let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
-        return LaunchOutcome { placement, confirmed, reports };
+        return LaunchOutcome {
+            placement,
+            confirmed,
+            reports,
+        };
     }
     if let Err(service_error) = steps.start_as_service(&systemd_run_arguments(request)) {
         reports.push(policy_failure(&format!(
             "the sentinel that reports the watcher's own death could not start as its own service ({service_error}), {BESIDE_COST}"
         )));
         let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
-        return LaunchOutcome { placement, confirmed, reports };
+        return LaunchOutcome {
+            placement,
+            confirmed,
+            reports,
+        };
     }
     if confirm_running(steps, request.key, request.watcher_pid) {
-        return LaunchOutcome { placement: Some(Placement::Service), confirmed: true, reports };
+        return LaunchOutcome {
+            placement: Some(Placement::Service),
+            confirmed: true,
+            reports,
+        };
     }
     reports.push(policy_failure(&format!(
         "the sentinel that reports the watcher's own death was accepted as a service but did not confirm that it runs within {} ms \
@@ -268,5 +328,9 @@ two sentinels may run, and one death of the watcher may be reported twice"
         )));
     }
     let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
-    return LaunchOutcome { placement, confirmed, reports };
+    return LaunchOutcome {
+        placement,
+        confirmed,
+        reports,
+    };
 }

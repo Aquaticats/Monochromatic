@@ -16,7 +16,10 @@
 //! ```
 
 /// Imports the error kinds and result type of a start.
-use std::io::{Error, Result};
+use std::io::{
+    Error,
+    Result,
+};
 /// Imports the span of time.
 use std::time::Duration;
 

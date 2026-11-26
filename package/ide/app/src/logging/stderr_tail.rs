@@ -39,7 +39,10 @@
 /// ```ts
 /// const tails = new Map<string, { lines: string[]; closed: boolean; retired: boolean }>();
 /// ```
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{
+    BTreeMap,
+    VecDeque,
+};
 /// What:
 ///  `Mutex` guards a value that several threads change;
 ///  `MutexGuard` is the held lock.
@@ -51,7 +54,10 @@ use std::collections::{BTreeMap, VecDeque};
 /// ```ts
 /// // one lock around `tails`
 /// ```
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 /// Lines kept per server:
 ///  a panic message with its location,
@@ -188,7 +194,10 @@ pub fn cut(line: &str) -> String {
 ///  given in helix-lsp's quoted form without the outer quotes.
 /// Why:
 ///  Called by the log bridge for every standard-error line.
-pub fn remember(server: &str, quoted: &str) {
+pub fn remember(
+    server: &str,
+    quoted: &str,
+) {
     let text = unescape(quoted);
     // A line arrives with its newline; the record lists lines, so the newline is dropped.
     let line = cut(text.strip_suffix('\n').unwrap_or(&text));

@@ -8,7 +8,10 @@ mod memory_fixture;
 use anyhow::Result;
 /// Consumer-facing opener produces a document only after successful read and revision validation.
 use ide_app::{
-    file_open::{FileOpener, OpenedFile},
+    file_open::{
+        FileOpener,
+        OpenedFile,
+    },
     workspace::Workspace,
 };
 /// Files and links are disposable;
@@ -17,7 +20,10 @@ use std::{
     fs,
     os::unix::fs::symlink,
     path::PathBuf,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for one open:

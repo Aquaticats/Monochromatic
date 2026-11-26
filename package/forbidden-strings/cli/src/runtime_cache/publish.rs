@@ -12,13 +12,22 @@
 //! costs a recompile and never a wrong scan.
 
 /// Imports filesystem primitives for complete reads and atomic publication.
-use std::fs::{self, OpenOptions};
+use std::fs::{
+    self,
+    OpenOptions,
+};
 /// Imports byte writer used to fill the temporary artifact.
 use std::io::Write;
 /// Imports artifact paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports process-local collision-free counter for temporary names.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// Imports resolved protected hierarchy.
 use super::path::CacheLocation;
@@ -62,7 +71,7 @@ pub(super) fn read_artifact(
     if !metadata.is_file() || metadata.len() > maximum_bytes {
         return Err(ArtifactReadError::Unreadable);
     }
-    return fs::read(path).map_err(artifact_read_error)
+    return fs::read(path).map_err(artifact_read_error);
 }
 
 /// Applies owner-only mode to one application-owned directory on Unix.
@@ -70,14 +79,13 @@ pub(super) fn read_artifact(
 fn make_directory_private(path: &Path) -> Result<(), PublishError> {
     /// Imports Unix mode construction for owner-only directory permission.
     use std::os::unix::fs::PermissionsExt;
-    return fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-        .map_err(publish_failed)
+    return fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(publish_failed);
 }
 
 /// Keeps platform-native directory ACL behavior on non-Unix systems.
 #[cfg(not(unix))]
 fn make_directory_private(_path: &Path) -> Result<(), PublishError> {
-    return Ok(())
+    return Ok(());
 }
 
 /// Applies owner-only mode to one artifact file on Unix.
@@ -85,14 +93,13 @@ fn make_directory_private(_path: &Path) -> Result<(), PublishError> {
 fn make_file_private(path: &Path) -> Result<(), PublishError> {
     /// Imports Unix mode construction for owner-only artifact permission.
     use std::os::unix::fs::PermissionsExt;
-    return fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-        .map_err(publish_failed)
+    return fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(publish_failed);
 }
 
 /// Keeps platform-native file ACL behavior on non-Unix systems.
 #[cfg(not(unix))]
 fn make_file_private(_path: &Path) -> Result<(), PublishError> {
-    return Ok(())
+    return Ok(());
 }
 
 /// Creates every application-owned hierarchy level and enforces private mode.
@@ -101,7 +108,7 @@ fn prepare_directories(location: &CacheLocation) -> Result<(), PublishError> {
         fs::create_dir_all(directory).map_err(publish_failed)?;
         make_directory_private(directory)?;
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Builds unique same-directory temporary path without random dependency.
@@ -112,7 +119,7 @@ fn temporary_path(artifact_path: &Path) -> Result<PathBuf, PublishError> {
         ".rules.bin.{}.{}.tmp",
         std::process::id(),
         sequence,
-    )))
+    )));
 }
 
 /// Writes,
@@ -128,7 +135,7 @@ pub(super) fn publish_artifact(
     if publication.is_err() {
         let _ = fs::remove_file(&temporary);
     }
-    return publication
+    return publication;
 }
 
 /// Owns temporary-file lifecycle up to final atomic replacement.

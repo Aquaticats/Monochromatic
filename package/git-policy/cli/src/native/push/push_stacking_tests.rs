@@ -394,10 +394,14 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
         // Only reached when the death could not end this process: the parent names that status.
         std::process::exit(code);
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run(
-        PUSH_SIGNAL_CHILD_VARIABLE,
-        "push::push_stacking::tests::a_push_whose_git_a_signal_ended_keeps_the_signal",
-    );
+    // The child ends by the signal on purpose, so this asks for its ending rather than for a passing test.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(PUSH_SIGNAL_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    let output: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: "push::push_stacking::tests::a_push_whose_git_a_signal_ended_keeps_the_signal",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    })
+    .expect("the child push ends within the deadline");
     assert_eq!(
         output.status.signal(),
         Some(libc::SIGTERM),

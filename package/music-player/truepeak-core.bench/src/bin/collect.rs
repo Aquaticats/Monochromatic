@@ -19,20 +19,39 @@ use std::env;
 /// Imports the output file and writer.
 use std::fs::File;
 /// Imports buffered writing and the stdout reader trait.
-use std::io::{BufWriter, Read, Write};
+use std::io::{
+    BufWriter,
+    Read,
+    Write,
+};
 /// Imports the borrowed path type and owned path buffer.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the child-process spawner for ffprobe and ffmpeg.
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 /// Imports the shared queue handle,
 ///  channel,
 ///  and lock.
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{
+    Arc,
+    Mutex,
+    mpsc,
+};
 /// Imports thread spawning for the decode workers.
 use std::thread;
 
 /// Imports `anyhow` helpers for application-level error returns.
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{
+    Context,
+    Result,
+    anyhow,
+    bail,
+};
 
 /// Imports serde derive and JSON for the per-track output rows.
 use serde::Serialize;
@@ -80,18 +99,30 @@ fn probe_spec(path: &Path) -> Result<(u32, u16, f64)> {
     // Ask ffprobe for the first audio stream's rate and channels and the container duration.
     let output = Command::new("ffprobe")
         .args([
-            "-v", "error", "-select_streams", "a:0", "-show_entries",
-            "stream=sample_rate,channels:format=duration", "-of", "json",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=sample_rate,channels:format=duration",
+            "-of",
+            "json",
         ])
         .arg(path)
         .output()?;
     let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     let stream = &parsed["streams"][0];
     // Pull each field, defaulting duration to zero (the decoded frame count is authoritative).
-    let rate: u32 = stream["sample_rate"].as_str().and_then(|s| return s.parse().ok()).unwrap_or(0);
+    let rate: u32 = stream["sample_rate"]
+        .as_str()
+        .and_then(|s| return s.parse().ok())
+        .unwrap_or(0);
     let channels: u16 = stream["channels"].as_u64().unwrap_or(0) as u16;
-    let duration: f64 = parsed["format"]["duration"].as_str().and_then(|s| return s.parse().ok()).unwrap_or(0.0);
-    return Ok((rate, channels, duration))
+    let duration: f64 = parsed["format"]["duration"]
+        .as_str()
+        .and_then(|s| return s.parse().ok())
+        .unwrap_or(0.0);
+    return Ok((rate, channels, duration));
 }
 
 /// Decode a file with ffmpeg and return its full peak,
@@ -104,9 +135,12 @@ fn decode_and_bin(
 ) -> Result<(f32, Vec<f32>, u64)> {
     // Spawn ffmpeg to emit native-rate interleaved f32 little-endian on stdout.
     let mut child = Command::new("ffmpeg")
-        .args(["-v", "error", "-i"]).arg(path)
+        .args(["-v", "error", "-i"])
+        .arg(path)
         .args(["-f", "f32le", "-"])
-        .stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
     let mut stdout = child.stdout.take().context("ffmpeg stdout missing")?;
 
     let samples_per_bin = (bin_frames * u64::from(channels)) as usize;
@@ -125,7 +159,9 @@ fn decode_and_bin(
         leftover.extend_from_slice(&buf[..read]);
         let complete = leftover.len() / 4 * 4;
         let samples: Vec<f32> = leftover[..complete]
-            .as_chunks::<4>().0.iter()
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|b| return f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
             .collect();
         leftover.drain(..complete);
@@ -149,14 +185,21 @@ fn decode_and_bin(
     }
     child.wait()?;
     let full_peak = bins.iter().fold(0.0_f32, |peak, &bin| return peak.max(bin));
-    let decoded_frames = if channels == 0 { 0 } else { total_samples / u64::from(channels) };
-    return Ok((full_peak, bins, decoded_frames))
+    let decoded_frames = if channels == 0 {
+        0
+    } else {
+        total_samples / u64::from(channels)
+    };
+    return Ok((full_peak, bins, decoded_frames));
 }
 
 /// Measure one track end to end (probe,
 ///  decode,
 ///  bin) into a `TrackMetrics`.
-fn measure(path: &Path, bin_seconds: f64) -> Result<TrackMetrics> {
+fn measure(
+    path: &Path,
+    bin_seconds: f64,
+) -> Result<TrackMetrics> {
     let (rate, channels, _container_duration) = probe_spec(path)?;
     if rate == 0 || channels == 0 {
         bail!("missing rate or channels");
@@ -172,7 +215,7 @@ fn measure(path: &Path, bin_seconds: f64) -> Result<TrackMetrics> {
         bin_seconds,
         full_peak,
         bin_peaks,
-    })
+    });
 }
 
 /// Recursively collect audio files under a root,
@@ -192,12 +235,15 @@ fn collect_audio_files(root: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     files.sort();
-    return Ok(files)
+    return Ok(files);
 }
 
 /// Report whether a path has a decodable audio extension and is not an AppleDouble sidecar.
 fn is_audio(path: &Path) -> bool {
-    let name = path.file_name().and_then(|n| return n.to_str()).unwrap_or("");
+    let name = path
+        .file_name()
+        .and_then(|n| return n.to_str())
+        .unwrap_or("");
     if name.starts_with("._") {
         return false;
     }
@@ -221,10 +267,22 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
     let args: Vec<String> = env::args().collect();
-    let root = PathBuf::from(args.get(1).context("usage: collect <root> <out.jsonl> [bin_seconds] [workers]")?);
-    let out_path = PathBuf::from(args.get(2).context("usage: collect <root> <out.jsonl> [bin_seconds] [workers]")?);
-    let bin_seconds = args.get(3).and_then(|v| return v.parse().ok()).unwrap_or(DEFAULT_BIN_SECONDS);
-    let workers = args.get(4).and_then(|v| return v.parse().ok()).unwrap_or(DEFAULT_WORKERS);
+    let root = PathBuf::from(
+        args.get(1)
+            .context("usage: collect <root> <out.jsonl> [bin_seconds] [workers]")?,
+    );
+    let out_path = PathBuf::from(
+        args.get(2)
+            .context("usage: collect <root> <out.jsonl> [bin_seconds] [workers]")?,
+    );
+    let bin_seconds = args
+        .get(3)
+        .and_then(|v| return v.parse().ok())
+        .unwrap_or(DEFAULT_BIN_SECONDS);
+    let workers = args
+        .get(4)
+        .and_then(|v| return v.parse().ok())
+        .unwrap_or(DEFAULT_WORKERS);
 
     let files = collect_audio_files(&root)?;
     let total = files.len();
@@ -268,6 +326,9 @@ fn main() -> Result<()> {
         }
     }
     writer.flush()?;
-    println!("collected {measured}/{total} tracks ({failed} failed) bin_seconds={bin_seconds} -> {}", out_path.to_string_lossy());
-    return Ok(())
+    println!(
+        "collected {measured}/{total} tracks ({failed} failed) bin_seconds={bin_seconds} -> {}",
+        out_path.to_string_lossy()
+    );
+    return Ok(());
 }

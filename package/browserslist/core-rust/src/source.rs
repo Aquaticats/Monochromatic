@@ -22,7 +22,10 @@
 /// ```ts
 /// import { BrowserData, DataFiles } from './data';
 /// ```
-use crate::data::{BrowserData, DataFiles};
+use crate::data::{
+    BrowserData,
+    DataFiles,
+};
 /// What:
 ///  Import `BrowserslistError, Outcome` from `crate::error`.
 /// Why:
@@ -33,7 +36,10 @@ use crate::data::{BrowserData, DataFiles};
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `get_bytes` from `crate::fetch::get_bytes`.
 /// Why:
@@ -53,7 +59,10 @@ use crate::fetch::get_bytes;
 /// ```ts
 /// import { cacheKey, verify } from './integrity';
 /// ```
-use crate::integrity::{cache_key, verify};
+use crate::integrity::{
+    cache_key,
+    verify,
+};
 /// What:
 ///  Import `DataLock, PinnedPackage` from `crate::lock`.
 /// Why:
@@ -63,7 +72,10 @@ use crate::integrity::{cache_key, verify};
 /// ```ts
 /// import { DataLock, PinnedPackage } from './lock';
 /// ```
-use crate::lock::{DataLock, PinnedPackage};
+use crate::lock::{
+    DataLock,
+    PinnedPackage,
+};
 /// What:
 ///  Import `extract_files` from `crate::tarball::extract_files`.
 /// Why:
@@ -104,7 +116,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  Import `AtomicU64, Ordering` from `std::sync::atomic`.
 /// Why:
@@ -114,7 +129,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// import { AtomicU64, Ordering } from 'std/sync/atomic';
 /// ```
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The registry the crate fetches from unless told otherwise.
 pub const NPM_REGISTRY: &str = "https://registry.npmjs.org";
@@ -172,26 +190,48 @@ impl DataSource {
                 message: "the operating system reports no home directory".to_string(),
             });
         };
-        return Ok(Self { cache_dir: directories.cache_dir().to_path_buf(), registry_url: NPM_REGISTRY.to_string() });
+        return Ok(Self {
+            cache_dir: directories.cache_dir().to_path_buf(),
+            registry_url: NPM_REGISTRY.to_string(),
+        });
     }
 }
 
 /// Build an I/O error for a path.
-fn io_error(path: &Path, error: &std::io::Error) -> BrowserslistError {
-    return BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() };
+fn io_error(
+    path: &Path,
+    error: &std::io::Error,
+) -> BrowserslistError {
+    return BrowserslistError::Io {
+        path: path.display().to_string(),
+        message: error.to_string(),
+    };
 }
 
 /// The tarball URL npm uses for a package version:
 /// `<registry>/<name>/-/<name>-<version>.tgz`.
-pub fn tarball_url(registry_url: &str, package: &PinnedPackage) -> String {
-    return format!("{registry_url}/{name}/-/{name}-{version}.tgz", name = package.name, version = package.version);
+pub fn tarball_url(
+    registry_url: &str,
+    package: &PinnedPackage,
+) -> String {
+    return format!(
+        "{registry_url}/{name}/-/{name}-{version}.tgz",
+        name = package.name,
+        version = package.version
+    );
 }
 
 /// Write bytes to `path` through a sibling temporary file and a rename,
 /// so readers never see a partial file.
-pub fn write_atomically(path: &Path, bytes: &[u8]) -> Outcome<()> {
+pub fn write_atomically(
+    path: &Path,
+    bytes: &[u8],
+) -> Outcome<()> {
     let Some(parent) = path.parent() else {
-        return Err(BrowserslistError::Io { path: path.display().to_string(), message: "has no parent directory".to_string() });
+        return Err(BrowserslistError::Io {
+            path: path.display().to_string(),
+            message: "has no parent directory".to_string(),
+        });
     };
     if let Err(error) = fs::create_dir_all(parent) {
         return Err(io_error(parent, &error));
@@ -221,8 +261,13 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> Outcome<()> {
 /// ```ts
 /// async function pinnedTarball(pkg: PinnedPackage, source: DataSource): Promise<Uint8Array>;
 /// ```
-pub fn pinned_tarball(package: &PinnedPackage, source: &DataSource) -> Outcome<Vec<u8>> {
-    let path = source.cache_dir.join(format!("{}.tgz", cache_key(&package.integrity)?));
+pub fn pinned_tarball(
+    package: &PinnedPackage,
+    source: &DataSource,
+) -> Outcome<Vec<u8>> {
+    let path = source
+        .cache_dir
+        .join(format!("{}.tgz", cache_key(&package.integrity)?));
     let subject = format!("{} {}", package.name, package.version);
     if let Ok(cached) = fs::read(&path) {
         match verify(&subject, &package.integrity, &cached) {
@@ -230,7 +275,9 @@ pub fn pinned_tarball(package: &PinnedPackage, source: &DataSource) -> Outcome<V
                 tracing::debug!(%subject, path = %path.display(), "cache hit");
                 return Ok(cached);
             }
-            Err(error) => tracing::warn!(%subject, %error, "cached tarball failed verification; fetching again"),
+            Err(error) => {
+                tracing::warn!(%subject, %error, "cached tarball failed verification; fetching again")
+            }
         }
     }
     let url = tarball_url(&source.registry_url, package);
@@ -242,13 +289,25 @@ pub fn pinned_tarball(package: &PinnedPackage, source: &DataSource) -> Outcome<V
 }
 
 /// Turn the two tarballs plus the lock's ESR value into decoded data.
-pub fn decode_tarballs(caniuse_tgz: &[u8], node_releases_tgz: &[u8], firefox_esr: &str) -> Outcome<BrowserData> {
+pub fn decode_tarballs(
+    caniuse_tgz: &[u8],
+    node_releases_tgz: &[u8],
+    firefox_esr: &str,
+) -> Outcome<BrowserData> {
     let caniuse = extract_files(
         "caniuse-lite",
         caniuse_tgz,
-        &["package/data/agents.js", "package/data/browsers.js", "package/data/browserVersions.js"],
+        &[
+            "package/data/agents.js",
+            "package/data/browsers.js",
+            "package/data/browserVersions.js",
+        ],
     )?;
-    let node = extract_files("node-releases", node_releases_tgz, &["package/data/processed/envs.json"])?;
+    let node = extract_files(
+        "node-releases",
+        node_releases_tgz,
+        &["package/data/processed/envs.json"],
+    )?;
     let agents_js = text_of("caniuse-lite data/agents.js", &caniuse[0])?;
     let browsers_js = text_of("caniuse-lite data/browsers.js", &caniuse[1])?;
     let browser_versions_js = text_of("caniuse-lite data/browserVersions.js", &caniuse[2])?;
@@ -263,7 +322,10 @@ pub fn decode_tarballs(caniuse_tgz: &[u8], node_releases_tgz: &[u8], firefox_esr
 }
 
 /// Decode bytes as UTF-8 or fail naming the file.
-fn text_of(file: &str, bytes: &[u8]) -> Outcome<String> {
+fn text_of(
+    file: &str,
+    bytes: &[u8],
+) -> Outcome<String> {
     match String::from_utf8(bytes.to_vec()) {
         Ok(text) => return Ok(text),
         Err(error) => {
@@ -285,7 +347,10 @@ fn text_of(file: &str, bytes: &[u8]) -> Outcome<String> {
 /// ```ts
 /// async function loadData(lock: DataLock, source: DataSource): Promise<BrowserData>;
 /// ```
-pub fn load_data(lock: &DataLock, source: &DataSource) -> Outcome<BrowserData> {
+pub fn load_data(
+    lock: &DataLock,
+    source: &DataSource,
+) -> Outcome<BrowserData> {
     let caniuse = pinned_tarball(&lock.caniuse_lite, source)?;
     let node = pinned_tarball(&lock.node_releases, source)?;
     return decode_tarballs(&caniuse, &node, &lock.firefox_esr);

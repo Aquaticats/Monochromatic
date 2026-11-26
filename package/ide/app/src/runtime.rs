@@ -30,13 +30,20 @@ use crate::app_cache::application_cache;
 /// Errors carry the file,
 ///  what happened,
 ///  and the remedy for the source in use.
-use anyhow::{Result, anyhow, bail};
+use anyhow::{
+    Result,
+    anyhow,
+    bail,
+};
 /// Paths,
 ///  the not-found error kind,
 ///  and the process-wide once-set value.
 use std::{
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
@@ -346,7 +353,11 @@ impl RuntimeSource {
     /// ```ts
     /// query(language: string, file: string): string // '' when absent; throws when damaged
     /// ```
-    pub fn query(&self, language: &str, file: &str) -> Result<String> {
+    pub fn query(
+        &self,
+        language: &str,
+        file: &str,
+    ) -> Result<String> {
         match self {
             Self::Embedded(runtime) => {
                 let path = format!("runtime/queries/{language}/{file}");
@@ -387,7 +398,10 @@ impl RuntimeSource {
     /// ```ts
     /// grammarLibrary(name: string): string // throws when missing, damaged, or not unpackable
     /// ```
-    pub fn grammar_library(&self, name: &str) -> Result<PathBuf> {
+    pub fn grammar_library(
+        &self,
+        name: &str,
+    ) -> Result<PathBuf> {
         match self {
             Self::Embedded(runtime) => {
                 let bytes = runtime.required(&format!("runtime/grammars/{name}.so"))?;

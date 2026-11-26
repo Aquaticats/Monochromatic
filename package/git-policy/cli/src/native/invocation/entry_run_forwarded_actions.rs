@@ -142,6 +142,31 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
                 write_stream(&mut std::io::stderr(), text);
                 return crate::action::REJECTED_EXIT_CODE;
             }
+            // What: A typed network command whose remote ssh carries relays Git's error stream here too; the coordination is not
+            //       what decides it, so the relay asks before the process becomes Git.
+            // Why:  A `pull` outside the coordination's reach is still one of the four commands the decision covers.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const relayed = relayWhenSshCarries(git, argv, env, 'person'); if (relayed?.ran !== undefined) return relayed.ran;
+            // ```
+            #[cfg(unix)]
+            match crate::typed_network_command_relay::relay_when_ssh_carries(
+                forward.real_git.as_path(),
+                forward.arguments.as_slice(),
+                forward.overlay.as_slice(),
+                crate::hooks_off::StartOwner::Person,
+            ) {
+                Some(Ok(ending)) => return ending.exit_code(),
+                Some(Err(error)) => {
+                    write_stream(
+                        &mut std::io::stderr(),
+                        format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", forward.real_git.display()).as_str(),
+                    );
+                    return ENGINE_FAILURE_EXIT_CODE;
+                }
+                None => {}
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 forward.real_git.as_path(),
                 forward.arguments.as_slice(),

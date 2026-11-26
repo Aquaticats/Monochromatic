@@ -15,7 +15,10 @@ use crate::document::Reload;
 /// ```ts
 /// import { type Rope, type ChangeSet } from 'helix-core';
 /// ```
-use helix_core::{ChangeSet, Rope};
+use helix_core::{
+    ChangeSet,
+    Rope,
+};
 /// What:
 ///  `PathBuf` is an owned filesystem path (sibling:
 ///  borrowed `&Path`).
@@ -89,7 +92,10 @@ impl DocumentReload {
     /// ```ts
     /// static fromReload(file: number, reload: Reload): DocumentReload
     /// ```
-    pub fn from_reload(file: u64, reload: &Reload) -> Self {
+    pub fn from_reload(
+        file: u64,
+        reload: &Reload,
+    ) -> Self {
         return Self {
             file,
             base_revision: reload.base_revision(),

@@ -15,14 +15,24 @@
 //! ```
 
 /// Imports `toml_edit::{DocumentMut, Item, Key, Table, TableLike, Value}`.
-use toml_edit::{DocumentMut, Item, Key, Table, TableLike, Value};
+use toml_edit::{
+    DocumentMut,
+    Item,
+    Key,
+    Table,
+    TableLike,
+    Value,
+};
 
 /// Imports `crate::adopt::AdoptionPlan`.
 use crate::adopt::AdoptionPlan;
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::render::{parse_value, render_entry_value}`.
-use crate::render::{parse_value, render_entry_value};
+use crate::render::{
+    parse_value,
+    render_entry_value,
+};
 /// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
@@ -36,7 +46,10 @@ use crate::types::Entry;
 /// ```ts
 /// source.slice(0, start) + JSON.stringify(text) + source.slice(end)
 /// ```
-pub fn replace_string(value: &mut Value, text: &str) {
+pub fn replace_string(
+    value: &mut Value,
+    text: &str,
+) {
     let decor: toml_edit::Decor = value.decor().clone();
     let mut replacement: Value = parse_value(&quote(text));
     *replacement.decor_mut() = decor;
@@ -45,7 +58,11 @@ pub fn replace_string(value: &mut Value, text: &str) {
 
 /// Raises the floor of one `[catalog]` entry,
 /// whether written as a string or as a table with `version`.
-fn raise_floor(table: &mut dyn TableLike, name: &str, requirement: &str) {
+fn raise_floor(
+    table: &mut dyn TableLike,
+    name: &str,
+    requirement: &str,
+) {
     let Some(item) = table.get_mut(name) else {
         return;
     };
@@ -94,7 +111,10 @@ pub fn end_position(document: &DocumentMut) -> isize {
 
 /// Creates a missing `[catalog]` table at the end of the file,
 /// one blank line after the previous text.
-fn ensure_catalog_table(document: &mut DocumentMut, source_is_empty: bool) {
+fn ensure_catalog_table(
+    document: &mut DocumentMut,
+    source_is_empty: bool,
+) {
     if document.as_table().get("catalog").is_some() {
         return;
     }
@@ -104,7 +124,9 @@ fn ensure_catalog_table(document: &mut DocumentMut, source_is_empty: bool) {
     if !source_is_empty {
         table.decor_mut().set_prefix("\n");
     }
-    document.as_table_mut().insert("catalog", Item::Table(table));
+    document
+        .as_table_mut()
+        .insert("catalog", Item::Table(table));
 }
 
 /// Keys of a table in source order,
@@ -132,7 +154,11 @@ pub fn table_key_names(table: &Table) -> Vec<String> {
 /// ```ts
 /// const following = existing.find((pair) => pair.name > name); // insert before its leading comments, else after the last
 /// ```
-fn insert_sorted(table: &mut Table, name: &str, value: Value) {
+fn insert_sorted(
+    table: &mut Table,
+    name: &str,
+    value: Value,
+) {
     let names: Vec<String> = table_key_names(table);
     let mut entries: Vec<(Key, Item)> = Vec::new();
     for existing in &names {
@@ -165,20 +191,33 @@ fn insert_sorted(table: &mut Table, name: &str, value: Value) {
 /// ```ts
 /// applySplices({ source, splices: catalogSplices({ source, located, additions, floorRaises, prunes }) })
 /// ```
-pub fn edit_catalog(document: &mut DocumentMut, source: &str, plan: &AdoptionPlan, prunes: &[Vec<String>]) {
+pub fn edit_catalog(
+    document: &mut DocumentMut,
+    source: &str,
+    plan: &AdoptionPlan,
+    prunes: &[Vec<String>],
+) {
     if !plan.additions.is_empty() {
         ensure_catalog_table(document, source.is_empty());
         if let Some(Item::Table(table)) = document.as_table_mut().get_mut("catalog") {
             for (name, entry) in sorted_additions(&plan.additions) {
                 insert_sorted(table, name, parse_value(&render_entry_value(entry)));
             }
-        } else if let Some(table) = document.as_table_mut().get_mut("catalog").and_then(Item::as_table_like_mut) {
+        } else if let Some(table) = document
+            .as_table_mut()
+            .get_mut("catalog")
+            .and_then(Item::as_table_like_mut)
+        {
             for (name, entry) in sorted_additions(&plan.additions) {
                 table.insert(name, Item::Value(parse_value(&render_entry_value(entry))));
             }
         }
     }
-    if let Some(table) = document.as_table_mut().get_mut("catalog").and_then(Item::as_table_like_mut) {
+    if let Some(table) = document
+        .as_table_mut()
+        .get_mut("catalog")
+        .and_then(Item::as_table_like_mut)
+    {
         for (name, requirement) in &plan.floor_raises {
             raise_floor(table, name, requirement);
         }
@@ -200,12 +239,18 @@ fn sorted_additions(additions: &[(String, Entry)]) -> Vec<(&str, &Entry)> {
 }
 
 /// Orders two additions by dependency name in byte order.
-fn compare_addition_names(left: &(&str, &Entry), right: &(&str, &Entry)) -> std::cmp::Ordering {
+fn compare_addition_names(
+    left: &(&str, &Entry),
+    right: &(&str, &Entry),
+) -> std::cmp::Ordering {
     return left.0.cmp(right.0);
 }
 
 /// Removes the entry at `path` (every segment but the last names a table).
-fn remove_path(root: &mut Table, path: &[String]) {
+fn remove_path(
+    root: &mut Table,
+    path: &[String],
+) {
     let Some((last, parents)) = path.split_last() else {
         return;
     };

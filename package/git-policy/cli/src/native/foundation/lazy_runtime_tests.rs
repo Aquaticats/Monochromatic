@@ -131,15 +131,14 @@ fn child_that_has_needed_no_runtime_yet() {
 /// ```
 #[test]
 fn nothing_is_built_before_the_first_need() {
-    let output: std::process::Output = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
-        .args(["--exact", child_path("child_that_has_needed_no_runtime_yet").as_str(), "--ignored", "--nocapture", "--test-threads=1"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
-    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(ran.contains(child_path("child_that_has_needed_no_runtime_yet").as_str()), "the child ran the test named, not nothing:\n{ran}");
-    assert!(output.status.success(), "a process that has needed no runtime builds one at its first need:\n{ran}\n{said}");
+    // The child's own body is the assertion, and the name it is started on is checked by `passed`, so a mistyped name
+    //  fails here rather than passing with `0 tests`.
+    let child: String = child_path("child_that_has_needed_no_runtime_yet");
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: child.as_str(),
+        ignored: true,
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// A call from inside the runtime is refused with an error where `block_on` would panic.

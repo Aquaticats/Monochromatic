@@ -55,7 +55,10 @@ impl FocusTarget {
 /// a list that does not exist yet (the folded layout creates the picker when it opens) reads the target when it is
 /// created,
 /// so the target must be set before the projection that creates it.
-pub(crate) fn set_target(window: &AppWindow, target: FocusTarget) {
+pub(crate) fn set_target(
+    window: &AppWindow,
+    target: FocusTarget,
+) {
     window.set_focus_request(target.to_int());
 }
 
@@ -64,7 +67,10 @@ pub(crate) fn set_target(window: &AppWindow, target: FocusTarget) {
 /// Why:
 /// the elements watch the tick,
 /// so a repeated request for the same target still acts.
-pub(crate) fn request_focus(window: &AppWindow, target: FocusTarget) {
+pub(crate) fn request_focus(
+    window: &AppWindow,
+    target: FocusTarget,
+) {
     tracing::debug!(?target, "keyboard focus requested");
     set_target(window, target);
     window.set_focus_tick(window.get_focus_tick() + 1);

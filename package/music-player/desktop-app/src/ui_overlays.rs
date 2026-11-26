@@ -16,24 +16,45 @@ use std::path::PathBuf;
 /// Imports the shared ownership type that shares the engine with the callbacks.
 use std::rc::Rc;
 /// Imports the duration and instant types that time the message expiry.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the engine that receives the commands.
 use music_player::engine::Engine;
 /// Imports the feedback kinds,
 /// messages and queue that the overlays show.
-use music_player::feedback::{FeedbackKind, FeedbackMessage, FeedbackQueue};
+use music_player::feedback::{
+    FeedbackKind,
+    FeedbackMessage,
+    FeedbackQueue,
+};
 /// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
 /// Imports the file error type and the restore action.
-use crate::ui_files::{FileActionError, restore_from_trash};
+use crate::ui_files::{
+    FileActionError,
+    restore_from_trash,
+};
 /// Imports the pure models of the overlays.
-use crate::ui_overlays_model::{Hold, feedback_rows, first_run_view, visible_time_ms};
+use crate::ui_overlays_model::{
+    Hold,
+    feedback_rows,
+    first_run_view,
+    visible_time_ms,
+};
 /// Imports the model builder and the state reader of the screen.
-use crate::ui_screen::{model_of, read_state};
+use crate::ui_screen::{
+    model_of,
+    read_state,
+};
 /// Imports the window and the generated feedback row type.
-use crate::{AppWindow, FeedbackItem};
+use crate::{
+    AppWindow,
+    FeedbackItem,
+};
 
 /// What:
 /// `OverlayState` is the feedback queue,
@@ -103,10 +124,20 @@ fn now_ms() -> i64 {
 /// so ids and timestamps stay consistent;
 /// a long message or one with an action
 /// stays longer than the fixed 4 s the queue would give it.
-fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<&str>, undo_path: Option<PathBuf>) -> Option<String> {
+fn add_message(
+    kind: FeedbackKind,
+    text: &str,
+    hold: Hold,
+    action_label: Option<&str>,
+    undo_path: Option<PathBuf>,
+) -> Option<String> {
     let mut state = overlays().borrow_mut();
     state.next_id += 1;
-    let prefix = if kind == FeedbackKind::Undo { "undo" } else { "error" };
+    let prefix = if kind == FeedbackKind::Undo {
+        "undo"
+    } else {
+        "error"
+    };
     let id = format!("{prefix}-{}", state.next_id);
     let message = FeedbackMessage::new(&id, text, kind, action_label).ok()?;
     let duration_ms = visible_time_ms(text, hold);
@@ -140,7 +171,10 @@ pub(crate) fn first_message_expires_in_ms() -> Option<i64> {
 /// `show_error` shows an error message with the failure text.
 /// Why:
 /// a failed file action must be reported instead of looking successful.
-pub(crate) fn show_error(window: &AppWindow, text: &str) {
+pub(crate) fn show_error(
+    window: &AppWindow,
+    text: &str,
+) {
     add_message(FeedbackKind::Error, text, Hold::Brief, None, None);
     project(window);
 }
@@ -149,7 +183,10 @@ pub(crate) fn show_error(window: &AppWindow, text: &str) {
 /// `show_file_error` shows the text of a file action failure.
 /// Why:
 /// the error variants already name the detail in plain words.
-pub(crate) fn show_file_error(window: &AppWindow, error: &FileActionError) {
+pub(crate) fn show_file_error(
+    window: &AppWindow,
+    error: &FileActionError,
+) {
     show_error(window, &error.to_string());
 }
 
@@ -159,8 +196,18 @@ pub(crate) fn show_file_error(window: &AppWindow, error: &FileActionError) {
 /// Why:
 /// D8 offers Undo for Move to trash;
 /// the target path is kept so Undo can find the trashed copy.
-pub(crate) fn show_undo(window: &AppWindow, text: &str, path: PathBuf) {
-    add_message(FeedbackKind::Undo, text, Hold::Long, Some("Undo"), Some(path));
+pub(crate) fn show_undo(
+    window: &AppWindow,
+    text: &str,
+    path: PathBuf,
+) {
+    add_message(
+        FeedbackKind::Undo,
+        text,
+        Hold::Long,
+        Some("Undo"),
+        Some(path),
+    );
     project(window);
 }
 
@@ -169,7 +216,10 @@ pub(crate) fn show_undo(window: &AppWindow, text: &str, path: PathBuf) {
 /// Why:
 /// a platform that cannot restore from the trash still reports the move,
 /// without offering Undo.
-pub(crate) fn show_trash_notice(window: &AppWindow, text: &str) {
+pub(crate) fn show_trash_notice(
+    window: &AppWindow,
+    text: &str,
+) {
     add_message(FeedbackKind::Undo, text, Hold::Brief, None, None);
     project(window);
 }
@@ -181,7 +231,10 @@ pub(crate) fn show_trash_notice(window: &AppWindow, text: &str) {
 /// this is the same message kind as the
 /// trash notice,
 /// named for what it is used for.
-pub(crate) fn show_notice(window: &AppWindow, text: &str) {
+pub(crate) fn show_notice(
+    window: &AppWindow,
+    text: &str,
+) {
     add_message(FeedbackKind::Undo, text, Hold::Brief, None, None);
     project(window);
 }
@@ -192,7 +245,10 @@ pub(crate) fn show_notice(window: &AppWindow, text: &str) {
 /// File details lists a file name,
 /// its size and its folder,
 /// which takes longer to read than a one-line confirmation.
-pub(crate) fn show_long_notice(window: &AppWindow, text: &str) {
+pub(crate) fn show_long_notice(
+    window: &AppWindow,
+    text: &str,
+) {
     add_message(FeedbackKind::Undo, text, Hold::Long, None, None);
     project(window);
 }
@@ -284,7 +340,8 @@ pub(crate) fn project(window: &AppWindow) {
         window.set_first_run_title(view.title.as_str().into());
         window.set_first_run_body(view.body.as_str().into());
         window.set_first_run_primary_label(view.primary_label.as_str().into());
-        let mut secondary_labels: Vec<slint::SharedString> = Vec::with_capacity(view.secondary_labels.len());
+        let mut secondary_labels: Vec<slint::SharedString> =
+            Vec::with_capacity(view.secondary_labels.len());
         for label in &view.secondary_labels {
             secondary_labels.push(label.as_str().into());
         }
@@ -299,7 +356,10 @@ pub(crate) fn project(window: &AppWindow) {
 /// Why:
 /// the first-run primary action opens the folder dialog (D10 wording),
 /// and Undo restores from the trash.
-pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
+pub(crate) fn wire(
+    app: &AppWindow,
+    engine: &Rc<Engine>,
+) {
     let dismiss_weak = app.as_weak();
     app.on_feedback_dismiss(move |id| {
         if let Some(window) = dismiss_weak.upgrade() {
@@ -334,7 +394,10 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
 /// Why:
 /// Undo restores the trashed file,
 /// and a failed restore is reported as its own error.
-fn run_feedback_action(window: &AppWindow, id: &str) {
+fn run_feedback_action(
+    window: &AppWindow,
+    id: &str,
+) {
     let Some(path) = take_undo_target(id) else {
         dismiss(id);
         project(window);
@@ -355,10 +418,14 @@ fn run_feedback_action(window: &AppWindow, id: &str) {
 fn start_expiry_timer(app: &AppWindow) {
     let timer = slint::Timer::default();
     let tick_weak = app.as_weak();
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(250), move || {
-        if let Some(window) = tick_weak.upgrade() {
-            expire(&window);
-        }
-    });
+    timer.start(
+        slint::TimerMode::Repeated,
+        Duration::from_millis(250),
+        move || {
+            if let Some(window) = tick_weak.upgrade() {
+                expire(&window);
+            }
+        },
+    );
     EXPIRY_TIMER.set(Some(timer));
 }

@@ -272,6 +272,15 @@ pub mod service_address_of_a_worktree;
 /// and the journal that remembers its batches.
 pub mod service_files_of_a_stopped_instance;
 
+/// The two folders every question about an instance's units is asked of,
+/// which worktree a unit instance belongs to,
+/// and whether that worktree is certainly gone.
+pub mod service_unit_folders_and_the_worktree_of_an_instance;
+
+/// Which instances have a unit or a journal,
+/// and the survey that sorts them by whether their worktree is gone.
+pub mod service_instances_with_units_and_their_survey;
+
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,
 /// whether it is gone,

@@ -4,12 +4,24 @@
 ///  syntax engine,
 ///  and read-only project boundary.
 use crate::{
-    document::{Document, ReadingPosition},
-    reload_worker::{ReloadReply, ReloadRequest, ReloadWorker, SyntaxReply},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    reload_worker::{
+        ReloadReply,
+        ReloadRequest,
+        ReloadWorker,
+        SyntaxReply,
+    },
     workspace::Workspace,
 };
 /// Protocol inconsistencies remain errors rather than silently installing mismatched source.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Requested and resolved paths retain native filenames.
 use std::path::PathBuf;
 
@@ -46,7 +58,10 @@ pub struct FileOpener {
 }
 
 /// Turn an accepted empty-base read into a fresh document with a collapsed initial caret.
-fn opened(reply: ReloadReply, outside_project: bool) -> Result<OpenedFile> {
+fn opened(
+    reply: ReloadReply,
+    outside_project: bool,
+) -> Result<OpenedFile> {
     // What: ? propagates the current source-read error before attempting to use a resolved target.
     // Why: Failed opens retain the previously displayed document at the caller boundary.
     //
@@ -134,7 +149,10 @@ impl FileOpener {
     }
 
     /// Replace the desired target without accumulating reads while a previous request is executing.
-    pub fn request(&mut self, path: PathBuf) -> Result<()> {
+    pub fn request(
+        &mut self,
+        path: PathBuf,
+    ) -> Result<()> {
         self.cancel()?;
         tracing::debug!(path = %path.display(), generation = self.generation, "requested project source open");
         // Some retains the latest native path until its bounded reader slot becomes available.
@@ -151,7 +169,10 @@ impl FileOpener {
     ///      The caller passes only a canonical path the Language module validated as an existing
     ///      regular file outside the root;
     ///  tree and search opens never come here.
-    pub fn request_outside(&mut self, path: PathBuf) -> Result<()> {
+    pub fn request_outside(
+        &mut self,
+        path: PathBuf,
+    ) -> Result<()> {
         self.cancel()?;
         tracing::debug!(path = %path.display(), generation = self.generation, "requested outside-project source open");
         self.pending = Some(path);

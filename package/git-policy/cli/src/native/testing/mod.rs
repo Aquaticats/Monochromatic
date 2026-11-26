@@ -27,6 +27,28 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The one place a child of this test binary is started, waited for with a deadline and checked for its one passing
+/// test;
+///  never part of the release executable,
+///  and included by path in the binary controls' crate and the candidate consumer's crate,
+/// which cannot reach this one.
+#[cfg(test)]
+pub(crate) mod child_test_process;
+
+/// The owner a helper process is started with:
+/// a process group of its own that dies with the test thread and with this process;
+///  never part of the release executable,
+///  and included by path in the binary controls' crate and the candidate consumer's crate,
+/// which cannot reach this one.
+#[cfg(test)]
+pub(crate) mod test_process_owner;
+
+/// The one shape for a control that runs in a process of its own,
+/// with a verdict file and every wait bounded;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod helper_process_test_support;
+
 /// The user namespace a control needs when the files it judges must be root's,
 /// and the inner half that runs the same test there;
 /// never part of the release executable,
@@ -147,6 +169,13 @@ pub(crate) mod real_git_lfs_the_run_requires_tests;
 #[cfg(test)]
 #[cfg(unix)]
 pub(crate) mod child_ended_with_its_whole_group;
+
+/// The control that a build made without the `test-only-switches` feature reads none of the crate's test-only
+/// variables;
+/// never part of the release executable.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "no_switch_is_read_without_its_feature_tests.rs"]
+pub(crate) mod no_switch_is_read_without_its_feature_tests;
 
 /// One binding record whose slot, registration and pointer are a fixture's own paths,
 /// and the publication that puts it under a fixture's Git common directory;

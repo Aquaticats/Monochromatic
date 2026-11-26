@@ -25,7 +25,10 @@ fn encodes_control_letter() {
 
 #[test]
 fn encodes_alt_prefix() {
-    assert_eq!(encode_terminal_key("x", false, true), Some(vec![0x1b, b'x']));
+    assert_eq!(
+        encode_terminal_key("x", false, true),
+        Some(vec![0x1b, b'x'])
+    );
 }
 
 #[test]

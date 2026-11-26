@@ -14,12 +14,15 @@
 
 /// The request,
 /// the error and the cargo runner of the update that the work values use.
-use crate::update::{UpdateError, UpdateRequest, run_or_fail};
+use crate::update::{
+    UpdateError,
+    UpdateRequest,
+    run_or_fail,
+};
 /// Imports `RefCell`,
 /// a list or value that can be changed through a shared reference;
 /// it holds the record of the lockfiles this run wrote.
 use std::cell::RefCell;
-
 
 /// What:
 /// `use crate::cargo_run::{CargoOutcome, CargoRunner};` imports `CargoOutcome`,
@@ -33,11 +36,14 @@ use std::cell::RefCell;
 /// ```ts
 /// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
 /// ```
-use crate::cargo_run::{CargoOutcome};
+use crate::cargo_run::CargoOutcome;
 
 /// Imports the manifest transaction that `--breaking` needs:
 /// cargo rewrites `Cargo.toml` as well as the lockfile.
-use crate::manifest_edit::{ManifestEdit, run_recording_manifests};
+use crate::manifest_edit::{
+    ManifestEdit,
+    run_recording_manifests,
+};
 /// Imports the file-system error module (the result type of the recorded calls).
 use std::io;
 
@@ -79,8 +85,17 @@ impl crate::file_owner::RecordedWork<io::Result<Result<String, String>>> for Syn
     /// The result of the recording is flattened into the sync's own result.
     fn run(self) -> io::Result<Result<String, String>> {
         match self {
-            SyncChain::Sync { request } => return Ok(request.syncer.sync(request.root)),
-            SyncChain::Around { crate_dir, edits, inner } => return run_recording_manifests(crate_dir, edits, *inner).and_then(std::convert::identity),
+            SyncChain::Sync {
+                request,
+            } => return Ok(request.syncer.sync(request.root)),
+            SyncChain::Around {
+                crate_dir,
+                edits,
+                inner,
+            } => {
+                return run_recording_manifests(crate_dir, edits, *inner)
+                    .and_then(std::convert::identity);
+            }
         }
     }
 }
@@ -129,7 +144,9 @@ pub(crate) struct ManifestsThenCargo<'a> {
 /// The implementation of `RecordedWork` for `ManifestsThenCargo`.
 /// Why:
 /// `run_recording` runs it between its before and after observations.
-impl crate::file_owner::RecordedWork<io::Result<Result<CargoOutcome, UpdateError>>> for ManifestsThenCargo<'_> {
+impl crate::file_owner::RecordedWork<io::Result<Result<CargoOutcome, UpdateError>>>
+    for ManifestsThenCargo<'_>
+{
     /// What:
     /// Runs the cargo command inside the recording of the manifests.
     /// Why:

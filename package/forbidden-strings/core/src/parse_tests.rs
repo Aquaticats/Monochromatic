@@ -11,8 +11,8 @@
 // ```
 
 use super::parse;
-use crate::parse::repeat::REPEAT_CAP;
 use crate::error::CompileError;
+use crate::parse::repeat::REPEAT_CAP;
 
 // What:    Asserts a pattern parses successfully.
 // Why:     The program needs this named step so callers can reuse the behavior without copying
@@ -25,7 +25,11 @@ use crate::error::CompileError;
 // }
 // ```
 fn ok(pattern: &str) {
-    assert!(parse(pattern).is_ok(), "expected {pattern:?} to parse, got {:?}", parse(pattern));
+    assert!(
+        parse(pattern).is_ok(),
+        "expected {pattern:?} to parse, got {:?}",
+        parse(pattern)
+    );
 }
 
 // What:    Asserts a pattern is rejected as a syntax / unsupported-construct error.
@@ -258,10 +262,22 @@ fn verbose_mode_ignores_unescaped_whitespace() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let base = parse("abc").expect("parse the baseline pattern");
-    assert_eq!(parse("a b c").expect("parse with spaces between literals"), base);
-    assert_eq!(parse("a\tb\tc").expect("parse with tabs between literals"), base);
-    assert_eq!(parse("a\nb\nc").expect("parse with newlines between literals"), base);
-    assert_eq!(parse("  abc  ").expect("parse with leading and trailing whitespace"), base);
+    assert_eq!(
+        parse("a b c").expect("parse with spaces between literals"),
+        base
+    );
+    assert_eq!(
+        parse("a\tb\tc").expect("parse with tabs between literals"),
+        base
+    );
+    assert_eq!(
+        parse("a\nb\nc").expect("parse with newlines between literals"),
+        base
+    );
+    assert_eq!(
+        parse("  abc  ").expect("parse with leading and trailing whitespace"),
+        base
+    );
 }
 
 #[test]
@@ -314,9 +330,15 @@ fn escaped_and_class_whitespace_stays_literal() {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn syntax_at(pattern: &str, pos: usize) {
+fn syntax_at(
+    pattern: &str,
+    pos: usize,
+) {
     match parse(pattern) {
-        Err(CompileError::Syntax { pos: got, .. }) => {
+        Err(CompileError::Syntax {
+            pos: got,
+            ..
+        }) => {
             assert_eq!(got, pos, "wrong error offset for {pattern:?}");
         }
         other => panic!("expected a syntax error at {pos} for {pattern:?}, got {other:?}"),
@@ -333,12 +355,23 @@ fn syntax_at(pattern: &str, pos: usize) {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn syntax_msg(pattern: &str, needle: &str) {
+fn syntax_msg(
+    pattern: &str,
+    needle: &str,
+) {
     match parse(pattern) {
-        Err(CompileError::Syntax { message, .. }) => {
-            assert!(message.contains(needle), "{pattern:?} message {message:?} lacks {needle:?}");
+        Err(CompileError::Syntax {
+            message,
+            ..
+        }) => {
+            assert!(
+                message.contains(needle),
+                "{pattern:?} message {message:?} lacks {needle:?}"
+            );
         }
-        other => panic!("expected a syntax error mentioning {needle:?} for {pattern:?}, got {other:?}"),
+        other => {
+            panic!("expected a syntax error mentioning {needle:?} for {pattern:?}, got {other:?}")
+        }
     }
 }
 
@@ -470,8 +503,15 @@ fn empty_matchable_patterns_are_rejected_only_when_realizable() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(matches!(parse("^$"), Err(CompileError::EmptyMatchable)), "^$ should be rejected");
-    assert!(parse("^\\b$").is_ok(), "^\\b$ is not realizably empty-matchable: {:?}", parse("^\\b$"));
+    assert!(
+        matches!(parse("^$"), Err(CompileError::EmptyMatchable)),
+        "^$ should be rejected"
+    );
+    assert!(
+        parse("^\\b$").is_ok(),
+        "^\\b$ is not realizably empty-matchable: {:?}",
+        parse("^\\b$")
+    );
     // What:    A bare word boundary is realizably empty and stays rejected.
     // Why:     The test uses this setup or assertion to pin the behavior named by the test
     //          function.
@@ -503,7 +543,10 @@ fn mid_line_hash_is_a_literal_not_a_comment() {
     // ```ts
     // // Same assertion or value, with the important expectation named above.
     // ```
-    assert_eq!(with_hash, parse("a\\#b").expect("parse a pattern with an escaped hash"));
+    assert_eq!(
+        with_hash,
+        parse("a\\#b").expect("parse a pattern with an escaped hash")
+    );
     // What:    the `#b` was NOT comment-stripped away.
     // Why:     The nearby assertion or value needs this note so the test records the exact
     //          behavior being pinned.
@@ -512,5 +555,8 @@ fn mid_line_hash_is_a_literal_not_a_comment() {
     // ```ts
     // // Same assertion or value, with the important expectation named above.
     // ```
-    assert_ne!(with_hash, parse("a").expect("parse a pattern without the hash"));
+    assert_ne!(
+        with_hash,
+        parse("a").expect("parse a pattern without the hash")
+    );
 }

@@ -10,19 +10,35 @@
 /// The `Result` a body returns when a call into the host runtime fails.
 use jni::errors::Result as JniResult;
 /// The class and float-array references the entry points receive from the host runtime.
-use jni::objects::{JClass, JFloatArray};
+use jni::objects::{
+    JClass,
+    JFloatArray,
+};
 /// The raw boolean,
 /// float-array and long types of the entry points' signatures.
-use jni::sys::{jboolean, jfloatArray, jlong};
+use jni::sys::{
+    jboolean,
+    jfloatArray,
+    jlong,
+};
 /// The per-call handle and the `Env` it lends.
-use jni::{Env, EnvUnowned};
+use jni::{
+    Env,
+    EnvUnowned,
+};
 /// The peak kind a cached decision reports,
 /// and the peak measurement a miss falls back to.
-use truepeak_core::{PeakKind, peak_dbtp};
+use truepeak_core::{
+    PeakKind,
+    peak_dbtp,
+};
 
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it.
-use crate::jni_call::{JniBody, run_with_env};
+use crate::jni_call::{
+    JniBody,
+    run_with_env,
+};
 /// The handle to the decision cache service the entry points read and clear.
 use crate::service::service_ref;
 
@@ -127,8 +143,11 @@ impl<'local> JniBody<'local, JFloatArray<'local>> for PeakReplyBody<'_> {
     /// ```ts
     /// run(env: Env): Float32Array | null { return peakArray(env, this.slots); }
     /// ```
-    fn run(self, env: &mut Env<'local>) -> JniResult<JFloatArray<'local>> {
-        return Ok(peak_array(env, self.slots))
+    fn run(
+        self,
+        env: &mut Env<'local>,
+    ) -> JniResult<JFloatArray<'local>> {
+        return Ok(peak_array(env, self.slots));
     }
 }
 
@@ -144,19 +163,22 @@ impl<'local> JniBody<'local, JFloatArray<'local>> for PeakReplyBody<'_> {
 /// ```ts
 /// function peakArray(slots: number[]): Float32Array | null { ... }
 /// ```
-fn peak_array<'local>(env: &mut Env<'local>, slots: &[f32; PEAK_READING_LEN]) -> JFloatArray<'local> {
+fn peak_array<'local>(
+    env: &mut Env<'local>,
+    slots: &[f32; PEAK_READING_LEN],
+) -> JFloatArray<'local> {
     let array = match JFloatArray::new(env, PEAK_READING_LEN) {
         Ok(array) => array,
         Err(error) => {
             tracing::warn!(cause = %error, "peek peak: could not allocate the reply array");
-            return JFloatArray::default()
+            return JFloatArray::default();
         }
     };
     if let Err(error) = array.set_region(env, 0, slots) {
         tracing::warn!(cause = %error, "peek peak: could not fill the reply array");
         return JFloatArray::default();
     }
-    return array
+    return array;
 }
 
 /// What:
@@ -193,8 +215,15 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePee
         kind_code(decision.peak_kind()),
     ];
     // `peak_array` handles its own JNI failures (null array); `run_with_env` only adds the lent `Env`.
-    let reply = run_with_env(&mut env, "nativePeekPeak reply", PeakReplyBody { slots: &slots }).unwrap_or_default();
-    return reply.into_raw()
+    let reply = run_with_env(
+        &mut env,
+        "nativePeekPeak reply",
+        PeakReplyBody {
+            slots: &slots,
+        },
+    )
+    .unwrap_or_default();
+    return reply.into_raw();
 }
 
 /// What:
@@ -213,7 +242,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePee
 /// declare function nativeInvalidateTrack(handle: bigint, fingerprint: bigint): boolean;
 /// ```
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeInvalidateTrack<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeInvalidateTrack<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -227,5 +258,5 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeInv
     if service.forget(fingerprint as u64) {
         return true;
     }
-    return false
+    return false;
 }

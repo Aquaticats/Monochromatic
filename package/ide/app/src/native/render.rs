@@ -2,16 +2,34 @@
 
 /// Virtual-row texts and diagnostic marks are positioned against the frame's shaped rows.
 /// Child modules can borrow their parent's private state and generated UI.
-use super::{AppWindow, State, rewrap, rows, tile, tile_build::build_tile, viewport::place};
+use super::{
+    AppWindow,
+    State,
+    rewrap,
+    rows,
+    tile,
+    tile_build::build_tile,
+    viewport::place,
+};
 /// Native palette values retain syntax and selection contrast.
 use ide_app::code_colors::CodeColors;
 /// Selected-text ink is chosen from the selection fill,
 ///  not from the color scheme.
-use ide_app::selection_ink::{legible_ink, luminance};
+use ide_app::selection_ink::{
+    legible_ink,
+    luminance,
+};
 /// Toolkit images and models carry owned source presentation data.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 /// UI callbacks share state without cross-thread synchronization.
-use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Instant,
+};
 
 /// Measuring the lines of a requested tile and keeping the view still.
 mod measure;
@@ -23,12 +41,21 @@ mod present;
 /// Measuring the requested tile before it is built.
 use measure::measure_requested;
 /// The paint inputs and tile geometry that the tile worker and the tests also use.
-pub(super) use paint::{Paint, job, stamp_for, tile_cap, viewport_of};
+pub(super) use paint::{
+    Paint,
+    job,
+    stamp_for,
+    tile_cap,
+    viewport_of,
+};
 /// The gutter's wrap indicator,
 ///  painted before the frame is presented.
 use present::ensure_sign;
 /// The frame a tile swap or a render hands to the window.
-pub(super) use present::{Frame, show};
+pub(super) use present::{
+    Frame,
+    show,
+};
 
 /// Convert a toolkit palette color to raster input without losing alpha.
 fn rgba(color: slint::Color) -> [u8; 4] {
@@ -85,7 +112,10 @@ pub(super) fn code_colors(window: &AppWindow) -> CodeColors {
 ///  a width whose lines do not fit the allowance is built by the tile worker like a scroll re-center.
 /// Every other change builds the requested tile here,
 /// as before.
-pub(super) fn render(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(super) fn render(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     #[cfg(debug_assertions)]
     {
         state.borrow_mut().renders += 1;
@@ -178,7 +208,9 @@ pub(super) fn render(window: &AppWindow, state: &Rc<RefCell<State>>) {
         // Why: The materialized lines are unchanged, but rows above them may not be: the frame then keeps
         //      its pixels and only moves, and its find rectangles are handed over at their new place.
         let State {
-            shaped, row_map, ..
+            shaped,
+            row_map,
+            ..
         } = &mut *current;
         if let Some(view) = shaped.as_mut()
             && view.rebase(row_map)
@@ -189,7 +221,9 @@ pub(super) fn render(window: &AppWindow, state: &Rc<RefCell<State>>) {
         // A scroll re-center or a new wrap width: the worker builds the requested tile, and the displayed tile
         // stays on screen meanwhile, moved to where the map now puts it.
         let State {
-            shaped, row_map, ..
+            shaped,
+            row_map,
+            ..
         } = &mut *current;
         if let Some(view) = shaped.as_mut()
             && view.rebase(row_map)
@@ -313,7 +347,10 @@ pub(super) fn render(window: &AppWindow, state: &Rc<RefCell<State>>) {
 }
 
 /// Redraw cached source at a new system appearance or display scale without requiring user input.
-pub(super) fn bind_appearance(window: &AppWindow, shared: &Rc<RefCell<State>>) {
+pub(super) fn bind_appearance(
+    window: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) {
     let theme_state = Rc::clone(shared);
     let theme_window = window.as_weak();
     window.on_theme_changed(move || {

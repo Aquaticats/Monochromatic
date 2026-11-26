@@ -8,7 +8,10 @@
 
 /// The window the offsets are read from,
 ///  and the state that holds the document and the row map.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// The unit a press chose.
 use ide_app::pointer_selection::Granularity;
 
@@ -81,7 +84,11 @@ pub(super) struct Selection {
 /// ```ts
 /// function lineAndColumn(lineStart: number, line: number, hit: number): [lineNumber: number, column: number];
 /// ```
-pub(super) fn line_and_column(line_start: usize, line: usize, hit: usize) -> (usize, usize) {
+pub(super) fn line_and_column(
+    line_start: usize,
+    line: usize,
+    hit: usize,
+) -> (usize, usize) {
     return (line + 1, hit.saturating_sub(line_start));
 }
 
@@ -115,7 +122,11 @@ fn place(point: &Pointer) -> (usize, usize) {
 /// ```ts
 /// function logPress(point: Pointer, extend: boolean, selection: Selection): void;
 /// ```
-pub(super) fn log_press(point: &Pointer, extend: bool, selection: Selection) {
+pub(super) fn log_press(
+    point: &Pointer,
+    extend: bool,
+    selection: Selection,
+) {
     if !tracing::enabled!(tracing::Level::DEBUG) {
         return;
     }
@@ -151,7 +162,11 @@ pub(super) fn log_press(point: &Pointer, extend: bool, selection: Selection) {
 /// ```ts
 /// function logDrag(point: Pointer, first: boolean, selection: Selection): void;
 /// ```
-pub(super) fn log_drag(point: &Pointer, first: bool, selection: Selection) {
+pub(super) fn log_drag(
+    point: &Pointer,
+    first: bool,
+    selection: Selection,
+) {
     if !tracing::enabled!(tracing::Level::DEBUG) {
         return;
     }

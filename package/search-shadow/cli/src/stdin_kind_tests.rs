@@ -13,7 +13,10 @@ use crate::test_scratch::scratch;
 use std::fs;
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixListener;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// What:
@@ -33,8 +36,15 @@ fn file_type_of(path: &Path) -> fs::FileType {
 /// `mkfifo` is coreutils,
 /// present on every host this crate supports.
 fn make_pipe(path: &Path) {
-    let status = Command::new("mkfifo").arg(path).status().expect("run mkfifo");
-    assert!(status.success(), "mkfifo could not create {}", path.display());
+    let status = Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("run mkfifo");
+    assert!(
+        status.success(),
+        "mkfifo could not create {}",
+        path.display()
+    );
 }
 
 /// A pipe on standard input is a FIFO,
@@ -69,7 +79,8 @@ fn a_socket_is_a_socket_and_not_a_pipe() {
     // `bind` refused the real path with "path must be shorter than SUN_LEN"). Opening the directory and binding through
     // `/proc/self/fd/<descriptor>` keeps the address short while the socket itself is still created in the scratch directory.
     let directory_handle = fs::File::open(directory.path()).expect("open the scratch directory");
-    let address: PathBuf = PathBuf::from(format!("/proc/self/fd/{}", directory_handle.as_raw_fd())).join("socket");
+    let address: PathBuf =
+        PathBuf::from(format!("/proc/self/fd/{}", directory_handle.as_raw_fd())).join("socket");
     let listener = UnixListener::bind(&address).expect("bind the fixture socket");
     let kind = StdinKind::of(&file_type_of(&directory.path().join("socket")));
     assert_eq!(kind, StdinKind::Socket);
@@ -93,7 +104,10 @@ fn the_null_device_is_no_input() {
 #[test]
 fn a_directory_is_no_input() {
     let directory = scratch();
-    assert_eq!(StdinKind::of(&file_type_of(directory.path())), StdinKind::None);
+    assert_eq!(
+        StdinKind::of(&file_type_of(directory.path())),
+        StdinKind::None
+    );
 }
 
 /// Every kind that gives a tool something to read reports so,

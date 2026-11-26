@@ -242,7 +242,8 @@ pub fn take_notices(git_dir: &Path) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for name in names.flatten() {
         let path: PathBuf = name.path();
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        // A notice that is a named pipe answers as unreadable at once, where a plain read would wait for a writer.
+        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else { continue };
         // The read is what the person is owed; a notice that cannot be removed is shown again rather than lost.
         let _removed = std::fs::remove_file(path.as_path());
         lines.push(text);

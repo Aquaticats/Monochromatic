@@ -46,7 +46,9 @@ fn a_successful_dry_run_leaves_no_lockfile_behind() {
     // ```ts
     // // TS has one type for this: number
     // ```
-    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), true, &mut || { return 0; });
+    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), true, &mut || {
+        return 0;
+    });
 
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
@@ -109,7 +111,9 @@ fn a_refused_update_removes_its_own_stand_in() {
 
     // Borrow `&lock`: lends the value without copying or giving it away.
     // Typed binding: `code: i32`.
-    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), false, &mut || { return 1; });
+    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), false, &mut || {
+        return 1;
+    });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(code, 1);
@@ -143,7 +147,10 @@ fn a_refused_update_does_not_delete_a_lockfile_another_writer_published() {
     // Borrow `&lock`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&lock).expect("the other writer's lock survives"), REAL_LOCK);
+    assert_eq!(
+        fs::read_to_string(&lock).expect("the other writer's lock survives"),
+        REAL_LOCK
+    );
 }
 
 /// Review finding (truncation):
@@ -158,7 +165,9 @@ fn an_existing_lockfile_is_never_touched() {
 
     // Borrow `&lock`: lends the value without copying or giving it away.
     // Typed binding: `code: i32`.
-    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), true, &mut || { return 0; });
+    let code: i32 = run_with_placeholder_lock(&lock, &root.path().join("kept"), true, &mut || {
+        return 0;
+    });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(code, 0);
@@ -185,18 +194,31 @@ fn a_lockfile_published_between_the_cleanup_decision_and_the_removal_survives() 
     // (a, b) => body
     // ```
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let publish = |path: &std::path::Path| { fs::write(path, REAL_LOCK).expect("another writer publishes a real lockfile"); };
+    let publish = |path: &std::path::Path| {
+        fs::write(path, REAL_LOCK).expect("another writer publishes a real lockfile");
+    };
 
     // Borrow `&lock`: lends the value without copying or giving it away.
     // Typed binding: `code: i32`.
-    let code: i32 = run_with_placeholder_lock_hooked(&lock, &root.path().join("kept"), false, &mut || { return 1; }, &publish);
+    let code: i32 = run_with_placeholder_lock_hooked(
+        &lock,
+        &root.path().join("kept"),
+        false,
+        &mut || {
+            return 1;
+        },
+        &publish,
+    );
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(code, 1);
     // Borrow `&lock`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&lock).expect("the real lockfile must survive"), REAL_LOCK);
+    assert_eq!(
+        fs::read_to_string(&lock).expect("the real lockfile must survive"),
+        REAL_LOCK
+    );
 }
 
 /// Review finding (3c P1-3):
@@ -236,11 +258,26 @@ fn a_writer_that_holds_the_stand_in_open_keeps_what_it_writes_afterwards() {
     // `Some`: the present or the absent value of an `Option`.
     // Closure `|path: &std::path::Path|`: an anonymous function, like a TS arrow function.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let open = |path: &std::path::Path| { *held.borrow_mut() = Some(fs::OpenOptions::new().write(true).open(path).expect("open the stand-in")); };
+    let open = |path: &std::path::Path| {
+        *held.borrow_mut() = Some(
+            fs::OpenOptions::new()
+                .write(true)
+                .open(path)
+                .expect("open the stand-in"),
+        );
+    };
 
     // Borrow `&lock`: lends the value without copying or giving it away.
     // Typed binding: `code: i32`.
-    let code: i32 = run_with_placeholder_lock_hooked(&lock, &root.path().join("kept"), false, &mut || { return 1; }, &open);
+    let code: i32 = run_with_placeholder_lock_hooked(
+        &lock,
+        &root.path().join("kept"),
+        false,
+        &mut || {
+            return 1;
+        },
+        &open,
+    );
     {
         // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
         // Why:      The value is built up or replaced step by step below.
@@ -255,7 +292,8 @@ fn a_writer_that_holds_the_stand_in_open_keeps_what_it_writes_afterwards() {
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         file.set_len(0).expect("truncate");
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        file.write_all(REAL_LOCK.as_bytes()).expect("the late write");
+        file.write_all(REAL_LOCK.as_bytes())
+            .expect("the late write");
     }
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -282,7 +320,12 @@ fn a_writer_that_holds_the_stand_in_open_keeps_what_it_writes_afterwards() {
             // ```ts
             // list.map(f).filter(g)
             // ```
-            if fs::read_to_string(entry.path()).map(|text| { return text == REAL_LOCK; }).unwrap_or(false) {
+            if fs::read_to_string(entry.path())
+                .map(|text| {
+                    return text == REAL_LOCK;
+                })
+                .unwrap_or(false)
+            {
                 found = true;
             }
         }
@@ -309,18 +352,30 @@ fn a_real_lockfile_that_cleanup_puts_back_is_also_kept_by_name() {
     let publish_and_hold = |path: &std::path::Path| {
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // `let mut`: a binding that may change.
-        let mut file = fs::OpenOptions::new().write(true).open(path).expect("open the stand-in");
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .expect("open the stand-in");
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         file.set_len(0).expect("truncate");
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        file.write_all(REAL_LOCK.as_bytes()).expect("a real lockfile written through the held descriptor");
+        file.write_all(REAL_LOCK.as_bytes())
+            .expect("a real lockfile written through the held descriptor");
         // `Some`: the present or the absent value of an `Option`.
         *held.borrow_mut() = Some(file);
     };
 
     // Borrow `&lock`: lends the value without copying or giving it away.
     // Typed binding: `code: i32`.
-    let code: i32 = run_with_placeholder_lock_hooked(&lock, &root.path().join("kept"), false, &mut || { return 1; }, &publish_and_hold);
+    let code: i32 = run_with_placeholder_lock_hooked(
+        &lock,
+        &root.path().join("kept"),
+        false,
+        &mut || {
+            return 1;
+        },
+        &publish_and_hold,
+    );
     // Borrow `&lock`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(&lock).expect("another writer replaces the live path");
@@ -349,14 +404,26 @@ fn a_real_lockfile_that_cleanup_puts_back_is_also_kept_by_name() {
     // Typed binding: `found: bool`.
     let mut found: bool = false;
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    for entry in fs::read_dir(root.path().join("kept")).into_iter().flatten().flatten() {
+    for entry in fs::read_dir(root.path().join("kept"))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         // Closure `|text|`: an anonymous function, like a TS arrow function.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.map(`: transforms or selects items with a closure.
-        if fs::read_to_string(entry.path()).map(|text| { return text == late; }).unwrap_or(false) {
+        if fs::read_to_string(entry.path())
+            .map(|text| {
+                return text == late;
+            })
+            .unwrap_or(false)
+        {
             found = true;
         }
     }
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(found, "the late write has no name left in the kept directory");
+    assert!(
+        found,
+        "the late write has no name left in the kept directory"
+    );
 }

@@ -3,7 +3,10 @@
 
 /// `Path` to walk up from the test executable to its build directory,
 /// and `PathBuf` for the scratch root handed to tests.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory fixtures are created in:
 /// `test-scratch` in the build directory of the running test executable
@@ -23,16 +26,18 @@ use std::path::{Path, PathBuf};
 /// The container mounts only the package at `/work`,
 /// so its build directory stays the scratch location.
 pub(crate) fn scratch_root() -> PathBuf {
-    let target: Option<PathBuf> = std::env::current_exe()
-        .ok()
-        .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
+    let target: Option<PathBuf> = std::env::current_exe().ok().and_then(|executable| {
+        return executable.ancestors().nth(3).map(Path::to_path_buf);
+    });
     let in_build: PathBuf = target
-        .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
+        .unwrap_or_else(|| {
+            return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
+        })
         .join("test-scratch");
     let root: PathBuf = match std::env::var_os("HOME") {
-        Some(home) if assumed_absent_above(&in_build).is_some() => {
-            PathBuf::from(home).join(".cache").join("monochromatic-ide-test-scratch")
-        }
+        Some(home) if assumed_absent_above(&in_build).is_some() => PathBuf::from(home)
+            .join(".cache")
+            .join("monochromatic-ide-test-scratch"),
         _ => in_build,
     };
     std::fs::create_dir_all(&root).expect("make the scratch root");

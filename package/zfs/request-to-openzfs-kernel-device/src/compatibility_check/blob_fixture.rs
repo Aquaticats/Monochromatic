@@ -14,7 +14,11 @@
 //!  the same table twice.
 
 /// The entry point the file-backed checks call.
-use super::check_module_layout::{Compatible, LayoutRequest, check_module_layout};
+use super::check_module_layout::{
+    Compatible,
+    LayoutRequest,
+    check_module_layout,
+};
 /// The refusal those checks assert on.
 use super::refusal::Refusal;
 /// The build directory the fixture files live under.
@@ -42,7 +46,10 @@ const KIND_TYPE_TAG: u32 = 18;
 
 /// One little-endian 32-bit word at `at`,
 /// and nothing for a file too short to hold it.
-fn word_in(bytes: &[u8], at: usize) -> u32 {
+fn word_in(
+    bytes: &[u8],
+    at: usize,
+) -> u32 {
     let mut field: [u8; 4] = [0; 4];
     let Some(source): Option<&[u8]> = bytes.get(at..at + 4) else {
         return 0;
@@ -53,7 +60,11 @@ fn word_in(bytes: &[u8], at: usize) -> u32 {
 
 /// Write one little-endian 32-bit word at `at`,
 /// which every writer of this file does through this one place.
-fn set_word(bytes: &mut [u8], at: usize, value: u32) {
+fn set_word(
+    bytes: &mut [u8],
+    at: usize,
+    value: u32,
+) {
     let Some(field): Option<&mut [u8]> = bytes.get_mut(at..at + 4) else {
         return;
     };
@@ -154,7 +165,10 @@ impl Blob {
 
     /// The offset this writer gave one name it wrote,
     /// and nothing for a name it did not write.
-    pub fn name_offset(&self, name: &str) -> Option<u32> {
+    pub fn name_offset(
+        &self,
+        name: &str,
+    ) -> Option<u32> {
         return self
             .names
             .iter()
@@ -164,55 +178,85 @@ impl Blob {
 
     /// One base integer type,
     /// whose size is stated in bytes.
-    pub fn int(&mut self, name: &str, bytes: u32) -> u32 {
+    pub fn int(
+        &mut self,
+        name: &str,
+        bytes: u32,
+    ) -> u32 {
         let entry: Vec<u8> = self.entry(name, 1, 0, bytes, &[0, 0, 0, 0]);
         return self.push(entry);
     }
 
     /// One pointer,
     /// whose width the format states nowhere.
-    pub fn pointer(&mut self, name: &str) -> u32 {
+    pub fn pointer(
+        &mut self,
+        name: &str,
+    ) -> u32 {
         let entry: Vec<u8> = self.entry(name, 2, 0, 0, &[]);
         return self.push(entry);
     }
 
     /// One typedef of the type the writer is about to hand it,
     /// so the chain over it never leaves its own entry.
-    pub fn self_alias(&mut self, name: &str) -> u32 {
+    pub fn self_alias(
+        &mut self,
+        name: &str,
+    ) -> u32 {
         let id: u32 = self.next_id();
         return self.typedef(name, id);
     }
 
     /// One typedef of another type,
     /// whose own id is the one this file hands it.
-    pub fn typedef(&mut self, name: &str, of: u32) -> u32 {
+    pub fn typedef(
+        &mut self,
+        name: &str,
+        of: u32,
+    ) -> u32 {
         let entry: Vec<u8> = self.entry(name, KIND_TYPEDEF, 0, of, &[]);
         return self.push(entry);
     }
 
     /// One `volatile` over another type.
-    pub fn volatile(&mut self, of: u32) -> u32 {
+    pub fn volatile(
+        &mut self,
+        of: u32,
+    ) -> u32 {
         return self.qualified(KIND_VOLATILE, of);
     }
 
     /// One `const` over another type.
-    pub fn constant(&mut self, of: u32) -> u32 {
+    pub fn constant(
+        &mut self,
+        of: u32,
+    ) -> u32 {
         return self.qualified(KIND_CONST, of);
     }
 
     /// One `restrict` over another type.
-    pub fn restrict(&mut self, of: u32) -> u32 {
+    pub fn restrict(
+        &mut self,
+        of: u32,
+    ) -> u32 {
         return self.qualified(KIND_RESTRICT, of);
     }
 
     /// One type tag over another type.
-    pub fn type_tag(&mut self, of: u32) -> u32 {
+    pub fn type_tag(
+        &mut self,
+        of: u32,
+    ) -> u32 {
         return self.qualified(KIND_TYPE_TAG, of);
     }
 
     /// One qualifier of the kind number given,
     /// over another type.
-    fn qualified(&mut self, kind: u32, of: u32) -> u32 {
+    fn qualified(
+        &mut self,
+        kind: u32,
+        of: u32,
+    ) -> u32 {
         let entry: Vec<u8> = self.entry("", kind, 0, of, &[]);
         return self.push(entry);
     }
@@ -236,8 +280,15 @@ impl Blob {
     ///
     /// A reader cannot read that name,
     /// so the member is the one a reader must refuse rather than drop.
-    pub fn member_with_unreadable_name(&mut self, of: u32, type_id: u32, bit_offset: u32) {
-        let Some(entry): Option<&mut Vec<u8>> = self.entries.get_mut((of as usize).saturating_sub(1)) else {
+    pub fn member_with_unreadable_name(
+        &mut self,
+        of: u32,
+        type_id: u32,
+        bit_offset: u32,
+    ) {
+        let Some(entry): Option<&mut Vec<u8>> =
+            self.entries.get_mut((of as usize).saturating_sub(1))
+        else {
             panic!("entry {of} is not one this writer wrote");
         };
         let info: u32 = word_in(entry, 4);
@@ -249,7 +300,11 @@ impl Blob {
     }
 
     /// One fixed array of `count` elements of `element`.
-    pub fn array(&mut self, element: u32, count: u32) -> u32 {
+    pub fn array(
+        &mut self,
+        element: u32,
+        count: u32,
+    ) -> u32 {
         let mut extra: Vec<u8> = Vec::<u8>::new();
         extra.extend_from_slice(&element.to_le_bytes());
         extra.extend_from_slice(&0_u32.to_le_bytes());
@@ -260,23 +315,41 @@ impl Blob {
 
     /// One fixed array whose element is its own entry,
     /// which no reader can give a size without asking itself again.
-    pub fn array_naming_itself(&mut self, count: u32) -> u32 {
+    pub fn array_naming_itself(
+        &mut self,
+        count: u32,
+    ) -> u32 {
         let id: u32 = self.next_id();
         return self.array(id, count);
     }
 
     /// One structure.
-    pub fn structure(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
+    pub fn structure(
+        &mut self,
+        name: &str,
+        bytes: u32,
+        members: &[WrittenMember],
+    ) -> u32 {
         return self.record(name, KIND_STRUCT, bytes, members);
     }
 
     /// One union.
-    pub fn union(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
+    pub fn union(
+        &mut self,
+        name: &str,
+        bytes: u32,
+        members: &[WrittenMember],
+    ) -> u32 {
         return self.record(name, KIND_UNION, bytes, members);
     }
 
     /// One enumeration of 32-bit values.
-    pub fn enumeration(&mut self, name: &str, bytes: u32, values: &[(&str, i32)]) -> u32 {
+    pub fn enumeration(
+        &mut self,
+        name: &str,
+        bytes: u32,
+        values: &[(&str, i32)],
+    ) -> u32 {
         let mut extra: Vec<u8> = Vec::<u8>::new();
         for (value_name, value) in values {
             let offset: u32 = self.name(value_name);
@@ -288,7 +361,13 @@ impl Blob {
     }
 
     /// One structure or union with its members.
-    fn record(&mut self, name: &str, kind: u32, bytes: u32, members: &[WrittenMember]) -> u32 {
+    fn record(
+        &mut self,
+        name: &str,
+        kind: u32,
+        bytes: u32,
+        members: &[WrittenMember],
+    ) -> u32 {
         let mut extra: Vec<u8> = Vec::<u8>::new();
         for member in members {
             let offset: u32 = match member.name_offset {
@@ -310,7 +389,10 @@ impl Blob {
 
     /// The file with a header of `header_bytes`,
     /// which is 24 for the oldest header.
-    pub fn bytes_with_header(&self, header_bytes: usize) -> Vec<u8> {
+    pub fn bytes_with_header(
+        &self,
+        header_bytes: usize,
+    ) -> Vec<u8> {
         let types: Vec<u8> = self.entries.concat();
         let mut file: Vec<u8> = Vec::<u8>::new();
         file.extend_from_slice(&0xeb9f_u16.to_le_bytes());
@@ -332,7 +414,11 @@ impl Blob {
 
     /// The same file with its bytes changed at `at`,
     /// so a test can move one field.
-    pub fn with_byte(mut file: Vec<u8>, at: usize, byte: u8) -> Vec<u8> {
+    pub fn with_byte(
+        mut file: Vec<u8>,
+        at: usize,
+        byte: u8,
+    ) -> Vec<u8> {
         if let Some(slot) = file.get_mut(at) {
             *slot = byte;
         }
@@ -340,7 +426,14 @@ impl Blob {
     }
 
     /// One type entry's bytes.
-    fn entry(&mut self, name: &str, kind: u32, vlen: u32, size: u32, extra: &[u8]) -> Vec<u8> {
+    fn entry(
+        &mut self,
+        name: &str,
+        kind: u32,
+        vlen: u32,
+        size: u32,
+        extra: &[u8],
+    ) -> Vec<u8> {
         let name_offset: u32 = self.name(name);
         let info: u32 = (kind << 24) | (vlen & VLEN_MASK);
         let mut entry: Vec<u8> = Vec::<u8>::new();
@@ -352,7 +445,10 @@ impl Blob {
     }
 
     /// One name's offset in the string section.
-    fn name(&mut self, name: &str) -> u32 {
+    fn name(
+        &mut self,
+        name: &str,
+    ) -> u32 {
         let offset: u32 = self.string_shift.saturating_add(self.strings.len() as u32);
         self.strings.extend_from_slice(name.as_bytes());
         self.strings.push(0);
@@ -362,11 +458,17 @@ impl Blob {
 
     /// The id the next entry this writer pushes takes.
     fn next_id(&self) -> u32 {
-        return self.id_shift.saturating_add(self.entries.len() as u32).saturating_add(1);
+        return self
+            .id_shift
+            .saturating_add(self.entries.len() as u32)
+            .saturating_add(1);
     }
 
     /// One entry's id.
-    fn push(&mut self, entry: Vec<u8>) -> u32 {
+    fn push(
+        &mut self,
+        entry: Vec<u8>,
+    ) -> u32 {
         let id: u32 = self.next_id();
         self.entries.push(entry);
         return id;
@@ -386,13 +488,21 @@ pub fn fixture_directory(name: &str) -> PathBuf {
 
 /// Write the two files one check reads,
 /// and answer the gate's verdict.
-pub fn check_pair(name: &str, base: &Blob, module: &Blob) -> Result<Compatible, Refusal> {
+pub fn check_pair(
+    name: &str,
+    base: &Blob,
+    module: &Blob,
+) -> Result<Compatible, Refusal> {
     return check_raw(name, base.bytes().as_slice(), module.bytes().as_slice());
 }
 
 /// Write the two files exactly as given,
 /// and answer the gate's verdict.
-pub fn check_raw(name: &str, base: &[u8], module: &[u8]) -> Result<Compatible, Refusal> {
+pub fn check_raw(
+    name: &str,
+    base: &[u8],
+    module: &[u8],
+) -> Result<Compatible, Refusal> {
     let directory: PathBuf = fixture_directory(name);
     let base_path: PathBuf = directory.join("vmlinux");
     let module_path: PathBuf = directory.join("zfs");

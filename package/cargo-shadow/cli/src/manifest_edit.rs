@@ -65,7 +65,13 @@ use std::path::PathBuf;
 /// ```ts
 /// import { Claim, Window, claimOutput, observe, timed } from 'crate/file_owner';
 /// ```
-use crate::file_owner::{Claim, Window, claim_output, observe, timed};
+use crate::file_owner::{
+    Claim,
+    Window,
+    claim_output,
+    observe,
+    timed,
+};
 /// What:
 /// `use crate::journal::{KeepAs, ReplaceOutcome, replace_keeping};` imports the replacement protocol.
 /// Why:
@@ -75,7 +81,11 @@ use crate::file_owner::{Claim, Window, claim_output, observe, timed};
 /// ```ts
 /// import { KeepAs, ReplaceOutcome, replaceKeeping } from 'crate/journal';
 /// ```
-use crate::journal::{KeepAs, ReplaceOutcome, replace_keeping};
+use crate::journal::{
+    KeepAs,
+    ReplaceOutcome,
+    replace_keeping,
+};
 
 /// One manifest the run may rewrite.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,7 +112,11 @@ pub struct ManifestEdit {
 /// ```ts
 /// export function snapshotManifests(crateDir: string, paths: string[], edits: ManifestEdit[]): void  // throws when a file cannot be read
 /// ```
-pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<()> {
+pub fn snapshot_manifests(
+    crate_dir: &str,
+    paths: &[PathBuf],
+    edits: &RefCell<Vec<ManifestEdit>>,
+) -> io::Result<()> {
     for path in paths {
         // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
         // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
@@ -161,7 +175,12 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
             // console.error(text);   // eprintln!
             // [a, b]            // vec![a, b]
             // ```
-            None => return Err(io::Error::new(io::ErrorKind::NotFound, format!("{} does not exist", path.display()))),
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{} does not exist", path.display()),
+                ));
+            }
         };
         // `None`: the present or the absent value of an `Option`.
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
@@ -179,7 +198,12 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
         // ```ts
         // String(value)  // JS strings are always owned values
         // ```
-        edits.borrow_mut().push(ManifestEdit { crate_dir: crate_dir.to_string(), path: path.clone(), before, produced: None });
+        edits.borrow_mut().push(ManifestEdit {
+            crate_dir: crate_dir.to_string(),
+            path: path.clone(),
+            before,
+            produced: None,
+        });
     }
     return Ok(());
 }
@@ -196,7 +220,11 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
 /// ```ts
 /// export function runRecordingManifests<T>(crateDir: string, edits: ManifestEdit[], run: () => T): T
 /// ```
-pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestEdit>>, run: impl crate::file_owner::RecordedWork<T>) -> io::Result<T> {
+pub fn run_recording_manifests<T>(
+    crate_dir: &str,
+    edits: &RefCell<Vec<ManifestEdit>>,
+    run: impl crate::file_owner::RecordedWork<T>,
+) -> io::Result<T> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -311,7 +339,11 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
 /// ```ts
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): string[]  // throws when a read or write fails
 /// ```
-fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, warnings: &mut Vec<String>) -> io::Result<()> {
+fn restore_manifests_into(
+    edits: &RefCell<Vec<ManifestEdit>>,
+    keep: &KeepAs,
+    warnings: &mut Vec<String>,
+) -> io::Result<()> {
     for edit in edits.borrow().iter() {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `match`: picks the arm whose pattern fits the value.
@@ -323,7 +355,10 @@ fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, war
             // `None`: the present or the absent value of an `Option`.
             None => {
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                warnings.push(format!("{} is missing; it was not restored", edit.path.display()));
+                warnings.push(format!(
+                    "{} is missing; it was not restored",
+                    edit.path.display()
+                ));
                 continue;
             }
         };
@@ -388,7 +423,10 @@ fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, war
 /// ```ts
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): { warnings: string[]; failure?: Error }
 /// ```
-pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> (Vec<String>, Option<io::Error>) {
+pub fn restore_manifests(
+    edits: &RefCell<Vec<ManifestEdit>>,
+    keep: &KeepAs,
+) -> (Vec<String>, Option<io::Error>) {
     // `let mut`: a binding that may change.
     // Typed binding: `warnings: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.

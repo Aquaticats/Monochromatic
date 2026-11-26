@@ -4,7 +4,13 @@
 //! and the cut of a name that would pass the unit name limit.
 
 /// Names under test.
-use crate::scope_naming::{escape_unit_name, origin_scope_name, origin_scope_names, scope_cgroup_directory, scope_cgroup_path};
+use crate::scope_naming::{
+    escape_unit_name,
+    origin_scope_name,
+    origin_scope_names,
+    scope_cgroup_directory,
+    scope_cgroup_path,
+};
 /// Fixture paths.
 use std::path::Path;
 
@@ -15,7 +21,10 @@ const CLAUDE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/cl
 /// with the path below the manager escaped the way `systemd-escape --path` does.
 #[test]
 fn the_claude_origin_is_named_from_its_escaped_path() {
-    assert_eq!(origin_scope_name(CLAUDE, 1000), "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope");
+    assert_eq!(
+        origin_scope_name(CLAUDE, 1000),
+        "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope"
+    );
 }
 
 /// Slashes become dashes,
@@ -63,10 +72,21 @@ fn distinct_origins_get_distinct_names() {
 /// starts with the watcher's prefix and ends with `.scope`.
 #[test]
 fn every_name_is_a_valid_unit_name() {
-    for origin in [CLAUDE, "/user.slice/user-1000.slice/user@1000.service/app.slice/app-ghostty-surface-transient-1.scope", "/user.slice/user-1000.slice/user@1000.service/app.slice/we ird\u{e9}\n"] {
+    for origin in [
+        CLAUDE,
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/app-ghostty-surface-transient-1.scope",
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/we ird\u{e9}\n",
+    ] {
         let name = origin_scope_name(origin, 1000);
-        assert!(name.starts_with("wg-quicker-update-") && name.ends_with(".scope"), "{name}");
-        assert!(name.bytes().all(|byte| return byte.is_ascii_alphanumeric() || b":_.\\-".contains(&byte)), "{name}");
+        assert!(
+            name.starts_with("wg-quicker-update-") && name.ends_with(".scope"),
+            "{name}"
+        );
+        assert!(
+            name.bytes()
+                .all(|byte| return byte.is_ascii_alphanumeric() || b":_.\\-".contains(&byte)),
+            "{name}"
+        );
     }
 }
 
@@ -76,9 +96,15 @@ fn every_name_is_a_valid_unit_name() {
 /// the scope's own `.scope`.
 #[test]
 fn an_origin_outside_the_manager_subtree_is_named_from_its_whole_path() {
-    assert_eq!(origin_scope_name("/system.slice/x.service", 1000), "wg-quicker-update-system.slice-x\\x2eservice.scope");
     assert_eq!(
-        origin_scope_name("/user.slice/user-2000.slice/user@2000.service/app.slice/x", 1000),
+        origin_scope_name("/system.slice/x.service", 1000),
+        "wg-quicker-update-system.slice-x\\x2eservice.scope"
+    );
+    assert_eq!(
+        origin_scope_name(
+            "/user.slice/user-2000.slice/user@2000.service/app.slice/x",
+            1000
+        ),
         "wg-quicker-update-user.slice-user\\x2d2000.slice-user\\x402000.service-app.slice-x.scope"
     );
 }
@@ -90,7 +116,10 @@ fn an_origin_outside_the_manager_subtree_is_named_from_its_whole_path() {
 fn an_origin_that_is_a_unit_ends_in_one_scope_only() {
     let prefix = "/user.slice/user-1000.slice/user@1000.service";
     let unit_origin = origin_scope_name(&format!("{prefix}/app.slice/run-p1-i2.scope"), 1000);
-    assert_eq!(unit_origin, "wg-quicker-update-app.slice-run\\x2dp1\\x2di2\\x2escope.scope");
+    assert_eq!(
+        unit_origin,
+        "wg-quicker-update-app.slice-run\\x2dp1\\x2di2\\x2escope.scope"
+    );
     assert_eq!(unit_origin.matches(".scope").count(), 1, "{unit_origin}");
     let plain = origin_scope_name(&format!("{prefix}/app.slice/run-p1-i2"), 1000);
     assert_ne!(plain, unit_origin);
@@ -116,7 +145,11 @@ fn the_earlier_spelling_of_a_name_is_still_found() {
             "wg-quicker-update-app.slice-run\\x2dp1\\x2di2.scope.scope".to_string(),
         ]
     );
-    assert_eq!(origin_scope_names(CLAUDE, 1000), ["wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope".to_string()], "an origin whose name did not change has one spelling");
+    assert_eq!(
+        origin_scope_names(CLAUDE, 1000),
+        ["wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope".to_string()],
+        "an origin whose name did not change has one spelling"
+    );
 }
 
 /// A name that would pass the limit of 255 bytes is cut and ends in a hash of the whole path,
@@ -129,24 +162,53 @@ fn a_long_origin_is_cut_and_hashed_and_stays_within_the_limit() {
     let dashes = "-".repeat(300);
     let first = origin_scope_name(&format!("{prefix}{dashes}a"), 1000);
     let second = origin_scope_name(&format!("{prefix}{dashes}b"), 1000);
-    assert!(first.len() <= 255 && second.len() <= 255, "{} {}", first.len(), second.len());
+    assert!(
+        first.len() <= 255 && second.len() <= 255,
+        "{} {}",
+        first.len(),
+        second.len()
+    );
     assert_ne!(first, second);
-    assert_eq!(first, origin_scope_name(&format!("{prefix}{dashes}a"), 1000));
+    assert_eq!(
+        first,
+        origin_scope_name(&format!("{prefix}{dashes}a"), 1000)
+    );
     for name in [&first, &second] {
         assert!(name.ends_with(".scope"));
         let stem = name.trim_end_matches(".scope");
         let (kept, hash) = stem.rsplit_once('-').expect("a hash follows the cut");
         assert_eq!(hash.len(), 16, "{name}");
-        assert!(hash.bytes().all(|byte| return byte.is_ascii_hexdigit()), "{name}");
-        assert!(!kept.ends_with("\\x") && !kept.ends_with("\\x2") && !kept.ends_with('\\'), "cut inside an escape: {kept}");
+        assert!(
+            hash.bytes().all(|byte| return byte.is_ascii_hexdigit()),
+            "{name}"
+        );
+        assert!(
+            !kept.ends_with("\\x") && !kept.ends_with("\\x2") && !kept.ends_with('\\'),
+            "cut inside an escape: {kept}"
+        );
     }
 }
 
 /// The directory and the path of a scope follow the manager's layout.
 #[test]
 fn a_scope_is_found_below_the_updates_slice() {
-    let path = scope_cgroup_path(1000, "app-monochromatic\\x2dupdates.slice", "wg-quicker-update-x.scope");
-    assert_eq!(path, "/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dupdates.slice/wg-quicker-update-x.scope");
-    let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), 1000, "app-monochromatic\\x2dupdates.slice", "wg-quicker-update-x.scope");
-    assert_eq!(directory, Path::new("/sys/fs/cgroup").join(path.trim_start_matches('/')));
+    let path = scope_cgroup_path(
+        1000,
+        "app-monochromatic\\x2dupdates.slice",
+        "wg-quicker-update-x.scope",
+    );
+    assert_eq!(
+        path,
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dupdates.slice/wg-quicker-update-x.scope"
+    );
+    let directory = scope_cgroup_directory(
+        Path::new("/sys/fs/cgroup"),
+        1000,
+        "app-monochromatic\\x2dupdates.slice",
+        "wg-quicker-update-x.scope",
+    );
+    assert_eq!(
+        directory,
+        Path::new("/sys/fs/cgroup").join(path.trim_start_matches('/'))
+    );
 }

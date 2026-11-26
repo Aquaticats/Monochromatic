@@ -7,7 +7,10 @@
 ///  its inputs,
 ///  and the visible annotation records.
 use ide_app::{
-    annotation::{Mark, Visible},
+    annotation::{
+        Mark,
+        Visible,
+    },
     annotation_layout::AnnotationColors,
     code_colors::CodeColors,
     document::Document,
@@ -15,7 +18,12 @@ use ide_app::{
     shaped_text::Viewport,
     source_frame::FrameStamp,
     source_style::SourceStyles,
-    virtual_row::{Block, HintPlace, MessageRow, ROW_HEIGHT},
+    virtual_row::{
+        Block,
+        HintPlace,
+        MessageRow,
+        ROW_HEIGHT,
+    },
 };
 /// Visible annotations are shared with the layout.
 use std::sync::Arc;
@@ -30,7 +38,11 @@ const INKS: AnnotationColors = AnnotationColors {
 };
 
 /// The stamp of `document` with `visible` annotations painted in `inks`.
-fn stamp(document: &Document, visible: Visible, inks: AnnotationColors) -> FrameStamp {
+fn stamp(
+    document: &Document,
+    visible: Visible,
+    inks: AnnotationColors,
+) -> FrameStamp {
     let viewport = Viewport {
         first: 0,
         count: 27,
@@ -52,7 +64,11 @@ fn stamp(document: &Document, visible: Visible, inks: AnnotationColors) -> Frame
 /// The block above line 0 with one hint `label`,
 ///  one message row `message`,
 ///  and `held` message space.
-fn block(label: &str, message: &str, held: f32) -> Block {
+fn block(
+    label: &str,
+    message: &str,
+    held: f32,
+) -> Block {
     return Block {
         line: 0,
         hint_rows: 1,
@@ -76,7 +92,10 @@ fn block(label: &str, message: &str, held: f32) -> Block {
 
 /// One block with a hint and a message,
 ///  and one mark of `severity`.
-fn shown(label: &str, severity: Severity) -> Visible {
+fn shown(
+    label: &str,
+    severity: Severity,
+) -> Visible {
     return Visible {
         blocks: vec![Arc::new(block(label, "Error: wrong", 0.0))],
         marks: vec![Mark {

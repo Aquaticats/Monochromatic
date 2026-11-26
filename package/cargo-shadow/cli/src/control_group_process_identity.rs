@@ -13,7 +13,10 @@
 use crate::control_group_machine_identity::PROC_MAGIC;
 /// Error text built only on failure,
 /// from a `format_args!` value.
-use crate::lazy_error_text::{ExplainedError, OrText};
+use crate::lazy_error_text::{
+    ExplainedError,
+    OrText,
+};
 
 /// Imports `std::fs` for this file.
 use std::fs;
@@ -22,29 +25,30 @@ use std::fs;
 use std::io;
 
 /// Imports `std::io::{Read, Write}` for this file.
-use std::io::{Read};
+use std::io::Read;
 
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
 /// Imports `std::os::unix::fs::{FileExt, MetadataExt}` for this file.
-use std::os::unix::fs::{MetadataExt};
-
-
-
-
-
-
-
+use std::os::unix::fs::MetadataExt;
 
 /// Imports `rustix::fs::{AtFlags, CWD, StatxFlags, statx}` for this file.
-use rustix::fs::{AtFlags, StatxFlags, statx};
+use rustix::fs::{
+    AtFlags,
+    StatxFlags,
+    statx,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
 
 /// Imports `rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal}` for this file.
-use rustix::process::{Pid, PidfdFlags, pidfd_open};
+use rustix::process::{
+    Pid,
+    PidfdFlags,
+    pidfd_open,
+};
 
 /// What `launcher_state` found about the process a launcher record names.
 #[derive(Debug, Eq, PartialEq)]
@@ -111,11 +115,19 @@ pub(crate) enum StartOf {
 /// ```ts
 /// function missingEntryVerdict(number: number, pid: number, reason: string): StartOf
 /// ```
-pub(crate) fn missing_entry_verdict(number: i64, pid: i32, reason: &str) -> StartOf {
+pub(crate) fn missing_entry_verdict(
+    number: i64,
+    pid: i32,
+    reason: &str,
+) -> StartOf {
     return match number {
-        n if n == i64::from(pid) => StartOf::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({reason})")),
+        n if n == i64::from(pid) => StartOf::Unknown(format!(
+            "process {pid} exists but /proc/{pid}/stat cannot be read ({reason})"
+        )),
         -1 => StartOf::Gone,
-        other => StartOf::Unknown(format!("process {pid} is numbered {other} by the procfs after its directory could not be read ({reason}), which does not show that it ended")),
+        other => StartOf::Unknown(format!(
+            "process {pid} is numbered {other} by the procfs after its directory could not be read ({reason}), which does not show that it ended"
+        )),
     };
 }
 
@@ -147,29 +159,57 @@ pub(crate) struct ProcRoot {
 /// function openProcRoot(): ProcRoot  // throws the reason
 /// ```
 pub(crate) fn open_proc_root() -> Result<ProcRoot, String> {
-    let directory: OwnedFd = rustix::fs::open("/proc", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .explained(format_args!("/proc cannot be opened"))?;
-    let found = rustix::fs::fstatfs(&directory).explained(format_args!("/proc cannot be examined"))?;
+    let directory: OwnedFd = rustix::fs::open(
+        "/proc",
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )
+    .explained(format_args!("/proc cannot be opened"))?;
+    let found =
+        rustix::fs::fstatfs(&directory).explained(format_args!("/proc cannot be examined"))?;
     if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
         return Err("/proc is not a procfs".to_string());
     }
-    let attributes = statx(&directory, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).explained(format_args!("/proc cannot be examined"))?;
-    if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) || !attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
+    let attributes = statx(&directory, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE)
+        .explained(format_args!("/proc cannot be examined"))?;
+    if !attributes
+        .stx_attributes_mask
+        .contains(rustix::fs::StatxAttributes::MOUNT_ROOT)
+        || !attributes
+            .stx_attributes
+            .contains(rustix::fs::StatxAttributes::MOUNT_ROOT)
+    {
         return Err("/proc is not the root of a procfs mount".to_string());
     }
     let own: i32 = rustix::process::getpid().as_raw_nonzero().get();
-    let link = rustix::fs::readlinkat(&directory, "self", Vec::new()).explained(format_args!("the procfs does not name this process"))?;
-    let named: i32 = link.to_str().ok().and_then(parse_pid_text).or_text(format_args!("the procfs names this process in a form that is not a number"))?;
+    let link = rustix::fs::readlinkat(&directory, "self", Vec::new())
+        .explained(format_args!("the procfs does not name this process"))?;
+    let named: i32 = link
+        .to_str()
+        .ok()
+        .and_then(parse_pid_text)
+        .or_text(format_args!(
+            "the procfs names this process in a form that is not a number"
+        ))?;
     if named != own {
-        return Err(format!("the mounted procfs numbers this process {named} and this process is {own}, so it serves another process id namespace than this process is in"));
+        return Err(format!(
+            "the mounted procfs numbers this process {named} and this process is {own}, so it serves another process id namespace than this process is in"
+        ));
     }
-    let root: ProcRoot = ProcRoot { directory, own };
+    let root: ProcRoot = ProcRoot {
+        directory,
+        own,
+    };
     // Equal numbers do not prove the same namespace: an ancestor's procfs can number this process, by coincidence, as the process
     // numbers itself. The `NSpid` line lists the process's id in every namespace from the one the procfs belongs to down to its own,
     // so a procfs of the process's own namespace lists exactly one (certification, third pass).
     match read_in_proc(&root, &format!("{own}/status")) {
         Ok(status) => nspid_shows_own_namespace(&status)?,
-        Err(error) => return Err(format!("the status of this process cannot be read to check its namespace ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "the status of this process cannot be read to check its namespace ({error})"
+            ));
+        }
     }
     return Ok(root);
 }
@@ -191,7 +231,9 @@ pub(crate) fn nspid_shows_own_namespace(status: &str) -> Result<(), String> {
         if let Some(rest) = line.strip_prefix("NSpid:") {
             let entries: usize = rest.split_whitespace().count();
             if entries != 1 {
-                return Err(format!("the mounted procfs lists this process in {entries} process id namespaces, so it belongs to an ancestor namespace"));
+                return Err(format!(
+                    "the mounted procfs lists this process in {entries} process id namespaces, so it belongs to an ancestor namespace"
+                ));
             }
             return Ok(());
         }
@@ -214,13 +256,18 @@ pub(crate) fn nspid_shows_own_namespace(status: &str) -> Result<(), String> {
 /// ```ts
 /// function readInProc(root: ProcRoot, relative: string): string
 /// ```
-pub(crate) fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
+pub(crate) fn read_in_proc(
+    root: &ProcRoot,
+    relative: &str,
+) -> io::Result<String> {
     let opened: OwnedFd = rustix::fs::openat2(
         &root.directory,
         relative,
         rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC,
         rustix::fs::Mode::empty(),
-        rustix::fs::ResolveFlags::BENEATH | rustix::fs::ResolveFlags::NO_XDEV | rustix::fs::ResolveFlags::NO_SYMLINKS,
+        rustix::fs::ResolveFlags::BENEATH
+            | rustix::fs::ResolveFlags::NO_XDEV
+            | rustix::fs::ResolveFlags::NO_SYMLINKS,
     )
     .map_err(io::Error::from)?;
     let mut text: String = String::new();
@@ -250,13 +297,24 @@ pub(crate) fn pid_line_value(candidate: &str) -> Option<&str> {
 /// Why:
 /// Only when it is the id asked for does `/proc/<pid>` name that process;
 /// a function replaces the closure that captured the three arguments.
-pub(crate) fn number_in_procfs(root: &ProcRoot, pid: i32, pidfd: &OwnedFd) -> Result<i32, String> {
+pub(crate) fn number_in_procfs(
+    root: &ProcRoot,
+    pid: i32,
+    pidfd: &OwnedFd,
+) -> Result<i32, String> {
     /// The raw descriptor number of the process handle,
     /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
-    let info: String = read_in_proc(root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).explained(format_args!("the pidfd of process {pid} cannot be examined through procfs"))?;
-    let line: &str = info.lines().find_map(pid_line_value).or_text(format_args!("the pidfd of process {pid} has no Pid line in procfs"))?;
-    return line.trim().parse::<i32>().explained(format_args!("the Pid line of the pidfd of process {pid} is not a number"));
+    let info: String = read_in_proc(root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd()))
+        .explained(format_args!(
+            "the pidfd of process {pid} cannot be examined through procfs"
+        ))?;
+    let line: &str = info.lines().find_map(pid_line_value).or_text(format_args!(
+        "the pidfd of process {pid} has no Pid line in procfs"
+    ))?;
+    return line.trim().parse::<i32>().explained(format_args!(
+        "the Pid line of the pidfd of process {pid} is not a number"
+    ));
 }
 
 /// What:
@@ -289,7 +347,11 @@ pub(crate) fn start_of(pid: i32) -> StartOf {
     let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
         Ok(opened) => opened,
         Err(Errno::SRCH) => return StartOf::Gone,
-        Err(error) => return StartOf::Unknown(format!("a pidfd for process {pid} cannot be opened ({error})")),
+        Err(error) => {
+            return StartOf::Unknown(format!(
+                "a pidfd for process {pid} cannot be opened ({error})"
+            ));
+        }
     };
     let root: ProcRoot = match open_proc_root() {
         Ok(opened) => opened,
@@ -297,7 +359,11 @@ pub(crate) fn start_of(pid: i32) -> StartOf {
     };
     match number_in_procfs(&root, pid, &pidfd) {
         Ok(number) if number == pid => {}
-        Ok(number) => return StartOf::Unknown(format!("the mounted procfs numbers process {pid} as {number}, so it serves another process id namespace than this process is in")),
+        Ok(number) => {
+            return StartOf::Unknown(format!(
+                "the mounted procfs numbers process {pid} as {number}, so it serves another process id namespace than this process is in"
+            ));
+        }
         Err(reason) => return StartOf::Unknown(reason),
     }
     let stat_read: io::Result<String> = read_in_proc(&root, &format!("{pid}/stat"));
@@ -308,10 +374,12 @@ pub(crate) fn start_of(pid: i32) -> StartOf {
     return match stat_parsed {
         Ok((start, _)) => StartOf::Process(start),
         // The same process was numbered `pid` a moment ago: if the procfs now has no entry, it ended (its number is then -1), or hides it.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs(&root, pid, &pidfd) {
-            Ok(number) => missing_entry_verdict(i64::from(number), pid, &error.to_string()),
-            Err(reason) => StartOf::Unknown(reason),
-        },
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            match number_in_procfs(&root, pid, &pidfd) {
+                Ok(number) => missing_entry_verdict(i64::from(number), pid, &error.to_string()),
+                Err(reason) => StartOf::Unknown(reason),
+            }
+        }
         Err(error) => StartOf::Unknown(format!("/proc/{pid}/stat cannot be read ({error})")),
     };
 }
@@ -354,7 +422,8 @@ pub(crate) fn procfs_matches_namespace() -> Result<(), String> {
 /// ```
 #[cfg(test)]
 pub(crate) fn names_an_absent_process(error: &io::Error) -> bool {
-    return error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::SRCH.raw_os_error());
+    return error.kind() == io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(Errno::SRCH.raw_os_error());
 }
 
 /// What:
@@ -379,28 +448,56 @@ pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
     /// The raw descriptor number of the process handle,
     /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
-    let found: Pid = Pid::from_raw(pid).ok_or_else(|| { return format!("{pid} is not a process id"); })?;
+    let found: Pid = Pid::from_raw(pid).ok_or_else(|| {
+        return format!("{pid} is not a process id");
+    })?;
     let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
         Ok(opened) => opened,
         Err(Errno::SRCH) => return Ok(false),
-        Err(error) => return Err(format!("a pidfd for process {pid} cannot be opened ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "a pidfd for process {pid} cannot be opened ({error})"
+            ));
+        }
     };
     let root: ProcRoot = open_proc_root()?;
     let number = || -> Result<i64, String> {
-        let info: String = read_in_proc(&root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined ({error})"); })?;
-        let line: &str = info.lines().find_map(|candidate| { return candidate.strip_prefix("Pid:"); }).ok_or_else(|| { return format!("the pidfd of process {pid} has no Pid line"); })?;
-        return line.trim().parse::<i64>().map_err(|error| { return format!("the Pid line of process {pid} is not a number ({error})"); });
+        let info: String =
+            read_in_proc(&root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).map_err(
+                |error| {
+                    return format!("the pidfd of process {pid} cannot be examined ({error})");
+                },
+            )?;
+        let line: &str = info
+            .lines()
+            .find_map(|candidate| {
+                return candidate.strip_prefix("Pid:");
+            })
+            .ok_or_else(|| {
+                return format!("the pidfd of process {pid} has no Pid line");
+            })?;
+        return line.trim().parse::<i64>().map_err(|error| {
+            return format!("the Pid line of process {pid} is not a number ({error})");
+        });
     };
     match number()? {
         -1 => return Ok(false),
         other if other == i64::from(pid) => {}
-        other => return Err(format!("the mounted procfs numbers process {pid} as {other}, so it serves another process id namespace")),
+        other => {
+            return Err(format!(
+                "the mounted procfs numbers process {pid} as {other}, so it serves another process id namespace"
+            ));
+        }
     }
-    return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| { return parse_stat(pid, &text); }) {
+    return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| {
+        return parse_stat(pid, &text);
+    }) {
         Ok((_, state)) => Ok(state != 'Z' && state != 'X'),
         Err(error) if names_an_absent_process(&error) => match number()? {
             -1 => Ok(false),
-            _ => Err(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
+            _ => Err(format!(
+                "process {pid} exists but /proc/{pid}/stat cannot be read ({error})"
+            )),
         },
         Err(error) => Err(format!("/proc/{pid}/stat cannot be read ({error})")),
     };
@@ -424,7 +521,10 @@ pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
 pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
     return match start_of(pid) {
         StartOf::Process(start) => Ok(start),
-        StartOf::Gone => Err(io::Error::new(io::ErrorKind::NotFound, format!("process {pid} does not exist"))),
+        StartOf::Gone => Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("process {pid} does not exist"),
+        )),
         StartOf::Unknown(reason) => Err(io::Error::other(reason)),
     };
 }
@@ -440,7 +540,10 @@ pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
 /// ```ts
 /// function parseStat(pid: number, text: string): [number, string]
 /// ```
-pub(crate) fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
+pub(crate) fn parse_stat(
+    pid: i32,
+    text: &str,
+) -> io::Result<(u64, char)> {
     let Some((_, after)) = text.rsplit_once(')') else {
         return Err(invalid_stat(pid, text));
     };
@@ -470,8 +573,14 @@ pub(crate) fn first_char_of(field: &&str) -> Option<char> {
 /// `fn invalid_stat(pid: i32, text: &str) -> io::Error` is the error for a `stat` text that is not understood.
 /// Why:
 /// A function replaces the closure that captured the process id and the text.
-pub(crate) fn invalid_stat(pid: i32, text: &str) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidData, format!("/proc/{pid}/stat is not understood: {text:?}"));
+pub(crate) fn invalid_stat(
+    pid: i32,
+    text: &str,
+) -> io::Error {
+    return io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("/proc/{pid}/stat is not understood: {text:?}"),
+    );
 }
 
 /// What:
@@ -495,12 +604,23 @@ pub(crate) fn invalid_stat(pid: i32, text: &str) -> io::Error {
 /// ```ts
 /// export function launcherState(pid: number, start: number, pidNamespace: number): 'gone' | 'alive' | { unknown: string }
 /// ```
-pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> LauncherState {
-
+pub(crate) fn launcher_state(
+    pid: i32,
+    start: u64,
+    pid_namespace: u64,
+) -> LauncherState {
     match pid_namespace_id() {
         Ok(found) if found == pid_namespace => {}
-        Ok(_) => return LauncherState::Unknown(format!("the launcher {pid} was recorded in another process id namespace than this process is in")),
-        Err(error) => return LauncherState::Unknown(format!("the process id namespace of this process cannot be identified ({error})")),
+        Ok(_) => {
+            return LauncherState::Unknown(format!(
+                "the launcher {pid} was recorded in another process id namespace than this process is in"
+            ));
+        }
+        Err(error) => {
+            return LauncherState::Unknown(format!(
+                "the process id namespace of this process cannot be identified ({error})"
+            ));
+        }
     }
     return match start_of(pid) {
         StartOf::Gone => LauncherState::Gone,

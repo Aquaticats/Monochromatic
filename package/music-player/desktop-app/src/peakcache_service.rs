@@ -76,7 +76,11 @@ use std::thread;
 /// ```ts
 /// // an unbounded queue with sync push and async pull
 /// ```
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{
+    self,
+    UnboundedReceiver,
+    UnboundedSender,
+};
 
 /// What:
 ///      `use tokio::sync::oneshot;`.
@@ -108,7 +112,11 @@ use tokio::sync::oneshot;
 /// ```ts
 /// import { CacheIdentity, Decision, DecisionCache } from "truepeak-core";
 /// ```
-use truepeak_core::{CacheIdentity, Decision, DecisionCache};
+use truepeak_core::{
+    CacheIdentity,
+    Decision,
+    DecisionCache,
+};
 
 /// What:
 ///      `use truepeak_core::WRITE_BATCH_LIMIT;`.
@@ -303,7 +311,9 @@ pub(super) fn spawn(path: Option<PathBuf>) -> (UnboundedSender<Read>, UnboundedS
     // startWorker(() => runtime.blockOn(run(path, readRx, writeRx)));
     // ```
     thread::spawn(move || {
-        let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+        let built = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build();
         if let Err(error) = &built {
             tracing::error!(error = %error, "could not build cache runtime");
         }
@@ -318,7 +328,7 @@ pub(super) fn spawn(path: Option<PathBuf>) -> (UnboundedSender<Read>, UnboundedS
     // ```ts
     // return [readTx, writeTx];
     // ```
-    return (read_tx, write_tx)
+    return (read_tx, write_tx);
 }
 
 /// What:
@@ -460,7 +470,7 @@ async fn open_cache(path: Option<PathBuf>) -> Option<DecisionCache> {
         Ok(cache) => return Some(cache),
         Err(error) => {
             tracing::warn!(error = %error, "cache open failed; running degraded");
-            return None
+            return None;
         }
     }
 }
@@ -476,7 +486,11 @@ async fn open_cache(path: Option<PathBuf>) -> Option<DecisionCache> {
 /// ```ts
 /// async function serveRead(cache, identity, request) { ... }
 /// ```
-async fn serve_read(cache: Option<&DecisionCache>, identity: CacheIdentity, request: Read) {
+async fn serve_read(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    request: Read,
+) {
     // What:     Branch on the request; each arm sends exactly one reply. `let _ =` ignores a
     //           send error (the caller may have stopped waiting).
     // Why:      A dropped receiver is normal (the caller moved on); never panic.
@@ -486,10 +500,15 @@ async fn serve_read(cache: Option<&DecisionCache>, identity: CacheIdentity, requ
     // if (request.kind === "get") reply(await get(cache, identity, fp)); else reply(await known(cache, identity));
     // ```
     match request {
-        Read::Get { fingerprint, reply } => {
+        Read::Get {
+            fingerprint,
+            reply,
+        } => {
             let _ = reply.send(get(cache, identity, fingerprint).await);
         }
-        Read::Known { reply } => {
+        Read::Known {
+            reply,
+        } => {
             let _ = reply.send(known(cache, identity).await);
         }
     }
@@ -510,7 +529,11 @@ async fn serve_read(cache: Option<&DecisionCache>, identity: CacheIdentity, requ
 /// ```ts
 /// async function get(cache, identity, fingerprint) { ... }
 /// ```
-async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint: u64) -> Option<Decision> {
+async fn get(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    fingerprint: u64,
+) -> Option<Decision> {
     // What:     `let decision_cache = cache?;`. Degraded run has no cache. The present
     //           reference gets its own name so it never shadows the `Option` parameter.
     // Why:      Answer a miss without touching a database.
@@ -532,7 +555,7 @@ async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint
         Ok(decision) => return decision,
         Err(error) => {
             tracing::warn!(error = %error, "cache get failed; treating as miss");
-            return None
+            return None;
         }
     }
 }
@@ -551,7 +574,10 @@ async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint
 /// ```ts
 /// async function known(cache, identity) { ... }
 /// ```
-async fn known(cache: Option<&DecisionCache>, identity: CacheIdentity) -> HashSet<u64> {
+async fn known(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+) -> HashSet<u64> {
     // What:     `let Some(decision_cache) = cache else { return HashSet::new(); };`. Degraded
     //           run has nothing cached. The present reference gets its own name so it never
     //           shadows the `Option` parameter.
@@ -576,7 +602,7 @@ async fn known(cache: Option<&DecisionCache>, identity: CacheIdentity) -> HashSe
         Ok(set) => return set,
         Err(error) => {
             tracing::warn!(error = %error, "cache scan failed; empty skip-check");
-            return HashSet::new()
+            return HashSet::new();
         }
     }
 }
@@ -605,7 +631,10 @@ async fn known(cache: Option<&DecisionCache>, identity: CacheIdentity) -> HashSe
 /// ```ts
 /// function drainWrites(first: Write, writeRx: Queue<Write>): Upsert[] { ... }
 /// ```
-pub(super) fn drain_writes(first: Write, write_rx: &mut UnboundedReceiver<Write>) -> Vec<Upsert> {
+pub(super) fn drain_writes(
+    first: Write,
+    write_rx: &mut UnboundedReceiver<Write>,
+) -> Vec<Upsert> {
     // What:     `let mut batch: Vec<Upsert> = Vec::new();`. An empty owned list that this function grows.
     //           `mut` allows the pushes below.
     // Why:      Collect the upserts in arrival order.
@@ -648,7 +677,7 @@ pub(super) fn drain_writes(first: Write, write_rx: &mut UnboundedReceiver<Write>
     // ```ts
     // return batch;
     // ```
-    return batch
+    return batch;
 }
 
 /// What:
@@ -665,7 +694,11 @@ pub(super) fn drain_writes(first: Write, write_rx: &mut UnboundedReceiver<Write>
 /// ```ts
 /// async function writeBatch(cache, identity, batch) { ... }
 /// ```
-async fn write_batch(cache: Option<&DecisionCache>, identity: CacheIdentity, batch: Vec<Upsert>) {
+async fn write_batch(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    batch: Vec<Upsert>,
+) {
     // What:     `let Some(decision_cache) = cache else { return; };`. Degraded run drops the
     //           writes. The present reference gets its own name so it never shadows the
     //           `Option` parameter.

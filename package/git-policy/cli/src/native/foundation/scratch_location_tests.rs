@@ -4,7 +4,7 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::time_spent_outside_the_phases::outside_the_phases;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{FileTypeExt as _, PermissionsExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// What:
@@ -825,5 +825,23 @@ fn a_scratch_tree_of_a_killed_command_is_swept() {
     age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
     let _prepared: PathBuf = prepare_repository_scratch(common.as_path()).expect("a later preparation");
     assert!(!tree.exists(), "the sweep of the place the tree is in removes it: {}", tree.display());
+    remove(root.as_path());
+}
+
+/// A scratch entry that is a named pipe is opened without waiting and its time renewed,
+/// at the bound:
+/// a plain open of a pipe waits for a writer that may never come (issue 6415).
+#[test]
+fn renewing_a_scratch_entry_that_is_a_named_pipe_answers_at_once() {
+    let root: PathBuf = fixture("scratch-renew-named-pipe");
+    let entry: PathBuf = root.join("a-waiter");
+    crate::subvolume_sync_attrs::make_fifo(entry.as_path(), 0o600).expect("a named pipe where a scratch entry goes");
+    let waitee: PathBuf = entry.clone();
+    let asked = crate::test_support::finished_within(move || {
+        renew(waitee.as_path());
+        return std::fs::symlink_metadata(waitee.as_path()).expect("the pipe is still there").file_type().is_fifo();
+    });
+    let Some(still_a_pipe) = asked else { panic!("renewing a scratch entry that is a named pipe waited for a writer") };
+    assert!(still_a_pipe, "the entry is the pipe it was, and nothing waited on it");
     remove(root.as_path());
 }

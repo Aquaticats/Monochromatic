@@ -28,7 +28,11 @@
 ///  `load_precompiled` decodes a
 /// serialized set,
 ///  and `LoadError` is the redacted failure both return.
-pub use crate::{compile_from_text, load_precompiled, LoadError};
+pub use crate::{
+    LoadError,
+    compile_from_text,
+    load_precompiled,
+};
 
 /// Re-exports hostile runtime-cache envelope decoder for coverage-guided validation.
 ///
@@ -71,7 +75,11 @@ pub use forbidden_regex::RegexSet;
 ///  `load_from_text`
 /// builds the same handle from an in-memory two-form source so the format-driven
 /// targets can drive the strict loader and scan path without touching the filesystem.
-pub use crate::frx_load::{load, load_from_text, LoadedRules};
+pub use crate::frx_load::{
+    LoadedRules,
+    load,
+    load_from_text,
+};
 
 /// Expose the exact snapshot scanner with a cache-free production hybrid loader for the embedding target.
 pub use crate::scanner::scanner_from_text_for_fuzzing;
@@ -88,7 +96,10 @@ pub use crate::frx_scan::scan_file;
 /// The fuzz target checks that every name finding uses the same fully masked
 /// path as content findings,
 ///  including newlines and repeated components.
-pub fn scan_path_for_fuzzing(path: &str, loaded: &LoadedRules) -> (String, Vec<String>) {
+pub fn scan_path_for_fuzzing(
+    path: &str,
+    loaded: &LoadedRules,
+) -> (String, Vec<String>) {
     let result = crate::path_scan::scan_path(path, loaded);
     return (result.display, result.findings);
 }

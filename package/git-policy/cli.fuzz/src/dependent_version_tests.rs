@@ -16,8 +16,13 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    GeneratedManifest, check_generated_manifest, check_imports, check_version_edit,
-    generated_manifest, import_view, version_edit_view,
+    GeneratedManifest,
+    check_generated_manifest,
+    check_imports,
+    check_version_edit,
+    generated_manifest,
+    import_view,
+    version_edit_view,
 };
 
 /// Every single-byte fill and a spread of mixed inputs rewrite to their expectation.

@@ -28,17 +28,6 @@
 use std::collections::BTreeSet;
 
 /// What:
-/// `use toml_edit::DocumentMut;` imports `DocumentMut` from the external crate `toml_edit` so this file can name it unqualified.
-/// Why:
-/// `DocumentMut` is used by `parse_registry_versions`,
-/// `direct_dependency_names`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { DocumentMut } from 'toml_edit';
-/// ```
-use toml_edit::DocumentMut;
-/// What:
 /// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `text_of` is used by `parse_registry_versions`,
@@ -49,6 +38,17 @@ use toml_edit::DocumentMut;
 /// import { text_of } from 'crate/adapt';
 /// ```
 use crate::adapt::text_of;
+/// What:
+/// `use toml_edit::DocumentMut;` imports `DocumentMut` from the external crate `toml_edit` so this file can name it unqualified.
+/// Why:
+/// `DocumentMut` is used by `parse_registry_versions`,
+/// `direct_dependency_names`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DocumentMut } from 'toml_edit';
+/// ```
+use toml_edit::DocumentMut;
 /// What:
 /// `use toml_edit::Item;` imports `Item` from the external crate `toml_edit` so this file can name it unqualified.
 /// Why:
@@ -87,7 +87,10 @@ pub const UNSUPPORTED_REGISTRY_MARK: &str = "which the policy checks do not supp
 /// ```ts
 /// const CRATES_IO_SOURCES = ['registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'] as const;
 /// ```
-const CRATES_IO_SOURCES: [&str; 2] = ["registry+https://github.com/rust-lang/crates.io-index", "sparse+https://index.crates.io/"];
+const CRATES_IO_SOURCES: [&str; 2] = [
+    "registry+https://github.com/rust-lang/crates.io-index",
+    "sparse+https://index.crates.io/",
+];
 
 /// One registry crate version.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -145,7 +148,8 @@ pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, Strin
         // ```ts
         // const name: Type = value;
         // ```
-        let from_registry: bool = source_text.starts_with(REGISTRY_SOURCE_PREFIX) || source_text.starts_with(SPARSE_SOURCE_PREFIX);
+        let from_registry: bool = source_text.starts_with(REGISTRY_SOURCE_PREFIX)
+            || source_text.starts_with(SPARSE_SOURCE_PREFIX);
         if !from_registry {
             continue;
         }
@@ -188,7 +192,10 @@ pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, Strin
                     "{found_name}@{found_version} comes from the registry {source_text}, which the policy checks do not support: they ask crates.io only, so they would approve it by an unrelated crates.io release of the same name and version. Use crates.io, or a path or git dependency"
                 ));
             }
-            versions.push(LockedVersion { name: found_name.to_string(), version: found_version.to_string() });
+            versions.push(LockedVersion {
+                name: found_name.to_string(),
+                version: found_version.to_string(),
+            });
         }
     }
     return Ok(versions);
@@ -219,8 +226,14 @@ pub fn registry_versions(sources: &[String]) -> Result<Vec<LockedVersion>, Strin
 /// ```ts
 /// export function addedVersions({ before, after }): LockedVersion[]
 /// ```
-pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedVersion>, String> {
-    let previous: BTreeSet<String> = registry_versions(before)?.iter().map(LockedVersion::key).collect();
+pub fn added_versions(
+    before: &[String],
+    after: &[String],
+) -> Result<Vec<LockedVersion>, String> {
+    let previous: BTreeSet<String> = registry_versions(before)?
+        .iter()
+        .map(LockedVersion::key)
+        .collect();
     let mut added: Vec<LockedVersion> = Vec::new();
     for version in registry_versions(after)? {
         if !previous.contains(&version.key()) {

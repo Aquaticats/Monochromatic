@@ -9,9 +9,15 @@
 
 /// Rope and grapheme boundaries from the editor's own text model,
 /// so grapheme checks match editing.
-use helix_core::{Rope, graphemes::next_grapheme_boundary};
+use helix_core::{
+    Rope,
+    graphemes::next_grapheme_boundary,
+};
 /// Canonical source of the lines under test.
-use ide_app::document::{Document, ReadingAffinity};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+};
 /// The row map's code row height,
 /// the step between visual rows.
 use ide_app::row_map::CODE_ROW;
@@ -20,7 +26,10 @@ use ide_app::shaped_row::ShapedRow;
 use ide_app::shaped_text::TextShaper;
 /// The break predicate under test,
 /// and the continuation indent it is measured against.
-use ide_app::wrap::{continuation_indent, intellij_break};
+use ide_app::wrap::{
+    continuation_indent,
+    intellij_break,
+};
 
 /// Text used for the long-line table:
 /// words and punctuation with ordinary break opportunities.
@@ -28,7 +37,11 @@ const LONG_LINE: &str = "let value = compute_total(first_item, second_item); // 
      and going, and going past every width in the table";
 
 /// Shape row 0 of `text` at a logical wrap width and scale.
-fn wrapped(text: &str, width: f32, scale: f32) -> ShapedRow {
+fn wrapped(
+    text: &str,
+    width: f32,
+    scale: f32,
+) -> ShapedRow {
     let document = Document::new(text);
     let mut shaper = TextShaper::new();
     return shaper.wrapped_row(&document, 0, scale, width);
@@ -57,7 +70,10 @@ fn grapheme_starts(text: &str) -> Vec<usize> {
 }
 
 /// Char index of byte `byte` in `text`.
-fn char_index(text: &str, byte: usize) -> usize {
+fn char_index(
+    text: &str,
+    byte: usize,
+) -> usize {
     return text[..byte].chars().count();
 }
 
@@ -91,7 +107,11 @@ fn rows_tile_the_text(row: &ShapedRow) -> bool {
 /// Whether each visual row's visible advance fits the width,
 /// which is the rule `OverflowWrap::Anywhere` keeps
 ///  only for a row that holds a single cluster.
-fn rows_fit_width(row: &ShapedRow, width: f32, scale: f32) -> bool {
+fn rows_fit_width(
+    row: &ShapedRow,
+    width: f32,
+    scale: f32,
+) -> bool {
     for line in row.layout.lines() {
         let metrics = line.metrics();
         let visible = (metrics.advance - metrics.hanging_advance) / scale;
@@ -431,7 +451,10 @@ fn range_on_the_first_row_keeps_the_top_exactly() {
 
 /// Visual row that holds display byte `byte`,
 /// found from the row byte ranges.
-fn row_of_byte(row: &ShapedRow, byte: usize) -> usize {
+fn row_of_byte(
+    row: &ShapedRow,
+    byte: usize,
+) -> usize {
     for index in 0..row.visual_rows() {
         let bytes = row.visual_row_bytes(index).expect("row exists");
         if bytes.start <= byte && byte < bytes.end {
@@ -473,7 +496,11 @@ fn source_lines() -> Vec<String> {
 
 /// Logical width of the unbroken token around `byte`:
 /// the stretch between the nearest rule opportunities on each side.
-fn token_width_around(text: &str, byte: usize, scale: f32) -> f32 {
+fn token_width_around(
+    text: &str,
+    byte: usize,
+    scale: f32,
+) -> f32 {
     let characters: Vec<(usize, char)> = text.char_indices().collect();
     let mut start = 0;
     let mut end = text.len();
@@ -504,7 +531,12 @@ fn token_width_around(text: &str, byte: usize, scale: f32) -> f32 {
 /// `space` is the advance of one space at `scale`,
 /// measured once by the caller:
 /// measuring it here built a new shaper for every line of the crate.
-fn unexcused_breaks(row: &ShapedRow, width: f32, scale: f32, space: f32) -> Vec<(char, char)> {
+fn unexcused_breaks(
+    row: &ShapedRow,
+    width: f32,
+    scale: f32,
+    space: f32,
+) -> Vec<(char, char)> {
     let text = row.projection.text.as_str();
     let indent = continuation_indent(text, space);
     let mut unexcused = Vec::new();
@@ -538,7 +570,10 @@ struct SourceRun {
 /// every row's visible advance fits the width,
 /// every boundary is a rule opportunity or inside a token wider than a row,
 /// and no row starts inside a grapheme.
-fn shape_source(scale: f32, width: f32) -> SourceRun {
+fn shape_source(
+    scale: f32,
+    width: f32,
+) -> SourceRun {
     let lines = source_lines();
     assert!(lines.len() > 1000, "the crate has source lines to shape");
     let mut run = SourceRun {
@@ -614,7 +649,11 @@ const COVERAGE_AT_1400: Coverage = Coverage {
 /// The checks of one scale and width over the crate's own source:
 /// the coverage holds,
 /// and no row breaks a rule.
-fn assert_real_source_fits(scale: f32, width: f32, coverage: Coverage) {
+fn assert_real_source_fits(
+    scale: f32,
+    width: f32,
+    coverage: Coverage,
+) {
     let run = shape_source(scale, width);
     assert!(
         run.wrapped_lines > coverage.wrapped_lines_over,

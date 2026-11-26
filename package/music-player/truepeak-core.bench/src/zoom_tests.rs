@@ -5,8 +5,17 @@
 
 use super::*;
 use crate::probe_bins::select_over_bin_peaks;
-use crate::test_fixtures::{BIN_SECONDS, flat_bins, levels_match, track};
-use truepeak_core::{ProbeGrid, default_policy, peak_dbtp};
+use crate::test_fixtures::{
+    BIN_SECONDS,
+    flat_bins,
+    levels_match,
+    track,
+};
+use truepeak_core::{
+    ProbeGrid,
+    default_policy,
+    peak_dbtp,
+};
 
 /// The short-scan bound every fixture splits on.
 const SHORT_SCAN_MAX_SECS: f64 = 2.0;
@@ -45,7 +54,12 @@ fn expected_decoded_bins() -> usize {
 
 /// A flat long track the zoom probe samples at `FLAT_PEAK`.
 fn flat_track() -> Track {
-    return track("flat.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK))
+    return track(
+        "flat.flac",
+        LONG_SECS,
+        FLAT_PEAK,
+        flat_bins(LONG_SECS as usize, FLAT_PEAK),
+    );
 }
 
 /// What:
@@ -55,15 +69,37 @@ fn flat_track() -> Track {
 #[test]
 fn the_zoom_pass_charges_shorts_in_full_and_longs_by_their_bins() {
     let short_secs = SHORT_SCAN_MAX_SECS as u64;
-    let short = track("short.flac", short_secs, HOT_PEAK, flat_bins(short_secs as usize, HOT_PEAK));
+    let short = track(
+        "short.flac",
+        short_secs,
+        HOT_PEAK,
+        flat_bins(short_secs as usize, HOT_PEAK),
+    );
     let long = flat_track();
     let budget_secs = SHORT_SCAN_MAX_SECS + LONG_BUDGET_SECS;
-    let (decoded, rows) = evaluate_zoom(&[short, long], SHORT_SCAN_MAX_SECS, PASS1_COVERAGE, budget_secs, &HashSet::new());
+    let (decoded, rows) = evaluate_zoom(
+        &[short, long],
+        SHORT_SCAN_MAX_SECS,
+        PASS1_COVERAGE,
+        budget_secs,
+        &HashSet::new(),
+    );
     let expected = SHORT_SCAN_MAX_SECS + expected_decoded_bins() as f64;
-    assert!(levels_match(decoded, expected), "decoded {decoded}, expected {expected}");
+    assert!(
+        levels_match(decoded, expected),
+        "decoded {decoded}, expected {expected}"
+    );
     assert_eq!(rows.len(), 1, "only long tracks get a row");
-    assert!(levels_match(rows[0].full_db, peak_dbtp(f64::from(FLAT_PEAK))), "full level {}", rows[0].full_db);
-    assert!(levels_match(rows[0].probe_db, peak_dbtp(f64::from(FLAT_PEAK))), "probe level {}", rows[0].probe_db);
+    assert!(
+        levels_match(rows[0].full_db, peak_dbtp(f64::from(FLAT_PEAK))),
+        "full level {}",
+        rows[0].full_db
+    );
+    assert!(
+        levels_match(rows[0].probe_db, peak_dbtp(f64::from(FLAT_PEAK))),
+        "probe level {}",
+        rows[0].probe_db
+    );
     assert!(!rows[0].safe, "no provenance set means unsafe");
 }
 
@@ -76,24 +112,51 @@ fn the_climb_reaches_the_crest_beside_the_loudest_pass_one_bin() {
     bins[0] = HILL_PEAK;
     bins[1] = HOT_PEAK;
     let hill = track("hill.flac", LONG_SECS, HOT_PEAK, bins);
-    let (_, rows) = evaluate_zoom(&[hill], SHORT_SCAN_MAX_SECS, PASS1_COVERAGE, LONG_BUDGET_SECS, &HashSet::new());
+    let (_, rows) = evaluate_zoom(
+        &[hill],
+        SHORT_SCAN_MAX_SECS,
+        PASS1_COVERAGE,
+        LONG_BUDGET_SECS,
+        &HashSet::new(),
+    );
     assert_eq!(rows.len(), 1);
-    assert!(levels_match(rows[0].full_db, peak_dbtp(f64::from(HOT_PEAK))), "full {}", rows[0].full_db);
+    assert!(
+        levels_match(rows[0].full_db, peak_dbtp(f64::from(HOT_PEAK))),
+        "full {}",
+        rows[0].full_db
+    );
     assert!(
         levels_match(rows[0].probe_db, peak_dbtp(f64::from(HOT_PEAK))),
         "the climb must reach the crest at 1.0, got {}",
         rows[0].probe_db,
     );
-    assert!(rows[0].probe_db > peak_dbtp(f64::from(HILL_PEAK)), "an even pass alone would stop at the hill");
+    assert!(
+        rows[0].probe_db > peak_dbtp(f64::from(HILL_PEAK)),
+        "an even pass alone would stop at the hill"
+    );
 }
 
 /// What:
 ///  a corpus of short tracks decodes exactly its own length and yields no row.
 #[test]
 fn a_corpus_of_short_tracks_decodes_its_length_and_yields_no_row() {
-    let short = track("short.flac", SHORT_SCAN_MAX_SECS as u64, HOT_PEAK, flat_bins(SHORT_SCAN_MAX_SECS as usize, HOT_PEAK));
-    let (decoded, rows) = evaluate_zoom(&[short], SHORT_SCAN_MAX_SECS, PASS1_COVERAGE, LONG_BUDGET_SECS, &HashSet::new());
-    assert!(levels_match(decoded, SHORT_SCAN_MAX_SECS), "decoded {decoded}");
+    let short = track(
+        "short.flac",
+        SHORT_SCAN_MAX_SECS as u64,
+        HOT_PEAK,
+        flat_bins(SHORT_SCAN_MAX_SECS as usize, HOT_PEAK),
+    );
+    let (decoded, rows) = evaluate_zoom(
+        &[short],
+        SHORT_SCAN_MAX_SECS,
+        PASS1_COVERAGE,
+        LONG_BUDGET_SECS,
+        &HashSet::new(),
+    );
+    assert!(
+        levels_match(decoded, SHORT_SCAN_MAX_SECS),
+        "decoded {decoded}"
+    );
     assert!(rows.is_empty(), "no long track means no row");
 }
 
@@ -122,8 +185,16 @@ fn the_zoom_probe_spends_the_production_selection() {
         bones_hot_bins: None,
     };
     let expected = select_over_bin_peaks(grid, &bins);
-    assert_eq!(peak, f64::from(expected.peak), "the bench reads the selection's loudest bin");
-    assert_eq!(decoded, expected.used_bins as f64 * BIN_SECONDS, "the bench charges the selection's bins");
+    assert_eq!(
+        peak,
+        f64::from(expected.peak),
+        "the bench reads the selection's loudest bin"
+    );
+    assert_eq!(
+        decoded,
+        expected.used_bins as f64 * BIN_SECONDS,
+        "the bench charges the selection's bins"
+    );
 }
 
 /// What:
@@ -133,20 +204,60 @@ fn the_zoom_probe_spends_the_production_selection() {
 fn the_measures_count_clamps_and_average_over_every_track() {
     let policy = default_policy();
     let rows = vec![
-        ZoomRow { full_db: 0.0, probe_db: -3.0, safe: true },
-        ZoomRow { full_db: -0.5, probe_db: -2.0, safe: false },
-        ZoomRow { full_db: -2.0, probe_db: -3.0, safe: false },
-        ZoomRow { full_db: policy.ceiling_dbtp, probe_db: policy.ceiling_dbtp, safe: false },
+        ZoomRow {
+            full_db: 0.0,
+            probe_db: -3.0,
+            safe: true,
+        },
+        ZoomRow {
+            full_db: -0.5,
+            probe_db: -2.0,
+            safe: false,
+        },
+        ZoomRow {
+            full_db: -2.0,
+            probe_db: -3.0,
+            safe: false,
+        },
+        ZoomRow {
+            full_db: policy.ceiling_dbtp,
+            probe_db: policy.ceiling_dbtp,
+            safe: false,
+        },
     ];
     let margin_db = 0.5;
     let all_tracks = 4;
-    let measures = measure_zoom(&rows, &|_| return margin_db, policy.max_too_loud_db, policy.ceiling_dbtp, all_tracks);
-    assert_eq!(measures.clamped, 2, "the two rows whose under-read beats the margin");
-    assert_eq!(measures.clamped_safe, 1, "one clamped row is safe-provenance");
+    let measures = measure_zoom(
+        &rows,
+        &|_| return margin_db,
+        policy.max_too_loud_db,
+        policy.ceiling_dbtp,
+        all_tracks,
+    );
+    assert_eq!(
+        measures.clamped, 2,
+        "the two rows whose under-read beats the margin"
+    );
+    assert_eq!(
+        measures.clamped_safe, 1,
+        "one clamped row is safe-provenance"
+    );
     // The fourth row is needlessly attenuated by the margin alone, over four corpus tracks.
-    assert!(levels_match(measures.avg_quiet_db, margin_db / all_tracks as f64), "average {}", measures.avg_quiet_db);
-    assert!(levels_match(measures.worst_quiet_db, margin_db), "worst quiet {}", measures.worst_quiet_db);
-    assert!(levels_match(measures.worst_over_db, -policy.ceiling_dbtp), "worst over {}", measures.worst_over_db);
+    assert!(
+        levels_match(measures.avg_quiet_db, margin_db / all_tracks as f64),
+        "average {}",
+        measures.avg_quiet_db
+    );
+    assert!(
+        levels_match(measures.worst_quiet_db, margin_db),
+        "worst quiet {}",
+        measures.worst_quiet_db
+    );
+    assert!(
+        levels_match(measures.worst_over_db, -policy.ceiling_dbtp),
+        "worst over {}",
+        measures.worst_over_db
+    );
 }
 
 /// What:
@@ -156,8 +267,16 @@ fn the_measures_count_clamps_and_average_over_every_track() {
 fn a_per_row_margin_covers_only_the_group_it_names() {
     let policy = default_policy();
     let rows = vec![
-        ZoomRow { full_db: 0.0, probe_db: -3.0, safe: true },
-        ZoomRow { full_db: -0.5, probe_db: -2.0, safe: false },
+        ZoomRow {
+            full_db: 0.0,
+            probe_db: -3.0,
+            safe: true,
+        },
+        ZoomRow {
+            full_db: -0.5,
+            probe_db: -2.0,
+            safe: false,
+        },
     ];
     let safe_margin_db = 3.0;
     let unsafe_margin_db = 0.5;
@@ -165,16 +284,19 @@ fn a_per_row_margin_covers_only_the_group_it_names() {
         &rows,
         &|row| {
             if row.safe {
-                return safe_margin_db
+                return safe_margin_db;
             } else {
-                return unsafe_margin_db
+                return unsafe_margin_db;
             }
         },
         policy.max_too_loud_db,
         policy.ceiling_dbtp,
         rows.len(),
     );
-    assert_eq!(measures.clamped, 1, "the wide safe margin clears the safe row only");
+    assert_eq!(
+        measures.clamped, 1,
+        "the wide safe margin clears the safe row only"
+    );
     assert_eq!(measures.clamped_safe, 0);
 }
 
@@ -183,7 +305,13 @@ fn a_per_row_margin_covers_only_the_group_it_names() {
 #[test]
 fn an_empty_row_set_measures_nothing() {
     let policy = default_policy();
-    let measures = measure_zoom(&[], &|_| return 0.5, policy.max_too_loud_db, policy.ceiling_dbtp, 0);
+    let measures = measure_zoom(
+        &[],
+        &|_| return 0.5,
+        policy.max_too_loud_db,
+        policy.ceiling_dbtp,
+        0,
+    );
     assert_eq!(measures.clamped, 0);
     assert_eq!(measures.clamped_safe, 0);
     assert_eq!(measures.avg_quiet_db, 0.0);
@@ -199,13 +327,37 @@ fn an_empty_row_set_measures_nothing() {
 fn the_under_read_quantile_reads_the_loud_rows_only() {
     let policy = default_policy();
     let rows = vec![
-        ZoomRow { full_db: 0.0, probe_db: -2.0, safe: false },
-        ZoomRow { full_db: -0.5, probe_db: -1.0, safe: false },
-        ZoomRow { full_db: policy.ceiling_dbtp - 4.0, probe_db: policy.ceiling_dbtp - 9.0, safe: false },
+        ZoomRow {
+            full_db: 0.0,
+            probe_db: -2.0,
+            safe: false,
+        },
+        ZoomRow {
+            full_db: -0.5,
+            probe_db: -1.0,
+            safe: false,
+        },
+        ZoomRow {
+            full_db: policy.ceiling_dbtp - 4.0,
+            probe_db: policy.ceiling_dbtp - 9.0,
+            safe: false,
+        },
     ];
-    assert!(levels_match(zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 0.0), 0.5));
+    assert!(levels_match(
+        zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 0.0),
+        0.5
+    ));
     // The single gap halved rounds up to the second value rather than down.
-    assert!(levels_match(zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 0.5), 2.0));
-    assert!(levels_match(zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 1.0), 2.0));
-    assert!(levels_match(zoom_under_read_quantile(&[], policy.ceiling_dbtp, 0.5), 0.0));
+    assert!(levels_match(
+        zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 0.5),
+        2.0
+    ));
+    assert!(levels_match(
+        zoom_under_read_quantile(&rows, policy.ceiling_dbtp, 1.0),
+        2.0
+    ));
+    assert!(levels_match(
+        zoom_under_read_quantile(&[], policy.ceiling_dbtp, 0.5),
+        0.0
+    ));
 }

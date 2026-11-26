@@ -8,7 +8,11 @@ use ide_app::language::{
     diagnostics::DiagnosticsSnapshot,
     hints::HintsSnapshot,
     identity::ServerIdentity,
-    reply::{LanguageReply, RequestOutcome, Target},
+    reply::{
+        LanguageReply,
+        RequestOutcome,
+        Target,
+    },
     status::LanguageStatus,
 };
 /// What:
@@ -72,7 +76,10 @@ fn outcome(found: &RequestOutcome) -> Value {
                         "line": open.line,
                         "range": open.range,
                     }),
-                    Target::Unavailable { uri, refusal } => json_value!({
+                    Target::Unavailable {
+                        uri,
+                        refusal,
+                    } => json_value!({
                         "unavailable": uri,
                         "reason": refusal.to_string(),
                     }),
@@ -131,7 +138,10 @@ pub fn status(found: &LanguageStatus) -> Value {
 }
 
 /// Render diagnostics with the text each one marks.
-pub fn diagnostics(found: &DiagnosticsSnapshot, text: &helix_core::Rope) -> Value {
+pub fn diagnostics(
+    found: &DiagnosticsSnapshot,
+    text: &helix_core::Rope,
+) -> Value {
     let mut items = Vec::new();
     for group in &found.groups {
         for item in &group.items {
@@ -154,7 +164,10 @@ pub fn diagnostics(found: &DiagnosticsSnapshot, text: &helix_core::Rope) -> Valu
 }
 
 /// Render hints with the character each one precedes.
-pub fn hints(found: &HintsSnapshot, text: &helix_core::Rope) -> Value {
+pub fn hints(
+    found: &HintsSnapshot,
+    text: &helix_core::Rope,
+) -> Value {
     let mut items = Vec::new();
     for hint in &found.hints {
         let position = hint.position.min(text.len_chars());

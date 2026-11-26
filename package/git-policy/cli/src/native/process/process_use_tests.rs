@@ -1,7 +1,7 @@
 //! Controls for the scan of processes that use a directory or a file.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, spawn_owned};
 use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
@@ -38,7 +38,7 @@ impl Sleeper {
             Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
             None => command.stdin(std::process::Stdio::null()),
         };
-        return Sleeper(command.spawn().expect("the sleeper starts"));
+        return Sleeper(spawn_owned(&mut command).expect("the sleeper starts"));
     }
 
     /// The sleeper's process number.
@@ -152,7 +152,7 @@ fn a_descriptor_is_matched_by_device_and_inode() {
     drop(holder);
     // A table this process cannot ask the kernel about is an error, never a guess from the text of a link: the record
     // names the lock's inode and the link resolves to the lock, and still nothing is concluded.
-    let mut gone: std::process::Child = Command::new("true").spawn().expect("start true");
+    let mut gone: std::process::Child = spawn_owned(&mut Command::new("true")).expect("start true");
     let gone_pid: u32 = gone.id();
     gone.wait().expect("reap true");
     let table: PathBuf = root.join("table").join(gone_pid.to_string());
@@ -417,17 +417,15 @@ struct Watches(std::process::Child);
 impl Watches {
     /// Start a holder with `count` watches below `root`.
     fn start(root: &Path, count: usize) -> Watches {
-        let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-        let mut child: std::process::Child = Command::new(binary)
-            .args(["--exact", HOLD_WATCHES_TEST, "--nocapture", "--test-threads=1"])
-            .env(HOLD_WATCHES_ROOT, root)
-            .env(HOLD_WATCHES_COUNT, count.to_string())
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("the holder starts");
-        crate::test_support::own_group(&child);
+        let count_text: String = count.to_string();
+        let environment: [(&str, &std::ffi::OsStr); 2] = [(HOLD_WATCHES_ROOT, root.as_os_str()), (HOLD_WATCHES_COUNT, std::ffi::OsStr::new(count_text.as_str()))];
+        let mut child: std::process::Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
+            exact_test: HOLD_WATCHES_TEST,
+            environment: environment.as_slice(),
+            standard_input: std::process::Stdio::piped(),
+            standard_error: std::process::Stdio::null(),
+            ..crate::child_test_process::ChildTest::default()
+        });
         let line: String = ready_line(&mut child);
         assert!(line.contains(&format!("watches={count}")), "the holder says what it holds: {line}");
         return Watches(child);

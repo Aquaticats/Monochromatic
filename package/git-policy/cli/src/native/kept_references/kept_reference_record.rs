@@ -121,7 +121,8 @@ fn record_path(common_dir: &Path, reference: &str) -> Option<PathBuf> {
 /// ```
 pub fn read_record(common_dir: &Path, reference: &str) -> Option<KeptReferenceRecord> {
     let path: PathBuf = record_path(common_dir, reference)?;
-    let bytes: Vec<u8> = std::fs::read(path).ok()?;
+    // A record that is a named pipe is no record, and it answers at once rather than waiting for a writer.
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
     let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
     let value: Value = serde_json::from_str(text.trim()).ok()?;
     let object: &Map<String, Value> = value.as_object()?;
@@ -261,7 +262,8 @@ pub fn sweep_records_of_references_that_are_gone(common_dir: &Path, held: &[crat
     };
     for entry in listing.flatten() {
         let path: std::path::PathBuf = entry.path();
-        let Ok(bytes) = std::fs::read(path.as_path()) else {
+        // A record that is a named pipe sweeps to nothing rather than waiting for a writer.
+        let Ok(bytes) = crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT) else {
             continue;
         };
         let Ok(value) = serde_json::from_slice::<Value>(bytes.as_slice()) else {

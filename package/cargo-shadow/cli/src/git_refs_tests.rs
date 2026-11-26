@@ -17,14 +17,27 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `crate::git_config::parse_config`.
 use crate::git_config::parse_config;
 // Imports `crate::git_native::native_base`.
 use crate::git_native::native_base;
 // Imports `crate::git_refs::{GitLayout, Head, NativeEn...`.
-use crate::git_refs::{GitLayout, Head, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref};
+use crate::git_refs::{
+    GitLayout,
+    Head,
+    NativeEnvironment,
+    find_layout,
+    lookup_ref,
+    lookup_short,
+    read_config,
+    read_head,
+    tracking_ref,
+};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
@@ -40,11 +53,21 @@ fn environment(root: &Path) -> NativeEnvironment {
     // // Some(value) is  value
     // // None        is  undefined
     // ```
-    return NativeEnvironment { home: None, xdg_config_home: None, system_config: Some(root.join("none")), blocking_variable: None, git: crate::git_refs::GitProgram::default(), user_id: crate::git_refs::current_user_id() };
+    return NativeEnvironment {
+        home: None,
+        xdg_config_home: None,
+        system_config: Some(root.join("none")),
+        blocking_variable: None,
+        git: crate::git_refs::GitProgram::default(),
+        user_id: crate::git_refs::current_user_id(),
+    };
 }
 
 /// A plain repository directory with the given HEAD text and configuration.
-fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
+fn repository(
+    head: &str,
+    config: &str,
+) -> (tempfile::TempDir, PathBuf) {
     let root = scratch();
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -77,10 +100,17 @@ fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
 /// A layout over a directory that has no files;
 /// the lookups of these tests read only the configuration.
 fn layout_of(_config: &crate::git_config::ParsedConfig) -> GitLayout {
-    return GitLayout { git_dir: PathBuf::from("/nonexistent/git"), common_dir: PathBuf::from("/nonexistent/git") };
+    return GitLayout {
+        git_dir: PathBuf::from("/nonexistent/git"),
+        common_dir: PathBuf::from("/nonexistent/git"),
+    };
 }
 
-fn write_ref(root: &Path, name: &str, object: &str) {
+fn write_ref(
+    root: &Path,
+    name: &str,
+    object: &str,
+) {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = root.join(".git").join(name);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -129,7 +159,10 @@ fn head_is_a_branch_or_a_detached_object_and_anything_else_is_refused() {
     // String(value)  // JS strings are always owned values
     // ```
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(read_head(&layout), Ok(Head::Branch("refs/heads/main".to_string())));
+    assert_eq!(
+        read_head(&layout),
+        Ok(Head::Branch("refs/heads/main".to_string()))
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `format!`: builds or prints text (or a list) from a template.
     fs::write(path.join(".git/HEAD"), format!("{FIRST}\n")).expect("detach");
@@ -160,13 +193,19 @@ fn a_loose_reference_wins_over_a_packed_one_and_a_packed_one_is_found_by_name() 
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lookup_ref(&layout, "refs/heads/main"), Ok(Some(FIRST.to_string())));
+    assert_eq!(
+        lookup_ref(&layout, "refs/heads/main"),
+        Ok(Some(FIRST.to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lookup_ref(&layout, "refs/heads/other"), Ok(Some(SECOND.to_string())));
+    assert_eq!(
+        lookup_ref(&layout, "refs/heads/other"),
+        Ok(Some(SECOND.to_string()))
+    );
     // Borrow `&path`: lends the value without copying or giving it away.
     write_ref(&path, "refs/heads/main", SECOND);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -174,7 +213,10 @@ fn a_loose_reference_wins_over_a_packed_one_and_a_packed_one_is_found_by_name() 
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lookup_ref(&layout, "refs/heads/main"), Ok(Some(SECOND.to_string())));
+    assert_eq!(
+        lookup_ref(&layout, "refs/heads/main"),
+        Ok(Some(SECOND.to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&layout`: lends the value without copying or giving it away.
@@ -216,7 +258,10 @@ fn a_short_name_is_the_remote_tracking_branch_unless_something_shadows_it() {
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lookup_short(&layout, "origin/main"), Ok(Some(FIRST.to_string())));
+    assert_eq!(
+        lookup_short(&layout, "origin/main"),
+        Ok(Some(FIRST.to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&layout`: lends the value without copying or giving it away.
@@ -239,23 +284,36 @@ fn the_upstream_of_a_branch_comes_from_its_remote_merge_and_the_fetch_refspec() 
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, &layout_of(&config), "main"), Ok(Some("refs/remotes/origin/trunk".to_string())));
+    assert_eq!(
+        tracking_ref(&config, &layout_of(&config), "main"),
+        Ok(Some("refs/remotes/origin/trunk".to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, &layout_of(&config), "local"), Ok(Some("refs/heads/main".to_string())));
+    assert_eq!(
+        tracking_ref(&config, &layout_of(&config), "local"),
+        Ok(Some("refs/heads/main".to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, &layout_of(&config), "lonely"), Ok(None), "a remote without a merge reference is no upstream");
+    assert_eq!(
+        tracking_ref(&config, &layout_of(&config), "lonely"),
+        Ok(None),
+        "a remote without a merge reference is no upstream"
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, &layout_of(&config), "unknown"), Ok(None));
+    assert_eq!(
+        tracking_ref(&config, &layout_of(&config), "unknown"),
+        Ok(None)
+    );
 }
 
 #[test]
@@ -268,7 +326,10 @@ fn an_exact_refspec_maps_one_reference_and_an_uncovered_reference_has_no_trackin
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, &layout_of(&config), "main"), Ok(Some("refs/remotes/origin/primary".to_string())));
+    assert_eq!(
+        tracking_ref(&config, &layout_of(&config), "main"),
+        Ok(Some("refs/remotes/origin/primary".to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
@@ -334,13 +395,19 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(read_head(&layout), Ok(Head::Branch("refs/heads/topic".to_string())));
+    assert_eq!(
+        read_head(&layout),
+        Ok(Head::Branch("refs/heads/topic".to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lookup_ref(&layout, "refs/heads/topic"), Ok(Some(FIRST.to_string())));
+    assert_eq!(
+        lookup_ref(&layout, "refs/heads/topic"),
+        Ok(Some(FIRST.to_string()))
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
@@ -388,7 +455,11 @@ fn a_missing_dot_git_a_dot_git_file_without_gitdir_and_a_blocking_variable_are_r
     blocked.blocking_variable = Some("GIT_DIR".to_string());
     // Borrow `&blocked`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(find_layout(root.path(), &blocked).unwrap_err().contains("GIT_DIR"));
+    assert!(
+        find_layout(root.path(), &blocked)
+            .unwrap_err()
+            .contains("GIT_DIR")
+    );
 }
 
 #[test]
@@ -411,7 +482,14 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
     // structuredClone(value)  // or [...list] / {...object}
     // ```
     // Typed binding: `layered: NativeEnvironment`.
-    let layered: NativeEnvironment = NativeEnvironment { home: Some(home.clone()), xdg_config_home: None, system_config: Some(root.path().join("none")), blocking_variable: None, git: crate::git_refs::GitProgram::default(), user_id: crate::git_refs::current_user_id() };
+    let layered: NativeEnvironment = NativeEnvironment {
+        home: Some(home.clone()),
+        xdg_config_home: None,
+        system_config: Some(root.path().join("none")),
+        blocking_variable: None,
+        git: crate::git_refs::GitProgram::default(),
+        user_id: crate::git_refs::current_user_id(),
+    };
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `layout: GitLayout`.
@@ -419,7 +497,13 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
 
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let config = read_config(&layout, &layered, root_of(&layout), &std::cell::Cell::new(0)).expect("reads");
+    let config = read_config(
+        &layout,
+        &layered,
+        root_of(&layout),
+        &std::cell::Cell::new(0),
+    )
+    .expect("reads");
 
     // `None`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -431,28 +515,63 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
     fs::write(home.join(".gitconfig"), "[core\n").expect("broken");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &layered, root_of(&layout), &std::cell::Cell::new(0)).is_err());
+    assert!(
+        read_config(
+            &layout,
+            &layered,
+            root_of(&layout),
+            &std::cell::Cell::new(0)
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn a_repository_that_asks_for_reftable_or_a_worktree_configuration_is_refused() {
-    let (root, path) = repository("ref: refs/heads/main\n", "[extensions]\n\trefStorage = reftable\n");
+    let (root, path) = repository(
+        "ref: refs/heads/main\n",
+        "[extensions]\n\trefStorage = reftable\n",
+    );
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `layout: GitLayout`.
     let layout: GitLayout = find_layout(&path, &environment(root.path())).expect("layout");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path()), root_of(&layout), &std::cell::Cell::new(0)).unwrap_err().contains("extensions.refstorage"));
+    assert!(
+        read_config(
+            &layout,
+            &environment(root.path()),
+            root_of(&layout),
+            &std::cell::Cell::new(0)
+        )
+        .unwrap_err()
+        .contains("extensions.refstorage")
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(path.join(".git/config"), "[extensions]\n\tworktreeConfig = true\n").expect("worktree config");
+    fs::write(
+        path.join(".git/config"),
+        "[extensions]\n\tworktreeConfig = true\n",
+    )
+    .expect("worktree config");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path()), root_of(&layout), &std::cell::Cell::new(0)).unwrap_err().contains("extensions.worktreeconfig"));
+    assert!(
+        read_config(
+            &layout,
+            &environment(root.path()),
+            root_of(&layout),
+            &std::cell::Cell::new(0)
+        )
+        .unwrap_err()
+        .contains("extensions.worktreeconfig")
+    );
 }
 
 /// The repository root of a layout whose git directory is `<root>/.git`.
 fn root_of(layout: &GitLayout) -> &Path {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    return layout.git_dir.parent().unwrap_or_else(|| { return Path::new("."); });
+    return layout.git_dir.parent().unwrap_or_else(|| {
+        return Path::new(".");
+    });
 }

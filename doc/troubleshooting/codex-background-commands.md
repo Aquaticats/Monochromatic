@@ -42,9 +42,12 @@ Codex's execution cell normally waits before returning control to the agent.
 That permits unnecessary serial waiting even when independent work is available.
 
 Claude Code's implementation is documented in
-[`bash-output-filter/README.md`](../../package/claude-code-plugin/bash-output-filter/README.md#force-background).
-It forces `run_in_background` through a Bash hook,
-with exceptions for subagents and bare numeric sleeps.
+[`bash-output-filter/README.md`](../../package/claude-code-plugin/bash-output-filter/README.md#blocking-timeout).
+It supplies a one-second foreground timeout through a Bash hook,
+with exceptions for subagents,
+caller-supplied timeouts,
+explicit background calls,
+and bare numeric sleeps.
 Codex's existing Bash integration consumes only a command-string rewrite,
 as recorded in
 [`codex-shell-worker-limits.md`](../decision/codex-shell-worker-limits.md).

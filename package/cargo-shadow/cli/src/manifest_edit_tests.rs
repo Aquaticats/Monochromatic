@@ -21,7 +21,12 @@ use std::path::PathBuf;
 // Imports `crate::journal::KeepAs`.
 use crate::journal::KeepAs;
 // Imports `crate::manifest_edit::{ManifestEdit, restor...`.
-use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manifests, snapshot_manifests};
+use crate::manifest_edit::{
+    ManifestEdit,
+    restore_manifests,
+    run_recording_manifests,
+    snapshot_manifests,
+};
 use crate::test_scratch::scratch;
 
 const ROOT_A: &str = "package/a";
@@ -31,7 +36,10 @@ fn keep() -> KeepAs {
     return KeepAs::next_to_target(".displaced");
 }
 
-fn edits_for(crate_dir: &str, path: &std::path::Path) -> RefCell<Vec<ManifestEdit>> {
+fn edits_for(
+    crate_dir: &str,
+    path: &std::path::Path,
+) -> RefCell<Vec<ManifestEdit>> {
     let edits: RefCell<Vec<ManifestEdit>> = RefCell::new(Vec::new());
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -70,7 +78,10 @@ fn a_manifest_the_call_rewrote_is_recorded_and_put_back() {
 
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    run_recording_manifests(ROOT_A, &edits, || { fs::write(&path, "cargo's edit").expect("cargo edits it"); }).expect("records");
+    run_recording_manifests(ROOT_A, &edits, || {
+        fs::write(&path, "cargo's edit").expect("cargo edits it");
+    })
+    .expect("records");
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let warnings = restored(&edits);
@@ -84,7 +95,11 @@ fn a_manifest_the_call_rewrote_is_recorded_and_put_back() {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert_eq!(warnings.len(), 1, "the put-back names the file it kept: {warnings:?}");
+    assert_eq!(
+        warnings.len(),
+        1,
+        "the put-back names the file it kept: {warnings:?}"
+    );
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(warnings[0].contains("is kept as"), "{warnings:?}");
     assert_eq!(fs::read_to_string(&path).expect("read"), "before");
@@ -99,7 +114,10 @@ fn a_manifest_another_process_changed_after_the_call_is_left_alone_with_a_warnin
     let edits = edits_for(ROOT_A, &path);
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    run_recording_manifests(ROOT_A, &edits, || { fs::write(&path, "cargo's edit").expect("cargo edits it"); }).expect("records");
+    run_recording_manifests(ROOT_A, &edits, || {
+        fs::write(&path, "cargo's edit").expect("cargo edits it");
+    })
+    .expect("records");
     fs::write(&path, "somebody else's edit").expect("another process");
 
     // Borrow `&edits`: lends the value without copying or giving it away.
@@ -107,7 +125,10 @@ fn a_manifest_another_process_changed_after_the_call_is_left_alone_with_a_warnin
     let warnings = restored(&edits);
 
     assert_eq!(warnings.len(), 1);
-    assert_eq!(fs::read_to_string(&path).expect("read"), "somebody else's edit");
+    assert_eq!(
+        fs::read_to_string(&path).expect("read"),
+        "somebody else's edit"
+    );
 }
 
 /// Review finding (2b 1,
@@ -187,9 +208,16 @@ fn an_edit_to_a_manifest_the_call_did_not_write_is_not_recorded_and_survives() {
     // Borrow `&second`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&second).expect("read"), "b edited by a person meanwhile");
+    assert_eq!(
+        fs::read_to_string(&second).expect("read"),
+        "b edited by a person meanwhile"
+    );
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(warnings.len(), 2, "one for the put-back of a, one for the untouched edit of b: {warnings:?}");
+    assert_eq!(
+        warnings.len(),
+        2,
+        "one for the put-back of a, one for the untouched edit of b: {warnings:?}"
+    );
 }
 
 /// A change that lands after the call returned is outside its window and is not the call's output.
@@ -227,7 +255,10 @@ fn a_change_published_after_the_call_returned_is_not_taken_for_its_output() {
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&path).expect("read"), "published after the call");
+    assert_eq!(
+        fs::read_to_string(&path).expect("read"),
+        "published after the call"
+    );
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(warnings.len(), 1, "{warnings:?}");
 }
@@ -264,13 +295,28 @@ fn an_unchanged_manifest_needs_nothing_and_a_missing_or_unreadable_one_stops_the
     // Borrow `&[`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
-    assert!(snapshot_manifests(ROOT_A, &[root.path().join("missing.toml")], &RefCell::new(Vec::new())).is_err());
+    assert!(
+        snapshot_manifests(
+            ROOT_A,
+            &[root.path().join("missing.toml")],
+            &RefCell::new(Vec::new())
+        )
+        .is_err()
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("binary.toml"), [0xff, 0xfe, 0x00]).expect("not utf-8");
     // Borrow `&[`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
-    assert!(snapshot_manifests(ROOT_A, &[root.path().join("binary.toml")], &RefCell::new(Vec::new())).is_err(), "invalid UTF-8 is an error, not an empty manifest");
+    assert!(
+        snapshot_manifests(
+            ROOT_A,
+            &[root.path().join("binary.toml")],
+            &RefCell::new(Vec::new())
+        )
+        .is_err(),
+        "invalid UTF-8 is an error, not an empty manifest"
+    );
 }
 
 /// Restores the manifests and requires that nothing failed.

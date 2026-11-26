@@ -4,7 +4,10 @@
 
 /// The shaper whose cache the passes fill,
 ///  and the request that names one line.
-use super::{RowRequest, TextShaper};
+use super::{
+    RowRequest,
+    TextShaper,
+};
 /// Canonical source the lines are read from.
 use crate::document::Document;
 /// The kept row that is broken again.
@@ -13,9 +16,15 @@ use crate::shaped_row::ShapedRow;
 use crate::source_style::StyleSpan;
 /// Tabs that stay on the first visual row keep their corrections when the row is broken again,
 ///  and a tabbed line is shaped again for each corrective pass.
-use crate::tab_layout::{passes_for, tabs_on_first_row};
+use crate::tab_layout::{
+    passes_for,
+    tabs_on_first_row,
+};
 /// Breaking a kept layout exactly as a fresh one is broken.
-use crate::wrap::{break_wrapped, has_wrap_width};
+use crate::wrap::{
+    break_wrapped,
+    has_wrap_width,
+};
 /// Lines handled by one chunk.
 use std::ops::Range;
 
@@ -107,7 +116,10 @@ pub const WORK_SCAN_LIMIT: usize = 65_536;
 /// ```ts
 /// function lineWork(document: Document, line: number): number;
 /// ```
-pub fn line_work(document: &Document, line: usize) -> usize {
+pub fn line_work(
+    document: &Document,
+    line: usize,
+) -> usize {
     let text = document.text();
     if line >= text.len_lines() {
         return 0;
@@ -153,7 +165,10 @@ pub struct Budget {
 impl Budget {
     /// Take one line of `work` from the budget,
     /// or answer `false` and take nothing when it does not fit.
-    pub fn spend(&mut self, work: usize) -> bool {
+    pub fn spend(
+        &mut self,
+        work: usize,
+    ) -> bool {
         if self.lines == 0 || work > self.work {
             return false;
         }
@@ -167,7 +182,10 @@ impl Budget {
 impl TextShaper {
     /// How many shaped lines the cache keeps;
     ///  a worker that shapes a whole file raises it above the window thread's few hundred.
-    pub fn keep_layouts(&mut self, lines: usize) {
+    pub fn keep_layouts(
+        &mut self,
+        lines: usize,
+    ) {
         self.rows.set_capacity(lines);
     }
 
@@ -183,7 +201,10 @@ impl TextShaper {
     }
 
     /// Evict the cached lines farthest from `centre` beyond the cache's capacity.
-    pub fn trim_rows(&mut self, centre: usize) {
+    pub fn trim_rows(
+        &mut self,
+        centre: usize,
+    ) {
         self.rows.trim(centre);
     }
 
@@ -209,7 +230,12 @@ impl TextShaper {
     /// ```ts
     /// rebreak(row: ShapedRow, scale: number, width: number): boolean;
     /// ```
-    pub fn rebreak(&mut self, row: &mut ShapedRow, scale: f32, width: f32) -> bool {
+    pub fn rebreak(
+        &mut self,
+        row: &mut ShapedRow,
+        scale: f32,
+        width: f32,
+    ) -> bool {
         if !has_wrap_width(width) {
             return false;
         }

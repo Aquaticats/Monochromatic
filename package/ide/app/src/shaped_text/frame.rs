@@ -9,7 +9,10 @@ use crate::annotation_layout::AnnotationFrame;
 ///  where each line's code row starts and how tall rows and the caret are.
 use crate::row_map::RowMap;
 /// Shaped rows and the rectangles that reading geometry derives from them.
-use crate::shaped_row::{ReadingRect, ShapedRow};
+use crate::shaped_row::{
+    ReadingRect,
+    ShapedRow,
+};
 
 /// What:
 ///  The part of a tile's lines that its raster holds,

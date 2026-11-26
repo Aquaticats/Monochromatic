@@ -30,8 +30,9 @@ type SessionStartInput = HookInputBase & {
 
   /**
    Model identifier for the session.
+   Optional because Claude Code 2.1.332 startup events have been observed without it.
    */
-  model: string;
+  model?: string;
 
   /**
    Agent name when started with `claude --agent <name>`.

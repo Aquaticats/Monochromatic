@@ -67,7 +67,10 @@ use clap::Parser;
 use monochromatic_file_enforcer::event::EventSink;
 /// Imports `LinePrinter`,
 /// `event_for_clap_error` from `output`.
-use output::{LinePrinter, event_for_clap_error};
+use output::{
+    LinePrinter,
+    event_for_clap_error,
+};
 /// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
 

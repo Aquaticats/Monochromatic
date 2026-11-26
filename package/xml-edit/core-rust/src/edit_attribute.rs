@@ -25,7 +25,10 @@
 /// ```ts
 /// import { isXmlName, isXmlSpace } from './chars';
 /// ```
-use crate::chars::{is_xml_name, is_xml_space};
+use crate::chars::{
+    is_xml_name,
+    is_xml_space,
+};
 /// What:
 /// Import the attribute encoder.
 /// Why:
@@ -45,7 +48,12 @@ use crate::coding::encode_attribute_value;
 /// ```ts
 /// import type { AttributeData, ElementData, XmlDocument, XmlElementId } from './document';
 /// ```
-use crate::document::{AttributeData, ElementData, XmlDocument, XmlElementId};
+use crate::document::{
+    AttributeData,
+    ElementData,
+    XmlDocument,
+    XmlElementId,
+};
 /// What:
 /// Import the edit failure type.
 /// Why:
@@ -90,7 +98,12 @@ impl XmlDocument {
     /// ```ts
     /// private splice(start: number, end: number, replacement: string): XmlDocument;
     /// ```
-    pub(crate) fn splice(&self, start: usize, end: usize, replacement: &str) -> Result<XmlDocument, XmlEditError> {
+    pub(crate) fn splice(
+        &self,
+        start: usize,
+        end: usize,
+        replacement: &str,
+    ) -> Result<XmlDocument, XmlEditError> {
         let mut edited: String = String::with_capacity(self.source.len() + replacement.len());
         edited.push_str(&self.source[..start]);
         edited.push_str(replacement);
@@ -135,12 +148,19 @@ impl XmlDocument {
     /// ```ts
     /// setAttribute(id: XmlElementId, name: string, value: string): XmlDocument;
     /// ```
-    pub fn set_attribute(&self, id: XmlElementId, name: &str, value: &str) -> Result<XmlDocument, XmlEditError> {
+    pub fn set_attribute(
+        &self,
+        id: XmlElementId,
+        name: &str,
+        value: &str,
+    ) -> Result<XmlDocument, XmlEditError> {
         let Some(data) = self.data(id) else {
             return Err(XmlEditError::UnknownElement);
         };
         if !is_xml_name(name) {
-            return Err(XmlEditError::InvalidName { name: name.to_string() });
+            return Err(XmlEditError::InvalidName {
+                name: name.to_string(),
+            });
         }
         if let Some(existing) = self.attribute_data(id, name) {
             let encoded: String = encode_attribute_value(value, existing.quote)?;
@@ -160,12 +180,18 @@ impl XmlDocument {
     /// ```ts
     /// removeAttribute(id: XmlElementId, name: string): XmlDocument;
     /// ```
-    pub fn remove_attribute(&self, id: XmlElementId, name: &str) -> Result<XmlDocument, XmlEditError> {
+    pub fn remove_attribute(
+        &self,
+        id: XmlElementId,
+        name: &str,
+    ) -> Result<XmlDocument, XmlEditError> {
         if self.data(id).is_none() {
             return Err(XmlEditError::UnknownElement);
         }
         let Some(existing) = self.attribute_data(id, name) else {
-            return Err(XmlEditError::AttributeNotFound { name: name.to_string() });
+            return Err(XmlEditError::AttributeNotFound {
+                name: name.to_string(),
+            });
         };
         let attribute: &AttributeData = existing;
         let bytes: &[u8] = self.source.as_bytes();

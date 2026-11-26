@@ -39,13 +39,19 @@ use std::path::Path;
 /// How many bytes of a small file this reads:
 /// a journal,
 /// a registration's `gitdir`,
-/// a repository's configuration or a list of paths.
+/// a repository's configuration or a list of paths,
+/// a Git directory's `commondir` or `HEAD` file,
+/// a fetched-heads list or a todo list.
 ///  A file past the bound is refused with its path named rather than read whole,
 /// so no record beside a checkout decides how much memory a command reads.
 ///  The measurement beside the value,
 /// on this repository on 2026-11-09:
 /// its `.git/config` is 74,878 bytes and
-///  its longest registration `gitdir` 122.
+///  its longest registration `gitdir` 122;
+/// and on 2026-11-25 its `.git/config` had grown to 164,616 bytes,
+/// its `.git/FETCH_HEAD` was 183,958 bytes,
+///  a linked worktree's `commondir` was 6 bytes
+/// and a `HEAD` file 21 to 81.
 ///  A list of unreadable files has no measurement:
 /// it holds one path per entry the migration
 ///  could not read.
@@ -85,22 +91,59 @@ enum Links {
 ///  The file `path` names,
 ///  opened without blocking,
 /// with `links` deciding whether a link is followed,
-///  and refused when the open handle is not a plain file.
+///  and nothing about its type asked.
 /// Why:
-///   One body decides what a plain file is,
-/// so the two opens differ in their flags alone and neither can be
-///  read as a pipe or a directory.
+///   One body makes every open of this module,
+/// so no caller reaches an open that waits for a writer,
+///  and the two readers differ in their flags alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function openedPlain(path, links) { const flags = O_NONBLOCK | O_CLOEXEC | (links === 'followed' ? 0 : O_NOFOLLOW); const file = openSync(path, 'r', 0o666, flags); return fstatSync(file).isFile() ? file : refuse(); }
+/// function openWith(path, links) { const flags = O_NONBLOCK | O_CLOEXEC | (links === 'followed' ? 0 : O_NOFOLLOW); return openSync(path, 'r', 0o666, flags); }
 /// ```
-fn opened_plain(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
+fn open_with(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
     let following: libc::c_int = match links {
         Links::NotFollowed => libc::O_NOFOLLOW,
         Links::Followed => 0,
     };
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | following).open(path)?;
+    return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | following).open(path);
+}
+
+/// What:
+///  The file `path` names,
+///  opened without blocking and without following a link,
+/// and nothing about its type asked.
+/// Why:
+///   A caller that only sets a time on a name,
+/// or reads a name that may be a directory,
+/// needs the open that cannot wait and must not be refused for its type;
+/// one body makes that open,
+/// so no caller can reach an open that waits for a writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openWithoutBlocking(path: string): File { return openSync(path, 'r', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); }
+/// ```
+pub fn open_without_blocking(path: &Path) -> std::io::Result<std::fs::File> {
+    return open_with(path, Links::NotFollowed);
+}
+
+/// What:
+///  The file `path` names,
+///  opened without blocking,
+/// with `links` deciding whether a link is followed,
+///  and refused when the open handle is not a plain file.
+/// Why:
+///   One body decides what a plain file is,
+/// so the two opens differ in their flags alone and neither can
+///  be read as a pipe or a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openedPlain(path, links) { const file = openWith(path, links); return fstatSync(file).isFile() ? file : refuse(); }
+/// ```
+fn opened_plain(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
+    let file: std::fs::File = open_with(path, links)?;
     if !file.metadata()?.file_type().is_file() {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
     }

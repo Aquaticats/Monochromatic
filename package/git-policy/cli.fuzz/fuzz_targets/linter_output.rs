@@ -13,7 +13,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared checks.
-use git_policy_cli_fuzz::markdown::{check_generated_records, check_linter_run};
+use git_policy_cli_fuzz::markdown::{
+    check_generated_records,
+    check_linter_run,
+};
 use libfuzzer_sys::fuzz_target;
 
 // The `|data: &[u8]|` form is the macro's input grammar, not a closure.

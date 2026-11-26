@@ -17,9 +17,16 @@ use truepeak_core::Decision;
 // What:     `use std::time::{Duration, SystemTime, UNIX_EPOCH};`. `Duration` for the poll
 //           sleep (measure.rs no longer imports it), clock + epoch for unique names.
 // Why:      Wait for the async sweep, and build a collision-free throwaway cache path.
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::collections::HashSet;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{
+    Mutex,
+    PoisonError,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `fn temp_cache(tag: &str) -> PathBuf`. A fresh throwaway cache-file path.
 // Why:      Point the cache at disposable state, never the real config dir.
@@ -29,7 +36,10 @@ use std::sync::{Mutex, PoisonError};
 /// the sweep tests check the cache,
 /// not the reports,
 /// so the reports go nowhere.
-fn sweep_job(tracks: Vec<PathBuf>, cache: CacheHandle) -> SweepJob {
+fn sweep_job(
+    tracks: Vec<PathBuf>,
+    cache: CacheHandle,
+) -> SweepJob {
     return SweepJob {
         tracks,
         current: None,
@@ -59,7 +69,7 @@ fn temp_cache(tag: &str) -> PathBuf {
         std::process::id(),
         nanos,
         tag
-    ))
+    ));
 }
 
 // What:     `#[test]` for the background sweep.
@@ -184,7 +194,9 @@ fn collecting_sink() -> (SweepSink, Arc<Mutex<Vec<SweepReport>>>) {
     let reports = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&reports);
     let sink: SweepSink = Arc::new(move |report| {
-        log.lock().unwrap_or_else(PoisonError::into_inner).push(report);
+        log.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(report);
     });
     return (sink, reports);
 }
@@ -194,7 +206,10 @@ fn collecting_sink() -> (SweepSink, Arc<Mutex<Vec<SweepReport>>>) {
 /// Why:
 /// the coordinator sends that report after every worker has been joined,
 /// so it marks the sweep's end.
-fn final_progress_seen(reports: &Arc<Mutex<Vec<SweepReport>>>, total: usize) -> bool {
+fn final_progress_seen(
+    reports: &Arc<Mutex<Vec<SweepReport>>>,
+    total: usize,
+) -> bool {
     return reports
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -219,7 +234,10 @@ fn three_fixture_tracks() -> Vec<PathBuf> {
 /// Why:
 /// the sweep runs on detached threads,
 /// so tests wait for its effects.
-fn wait_for(seconds: u64, mut condition: impl FnMut() -> bool) -> bool {
+fn wait_for(
+    seconds: u64,
+    mut condition: impl FnMut() -> bool,
+) -> bool {
     for _ in 0..(seconds * 40) {
         if condition() {
             return true;
@@ -257,15 +275,29 @@ fn a_paused_sweep_claims_no_track_until_it_is_resumed() {
     thread::sleep(Duration::from_millis(600));
     for track in &tracks {
         let key = peakcache::fingerprint(track).expect("fixture has a fingerprint");
-        assert!(cache.get(key).is_none(), "a paused sweep measured {}", track.display());
+        assert!(
+            cache.get(key).is_none(),
+            "a paused sweep measured {}",
+            track.display()
+        );
     }
-    assert!(!final_progress_seen(&reports, tracks.len()), "a paused sweep finished");
+    assert!(
+        !final_progress_seen(&reports, tracks.len()),
+        "a paused sweep finished"
+    );
 
     gate.set_paused(false);
-    assert!(wait_for(20, || return final_progress_seen(&reports, tracks.len())), "the resumed sweep never finished");
+    assert!(
+        wait_for(20, || return final_progress_seen(&reports, tracks.len())),
+        "the resumed sweep never finished"
+    );
     for track in &tracks {
         let key = peakcache::fingerprint(track).expect("fixture has a fingerprint");
-        assert!(wait_for(10, || return cache.get(key).is_some()), "the resumed sweep skipped {}", track.display());
+        assert!(
+            wait_for(10, || return cache.get(key).is_some()),
+            "the resumed sweep skipped {}",
+            track.display()
+        );
     }
 
     let _ = std::fs::remove_file(&path);
@@ -300,10 +332,17 @@ fn closing_the_gate_while_paused_ends_the_sweep_without_hanging() {
     thread::sleep(Duration::from_millis(300));
     assert!(!final_progress_seen(&reports, tracks.len()));
     gate.close();
-    assert!(wait_for(20, || return final_progress_seen(&reports, tracks.len())), "the sweep hung after the gate closed");
+    assert!(
+        wait_for(20, || return final_progress_seen(&reports, tracks.len())),
+        "the sweep hung after the gate closed"
+    );
     for track in &tracks {
         let key = peakcache::fingerprint(track).expect("fixture has a fingerprint");
-        assert!(cache.get(key).is_none(), "a closed gate still let {} be measured", track.display());
+        assert!(
+            cache.get(key).is_none(),
+            "a closed gate still let {} be measured",
+            track.display()
+        );
     }
 
     let _ = std::fs::remove_file(&path);
@@ -315,16 +354,24 @@ fn closing_the_gate_while_paused_ends_the_sweep_without_hanging() {
 /// `peak_reports_for` counts the measures with a true peak that the reports carry for tracks whose path ends with `name`.
 /// Why:
 /// one such measure is one decode of that file.
-fn peak_reports_for(reports: &Arc<Mutex<Vec<SweepReport>>>, name: &str) -> usize {
+fn peak_reports_for(
+    reports: &Arc<Mutex<Vec<SweepReport>>>,
+    name: &str,
+) -> usize {
     return reports
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .map(|report| {
             return match report {
-                SweepReport::Measures { measures, .. } => measures
+                SweepReport::Measures {
+                    measures,
+                    ..
+                } => measures
                     .iter()
-                    .filter(|(path, measure)| return path.ends_with(name) && measure.peak_dbtp.is_some())
+                    .filter(|(path, measure)| {
+                        return path.ends_with(name) && measure.peak_dbtp.is_some();
+                    })
                     .count(),
                 _ => 0,
             };
@@ -361,15 +408,29 @@ fn two_sweeps_of_one_load_decode_a_track_only_once() {
         });
         if !quiet {
             assert!(
-                wait_for(20, || return reports.lock().unwrap_or_else(PoisonError::into_inner).iter().any(|report| return matches!(report, SweepReport::Progress { .. }))),
+                wait_for(20, || return reports
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .iter()
+                    .any(|report| return matches!(
+                        report,
+                        SweepReport::Progress { .. }
+                    ))),
                 "the first sweep finished its peek and began"
             );
         }
     }
-    assert!(wait_for(20, || return final_progress_seen(&reports, tracks.len())), "the sweep of the load finished");
+    assert!(
+        wait_for(20, || return final_progress_seen(&reports, tracks.len())),
+        "the sweep of the load finished"
+    );
     thread::sleep(Duration::from_millis(1_000));
     for name in ["tone.flac", "tone.mp3", "tone.wav"] {
-        assert_eq!(peak_reports_for(&reports, name), 1, "{name} was decoded once, not once per sweep");
+        assert_eq!(
+            peak_reports_for(&reports, name),
+            1,
+            "{name} was decoded once, not once per sweep"
+        );
     }
     let _ = std::fs::remove_file(&path);
 }
@@ -378,7 +439,8 @@ fn two_sweeps_of_one_load_decode_a_track_only_once() {
 fn a_file_that_cannot_be_decoded_is_tried_again_by_the_next_sweep_of_the_same_load() {
     let path = temp_cache("retry");
     let cache = CacheHandle::open_at(path.clone());
-    let broken = crate::test_scratch::scratch_root().join(format!("music-player-broken-{}.flac", std::process::id()));
+    let broken = crate::test_scratch::scratch_root()
+        .join(format!("music-player-broken-{}.flac", std::process::id()));
     std::fs::write(&broken, b"this is not audio").expect("the broken file is written");
     let (sink, reports) = collecting_sink();
     let claims: Arc<Mutex<HashSet<u64>>> = Arc::new(Mutex::new(HashSet::new()));
@@ -404,7 +466,10 @@ fn a_file_that_cannot_be_decoded_is_tried_again_by_the_next_sweep_of_the_same_lo
             announce: Vec::new(),
             refresh_id: None,
         });
-        assert!(wait_for(10, || return unreadable(&reports) >= round), "sweep {round} reported the broken file");
+        assert!(
+            wait_for(10, || return unreadable(&reports) >= round),
+            "sweep {round} reported the broken file"
+        );
     }
     let _ = std::fs::remove_file(&broken);
     let _ = std::fs::remove_file(&path);
@@ -433,6 +498,14 @@ fn lower_current_thread_to_idle_puts_only_the_calling_thread_in_the_idle_class()
     })
     .join()
     .expect("the lowering thread finished");
-    assert_eq!(lowered, libc::c_long::from(libc::SCHED_IDLE), "the lowered thread is in SCHED_IDLE");
-    assert_eq!(policy_of_calling_thread(), before, "the thread that spawned it keeps its own policy");
+    assert_eq!(
+        lowered,
+        libc::c_long::from(libc::SCHED_IDLE),
+        "the lowered thread is in SCHED_IDLE"
+    );
+    assert_eq!(
+        policy_of_calling_thread(),
+        before,
+        "the thread that spawned it keeps its own policy"
+    );
 }

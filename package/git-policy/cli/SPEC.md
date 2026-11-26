@@ -3633,23 +3633,17 @@ with the same force:
   `if (force < 2) reason = worktree_lock_reason(wt)` is what lets `-f -f` remove a locked worktree,
   and the wrapper
   reads one force only.
-- No subvolume and no mount point stands below the worktree's root
-  (`src/native/worktree/worktree_removal_refuses_a_nested_volume.rs`).
-  The kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
-  so such a worktree can never go
-  this way:
-  the refusal comes before anything is renamed,
-  and it names the volume it found:
-  for a worktree this repository registers,
-  the branch that worktree has checked out or that it is on a detached `HEAD`,
-  and the one command that removes it while keeping what its `HEAD` names
-  (`git worktree remove <inner>`),
-  which refuses while anything there is uncommitted.
-  A volume that is no registration of this repository is named with what it is,
-  with the move or the unmount that keep every file of it first,
-  and with a delete last and for what it destroys,
-  because a subvolume there may be another repository's worktree,
-  whose commits only its own removal keeps.
+- A subvolume or a mount point below the worktree's root is removed around,
+  never destroyed and never handed to Git
+  (`src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs`,
+  and the section "A volume the removal did not make: removing around it" for the decision of 2026-11-12).
+  The destroy cannot take such a tree:
+  the kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
+  so nothing of the worktree is renamed for the commit service,
+  and the removal empties every other entry and keeps each volume with the directories that lead to it.
+  An unforced removal whose proof of cleanliness refuses refuses here too,
+  with one report that names each volume and gives the reason,
+  and no volume is moved, unmounted or deleted.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -3678,7 +3672,7 @@ with the same force:
   with a record of its own
   (`src/native/worktree/worktree_removal_takes_its_pending_deletions.rs`),
   because a name is no proof of what stands at it:
-  an entry of that shape that is no subvolume is somebody else's and is refused with every other
+  an entry of that shape that is no subvolume is somebody else's and is treated with every other
   volume below the root.
   The proof is made again after a destroy the kernel refused,
   because a worktree can be added below this one
@@ -4907,6 +4901,12 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
+  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  source check,
+  so a declined add reaches the ladder with the words Git's own `worktree add`
+  takes by itself,
+  and only an add the route serves reads the sentence about the managed lock it
+  takes.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
   in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
@@ -5033,8 +5033,15 @@ and every step reads the state a kill at the step before it leaves:
   published,
   and the phase becomes `snapshotted`.
 - The origin snapshot is cloned as
-  `<container>/<slot>` with `mountpoint=legacy` and no `canmount` property:
-  a clone inherits the origin's mountpoint,
+  `<container>/<slot>` with no property at all:
+  a clone inherits its parent's `mountpoint`,
+  which is the clone container and not the origin,
+  so the clone reads `mountpoint=legacy` inherited from the container.
+  `mountpoint` is also a delegation the design forbids the account,
+  so a request that carried it is refused for the account the add runs as
+  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,
+  2026-11-25).
+  No `canmount` property is sent either:
   a legacy dataset is never mounted by itself whatever `canmount` says,
   and the kernel refused `canmount=off` at creation in the build's guest.
   The design's own mount is therefore the only one the clone gets.
@@ -5119,6 +5126,17 @@ its dataset and the one next safe action
 pruned and moved ZFS worktree clones");
 a record at an earlier phase resumes the add from that phase,
 and a removal's plan that names the clone refuses before the claim.
+That refusal names the plan,
+its head word and the clone the pool can find,
+and prints the one command those two facts leave:
+the removal the plan belongs to,
+the settling command,
+the finish pass's wait line where the pool cannot prove the clone gone,
+`cancel-worktree-removal <slot>` beside it where the plan records no destroy,
+and no command at all where the recorded name answers another clone.
+The read stands after the device opens,
+because the presence is a pool answer,
+and a plan the add cannot read keeps its refusal and names no command.
 
 The record is
 `<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
@@ -5163,6 +5181,18 @@ when a decided permission is effective only through a wider ancestor grant,
 reaches the account through a named set,
 is granted to everyone,
 or is one of the lineage-changing grants the route must not have.
+A creation-time grant (`zfs allow -c`) of a lineage-changing permission,
+and a lineage-changing permission inside a named set the account can hold,
+are ones the account holds or will hold:
+the kernel copies a creation-time grant onto every dataset its creator makes
+below the dataset that carries it,
+as a local grant to that creator,
+so the check refuses them too,
+naming the `zfs unallow -c` or `zfs unallow -s` command that clears the
+permission.
+A named set's members come from the kernel's own entry for the set,
+so a set the account can come to hold is expanded and its permission named
+rather than reported only as unreadable.
 The permissions the add's own steps use are the six the unprivileged lifecycle
 needs
 (`snapshot` on the checkout,
@@ -6619,12 +6649,25 @@ of which the two that rewrite link layouts in place are the service's work whene
   A lock the repair cannot read leaves every record counted,
   which keeps the check as strict as it was before the names were read at all.
   The lock is read the way the record beside it is:
+  the same reader opens each,
   only a plain file is opened,
   without following a link,
   and only `SMALL_FILE_LIMIT` bytes of it are read (1 MiB,
-  sixteen times this repository's 63,625-byte lock),
+  sixteen times this repository's 63,625-byte lock,
+  and `LONGEST_RECORD` for the record),
   so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+  a record's name swapped for a pipe after any look at it is refused at the open rather than waited on,
   and no file decides how much memory a command reads.
+  A record is one JSON object holding a tool's name,
+  its scope and two paths,
+  and a path this kernel accepts is at most 4,096 bytes (`getconf PATH_MAX /`),
+  so the bound lies far past any record a writer can make.
+  A record the bound refuses is left alone,
+  which is what a record this release cannot read already gets:
+  the add answers and goes on,
+  the diagnostic log names the file and what refused it,
+  the next pass asks the record again,
+  and the person sees no line of this repair unless another record asks for work.
   The add writes this tool in the same `relink` record,
   so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
@@ -8804,7 +8847,8 @@ and the next command that finds the lock gone moves the branch
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types,
 and for a `git commit`:
-nothing the machine or other processes do ends them with a nonzero status.
+nothing the machine or other processes do ends them with a nonzero status,
+with the one exception below of a merge the branch moved under before it could land.
 That covers a held `index.lock`,
 a branch that moved underneath the command (the auto-push's own reconcile merge included),
 a slow disk,
@@ -8842,8 +8886,13 @@ it exits 0,
 says that the merge is not saved,
 where the person's own bytes are kept,
 and that the next git command puts them back and leaves the merge to them.
-A merge whose branch moved while it was prepared ends the same way,
-with the line saying that the branch moved and that the merge does not land.
+A branch that moved while the merge was prepared is the one ending of this path that refuses:
+no command can finish a merge built on a head the branch no longer names,
+so the merge is neither applied nor saved,
+and the command exits nonzero saying the branch moved and that running the merge again is safe
+(owner,
+issue 6473,
+2026-11-25).
 The line each of these prints states the state the settle read:
 the branch it found,
 what of the merge is in the index and the worktree,
@@ -9475,15 +9524,36 @@ and the clone ends 0
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
 The wrapper adds no words of its own where a question was asked:
 the program it names answers nothing and prints nothing.
-This release therefore names no next step at a new host key,
-and how such a text reaches a person is the project's next choice
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-the record that chose the delivery this release removed).
+The program that answers no question therefore still says nothing,
+and `SSH_ASKPASS` stays `false`:
+the next step reaches a person from the wrapper's own process instead,
+which is the one that owns the child
+(`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
+A typed `clone`,
+`fetch`,
+`pull` or `push` whose remote ssh carries is run as the wrapper's child with its error stream relayed,
+and when that transcript reads as a refused host key it prints one sentence after Git's own words,
+naming the plain `ssh` command to run
+(`src/native/invocation/typed_network_command_relay/`,
+and the three texts are the proposal's kept files byte for byte).
+A command ssh does not carry names no next step and keeps the process replacement it has today.
+Four limits stand with it:
+`kill -9` of the typed process number is not one of the four signals the relay carries:
+the wrapper ends at once, prints nothing, and does not end Git through the relay;
+under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
+so no sentence follows;
+a typed LFS push explains a refused key through the upload's own words instead,
+and the two faces print one sentence and not two;
+and a key whose options live only in `GIT_SSH_COMMAND`,
+`core.sshCommand` or `GIT_SSH` sends the advised plain `ssh` to other settings,
+where it may read another `known_hosts` file.
 A person meets OpenSSH's own refusals at both questions this rule answers with nothing,
 measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
 `Host key verification failed.` at an unknown host key,
 and `Permission denied (publickey).` at a key whose passphrase nobody can give,
-each ending 128 with Git's own lines below and no line of the wrapper's among them.
+each ending 128 with Git's own lines.
+A typed network command whose remote ssh carries then prints the one sentence above after those lines;
+a command the wrapper runs or forwards over a transport ssh does not carry shows no line of the wrapper's among them.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -10353,6 +10423,8 @@ and never the wait;
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
+and that thread writes the standard error descriptor itself rather than the standard library's shared handle,
+whose one lock for the whole process a held write would keep the command's own notes waiting on,
 a line that cannot be handed over is dropped and counted (`linesDropped`),
 `finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
 (twice `LOOK_INTERVAL`),
@@ -10498,7 +10570,7 @@ Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the
 number can be reused by another process of this account,
 and the cargo-shadow review called that shape a P1.
 Every member and the root of a step are therefore held by a pidfd where the kernel gives one
-(`src/native/process/pinned_member_signalled_through_a_pidfd.rs`),
+(`src/native/process/member_signalled_through_its_pidfd.rs`),
 the start time is read before and after the descriptor is opened to show the number named one process
 throughout,
 and the signal goes through the descriptor with `pidfd_send_signal`.
@@ -10948,7 +11020,19 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   and it is the wait a command already grants a service's own start (`START_WAIT`).
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
-  1.04 s).
+  1.04 s),
+  and the whole of a commit's wait for a greeting,
+  which nothing shorter may end:
+  a unit the manager reports `active` that has greeted nothing for the whole ceiling is asked to restart,
+  once,
+  and the wait goes on with the whole ceiling again.
+  A service greets a connection before it restores anything
+  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+  so a running unit that greets nothing is one whose program stopped inside its own process,
+  and a start of a unit the manager believes runs brings nothing back.
+  The three-second silence this list once gave that wait was read as that state on 2026-11-12,
+  and the restart and the manager-wide reload that followed ended a desktop session
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 - `RUNTIME_BUILD_PATIENCE` 60 seconds:
   the longest a service waits for the build of its own multi-thread runtime once that build has outlasted
   `BUILD_DEADLINE` (one second),
@@ -10963,16 +11047,6 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   A build of the runtime takes 0.3 to 0.5 ms when it works,
   and the slowest of 52 measured cold starts greeted in 1,041 ms,
   so one minute is far from any ordinary slow start.
-- `SERVICE_GREETING_SILENCE` 3 seconds:
-  how long a commit lets a unit the service manager reports `active` stay silent before it asks the manager to
-  restart it.
-  A service greets a connection before it restores anything
-  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-  so a running unit that greets nothing is one whose program stopped inside its own process,
-  and a start of a unit the manager believes runs brings nothing back.
-  Nearly three times the slowest of the 52 measured cold starts (1.04 s),
-  and under the owner's bound on what a commit may add to native Git,
-  which since 2026-11-12 is the larger of 5,000 ms and twice that commit's own native time.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -11710,10 +11784,6 @@ on the commit path:
   a greeting three seconds late was read as that state on 2026-11-12,
   and the restart and the manager-wide reload that followed ended the desktop session
   (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
-  The service survives being ended by design
-  (its journal,
-  its held commits and its work records are durable),
-  so the commit gets its answer instead of failing
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
@@ -13201,8 +13271,9 @@ in-process reader can) gives every value of the multi-valued keys.
   a control that must see it fire cannot wait that long,
   so `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`,
   a positive whole number of seconds,
-  shortens it for every run of the process,
-  in the manner of the crate's other control-only variables.
+  shortens it for every run of a build made for a control,
+  in the manner of the crate's other control-only variables;
+  a release build holds no read of it.
   One limit applies,
   in whole seconds and ignored when zero,
   negative,
@@ -13490,7 +13561,7 @@ in-process reader can) gives every value of the multi-valued keys.
   when the round that wrote the
   record kept none,
   it is not trying the push again by itself and the person pushes by hand
-  (`src/native/push/push_failure_notice_wording.rs`).
+  (`src/native/push/push_failure_notice_words.rs`).
   A round says so as it writes the record,
   because it is the round that plans the next try or forgets the
   branch's plan,
@@ -13819,7 +13890,8 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   (`lock_birth_times.rs`);
   a control states a file system of one-second ticks,
   and one of no birth times,
-  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`,
+  which only a build made for a control reads;
 - **no live process has that number**.
   A number a process has now is no proof of anything:
   it may be the recorded process that still runs,
@@ -14820,6 +14892,16 @@ with `a_second_settlement_of_one_record_lands_the_change_once`,
   called from `stack_if_push` in `entry.rs`).
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- A typed `clone`,
+  `fetch`,
+  `pull` or `push` whose remote ssh carries is not replaced:
+  the wrapper reads the remote first and keeps Git as its child with the error stream relayed,
+  so that command does have an "after",
+  and the one sentence it prints there follows Git's own words
+  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+  and the rule below that keeps the no-prompt list as it is).
+  Every command ssh does not carry keeps the handover above,
+  with its bytes and its signals.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
   lookups:
   measured while this entry was written at a median 1.9 ms (25 runs,
@@ -15902,7 +15984,7 @@ The step:
   the request carries the name and never the value,
   so a push whose `PATH` no line could hold still finds its programs,
   and its refusal names the service's list as the list it searched
-  (`src/native/service/service_work_push_environment.rs`).
+  (`src/native/landing/service_work_push_environment.rs`).
   A name the command left unset keeps none of the manager's,
   which is the state the removal exists for.
   A push whose command chose `GIT_SSH`,
@@ -16651,6 +16733,11 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+A process whose process limit refuses that thread says which limit refused it,
+and writes every line on the thread that says it instead:
+one write, made only where the descriptor reports room,
+so no caller waits for a reader and nothing a command says is lost
+(issue 6476).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -17413,14 +17500,16 @@ each with its reason in the code and here:
   with no Git process,
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
-- The mutex and the condition of the service's own log lines (`service_log_lines_off_the_calling_thread.rs`):
+- The mutex and the condition of a queue of lines written by a thread of their own
+  (`foundation/lines_written_by_a_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
-  under it one line is pushed or popped and the writer is handed out or given back,
+  under it one line is pushed or popped, one number is moved and the writer is handed out or given back,
   and the write itself runs outside it.
-  A queue of `QUEUED_LINES` (256,
-  measured over the six slowest commits of 2026-11-12)
+  A queue of `QUEUED_LINES` (256 in each: measured over the six slowest commits of 2026-11-12 for the service's log,
+  and over this repository's commit timing log and the package's gates on 2026-11-15 for the diagnostics)
   is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
   one reclaimer at a time,
@@ -19251,6 +19340,30 @@ by the names Git's summary lines carry:
 `monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
 Several builds that did not land are joined with commas and `and`.
 A commit that was not built again prints no note.
+That note,
+and every other note the commit path writes on standard error (issue 6421:
+the policy events of the landing and of the gate,
+the stop's message,
+Git's own words for a refused form,
+the warning about a committed conflict marker,
+the line about an operation left open,
+the note on a rebuilt commit,
+the note about a commit held behind a reference lock,
+and the hand-off's notices),
+is handed to the thread that writes standard error
+(`foundation/standard_error_off_the_calling_thread.rs`)
+and is never written by the commit's own thread:
+a reader that stopped draining costs the first such note the `WARNING_WRITE_CEILING` of
+`service/wait_ceilings.rs` (250 ms) and every later note nothing,
+the lines wait in a bounded queue and reach the reader when it reads again,
+and a queue that is full drops its lines and counts them rather than growing.
+They are lines a person can live without:
+the exit status already carries the result,
+and the one stream a commit's own last words keep blocking is its standard output,
+which carries Git's summary and the wrapper's summary line as Git writes them.
+A control runs a commit whose standard error is a pipe filled to its capacity and never read,
+and expects the command to return with the commit on the branch and the pipe still full
+(`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
@@ -22069,6 +22182,63 @@ because running it would settle the wrong work under the name.
 A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
 since this release's names for it would not fit.
 
+Every file this wrapper reads from its own record folders is opened as a plain file
+(`foundation/plain_file.rs`):
+without blocking and without following a link,
+refused when the open handle is not a regular file,
+and never read past `SMALL_FILE_LIMIT` (1 MiB).
+That covers the queue's `pending`,
+`held`,
+`claimed`,
+`recovering`,
+`done`,
+`failed` and `blocked` entries,
+the `removals-begun`,
+`around-removals-begun` and `recorded-destroys` records,
+the kept-worktree,
+left-in-place,
+failed-push,
+orphan-notice and relink-notice folders,
+the owed index records,
+the service's `<instance>.git-dir` notes and its journal records,
+the kept-reference records,
+and the `.git` pointer that a removal or a snapshot request reads.
+A named pipe at one of those names is a record this command cannot read rather than a wait:
+opening a pipe for reading waits for a writer that may never come,
+which held every wrapped command in such a repository for ever (issue 6415).
+An entry of the queue that is not a plain file is moved to `failed` with a line naming it,
+where nothing runs it again.
+`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
+and reads with a call that can wait.
+
+Every file this wrapper reads from a Git directory is opened as a plain file (`foundation/plain_file.rs`) too:
+opening a pipe for reading waits for a writer that may never come,
+and a person or another program can put one at any name beside a checkout.
+That covers a Git directory's `commondir`
+(read by `foundation/common_directory_of_a_git_directory.rs`, which is the one reader of it),
+its `HEAD`,
+the `.git` pointer file a linked worktree or a partially filled clone holds,
+a fetched-heads list (`FETCH_HEAD`),
+a rebase or sequencer todo list,
+and a configuration file,
+each read to a bound the wrapper already sets:
+`SMALL_FILE_LIMIT` (1 MiB) for the small files and `CONFIG_TEXT_LIMIT` for a configuration file.
+A pipe at one of those names is a file this command cannot read rather than a wait:
+the Git directory is its own common directory,
+a head cannot answer so Git is asked,
+a pull or a merge runs through native Git,
+a todo list asks for no editor,
+and a configuration that cannot be read leaves its answer to Git.
+`source_guard`'s `raw_file_reads_tests` fails a release file outside `foundation/plain_file.rs` that reads a file
+with `std::fs::read` or `std::fs::read_to_string`,
+and the sites that stay are on a list of exact counts that may only shrink,
+each under the class whose reason keeps it:
+a fact the kernel or the operating system's own installation writes,
+a record the wrapper wrote into a folder of its own,
+a file Git wrote in a Git directory,
+a path the person's own project holds,
+or a file a control's stand-in process writes.
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;
@@ -22368,8 +22538,8 @@ the two costs measured wherever they fell
 `stderrMs`:
 time spent removing scratch trees,
 how many of those removals ended without finishing within their ceiling,
-and time spent writing to standard error,
-which waits for whoever reads it;
+and time spent handing the command's notes to the thread that writes standard error,
+which is the bound of the first note a reader did not take and nothing after it;
 each of them lies inside whichever phase it fell in,
 and inside `otherMs` when no phase covers it),
 and `prepareParts`
@@ -23230,9 +23400,13 @@ Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
 and it runs only from a transient unit in a guest.
 
-Test-only variables are compiled into the release executable and inert unless
-set,
-and none turns a refusal into a pass:
+A build the release ships reads no test-only variable at all:
+a `CLI_GIT_TEST_ONLY_*` value is read only by a build made for a control,
+which turns on the Cargo feature `test-only-switches`
+(and `start-probe-raised-deadline` for the probe's own deadline below),
+so a unit's `Environment=` line cannot arm one in a shipped run
+(`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
+None of them turns a refusal into a pass:
 `CLI_GIT_TEST_ONLY_START_PROBE` takes `disabled`,
 which writes a skipped record for the timing control arm,
 or `hold-<step>`,
@@ -23387,6 +23561,8 @@ and compare each commit line with native Git field by field.
 Phases that have no hook are reached through a test-only phase marker:
 `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill[:<directory>]` makes the wrapper `SIGKILL` itself at the phase,
 and `<phase>:pause:<directory>` writes `<directory>/<phase>.reached` and waits for `<directory>/<phase>.release`.
+A release build holds no read of that variable,
+so only a build made for a control reaches a marker at all.
 The phases that are still reached are `service-staged`
 (a commit has staged its content in the private index and has not yet read it back),
 `service-prepared`

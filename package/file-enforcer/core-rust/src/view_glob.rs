@@ -64,10 +64,15 @@ fn is_unsupported_segment(segment: &&str) -> bool {
 /// ```ts
 /// function expandGlob(view: View, pattern: string, want: EntryKind): string[]
 /// ```
-pub fn expand_glob(view: &mut View, pattern: &str, want: EntryKind) -> Result<Vec<String>, Diagnostic> {
+pub fn expand_glob(
+    view: &mut View,
+    pattern: &str,
+    want: EntryKind,
+) -> Result<Vec<String>, Diagnostic> {
     let segments: Vec<&str> = pattern.split('/').collect();
     if pattern.is_empty() || segments.iter().any(is_unsupported_segment) {
-        let message = format!("the glob {pattern:?} is empty or uses an unsupported ** or empty segment");
+        let message =
+            format!("the glob {pattern:?} is empty or uses an unsupported ** or empty segment");
         return Err(Diagnostic::new("glob-invalid", &message));
     }
     let mut current: Vec<String> = vec![String::new()];
@@ -99,7 +104,10 @@ pub fn expand_glob(view: &mut View, pattern: &str, want: EntryKind) -> Result<Ve
                     continue;
                 }
                 let matches = match &matcher {
-                    Some(compiled) => compiled.is_match(&name) && (!name.starts_with('.') || segment.starts_with('.')),
+                    Some(compiled) => {
+                        compiled.is_match(&name)
+                            && (!name.starts_with('.') || segment.starts_with('.'))
+                    }
                     None => name == *segment,
                 };
                 if matches {
@@ -124,7 +132,10 @@ pub fn expand_glob(view: &mut View, pattern: &str, want: EntryKind) -> Result<Ve
 /// ```ts
 /// function join(prefix: string, name: string): string
 /// ```
-fn join(prefix: &str, name: &str) -> String {
+fn join(
+    prefix: &str,
+    name: &str,
+) -> String {
     if prefix.is_empty() {
         return name.to_string();
     }

@@ -114,7 +114,10 @@ use crate::dfa::classes::compute_classes;
 /// ```ts
 /// import { Dfa, accept_bit } from "crate/dfa/table";
 /// ```
-use crate::dfa::table::{Dfa, accept_bit};
+use crate::dfa::table::{
+    Dfa,
+    accept_bit,
+};
 
 /// A determinization state:
 ///  a residual node plus its incoming boundary bits.
@@ -217,22 +220,28 @@ const RESIDUAL_NODE_CAP: usize = 2_000;
 /// }
 /// ```
 fn residual_too_large(node: &Node) -> bool {
-    fn spend(node: &Node, budget: &mut usize) -> bool {
+    fn spend(
+        node: &Node,
+        budget: &mut usize,
+    ) -> bool {
         if *budget == 0 {
             return true;
         }
         *budget -= 1;
         match node {
             Node::Concat(parts) | Node::Alt(parts) | Node::Inter(parts) => {
-                return parts.iter().any(|child| return spend(child, budget))
+                return parts.iter().any(|child| return spend(child, budget));
             }
             Node::Comp(inner) => return spend(inner, budget),
-            Node::Repeat { node: body, .. } => return spend(body, budget),
+            Node::Repeat {
+                node: body,
+                ..
+            } => return spend(body, budget),
             _ => return false,
         }
     }
     let mut budget = RESIDUAL_NODE_CAP;
-    return spend(node, &mut budget)
+    return spend(node, &mut budget);
 }
 
 /// What:
@@ -271,7 +280,10 @@ mod tests;
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
+pub fn build_dfa_within(
+    root: Node,
+    cap: usize,
+) -> Result<Dfa, CompileError> {
     // What: never let the build exceed what a u16 state id can address. Why: the table
     // stores ids as u16 for cache density, so a state count past 65534 would truncate;
     // clamping here makes any caller's larger cap (e.g. the oracle) fail fast as StateCap
@@ -329,7 +341,9 @@ pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
         if residual_too_large(&node) {
-            return Err(CompileError::StateCap { limit: state_cap });
+            return Err(CompileError::StateCap {
+                limit: state_cap,
+            });
         }
         let at_ls = states[i].at_line_start;
         let pw = states[i].prev_word;
@@ -357,7 +371,9 @@ pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
             trans.push(next);
         }
         if states.len() > state_cap {
-            return Err(CompileError::StateCap { limit: state_cap });
+            return Err(CompileError::StateCap {
+                limit: state_cap,
+            });
         }
         i += 1;
     }
@@ -371,7 +387,10 @@ pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let trans_u16: Vec<u16> = trans.into_iter().map(|target| return target as u16).collect();
+    let trans_u16: Vec<u16> = trans
+        .into_iter()
+        .map(|target| return target as u16)
+        .collect();
     return Ok(Dfa::from_parts(
         nc as u32,
         classes.class_map,
@@ -381,7 +400,7 @@ pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
         accept,
         start as u16,
         states.len() as u16,
-    ))
+    ));
 }
 
 /// Returns the id of `key`,
@@ -399,14 +418,18 @@ pub fn build_dfa_within(root: Node, cap: usize) -> Result<Dfa, CompileError> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn intern(index: &mut HashMap<StateKey, u32>, states: &mut Vec<StateKey>, key: StateKey) -> u32 {
+fn intern(
+    index: &mut HashMap<StateKey, u32>,
+    states: &mut Vec<StateKey>,
+    key: StateKey,
+) -> u32 {
     if let Some(&id) = index.get(&key) {
         return id;
     }
     let id = states.len() as u32;
     index.insert(key.clone(), id);
     states.push(key);
-    return id
+    return id;
 }
 
 /// Computes the 4-bit acceptance mask of a state.
@@ -426,7 +449,11 @@ fn intern(index: &mut HashMap<StateKey, u32>, states: &mut Vec<StateKey>, key: S
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn compute_accept(node: &Node, at_line_start: bool, prev_word: bool) -> u8 {
+fn compute_accept(
+    node: &Node,
+    at_line_start: bool,
+    prev_word: bool,
+) -> u8 {
     // What: fold the four boundary contexts into a bitmask. Why: one mask-and at
     // match time then replaces four nullability checks.
     //
@@ -448,5 +475,5 @@ fn compute_accept(node: &Node, at_line_start: bool, prev_word: bool) -> u8 {
             }
         }
     }
-    return mask
+    return mask;
 }

@@ -16,7 +16,10 @@
 //! ```
 
 /// Imports `std::collections::{HashMap, HashSet}`.
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Imports `crate::crate_info::CrateInfo`.
 use crate::crate_info::CrateInfo;
@@ -29,9 +32,17 @@ use crate::posix_path::join_normalized;
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::site::{GeneratedEntry, SiteKind, UseSite}`.
-use crate::site::{GeneratedEntry, SiteKind, UseSite};
+use crate::site::{
+    GeneratedEntry,
+    SiteKind,
+    UseSite,
+};
 /// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
-use crate::types::{CatalogDocument, Entry, EntryMap};
+use crate::types::{
+    CatalogDocument,
+    Entry,
+    EntryMap,
+};
 
 /// What:
 /// `pub enum PendingEdit { ... }` is one manifest edit decided during resolution and applied later.
@@ -88,7 +99,11 @@ pub struct Resolved {
 
 /// Inserts or replaces a pair,
 /// keeping the first position of an existing name.
-fn upsert(pairs: &mut Vec<(String, Entry)>, name: &str, entry: Entry) {
+fn upsert(
+    pairs: &mut Vec<(String, Entry)>,
+    name: &str,
+    entry: Entry,
+) {
     for pair in pairs.iter_mut() {
         if pair.0 == name {
             pair.1 = entry;
@@ -100,7 +115,13 @@ fn upsert(pairs: &mut Vec<(String, Entry)>, name: &str, entry: Entry) {
 
 /// Resolves a path site,
 /// pushing an edit or an issue.
-fn resolve_path_site(info: &CrateInfo, site: &UseSite, internal: &HashMap<String, &CrateInfo>, edits: &mut Vec<PendingEdit>, issues: &mut Vec<SyncIssue>) {
+fn resolve_path_site(
+    info: &CrateInfo,
+    site: &UseSite,
+    internal: &HashMap<String, &CrateInfo>,
+    edits: &mut Vec<PendingEdit>,
+    issues: &mut Vec<SyncIssue>,
+) {
     let target_dir: String = join_normalized(&info.crate_dir, &site.path);
     let target: Option<&&CrateInfo> = internal.get(&target_dir);
     match target {
@@ -163,8 +184,14 @@ pub fn resolve_crate(
         }
         let Some(found) = entry else {
             let problem: String = match catalog_name {
-                None => format!("uses `workspace = true` but rust-catalog.toml [catalog] has no {} entry", site.name),
-                Some(chosen) => format!("selects catalog \"{chosen}\", which has no {} entry", site.name),
+                None => format!(
+                    "uses `workspace = true` but rust-catalog.toml [catalog] has no {} entry",
+                    site.name
+                ),
+                Some(chosen) => format!(
+                    "selects catalog \"{chosen}\", which has no {} entry",
+                    site.name
+                ),
             };
             issues.push(SyncIssue {
                 file: info.manifest.path.clone(),
@@ -179,7 +206,9 @@ pub fn resolve_crate(
                 usage.default_names.insert(site.name.clone());
             }
             Some(chosen) => {
-                usage.named_names.insert((chosen.to_string(), site.name.clone()));
+                usage
+                    .named_names
+                    .insert((chosen.to_string(), site.name.clone()));
             }
         }
         upsert(&mut resolved, &site.name, found.clone());

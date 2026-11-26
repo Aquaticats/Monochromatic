@@ -34,10 +34,16 @@ pub use super::approved_module_member_fixture::Change;
 /// The member tables,
 /// their bit offsets and the types they name.
 use super::approved_module_member_fixture::{
-    MemberTypes, bits, command_members, member_types,
+    MemberTypes,
+    bits,
+    command_members,
+    member_types,
 };
 /// The writer of the bytes.
-use super::blob_fixture::{Blob, WrittenMember};
+use super::blob_fixture::{
+    Blob,
+    WrittenMember,
+};
 
 /// `struct zfs_cmd`'s declared size,
 /// `(MAXPATHLEN * 3) + MAXNAMELEN + 1200` at Linux's field widths.
@@ -60,7 +66,10 @@ pub fn module_with(change: Change) -> Blob {
 ///  writer takes both from the base it is handed,
 /// so a control can move one member's
 ///  type and its name into the base file without shifting another number.
-pub fn module_over(base: &Blob, change: Change) -> Blob {
+pub fn module_over(
+    base: &Blob,
+    change: Change,
+) -> Blob {
     let mut blob: Blob = Blob::over_base(base);
     let types: MemberTypes = member_types(&mut blob, change);
     blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, change));
@@ -74,7 +83,11 @@ pub fn module_over(base: &Blob, change: Change) -> Blob {
 pub fn module_with_an_unreadable_extra_member() -> Blob {
     let mut blob: Blob = Blob::over_base(&Blob::new());
     let types: MemberTypes = member_types(&mut blob, Change::None);
-    blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, Change::None));
+    blob.structure(
+        "zfs_cmd",
+        COMMAND_BYTES,
+        &command_members(&types, Change::None),
+    );
     blob.enumeration("zfs_ioc", 4, &request_values(Change::None));
     blob.member_with_unreadable_name(types.stats, types.byte, bits(287));
     return blob;
@@ -90,7 +103,12 @@ pub fn module_with_an_unreadable_extra_member() -> Blob {
 ///  reads the module through both files,
 /// so a control hands the base file's own id
 ///  and name here and nothing else moves.
-pub(super) fn module_over_a_member(base: &Blob, name: &'static str, type_id: u32, name_offset: u32) -> Blob {
+pub(super) fn module_over_a_member(
+    base: &Blob,
+    name: &'static str,
+    type_id: u32,
+    name_offset: u32,
+) -> Blob {
     let mut blob: Blob = Blob::over_base(base);
     let types: MemberTypes = member_types(&mut blob, Change::None);
     let members: Vec<WrittenMember> = command_members(&types, Change::None)

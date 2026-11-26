@@ -12,7 +12,10 @@
 /// Imports the rail section type that the folder picker lists.
 use music_player::folder_rail::RailSection;
 /// Imports the title prefix helpers that shorten row titles.
-use music_player::title_prefix::{display_title, shared_prefix_len};
+use music_player::title_prefix::{
+    display_title,
+    shared_prefix_len,
+};
 /// Imports the track list entry that rows are made from.
 use music_player::track_entries::TrackListEntry;
 
@@ -139,7 +142,10 @@ fn list_row(entry: &TrackListEntry) -> ListRow {
             current: row.is_current,
             index: i32::try_from(row.index_in_library).unwrap_or(-1),
         },
-        TrackListEntry::HeaderEntry { name, track_count } => ListRow {
+        TrackListEntry::HeaderEntry {
+            name,
+            track_count,
+        } => ListRow {
             kind: 1,
             title: name.clone(),
             supporting: track_count_text(*track_count),
@@ -170,7 +176,11 @@ pub const UNPLAYABLE_ROW_TEXT: &str = "Can't be played";
 /// ```ts
 /// rows.forEach((row) => { if (row.kind === 0 && unplayable.has(paths[row.index])) row.supporting = "Can't be played"; });
 /// ```
-pub fn mark_unplayable(rows: &mut [ListRow], paths: &[std::path::PathBuf], unplayable: &std::collections::HashSet<std::path::PathBuf>) {
+pub fn mark_unplayable(
+    rows: &mut [ListRow],
+    paths: &[std::path::PathBuf],
+    unplayable: &std::collections::HashSet<std::path::PathBuf>,
+) {
     if unplayable.is_empty() {
         return;
     }
@@ -214,7 +224,10 @@ fn folder_name_of_header(header: &str) -> &str {
 /// ```ts
 /// for (const run of runsOfTrackRows(rows)) { const n = sharedPrefixLen(run.map((r) => r.title)); run.forEach((r) => r.title = displayTitle(r.title, n, run.folder)); }
 /// ```
-pub fn strip_shared_prefixes(rows: &mut [ListRow], page_label: &str) {
+pub fn strip_shared_prefixes(
+    rows: &mut [ListRow],
+    page_label: &str,
+) {
     let mut folder: String = page_label.to_string();
     let mut start: usize = 0;
     for position in 0..=rows.len() {
@@ -234,7 +247,10 @@ pub fn strip_shared_prefixes(rows: &mut [ListRow], page_label: &str) {
 /// `strip_run` strips one run of track rows of one directory.
 /// Why:
 /// the shared prefix is found once for the run and applied to each title.
-fn strip_run(run: &mut [ListRow], folder: &str) {
+fn strip_run(
+    run: &mut [ListRow],
+    folder: &str,
+) {
     if run.is_empty() {
         return;
     }
@@ -267,7 +283,10 @@ pub fn track_count_text(count: usize) -> String {
 /// ```ts
 /// const namesContain = (names: string[], wanted: string): boolean => names.includes(wanted);
 /// ```
-fn names_contain(names: &[String], wanted: &str) -> bool {
+fn names_contain(
+    names: &[String],
+    wanted: &str,
+) -> bool {
     for name in names {
         if name == wanted {
             return true;
@@ -305,7 +324,10 @@ pub fn current_row_position(rows: &[ListRow]) -> i32 {
 /// ```ts
 /// const picker = (sections: RailSection[], currentFolder: string): Picker => { ... };
 /// ```
-pub fn picker(sections: &[RailSection], current_folder: &str) -> Picker {
+pub fn picker(
+    sections: &[RailSection],
+    current_folder: &str,
+) -> Picker {
     let mut cells: Vec<PickerCell> = Vec::new();
     let mut names: Vec<PickerName> = Vec::new();
     let mut current_cell: String = String::new();
@@ -333,7 +355,6 @@ pub fn picker(sections: &[RailSection], current_folder: &str) -> Picker {
                     heading: cell.label.clone(),
                 });
             }
-    
         }
     }
     return Picker {

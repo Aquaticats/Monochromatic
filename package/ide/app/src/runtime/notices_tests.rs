@@ -5,10 +5,17 @@
 //!  on small tables sorted as the
 //! build writes them.
 
-use super::{collect, is_notice, write};
+use super::{
+    collect,
+    is_notice,
+    write,
+};
 use crate::{
     content_digest::fnv1a,
-    runtime::embedded::{EmbeddedFile, EmbeddedRuntime},
+    runtime::embedded::{
+        EmbeddedFile,
+        EmbeddedRuntime,
+    },
 };
 
 /// A crate license list with one entry,

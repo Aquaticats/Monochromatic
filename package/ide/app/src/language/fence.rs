@@ -4,7 +4,10 @@
 /// Results are compared by file generation,
 ///  revision,
 ///  and server process.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 
 /// What:
 ///  A closed set of four names.
@@ -76,7 +79,10 @@ pub struct Fence {
 impl Fence {
     /// Record which text is displayed now.
     ///  `&mut self` allows changing the fence in place.
-    pub fn display(&mut self, stamp: Option<DocumentStamp>) {
+    pub fn display(
+        &mut self,
+        stamp: Option<DocumentStamp>,
+    ) {
         self.displayed = stamp;
     }
 
@@ -86,7 +92,10 @@ impl Fence {
     }
 
     /// Replace the list of current server processes with the one from the latest status.
-    pub fn set_servers(&mut self, servers: Vec<ServerIdentity>) {
+    pub fn set_servers(
+        &mut self,
+        servers: Vec<ServerIdentity>,
+    ) {
         self.servers = servers;
     }
 
@@ -118,7 +127,11 @@ impl Fence {
     ///   return 'accepted';
     /// }
     /// ```
-    pub fn verdict(&self, stamp: DocumentStamp, server: Option<&ServerIdentity>) -> FenceVerdict {
+    pub fn verdict(
+        &self,
+        stamp: DocumentStamp,
+        server: Option<&ServerIdentity>,
+    ) -> FenceVerdict {
         // What: `let Some(x) = option else { ... }` binds the inner value or runs the else block.
         // Why: With no displayed file, every result belongs to some other file.
         //
@@ -148,7 +161,11 @@ impl Fence {
 
     /// Decide and count;
     ///  true means the caller may show the result.
-    pub fn admit(&mut self, stamp: DocumentStamp, server: Option<&ServerIdentity>) -> bool {
+    pub fn admit(
+        &mut self,
+        stamp: DocumentStamp,
+        server: Option<&ServerIdentity>,
+    ) -> bool {
         let verdict = self.verdict(stamp, server);
         match verdict {
             FenceVerdict::Accepted => self.counts.accepted += 1,

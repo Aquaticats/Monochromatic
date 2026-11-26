@@ -19,11 +19,25 @@
 //! ```
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 
 use crate::cgroup_test_support::delegated_route;
-use crate::control_group::{ControlGroup, Record, launcher_state, parse_record, pid_namespace_id, process_start};
+use crate::control_group::{
+    ControlGroup,
+    Record,
+    launcher_state,
+    parse_record,
+    pid_namespace_id,
+    process_start,
+};
 use crate::crates::LockSnapshot;
 use crate::journal_recover::survivor_note;
 use crate::journal_support::plant;
@@ -41,7 +55,10 @@ const FIXTURE_IDENTITY: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_IDENTITY";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> LockSnapshot {
-    return LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
+    return LockSnapshot {
+        crate_dir: CRATE_DIR.to_string(),
+        source: source.to_string(),
+    };
 }
 
 /// A live process that stands for a launcher that has not reached the manager,
@@ -79,8 +96,18 @@ const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
 /// the refused admission left none behind),
 /// and a new transaction is refused.
 fn assert_entry_points_held(result: &str) {
-    for line in ["entry lock unchanged true", "entry journal kept true", "entry admission refused true", "entry journals 1"] {
-        assert!(result.lines().any(|found| { return found == line; }), "the real recovery or admission did not hold the uncertain launcher ({line} is missing): {result}");
+    for line in [
+        "entry lock unchanged true",
+        "entry journal kept true",
+        "entry admission refused true",
+        "entry journals 1",
+    ] {
+        assert!(
+            result.lines().any(|found| {
+                return found == line;
+            }),
+            "the real recovery or admission did not hold the uncertain launcher ({line} is missing): {result}"
+        );
     }
 }
 
@@ -114,10 +141,23 @@ impl Drop for StopOnDrop {
 /// so it waits for an acknowledgement like any journal that cannot be read.
 #[test]
 fn a_launcher_record_reads_back_and_a_line_with_a_time_namespace_is_not_understood() {
-    let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
-    assert_eq!(record.to_string(), "launcher 4242 987654 4026531836 /sys/fs/cgroup/a b/c.scope");
+    let record: Record = Record::Launcher {
+        pid: 4242,
+        start: 987_654,
+        pid_namespace: 4_026_531_836,
+        path: PathBuf::from("/sys/fs/cgroup/a b/c.scope"),
+    };
+    assert_eq!(
+        record.to_string(),
+        "launcher 4242 987654 4026531836 /sys/fs/cgroup/a b/c.scope"
+    );
     assert_eq!(parse_record(&record.to_string()), Ok(record));
-    for refused in ["launcher 4 5 6 7 /a", "launcher 4 5 6 7", "launcher 4 5 6 x /a", "launcher 4 5 6 relative"] {
+    for refused in [
+        "launcher 4 5 6 7 /a",
+        "launcher 4 5 6 7",
+        "launcher 4 5 6 x /a",
+        "launcher 4 5 6 relative",
+    ] {
         assert!(parse_record(refused).is_err(), "{refused:?} was understood");
     }
 }
@@ -131,13 +171,30 @@ fn a_launcher_record_reads_back_and_a_line_with_a_time_namespace_is_not_understo
 /// and an equal start time is alive.
 #[test]
 fn a_start_time_that_differs_from_the_record_is_unknown_and_an_equal_one_is_alive() {
-    let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
+    let launcher = Held(
+        Command::new("sleep")
+            .arg("600")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("starts"),
+    );
     let pid: i32 = i32::try_from(launcher.0.id()).expect("a process id");
-    let (start, namespace): (u64, u64) = (process_start(pid).expect("start"), pid_namespace_id().expect("namespace"));
+    let (start, namespace): (u64, u64) = (
+        process_start(pid).expect("start"),
+        pid_namespace_id().expect("namespace"),
+    );
 
-    assert_eq!(launcher_state(pid, start, namespace), crate::control_group::LauncherState::Alive);
+    assert_eq!(
+        launcher_state(pid, start, namespace),
+        crate::control_group::LauncherState::Alive
+    );
     for other in [start + 1, start.saturating_sub(1), start + 720_000] {
-        assert!(matches!(launcher_state(pid, other, namespace), crate::control_group::LauncherState::Unknown(text) if text.contains("start time")), "start {other} against {start} was not unknown");
+        assert!(
+            matches!(launcher_state(pid, other, namespace), crate::control_group::LauncherState::Unknown(text) if text.contains("start time")),
+            "start {other} against {start} was not unknown"
+        );
     }
 }
 
@@ -154,15 +211,39 @@ fn time_namespace_fixture() {
     };
     let root: PathBuf = PathBuf::from(root_text);
     let identity: String = std::env::var(FIXTURE_IDENTITY).expect("an identity");
-    let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
-    let (pid, start, pid_namespace): (i32, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2]);
-    let own_start: String = process_start(pid).map_or_else(|error| { return format!("err {error}"); }, |found| { return found.to_string(); });
-    let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
-    let note: String = survivor_note(&journal).unwrap_or_else(|| { return "no survivor".to_string(); });
+    let numbers: Vec<u64> = identity
+        .split(' ')
+        .map(|part| {
+            return part.parse::<u64>().expect("a number");
+        })
+        .collect();
+    let (pid, start, pid_namespace): (i32, u64, u64) = (
+        i32::try_from(numbers[0]).expect("a pid"),
+        numbers[1],
+        numbers[2],
+    );
+    let own_start: String = process_start(pid).map_or_else(
+        |error| {
+            return format!("err {error}");
+        },
+        |found| {
+            return found.to_string();
+        },
+    );
+    let journal: PathBuf = crate::journal_support::journal_dirs(&root)
+        .into_iter()
+        .next()
+        .expect("a journal");
+    let note: String = survivor_note(&journal).unwrap_or_else(|| {
+        return "no survivor".to_string();
+    });
     // The real recovery and the real admission in this namespace (sixth pass, group 3): what they leave and what they decide.
-    let refusing = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+    let refusing = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> {
+        return vec!["dep@1.0.1 refused".to_string()];
+    };
     let recovered: Vec<String> = crate::journal::recover(&root, &refusing);
-    let live: String = fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).unwrap_or_default();
+    let live: String =
+        fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).unwrap_or_default();
     let admitted = crate::journal::begin(&root, &[snapshot("original")], false);
     let held: String = format!(
         "entry lock unchanged {}\nentry journal kept {}\nentry admission refused {}\nentry journals {}\nentry messages {}\n",
@@ -176,7 +257,14 @@ fn time_namespace_fixture() {
         root.join("fixture-result"),
         format!(
             "{held}own start {own_start}\ntime namespace here {}\nquestion {:?}\nrecovery {}\n",
-            fs::metadata("/proc/self/ns/time").map_or_else(|error| { return format!("err {error}"); }, |found| { return std::os::unix::fs::MetadataExt::ino(&found).to_string(); }),
+            fs::metadata("/proc/self/ns/time").map_or_else(
+                |error| {
+                    return format!("err {error}");
+                },
+                |found| {
+                    return std::os::unix::fs::MetadataExt::ino(&found).to_string();
+                }
+            ),
             launcher_state(pid, start, pid_namespace),
             note.lines().next().unwrap_or("")
         ),
@@ -185,7 +273,11 @@ fn time_namespace_fixture() {
 }
 
 /// Runs the helper (in a new user and time namespace with a boot-time offset when `shifted`) and returns what it wrote.
-fn run_time_fixture(root: &Path, identity: &str, shifted: bool) -> String {
+fn run_time_fixture(
+    root: &Path,
+    identity: &str,
+    shifted: bool,
+) -> String {
     return run_time_fixture_in(root, identity, shifted, None);
 }
 
@@ -194,28 +286,58 @@ fn run_time_fixture(root: &Path, identity: &str, shifted: bool) -> String {
 /// the helper first joins the user namespace of that process (which it owns),
 /// so
 /// that the new time namespace is the only namespace it creates and takes the lowest free namespace number.
-fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespace_of: Option<i32>) -> String {
+fn run_time_fixture_in(
+    root: &Path,
+    identity: &str,
+    shifted: bool,
+    user_namespace_of: Option<i32>,
+) -> String {
     let executable = std::env::current_exe().expect("this test executable");
     let mut command = if let Some(owner) = user_namespace_of {
         let mut enter = Command::new("nsenter");
-        enter.arg("--preserve-credentials").arg(format!("--user=/proc/{owner}/ns/user")).args(["unshare", "--time", "--boottime", "7200", "--fork", "--"]).arg(&executable);
+        enter
+            .arg("--preserve-credentials")
+            .arg(format!("--user=/proc/{owner}/ns/user"))
+            .args(["unshare", "--time", "--boottime", "7200", "--fork", "--"])
+            .arg(&executable);
         enter
     } else if shifted {
         let mut unshare = Command::new("unshare");
         // A new user namespace owns the new time namespace; the process id, mount and cgroup namespaces stay as they are, so only the
         // reader's boot-time offset differs (an offset of two hours; the start time is in clock ticks, so it moves by hundreds of thousands).
-        unshare.args(["--user", "--map-root-user", "--time", "--boottime", "7200", "--fork", "--"]).arg(&executable);
+        unshare
+            .args([
+                "--user",
+                "--map-root-user",
+                "--time",
+                "--boottime",
+                "7200",
+                "--fork",
+                "--",
+            ])
+            .arg(&executable);
         unshare
     } else {
         Command::new(&executable)
     };
-    fs::write(root.join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("the output of the killed run");
+    fs::write(
+        root.join(CRATE_DIR).join("Cargo.lock"),
+        LEFT_BY_THE_KILLED_RUN,
+    )
+    .expect("the output of the killed run");
     let status = command
-        .args(["--ignored", "--exact", "round_fourteen_tests::time_namespace_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_fourteen_tests::time_namespace_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_ROOT, root)
         .env(FIXTURE_IDENTITY, identity)
         .status()
-        .expect("the helper (shifted runs need unshare with permission for a user and time namespace)");
+        .expect(
+            "the helper (shifted runs need unshare with permission for a user and time namespace)",
+        );
     assert!(status.success(), "the helper failed: {status:?}");
     return fs::read_to_string(root.join("fixture-result")).expect("the helper's result");
 }
@@ -238,39 +360,86 @@ fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespac
 #[test]
 fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     let route = delegated_route();
-    let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
+    let launcher = Held(
+        Command::new("sleep")
+            .arg("600")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("starts"),
+    );
     let pid: i32 = i32::try_from(launcher.0.id()).expect("a process id");
     let start: u64 = process_start(pid).expect("the start time here");
     let pid_namespace: u64 = pid_namespace_id().expect("pid namespace");
     let identity: String = format!("{pid} {start} {pid_namespace}");
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
+    let record: Record = Record::Launcher {
+        pid,
+        start,
+        pid_namespace,
+        path: planned.directory().to_path_buf(),
+    };
 
     let same_root = scratch();
     fs::create_dir_all(same_root.path().join(CRATE_DIR)).expect("dir");
     let journal: PathBuf = plant(same_root.path(), &[snapshot("original")], &[]);
-    fs::write(journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
+    fs::write(
+        journal.join("groups"),
+        format!("{}\n{record}\n", planned.record()),
+    )
+    .expect("records");
     let same: String = run_time_fixture(same_root.path(), &identity, false);
 
     let other_root = scratch();
     fs::create_dir_all(other_root.path().join(CRATE_DIR)).expect("dir");
     let other_journal: PathBuf = plant(other_root.path(), &[snapshot("original")], &[]);
-    fs::write(other_journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
+    fs::write(
+        other_journal.join("groups"),
+        format!("{}\n{record}\n", planned.record()),
+    )
+    .expect("records");
     let shifted: String = run_time_fixture(other_root.path(), &identity, true);
 
-    assert!(same.contains(&format!("own start {start}\n")) && same.contains("question Alive"), "the control did not move: {same}");
+    assert!(
+        same.contains(&format!("own start {start}\n")) && same.contains("question Alive"),
+        "the control did not move: {same}"
+    );
     // The prerequisite (14 section 3): the shifted reader read a start time successfully, as a number, and it differs from the recorded one.
     let shifted_start: u64 = shifted
         .lines()
-        .find_map(|line| { return line.strip_prefix("own start "); })
-        .and_then(|text| { return text.parse::<u64>().ok(); })
-        .unwrap_or_else(|| { panic!("the shifted reader did not read a start time as a number: {shifted}"); });
-    assert_ne!(shifted_start, start, "the prerequisite failed: the other time namespace read the same start time: {shifted}");
-    assert!(shifted.contains("question Unknown("), "a live launcher read from another time namespace was not unknown: {shifted}");
-    assert!(!shifted.contains("Gone"), "a live launcher read from another time namespace was read as gone: {shifted}");
+        .find_map(|line| {
+            return line.strip_prefix("own start ");
+        })
+        .and_then(|text| {
+            return text.parse::<u64>().ok();
+        })
+        .unwrap_or_else(|| {
+            panic!("the shifted reader did not read a start time as a number: {shifted}");
+        });
+    assert_ne!(
+        shifted_start, start,
+        "the prerequisite failed: the other time namespace read the same start time: {shifted}"
+    );
+    assert!(
+        shifted.contains("question Unknown("),
+        "a live launcher read from another time namespace was not unknown: {shifted}"
+    );
+    assert!(
+        !shifted.contains("Gone"),
+        "a live launcher read from another time namespace was read as gone: {shifted}"
+    );
     // The recovery's refusal names the cause (14 section 3), with the other views equal: it is the start-time comparison that is refused.
-    let recovery: &str = shifted.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
-    assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery in another time namespace did not refuse for the start times: {recovery}");
+    let recovery: &str = shifted
+        .lines()
+        .find_map(|line| {
+            return line.strip_prefix("recovery ");
+        })
+        .expect("the recovery line");
+    assert!(
+        recovery != "no survivor" && recovery.contains("start time"),
+        "the recovery in another time namespace did not refuse for the start times: {recovery}"
+    );
     assert_entry_points_held(&shifted);
 }
 
@@ -289,22 +458,47 @@ fn wrapper_in_its_own_time_namespace_fixture() {
     };
     let root: PathBuf = PathBuf::from(root_text);
     let pid_file: PathBuf = root.join("launcher-pid");
-    let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; exec sleep 600", file = pid_file.display());
+    let script: String = format!(
+        "echo $$ > {file}.part; mv {file}.part {file}; exec sleep 600",
+        file = pid_file.display()
+    );
     // The launcher is started in a time namespace of its own (the children of `unshare --time` are in it), so it does not keep this
     // helper's time namespace alive.
     let mut helper: Child = Command::new("unshare")
-        .args(["--time", "--boottime", "7200", "--fork", "--", "sh", "-c", &script])
+        .args([
+            "--time",
+            "--boottime",
+            "7200",
+            "--fork",
+            "--",
+            "sh",
+            "-c",
+            &script,
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("starts the launcher in another time namespace");
-    crate::cgroup_test_support::wait_until("the launcher's process id", &|| { return fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); });
-    let pid: i32 = fs::read_to_string(&pid_file).expect("the id").trim().parse::<i32>().expect("a process id");
+    crate::cgroup_test_support::wait_until("the launcher's process id", &|| {
+        return fs::read_to_string(&pid_file).is_ok_and(|text| {
+            return text.trim().parse::<i32>().is_ok();
+        });
+    });
+    let pid: i32 = fs::read_to_string(&pid_file)
+        .expect("the id")
+        .trim()
+        .parse::<i32>()
+        .expect("a process id");
     let start: u64 = process_start(pid).expect("the start time on this time namespace's basis");
     // The time namespace of this helper, written beside the identity only so that the test can wait for its destruction.
-    let time_namespace: u64 = std::os::unix::fs::MetadataExt::ino(&fs::metadata("/proc/self/ns/time").expect("the time namespace"));
-    let identity: String = format!("{pid} {start} {} {time_namespace}", pid_namespace_id().expect("pid namespace"));
+    let time_namespace: u64 = std::os::unix::fs::MetadataExt::ino(
+        &fs::metadata("/proc/self/ns/time").expect("the time namespace"),
+    );
+    let identity: String = format!(
+        "{pid} {start} {} {time_namespace}",
+        pid_namespace_id().expect("pid namespace")
+    );
     fs::write(root.join("identity.part"), identity).expect("write the identity");
     fs::rename(root.join("identity.part"), root.join("identity")).expect("publish the identity");
     std::thread::sleep(std::time::Duration::from_secs(300));
@@ -316,10 +510,14 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
     use std::os::unix::fs::MetadataExt;
     let mut found: Vec<i32> = Vec::new();
     for entry in fs::read_dir("/proc").expect("lists /proc").flatten() {
-        let Some(pid) = entry.file_name().to_str().and_then(|name| { return name.parse::<i32>().ok(); }) else {
+        let Some(pid) = entry.file_name().to_str().and_then(|name| {
+            return name.parse::<i32>().ok();
+        }) else {
             continue;
         };
-        if fs::metadata(format!("/proc/{pid}/ns/time")).is_ok_and(|metadata| { return metadata.ino() == inode; }) {
+        if fs::metadata(format!("/proc/{pid}/ns/time")).is_ok_and(|metadata| {
+            return metadata.ino() == inode;
+        }) {
             found.push(pid);
         }
     }
@@ -358,15 +556,49 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
         }
     }
     let made: Attempt = last.expect("an attempt");
-    assert!(made.still_alive, "the launcher did not outlive its writer's time namespace, so the schedule was not made");
-    assert!(made.reused(), "the freed time namespace number was not reused by the recovery's namespace in any attempt, so the schedule was not made: {}", made.result);
+    assert!(
+        made.still_alive,
+        "the launcher did not outlive its writer's time namespace, so the schedule was not made"
+    );
+    assert!(
+        made.reused(),
+        "the freed time namespace number was not reused by the recovery's namespace in any attempt, so the schedule was not made: {}",
+        made.result
+    );
     let result: &str = &made.result;
-    let own: u64 = result.lines().find_map(|line| { return line.strip_prefix("own start "); }).and_then(|text| { return text.parse::<u64>().ok(); }).unwrap_or_else(|| { panic!("the recovery did not read a start time: {result}"); });
-    assert_ne!(own, made.start, "the recovery read the recorded start time, so the bases were the same: {result}");
-    assert!(result.contains("question Unknown("), "the question did not answer unknown: {result}");
-    assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
-    let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
-    assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");
+    let own: u64 = result
+        .lines()
+        .find_map(|line| {
+            return line.strip_prefix("own start ");
+        })
+        .and_then(|text| {
+            return text.parse::<u64>().ok();
+        })
+        .unwrap_or_else(|| {
+            panic!("the recovery did not read a start time: {result}");
+        });
+    assert_ne!(
+        own, made.start,
+        "the recovery read the recorded start time, so the bases were the same: {result}"
+    );
+    assert!(
+        result.contains("question Unknown("),
+        "the question did not answer unknown: {result}"
+    );
+    assert!(
+        !result.contains("Gone"),
+        "a live launcher was read as gone through a recycled time namespace number: {result}"
+    );
+    let recovery: &str = result
+        .lines()
+        .find_map(|line| {
+            return line.strip_prefix("recovery ");
+        })
+        .expect("the recovery line");
+    assert!(
+        recovery != "no survivor" && recovery.contains("start time"),
+        "the recovery did not refuse for the start times: {recovery}"
+    );
     assert_entry_points_held(result);
 }
 
@@ -386,7 +618,16 @@ struct Attempt {
 impl Attempt {
     /// Whether the recovery's time namespace received the number of the writer's destroyed one.
     fn reused(&self) -> bool {
-        return self.result.lines().find_map(|line| { return line.strip_prefix("time namespace here "); }).and_then(|text| { return text.parse::<u64>().ok(); }) == Some(self.time_namespace);
+        return self
+            .result
+            .lines()
+            .find_map(|line| {
+                return line.strip_prefix("time namespace here ");
+            })
+            .and_then(|text| {
+                return text.parse::<u64>().ok();
+            })
+            == Some(self.time_namespace);
     }
 }
 
@@ -398,35 +639,88 @@ impl Attempt {
 fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
     let root = scratch();
     let mut outer: Child = Command::new("unshare")
-        .args(["--user", "--map-root-user", "--time", "--boottime", "3600", "--fork", "--"])
+        .args([
+            "--user",
+            "--map-root-user",
+            "--time",
+            "--boottime",
+            "3600",
+            "--fork",
+            "--",
+        ])
         .arg(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_fourteen_tests::wrapper_in_its_own_time_namespace_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_fourteen_tests::wrapper_in_its_own_time_namespace_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_ROOT, root.path())
         .stdin(Stdio::null())
         .spawn()
-        .expect("the wrapper helper (it needs unshare with permission for a user and time namespace)");
-    crate::cgroup_test_support::wait_until("the writer's identity", &|| { return root.path().join("identity").exists(); });
+        .expect(
+            "the wrapper helper (it needs unshare with permission for a user and time namespace)",
+        );
+    crate::cgroup_test_support::wait_until("the writer's identity", &|| {
+        return root.path().join("identity").exists();
+    });
     let identity: String = fs::read_to_string(root.path().join("identity")).expect("the identity");
-    let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
-    let (pid, start, pid_namespace, time_namespace): (i32, u64, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2], numbers[3]);
+    let numbers: Vec<u64> = identity
+        .split(' ')
+        .map(|part| {
+            return part.parse::<u64>().expect("a number");
+        })
+        .collect();
+    let (pid, start, pid_namespace, time_namespace): (i32, u64, u64, u64) = (
+        i32::try_from(numbers[0]).expect("a pid"),
+        numbers[1],
+        numbers[2],
+        numbers[3],
+    );
     let _stop_launcher: StopOnDrop = StopOnDrop(pid);
 
     // The writer's time namespace loses its last reference: its processes are killed (the launcher is in another namespace and lives).
     for member in processes_in_time_namespace(time_namespace) {
-        let _ = Command::new("kill").args(["-KILL", &member.to_string()]).status();
+        let _ = Command::new("kill")
+            .args(["-KILL", &member.to_string()])
+            .status();
     }
-    crate::cgroup_test_support::wait_until("the writer's time namespace to have no process", &|| { return processes_in_time_namespace(time_namespace).is_empty(); });
+    crate::cgroup_test_support::wait_until(
+        "the writer's time namespace to have no process",
+        &|| {
+            return processes_in_time_namespace(time_namespace).is_empty();
+        },
+    );
     let _ = outer.wait();
     let still_alive: bool = crate::contain_counterexample_tests::is_running(pid);
 
     let planned: ControlGroup = ControlGroup::plan(route).expect("a scope name");
-    let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
+    let record: Record = Record::Launcher {
+        pid,
+        start,
+        pid_namespace,
+        path: planned.directory().to_path_buf(),
+    };
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
-    fs::write(journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
+    fs::write(
+        journal.join("groups"),
+        format!("{}\n{record}\n", planned.record()),
+    )
+    .expect("records");
     // The recovery joins the user namespace that the launcher is still in, so its new time namespace is the only namespace it creates
     // (a new user namespace would take the freed number first).
-    let result: String = run_time_fixture_in(root.path(), &format!("{pid} {start} {pid_namespace}"), true, Some(pid));
+    let result: String = run_time_fixture_in(
+        root.path(),
+        &format!("{pid} {start} {pid_namespace}"),
+        true,
+        Some(pid),
+    );
     crate::contain_counterexample_tests::stop_quietly(pid);
-    return Attempt { still_alive, time_namespace, start, result };
+    return Attempt {
+        still_alive,
+        time_namespace,
+        start,
+        result,
+    };
 }

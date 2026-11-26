@@ -8,9 +8,17 @@ use super::Ticket;
 /// Server ranges become character offsets only through the shared converter.
 use crate::language::position::from_lsp_range;
 /// Replies and their outcomes.
-use crate::language::reply::{HoverText, OpenTarget, RequestOutcome, Target};
+use crate::language::reply::{
+    HoverText,
+    OpenTarget,
+    RequestOutcome,
+    Target,
+};
 /// Locations are validated before any file is read.
-use crate::language::target::{Classified, classify};
+use crate::language::target::{
+    Classified,
+    classify,
+};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
 /// Why:
@@ -78,7 +86,12 @@ fn read_target(path: &Path) -> Option<Rope> {
 /// ```ts
 /// function target(ticket: Ticket, root: string, uri: URL, range: Range): Target
 /// ```
-fn target(ticket: &Ticket, root: &Path, uri: &lsp::Url, range: lsp::Range) -> Target {
+fn target(
+    ticket: &Ticket,
+    root: &Path,
+    uri: &lsp::Url,
+    range: lsp::Range,
+) -> Target {
     let (path, outside_project) = match classify(uri, root) {
         Classified::InsideProject(path) => (path, false),
         Classified::OutsideProject(path) => (path, true),
@@ -186,7 +199,10 @@ fn marked(part: lsp::MarkedString) -> String {
 /// ```ts
 /// function hoverOutcome(ticket: Ticket, found: Hover | null): RequestOutcome
 /// ```
-pub(super) fn hover_outcome(ticket: &Ticket, found: Option<lsp::Hover>) -> RequestOutcome {
+pub(super) fn hover_outcome(
+    ticket: &Ticket,
+    found: Option<lsp::Hover>,
+) -> RequestOutcome {
     let Some(hover) = found else {
         return RequestOutcome::Empty;
     };
