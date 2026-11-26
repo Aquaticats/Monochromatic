@@ -926,39 +926,40 @@ fn pathspec_file_trees_match_the_incumbent() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (startedWithinAChildOfItsOwn(import.meta.url, 'interactive_selection_reports_a_failed_git_add')) return;
-/// expect(prepareInteractiveSelection({ patch: true, pathspecFile: missing })).rejects.toMatch(/git add --patch --pathspec-from-file=.*exited/);
+/// runTheBodyInAChildOfItsOwn(import.meta.url, 'interactive_selection_reports_a_failed_git_add', async () => {
+///   await expect(prepareInteractiveSelection({ patch: true, pathspecFile: missing })).rejects.toMatch(/git add --patch --pathspec-from-file=.*exited/);
+/// });
 /// ```
 #[test]
 fn interactive_selection_reports_a_failed_git_add() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "interactive_selection_reports_a_failed_git_add",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("commit-index-interactive-fails");
-    let (repo, indexes, base) = differential_state(root.join("state").as_path(), &[]);
-    let none: Vec<OsString> = Vec::new();
-    let missing: PathBuf = root.join("missing.list");
-    let mut choice: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
-    choice.pathspec_file = Some(missing.as_path());
-    let error: GitFailure = prepare_interactive_selection(
-        &git_context(),
-        repo.as_path(),
-        indexes.commit_index.as_path(),
-        indexes.object_directory.as_path(),
-        true,
-        &choice,
-    )
-    .expect_err("missing pathspec file");
-    assert!(
-        error.0.starts_with("git add --patch --pathspec-from-file="),
-        "{}",
-        error.0
+        || {
+            let root: PathBuf = fixture("commit-index-interactive-fails");
+            let (repo, indexes, base) = differential_state(root.join("state").as_path(), &[]);
+            let none: Vec<OsString> = Vec::new();
+            let missing: PathBuf = root.join("missing.list");
+            let mut choice: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
+            choice.pathspec_file = Some(missing.as_path());
+            let error: GitFailure = prepare_interactive_selection(
+                &git_context(),
+                repo.as_path(),
+                indexes.commit_index.as_path(),
+                indexes.object_directory.as_path(),
+                true,
+                &choice,
+            )
+            .expect_err("missing pathspec file");
+            assert!(
+                error.0.starts_with("git add --patch --pathspec-from-file="),
+                "{}",
+                error.0
+            );
+            assert!(error.0.contains("exited"), "{}", error.0);
+            remove(root.as_path());
+        },
     );
-    assert!(error.0.contains("exited"), "{}", error.0);
-    remove(root.as_path());
 }
 
 /// An interactive run over an index with no changes finishes without prompting and succeeds.
@@ -973,43 +974,44 @@ fn interactive_selection_reports_a_failed_git_add() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (startedWithinAChildOfItsOwn(import.meta.url, 'interactive_selection_succeeds_without_changes')) return;
-/// await prepareInteractiveSelection({ patch: false }); // the null device answers the menu with end of file
+/// runTheBodyInAChildOfItsOwn(import.meta.url, 'interactive_selection_succeeds_without_changes', async () => {
+///   await prepareInteractiveSelection({ patch: false }); // the null device answers the menu with end of file
+/// });
 /// ```
 #[test]
 fn interactive_selection_succeeds_without_changes() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "interactive_selection_succeeds_without_changes",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("commit-index-interactive-clean");
-    let repo: PathBuf = repository(root.as_path(), "repo");
-    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
-    git(repo.as_path(), &["add", "a.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
-    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let transaction: PathBuf = root.join("transaction");
-    std::fs::create_dir(&transaction).expect("transaction");
-    let commit_index: PathBuf = transaction.join("commit.index");
-    copy_index_with_timestamps(
-        repo.join(".git").join("index").as_path(),
-        commit_index.as_path(),
-    )
-    .expect("copy");
-    let none: Vec<OsString> = Vec::new();
-    let choice: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
-    prepare_interactive_selection(
-        &git_context(),
-        repo.as_path(),
-        commit_index.as_path(),
-        repo.join(".git").join("objects").as_path(),
-        false,
-        &choice,
-    )
-    .expect("clean interactive run");
-    remove(root.as_path());
+        || {
+            let root: PathBuf = fixture("commit-index-interactive-clean");
+            let repo: PathBuf = repository(root.as_path(), "repo");
+            std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+            git(repo.as_path(), &["add", "a.txt"]);
+            git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+            let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+            let transaction: PathBuf = root.join("transaction");
+            std::fs::create_dir(&transaction).expect("transaction");
+            let commit_index: PathBuf = transaction.join("commit.index");
+            copy_index_with_timestamps(
+                repo.join(".git").join("index").as_path(),
+                commit_index.as_path(),
+            )
+            .expect("copy");
+            let none: Vec<OsString> = Vec::new();
+            let choice: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
+            prepare_interactive_selection(
+                &git_context(),
+                repo.as_path(),
+                commit_index.as_path(),
+                repo.join(".git").join("objects").as_path(),
+                false,
+                &choice,
+            )
+            .expect("clean interactive run");
+            remove(root.as_path());
+        },
+    );
 }
 
 /// Names that are not UTF-8 stay bytes from the pathspec to the listing:

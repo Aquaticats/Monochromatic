@@ -13,8 +13,8 @@
 //!  `commit::commit_index::tests::interactive_selection_succeeds_without_changes` printed its `What now>` prompt,
 //!  never ended,
 //!  and the run's watchdog aborted the module run after 120 s with no `test result` line (issue 6510).
-//!  A control that starts `started_within_a_child_of_its_own` first starts the selection in a child of the test
-//!  binary,
+//!  A control that runs its body in `run_the_body_in_a_child_of_its_own` first starts the selection in a child
+//!  of the test binary,
 //!  whose standard input is the null device (`testing/process_wide_state_child_test_support.rs`),
 //!  so the Git it starts reads no terminal,
 //!  and ends at once instead of waiting for an answer.
@@ -23,7 +23,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // every control that names prepare_interactive_selection( must also name started_within_a_child_of_its_own(.
+//! // every control that names prepare_interactive_selection( must also name run_the_body_in_a_child_of_its_own(.
 //! ```
 
 /// What:
@@ -107,7 +107,7 @@ fn no_control_starts_the_interactive_selection_in_the_run_s_own_process() {
         "the interactive selection's Git reads the standard input of the process that starts it, and a test run \
          holds its controls as threads of one process, whose standard input is the terminal the run was started \
          from, so a control that starts the selection hangs the whole run waiting for an answer: start the \
-         control's body in a child of its own first (`started_within_a_child_of_its_own`, \
+         control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
          `testing/process_wide_state_child_test_support.rs`, issue 6510):\n{}",
         read.findings.join("\n")
     );
@@ -151,10 +151,9 @@ fn starts_in_the_run_s_own_process() {\n\
 #[test]\n\
 fn starts_in_a_child_of_its_own() {\n\
     /// The doc comment names prepare_interactive_selection( and it is no call.\n\
-    if started_within_a_child_of_its_own(module_path!(), \"starts_in_a_child_of_its_own\") {\n\
-        return;\n\
-    }\n\
-    let started = prepare_interactive_selection(&context, &repo, &index, &objects, false, &choice);\n\
+    run_the_body_in_a_child_of_its_own(module_path!(), \"starts_in_a_child_of_its_own\", || {\n\
+        let started = prepare_interactive_selection(&context, &repo, &index, &objects, false, &choice);\n\
+    });\n\
 }\n\
 \n\
 #[test]\n\
