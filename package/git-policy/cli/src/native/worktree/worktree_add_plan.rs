@@ -358,6 +358,52 @@ pub fn add_is_quiet(
     });
 }
 
+/// What:
+///  The Git release whose `handle_options` the global option tables below copy:
+///  its major and minor numbers, one `u64` each.
+///  `u64` and not `u32` or `i64`, the siblings a reader might expect,
+///  because `parse_git_version` answers with `u64` numbers,
+///  so the control compares like with like.
+/// Why:
+///   A release that adds a global option makes the copy incomplete:
+///  the reading then cannot tell where that option's value ends,
+///  so a relative destination after it is left unread,
+///  and a slot's removal is forwarded to Git.
+///  The control in `worktree_add_plan_tests.rs` refuses a Git newer than this release,
+///  so these tables are compared with that Git's `handle_options` before this constant moves.
+///  Only the major and minor numbers are compared:
+///  a later patch release is taken to add no global option, and these tables stand for it.
+/// Source:
+///  `git.c` at tag `v2.56.0` of `git/git`,
+///  `handle_options`, lines 157 to 370,
+///  and the same arms in that file at `v2.56.1`.
+///  The arm that ends its chain decides that Git accepts nothing else:
+///  `} else {` /
+///  `fprintf(stderr, _("unknown option: %s\n"), cmd);` /
+///  `usage(git_usage_string);`
+///  (lines 361 to 364).
+///  Five arms end the run before any command word is read,
+///  so they stand in no command's global prefix and are listed nowhere below:
+///  `--exec-path` without `=` prints the path and exits (lines 178 to 185),
+///  `--html-path`,
+///  `--man-path` and
+///  `--info-path` print one and exit (lines 186 to 197),
+///  and `--list-cmds=` lists commands and exits (lines 329 to 341).
+///  `--help`,
+///  `-h`,
+///  `--version` and
+///  `-v` end the loop as the command word itself (lines 171 to 173),
+///  so they name no global option either.
+///  Two forms are read by `copy_start_directory` itself rather than by a table:
+///  `-C`, which moves the start,
+///  and `--exec-path=<path>`, which sets the path and lets the command run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: [number, number] = [2, 56];
+/// ```
+const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: (u64, u64) = (2, 56);
+
 /// The global options that take no value and change nothing about where a relative destination lies.
 const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
     b"--no-pager",
