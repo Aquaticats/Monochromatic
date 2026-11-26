@@ -582,8 +582,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     assert!(before.contains("outcome done"), "the first receipt was a done one: {before}");
     println!("SWEEP attached twice=1 slot={SLOT} standing=true");
     println!("SWEEP twice-swept receipt=done nonce={nonce}");
-    unmount_at(slot_folder.as_path());
-    assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
+
     // H3: a second mount request under a fresh nonce, written by the cancel command's own writer, is answered done from
     // the mount that stands, one mount is in the table, and the command's own wait and verification read that answer.
     let second_digits: &str = "ffeeddccbbaa99887766554433221100";
@@ -619,6 +618,8 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     assert_eq!(Some(proof.mount.mount_id), mount_id_of(&std::fs::File::open(slot_folder.as_path()).expect("the slot opens")).ok(), "the verified answer names the mount the kernel shows at the slot");
     println!("SWEEP second-request nonce={second_digits} answered=done mounts=1 mount={}", proof.mount.mount_id);
 
+    unmount_at(slot_folder.as_path());
+    assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
     // The clone keeps its request after the arm, so it is taken off before the later arms sweep this container.
     zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, clone.as_str()]);
     let _slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
