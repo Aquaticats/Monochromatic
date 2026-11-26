@@ -76,8 +76,11 @@ each with its own worktree.
 Each provider pool's own limit still bounds the rounds on it
 (`package/pi-shared/subagent-driver/src/pool-limits.ts`),
 so the pools open on 2026-11-23 hold fewer than 64 between them.
+The owner set no start rule beside the 64.
+A coordinator later spaced starts three minutes apart behind a memory test it read into the next sentences;
+the owner, 2026-11-26: "I didn't tell you to apply the 3 minutes apart and memory test rules."
 Memory is watched as rounds are added:
 the freezes recorded in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md` came from memory,
 not from the number of rounds,
-so a rising memory stall pauses new starts,
-and the readings go into that document.
+and the readings go into that document;
+watching makes no start wait.
