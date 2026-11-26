@@ -14,7 +14,9 @@
 //!  and everything else is an operand in the order the person typed it
 //!  (`parse_long_opt` and `parse_options_step` in Git 2.56.1's
 //!  `parse-options.c`;
-//!  `prune`, `move` and `remove` declare no option that takes a value).
+//!  `move` and `remove` declare no option that takes a value,
+//!  and this scan is not what reads a `prune`: prune's own reader takes the value
+//!  of `--expire <time>`, so that word is never an operand here).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

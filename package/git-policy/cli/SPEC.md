@@ -5442,7 +5442,13 @@ A slot whose registration stands and whose pointer nothing can restore stops the
 Git starts,
 with the link's report and the sentence that nothing was pruned,
 so no managed registration is dropped silently.
-A dry run (`-n` or `--dry-run`) writes nothing and is left wholly to Git.
+A dry run writes nothing and is left wholly to Git,
+and Git's own parser decides which spellings are one:
+`-n` inside a cluster of short options,
+`--dry-run`,
+any unique prefix of it,
+and the `--no-` form of it,
+with the last of them typed deciding.
 The pass reads no pool and writes no record.
 
 The repair report says what a damaged link can and cannot restore,
@@ -5499,7 +5505,8 @@ What this release does not do:
   after the recorded clone's destruction is proven.
 - It does not remove a clone;
   the refusal above is the whole of its removal behaviour,
-  and plan steps 14 and 16 build the removal.
+  and plan steps 14 to 17 build the removal's writing path,
+  which no command of this release reaches.
 - `doctor` does not print this report yet;
   plan step 18 reads it,
   and the slot and link report's shape is the one it prints.

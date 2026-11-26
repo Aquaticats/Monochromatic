@@ -9,7 +9,8 @@
 //!  exactly as it was
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10, and
 //!  `super::add_source_the_restore_cannot_prove` for the sources the route leaves
-//!  to the ladder until plan step 14's settle lands).
+//!  to the ladder until the removal's writing path is reachable: its Git settle is
+//!  plan step 16's, and no command of this release reaches it).
 //!  A failed or killed add keeps the claim, the slot and the locked
 //!  registration, and the next add at the slot reads the record's phase and
 //!  continues from it
