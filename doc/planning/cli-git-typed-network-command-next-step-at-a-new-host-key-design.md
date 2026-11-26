@@ -39,6 +39,19 @@ because the owner answered "Put `false` back (Recommended)"
 (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`).
 That is the state every option here starts from.
 
+Built while this proposal waited for the owner,
+K alone is on `main` as `5a25462296`
+(`invocation/typed_network_command_relay/`):
+the wrapper keeps Git's child with its error stream on a pseudo-terminal and relays the bytes as they
+arrive,
+and the sentence after the refusal is printed from that relay,
+which `SPEC.md` and `README.md` now say.
+The owner's choice among K2,
+C,
+C2,
+D and A stays open,
+and the rest of the proposal's options are not built.
+
 Worktree:
 `.claude/worktrees/host-key-next-step-design-seventh-revision`,
 branch `docs/planning-host-key-next-step-design-seventh-revision`,
