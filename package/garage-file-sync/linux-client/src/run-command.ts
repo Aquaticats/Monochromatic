@@ -33,6 +33,23 @@ export type CommandResult = {
 };
 
 /**
+ What one command is asked to do.
+ */
+export type CommandRequest = {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly timeoutMs?: number;
+};
+
+/**
+ Runs one command to its end, or until its timeout stops it.
+
+ Injected into the modules that start a program, so a test can drive what a command
+ reported without a notification server or a journal.
+ */
+export type CommandRunner = (request: Readonly<CommandRequest>,) => Promise<CommandResult>;
+
+/**
  Reads a child's stream to its end.
 
  @param stream - the child's stdout or stderr
@@ -64,11 +81,7 @@ export async function runCommand({
   command,
   args,
   timeoutMs = COMMAND_TIMEOUT_MS,
-}: Readonly<{
-  command: string;
-  args: readonly string[];
-  timeoutMs?: number;
-}>): Promise<CommandResult> {
+}: Readonly<CommandRequest>,): Promise<CommandResult> {
   /**
    Signal that stops a command that overruns its timeout.
    */
@@ -92,23 +105,24 @@ export async function runCommand({
     /**
      Both streams read together; a child that fills one pipe while the other is
      unread would otherwise wait forever.
+
+     The close event is awaited in the same batch, because `once` also turns the
+     `error` a command that cannot start or a timeout stop raises into a rejection:
+     a child with no `error` listener would otherwise crash the whole entry.
      */
-    const [stdout, stderr,] = await Promise.all([
+    const [stdout, stderr, closed,] = await Promise.all([
       collectStream(started.stdout,),
       collectStream(started.stderr,),
+      once(
+        started,
+        'close',
+      ),
     ],);
-    /**
-     Exit code and signal of the finished process.
-     */
-    const closed: readonly unknown[] = await once(
-      started,
-      'close',
-    );
     /**
      Exit status of the finished process: a number for an exit, a signal name, or
      nothing when the process never started.
      */
-    const exitCode = closed.at(0,);
+    const exitCode: unknown = closed.at(0,);
     return {
       stdout,
       stderr,
