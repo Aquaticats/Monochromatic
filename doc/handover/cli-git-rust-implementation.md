@@ -130,6 +130,9 @@ Rounds started before that decision run on flex.
 - Issues 6489, 6493 and 6495 (flex),
   and 6499 (Qwen, filed from 6496's report),
   one window each, `issue-<number>-<words>`.
+- Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
+  briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
