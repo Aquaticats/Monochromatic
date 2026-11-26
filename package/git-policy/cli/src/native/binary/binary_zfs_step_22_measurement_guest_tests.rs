@@ -690,17 +690,11 @@ fn sweep_cost_arm(fixture: &Fixture) {
     unmount_quiet(fixture.slot("sweep-one").as_path());
     fixture.forget("sweep-one", "aa");
 
-    for index in 0..16 {
-        fixture.make_a_clone_asking(format!("sweep-many-{index}").as_str(), format!("bb{index:02}").as_str());
-    }
-    let many: super::zfs_sweep_guest::Run = sweep();
-    assert_eq!(many.status, Some(0), "the sixteen-clone sweep reached its end: {}", many.said);
-    let attached: usize = (0..16).filter(|index| return mounted_at_path(fixture.slot(format!("sweep-many-{index}").as_str()).as_path())).count();
-    println!("STEP22 sweep clones=16 ms={} attached={attached}", many.elapsed.as_millis());
-    for index in 0..16 {
-        unmount_quiet(fixture.slot(format!("sweep-many-{index}").as_str()).as_path());
-        fixture.forget(format!("sweep-many-{index}").as_str(), format!("bb{index:02}").as_str());
-    }
+    // The sweep's cost against the number of clones it walks, at two sizes a
+    // parent could hold, so the period a heartbeat could use has a curve rather
+    // than one point.
+    sweep_over(fixture, 16, "bb");
+    sweep_over(fixture, 64, "bc");
 
     // The lost event: a request is written while no sweep runs and no caller
     // waits, and the arm watches a bounded window for a mount no trigger can
@@ -724,6 +718,27 @@ fn sweep_cost_arm(fixture: &Fixture) {
     );
     unmount_quiet(fixture.slot("lost-event").as_path());
     fixture.forget("lost-event", "cc");
+}
+
+/// What:
+///  One sweep's cost over `count` clones of the checkout's snapshot, each
+///  asking for its mount, and how many it attached.
+/// Why:
+///  The cost is what the sweep pays per run, and a period a heartbeat uses must
+///  exceed it, so the arm reads it at two sizes.
+fn sweep_over(fixture: &Fixture, count: usize, seed: &str) {
+    for index in 0..count {
+        fixture.make_a_clone_asking(format!("sweep-{seed}-{index}").as_str(), format!("{seed}{index:02}").as_str());
+    }
+    let run: super::zfs_sweep_guest::Run = sweep();
+    assert_eq!(run.status, Some(0), "the {count}-clone sweep reached its end: {}", run.said);
+    let attached: usize = (0..count).filter(|index| return mounted_at_path(fixture.slot(format!("sweep-{seed}-{index}").as_str()).as_path())).count();
+    println!("STEP22 sweep clones={count} ms={} attached={attached}", run.elapsed.as_millis());
+    assert_eq!(attached, count, "the sweep attached every clone it was given");
+    for index in 0..count {
+        unmount_quiet(fixture.slot(format!("sweep-{seed}-{index}").as_str()).as_path());
+        fixture.forget(format!("sweep-{seed}-{index}").as_str(), format!("{seed}{index:02}").as_str());
+    }
 }
 
 /// What:

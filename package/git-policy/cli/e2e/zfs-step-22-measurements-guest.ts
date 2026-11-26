@@ -50,6 +50,10 @@ const GUEST_VARIABLE = 'CLI_GIT_ZFS_STEP22_GUEST';
 const POOL = 'zfsstep22';
 /** The guest folder the file-backed pool's image lives in. */
 const FIXTURE_ROOT = '/home/step22-fixture';
+/** The pool the holder-scan arm beside this one builds its own layout under. */
+const SCAN_POOL = 'git-policy-cli-store';
+/** The checkout the holder-scan arm walks. */
+const SCAN_CHECKOUT = '/root/holder-scan-checkout';
 /** The checkout the design's dataset is mounted at. */
 const CHECKOUT = '/root/step22-checkout';
 /** The arm's log inside the guest's shared folder. */
@@ -61,6 +65,7 @@ const EXPECTED_MARKERS = [
   'STEP22 add arm=clone round=0',
   'STEP22 add-total control-ms=',
   'STEP22 sweep clones=1',
+  'STEP22 sweep clones=64',
   'STEP22 unmount holder=none',
   'STEP22 forced-arm t-wait-ms=',
   'STEP22 forced-arm t-stop-ms=',
@@ -267,7 +272,11 @@ async function run(chosen: Options): Promise<void> {
     `mkdir --parents ${FIXTURE_ROOT}`,
     `mkdir --parents ${CHECKOUT}`,
     `if ! zpool list -H -o name ${POOL} > /dev/null 2>&1; then truncate --size 2G ${FIXTURE_ROOT}/pool.img; zpool create -f -O mountpoint=none ${POOL} ${FIXTURE_ROOT}/pool.img; fi`,
+    // The holder-scan arm beside this one builds its own layout under a pool of
+    // its own, so the two arms never read each other's datasets.
+    `if ! zpool list -H -o name ${SCAN_POOL} > /dev/null 2>&1; then truncate --size 512M ${FIXTURE_ROOT}/scan-pool.img; zpool create -f -O mountpoint=none ${SCAN_POOL} ${FIXTURE_ROOT}/scan-pool.img; fi`,
     `zpool list -H -o name,size ${POOL}`,
+    `zpool list -H -o name,size ${SCAN_POOL}`,
   ].join('\n');
   guestStart({ chosen, script: pool, log: 'guest-pool.log', timeout: 300_000, });
   guestFinish({ chosen, log: 'guest-pool.log', timeout: 300_000 + 120_000, });
@@ -297,6 +306,43 @@ async function run(chosen: Options): Promise<void> {
   }
   if (/(^|\n)SKIP/m.test(pulled))
     throw new Error('the pulled arm log holds a SKIP line, so the arm did not run');
+  holderScan(chosen);
+}
+
+/**
+ Run plan step 9's holder-scan arm in the same guest, which times the scan the
+ unmount request path costs.
+ Why:
+  The unmount deadline must cover the all-namespace holder scan as well as the
+  unmount, and the scan's own arm is the measurement of that share.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function holderScan(chosen: Options): void {
+  const script = [
+    'set -eu',
+    'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    `mkdir --parents ${SCAN_CHECKOUT}`,
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export CLI_GIT_ZFS_SCAN_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SCAN_POOL=${SCAN_POOL}`,
+    'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SCAN_CHECKOUT=${SCAN_CHECKOUT}`,
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      '--filterset "test(zfs_holder_scan_guest)" > /root/holder-scan-arm.log 2>&1; then status=0; else status=$?; fi',
+    'cp /root/holder-scan-arm.log /mnt/shared/holder-scan-arm.log || true',
+    'tail --lines=40 /root/holder-scan-arm.log',
+    'test "$status" = 0',
+  ].join('\n');
+  guestStart({ chosen, script, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS + 120_000, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/holder-scan-arm.log', join(chosen.logDir, 'holder-scan-arm.log'),], log: 'host-pull-holder-scan.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'holder-scan-arm.log'), 'utf8');
+  if (!pulled.includes('MEASUREMENT holder-scan-ms='))
+    throw new Error('the pulled holder-scan log lacks its timing line; the arm ran without timing the scan');
 }
 
 /** Destroy the guest and keep the list of what is left. */
