@@ -700,7 +700,6 @@ uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_removal_pro
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_slot_state
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_unmount
 uses src/native/health/doctor_zfs_route -> src/native/worktree_removal_deferred_origin_check
-uses src/native/health/sanoid_coverage -> src/native/health/doctor_zfs_route
 uses src/native/health/sanoid_coverage -> src/native/worktree_clone_mount_handler
 uses src/native/index -> src/native/foundation
 uses src/native/index -> src/native/landing
