@@ -129,9 +129,10 @@ Rounds started before that decision run on flex.
   one window each, `issue-<number>-<words>`.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
-- The linter's `alpha.13` fixes for the `alpha.12` release pass's findings,
-  window `monochromatic-lint-alpha-12-release-pass-fixes`, on Qwen;
-  then the `alpha.13` release, its Sonnet release pass and the lock bump.
+- The linter's `alpha.13` Sonnet release pass,
+  on the detached worktree `monochromatic-lint-alpha-13-release-review` at the release commit `e58ba6f078`,
+  its report to `~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`;
+  a fix round follows for the findings that earn one.
 - The virtual writer with Qwen first,
   window `virtual-writer-qwen-first`,
   starting on flex behind its launch delay.
@@ -145,6 +146,10 @@ Rounds started before that decision run on flex.
   6485 as `d124f60f82` and
   6486 as `ff8b9427c2`.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
+- The linter's `alpha.13` fixes as `88e77f3553`,
+  the release commit `e58ba6f078`,
+  its lock as `07c8785fa9`
+  (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,
