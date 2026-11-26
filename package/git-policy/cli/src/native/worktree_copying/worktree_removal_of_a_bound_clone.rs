@@ -17,6 +17,10 @@
 //!  Only the two states that prove a whole worktree refuse:
 //!  a pending add's removal is the add's own way forward,
 //!  and a slot nothing proves stays Git's.
+//!  A record filed under the slot's name that cannot be read refuses too,
+//!  as the move already refuses,
+//!  because nothing then proves the removal would not delete a managed clone's
+//!  slot.
 //!  Every spelling of `git worktree remove` that names such a slot is refused,
 //!  whatever options stand before the operand:
 //!  `SPEC.md` exempts none,
@@ -60,9 +64,16 @@ use crate::worktree_clone_slot_state::slot_state_live_read::{
     GatedCloneIntentReads,
     SlotReadingSources,
 };
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    read_binding_reading,
+};
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  How one command's refusal reads the pool.
@@ -107,6 +118,25 @@ pub struct BoundSlotRemovalRefusal {
     /// The wrapper's refusal status,
     /// which every command that changed nothing ends in.
     pub code: i32,
+}
+
+/// The sentence for a record no reader may act on.
+/// Why:
+///  A record that cannot be read may name this very slot,
+///  so the refusal says what refused and what to repair before the removal runs
+///  again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sentence = unreadableRecordSentence('one', 'one.binding: not a record');
+/// ```
+fn unreadable_record_sentence(
+    slot: &str,
+    reason: &str,
+) -> String {
+    return format!(
+        "`git worktree remove` is refused: a record is filed under the slot name `{slot}` and cannot be read ({reason}), so nothing proves this removal would not delete a managed clone's slot. Nothing was removed and Git did not run. Read the record, restore it from a copy or settle it, then run the removal again."
+    );
 }
 
 /// What:
@@ -167,11 +197,27 @@ pub fn refuse_the_removal_with(
 ) -> Option<BoundSlotRemovalRefusal> {
     // A repository with no record folder holds no bound slot, so the answer is nothing and the mount table is never read:
     // this is every removal in a repository the route has never served.
-    if !home_folder(common_dir).is_dir() {
+    let home: PathBuf = home_folder(common_dir);
+    if !home.is_dir() {
         return None;
     }
     let slot: String =
         crate::worktree_clone_binding_record::registration_home::slot_of(target).ok()?;
+    // A record that cannot be read refuses before the mount table is read: it may name this very slot, and Git's own
+    //  `-f -f` removal would delete the registration and the slot folder while nothing proved it safe
+    //  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+    if let BindingReading::Unreadable {
+        reason,
+    } = read_binding_reading(home.as_path(), slot.as_str())
+    {
+        return Some(BoundSlotRemovalRefusal {
+            stderr: format!(
+                "{}\n",
+                unreadable_record_sentence(slot.as_str(), reason.as_str())
+            ),
+            code: REFUSED_EXIT_CODE,
+        });
+    }
     let at = crate::worktree_clone_link_repair::the_slot_at_with(
         common_dir,
         slot.as_str(),

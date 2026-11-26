@@ -25,6 +25,7 @@ use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::{
     Phase,
     RequestForm,
+    SettleReason,
 };
 use crate::worktree_clone_binding_record::record_publication::write_binding;
 use crate::worktree_clone_binding_record::registration_home::open_or_create_home;
@@ -88,12 +89,23 @@ pub(crate) fn record_naming(
             | Phase::Filled
             | Phase::Settling
     );
+    // What: The fields each phase proves, so the record this fixture writes is one its own reader accepts.
+    // Why:  A control that published a clone GUID at `phase=snapshotted` got a record the grammar refuses, so the slot's
+    //       state was `cannot be proved` while the control read it as the pending add it meant to write.
+    let with_snapshot: bool = matches!(
+        phase,
+        Phase::Snapshotted | Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling
+    );
+    let with_clone: bool = matches!(
+        phase,
+        Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling
+    );
     return BindingRecord {
         claim: 1,
         nonce: RequestNonce::parse(NONCE).expect("the fixture nonce reads"),
         request: Request::with_argument(RequestForm::Branch, b"topic"),
         phase,
-        settle_reason: None,
+        settle_reason: matches!(phase, Phase::Settling).then_some(SettleReason::Enospc),
         checkout_dataset: String::from(CHECKOUT_DATASET),
         checkout_dataset_guid: guid("4815162342109876543"),
         repository: b"/fixture/.git".to_vec(),
@@ -106,13 +118,13 @@ pub(crate) fn record_naming(
         pool: String::from(POOL),
         pool_guid: guid("17293822569102704641"),
         origin_snapshot: format!("{CHECKOUT_DATASET}@git-worktree-clone-origin-{NONCE}"),
-        origin_snapshot_guid: Some(guid("16371409254608711923")),
-        origin_snapshot_createtxg: Some(121_293),
-        origin_dataset: Some(String::from(CHECKOUT_DATASET)),
-        origin_dataset_guid: Some(guid("4815162342109876543")),
+        origin_snapshot_guid: with_snapshot.then(|| return guid("16371409254608711923")),
+        origin_snapshot_createtxg: with_snapshot.then_some(121_293),
+        origin_dataset: with_snapshot.then(|| return String::from(CHECKOUT_DATASET)),
+        origin_dataset_guid: with_snapshot.then(|| return guid("4815162342109876543")),
         clone_dataset: String::from(CLONE_DATASET),
-        clone_guid: Some(guid("4821193048571903102")),
-        clone_createtxg: Some(121_294),
+        clone_guid: with_clone.then(|| return guid("4821193048571903102")),
+        clone_createtxg: with_clone.then_some(121_294),
         pointer,
     };
 }
