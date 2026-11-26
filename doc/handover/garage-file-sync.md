@@ -30,6 +30,14 @@ The four older `main.kdbx.conflict*` files remain on both sides;
 they are historical artifacts,
 not evidence that the latest sync failed.
 
+## Planned change: sync on file change (confirmed 2026-11-25T20:54:22-05:00)
+
+The owner confirmed the design in `doc/planning/garage-bisync-run-on-file-change.md`,
+section "Current design, as settled":
+a directory-watcher user unit, a trigger unit, a two-pass sync, a 5-minute timer and reworked alerts on this PC,
+then the same parity on the Mac.
+Not implemented yet; Stage D is rewritten from the result when it is.
+
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
 Read-only over ssh; nothing was changed.
