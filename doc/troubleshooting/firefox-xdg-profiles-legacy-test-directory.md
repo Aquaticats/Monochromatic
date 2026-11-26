@@ -180,3 +180,20 @@ completed recovery again.
 
 No upstream issue or additive comment is recommended. The durable prevention is to keep browser
 profile creation inside disposable homes during verification.
+
+## Recurrence check and guard decision, 2026-11-26T02:07:38-05:00
+
+`LegacyHomeExists()` also accepts `$HOME/<MOZ_USER_DIR>` when the deeper path is absent
+(`toolkit/xre/nsXREDirProvider.cpp:1387-1425` at the same commit).
+On Linux `MOZ_USER_DIR` defaults to `mozilla`, without a dot
+(`toolkit/moz.configure:4273-4299`, `default_user_appdir`),
+so the trigger paths are `~/.mozilla/firefox` and `~/mozilla`;
+`~/.mozilla` itself, kept by KeePassXC's `native-messaging-hosts`, does not select the legacy root.
+At this time regular Firefox and Developer Edition held descriptors under
+`~/.config/mozilla/firefox/47ezuqf1.default-release` and `oty15h01.dev-edition-default`
+with `~/.mozilla` present.
+`profile-sync-daemon` `1:8.0-1` only reads `$HOME/.mozilla/firefox` behind a `[[ -d ... ]]` test
+(`/usr/share/psd/browsers/firefox:19`) and does not create it.
+Nothing found on the host creates either path;
+a test writing into the real home is the known way back.
+The owner declined a watcher and a new `AGENTS.md` rule for it.
