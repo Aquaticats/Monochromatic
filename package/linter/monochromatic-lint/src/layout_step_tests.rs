@@ -334,7 +334,8 @@ fn allow_config(
 }
 
 /// One line tolerates one finding:
-///  two glob re-exports of one module are two findings, and one line names the first alone.
+///  two glob re-exports of one module are two findings,
+/// and one line names the first alone.
 ///  A line that matched both would let a glob added later slip in unseen.
 #[test]
 fn one_line_tolerates_one_glob_finding() {

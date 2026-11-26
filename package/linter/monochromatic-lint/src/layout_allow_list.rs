@@ -3,7 +3,8 @@
 //!  read from the file its `allow` option names.
 //! Why:
 //!  A crate that switches a layout rule on does not become correct at once:
-//!  the rule's findings it has today are recorded, one entry per finding,
+//!  the rule's findings it has today are recorded,
+//! one entry per finding,
 //!  and a run fails when a finding is not on the list,
 //!  so new code cannot add one.
 //!  An entry that stops matching a finding is a finding of its own,
@@ -11,7 +12,8 @@
 //! Decisions:
 //!  a folder rule entry and a file rule entry that tolerate one use between two folders or two files
 //!  are the only entries that suppress more than one finding;
-//!  they suppress that one use, so every loop needs all of its uses on the list;
+//!  they suppress that one use,
+//! so every loop needs all of its uses on the list;
 //!  an entry that names no finding any more says so,
 //!  because a list that keeps dead lines is not a list of today's findings;
 //!  a key names one finding,
@@ -31,8 +33,14 @@
 //! function readAllowList(path: Path): AllowList;
 //! ```
 
-/// Import the finding shape,
-///  the display helper and native paths.
+/// Import the entry shapes and the line reader the list is built from,
+///  re-exported so a caller asks the list module for both.
+pub use crate::layout_allow_entries::{
+    AllowEntry,
+    AllowKind,
+    parse_entries,
+};
+/// Import the finding shape and the display helper.
 use crate::layout_finding::{
     LayoutFinding,
     shown,
@@ -69,69 +77,6 @@ use std::{
 /// ```
 pub const MAX_BYTES: u64 = 1024 * 1024;
 
-/// The word that starts an entry tolerating one use between two folders.
-const FOLDER_USE_WORD: &str = "uses";
-
-/// The word that starts an entry tolerating one use between two files of a folder.
-const FILE_USE_WORD: &str = "file-uses";
-
-/// The text that joins the two ends of a tolerated use.
-const ARROW: &str = "->";
-
-/// What:
-///  What one entry of a list tolerates.
-/// Why:
-///  A use is suppressed before loops are found;
-///  a finding key is matched against the findings that were produced.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AllowKind = { kind: 'folder-use'; from: Path; to: Path }
-///   | { kind: 'file-use'; folder: Path; from: string; to: string }
-///   | { kind: 'key'; key: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AllowKind {
-    /// One use between two folders of the package.
-    FolderUse {
-        /// The folder whose code uses.
-        from: PathBuf,
-        /// The folder it uses.
-        to: PathBuf,
-    },
-    /// One use between two files of one folder.
-    FileUse {
-        /// The folder both files are in.
-        folder: PathBuf,
-        /// The file whose code uses.
-        from: String,
-        /// The file it uses.
-        to: String,
-    },
-    /// The exact key one finding reports.
-    Key(String),
-}
-
-/// What:
-///  One line of a list, as written and as read.
-/// Why:
-///  A finding about a dead entry points at that line,
-///  and its message quotes the line so the reader can find it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AllowEntry = { line: number; text: string; kind: AllowKind };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AllowEntry {
-    /// One-based line of the list file.
-    pub line: usize,
-    /// The line as written, without surrounding spaces.
-    pub text: String,
-    /// What the line tolerates.
-    pub kind: AllowKind,
-}
-
 /// What:
 ///  The entries of one list file.
 /// Why:
@@ -151,122 +96,10 @@ pub struct AllowList {
 }
 
 /// What:
-///  Why a path an entry names may not be used,
-///  or nothing when it may.
-/// Why:
-///  A finding shows paths relative to the package,
-///  and an absolute path or a `..` would mean a different file on every machine.
-///  Keys hold `/` between segments on every platform,
-///  so an entry written with a backslash would name a path no key matches,
-///  and a file named with a backslash cannot be listed at all:
-///  saying so is better than a line that tolerates nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unusableReason(path: string): string | undefined;
-/// ```
-fn unusable_reason(path: &str) -> Option<&'static str> {
-    if path.is_empty() {
-        return Some("names no folder");
-    }
-    if path.contains('\\') {
-        return Some("holds a backslash, and every path is written with `/` on every machine");
-    }
-    let parsed: &Path = Path::new(path);
-    if parsed.is_absolute() {
-        return Some("is absolute");
-    }
-    for part in parsed.components() {
-        if part.as_os_str() == ".." {
-            return Some("climbs out of the package with `..`");
-        }
-    }
-    return None;
-}
-
-/// What:
-///  One path as an entry names it:
-///  with `.` segments and a trailing separator gone,
-///  so `./src/a` and `src/a/` name the folder a finding names.
-/// Why:
-///  A use is counted from the path the code makes,
-///  while an entry is read from its own words,
-///  so a spelling difference between them would make a line that records a use tolerate nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const listedPath = (text) => lexical_normal(text)
-/// ```
-fn listed_path(text: &str) -> PathBuf {
-    return crate::markdown_lfs_target::lexical_normal(Path::new(text));
-}
-
-/// What:
-///  Read one line as an entry,
-///  or say why it names nothing.
-/// Why:
-///  A line that is a misspelling must fail the run,
-///  because a silently ignored line would let a finding through.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function entryOf(line: number, text: string): AllowEntry;
-/// ```
-fn entry_of(
-    line: usize,
-    text: &str,
-) -> Result<AllowEntry, String> {
-    let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
-        if words.len() != 4 || words[2] != ARROW {
-            return Err(format!(
-                "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
-            ));
-        }
-        for path in [words[1], words[3]] {
-            if let Some(reason) = unusable_reason(path) {
-                return Err(format!(
-                    "Line {line} names a folder that {reason}. A path is relative to the package folder, as findings show it."
-                ));
-            }
-        }
-        AllowKind::FolderUse {
-            from: listed_path(words[1]),
-            to: listed_path(words[3]),
-        }
-    } else if words.first() == Some(&FILE_USE_WORD) {
-        if words.len() != 5 || words[3] != ARROW {
-            return Err(format!(
-                "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`."
-            ));
-        }
-        if let Some(reason) = unusable_reason(words[1]) {
-            return Err(format!(
-                "Line {line} names a folder that {reason}. A path is relative to the package folder, as findings show it."
-            ));
-        }
-        AllowKind::FileUse {
-            folder: listed_path(words[1]),
-            from: String::from(words[2]),
-            to: String::from(words[4]),
-        }
-    } else {
-        AllowKind::Key(String::from(text))
-    };
-    return Ok(AllowEntry {
-        line,
-        text: String::from(text),
-        kind,
-    });
-}
-
-/// What:
 ///  Read a whole list from its text.
 /// Why:
-///  A blank line and a line that starts with `#` carry nothing;
-///  every other line must read as one entry,
-///  and no line may repeat another,
-///  because a list that names one thing twice is not a list of distinct findings.
+///  The lines are read by `layout_allow_entries.rs`,
+///  and the list they make is the one a rule asks about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,26 +109,9 @@ pub fn parse_allow_list(
     text: &str,
     source: &Path,
 ) -> Result<AllowList, String> {
-    let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::new();
-    let mut seen: BTreeSet<String> = BTreeSet::<String>::new();
-    for (index, raw) in text.lines().enumerate() {
-        let line: usize = index + 1;
-        let trimmed: &str = raw.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let entry: AllowEntry = entry_of(line, trimmed)?;
-        if !seen.insert(entry.identity()) {
-            return Err(format!(
-                "Line {line} repeats the entry `{}` that an earlier line already holds.",
-                entry.text
-            ));
-        }
-        entries.push(entry);
-    }
     return Ok(AllowList {
         source: source.to_path_buf(),
-        entries,
+        entries: parse_entries(text)?,
     });
 }
 
@@ -372,41 +188,6 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
 /// ```ts
 /// class AllowList { entries: AllowEntry[]; coversUse(from, to): boolean; coversKey(key): boolean }
 /// ```
-/// What:
-///  What one entry tolerates,
-///  written the one way every spelling of it reads.
-/// Why:
-///  No line may repeat another,
-///  and `uses ./src/a/ -> src/b` repeats `uses src/a -> src/b`:
-///  a `.` segment and a trailing separator name the same folder,
-///  so the list must say so rather than hold two lines for one use.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// entryIdentity(entry): string
-/// ```
-impl AllowEntry {
-    /// The entry's kind in the words the list writes it.
-    pub fn identity(&self) -> String {
-        return match &self.kind {
-            AllowKind::FolderUse {
-                from,
-                to,
-            } => format!(
-                "{FOLDER_USE_WORD} {} {ARROW} {}",
-                from.display(),
-                to.display()
-            ),
-            AllowKind::FileUse {
-                folder,
-                from,
-                to,
-            } => format!("{FILE_USE_WORD} {} {from} {ARROW} {to}", folder.display()),
-            AllowKind::Key(key) => key.clone(),
-        };
-    }
-}
-
 impl AllowList {
     /// The file the entries came from.
     pub fn source(&self) -> &Path {

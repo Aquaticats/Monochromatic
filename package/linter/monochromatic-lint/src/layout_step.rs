@@ -222,6 +222,17 @@ fn read_line_spans(file: &Path) -> Option<Vec<Span>> {
     return Some(spans);
 }
 
+/// What:
+///  The lines of each file already read,
+///  asked for one line at a time.
+/// Why:
+///  A caller reports findings file by file and never needs the whole table,
+///  so the table stays inside this type and only the span it asks for comes out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LineSpans { span(file: Path, line: number): Span }
+/// ```
 impl LineSpans {
     /// What:
     ///  The span of one line of one file,

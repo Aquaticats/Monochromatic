@@ -21,7 +21,8 @@ use crate::{
 };
 use std::path::Path;
 
-/// Read a list from text, as the file it would be.
+/// Read a list from text,
+/// as the file it would be.
 fn parsed(lines: &str) -> AllowList {
     return parse_allow_list(lines, Path::new("package/allow-list.txt"))
         .expect("the fixture list is valid");

@@ -167,7 +167,8 @@ fn class_as_git_reads_it(members: &[char]) -> String {
 }
 
 /// What:
-///  For every position, the index of the first `]` at or after it,
+///  For every position,
+/// the index of the first `]` at or after it,
 ///  or `usize::MAX` when the pattern holds none there.
 /// Why:
 ///  Looking for a class's end from its own `[` reads the rest of the line every time,

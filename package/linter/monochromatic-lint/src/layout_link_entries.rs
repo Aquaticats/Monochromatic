@@ -140,7 +140,8 @@ pub fn link_command(
 /// What:
 ///  The warning that a link written into a loop of folders makes `cargo package` walk without end.
 /// Why:
-///  `cargo package` follows the links, so a link into a loop packs the same folders over and over:
+///  `cargo package` follows the links,
+/// so a link into a loop packs the same folders over and over:
 ///  the wrapper measured 1.9 seconds with its 109 links and no answer after 120 seconds with 421 links in place.
 ///  A finding that only says `Create the link:` sends a looped crate into that hang,
 ///  so every link command carries the hazard and what ends it.

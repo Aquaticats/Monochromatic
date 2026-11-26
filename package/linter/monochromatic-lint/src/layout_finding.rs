@@ -70,7 +70,8 @@ pub fn shown(
 /// What:
 ///  A path as one finding's key writes it:
 ///  relative to the package folder when it is inside it,
-///  and always with `/` between segments, whatever the platform's own separator is.
+///  and always with `/` between segments,
+/// whatever the platform's own separator is.
 /// Why:
 ///  A list is written on one machine and read on another,
 ///  and this crate ships binaries for every platform,
@@ -98,7 +99,8 @@ pub fn key_path(
 ///  One line of a list tolerates every finding whose key it holds,
 ///  so two findings with one key would let a line that tolerates today's finding
 ///  also tolerate a second one added later.
-///  The first finding keeps the plain key and a later one gains `#2`, `#3` and so on in the rule's own order,
+///  The first finding keeps the plain key and a later one gains `#2`,
+/// `#3` and so on in the rule's own order,
 ///  which is document order within a file,
 ///  so an entry written before the numbering existed still names its finding
 ///  and an edit above a finding never renumbers it.

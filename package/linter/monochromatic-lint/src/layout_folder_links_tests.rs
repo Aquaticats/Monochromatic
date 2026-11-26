@@ -351,7 +351,8 @@ fn findings_with(
         .collect::<Vec<String>>();
 }
 
-/// A package whose folders `a`, `b` and `c` use each other in one loop,
+/// A package whose folders `a`,
+/// `b` and `c` use each other in one loop,
 ///  with the links the rule asks for.
 #[cfg(unix)]
 fn a_loop_of_three() -> crate::test_fs::Fixture {
