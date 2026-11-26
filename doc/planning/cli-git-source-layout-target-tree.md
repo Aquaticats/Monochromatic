@@ -32,7 +32,9 @@ Drafted 2026-11-04 for the owner's review,
 on top of `doc/planning/cli-git-source-layout.md`
 (the owner's words and the group order live there).
 The per-file tree is in [`cli-git-source-layout-target-tree-files.md`](cli-git-source-layout-target-tree-files.md);
-the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json) (key `target`).
+the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json)
+(key `after_the_reformat` for today's tree,
+`target` for the rows of 2026-11-07).
 
 ## What to look at and how to answer
 
@@ -62,7 +64,8 @@ the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source
 - Respond by:
   accepting or vetoing each open point;
   a veto on a crate or a name can be answered in one line,
-  because the tree is generated from one table kept in `cli-git-source-layout-groups.json` under `target`.
+  because the tree is generated from one table kept in `cli-git-source-layout-groups.json`
+  under `after_the_reformat` for today's files and under `target` for the rows of 2026-11-07.
   The first open point asks which of the eight libraries to keep,
   so a one-line answer ("keep the four with tier-one evidence") settles most of the file.
 
@@ -575,6 +578,9 @@ The seventh change is for a loop the engine cannot count.
   which closes a loop of five folders through `repository_facts`.
 - `service_review_key` is placed in `messages_between_the_wrapper_and_the_commit_service`,
   as section "Breaking each loop" already says.
+  That section was replaced on 2026-11-26 by "Loops between files,
+  and how each is broken (2026-11-26)",
+  which places `service_review_key` in the same folder.
   The placement table of the redo had kept it in the review folder,
   which made the messages folder use the HTTPS review folder;
   the redo's zero loops held either way.
@@ -655,9 +661,12 @@ and the two layout rules already on
 merged `a1b9b1e850`).
 Since the last scan (`e728c63911`,
 2026-11-07T10:43:12-05:00) 5269 commits changed the crate's `src`:
-2046 files were added,
-9 deleted,
+2046 files were added and 9 deleted
+(1914 and 9 of them `.rs`),
 and the tree grew from 653 production modules to 1622.
+The ZFS route's steps 1 to 22 landed in those commits
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`),
+which is where the 32 new program folders and 24 of the `uses/` folders come from.
 The move order below was written for the first of those numbers,
 so this section is what every later step is read against.
 
@@ -796,8 +805,8 @@ except where a line below sends part of a folder to a library.
   `git_settings_read_once` (2).
 - `native/conflict`:
   `saving_copies_of_what_a_command_would_throw_away` (23),
-  `the_settings_file_cli_git_config_jsonc` (1),
-  `reading_branches_tags_and_markers` (1).
+  `reading_branches_tags_and_markers` (1),
+  `the_settings_file_cli_git_config_jsonc` (1).
 - `native/dependent_version`:
   library `dependent-version-bump-check` (14),
   `checking_version_bumps_in_a_commit` (4),
@@ -846,20 +855,20 @@ except where a line below sends part of a folder to a library.
   `asking_the_commit_service_to_save_a_commit` (5),
   `pushing_what_the_commit_service_saved` (4),
   `finishing_what_an_earlier_commit_service_left_open` (3),
-  `telling_whether_an_earlier_commit_service_still_runs` (2),
   `syncing_files_off_the_waiting_path` (2),
+  `telling_whether_an_earlier_commit_service_still_runs` (2),
   `what_the_wrapper_asks_git_about_a_repository` (1).
 - `native/lfs`:
   `uploading_large_files` (17),
   `lines_about_worktrees_and_large_files` (1).
 - `native/lock`:
-  `finding_who_holds_a_lock_file` (10),
   `clearing_leftover_reference_locks` (10),
+  `finding_who_holds_a_lock_file` (10),
   `waiting_for_the_index_lock_of_git` (2),
   library `starting-and-watching-programs` (2),
+  `running_git_push_until_it_ends_or_stalls` (1),
   `starting_git_and_describing_a_run` (1),
-  `what_happens_when_you_type_a_command` (1),
-  `running_git_push_until_it_ends_or_stalls` (1).
+  `what_happens_when_you_type_a_command` (1).
 - `native/markdown`:
   `fixing_markdown_in_process` (6).
 - `native/merge`:
@@ -874,8 +883,8 @@ except where a line below sends part of a folder to a library.
   `running_policies_and_settling_their_corrections` (10),
   `the_list_of_checks_every_commit_runs` (3),
   `putting_corrected_files_into_the_private_index` (1),
-  library `safe-file-saving` (1),
-  `the_words_meant_for_this_wrapper` (1).
+  `the_words_meant_for_this_wrapper` (1),
+  library `safe-file-saving` (1).
 - `native/process`:
   library `starting-and-watching-programs` (30),
   `who_owns_a_transaction_folder` (1).
@@ -892,8 +901,8 @@ except where a line below sends part of a folder to a library.
 - `native/repo_read`:
   `reading_saved_commits_and_files` (10),
   `running_policies_and_settling_their_corrections` (8),
-  `reading_git_settings_from_files` (5),
   `answering_questions_without_starting_git` (5),
+  `reading_git_settings_from_files` (5),
   `finding_the_git_folders` (4),
   `reading_branches_tags_and_markers` (3),
   `what_the_wrapper_asks_git_about_a_repository` (2),
@@ -909,11 +918,11 @@ except where a line below sends part of a folder to a library.
   `landing_commits` (5),
   `naming_the_service_of_one_worktree` (4),
   `sending_log_entries_to_the_system_journal` (3),
-  library `talking-to-the-systemd-user-manager` (2),
   `stopping_the_program_at_a_named_step_for_tests` (2),
+  library `talking-to-the-systemd-user-manager` (2),
   `after_commit_work_of_the_service` (1),
-  `reviewing_landed_commits_against_standards` (1),
-  `how_long_the_program_waits_for_git_steps` (1).
+  `how_long_the_program_waits_for_git_steps` (1),
+  `reviewing_landed_commits_against_standards` (1).
 - `native/shadow`:
   `the_hidden_second_git_folder` (15),
   `replaying_changes_onto_new_commits` (10).
@@ -930,8 +939,8 @@ except where a line below sends part of a folder to a library.
   library `safe-file-saving` (2),
   `starting_git_and_describing_a_run` (1),
   `state_shared_by_preparing_and_landing_a_commit` (1),
-  `who_owns_a_transaction_folder` (1),
-  `stopping_the_program_at_a_named_step_for_tests` (1).
+  `stopping_the_program_at_a_named_step_for_tests` (1),
+  `who_owns_a_transaction_folder` (1).
 - `native/worktree`:
   `making_a_worktree_quickly` (61),
   `removing_a_linked_worktree` (27),
@@ -940,13 +949,13 @@ except where a line below sends part of a folder to a library.
   `the_trash_a_worktree_removal_sets_aside` (8),
   `the_snapshots_a_removal_takes_before_it_goes` (6),
   `planning_a_worktree_add_and_what_git_made` (5),
-  `recording_where_worktree_add_spent_its_time` (1),
+  `lines_about_worktrees_and_large_files` (1),
   `log_lines_of_the_commit_service` (1),
-  library `text-time-and-log-line-formats` (1),
-  library `safe-file-saving` (1),
-  library `linux-file-and-disk-calls` (1),
+  `recording_where_worktree_add_spent_its_time` (1),
   `what_the_wrapper_asks_git_about_a_repository` (1),
-  `lines_about_worktrees_and_large_files` (1).
+  library `linux-file-and-disk-calls` (1),
+  library `safe-file-saving` (1),
+  library `text-time-and-log-line-formats` (1).
 - `native/worktree_clone_add_route`:
   `making_a_clone_of_a_worktree_with_zfs` (25).
 - `native/worktree_clone_binding_record`:
@@ -978,11 +987,13 @@ except where a line below sends part of a folder to a library.
 - `native/worktree_clone_removal_proof_and_plan`:
   `proving_a_zfs_clone_may_be_removed` (33).
 - `native/worktree_clone_slot_state`:
-  `the_state_of_one_zfs_clone_slot` (8).
+  `the_state_of_one_zfs_clone_slot` (7).
 - `native/worktree_clone_snapshot_batch`:
   `taking_snapshots_for_the_zfs_clone_route` (8).
 - `native/worktree_clone_unmount`:
   `unmounting_a_zfs_clone_folder` (15).
+- `native/worktree_clone_watch_rebinding`:
+  `the_state_of_one_zfs_clone_slot` (1).
 - `native/worktree_copying`:
   `copying_ignored_files_into_a_stage` (28),
   `copying_ignored_files_around_one_git_command` (27),
@@ -1100,7 +1111,7 @@ because a later split took its contents:
 `service_replay_path_and_line_text`,
 `single_owner_claim`,
 `stale_ref_lock_names`,
-`stale_ref_lock_nested_symbols`,
+`stale_ref_lock_nested_numbers`,
 `standards_review_append`,
 `what_a_command_hands_back`,
 `worktree_command_facts` and
@@ -6834,7 +6845,8 @@ is at "Where each step stands today (2026-11-26)" below.
     `super::`),
     not only in `use crate::<file>` lines.
 3.  Loop breaks inside the one crate:
-    each bullet of "Breaking each loop" is a commit (a type moves,
+    each bullet of "Loops between files,
+    and how each is broken (2026-11-26)" is a commit (a type moves,
     imports change).
 4.  The call changes,
     one commit each,
@@ -6932,9 +6944,11 @@ it says which branch a step still needs.
   and the library it would move to does not exist),
   `copy_file_exclusive`'s own move (it is still in `worktree_copying/worktree_copy_stage_leaf_copying.rs`),
   and the removal of the named re-exports
-  (51 `pub use folder::*;` lines in `src/native/lib.rs`,
+  (53 `pub use folder::*;` lines in `src/native/lib.rs`,
   two of them `pub(crate)`,
-  and 126 named `pub use` lines elsewhere).
+  and 512 named `pub use` lines elsewhere,
+  248 of those in `mod.rs` files;
+  the 2026-11-07 text counted 28 flat lines and 126 named ones).
 - Step 3,
   the loop breaks:
   no loop the 2026-11-07 breaks named has closed,
@@ -6967,7 +6981,7 @@ it says which branch a step still needs.
 - Step 6,
   the flat re-exports:
   still there,
-  51 lines.
+  53 lines in `src/native/lib.rs`.
 - Step 7,
   the grouping into target folders:
   not started.
@@ -7291,6 +7305,13 @@ the recommendation is the first option.
     `no_threads_child_test_support` and the `strace` counter `binary_budget_trace` are new kinds of helper.
   - The ninth library has no production file in the table;
     the scan counted 44 test references from the libraries' sidecars to these helpers.
+  Update 2026-11-26:
+  the owner answered this point after the "Not yet.",
+  on 2026-11-15:
+  "A separate library (Recommended)"
+  (`disposable-test-folders`),
+  as the quotation at the end of this section records.
+  This round states the record and decides nothing.
 - One level of groups in the program.
   Answered by the owner on 2026-11-07T02:44:49-05:00,
   verbatim,
@@ -7362,6 +7383,14 @@ the recommendation is the first option.
     `starting-and-watching-programs` uses `parallel-work-within-a-budget`,
     and `fix-packages-after-copying-a-folder` uses both of the other two.
     The program lists all four.
+  Update 2026-11-26:
+  the owner answered this point and the plural-name point on 2026-11-15
+  ("package/<job>/core-rust (Recommended)",
+  crate `monochromatic-<job>`;
+  "Keep the names,
+  exempt them (Recommended)"),
+  and the quotation at the end of this section records it.
+  The count of libraries stays open (the first point of this section).
 - Singular directory names.
   The rule that repo-chosen directory segments are singular nouns (`doc/planning/singular-dir-name-invariant.md`)
   would call the library names `starting-and-watching-programs`,
@@ -7837,8 +7866,8 @@ in order:
     which is what removes the 72 uses in 36 files and with them the crate and folder loops.
 6.  `refactor/git-policy-cli-split-flat-re-exports`:
     step 6,
-    which rewrites every `use crate::<file>` to name the folder and then deletes the 51 flat re-exports
-    and the 126 named ones.
+    which rewrites every `use crate::<file>` to name the folder and then deletes the 53 flat re-exports
+    and the 512 named ones.
 7.  `refactor/git-policy-cli-split-group-into-folders`:
     step 7,
     one commit per source folder of the rescan's list,
@@ -7915,12 +7944,26 @@ What still needs the owner,
 and is not decided in this section:
 
 - The test helpers,
-  which the owner answered "Not yet."
-  on 2026-11-07 (open point "The test helpers").
-  Today's `testing/` folder is what the answer will split.
-- Where the libraries live and what they are named,
-  which the owner answered "Not yet."
-  on 2026-11-07 (open point "Where the libraries live and what they are named").
+  where the libraries live and what they are named:
+  the owner answered "Not yet."
+  on 2026-11-07 (open points "The test helpers" and
+  "Where the libraries live and what they are named"),
+  and then answered all three parts on 2026-11-15
+  ("A separate library (Recommended)",
+  "package/<job>/core-rust (Recommended)",
+  "Keep the names,
+  exempt them (Recommended)"),
+  as the quotation at the end of "Open points for the owner" records.
+  This round takes neither side:
+  a briefing round needs the owner to say that these answers govern the split,
+  and the plural-name exemption is not yet written into
+  `doc/planning/singular-dir-name-invariant.md`.
+  Today's `testing/` folder is what the first answer will split.
+- Which libraries are kept:
+  the owner has not answered the count
+  ("I'm not ready to answer this specific question yet."),
+  so readings D and E of "Open points for the owner" stand,
+  and steps 9 to 11 of the order move whichever reading the answer picks.
 - The 32 new folder names of the ZFS route,
   which are this round's wording and need the veto round MKY asks for.
 - Whether `repairs_the_service_runs_for_a_new_worktree` stays a program folder:
