@@ -98,4 +98,8 @@ mod value;
 pub use error::NvError;
 /// The decoded list,
 /// pair and value types.
-pub use value::{NvData, NvList, NvPair};
+pub use value::{
+    NvData,
+    NvList,
+    NvPair,
+};

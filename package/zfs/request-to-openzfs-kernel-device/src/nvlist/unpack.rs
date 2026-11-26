@@ -23,7 +23,10 @@ use super::error::NvError;
 /// The checked position in a packed list.
 use super::stream_cursor::Cursor;
 /// The list and pair types the reader builds.
-use super::value::{NvList, NvPair};
+use super::value::{
+    NvList,
+    NvPair,
+};
 
 /// The methods of `NvList`.
 impl NvList {

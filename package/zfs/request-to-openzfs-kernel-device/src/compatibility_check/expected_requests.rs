@@ -54,9 +54,8 @@ pub struct ExpectedEnumerator {
 /// Every request number this crate can send,
 /// the range's two endpoints last.
 pub fn expected_enumerators() -> Vec<ExpectedEnumerator> {
-    let mut wanted: Vec<ExpectedEnumerator> = Vec::<ExpectedEnumerator>::with_capacity(
-        Operation::ALL.len().saturating_add(2),
-    );
+    let mut wanted: Vec<ExpectedEnumerator> =
+        Vec::<ExpectedEnumerator>::with_capacity(Operation::ALL.len().saturating_add(2));
     for operation in Operation::ALL {
         wanted.push(ExpectedEnumerator {
             name: format!("{REQUEST_PREFIX}{}", operation.as_str()),

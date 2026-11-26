@@ -27,7 +27,12 @@
 //! and only the guest's own files are read.
 
 use super::refusal::Step;
-use super::{Compatible, LayoutRequest, Refusal, check_module_layout};
+use super::{
+    Compatible,
+    LayoutRequest,
+    Refusal,
+    check_module_layout,
+};
 use std::path::Path;
 
 /// Where the guest exposes its two type-information files.
@@ -40,18 +45,29 @@ const MODULE_VERSION: &str = "/sys/module/zfs/version";
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
 fn the_running_modules_declaration_answers_what_the_arm_expects() {
-    let Some(guest): Option<std::ffi::OsString> = std::env::var_os("MONOCHROMATIC_ZFS_FIXTURE_GUEST") else {
-        println!("SKIP gate_arm: MONOCHROMATIC_ZFS_FIXTURE_GUEST is unset, so this arm was not run");
+    let Some(guest): Option<std::ffi::OsString> =
+        std::env::var_os("MONOCHROMATIC_ZFS_FIXTURE_GUEST")
+    else {
+        println!(
+            "SKIP gate_arm: MONOCHROMATIC_ZFS_FIXTURE_GUEST is unset, so this arm was not run"
+        );
         return;
     };
     let hostname: String = std::fs::read_to_string("/proc/sys/kernel/hostname")
         .expect("the guest's hostname is readable")
         .trim()
         .to_string();
-    assert_eq!(hostname, guest.to_string_lossy(), "this arm runs only in the guest the recipe made");
-    let expected: String = std::env::var("MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT").unwrap_or_default();
+    assert_eq!(
+        hostname,
+        guest.to_string_lossy(),
+        "this arm runs only in the guest the recipe made"
+    );
+    let expected: String =
+        std::env::var("MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT").unwrap_or_default();
     if expected.is_empty() {
-        println!("SKIP gate_arm: MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT is unset, so this arm names no expectation");
+        println!(
+            "SKIP gate_arm: MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT is unset, so this arm names no expectation"
+        );
         return;
     }
     let release: String = std::fs::read_to_string(MODULE_VERSION)
@@ -68,17 +84,28 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
         module_btf: module.as_path(),
     });
     let answer: String = match &verdict {
-        Ok(compatible) => format!("compatible base={} module={}", compatible.base_bytes, compatible.module_bytes),
+        Ok(compatible) => format!(
+            "compatible base={} module={}",
+            compatible.base_bytes, compatible.module_bytes
+        ),
         Err(refusal) => format!("{} step={:?}", refusal.detail, refusal.step),
     };
-    println!("MEASUREMENT gate expected={expected} release={release} module_btf={module_bytes} verdict={answer}");
+    println!(
+        "MEASUREMENT gate expected={expected} release={release} module_btf={module_bytes} verdict={answer}"
+    );
     match expected.as_str() {
         "compatible" => {
             let Ok(compatible): Result<Compatible, Refusal> = verdict else {
-                panic!("the approved declaration refused: {}", verdict.err().unwrap());
+                panic!(
+                    "the approved declaration refused: {}",
+                    verdict.err().unwrap()
+                );
             };
             assert!(compatible.module_bytes > 0);
-            assert_eq!(compatible.module_header_bytes, 24, "a 6.8 guest's tools write the oldest header");
+            assert_eq!(
+                compatible.module_header_bytes, 24,
+                "a 6.8 guest's tools write the oldest header"
+            );
         }
         "member:dds_flags" => {
             let Err(refusal): Result<Compatible, Refusal> = verdict else {
@@ -102,7 +129,11 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
                 panic!("a module without the anonymous union passed the gate");
             };
             assert_eq!(refusal.step, Step::Type);
-            assert!(refusal.detail.contains("zc_inject_record"), "{}", refusal.detail);
+            assert!(
+                refusal.detail.contains("zc_inject_record"),
+                "{}",
+                refusal.detail
+            );
         }
         other => panic!("the driver named an expectation this arm does not know: {other}"),
     }

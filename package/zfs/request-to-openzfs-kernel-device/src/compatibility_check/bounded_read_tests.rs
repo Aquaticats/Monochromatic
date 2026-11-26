@@ -14,12 +14,23 @@
 //!  byte is judged.
 
 use super::blob_fixture::fixture_directory;
-use super::bounded_read::{IDENTITY_FILE_BOUND, ReadRequest, read_bounded};
-use super::refusal::{Refusal, Step};
+use super::bounded_read::{
+    IDENTITY_FILE_BOUND,
+    ReadRequest,
+    read_bounded,
+};
+use super::refusal::{
+    Refusal,
+    Step,
+};
 use std::path::PathBuf;
 
 /// A file under the build directory with the given bytes.
-fn written(name: &str, file: &str, bytes: &[u8]) -> PathBuf {
+fn written(
+    name: &str,
+    file: &str,
+    bytes: &[u8],
+) -> PathBuf {
     let path: PathBuf = fixture_directory(name).join(file);
     std::fs::write(&path, bytes).expect("the fixture file is written");
     return path;
@@ -73,7 +84,11 @@ fn a_link_refuses_rather_than_being_followed() {
         step: Step::Identity,
     });
     assert_eq!(refusal.step, Step::Identity);
-    assert!(refusal.detail.contains("could not be opened"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("could not be opened"),
+        "{}",
+        refusal.detail
+    );
 }
 
 #[test]
@@ -86,5 +101,9 @@ fn a_missing_file_refuses_naming_the_path() {
     });
     assert_eq!(refusal.step, Step::BaseBtf);
     assert_eq!(refusal.file.as_deref(), Some(path.as_path()));
-    assert!(refusal.to_string().contains("base type information refused whilst reading"));
+    assert!(
+        refusal
+            .to_string()
+            .contains("base type information refused whilst reading")
+    );
 }

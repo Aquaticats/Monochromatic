@@ -22,13 +22,26 @@
 /// The wire constants,
 /// type numbers,
 /// alignment and version check.
-use super::data_type::{MAX_DEPTH, NVLIST_STRUCT_SIZE, NVPAIR_HDR_SIZE, align8, check_version};
+use super::data_type::{
+    MAX_DEPTH,
+    NVLIST_STRUCT_SIZE,
+    NVPAIR_HDR_SIZE,
+    align8,
+    check_version,
+};
 /// The scalar writer and its NUL checks.
-use super::encode_scalar_value::{contains_nul, value_contains_nul, write_scalar_value};
+use super::encode_scalar_value::{
+    contains_nul,
+    value_contains_nul,
+    write_scalar_value,
+};
 /// The codec own refusal type.
 use super::error::NvError;
 /// The pair and value types the writer encodes.
-use super::value::{NvData, NvPair};
+use super::value::{
+    NvData,
+    NvPair,
+};
 
 /// Encode a pair sequence and its 4-byte zero terminator.
 ///
@@ -37,7 +50,11 @@ use super::value::{NvData, NvPair};
 /// [`NvError`] from [`encode_pair`],
 /// or [`NvError::TooDeep`] past
 /// [`MAX_DEPTH`].
-pub fn encode_pairs(out: &mut Vec<u8>, pairs: &[NvPair], depth: usize) -> Result<(), NvError> {
+pub fn encode_pairs(
+    out: &mut Vec<u8>,
+    pairs: &[NvPair],
+    depth: usize,
+) -> Result<(), NvError> {
     if depth > MAX_DEPTH {
         return Err(NvError::TooDeep);
     }
@@ -65,8 +82,12 @@ pub fn encode_pair(
     depth: usize,
 ) -> Result<(), NvError> {
     match data {
-        NvData::List { value: list } => check_version(list.version)?,
-        NvData::ListArray { value: lists } => {
+        NvData::List {
+            value: list,
+        } => check_version(list.version)?,
+        NvData::ListArray {
+            value: lists,
+        } => {
             for list in lists {
                 check_version(list.version)?;
             }
@@ -108,8 +129,12 @@ pub fn encode_pair(
     out[pair_at + 8..pair_at + 12].copy_from_slice(&(elements as i32).to_le_bytes());
     out[pair_at + 12..pair_at + 16].copy_from_slice(&data_type.to_le_bytes());
     match data {
-        NvData::List { value: list } => encode_pairs(out, &list.pairs, depth + 1)?,
-        NvData::ListArray { value: lists } => {
+        NvData::List {
+            value: list,
+        } => encode_pairs(out, &list.pairs, depth + 1)?,
+        NvData::ListArray {
+            value: lists,
+        } => {
             for list in lists {
                 encode_pairs(out, &list.pairs, depth + 1)?;
             }
@@ -122,13 +147,20 @@ pub fn encode_pair(
 /// Write a pair's value:
 /// an embedded list's header or a scalar's bytes,
 /// returning the `(data_type_t, nvp_value_elem)` the header carries.
-fn write_value(out: &mut Vec<u8>, data: &NvData) -> (i32, usize) {
+fn write_value(
+    out: &mut Vec<u8>,
+    data: &NvData,
+) -> (i32, usize) {
     return match data {
-        NvData::List { value: list } => {
+        NvData::List {
+            value: list,
+        } => {
             write_nvlist_header(out, list.version, list.nvflag);
             (super::data_type::DATA_TYPE_NVLIST, 1)
         }
-        NvData::ListArray { value: lists } => {
+        NvData::ListArray {
+            value: lists,
+        } => {
             out.resize(out.len() + lists.len() * size_of::<u64>(), 0);
             for list in lists {
                 write_nvlist_header(out, list.version, list.nvflag);
@@ -141,7 +173,11 @@ fn write_value(out: &mut Vec<u8>, data: &NvData) -> (i32, usize) {
 
 /// Append the 24-byte in-memory `nvlist_t` copy an embedded value carries;
 /// only its leading version and flag are meaningful on the wire.
-fn write_nvlist_header(out: &mut Vec<u8>, version: i32, nvflag: u32) {
+fn write_nvlist_header(
+    out: &mut Vec<u8>,
+    version: i32,
+    nvflag: u32,
+) {
     out.extend_from_slice(&version.to_le_bytes());
     out.extend_from_slice(&nvflag.to_le_bytes());
     out.resize(out.len() + (NVLIST_STRUCT_SIZE - 8), 0);

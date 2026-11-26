@@ -44,8 +44,18 @@ fn a_lookup_answers_the_last_pair_even_without_the_flag() {
         nvflag: 0,
         pairs: Vec::new(),
     };
-    list.push("k", NvData::Uint64 { value: 1 })
-        .push("k", NvData::Uint64 { value: 2 });
+    list.push(
+        "k",
+        NvData::Uint64 {
+            value: 1,
+        },
+    )
+    .push(
+        "k",
+        NvData::Uint64 {
+            value: 2,
+        },
+    );
     assert_eq!(list.pairs.len(), 2);
     assert_eq!(list.get_u64("k"), Some(2));
 }
@@ -72,19 +82,36 @@ fn every_builder_produces_its_variant() {
     list.add_u64_array("u64s", vec![1, 2]);
     list.add_str_array("strs", vec!["a".to_string()]);
     list.add_nvlist("nested", NvList::new());
-    assert_eq!(list.get("u64"), Some(&NvData::Uint64 { value: 7 }));
+    assert_eq!(
+        list.get("u64"),
+        Some(&NvData::Uint64 {
+            value: 7
+        })
+    );
     assert_eq!(
         list.get("str"),
         Some(&NvData::Str {
             value: "v".to_string()
         })
     );
-    assert_eq!(list.get("boolean"), Some(&NvData::Boolean { value: true }));
+    assert_eq!(
+        list.get("boolean"),
+        Some(&NvData::Boolean {
+            value: true
+        })
+    );
     assert_eq!(list.get("flag"), Some(&NvData::BooleanFlag));
-    assert_eq!(list.get("i32"), Some(&NvData::Int32 { value: -3 }));
+    assert_eq!(
+        list.get("i32"),
+        Some(&NvData::Int32 {
+            value: -3
+        })
+    );
     assert_eq!(
         list.get("u64s"),
-        Some(&NvData::Uint64Array { value: vec![1, 2] })
+        Some(&NvData::Uint64Array {
+            value: vec![1, 2]
+        })
     );
     assert_eq!(
         list.get("strs"),
@@ -94,7 +121,9 @@ fn every_builder_produces_its_variant() {
     );
     assert!(matches!(
         list.get("nested"),
-        Some(NvData::List { value: _ })
+        Some(NvData::List {
+            value: _
+        })
     ));
 }
 
@@ -116,7 +145,12 @@ fn iter_visits_every_pair_in_wire_order() {
 fn each_value_reports_its_wire_type() {
     let cases: [(NvData, i32); 6] = [
         (NvData::BooleanFlag, DATA_TYPE_BOOLEAN),
-        (NvData::Boolean { value: true }, DATA_TYPE_BOOLEAN_VALUE),
+        (
+            NvData::Boolean {
+                value: true,
+            },
+            DATA_TYPE_BOOLEAN_VALUE,
+        ),
         (
             NvData::Str {
                 value: String::new(),
@@ -124,7 +158,9 @@ fn each_value_reports_its_wire_type() {
             DATA_TYPE_STRING,
         ),
         (
-            NvData::Uint64Array { value: Vec::new() },
+            NvData::Uint64Array {
+                value: Vec::new(),
+            },
             DATA_TYPE_UINT64_ARRAY,
         ),
         (

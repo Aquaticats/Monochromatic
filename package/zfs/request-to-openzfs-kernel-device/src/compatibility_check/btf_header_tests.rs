@@ -18,8 +18,14 @@
 //!  each arm needs.
 
 use super::blob_fixture::Blob;
-use super::btf_header::{Sections, read_sections};
-use super::refusal::{Refusal, Step};
+use super::btf_header::{
+    Sections,
+    read_sections,
+};
+use super::refusal::{
+    Refusal,
+    Step,
+};
 use std::path::Path;
 
 /// The file one arm reads,
@@ -83,14 +89,22 @@ fn another_magic_refuses_naming_both() {
 fn a_version_other_than_one_refuses() {
     let bytes: Vec<u8> = Blob::with_byte(valid(), 2, 2);
     let refusal: Refusal = refused(&bytes);
-    assert!(refusal.detail.contains("version is 2"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("version is 2"),
+        "{}",
+        refusal.detail
+    );
 }
 
 #[test]
 fn flags_that_are_not_zero_refuse() {
     let bytes: Vec<u8> = Blob::with_byte(valid(), 3, 1);
     let refusal: Refusal = refused(&bytes);
-    assert!(refusal.detail.contains("flags byte is 1"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("flags byte is 1"),
+        "{}",
+        refusal.detail
+    );
 }
 
 #[test]
@@ -119,7 +133,11 @@ fn a_gap_between_two_sections_refuses() {
     let mut bytes: Vec<u8> = valid();
     bytes[16] = 20;
     let refusal: Refusal = refused(&bytes);
-    assert!(refusal.detail.contains("leaving a gap"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("leaving a gap"),
+        "{}",
+        refusal.detail
+    );
 }
 
 #[test]

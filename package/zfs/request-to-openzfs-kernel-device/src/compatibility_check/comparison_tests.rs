@@ -11,18 +11,34 @@
 //! the declaration the module publishes passes the
 //!  same call.
 
-use super::approved_module_fixture::{Change, module_with};
-use super::{Compatible, Refusal};
-use super::blob_fixture::{Blob, check_pair, check_raw};
+use super::approved_module_fixture::{
+    Change,
+    module_with,
+};
+use super::blob_fixture::{
+    Blob,
+    check_pair,
+    check_raw,
+};
 use super::refusal::Step;
+use super::{
+    Compatible,
+    Refusal,
+};
 
 /// The gate's verdict for one changed declaration.
-fn verdict(change: Change, name: &str) -> Result<Compatible, Refusal> {
+fn verdict(
+    change: Change,
+    name: &str,
+) -> Result<Compatible, Refusal> {
     return check_pair(name, &Blob::new(), &module_with(change));
 }
 
 /// The refusal one changed declaration must get.
-fn refused(change: Change, name: &str) -> Refusal {
+fn refused(
+    change: Change,
+    name: &str,
+) -> Refusal {
     let answer: Result<Compatible, Refusal> = verdict(change, name);
     let Err(refusal): Result<Compatible, Refusal> = answer else {
         panic!("the {change:?} declaration passed the gate");
@@ -34,7 +50,10 @@ fn refused(change: Change, name: &str) -> Refusal {
 fn the_approved_declaration_and_its_requests_pass() {
     let answer: Result<Compatible, Refusal> = verdict(Change::None, "comparison-approved");
     let Ok(compatible): Result<Compatible, Refusal> = answer else {
-        panic!("the approved declaration refused: {}", answer.err().unwrap());
+        panic!(
+            "the approved declaration refused: {}",
+            answer.err().unwrap()
+        );
     };
     assert_eq!(compatible.base_header_bytes, 32);
     assert_eq!(compatible.module_header_bytes, 32);
@@ -68,7 +87,11 @@ fn a_record_that_lost_its_last_flag_refuses_at_that_member() {
 fn a_union_that_is_neither_anonymous_nor_the_union_refuses_at_the_type() {
     let refusal: Refusal = refused(Change::NoUnion, "comparison-no-union");
     assert_eq!(refusal.step, Step::Type);
-    assert!(refusal.detail.contains("zc_inject_record"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("zc_inject_record"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("106368"), "{}", refusal.detail);
 }
 
@@ -76,7 +99,11 @@ fn a_union_that_is_neither_anonymous_nor_the_union_refuses_at_the_type() {
 fn an_inject_record_that_lost_its_counters_refuses_with_both_sizes() {
     let refusal: Refusal = refused(Change::ShortInject, "comparison-short-inject");
     assert_eq!(refusal.step, Step::Member);
-    assert!(refusal.detail.contains("zc_inject_record"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("zc_inject_record"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("352"), "{}", refusal.detail);
     assert!(refusal.detail.contains("368"), "{}", refusal.detail);
 }
@@ -94,7 +121,11 @@ fn two_members_that_swapped_offsets_refuse_with_both_offsets() {
 fn a_member_no_member_expects_refuses_at_the_count() {
     let refusal: Refusal = refused(Change::ExtraMember, "comparison-extra");
     assert_eq!(refusal.step, Step::Member);
-    assert!(refusal.detail.contains("10 members where 9"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("10 members where 9"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("dds_extra"), "{}", refusal.detail);
 }
 
@@ -102,7 +133,11 @@ fn a_member_no_member_expects_refuses_at_the_count() {
 fn a_renumbered_request_refuses_with_both_values() {
     let refusal: Refusal = refused(Change::RenumberedClone, "comparison-renumbered");
     assert_eq!(refusal.step, Step::Enum);
-    assert!(refusal.detail.contains("ZFS_IOC_CLONE"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("ZFS_IOC_CLONE"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("23107"), "{}", refusal.detail);
     assert!(refusal.detail.contains("23106"), "{}", refusal.detail);
 }
@@ -111,7 +146,11 @@ fn a_renumbered_request_refuses_with_both_values() {
 fn a_release_that_only_appends_a_request_refuses_at_the_range_end() {
     let refusal: Refusal = refused(Change::AppendedRequest, "comparison-appended-request");
     assert_eq!(refusal.step, Step::Enum);
-    assert!(refusal.detail.contains("ZFS_IOC_LAST"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("ZFS_IOC_LAST"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("23178"), "{}", refusal.detail);
     assert!(refusal.detail.contains("23177"), "{}", refusal.detail);
 }
@@ -120,16 +159,17 @@ fn a_release_that_only_appends_a_request_refuses_at_the_range_end() {
 fn a_missing_request_refuses_naming_it() {
     let refusal: Refusal = refused(Change::MissingChannelProgram, "comparison-missing-request");
     assert_eq!(refusal.step, Step::Enum);
-    assert!(refusal.detail.contains("ZFS_IOC_CHANNEL_PROGRAM"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("ZFS_IOC_CHANNEL_PROGRAM"),
+        "{}",
+        refusal.detail
+    );
 }
 
 #[test]
 fn a_module_without_the_command_struct_refuses_at_the_type() {
-    let answer: Result<Compatible, Refusal> = check_pair(
-        "comparison-no-command",
-        &Blob::new(),
-        &Blob::new(),
-    );
+    let answer: Result<Compatible, Refusal> =
+        check_pair("comparison-no-command", &Blob::new(), &Blob::new());
     let Err(refusal): Result<Compatible, Refusal> = answer else {
         panic!("a module without zfs_cmd passed the gate");
     };
@@ -142,11 +182,8 @@ fn a_big_endian_module_refuses_at_the_header() {
     let module: Vec<u8> = module_with(Change::None).bytes();
     let swapped: Vec<u8> = Blob::with_byte(module, 0, 0xeb);
     let total: Vec<u8> = Blob::with_byte(swapped, 1, 0x9f);
-    let answer: Result<Compatible, Refusal> = check_raw(
-        "comparison-big-endian",
-        &Blob::new().bytes(),
-        &total,
-    );
+    let answer: Result<Compatible, Refusal> =
+        check_raw("comparison-big-endian", &Blob::new().bytes(), &total);
     let Err(refusal): Result<Compatible, Refusal> = answer else {
         panic!("a big-endian file passed the gate");
     };

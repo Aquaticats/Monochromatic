@@ -32,7 +32,10 @@ use crate::nvlist::NvList;
 /// # Panics
 ///
 /// When the reply has no such property or it is not a number.
-pub(crate) fn property_u64(reply: &NvList, property: &str) -> u64 {
+pub(crate) fn property_u64(
+    reply: &NvList,
+    property: &str,
+) -> u64 {
     let entry: &NvList = reply.get_list(property).unwrap_or_else(|| {
         panic!("the reply carries no '{property}'");
     });
@@ -46,7 +49,10 @@ pub(crate) fn property_u64(reply: &NvList, property: &str) -> u64 {
 /// # Panics
 ///
 /// When the reply has no such property or it is not a string.
-pub(crate) fn property_str<'a>(reply: &'a NvList, property: &str) -> &'a str {
+pub(crate) fn property_str<'a>(
+    reply: &'a NvList,
+    property: &str,
+) -> &'a str {
     let entry: &NvList = reply.get_list(property).unwrap_or_else(|| {
         panic!("the reply carries no '{property}'");
     });
@@ -68,7 +74,10 @@ pub(crate) fn property_str<'a>(reply: &'a NvList, property: &str) -> &'a str {
 /// # Panics
 ///
 /// When the reply has no such property.
-pub(crate) fn property_source<'a>(reply: &'a NvList, property: &str) -> &'a str {
+pub(crate) fn property_source<'a>(
+    reply: &'a NvList,
+    property: &str,
+) -> &'a str {
     let entry: &NvList = reply.get_list(property).unwrap_or_else(|| {
         panic!("the reply carries no '{property}'");
     });
@@ -86,7 +95,10 @@ pub(crate) fn property_source<'a>(reply: &'a NvList, property: &str) -> &'a str 
 /// # Panics
 ///
 /// When `zfs get` printed a source this reader does not know.
-pub(crate) fn expected_source(cli_source: &str, local: &str) -> String {
+pub(crate) fn expected_source(
+    cli_source: &str,
+    local: &str,
+) -> String {
     if cli_source == "local" {
         return local.to_string();
     }
@@ -132,7 +144,10 @@ where
 /// # Panics
 ///
 /// When the reply has no such bookmark.
-pub(crate) fn bookmark_identity(reply: &NvList, name: &str) -> (u64, u64) {
+pub(crate) fn bookmark_identity(
+    reply: &NvList,
+    name: &str,
+) -> (u64, u64) {
     let entry: &NvList = reply.get_list(name).unwrap_or_else(|| {
         panic!("the reply carries no bookmark '{name}'");
     });
@@ -159,7 +174,11 @@ pub(crate) fn bookmark_identity(reply: &NvList, name: &str) -> (u64, u64) {
 /// # Panics
 ///
 /// When `zfs get` printed no such property or its value is not a number.
-pub(crate) fn cli_value(fixture: &super::fixture::Fixture, dataset: &str, property: &str) -> u64 {
+pub(crate) fn cli_value(
+    fixture: &super::fixture::Fixture,
+    dataset: &str,
+    property: &str,
+) -> u64 {
     return cli_value_and_source(fixture, dataset, property).0;
 }
 

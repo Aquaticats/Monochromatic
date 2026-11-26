@@ -22,7 +22,11 @@ use super::error::Error;
 use super::operation::Operation;
 /// The request value,
 /// the name check and the flag list builder.
-use super::request::{Request, checked_name, flag_list};
+use super::request::{
+    Request,
+    checked_name,
+    flag_list,
+};
 /// The field a request name is bound for.
 use crate::names::NameField;
 /// The codec list type.
@@ -65,7 +69,10 @@ pub fn snapshot(
 /// [`Error::Name`] when the pool does not fit `zc_name`,
 /// and
 /// [`Error::Encode`] when a snapshot name cannot be packed.
-pub fn destroy_snaps(pool: &str, snapshots: &[&str]) -> Result<Request, Error> {
+pub fn destroy_snaps(
+    pool: &str,
+    snapshots: &[&str],
+) -> Result<Request, Error> {
     let name = checked_name(Operation::DestroySnaps, pool, NameField::CommandName, pool)?;
     let mut input: NvList = NvList::new();
     input.add_nvlist("snaps", flag_list(snapshots));

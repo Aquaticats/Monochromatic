@@ -29,7 +29,14 @@ use super::device_error::DeviceError;
 /// The decoded list a write may answer with.
 use crate::nvlist::NvList;
 /// The request constructors and the request value.
-use crate::requests::{Request, clone, destroy, destroy_snaps, set_prop, snapshot};
+use crate::requests::{
+    Request,
+    clone,
+    destroy,
+    destroy_snaps,
+    set_prop,
+    snapshot,
+};
 
 /// The methods of `ZfsDevice` that write.
 impl ZfsDevice {
@@ -58,7 +65,11 @@ impl ZfsDevice {
     /// # Throws
     ///
     /// What `ZfsDevice::write` throws.
-    pub fn destroy(&self, name: &str, defer: bool) -> Result<Option<NvList>, DeviceError> {
+    pub fn destroy(
+        &self,
+        name: &str,
+        defer: bool,
+    ) -> Result<Option<NvList>, DeviceError> {
         let mut request: Request = destroy(name, defer)?;
         return self.write(&mut request);
     }
@@ -130,13 +141,18 @@ impl ZfsDevice {
     /// snapshot's name in `zc_string` (`dsl_dataset_promote`,
     /// `module/zfs/dsl_dataset.c` of `zfs-2.4.4`).
     #[cfg(test)]
-    pub fn promote(&self, name: &str) -> Promotion {
+    pub fn promote(
+        &self,
+        name: &str,
+    ) -> Promotion {
         let mut request: Request = match crate::requests::promote(name) {
             Ok(request) => request,
             Err(source) => {
                 return Promotion::Refused {
                     conflicting_snapshot: String::new(),
-                    error: DeviceError::Request { source },
+                    error: DeviceError::Request {
+                        source,
+                    },
                 };
             }
         };
