@@ -503,7 +503,9 @@ while the same file alone passes:
 ```
 
 Two causes,
-measured on 2026-11-26 while resolving issue 6504.
+measured on 2026-11-26 while resolving issue 6504,
+and a third,
+measured the same day while resolving issue 6506.
 
 ### Cause 1: a `/proc` read of a process that ended between the listing and the read
 
@@ -549,6 +551,71 @@ and leaves that figure room to take half again.
 The work such a run leaves behind lives longer than the clock,
 so the run still ends on its clock rather than after its work.
 
+### Cause 3: the last line a control reads is not on disk yet
+
+`startRecordOfPiRun`'s `note` hands each feed line to a write stream
+(`package/pi-shared/subagent-driver/src/feed-of-a-run.ts`),
+so it returns before the line reaches the file,
+and the record's `close` is what waits for the stream to finish.
+A control that read `feed.jsonl` while the record was still open
+could therefore read every line but the last,
+and the control that asserts on the last line read the run's previous word instead:
+
+```text
+AssertionError: expected 'the agent ended its turn while work i…'
+  to contain 'waited for the work it left running'
+```
+
+That is issue 6506's failure,
+in the watch's wall-clock control in `watch-pi-run.unit.test.ts`.
+The wait line it asserts on is recorded two looks before the run's clock ends it,
+so that line was on disk;
+the line the run notes as its clock ends it was not.
+The control's clock needed no change:
+three of the watch's own `POLL_MILLISECONDS` is what its loop needs
+(one look that records the wait,
+one after it that sees the clock),
+and the failing run's own report shows the look that saw the work,
+so the clock never came before the state the control asserts.
+
+A feed whose writing failed shows the same symptom for a second reason:
+`note` drops every line after the stream's first error,
+and a control reading the file cannot tell that tail from a line not yet written.
+Both are answered where the control reads:
+it closes the record first and then names a feed that failed to write,
+rather than reading a missing tail as the run's last word.
+
+Measured on 2026-11-26 on the host the issue was filed from,
+by noting a line through a real record and reading the file straight back,
+with the stream warm from a line noted before it,
+and again after closing the record:
+
+```ts
+// ${HOME}/temp/agent/probe-feed-flush-race-warmed.ts
+record.note({ kind: 'waiting', problem: '…' },);
+if (gapMilliseconds > 0) await wait(gapMilliseconds,);
+record.note({ kind: 'problem', problem: '…wall clock…' },);
+const before = await readFile(feedFile, 'utf8',);
+await record.close();
+const after = await readFile(feedFile, 'utf8',);
+```
+
+- two poll intervals between the two lines, thirty runs:
+the immediate read missed the last line none of thirty times;
+- five milliseconds between them, a hundred runs:
+it missed nine;
+- no gap, a hundred runs:
+it missed ninety-nine;
+- and after `close` it missed none, in all of them.
+
+A stream whose first line is still opening misses the line even more plainly:
+three hundred runs of note, read straight back, missed it in every one,
+and `close` showed the line in every one.
+A read taken in that state can even beat the stream's open:
+the probe's first run ended on `ENOENT` for the feed file itself.
+So the miss needs either a write still in flight or a read that beats the open,
+which is what the suite's load widens.
+
 ### Verification
 
 Both controls fail in a full run of the package's unit suite,
@@ -562,3 +629,15 @@ $ mise run //package/pi-shared/subagent-driver:test:unit -- \
 
 The second run needs both files named:
 the harness runs a whole file and has no filter that would run one test alone.
+
+The third cause's control passes in a full run of the package's unit suite after it reads through the
+closed record (issue 6506, `watch-pi-run.unit.test.ts`):
+
+```text
+$ mise run //package/pi-shared/subagent-driver:test:unit
+$ mise run //package/pi-shared/subagent-driver:test:unit -- src/watch-pi-run.unit.test.ts
+```
+
+Its own failure is rarer than the other two:
+a full suite run before the change passed on 2026-11-26,
+so the cause above rests on the measured read rather than on the run that reported it.
