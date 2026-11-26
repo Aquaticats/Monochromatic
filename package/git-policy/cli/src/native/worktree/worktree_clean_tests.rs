@@ -20,6 +20,7 @@ use crate::descriptor_limit_child_test_support::{
 };
 use crate::fs_beneath_directory_chain::MOST_DIRECTORIES_HELD;
 use crate::parallel_test_support::{
+    ONE_PLACE,
     PATIENCE,
     hold_the_only_place,
 };
@@ -820,11 +821,39 @@ fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
 /// Only a job of the pool asks for a place of the process's bound on blocking jobs,
 ///  so an ask is the proof that the work left the calling thread:
 /// the holder gives its place back on that ask and never on a clock.
+///  The bound is the process's and is made once,
+/// never resized
+/// (`foundation/blocking_jobs_within_the_budget.rs`),
+/// and so is the count of jobs waiting for a place,
+/// so the body runs in a child process of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in a threaded run another test has already made the bound with the CPUs' places,
+/// and another test's job waiting for one answers this control's question (issue 6495).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (startedWithinAChildOfItsOwn(import.meta.url, 'the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool')) return;
+/// holdTheOnlyPlace(); expect(budgetedBlockingJobs()).toBe(1); expect(cleaned.isOk()).toBe(true); expect(asked).toBe(true);
+/// ```
 #[test]
 fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("clean-a-place-of-the-bound");
     let repo: PathBuf = aged_repository(root.as_path());
     let (_given_back, finished) = hold_the_only_place();
+    // What:     the number of places this child's bound on blocking jobs has, read before the work under test runs.
+    // Why:      a process whose bound has more than one place cannot show that the work waited for one: the control
+    //           holds one place of several, and the work under test takes another and starts at once.
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+        ONE_PLACE,
+        "this control is the first to ask for this child's places, so its bound is the one place it holds; in a process where another test's jobs asked first the bound keeps that process's number of places, and the work under test then starts at once"
+    );
     let clean: Result<CleanSource, CleanRefusal> = check(repo.as_path());
     assert!(clean.is_ok(), "{:?}", clean.err());
     assert!(

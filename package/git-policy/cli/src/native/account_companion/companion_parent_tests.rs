@@ -22,16 +22,29 @@
 
 use super::run_under;
 use crate::account_companion::companion_buffers::Fixture;
+use crate::account_companion::companion_calls::{
+    CompanionCall,
+    Failure,
+};
 use crate::account_companion::companion_deadline::COMPANION_DEADLINE;
 use crate::account_companion::companion_lines::{
     CompanionVerdict,
     Refusal,
 };
+use crate::account_companion::companion_process_calls::Exit;
+use crate::account_companion::companion_records::{
+    Decoded,
+    StepRecord,
+    decode_all,
+};
 use crate::account_companion::companion_scratch::{
     RuntimeFolder,
     ScratchRefusal,
 };
-use crate::account_companion::companion_settings::user_namespace_entry_exists;
+use crate::account_companion::companion_settings::{
+    Settings,
+    user_namespace_entry_exists,
+};
 use crate::account_companion::companion_steps::CompanionStep;
 use crate::account_companion::companion_test_switch::Switch;
 use std::path::PathBuf;
@@ -209,6 +222,100 @@ fn the_first_mapping_write_and_the_scratch_mount_both_skip() {
         )
     };
     assert_eq!(skip.call.name(), "mount tmpfs");
+}
+
+/// What:
+///  The bytes of the records one control builds,
+///  decoded the way the parent decodes what its child wrote.
+fn records_of(records: &[StepRecord]) -> Decoded {
+    let mut bytes: Vec<u8> = Vec::new();
+    for record in records {
+        bytes.extend_from_slice(record.encode().as_slice());
+    }
+    return decode_all(bytes.as_slice());
+}
+
+/// What:
+///  A `setgroups` step whose open answered `EACCES` is the skip the owner added
+///  on 2026-11-26,
+///  with its line naming that call and that number,
+///  and every other answer of that step is still the arm failure it was.
+/// Why a built record stream:
+///  the test switch answers at a step and names the step's first call,
+///  which is the write,
+///  so only a record says which of the step's two calls refused.
+#[test]
+fn a_setgroups_open_that_answered_eacces_skips_and_its_other_answers_refuse() {
+    let settings: Settings = crate::account_companion::companion_settings::read();
+    let skipped: CompanionVerdict = super::the_verdict(
+        records_of(&[
+            StepRecord::passed(CompanionStep::UserNamespace),
+            StepRecord::failed(
+                CompanionStep::Setgroups,
+                Failure {
+                    call: CompanionCall::OpenSetgroups,
+                    errno: libc::EACCES,
+                },
+            ),
+        ]),
+        Exit::Exited {
+            status: 1,
+        },
+        &settings,
+    );
+    let CompanionVerdict::Skipped {
+        skip,
+    } = &skipped
+    else {
+        panic!(
+            "an open of setgroups that answered EACCES is the owner's skip, and it answered {skipped:?}"
+        )
+    };
+    assert_eq!(skip.call.name(), "open /proc/self/setgroups");
+    assert_eq!(skip.errno, libc::EACCES);
+    assert!(
+        skipped.the_managed_attach_goes_ahead(),
+        "the add goes ahead after the skip"
+    );
+    let lines: Vec<String> = skipped.lines();
+    assert!(
+        lines[0].contains("open /proc/self/setgroups answered EACCES (errno 13)"),
+        "{}",
+        lines[0]
+    );
+    for (call, errno) in [
+        (CompanionCall::OpenSetgroups, libc::EPERM),
+        (CompanionCall::WriteSetgroups, libc::EACCES),
+        (CompanionCall::WriteSetgroups, libc::EPERM),
+    ] {
+        let refused: CompanionVerdict = super::the_verdict(
+            records_of(&[
+                StepRecord::passed(CompanionStep::UserNamespace),
+                StepRecord::failed(
+                    CompanionStep::Setgroups,
+                    Failure {
+                        call,
+                        errno,
+                    },
+                ),
+            ]),
+            Exit::Exited {
+                status: 1,
+            },
+            &settings,
+        );
+        assert!(
+            matches!(
+                &refused,
+                CompanionVerdict::Refused {
+                    refusal: Refusal::ArmFailed { .. }
+                }
+            ),
+            "{} answering errno {errno} at the setgroups step refuses the arm, and it answered {refused:?}",
+            call.name()
+        );
+        assert!(!refused.the_managed_attach_goes_ahead());
+    }
 }
 
 /// What:
