@@ -1,7 +1,8 @@
 //! What:
 //!  Load the policy configuration of the worktree one invocation runs in,
-//!  and render
-//!       the events configuration loading can produce.
+//!  render
+//!       the events configuration loading can produce,
+//!  and word the hint each of those events carries.
 //! Why:
 //!  Both wrapped Git commands and `git monochromatic-git-policy-cli check`/`fix` need the same answer:
 //!      what does the `monochromatic-git-policy-cli.config.jsonc` of the worktree Git reported say.
@@ -25,6 +26,8 @@ use crate::diagnostics::{
     render_configuration_warning,
     render_engine_failure,
 };
+/// The JSON string escaping of a hint's text.
+use crate::json_record::quote;
 use crate::worktree_identity::{
     WorktreeIdentity,
     worktree_root,
@@ -140,6 +143,108 @@ pub fn legacy_warning_events(loaded: &LoadedConfig) -> String {
         }
     }
     return events;
+}
+
+/// What:
+///  The hint for an engine failure,
+/// by the code's wire spelling.
+/// Why:
+///   An engine failure stops the command before Git runs;
+/// the person needs to know whether to retry,
+/// fix a file,
+/// or
+///  report a defect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function engineFailureHint(code: string): string | undefined;
+/// ```
+pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
+    match code {
+        "config-invalid" => {
+            return Some(
+                "Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; \
+                 an unknown key, a wrong type or an unknown policy id fails before any policy runs.",
+            );
+        }
+        "core-incomplete" => {
+            return Some(
+                "Hint: if another session was changing the repository at the same moment (a commit, a checkout or a \
+                 rebase running elsewhere), run the command again; if it repeats, run `git status` to check that the \
+                 repository is healthy.",
+            );
+        }
+        "content-unavailable" => {
+            return Some(
+                "Hint: if you are committing or pushing content that is not in this clone (a missing object, a \
+                 shallow history, or a file removed during the command), fetch the history with `git fetch`, make \
+                 sure the files exist, and retry.",
+            );
+        }
+        "policy-incomplete" => {
+            return Some(
+                "Hint: if you are committing or pushing, a policy could not finish reading the content, so it \
+                 decided nothing; fix the cause the message names (an unreadable file, a path with a line break) \
+                 and retry.",
+            );
+        }
+        "patch-invalid" | "patch-conflict" => {
+            return Some(
+                "Hint: if you are committing files that changed while the command ran or that another policy also \
+                 rewrites, save your edits, run `git monochromatic-git-policy-cli fix -- <path>` to apply the corrections, review the \
+                 result with `git diff`, and commit again.",
+            );
+        }
+        "fix-cycle" | "fix-pass-limit" => {
+            return Some(
+                "Hint: two corrections keep undoing each other on this file; apply one of them by hand, stage the \
+                 file, and commit again. Report the pair of policies if the file is ordinary text.",
+            );
+        }
+        "transaction-failed" => {
+            return Some(
+                "Hint: if you were committing, run `git status` and `git log --oneline -3` to see whether the \
+                 commit landed before you retry; staged files stay staged unless the message says otherwise, and the \
+                 message names the step that failed.",
+            );
+        }
+        "legacy-config-ignored" => {
+            return Some(
+                "Hint: if you are still keeping the old configuration files, delete them once \
+                 monochromatic-git-policy-cli.config.jsonc holds the settings; they are no longer read.",
+            );
+        }
+        "traditional-hooks-unsupported" => {
+            return Some(
+                "Hint: scripts in the hooks directory never run through monochromatic-git-policy-cli. If one still checks something for you, \
+                 express it as a policy under policies in monochromatic-git-policy-cli.config.jsonc; `git monochromatic-git-policy-cli doctor` lists the \
+                 scripts it finds and exits 1 while any remain.",
+            );
+        }
+        _ => return None,
+    }
+}
+
+/// What:
+///  Append the `hint` field to a JSON event line when a hint exists.
+///  `&mut String` lends the line for appending.
+/// Why:
+///   The `message` field stays byte-identical to the retired wrapper's;
+/// the hint is an additive field that readers of
+///  the line see without any change to the message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (hint !== undefined) event.hint = hint;
+/// ```
+pub fn push_hint_field(
+    line: &mut String,
+    hint: Option<&str>,
+) {
+    if let Some(text) = hint {
+        line.push_str(",\"hint\":");
+        line.push_str(quote(text).as_str());
+    }
 }
 
 /// Disposable-repository controls stay out of the release executable.

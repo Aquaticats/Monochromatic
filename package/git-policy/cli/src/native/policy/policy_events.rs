@@ -43,8 +43,12 @@ use crate::diagnostics::{
 use crate::event_hints::{
     POST_COMMIT_BLOCKED_HINT,
     WARN_UNSAFE_HINT,
-    engine_failure_hint,
     finding_hint,
+};
+/// The hint of one engine-failure code,
+/// and the field a line carries a hint in.
+use crate::invocation_config::{
+    engine_failure_hint,
     push_hint_field,
 };
 use crate::event_path::{
