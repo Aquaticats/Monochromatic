@@ -59,8 +59,19 @@ Times are UTC and every file keeps the host's own clock.
 
 ## The second revision's readings, 2026-11-26
 
-Added as they land,
-marked `second-round-`.
+- `second-round-container-build.txt`:
+  the Ubuntu 24.04 container build at `/opt/git-policy-cli-lock`,
+  its versions,
+  the sizes and sha256 of the wrapper,
+  the `native_binary` test binary and the feature variant,
+  the highest `GLIBC_x.y` each needs (`readelf --version-info`),
+  the absolute paths the test binary baked,
+  and the smoke run in which both binaries started in the same Ubuntu image at the same paths.
+- `second-round-memory-gate-log.txt`:
+  the gate reading every 30 seconds while this revision waited for a guest window,
+  each line naming `MemAvailable`,
+  the ARC's `size` and `c_min`,
+  and memory pressure's two averages.
 
 ## What is not in this folder
 
