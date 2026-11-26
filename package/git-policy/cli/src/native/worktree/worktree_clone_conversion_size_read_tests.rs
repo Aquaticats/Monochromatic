@@ -622,20 +622,36 @@ fn no_process_wide_slot_holds_the_read_beside_the_check() {
         "/src/native/worktree/worktree_clone_conversion_size_read.rs"
     ))
     .expect("this module's source");
-    for line in here.lines() {
-        if line.trim_start().starts_with("static ") {
-            assert!(
-                !line.contains("SizeReadBesideTheCheck"),
-                "a process-wide slot would carry one command's read into another: {line}"
-            );
-        }
+    // Each `static` declaration is read whole, up to its semicolon, whatever lines rustfmt breaks it over,
+    //  so a type written on the line after the name is read with it; comment lines are not code.
+    let code: String = here
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<&str>>()
+        .join(" ");
+    for declaration in code.split("static ").skip(1) {
+        let item: &str = declaration.split(';').next().unwrap_or(declaration);
+        assert!(
+            !item.contains("SizeReadBesideTheCheck"),
+            "a process-wide slot would carry one command's read into another: static {item}"
+        );
     }
     let ladder: String = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/native/worktree/worktree_ladder_run.rs"
     ))
     .expect("the ladder's source");
-    assert!(ladder.contains("pub(crate) sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>"), "the add owns its read");
+    // The field is read without its blanks, so the type rustfmt puts on the next line reads as the same field.
+    let ladder_code: String = ladder.split_whitespace().collect();
+    assert!(
+        ladder_code.contains("pub(crate)sizes_beside:Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>"),
+        "the add owns its read"
+    );
 }
 
 /// What:

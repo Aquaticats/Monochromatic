@@ -2035,6 +2035,253 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Thirteenth batch: IVPN Desktop 3.15.15, and apparmor_parser reading scratch drafts, 2026-11-26T01:41:13-05:00
+
+Met while installing the AUR packages `ivpn` and `ivpn-ui` `3.15.15` through Shelly
+(the build failure itself is in `doc/troubleshooting/ivpn-ui-aur-recipe-nvm-rejects-npmrc-prefix-in-builder-home.md`).
+Under the owner's rule recorded under "Eleventh batch",
+and the owner's request on 2026-11-26 to make sure both packages "have suitable apparmor rules".
+Probes ran in throwaway network namespaces (`sudo unshare --net`),
+so no firewall rule, route or tunnel reached the host;
+the AVC windows were read from `/var/log/audit/audit.log`.
+Probe logs: `~/temp/agent/ivpn-apparmor-netns-probes-2026-11-26/keep/`.
+
+### OpenVPN connections were denied their configuration
+
+The IVPN daemon runs `/usr/sbin/openvpn --config /etc/opt/ivpn/mutable/openvpn.cfg`
+(IVPN `daemon/service/service_connect.go:427-433`, `daemon/vpn/openvpn/openvpn.go:435`).
+The enforcing `openvpn` profile reads only `/etc/openvpn/**`,
+so with a probe configuration at that exact path the measured result was:
+
+```text
+apparmor="DENIED" operation="open" class="file" profile="openvpn" name="/etc/opt/ivpn/mutable/openvpn.cfg" requested_mask="r"
+Options error: In [CMD-LINE]:1: Error opening configuration file: /etc/opt/ivpn/mutable/openvpn.cfg
+```
+
+Every IVPN OpenVPN connection would have stopped there.
+The new `/etc/apparmor.d/local/openvpn` grants the configuration,
+the proxy credential file,
+the bundled `ca.crt` and `ta.key`,
+and runs IVPN's `client.up` and `client.down` DNS scripts in a child profile:
+
+```text
+# /etc/apparmor.d/local/openvpn (new)
+/etc/opt/ivpn/mutable/openvpn.cfg r,
+/etc/opt/ivpn/mutable/proxyauth.txt r,
+/opt/ivpn/etc/ca.crt r,
+/opt/ivpn/etc/ta.key r,
+/opt/ivpn/etc/client.{up,down} rcx -> ivpn-client-updown,
+profile ivpn-client-updown {
+  include <abstractions/attached/base>
+  include <abstractions/attached/consoles>
+  /opt/ivpn/etc/client.{up,down} r,
+  @{sh_path} rix,
+  @{bin}/mv rix,
+  @{bin}/chmod rix,
+  @{bin}/resolvectl rPx,
+  /etc/resolv.conf rw,
+  /etc/resolv.conf.ivpnsave rw,
+  include if exists <local/openvpn_ivpn-client-updown>
+}
+```
+
+After `apparmor_parser --replace /etc/apparmor.d/openvpn.apparmor.d`,
+the same probe read the configuration,
+built its TLS context from the CA and key,
+and stopped only at the namespace's intended `Network is unreachable`,
+with no `openvpn` denial.
+The child profile ran both scripts with `-use-resolvconf /usr/bin/resolvectl`
+(the branch used when `systemd-resolved` answers),
+and `resolvectl` ran under its own profile;
+an interface name that does not exist kept host DNS untouched.
+Run from `/`, the service's working directory, there was no denial;
+run from a folder inside the owner's home,
+`dac_read_search` and `dac_override` were denied for traversing it,
+which is a property of the probe and was not granted.
+The `resolv.conf` rewrite branch, used only without `systemd-resolved`,
+and a real tunnel's `up` call were not exercised.
+
+### WireGuard already worked through the existing profiles
+
+IVPN's bundled `/opt/ivpn/wireguard-tools/wg-quick` with IVPN's configuration shape
+(`AllowedIPs = 0.0.0.0/0, ::/0`, `SaveConfig = true`)
+runs `ip`, `nft -f /dev/fd/63`, `sysctl` and `sync` under their enforcing profiles.
+`up` and `down` both exited `0` and removed the interface, rules and nft tables,
+with no AVC.
+With the configuration under `~/temp/agent`,
+`down` failed instead:
+the `sync` profile has no `dac_override`,
+root needed it to reach a file below the owner's `0700` folders,
+and `wg-quick`'s `set -e` then left the interface, rules and nft tables in place.
+IVPN keeps the file in `/etc/opt/ivpn/mutable`,
+which root reaches without that capability,
+so nothing was granted for it.
+
+### New profiles for IVPN's own programs
+
+- `/etc/apparmor.d/ivpn`, enforcing:
+  the CLI reads `/etc/opt/ivpn/mutable/port.txt`,
+  talks TCP to the daemon,
+  and `ivpn exclude` replaces itself with the requested command (`/** pux`).
+  `ivpn status`, `ivpn splittun -status` and `ivpn servers` ran with no denial.
+  With split tunneling on, `ivpn exclude /usr/bin/env` and the UI's form
+  `sh -c '/usr/bin/ivpn exclude  /usr/bin/env'` ran with no denial.
+  The first draft used `PUx`:
+  the kernel then marked the exec secure and glibc dropped `TMPDIR` from the launched program,
+  which a direct start keeps
+  (see `doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md` for the secure-exec rule);
+  with `pux` the variable arrived.
+- `/etc/apparmor.d/ivpn-ui`, `flags=(unconfined)` with `userns`,
+  the form apparmor.d uses for its Electron applications here
+  (`obsidian`, `Discord`, `signal-desktop`, `1password`, `balena-etcher`).
+  A launch in a nested headless `kwin_wayland --virtual` with a private D-Bus showed every process labelled
+  `ivpn-ui (unconfined)` and an established connection to the daemon's port.
+- `/etc/apparmor.d/ivpn-service`, in complain mode,
+  a documented exception like the package complain profiles.
+  It lists `Px` for each child that has its own profile
+  (`openvpn`, `ip`, `nft`, `sysctl`, `sync`, `resolvectl`, `ps`, `uname`, `mount`, `umount`, `runuser`),
+  so those keep the confinement they get from an unconfined daemon,
+  and lets IVPN's scripts and bundled helpers inherit it.
+  After `systemctl restart ivpn-service` the daemon ran as `ivpn-service (complain)`.
+  Its first start logged `netlink dgram` and its own `mountinfo`;
+  both are in the profile now,
+  and the next start logged nothing.
+  `firewall.sh -enable`, `-status` and `-disable`
+  and `wg-quick up` and `down` under `aa-exec --profile ivpn-service` in a namespace logged nothing either,
+  while a control read of `/etc/shadow` under the same profile was logged.
+  When the owner then opened the UI and turned on inverse split tunneling,
+  complain mode logged `splittun.sh` running `/usr/bin/rmdir` on `/sys/fs/cgroup/net_cls/ivpn-exclude/`
+  (as `ivpn-service//null-/usr/bin/rmdir`, with `dac_override`)
+  and the daemon reading desktop-entry icons such as `/usr/share/hplip/data/images/128x128/hp_logo.png`;
+  `rmdir` and `png`, `svg`, `svgz` and `xpm` files under `/usr/{,local/}share` and `/opt` were added.
+  The owner then connected and disconnected with WireGuard (with V2Ray) and with OpenVPN,
+  with inverse split tunneling on and Firefox ESR started through it;
+  complain mode logged nothing further for `ivpn-service`,
+  and `openvpn` and `openvpn//ivpn-client-updown` logged no denial.
+  The built-in firewall was not used,
+  since the owner does not use it;
+  it ran under the profile only in the namespace probes.
+  On 2026-11-26 at 06:55 UTC the profile was switched to enforce
+  (`flags=(complain)` removed, `apparmor_parser --replace`),
+  while the owner's tunnel stayed up:
+  the daemon and its `v2ray` helper then ran as `ivpn-service (enforce)`,
+  the namespace probes (firewall enable, status, disable; `wg-quick` up and down) all exited `0` under it,
+  and the next minute of live use held no `ivpn-service` denial.
+
+### The daemon's netlink socket leaks into `ip` and `ps`
+
+Once the owner turned on split tunneling,
+the stock `ip` profile logged 1128 denials between 06:40 and 06:48 UTC,
+90 to 188 a minute, all of one shape:
+
+```text
+apparmor="DENIED" operation="file_inherit" class="net" info="failed type match" profile="ip" comm="ip" family="netlink" sock_type="dgram"
+```
+
+`ivpn-service` holds a netlink datagram socket without close-on-exec
+(fd 7, `flags=02`, its inode listed in `/proc/<pid>/net/netlink`),
+and polls `ip route` (IVPN `daemon/netinfo/netinfo_linux.go:74`);
+its `ps -aux` children met the same denial.
+`ip` and `ps` still worked with the descriptor revoked,
+but the flood fed an audit backlog that already drops records.
+This does not depend on the new `ivpn-service` profile:
+an unconfined daemon's children attach to `ip` and `ps` the same way.
+Applied with `append-a-batch-of-local-rules-and-load.ts`
+(label `ivpn-netlink-inherit-and-aa-install-cpu-max-2026-11-26`),
+following the owner's rule rather than an apparmor.d-style `deny` silencer:
+
+```text
+# /etc/apparmor.d/local/ip, /etc/apparmor.d/local/ps
+# and, after the owner's connects at 06:52 UTC met the same denial in them,
+# /etc/apparmor.d/local/nft, local/resolvectl, local/sysctl and local/sync
+network netlink dgram,
+# /etc/apparmor.d/local/aa-install
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/app.slice/*/cpu.max r,
+```
+
+The next 20 seconds held no `ip`, `ps` or `aa-install` denial.
+The `aa-install` line answers five denials of
+`.../user@1000.service/app.slice/claude-code-bash/cpu.max`
+from this session's Shelly transactions,
+whose apparmor.d hook runs `aa-install` in the caller's cgroup;
+the file belongs to the user,
+so the existing `owner` rule could not match it.
+`sudo aa-install --status` afterwards reported 710 profiles up to date with no denial.
+
+### Firefox ESR started through the split tunnel
+
+The owner then started Firefox ESR (`/opt/firefox-esr`) from the IVPN UI:
+its process carried `IVPN_STARTED_BY_PARENT=IVPN_UI`, its parent was `ivpn-ui`,
+and it ran as `firefox (enforce)`.
+`firefox` was denied the root-owned `/etc/os-release` (four reads),
+and `firefox-crashreporter`, whose `@{lib_dirs}` names `/opt/firefox` only,
+was denied `/opt/firefox-esr/defaults/pref/` and `/opt/firefox-esr/libxul.so`.
+`aa-exec --profile firefox -- head --lines=1 /etc/os-release`
+and the same read of `libxul.so` under `firefox-crashreporter` reproduced both denials first.
+
+```text
+# /etc/apparmor.d/local/firefox (appended)
+/etc/os-release r,
+# /etc/apparmor.d/local/firefox-crashreporter (new)
+/opt/firefox-esr/{,**} r,
+```
+
+These were appended by hand and loaded with
+`apparmor_parser --replace /etc/apparmor.d/firefox.apparmor.d /etc/apparmor.d/firefox-crashreporter`.
+`append-a-batch-of-local-rules-and-load.ts` would have reloaded `/etc/apparmor.d/firefox`,
+the `apparmor` package's unconfined-flag stub that `/etc/apparmor.d/disable/firefox` keeps out of the boot load;
+`apparmor_parser` loads a file named on its command line regardless of that folder,
+so the stub would have replaced the enforcing `firefox` profile.
+Afterwards both profiles were still enforcing and both reads succeeded with no denial.
+
+### Tor Browser's pluggable transport and shader cache
+
+Seen in the same window, from Tor Browser started on its own (not through the split tunnel).
+Between 06:55 and 07:02 UTC `torbrowser-tor` denied `lyrebird`,
+the pluggable transport `tor` runs inside that profile,
+362 `inet` and 144 `inet6` datagram sockets, two `inet6` stream sockets and its own `/proc/<pid>/cgroup`;
+the stock profile allows only `network inet stream`,
+so datagram transports could not run.
+`torbrowser` denied 59 locks on `.cache/mesa_shader_cache/<xx>/<hash>.tmp`,
+where its rule grants `rw` but not `k`.
+The owner then said "Grant tor."
+Applied with `append-a-batch-of-local-rules-and-load.ts` (label `tor-browser-lyrebird-and-shader-cache-2026-11-26`):
+
+```text
+# /etc/apparmor.d/local/torbrowser-tor (new)
+network inet dgram,
+network inet6 dgram,
+network inet6 stream,
+owner @{PROC}/@{pid}/cgroup r,
+# /etc/apparmor.d/local/torbrowser (new)
+owner @{lib_dirs}/.cache/{,**} k,
+```
+
+The 90 seconds before loading held 289 Tor Browser denials;
+the 90 seconds after held none,
+with `lyrebird` still running and both profiles still enforcing.
+These are apparmor.d's `torbrowser` and `torbrowser-tor`,
+not the `apparmor` package's `torbrowser.Browser.firefox` and `torbrowser.Tor.tor`,
+whose empty local files were left alone.
+`zfs` denying `/sys/module/zfs/version` once was seen and not granted.
+
+### apparmor_parser on drafts in the scratch folder
+
+`sudo apparmor_parser --skip-kernel-load` on profile drafts in `~/temp/agent`
+printed `File ... not found, skipping...` and exited `13`;
+the denials were `capability dac_read_search` and `capability dac_override`.
+The owner then said "Widen apparmor rules so apparmor_parser works."
+Applied with `append-a-batch-of-local-rules-and-load.ts` (label `apparmor-parser-scratch-read-2026-11-26`):
+
+```text
+# /etc/apparmor.d/local/apparmor_parser
+capability dac_read_search,
+capability dac_override,
+@{HOME}/temp/agent/{,**} r,
+```
+
+All three drafts then parsed from the scratch folder with exit `0` and no denial.
+
 ## Twelfth batch: Git and pdftotext in ~/Plain, and systemd-analyze on user units, 2026-11-26T00:03:44-05:00
 
 Met while resolving the Garage sync's conflict copies and building `package/garage-file-sync/linux-client`,

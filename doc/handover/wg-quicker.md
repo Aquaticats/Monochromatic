@@ -72,7 +72,14 @@ so Qure coverage landed against live tunnel state rather than an idle host.
 Do not bring tunnel up,
 restart it,
 or mutate live routing without explicit authorization.
-IVPN Desktop split tunneling is currently disabled after its supported `ivpn splittun -off` recovery.
+IVPN Desktop split tunneling was disabled after its supported `ivpn splittun -off` recovery.
+(Note of 2026-11-26T01:59:51-05:00:
+after a fresh install of IVPN Desktop 3.15.15,
+the owner turned inverse split tunneling back on,
+so `ivpn status` reads `Split Tunnel : Enabled (INVERSE MODE)`
+and the `fwmark 0xca6c lookup ivpn-exclude-tbl` rule is present in both families.
+No `wg-quicker` tunnel was up at that time,
+and `wg-quicker up` refuses to start while that rule exists.)
 `/etc/wireguard/mx-que-mx1.conf` now contains `ExemptMark = 100` under `[Interface]`.
 The atomic edit preserved root ownership,
 mode `0600`,

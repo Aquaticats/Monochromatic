@@ -284,8 +284,16 @@ steps 19,
 22 and 23;
 and a release carrying them,
 installed.
-Nothing of the route is installed on this machine,
-and applying anything ZFS-related to this machine is the owner's act.
+Nothing of the route is installed on this machine.
+The checkout migration of plan steps 12, 18 and 19 is the agent's act, run with sudo when no process has the checkout open,
+by the owner's answer of 2026-11-24 ("You run it whenever you feel convenient.",
+`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`, "Who runs the checkout migration").
+The other host changes the plan keeps for the owner
+(`zfs allow`, the units, the zedlet, the immutable entry, `sanoid.conf`, other datasets' properties,
+step 22's storage half, step 23's image build and any reboot)
+are the agent's act too, logged, by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`);
+the owner chooses the moment of the migration and of any reboot, which the agent prepares.
 
 Next:
 merge step 17's round and step 22's when they end,
@@ -514,7 +522,7 @@ or that is no issue:
   "I didn't need to run it myself but I just ran it as a courtesy."
   The rule against acting on the system service manager in the skill `pi-as-subagent` binds the agents a
   session briefs.
-  Applying anything ZFS-related to the host stays the owner's act.
+  The checkout migration is the agent's act by the owner's answer of 2026-11-24; the other ZFS host changes are the agent's act, logged (owner, 2026-11-26), and the owner picks the moment of the migration and of any reboot.
 - No round runs `mise run toolchain:install`,
   not even for one tool in its own worktree:
   it waits for issue 6316,
@@ -537,5 +545,5 @@ or that is no issue:
 - Orphaned cargo build folders under `~/.cargo/build`,
   left by integration passes,
   are not removed without the owner.
-- Applying anything ZFS-related to this machine is the owner's act.
+- The checkout migration is the agent's act (owner, 2026-11-24); the other ZFS host changes are the agent's act, logged (owner, 2026-11-26), and the owner picks the moment of the migration and of any reboot.
   Old drives stay read-only and unwiped until the ZFS route is released.

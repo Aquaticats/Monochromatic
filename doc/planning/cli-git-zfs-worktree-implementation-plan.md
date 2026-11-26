@@ -2811,6 +2811,11 @@ the zedlet,
 property changes on other existing datasets,
 or any reboot here stays the owner's act,
 printed by `doctor` and never run by this step.
+(Amended 2026-11-26 by the owner's answers in `doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`:
+the agent applies each of these with sudo once its step is wired and proven in a guest,
+logging the command, its output and its undo;
+the owner chooses the moment of the migration and of any reboot,
+which the agent prepares.)
 The reboot this step's arms perform is the guest's.
 
 #### Design sections
@@ -2910,6 +2915,7 @@ Writing `sanoid.conf`,
 setting `com.sun:auto-snapshot=false`,
 or changing a property on an existing dataset here is the owner's act on the owner's authorisation,
 printed by `doctor` and never run by this step.
+(Amended 2026-11-26: the agent applies them, logged, by the owner's answer in `doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`.)
 
 #### Design sections
 
@@ -3062,6 +3068,8 @@ That half names its method before it runs (a read-only measurement,
  or a spare device),
 and it is the owner's act on the owner's authorisation,
 never a step's.
+(Amended 2026-11-26: the agent runs it after the migration, read-only measurements first,
+by the owner's answer in `doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`.)
 No shipped limit rests on either half until its measurement exists.
 
 #### Guest half, measured 2026-11-25
@@ -3134,6 +3142,8 @@ building that qcow2 may need host root (loop devices,
 or `pacstrap` on some routes),
 which is the owner's act on the owner's authorisation,
 never a step's.
+(Amended 2026-11-26: the agent builds it with sudo, logging what it touched,
+by the owner's answer in `doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`.)
 
 #### Open items
 
