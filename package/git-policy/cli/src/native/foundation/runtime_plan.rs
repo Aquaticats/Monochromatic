@@ -116,12 +116,6 @@ pub fn budgeted_workers(
     host: &HostResources,
     limits: &RuntimeLimits,
 ) -> usize {
-    // A control can give this process more room than the CPUs allow, so a control that proves its work overlaps
-    //  runs at any CPU quota (`room_for_blocking_jobs_in_a_control.rs`).
-    #[cfg(test)]
-    if let Some(room) = crate::room_for_blocking_jobs_in_a_control::the_room() {
-        return room;
-    }
     let by_budget: usize = worker_budget(&BudgetRequest {
         items: usize::MAX,
         per_item_memory: WORKER_RESIDENT_BYTES,
@@ -135,6 +129,62 @@ pub fn budgeted_workers(
         .address_space_left
         .map_or(usize::MAX, workers_by_address_space);
     return by_budget.min(by_threads).min(by_address_space);
+}
+
+/// What:
+///  `fn workers_for_this_process(host: &HostResources, limits: &RuntimeLimits) -> usize` answers the workers this
+///  process makes its runtime and its bound from:
+///  the room a control gave it when one did, and otherwise `budgeted_workers`.
+///  `HostResources` is the host's stated CPUs and free memory, and `RuntimeLimits` the threads and address space
+///  left;
+///  the siblings a reader might expect are a bare number, which could not say where it came from, and the
+///  `RuntimePlan` itself, which is this answer plus the choice of runtime.
+/// Why:
+///  The room stands in for a machine with fewer CPUs than a control's work needs (`room_for_blocking_jobs_in_a_control.rs`),
+///  and it is a fact about this process, read at the one moment this process makes its runtime and its bound.
+///  `budgeted_workers` stays a function of the host and the limits a caller states, so a control that plans a fixed
+///  host reads only what it stated rather than a room another test gave the process (issue 6487).
+///  Both the runtime and the bound ask this one function, so the two figures cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workers = workersForThisProcess(readHost(), readLimits()); // the control's room when it set one
+/// ```
+pub(crate) fn workers_for_this_process(
+    host: &HostResources,
+    limits: &RuntimeLimits,
+) -> usize {
+    // A control can give this process more room than the CPUs allow, so a control that proves its work overlaps
+    //  runs at any CPU quota.
+    #[cfg(test)]
+    if let Some(room) = crate::room_for_blocking_jobs_in_a_control::the_room() {
+        return room;
+    }
+    return budgeted_workers(host, limits);
+}
+
+/// What:
+///  `fn plan_with_workers(workers: usize) -> RuntimePlan` turns a worker count into the plan it names:
+///  the current-thread runtime when not even one worker fits, and otherwise a multi-thread runtime whose blocking
+///  pool is as wide as its workers.
+///  Its sibling is a plan built from a host and limits, which is `plan_runtime`; this one takes the figure those two
+///  decide, so a caller that decided the figure another way states it here.
+/// Why:
+///  `plan_runtime` and this process's own plan both need the same rule about a count of zero, and one copy of it is
+///  what keeps the runtime the process builds and the plan a control states in agreement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = planWithWorkers(4); // { kind: 'current' } | { kind: 'multi', workers: 4, blockingThreads: 4 }
+/// ```
+pub(crate) fn plan_with_workers(workers: usize) -> RuntimePlan {
+    if workers < 1 {
+        return RuntimePlan::CurrentThread;
+    }
+    return RuntimePlan::MultiThread {
+        workers,
+        blocking_threads: workers,
+    };
 }
 
 /// What:
@@ -158,14 +208,16 @@ pub fn plan_runtime(
     host: &HostResources,
     limits: &RuntimeLimits,
 ) -> RuntimePlan {
-    let workers: usize = budgeted_workers(host, limits);
-    if workers < 1 {
-        return RuntimePlan::CurrentThread;
-    }
-    return RuntimePlan::MultiThread {
-        workers,
-        blocking_threads: workers,
-    };
+    // What:     `plan_with_workers(budgeted_workers(host, limits))` builds the plan from the workers the stated host
+    //           and limits allow.
+    // Why:      this function is the plan of a host a caller states, and the room a control gave this process is not
+    //           part of that host.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return planWithWorkers(budgetedWorkers(host, limits));
+    // ```
+    return plan_with_workers(budgeted_workers(host, limits));
 }
 
 /// Plan controls stay out of the release executable.

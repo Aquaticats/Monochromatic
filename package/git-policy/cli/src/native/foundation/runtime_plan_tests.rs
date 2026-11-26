@@ -35,6 +35,60 @@ fn without_limits_the_workers_are_the_budgets() {
     );
 }
 
+/// How many blocking jobs a control asks this process for in the room control below.
+const ROOM_FOR_THE_CONTROL: usize = 3;
+
+/// What:
+///  A control's room is what this process plans with,
+///  and a host a caller states gives its own workers whatever room this process was given.
+/// Why:
+///  The room stands in for a machine with fewer CPUs than a control's work needs,
+///  and it belongs to this process: it is read where this process makes its runtime and its bound,
+///  and never by a plan a caller states for itself,
+///  so a control that plans a fixed host cannot read another test's room (issue 6487).
+///  Both the runtime and the bound ask the same function, so the bound cannot take a room the runtime did not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forAControl(3); expect(workersForThisProcess(host(32), noLimits)).toBe(3); expect(budgetedWorkers(host(32), noLimits)).toBe(28)
+/// ```
+#[test]
+fn a_controls_room_is_what_this_process_plans_with_and_not_what_a_stated_host_gives() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_controls_room_is_what_this_process_plans_with_and_not_what_a_stated_host_gives",
+    ) {
+        return;
+    }
+    let _room: usize =
+        crate::room_for_blocking_jobs_in_a_control::for_a_control(ROOM_FOR_THE_CONTROL);
+    let large: HostResources = host(32);
+    assert_eq!(
+        workers_for_this_process(&large, &NO_LIMITS),
+        ROOM_FOR_THE_CONTROL,
+        "this process plans with the room its control gave it"
+    );
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+        ROOM_FOR_THE_CONTROL,
+        "the bound on blocking jobs takes the same room the runtime plans with"
+    );
+    let expected: usize = large.parallelism - cpu_margin(large.parallelism);
+    assert_eq!(
+        budgeted_workers(&large, &NO_LIMITS),
+        expected,
+        "the host a caller states gives its own workers, whatever room a control gave this process"
+    );
+    assert_eq!(
+        plan_runtime(&large, &NO_LIMITS),
+        RuntimePlan::MultiThread {
+            workers: expected,
+            blocking_threads: expected
+        },
+        "the plan of a stated host is its own, and never the room"
+    );
+}
+
 /// A budget of one worker is a multi-thread runtime of one worker,
 /// because the watchers of waits run as tasks beside a thread that
 ///  is blocked in a read or a wait,
