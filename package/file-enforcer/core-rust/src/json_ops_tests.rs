@@ -47,7 +47,7 @@ fn add_member(
     let document = parse_json_text(source).expect("the fixture is valid JSON");
     let node = document.node(&path).expect("the fixture has the record");
     return document
-        .with_member(node, key, token)
+        .with_member(&node, key, token)
         .expect("a record takes a member");
 }
 
@@ -101,7 +101,7 @@ fn a_value_is_replaced_and_every_other_byte_is_kept() {
     let path: Vec<String> = vec!["a".to_string()];
     let node = document.node(&path).expect("the fixture has the member");
     assert_eq!(
-        document.replaced(node, "\"new\""),
+        document.replaced(&node, "\"new\""),
         "{ \"a\": \"new\",\n  \"b\": [1, 2] }"
     );
 }
@@ -112,16 +112,12 @@ fn a_key_path_walks_nested_records_and_arrays() {
     let document = parse_json_text(source).expect("the fixture is valid JSON");
     let nested: Vec<String> = vec!["c".to_string(), "d".to_string()];
     assert_eq!(
-        document
-            .node(&nested)
-            .map(|node| return node.comparable.clone()),
+        document.node(&nested).map(|node| return node.comparable()),
         Some(Comparable::Bool(true))
     );
     let element: Vec<String> = vec!["a".to_string(), "[0]".to_string(), "b".to_string()];
     assert_eq!(
-        document
-            .node(&element)
-            .map(|node| return node.comparable.clone()),
+        document.node(&element).map(|node| return node.comparable()),
         Some(Comparable::Integer(3))
     );
     let absent: Vec<String> = vec!["c".to_string(), "e".to_string()];
@@ -140,7 +136,7 @@ fn a_decoded_value_compares_by_value_and_not_by_spelling() {
     let path: Vec<String> = vec!["u".to_string()];
     let node = document.node(&path).expect("the fixture has the member");
     assert!(
-        value_matches(&node.comparable, &text("git")),
+        value_matches(&node.comparable(), &text("git")),
         "an escaped spelling holds the same text"
     );
 }
@@ -153,10 +149,10 @@ fn a_value_a_config_cannot_express_never_matches() {
     for name in ["a", "b", "c", "e"] {
         let path: Vec<String> = vec![name.to_string()];
         let node = document.node(&path).expect("the fixture has the member");
-        assert_eq!(node.comparable, Comparable::Other, "{name}");
-        assert!(!value_matches(&node.comparable, &text("")), "{name}");
+        assert_eq!(node.comparable(), Comparable::Other, "{name}");
+        assert!(!value_matches(&node.comparable(), &text("")), "{name}");
         assert!(
-            !value_matches(&node.comparable, &Evaluated::Bool(false)),
+            !value_matches(&node.comparable(), &Evaluated::Bool(false)),
             "{name}"
         );
     }
@@ -173,21 +169,21 @@ fn a_list_matches_element_by_element() {
         Evaluated::Bool(true),
         Evaluated::Integer(2),
     ]);
-    assert!(value_matches(&node.comparable, &wanted));
+    assert!(value_matches(&node.comparable(), &wanted));
     let shorter = Evaluated::List(vec![text("x")]);
-    assert!(!value_matches(&node.comparable, &shorter));
+    assert!(!value_matches(&node.comparable(), &shorter));
     let other_element = Evaluated::List(vec![
         text("x"),
         Evaluated::Integer(2),
         Evaluated::Integer(2),
     ]);
-    assert!(!value_matches(&node.comparable, &other_element));
+    assert!(!value_matches(&node.comparable(), &other_element));
     let shorter_path: Vec<String> = vec!["b".to_string()];
     let shorter_node = document
         .node(&shorter_path)
         .expect("the fixture has the member");
     assert!(!value_matches(
-        &shorter_node.comparable,
+        &shorter_node.comparable(),
         &Evaluated::List(vec![])
     ));
 }
@@ -205,7 +201,9 @@ const MEMORY_CHILD_VARIABLE: &str = "FILE_ENFORCER_JSON_MEMORY_CHILD";
 /// Why:
 ///  The release pass measured 181404 kB of peak resident size for a 15 KB manifest of 511 nested arrays,
 ///  because every node held its own comparable copy of its whole subtree;
-///  the bound keeps that regression out while leaving room for the parsed tree and its spans.
+///  walking the tree instead of indexing it measured 4092 KiB of growth in this test on 2026-11-26,
+///  against 162368 KiB on the code the release pass reviewed,
+///  so the bound holds the regression out while leaving four times the room the fix needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,7 +284,7 @@ fn deep_workload() -> usize {
             continue;
         };
         // `let _ =` discards the answer: this workload exists for the memory it takes, not for the verdict.
-        let _matched = value_matches(&node.comparable, &text("https://old.example/o.git"));
+        let _matched = value_matches(&node.comparable(), &text("https://old.example/o.git"));
         resolved += 1;
     }
     return resolved;
@@ -345,9 +343,7 @@ fn a_later_duplicate_key_hides_every_path_of_the_earlier_one() {
             .expect("the fixture is valid JSON");
     let url: Vec<String> = vec!["repository".to_string(), "url".to_string()];
     assert_eq!(
-        document
-            .node(&url)
-            .map(|node| return node.comparable.clone()),
+        document.node(&url).map(|node| return node.comparable()),
         None,
         "the string written last holds no members"
     );
@@ -355,16 +351,14 @@ fn a_later_duplicate_key_hides_every_path_of_the_earlier_one() {
     assert_eq!(
         document
             .node(&repository)
-            .map(|node| return node.comparable.clone()),
+            .map(|node| return node.comparable()),
         Some(Comparable::Text("github:old/e".to_string()))
     );
     let flipped =
         parse_json_text("{\"repository\": \"github:old/f\", \"repository\": {\"url\": \"f\"}}")
             .expect("the fixture is valid JSON");
     assert_eq!(
-        flipped
-            .node(&url)
-            .map(|node| return node.comparable.clone()),
+        flipped.node(&url).map(|node| return node.comparable()),
         Some(Comparable::Text("f".to_string())),
         "the object written last is the one that answers"
     );

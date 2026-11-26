@@ -294,10 +294,12 @@ mod json_compare;
 /// Why:
 ///  Only the `json-keys` kind needs it,
 /// and keeping it private lets its helpers change without an API change.
+/// A parsed document keeps its tree and finds an address by walking that tree,
+/// so a document's memory follows its size rather than its node count times its depth.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // private module: parseJsonText(source); replaced(node, token); withMember(node, key, token)
+/// // private module: parseJsonText(source); node(path); replaced(node, token); withMember(node, key, token)
 /// ```
 mod json_ops;
 
