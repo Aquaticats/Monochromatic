@@ -24,7 +24,7 @@ use crate::{
     },
     config_error::ConfigError,
     configuration_rules::{
-        count_option,
+        image_byte_bound,
         validate_rules,
     },
     diagnostic::Severity,
@@ -162,10 +162,9 @@ fn options(
         } else if key == "exclude" {
             exclude = strings(&entry.value, "exclude")?;
         } else if key == "max-image-bytes" {
-            // The same exact-number grammar every count option uses, named as this option is written.
-            let bytes: usize =
-                count_option("markdown/lfs-image-url", "max-image-bytes", &entry.value)?;
-            max_image_bytes = Some(bytes as u64);
+            // The byte-bound reader counts the option's own unit,
+            // and refuses a value the reader's one-byte probe past the bound cannot hold.
+            max_image_bytes = Some(image_byte_bound(&entry.value)?);
         }
     }
     let Some(severity): Option<Option<Severity>> = selected else {
