@@ -5,10 +5,16 @@
 /// A launch lists the directories to create and the scratch directories to empty.
 use super::{
     ServerLaunch,
-    scratch::{claim, reap_ended},
+    scratch::{
+        claim,
+        reap_ended,
+    },
 };
 /// `Path` is a borrowed filesystem path and `PathBuf` its owned sibling.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Resolve as much of a path as exists.
@@ -71,7 +77,10 @@ pub fn resolve_existing(path: &Path) -> PathBuf {
 /// ```ts
 /// function checkStateDirectory(directory: string, projectRoot: string): void // throws to refuse
 /// ```
-pub fn check_state_directory(directory: &Path, project_root: &Path) -> Result<(), String> {
+pub fn check_state_directory(
+    directory: &Path,
+    project_root: &Path,
+) -> Result<(), String> {
     if !directory.is_absolute() {
         // `Err(...)` is the failure variant of `Result`.
         return Err(format!(
@@ -107,7 +116,10 @@ pub fn check_state_directory(directory: &Path, project_root: &Path) -> Result<()
 /// ```ts
 /// function checkBelowState(directory: string, stateRoot: string): void // throws to refuse
 /// ```
-fn check_below_state(directory: &Path, state_root: &Path) -> Result<(), String> {
+fn check_below_state(
+    directory: &Path,
+    state_root: &Path,
+) -> Result<(), String> {
     let resolved = resolve_existing(directory);
     let state = resolve_existing(state_root);
     if resolved == state || !resolved.starts_with(&state) {
@@ -185,7 +197,10 @@ pub fn prepare(
 }
 
 /// The reason text of a scratch directory that could not be emptied.
-fn emptying_refused(path: &Path, error: &std::io::Error) -> String {
+fn emptying_refused(
+    path: &Path,
+    error: &std::io::Error,
+) -> String {
     return format!("cannot empty {}: {error}", path.display());
 }
 

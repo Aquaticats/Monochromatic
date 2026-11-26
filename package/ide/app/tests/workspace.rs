@@ -1,9 +1,17 @@
 //! Directory operations read disposable project trees and reject escapes without mutating them.
 
 /// The same project boundary will serve tree and search navigation.
-use ide_app::workspace::{DirectoryEntry, Workspace};
+use ide_app::workspace::{
+    DirectoryEntry,
+    Workspace,
+};
 /// Native names and Unix symlinks exercise paths without UI-string normalization.
-use std::{ffi::OsString, fs, os::unix::fs::symlink, path::Path};
+use std::{
+    ffi::OsString,
+    fs,
+    os::unix::fs::symlink,
+    path::Path,
+};
 
 /// The native names of a listing,
 ///  in listing order.
@@ -18,7 +26,10 @@ fn names(entries: &[DirectoryEntry]) -> Vec<OsString> {
 /// Whether the listing holds an entry of this name,
 ///  and if it does,
 ///  whether that entry is a directory.
-fn listed_as_directory(entries: &[DirectoryEntry], name: &str) -> Option<bool> {
+fn listed_as_directory(
+    entries: &[DirectoryEntry],
+    name: &str,
+) -> Option<bool> {
     for entry in entries {
         if entry.name == name {
             return Some(entry.is_directory);

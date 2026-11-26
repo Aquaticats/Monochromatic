@@ -16,7 +16,10 @@ use crate::logging::stderr_tail;
 /// ```ts
 /// const until = performance.now() + 1000;
 /// ```
-use tokio::time::{Duration, Instant};
+use tokio::time::{
+    Duration,
+    Instant,
+};
 
 /// Longest wait,
 ///  after a server process ended,
@@ -87,7 +90,10 @@ impl Drop for EndRecord {
 ///   void (async () => { while (!closed(server) && now() < until) await sleep(10); warn(...); })();
 /// }
 /// ```
-pub(super) fn ended_unexpectedly(server: String, was_ready: bool) {
+pub(super) fn ended_unexpectedly(
+    server: String,
+    was_ready: bool,
+) {
     ended_unexpectedly_then(server, was_ready, Nothing);
 }
 
@@ -104,7 +110,10 @@ pub(super) fn ended_unexpectedly(server: String, was_ready: bool) {
 /// ```
 pub(super) trait AfterEnd: Send + 'static {
     /// Take the complete lines.
-    fn after_end(self, lines: Vec<String>);
+    fn after_end(
+        self,
+        lines: Vec<String>,
+    );
 }
 
 /// The receiver that does nothing with the lines.
@@ -113,7 +122,11 @@ struct Nothing;
 /// Dropping the lines is the whole job of this receiver.
 impl AfterEnd for Nothing {
     /// Ignore the lines.
-    fn after_end(self, _lines: Vec<String>) {}
+    fn after_end(
+        self,
+        _lines: Vec<String>,
+    ) {
+    }
 }
 
 /// What:
@@ -128,8 +141,15 @@ impl AfterEnd for Nothing {
 /// ```ts
 /// function endedUnexpectedlyThen(server: string, wasReady: boolean, then: (lines: string[]) => void): void
 /// ```
-pub(super) fn ended_unexpectedly_then(server: String, was_ready: bool, then: impl AfterEnd) {
-    let record = EndRecord { server, was_ready };
+pub(super) fn ended_unexpectedly_then(
+    server: String,
+    was_ready: bool,
+    then: impl AfterEnd,
+) {
+    let record = EndRecord {
+        server,
+        was_ready,
+    };
     tokio::spawn(async move {
         let started = Instant::now();
         let mut looks: u32 = 0;

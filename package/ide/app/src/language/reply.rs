@@ -1,7 +1,10 @@
 //! Requests the interface thread can make and the one-shot replies it polls for.
 
 /// Every reply names the displayed text and the server process it answers.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// Refused targets carry their reason instead of disappearing.
 use super::target::TargetRefusal;
 /// What:

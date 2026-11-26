@@ -4,10 +4,16 @@
 use crate::document::Document;
 /// Variable roman and real italic blobs retain stable cache identities;
 ///  the interface face sets virtual rows.
-use crate::font_asset::{code_faces, row_face};
+use crate::font_asset::{
+    code_faces,
+    row_face,
+};
 /// The one vertical mapping:
 ///  where each line's code row starts and how tall rows and the caret are.
-use crate::row_map::{CODE_ROW, RowMap};
+use crate::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// What:
 ///  `pub use` re-exports the row types under this module's name.
 /// Why:
@@ -17,7 +23,11 @@ use crate::row_map::{CODE_ROW, RowMap};
 /// ```ts
 /// export { ReadingRect, ShapedRow } from './shaped-row';
 /// ```
-pub use crate::shaped_row::{ReadingRect, ShapedRow, VisualCaret};
+pub use crate::shaped_row::{
+    ReadingRect,
+    ShapedRow,
+    VisualCaret,
+};
 /// Shaped rows kept by line for one text revision and scale.
 use crate::shaped_row_cache::RowCache;
 /// Syntax classifications stay independent of pixels.
@@ -26,13 +36,20 @@ use crate::source_style::StyleSpan;
 use crate::source_typography::SourceTypography;
 /// Tabs end on pixel tab stops,
 ///  whatever script precedes them.
-use crate::tab_layout::{layout_with_tabs, layout_wrapped_with_tabs};
+use crate::tab_layout::{
+    layout_with_tabs,
+    layout_wrapped_with_tabs,
+};
 /// Source/display byte maps keep tabs and Unicode out of hit-test heuristics.
 use crate::text_projection::project_line;
 /// Construction failures identify unsupported source typography.
 use anyhow::Result;
 /// Font and paragraph layout are supplied by the same Parley stack Slint uses.
-use parley::{FontContext, FontFeature, LayoutContext};
+use parley::{
+    FontContext,
+    FontFeature,
+    LayoutContext,
+};
 
 /// Reading geometry of a prepared frame:
 ///  hits,
@@ -54,7 +71,13 @@ mod pass;
 /// ```ts
 /// export { Budget, Ensured, LINE_WORK, Measured, lineWork } from './pass';
 /// ```
-pub use pass::{Budget, Ensured, LINE_WORK, Measured, line_work};
+pub use pass::{
+    Budget,
+    Ensured,
+    LINE_WORK,
+    Measured,
+    line_work,
+};
 
 /// Types of a prepared frame:
 ///  the clip of a raster,
@@ -70,7 +93,11 @@ mod frame;
 /// ```ts
 /// export { Clip, ShapedView, Viewport } from './frame';
 /// ```
-pub use frame::{Clip, ShapedView, Viewport};
+pub use frame::{
+    Clip,
+    ShapedView,
+    Viewport,
+};
 
 /// The raster limit of a tile and the clip rules that keep a frame within it.
 mod limit;
@@ -84,10 +111,29 @@ mod limit;
 /// export { RASTER_MARGIN, UNWRAPPED_RASTER_WIDTH, bandClip, fitClip, fitViewport, rasterFits, rasterWidth, tileCap } from './limit';
 /// ```
 pub use limit::{
-    BIN_SIDE, CAP_SLACK, DEFAULT_TEXTURE_DIMENSION, MAX_BINS, MAX_RASTER_BYTES, MAX_STACK_TEXTURES,
-    RASTER_MARGIN, STACK_VIEW_ROOM, UNWRAPPED_RASTER_WIDTH, band_clip, fit_clip, fit_viewport,
-    raster_fits, raster_width, set_texture_dimension, stack_cap, stack_fits, stack_rows,
-    texture_dimension, texture_fits, texture_heights, tile_cap, tile_texture_rows,
+    BIN_SIDE,
+    CAP_SLACK,
+    DEFAULT_TEXTURE_DIMENSION,
+    MAX_BINS,
+    MAX_RASTER_BYTES,
+    MAX_STACK_TEXTURES,
+    RASTER_MARGIN,
+    STACK_VIEW_ROOM,
+    UNWRAPPED_RASTER_WIDTH,
+    band_clip,
+    fit_clip,
+    fit_viewport,
+    raster_fits,
+    raster_width,
+    set_texture_dimension,
+    stack_cap,
+    stack_fits,
+    stack_rows,
+    texture_dimension,
+    texture_fits,
+    texture_heights,
+    tile_cap,
+    tile_texture_rows,
 };
 
 /// Shaping of single lines and virtual rows with the shared font setup.
@@ -288,7 +334,12 @@ impl TextShaper {
     /// The row has no vertical position:
     ///  its `top` is zero,
     ///  and only its horizontal geometry is meaningful.
-    pub fn row(&mut self, document: &Document, row: usize, scale: f32) -> ShapedRow {
+    pub fn row(
+        &mut self,
+        document: &Document,
+        row: usize,
+        scale: f32,
+    ) -> ShapedRow {
         let last = document.text().len_lines().saturating_sub(1);
         let baseline = self.baseline(scale);
         return self.shape_row(document, (row.min(last), 0.0), scale, &[], baseline, None);
@@ -497,7 +548,10 @@ impl TextShaper {
         let mut rows = Vec::new();
         for shaped in shaped_rows {
             let top = placed.code_top(shaped.row);
-            rows.push(ShapedRow { top, ..shaped });
+            rows.push(ShapedRow {
+                top,
+                ..shaped
+            });
         }
         let width = (viewport.width.max(1.0) * viewport.scale).ceil() as u32;
         // The raster spans every materialized line with its block, or the clip of them; an empty frame is still one

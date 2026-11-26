@@ -15,16 +15,31 @@ use super::root::RootView;
 /// Session records and the document as servers know it.
 use super::session::OpenDocument;
 /// States a server can reach through synchronization.
-use super::status::{DocumentState, ServerState};
+use super::status::{
+    DocumentState,
+    ServerState,
+};
 /// Commands from the interface thread.
-use super::sync::{DocumentOpen, DocumentReload};
+use super::sync::{
+    DocumentOpen,
+    DocumentReload,
+};
 /// The worker whose state these steps change.
-use super::worker::{Internal, Worker};
+use super::worker::{
+    Internal,
+    Worker,
+};
 /// Starting and attaching servers is its own step;
 ///  reloads also reach servers that watch the file.
-use super::{attach, forward};
+use super::{
+    attach,
+    forward,
+};
 /// A reload is a change of the displayed file.
-use crate::change_watch::{ServerChange, ServerChangeKind};
+use crate::change_watch::{
+    ServerChange,
+    ServerChangeKind,
+};
 /// What:
 ///  `compare_ropes` computes the edit list between two texts.
 /// Why:
@@ -36,7 +51,10 @@ use crate::change_watch::{ServerChange, ServerChangeKind};
 /// ```
 use helix_core::diff::compare_ropes;
 /// helix-lsp's client handle and the protocol's data types.
-use helix_lsp::{Client, lsp};
+use helix_lsp::{
+    Client,
+    lsp,
+};
 
 /// What:
 ///  Build the address a document is announced under.
@@ -51,7 +69,10 @@ use helix_lsp::{Client, lsp};
 /// ```ts
 /// function address(root: string, path: string): URL | undefined
 /// ```
-fn address(worker: &Worker, path: &std::path::Path) -> Option<lsp::Url> {
+fn address(
+    worker: &Worker,
+    path: &std::path::Path,
+) -> Option<lsp::Url> {
     // What: `match` unpacks the `Result`: a usable view respells the path, a refusal keeps it.
     // Why: With a wrong working directory no server starts anyway; the address is then unused.
     //
@@ -82,7 +103,10 @@ fn address(worker: &Worker, path: &std::path::Path) -> Option<lsp::Url> {
 /// ```ts
 /// async function open(worker: Worker, open: DocumentOpen): Promise<void>
 /// ```
-pub(super) async fn open(worker: &mut Worker, open: DocumentOpen) {
+pub(super) async fn open(
+    worker: &mut Worker,
+    open: DocumentOpen,
+) {
     close(worker);
     let Some(url) = address(worker, &open.path) else {
         tracing::warn!(path = %open.path.display(), "displayed file has no file address; language support is off for it");
@@ -120,7 +144,10 @@ pub(super) async fn open(worker: &mut Worker, open: DocumentOpen) {
 /// ```ts
 /// function sendDidOpen(worker: Worker, index: number): void
 /// ```
-pub(super) fn send_did_open(worker: &mut Worker, index: usize) {
+pub(super) fn send_did_open(
+    worker: &mut Worker,
+    index: usize,
+) {
     // `as_ref()` borrows the document inside the `Option` without moving it.
     let Some(document) = worker.session.document.as_ref() else {
         return;
@@ -178,7 +205,11 @@ fn accepts_open_close(client: &Client) -> bool {
 /// ```ts
 /// function synchronize(client: Client, document: OpenDocument, reload: DocumentReload): boolean
 /// ```
-fn synchronize(client: &Client, document: &OpenDocument, reload: &DocumentReload) -> bool {
+fn synchronize(
+    client: &Client,
+    document: &OpenDocument,
+    reload: &DocumentReload,
+) -> bool {
     let versioned =
         lsp::VersionedTextDocumentIdentifier::new(document.url.clone(), document.version);
     let sent = client.text_document_did_change(
@@ -231,7 +262,10 @@ fn synchronize(client: &Client, document: &OpenDocument, reload: &DocumentReload
 /// ```ts
 /// function reload(worker: Worker, reload: DocumentReload): void
 /// ```
-pub(super) fn reload(worker: &mut Worker, mut reload: DocumentReload) {
+pub(super) fn reload(
+    worker: &mut Worker,
+    mut reload: DocumentReload,
+) {
     // `as_mut()` borrows the document inside the `Option` for modification.
     let Some(document) = worker.session.document.as_mut() else {
         tracing::debug!("ignored a reload while no file is displayed");

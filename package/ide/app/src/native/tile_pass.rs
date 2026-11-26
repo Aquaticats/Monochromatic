@@ -154,7 +154,10 @@ pub(super) struct PassControl {
 /// Write and read the wanted pass.
 impl PassControl {
     /// Make `job` the wanted pass.
-    pub(super) fn set(&self, job: PassJob) {
+    pub(super) fn set(
+        &self,
+        job: PassJob,
+    ) {
         if let Ok(mut slot) = self.slot.lock() {
             slot.0 += 1;
             slot.1 = Some(job);
@@ -163,7 +166,10 @@ impl PassControl {
 
     /// The wanted pass when it is newer than `seen`,
     /// which is then brought up to date.
-    pub(super) fn take_newer(&self, seen: &mut u64) -> Option<PassJob> {
+    pub(super) fn take_newer(
+        &self,
+        seen: &mut u64,
+    ) -> Option<PassJob> {
         let mut slot = self.slot.lock().ok()?;
         if slot.0 == *seen {
             return None;
@@ -193,7 +199,10 @@ pub(super) struct PassOutbox {
 impl PassOutbox {
     /// Add `more` to what waits;
     ///  output of another key replaces it.
-    pub(super) fn push(&self, more: PassOutput) {
+    pub(super) fn push(
+        &self,
+        more: PassOutput,
+    ) {
         let Ok(mut waiting) = self.output.lock() else {
             return;
         };
@@ -223,7 +232,10 @@ impl PassOutbox {
 
     /// Take at most `limit` measured lines;
     /// the rest stays for the next take.
-    pub(super) fn take(&self, limit: usize) -> Option<PassOutput> {
+    pub(super) fn take(
+        &self,
+        limit: usize,
+    ) -> Option<PassOutput> {
         let mut waiting = self.output.lock().ok()?;
         let held = waiting.as_mut()?;
         if held.lines.len() <= limit {
@@ -298,7 +310,10 @@ impl PassRun {
     /// ```ts
     /// refocus(line: number): void;
     /// ```
-    pub(super) fn refocus(&mut self, line: usize) {
+    pub(super) fn refocus(
+        &mut self,
+        line: usize,
+    ) {
         let bounded = line.min(self.lines.saturating_sub(1));
         if bounded >= self.up && bounded < self.down {
             return;
@@ -310,7 +325,10 @@ impl PassRun {
 
     /// Measure one chunk below and one above the visited band,
     /// and report what was measured.
-    pub(super) fn step(&mut self, shaper: &mut TextShaper) -> PassOutput {
+    pub(super) fn step(
+        &mut self,
+        shaper: &mut TextShaper,
+    ) -> PassOutput {
         let mut lines = Vec::new();
         let (mut shaped, mut rebroken) = (0, 0);
         let scale = self.job.scale;

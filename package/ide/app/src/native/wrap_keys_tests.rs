@@ -9,30 +9,63 @@
 //! Each behavior is checked at several window widths (so at several wrap widths) and at display scales 1 and 2.
 
 /// Caret positions and the in-view check shared with the plain caret tests.
-use super::caret_tests::{caret_in_view, position};
+use super::caret_tests::{
+    caret_in_view,
+    position,
+};
 /// The complete reader fixture and key helpers.
-use super::find_tests::{Reader, chord, key};
+use super::find_tests::{
+    Reader,
+    chord,
+    key,
+};
 /// Window sizes and the text origin of the pointer tests.
-use super::sidebar_tests::{HEADER, TEXT_LEFT, resize};
+use super::sidebar_tests::{
+    HEADER,
+    TEXT_LEFT,
+    resize,
+};
 /// Fixture builders and the waits that let the worker measure.
-use super::wrap_tests::{long_line, long_text, open, settled};
+use super::wrap_tests::{
+    long_line,
+    long_text,
+    open,
+    settled,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{Facts, Waiting};
+use crate::native::waiting_tests::{
+    Facts,
+    Waiting,
+};
 /// Geometry-free word motion,
 /// the expected value of Ctrl+Left and Ctrl+Right.
-use ide_app::caret_motion::{Motion, moved};
+use ide_app::caret_motion::{
+    Motion,
+    moved,
+};
 /// The side of a wrap offset a caret stands on.
 use ide_app::document::ReadingAffinity;
 /// Which row a caret place belongs to.
 use ide_app::line_boundary::row_containing;
 /// Toolkit events.
 use slint::{
-    ComponentHandle, LogicalPosition, Model,
-    platform::{Key, PointerEventButton, WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalPosition,
+    Model,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Pauses longer than the multi-click interval,
 /// and half-open ranges.
-use std::{ops::Range, thread::sleep, time::Duration};
+use std::{
+    ops::Range,
+    thread::sleep,
+    time::Duration,
+};
 
 /// The logical window widths,
 /// sidebar included,
@@ -49,7 +82,11 @@ fn widths(factor: f32) -> [f32; 3] {
 }
 
 /// Show the window at display scale `factor` with the logical size `width` by 660 and wait for the measurement.
-fn arrange(reader: &Reader, factor: f32, width: f32) {
+fn arrange(
+    reader: &Reader,
+    factor: f32,
+    width: f32,
+) {
     let window = &reader.window;
     window
         .window()
@@ -68,7 +105,10 @@ fn arrange(reader: &Reader, factor: f32, width: f32) {
 
 /// The ranges of the visual rows of `line`,
 /// from the materialized rows.
-fn rows_of(reader: &Reader, line: usize) -> Vec<Range<usize>> {
+fn rows_of(
+    reader: &Reader,
+    line: usize,
+) -> Vec<Range<usize>> {
     let current = reader.source.borrow();
     let view = current.shaped.as_ref().expect("shaped view");
     for row in view.rows.iter() {
@@ -557,7 +597,11 @@ fn word_motion_crosses_a_wrap_offset_by_document_offset() {
 
 /// The window point over global visual row `row`,
 /// `x` logical pixels into the text.
-fn over(reader: &Reader, row: usize, x: f32) -> LogicalPosition {
+fn over(
+    reader: &Reader,
+    row: usize,
+    x: f32,
+) -> LogicalPosition {
     return LogicalPosition::new(
         TEXT_LEFT + x,
         HEADER + row as f32 * 24.0 + 12.0 + reader.window.get_scroll_y(),
@@ -565,7 +609,10 @@ fn over(reader: &Reader, row: usize, x: f32) -> LogicalPosition {
 }
 
 /// Press the left button.
-fn press(reader: &Reader, position: LogicalPosition) {
+fn press(
+    reader: &Reader,
+    position: LogicalPosition,
+) {
     reader
         .window
         .window()
@@ -576,16 +623,24 @@ fn press(reader: &Reader, position: LogicalPosition) {
 }
 
 /// Move the pointer.
-fn drag(reader: &Reader, position: LogicalPosition) {
+fn drag(
+    reader: &Reader,
+    position: LogicalPosition,
+) {
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::PointerMoved { position });
+        .dispatch_event(WindowEvent::PointerMoved {
+            position,
+        });
     update_timers_and_animations();
 }
 
 /// Release the left button.
-fn release(reader: &Reader, position: LogicalPosition) {
+fn release(
+    reader: &Reader,
+    position: LogicalPosition,
+) {
     reader
         .window
         .window()

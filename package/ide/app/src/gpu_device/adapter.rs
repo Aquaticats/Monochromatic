@@ -65,7 +65,10 @@ pub struct AdapterSummary {
 /// Writes an adapter the way the error messages list it.
 impl fmt::Display for AdapterSummary {
     /// `name (kind, driver)`.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(
             formatter,
             "{} ({:?}, {})",
@@ -147,7 +150,10 @@ impl Variables {
 /// Writes which variables were read and what they held.
 impl fmt::Display for Variables {
     /// `WGPU_ADAPTER_NAME="x" or not set, WGPU_POWER_PREF="y" or not set`.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         write_variable(formatter, NAME_VARIABLE, &self.adapter_name)?;
         write!(formatter, ", ")?;
         return write_variable(formatter, POWER_VARIABLE, &self.power_preference);

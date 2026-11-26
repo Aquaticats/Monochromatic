@@ -4,7 +4,10 @@
 //!  counting clicks and extending a drag by whole units.
 
 /// Word and line ranges come from the same rope functions as keyboard movement.
-use crate::caret_motion::{line_range, word_range};
+use crate::caret_motion::{
+    line_range,
+    word_range,
+};
 /// What:
 ///  Helix's borrowed view of the document rope.
 /// Why:
@@ -26,7 +29,10 @@ use helix_core::RopeSlice;
 /// ```ts
 /// const now = performance.now();
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Longest pause between two presses of one multi-click;
 ///  the toolkit's own double-click default.
@@ -122,7 +128,12 @@ impl ClickCounter {
     /// ```ts
     /// press(at: number, row: number, x: number): Granularity;
     /// ```
-    pub fn press(&mut self, at: Instant, row: usize, x: f32) -> Granularity {
+    pub fn press(
+        &mut self,
+        at: Instant,
+        row: usize,
+        x: f32,
+    ) -> Granularity {
         let mut count = 1;
         // What: `if let Some(previous)` runs only when an earlier press exists.
         // Why: Only then is there a pause and a distance to compare.
@@ -139,7 +150,12 @@ impl ClickCounter {
         {
             count = previous.count + 1;
         }
-        self.last = Some(Press { at, row, x, count });
+        self.last = Some(Press {
+            at,
+            row,
+            x,
+            count,
+        });
         if count == 2 {
             return Granularity::Word;
         }
@@ -164,7 +180,11 @@ impl ClickCounter {
 /// ```ts
 /// function unit(text: RopeSlice, position: number, granularity: Granularity): [number, number];
 /// ```
-pub fn unit(text: RopeSlice, position: usize, granularity: Granularity) -> (usize, usize) {
+pub fn unit(
+    text: RopeSlice,
+    position: usize,
+    granularity: Granularity,
+) -> (usize, usize) {
     if granularity == Granularity::Word {
         return word_range(text, position);
     }

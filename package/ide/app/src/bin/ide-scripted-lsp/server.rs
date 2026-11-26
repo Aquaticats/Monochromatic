@@ -2,17 +2,33 @@
 //!  one blocking read loop on the main thread.
 
 /// Text mirroring and position arithmetic.
-use crate::document::{apply_change, line_at, offset_at};
+use crate::document::{
+    apply_change,
+    line_at,
+    offset_at,
+};
 /// Framing,
 ///  the report,
 ///  and pending client replies.
-use crate::framing::{Wire, read_message};
+use crate::framing::{
+    Wire,
+    read_message,
+};
 /// Settings of this run.
-use crate::script::{Hover, Init, Script, Step, step_for};
+use crate::script::{
+    Hover,
+    Init,
+    Script,
+    Step,
+    step_for,
+};
 /// `json_value!` is `json!` with the one lint allowance the repository's `unwrap` ban needs.
 use ide_app::json_value;
 /// JSON values and the literal-building macro.
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// What:
 ///  `HashMap` is a key-value table;
 ///  `Arc` is a thread-safe shared pointer (siblings:
@@ -27,7 +43,14 @@ use serde_json::{Value, json};
 /// ```ts
 /// const documents = new Map<string, string>();
 /// ```
-use std::{collections::HashMap, io, path::Path, sync::Arc, thread, time::Duration};
+use std::{
+    collections::HashMap,
+    io,
+    path::Path,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 
 /// What:
 ///  The loop's own state.
@@ -135,7 +158,10 @@ impl Session {
     /// ```ts
     /// send(message: object) { try { wire.send(message); } catch (error) { console.error(error); } }
     /// ```
-    fn send(&self, message: Value) {
+    fn send(
+        &self,
+        message: Value,
+    ) {
         if let Err(error) = self.wire.send(message) {
             eprintln!("scripted language server cannot write: {error}");
         }
@@ -144,7 +170,11 @@ impl Session {
     /// Record the server's copy of a document and,
     ///  when configured,
     ///  push diagnostics that quote it.
-    fn publish(&self, uri: &str, version: &Value) {
+    fn publish(
+        &self,
+        uri: &str,
+        version: &Value,
+    ) {
         // `get` returns `Option<&String>`; `map_or` substitutes empty text for an unknown document.
         let text = match self.documents.get(uri) {
             Some(found) => found.as_str(),
@@ -184,7 +214,11 @@ impl Session {
     /// ```ts
     /// hover(id: unknown, params: HoverParams): void
     /// ```
-    fn hover(&mut self, id: &Value, params: &Value) {
+    fn hover(
+        &mut self,
+        id: &Value,
+        params: &Value,
+    ) {
         self.hovers += 1;
         let modified = self.script.hover == Hover::Modified
             || (self.script.hover == Hover::ModifiedOnce && self.hovers == 1);
@@ -255,7 +289,12 @@ impl Session {
     }
 
     /// Answer one request from the client.
-    fn request(&mut self, id: &Value, method: &str, params: &Value) {
+    fn request(
+        &mut self,
+        id: &Value,
+        method: &str,
+        params: &Value,
+    ) {
         let uri = params["textDocument"]["uri"].as_str().unwrap_or("");
         if method == "initialize" {
             match self.script.init {
@@ -340,7 +379,11 @@ impl Session {
     }
 
     /// React to one notification from the client.
-    fn notification(&mut self, method: &str, params: &Value) {
+    fn notification(
+        &mut self,
+        method: &str,
+        params: &Value,
+    ) {
         let uri = params["textDocument"]["uri"].as_str().unwrap_or("");
         let version = &params["textDocument"]["version"];
         if method == "exit" {

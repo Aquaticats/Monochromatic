@@ -14,9 +14,16 @@ use ide_app::annotation::Mark;
 /// The inks of hints and diagnostics.
 use ide_app::annotation_layout::AnnotationColors;
 /// The palette whose inks the glyphs are drawn in.
-use ide_app::code_colors::{CodeColors, ink};
+use ide_app::code_colors::{
+    CodeColors,
+    ink,
+};
 /// The text and its reading position.
-use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+    ReadingPosition,
+};
 /// The matches of the in-file find.
 use ide_app::find::FindRange;
 /// Severity of a diagnostic.
@@ -27,9 +34,26 @@ use ide_app::line_rows::LineRows;
 /// its plan,
 /// and its parts.
 use ide_app::minimap::{
-    BAND, BUILD_WORK, CHUNK_ROWS, Cancel, Fills, Geometry, Input, LineCache, Source, Stats,
-    band_count, build, chunk_rows, cut, most_bands, picture_rows, slice_items, slice_rows,
-    texture_rows, texture_runs,
+    BAND,
+    BUILD_WORK,
+    CHUNK_ROWS,
+    Cancel,
+    Fills,
+    Geometry,
+    Input,
+    LineCache,
+    Source,
+    Stats,
+    band_count,
+    build,
+    chunk_rows,
+    cut,
+    most_bands,
+    picture_rows,
+    slice_items,
+    slice_rows,
+    texture_rows,
+    texture_runs,
 };
 /// The vertical mapping.
 use ide_app::row_map::RowMap;
@@ -40,7 +64,11 @@ use ide_app::source_style::StyleSpan;
 /// What the items draw.
 use ide_app::tile_scene::{
     Item,
-    read::{drawn_fills, drawn_runs, drawn_strokes},
+    read::{
+        drawn_fills,
+        drawn_runs,
+        drawn_strokes,
+    },
 };
 /// A window of bands is a range of their numbers.
 use std::ops::Range;
@@ -157,7 +185,11 @@ fn styles_of(text: &str) -> Vec<StyleSpan> {
 
 /// A fixture of `text` at `scale`,
 /// wrapped at `wrap` with the rows the shaper finds.
-fn fixture_of(text: &str, wrap: f32, scale: f32) -> Fixture {
+fn fixture_of(
+    text: &str,
+    wrap: f32,
+    scale: f32,
+) -> Fixture {
     let document = Document::new(text);
     let mut shaper = TextShaper::new();
     let mut rows = LineRows::plain(document.text().len_lines());
@@ -184,7 +216,11 @@ fn fixture_of(text: &str, wrap: f32, scale: f32) -> Fixture {
 }
 
 /// A fixture of `lines` lines of code.
-fn fixture(lines: usize, wrap: f32, scale: f32) -> Fixture {
+fn fixture(
+    lines: usize,
+    wrap: f32,
+    scale: f32,
+) -> Fixture {
     return fixture_of(&code(lines), wrap, scale);
 }
 
@@ -210,7 +246,12 @@ impl Fixture {
 
     /// The input of a build in a view `view` tall and a minimap `width` wide,
     /// for the bands `window`.
-    fn input(&self, window: Range<usize>, view: f32, width: f32) -> Input<'_> {
+    fn input(
+        &self,
+        window: Range<usize>,
+        view: f32,
+        width: f32,
+    ) -> Input<'_> {
         return Input {
             source: self.source(),
             view,
@@ -225,7 +266,11 @@ impl Fixture {
     }
 
     /// Select the characters `anchor` to `head`.
-    fn select(&mut self, anchor: usize, head: usize) {
+    fn select(
+        &mut self,
+        anchor: usize,
+        head: usize,
+    ) {
         self.document.select(ReadingPosition {
             anchor,
             head,
@@ -487,7 +532,12 @@ fn a_second_build_and_a_slide_shape_only_the_new_lines() {
 }
 
 /// The text of `fixture` with `edit` applied to one line.
-fn edited(fixture: &Fixture, line: usize, replace: &str, with: &str) -> Fixture {
+fn edited(
+    fixture: &Fixture,
+    line: usize,
+    replace: &str,
+    with: &str,
+) -> Fixture {
     let text = fixture.document.text().to_string();
     let changed = text.replacen(replace, with, 1);
     assert_ne!(changed, text);

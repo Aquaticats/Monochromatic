@@ -2,9 +2,17 @@
 //!  the server's copy of the text must equal the document text
 //! for every negotiated synchronization kind and column unit.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
-    reply::{RequestKind, RequestOutcome},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
     status::ServerState,
 };
 use serde_json::Value;
@@ -25,14 +33,21 @@ const ACCENT_BEFORE: &str = "caf\u{e9} \u{1F600} am here\nlast line\r\nend";
 const ACCENT_AFTER: &str = "caf\u{e9} \u{1F600} was here\nnew line\nlast line\r\nthe end";
 
 /// Messages of one method the server received.
-fn of_method<'a>(lines: &'a [Value], method: &str) -> Vec<&'a Value> {
+fn of_method<'a>(
+    lines: &'a [Value],
+    method: &str,
+) -> Vec<&'a Value> {
     return support::all_received(lines, method);
 }
 
 /// Open the first example,
 ///  apply every reload,
 ///  and require the server's copy to follow each one.
-fn follow_reloads(root: &Path, probe: &mut Probe, name: &str) -> Vec<Value> {
+fn follow_reloads(
+    root: &Path,
+    probe: &mut Probe,
+    name: &str,
+) -> Vec<Value> {
     let file = root.join(name);
     probe.open(&file, CAT_BEFORE);
     probe.until_ready();

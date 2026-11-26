@@ -2,12 +2,21 @@
 
 /// Record decoders preserve native paths and distinguish protocol metadata from matches.
 use crate::{
-    search::{MAX_CONTENT_RESULTS, MAX_PATH_RESULTS, SearchHit, SearchKind},
-    search_io, search_protocol,
+    search::{
+        MAX_CONTENT_RESULTS,
+        MAX_PATH_RESULTS,
+        SearchHit,
+        SearchKind,
+    },
+    search_io,
+    search_protocol,
     search_query::PathQuery,
 };
 /// A malformed record stops its own stream with an actionable error.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// The canonical project root bounds both stream types.
 use std::path::Path;
 /// Buffered async child pipes feed one bounded record at a time.
@@ -78,7 +87,10 @@ pub(crate) async fn collect<R: AsyncBufRead + Unpin>(
         if let Some(found) = hit {
             hits.push(found);
             if hits.len() == maximum {
-                return Ok(Collected { hits, capped: true });
+                return Ok(Collected {
+                    hits,
+                    capped: true,
+                });
             }
         }
     }

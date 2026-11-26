@@ -5,12 +5,27 @@
 //!  all with one mount option,
 //!  and all after the replacements.
 
-use super::{PROJECT_MOUNT, project_binds, read_only_binds, replaced_location};
+use super::{
+    PROJECT_MOUNT,
+    project_binds,
+    read_only_binds,
+    replaced_location,
+};
 use crate::language::confine::recipe::recipe;
-use crate::language::launch::{LaunchRequest, scratch_name};
-use std::{collections::HashMap, path::Path, path::PathBuf};
+use crate::language::launch::{
+    LaunchRequest,
+    scratch_name,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    path::PathBuf,
+};
 
-fn request(project: &str, spellings: &[&str]) -> LaunchRequest {
+fn request(
+    project: &str,
+    spellings: &[&str],
+) -> LaunchRequest {
     return LaunchRequest {
         server: "rust-analyzer".to_string(),
         executable: PathBuf::from("/opt/servers/bin/server"),
@@ -25,7 +40,10 @@ fn request(project: &str, spellings: &[&str]) -> LaunchRequest {
 }
 
 /// Position of the first argument equal to `wanted`.
-fn position_of(args: &[String], wanted: &str) -> Option<usize> {
+fn position_of(
+    args: &[String],
+    wanted: &str,
+) -> Option<usize> {
     for (index, part) in args.iter().enumerate() {
         if part == wanted {
             return Some(index);
@@ -35,7 +53,12 @@ fn position_of(args: &[String], wanted: &str) -> Option<usize> {
 }
 
 /// Position of the first argument triple `option source destination`.
-fn triple(args: &[String], option: &str, source: &str, destination: &str) -> Option<usize> {
+fn triple(
+    args: &[String],
+    option: &str,
+    source: &str,
+    destination: &str,
+) -> Option<usize> {
     for (index, window) in args.windows(3).enumerate() {
         if window[0] == option && window[1] == source && window[2] == destination {
             return Some(index);

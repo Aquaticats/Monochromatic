@@ -5,7 +5,10 @@
 
 /// The watch-limit backoff,
 ///  and why an add failed.
-use super::{limit::LimitBackoff, watch_ops::WatchFailure};
+use super::{
+    limit::LimitBackoff,
+    watch_ops::WatchFailure,
+};
 /// What:
 ///  ordered sets and maps of owned paths;
 ///  `Path` borrows a path;
@@ -19,8 +22,14 @@ use super::{limit::LimitBackoff, watch_ops::WatchFailure};
 /// const active = new Set<string>(); const failed = new Map<string, string>();
 /// ```
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 
@@ -40,9 +49,15 @@ use std::{
 /// ```
 pub trait Kernel {
     /// Watch one directory non-recursively.
-    fn add(&mut self, path: &Path) -> Result<(), WatchFailure>;
+    fn add(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), WatchFailure>;
     /// Stop watching one directory.
-    fn remove(&mut self, path: &Path);
+    fn remove(
+        &mut self,
+        path: &Path,
+    );
 }
 
 /// Mutable bookkeeping owned by the watch thread alone.
@@ -150,7 +165,10 @@ struct Pass {
 /// so the root precedes its descendants.
 ///  With only a few watches left,
 ///  the source stays watched.
-fn attempt_order(desired: &BTreeSet<PathBuf>, file: Option<&Path>) -> Vec<PathBuf> {
+fn attempt_order(
+    desired: &BTreeSet<PathBuf>,
+    file: Option<&Path>,
+) -> Vec<PathBuf> {
     let mut order = Vec::new();
     // What: `and_then(Path::parent)` takes the optional file's folder; `filter` keeps it only when desired.
     // Why: The displayed source is what the user is looking at.
@@ -180,7 +198,11 @@ fn attempt_order(desired: &BTreeSet<PathBuf>, file: Option<&Path>) -> Vec<PathBu
 /// After the first limit failure,
 ///  the rest wait on the limit without another failing call,
 /// because the limit counts everything this user runs and the next add would fail the same way.
-fn try_watches(watches: &mut Watches, allowed: &Allowed, kernel: &mut dyn Kernel) -> Pass {
+fn try_watches(
+    watches: &mut Watches,
+    allowed: &Allowed,
+    kernel: &mut dyn Kernel,
+) -> Pass {
     let mut pass = Pass::default();
     for path in attempt_order(&watches.desired, watches.file.as_deref()) {
         if watches.active.contains(&path) {
@@ -242,7 +264,12 @@ fn try_watches(watches: &mut Watches, allowed: &Allowed, kernel: &mut dyn Kernel
 ///  or leave the watch-limit state after a pass;
 ///  true when it was just entered.
 /// `sweep_retry` says the pass retried limited directories because the backoff allowed it.
-fn update_limit(watches: &mut Watches, pass: &Pass, sweep_retry: bool, now: Instant) -> bool {
+fn update_limit(
+    watches: &mut Watches,
+    pass: &Pass,
+    sweep_retry: bool,
+    now: Instant,
+) -> bool {
     if pass.limit_hit {
         // What: `if let Some(backoff) = &mut ...` lends the running backoff for changing.
         // Why: Only entering the state is logged and rereads everything; later failures lengthen the wait.

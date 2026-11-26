@@ -10,7 +10,11 @@
 /// ```ts
 /// import { Document, ReadingPosition } from 'ide-app/document';
 /// ```
-use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+    ReadingPosition,
+};
 
 /// Verify the user's caret example without any file writes.
 #[test]

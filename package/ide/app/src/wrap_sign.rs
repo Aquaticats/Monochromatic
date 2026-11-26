@@ -20,13 +20,22 @@ use crate::row_map::CODE_ROW;
 /// and sets the one that is chosen.
 use crate::shaped_text::TextShaper;
 /// The scene the mark is drawn from and the strokes of the drawn arrow.
-use crate::tile_scene::{Item, StrokeItem, TileScene, encode, layout_scene};
+use crate::tile_scene::{
+    Item,
+    StrokeItem,
+    TileScene,
+    encode,
+    layout_scene,
+};
 /// Failures of the layout walk reach the caller.
 use anyhow::Result;
 /// Glyph ids tell a displayable symbol from the font's missing-glyph box.
 use parley::PositionedLayoutItem;
 /// The arrow's path.
-use vello::kurbo::{Affine, BezPath};
+use vello::kurbo::{
+    Affine,
+    BezPath,
+};
 
 /// IntelliJ's `SOFT_WRAP_SIGN_COLOR` in the Default scheme,
 /// which the Darcula scheme inherits:
@@ -87,7 +96,10 @@ pub enum Sign {
 /// ```
 pub trait SignCoverage {
     /// Whether the fonts show `character`.
-    fn can_display(&mut self, character: char) -> bool;
+    fn can_display(
+        &mut self,
+        character: char,
+    ) -> bool;
 }
 
 /// What:
@@ -123,7 +135,11 @@ impl TextShaper {
     /// ```ts
     /// canDisplay(character: string, scale: number): boolean;
     /// ```
-    pub fn can_display(&mut self, character: char, scale: f32) -> bool {
+    pub fn can_display(
+        &mut self,
+        character: char,
+        scale: f32,
+    ) -> bool {
         let layout = self.line_layout(&character.to_string(), scale, &[], &[]);
         let mut glyphs = 0_usize;
         for line in layout.lines() {
@@ -144,7 +160,10 @@ impl TextShaper {
 
     /// The sign this shaper's fonts can show,
     /// chosen from IntelliJ's pairs.
-    pub fn choose_sign(&mut self, scale: f32) -> Sign {
+    pub fn choose_sign(
+        &mut self,
+        scale: f32,
+    ) -> Sign {
         // The same walk as the free `choose_sign`, with the coverage check of this shaper at `scale`.
         for (before, after) in SIGN_PAIRS {
             if self.can_display(before, scale) && self.can_display(after, scale) {
@@ -171,7 +190,12 @@ impl TextShaper {
     /// ```ts
     /// signScene(sign: Sign, scale: number, width: number): TileScene;
     /// ```
-    pub fn sign_scene(&mut self, sign: Sign, scale: f32, width: f32) -> Result<TileScene> {
+    pub fn sign_scene(
+        &mut self,
+        sign: Sign,
+        scale: f32,
+        width: f32,
+    ) -> Result<TileScene> {
         let pixel_width = (width * scale).ceil().max(1.0) as u32;
         let pixel_height = (CODE_ROW * scale).ceil() as u32;
         match sign {
@@ -200,7 +224,11 @@ impl TextShaper {
 /// ```ts
 /// function arrowScene(width: number, height: number, scale: number): TileScene;
 /// ```
-fn arrow_scene(width: u32, height: u32, scale: f32) -> TileScene {
+fn arrow_scene(
+    width: u32,
+    height: u32,
+    scale: f32,
+) -> TileScene {
     let cell = width as f32 / scale;
     let (stem, turn, tip) = (f64::from(cell * 0.3), 15.0_f64, f64::from(cell - 2.0));
     // The stem and the horizontal run, then the two strokes of the head, in logical pixels,

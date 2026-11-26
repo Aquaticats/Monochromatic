@@ -8,7 +8,10 @@ use crate::framing::Wire;
 /// `json_value!` is `json!` with the one lint allowance the repository's `unwrap` ban needs.
 use ide_app::json_value;
 /// JSON values and the literal-building macro.
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// What:
 ///  Send one request,
@@ -28,7 +31,11 @@ use serde_json::{Value, json};
 ///   wire.record({ probe: { method, response: await wire.ask(method, params) } });
 /// }
 /// ```
-fn probe_one(wire: &Wire, method: &str, params: Value) {
+fn probe_one(
+    wire: &Wire,
+    method: &str,
+    params: Value,
+) {
     let response = wire.ask(method, params);
     wire.record(json_value!({ "probe": { "method": method, "response": response } }));
 }
@@ -44,7 +51,11 @@ fn probe_one(wire: &Wire, method: &str, params: Value) {
 /// ```ts
 /// function notify(wire: Wire, method: string, params: unknown) { wire.send({ method, params }); }
 /// ```
-fn notify(wire: &Wire, method: &str, params: Value) {
+fn notify(
+    wire: &Wire,
+    method: &str,
+    params: Value,
+) {
     if let Err(error) = wire.send(json_value!({ "method": method, "params": params })) {
         eprintln!("scripted language server cannot notify the client: {error}");
     }
@@ -64,7 +75,10 @@ fn notify(wire: &Wire, method: &str, params: Value) {
 /// ```ts
 /// async function run(wire: Wire, uri: string): Promise<void>
 /// ```
-pub fn run(wire: &Wire, uri: &str) {
+pub fn run(
+    wire: &Wire,
+    uri: &str,
+) {
     probe_one(
         wire,
         "window/workDoneProgress/create",

@@ -7,14 +7,36 @@
 ///  pointer helpers,
 ///  and the pinned layout measurements.
 use super::sidebar_tests::{
-    DIVIDER, GUTTER, HEADER, MINIMUM, REACH, SOURCE_MINIMUM, click, drag_to, fixture, motion,
-    press, release, resize, settle, text_area,
+    DIVIDER,
+    GUTTER,
+    HEADER,
+    MINIMUM,
+    REACH,
+    SOURCE_MINIMUM,
+    click,
+    drag_to,
+    fixture,
+    motion,
+    press,
+    release,
+    resize,
+    settle,
+    text_area,
 };
 /// Generated window and search row types from the shipped markup,
 ///  and the single rendering boundary.
-use super::{AppWindow, render, ui::SearchEntry};
+use super::{
+    AppWindow,
+    render,
+    ui::SearchEntry,
+};
 /// Toolkit models and the left pointer button for a drag that must not resize.
-use slint::{ComponentHandle, ModelRc, VecModel, platform::PointerEventButton};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    VecModel,
+    platform::PointerEventButton,
+};
 /// What:
 ///  `Rc` is a shared pointer for one thread (sibling `Arc` works across threads);
 ///  `Cell` holds a
@@ -26,7 +48,10 @@ use slint::{ComponentHandle, ModelRc, VecModel, platform::PointerEventButton};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::Cell,
+    rc::Rc,
+};
 
 /// What:
 ///  `&AppWindow` lends the window;

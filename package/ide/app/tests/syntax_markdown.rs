@@ -8,7 +8,10 @@ mod syntax_support;
 /// Recognition,
 /// role,
 /// and visible text assertion that lists every painted interval on failure.
-use syntax_support::{assert_reads_as, painted};
+use syntax_support::{
+    assert_reads_as,
+    painted,
+};
 
 /// A Markdown file with every construct that has a role.
 const SAMPLE: &str = "---\ntitle: Sample\n---\n\n# Heading one\n\n## Heading two\n\nPlain *emphasis* and _also_ and **strong** and ~~struck~~ and `code`.\nA [link text](https://example.com) and a [label][ref].\n\n> quoted words\n\n- bullet\n1. numbered\n\n[ref]: https://example.com/ref\n";

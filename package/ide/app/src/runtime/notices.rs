@@ -19,10 +19,16 @@ use super::crate_licenses;
 /// Each text is digest-checked before anything is printed.
 use super::embedded::EmbeddedRuntime;
 /// Damage and a missing crate list are errors with the file and the remedy.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Texts are borrowed from the executable or owned after decoding;
 ///  printing goes to any writer.
-use std::{borrow::Cow, io::Write};
+use std::{
+    borrow::Cow,
+    io::Write,
+};
 
 /// What:
 ///  One license or notice text and the lines printed above it.
@@ -199,7 +205,11 @@ fn heading(path: &str) -> String {
 /// ```ts
 /// function write(notices: Notice[], version: string, out: Writable): void
 /// ```
-pub fn write(notices: &[Notice], version: &str, out: &mut impl Write) -> std::io::Result<()> {
+pub fn write(
+    notices: &[Notice],
+    version: &str,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
     let rule = "=".repeat(78);
     writeln!(
         out,

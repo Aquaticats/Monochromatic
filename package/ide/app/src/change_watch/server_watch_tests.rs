@@ -6,13 +6,26 @@
 //!  and retried after the backoff.
 
 /// The decisions under test.
-use super::{ServerRequest, ServerWatches, TreeFirst, reconcile_servers};
+use super::{
+    ServerRequest,
+    ServerWatches,
+    TreeFirst,
+    reconcile_servers,
+};
 /// The tree's decisions,
 ///  run through the sharing kernel.
-use crate::change_watch::reconcile::{Kernel, Request, Watches, reconcile};
+use crate::change_watch::reconcile::{
+    Kernel,
+    Request,
+    Watches,
+    reconcile,
+};
 /// The backoff's first wait,
 ///  and why an add failed.
-use crate::change_watch::{limit::FIRST_LIMIT_RETRY, watch_ops::WatchFailure};
+use crate::change_watch::{
+    limit::FIRST_LIMIT_RETRY,
+    watch_ops::WatchFailure,
+};
 /// What:
 ///  ordered path sets;
 ///  `Path`/`PathBuf` are a borrowed and an owned path;
@@ -28,8 +41,14 @@ use crate::change_watch::{limit::FIRST_LIMIT_RETRY, watch_ops::WatchFailure};
 /// ```
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A kernel with `free` watches left before it answers with the limit,
@@ -48,7 +67,10 @@ struct Fake {
 impl Kernel for Fake {
     /// Succeed while watches are free,
     ///  then answer with the limit.
-    fn add(&mut self, path: &Path) -> Result<(), WatchFailure> {
+    fn add(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), WatchFailure> {
         self.adds.push(path.to_path_buf());
         assert!(
             !self.live.contains(path),
@@ -64,7 +86,10 @@ impl Kernel for Fake {
     }
 
     /// A removed watch is free again.
-    fn remove(&mut self, path: &Path) {
+    fn remove(
+        &mut self,
+        path: &Path,
+    ) {
         assert!(
             self.live.remove(path),
             "removed a watch that did not exist: {}",

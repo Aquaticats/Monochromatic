@@ -17,7 +17,10 @@
 //! so the step into the indent and the smart-indent column of a blank line are left out.
 
 /// Canonical source and the caret whose row the keys read.
-use crate::document::{Document, ReadingAffinity};
+use crate::document::{
+    Document,
+    ReadingAffinity,
+};
 /// The same shaper that paints the viewport breaks the rows.
 use crate::shaped_text::TextShaper;
 /// The rope view the rules read characters from.
@@ -85,7 +88,11 @@ fn is_blank(character: char) -> bool {
 /// ```ts
 /// function rowContaining(rows: [number, number][], head: number, affinity: Affinity): number;
 /// ```
-pub fn row_containing(rows: &[Range<usize>], head: usize, affinity: ReadingAffinity) -> usize {
+pub fn row_containing(
+    rows: &[Range<usize>],
+    head: usize,
+    affinity: ReadingAffinity,
+) -> usize {
     let mut found = 0;
     for (index, row) in rows.iter().enumerate() {
         if row.start <= head {
@@ -100,7 +107,10 @@ pub fn row_containing(rows: &[Range<usize>], head: usize, affinity: ReadingAffin
 
 /// Position of the first character of `row` that is not a blank,
 /// or nothing when the row is all blanks.
-fn first_non_blank(text: RopeSlice, row: &Range<usize>) -> Option<usize> {
+fn first_non_blank(
+    text: RopeSlice,
+    row: &Range<usize>,
+) -> Option<usize> {
     for index in row.start..row.end {
         if !is_blank(text.char(index)) {
             return Some(index);

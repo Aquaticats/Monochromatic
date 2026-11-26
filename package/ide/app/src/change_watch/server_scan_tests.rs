@@ -2,7 +2,10 @@
 //!  on disposable projects.
 
 /// The functions under test.
-use super::{bases, scan};
+use super::{
+    bases,
+    scan,
+};
 /// What:
 ///  `BTreeSet` is an ordered set;
 ///  `fs` creates the fixture;
@@ -14,7 +17,11 @@ use super::{bases, scan};
 /// ```ts
 /// import { mkdirSync, writeFileSync } from 'node:fs';
 /// ```
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::PathBuf,
+};
 
 /// What:
 ///  A disposable project inside a git work tree:

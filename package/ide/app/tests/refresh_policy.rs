@@ -19,8 +19,14 @@
 use ide_app::{
     change_watch::SourceChange,
     refresh_policy::{
-        DirectoryRefresh, REREAD_GAP, SAFETY_SWEEP, SourceRefresh, UNWATCHED_DIRECTORY_POLL,
-        UNWATCHED_SOURCE_POLL, WRITE_QUIET, WRITE_WAIT_LIMIT,
+        DirectoryRefresh,
+        REREAD_GAP,
+        SAFETY_SWEEP,
+        SourceRefresh,
+        UNWATCHED_DIRECTORY_POLL,
+        UNWATCHED_SOURCE_POLL,
+        WRITE_QUIET,
+        WRITE_WAIT_LIMIT,
     },
 };
 /// What:
@@ -36,7 +42,10 @@ use ide_app::{
 use std::{
     collections::BTreeSet,
     path::PathBuf,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// One millisecond,
@@ -44,7 +53,10 @@ use std::{
 const TICK: Duration = Duration::from_millis(1);
 
 /// A source schedule whose first read happened at `start`.
-fn source_after_first_read(start: Instant, watched: bool) -> SourceRefresh {
+fn source_after_first_read(
+    start: Instant,
+    watched: bool,
+) -> SourceRefresh {
     let mut refresh = SourceRefresh::default();
     assert!(refresh.due(start, false), "the first read must not wait");
     refresh.requested(start);

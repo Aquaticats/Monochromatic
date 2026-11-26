@@ -27,10 +27,24 @@
 /// import { open } from 'node:fs/promises'; // a flock held until the handle closes
 /// ```
 use std::{
-    fs::{File, OpenOptions, TryLockError},
-    path::{Path, PathBuf},
-    sync::{Mutex, OnceLock, PoisonError},
-    time::{SystemTime, UNIX_EPOCH},
+    fs::{
+        File,
+        OpenOptions,
+        TryLockError,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        OnceLock,
+        PoisonError,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// The start of every scratch directory name.

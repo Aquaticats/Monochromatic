@@ -9,11 +9,20 @@
 /// Preserve clap's typed help/usage errors inside the application's standard error envelope.
 use anyhow::Result;
 /// Reuse the repository's CLI parser and native-path value parser instead of manual argument dispatch.
-use clap::{Arg, ArgAction, Command, builder::PathBufValueParser, error::ErrorKind};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+    builder::PathBufValueParser,
+    error::ErrorKind,
+};
 /// Native argv and paths retain non-UTF-8 names rather than passing through display strings.
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Parsed startup inputs;
@@ -140,7 +149,10 @@ pub fn parse_args(args: &[OsString]) -> Result<Startup> {
 ///  with an explicit home folder for the no-project case.
 /// `home` is `None` when no usable home folder exists;
 ///  then a missing project is a usage error.
-pub fn parse_args_with_home(args: &[OsString], home: Option<&Path>) -> Result<Startup> {
+pub fn parse_args_with_home(
+    args: &[OsString],
+    home: Option<&Path>,
+) -> Result<Startup> {
     // What: Vec owns a variable-length argv list; unlike String, OsString retains native non-UTF-8 bytes.
     // Why: The command name occupies argv[0] while project filenames remain exact native paths.
     //
@@ -203,5 +215,8 @@ pub fn parse_args_with_home(args: &[OsString], home: Option<&Path>) -> Result<St
     // ```ts
     // return { kind: 'open', options: { project, file: matches.file } };
     // ```
-    return Ok(Startup::Open(Options { project, file }));
+    return Ok(Startup::Open(Options {
+        project,
+        file,
+    }));
 }

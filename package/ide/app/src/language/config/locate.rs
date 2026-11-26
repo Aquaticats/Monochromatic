@@ -10,7 +10,10 @@ use crate::language::{
     launch::resolve_executable,
     toolchain::{
         ToolchainState,
-        search::{Missed, find_program},
+        search::{
+            Missed,
+            find_program,
+        },
     },
 };
 /// What:
@@ -22,7 +25,10 @@ use crate::language::{
 /// ```ts
 /// type Path = string;
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why a configured server cannot be started.

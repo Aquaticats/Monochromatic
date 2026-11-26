@@ -22,7 +22,11 @@
 
 /// The rule and the texture side limit under test.
 use ide_app::shaped_text::{
-    MAX_BINS, MAX_RASTER_BYTES, set_texture_dimension, texture_fits, tile_texture_rows,
+    MAX_BINS,
+    MAX_RASTER_BYTES,
+    set_texture_dimension,
+    texture_fits,
+    tile_texture_rows,
 };
 
 /// Elements of Vello 0.11's command list at its default size.
@@ -43,14 +47,20 @@ const BIN_SIDE: u64 = 256;
 /// which are
 /// `ceil(width_in_tiles / 16)` and `ceil(height_in_tiles / 16)`,
 /// warns above 256).
-fn bins(columns: u64, rows: u64) -> u64 {
+fn bins(
+    columns: u64,
+    rows: u64,
+) -> u64 {
     let tiles_across = columns.div_ceil(TILE_SIDE);
     let tiles_down = rows.div_ceil(TILE_SIDE);
     return tiles_across.div_ceil(16) * tiles_down.div_ceil(16);
 }
 
 /// The number of tiles Vello lays over a picture `columns` by `rows` pixels.
-fn tiles(columns: u64, rows: u64) -> u64 {
+fn tiles(
+    columns: u64,
+    rows: u64,
+) -> u64 {
     return columns.div_ceil(TILE_SIDE) * rows.div_ceil(TILE_SIDE);
 }
 

@@ -16,7 +16,10 @@ use super::{
     annotate::displayed,
     minimap::aim_again,
     tile::requested,
-    viewport::{note_view, place},
+    viewport::{
+        note_view,
+        place,
+    },
     wheel,
 };
 /// The rank that orders severities.
@@ -24,18 +27,29 @@ use ide_app::annotation::rank;
 /// Measured visual rows of every line.
 use ide_app::line_rows::LineRows;
 /// The mapping itself and the height of one code row.
-use ide_app::row_map::{CODE_ROW, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// A wrap width must be a positive number of pixels.
 use ide_app::wrap::has_wrap_width;
 /// The stamp naming a displayed text,
 ///  and one line's block of virtual rows.
-use ide_app::{language::identity::DocumentStamp, virtual_row::Block};
+use ide_app::{
+    language::identity::DocumentStamp,
+    virtual_row::Block,
+};
 /// `VecModel` is the toolkit's growable list model that the placement names.
 use slint::VecModel;
 /// Line ranges,
 ///  shared pointers to the persistent models and the blocks,
 ///  and the clock of the expiry check.
-use std::{ops::Range, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    ops::Range,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 /// Space held open above the lines of a replaced text.
 mod held;
@@ -45,7 +59,10 @@ mod quiet;
 mod window;
 
 /// Reload and the hold that follows it carry space over to the new text.
-pub(super) use held::{carried, hold};
+pub(super) use held::{
+    carried,
+    hold,
+};
 /// The test clock the scrolling rule reads instead of the system clock.
 #[cfg(test)]
 pub(super) use quiet::hold_clock;
@@ -55,7 +72,11 @@ pub(super) use quiet::quiet_now;
 use quiet::scrolling;
 /// The persistent models,
 ///  and handing a placement to the window.
-pub(super) use window::{mark_model, present, top_model};
+pub(super) use window::{
+    mark_model,
+    present,
+    top_model,
+};
 
 /// What:
 ///  What the map key is made of:
@@ -173,7 +194,10 @@ fn focus_of(current: &State) -> Range<usize> {
 ///  its annotations,
 ///  the display `scale`,
 ///  and the measured rows call for now.
-fn wanted_key(current: &State, scale: f32) -> RowKey {
+fn wanted_key(
+    current: &State,
+    scale: f32,
+) -> RowKey {
     // `to_bits` turns the float into an integer that compares exactly.
     return (
         displayed(current),
@@ -207,7 +231,10 @@ fn wanted_key(current: &State, scale: f32) -> RowKey {
 /// ```ts
 /// function rebuilt(current: State, scale: number): Rebuilt | undefined;
 /// ```
-fn rebuilt(current: &mut State, scale: f32) -> Option<Rebuilt> {
+fn rebuilt(
+    current: &mut State,
+    scale: f32,
+) -> Option<Rebuilt> {
     ensure_wrap_rows(current);
     let key = wanted_key(current, scale);
     if current.row_key == Some(key) {
@@ -273,7 +300,10 @@ fn rebuilt(current: &mut State, scale: f32) -> Option<Rebuilt> {
 /// ```ts
 /// function install(current: State, layout: Rebuilt): RowMap | undefined;
 /// ```
-fn install(current: &mut State, layout: Rebuilt) -> Option<RowMap> {
+fn install(
+    current: &mut State,
+    layout: Rebuilt,
+) -> Option<RowMap> {
     current.blocks = layout.blocks;
     current.row_key = Some(layout.key);
     if layout.map == current.row_map {
@@ -309,7 +339,10 @@ fn install(current: &mut State, layout: Rebuilt) -> Option<RowMap> {
 /// ```ts
 /// function refresh(current: State, scale: number): RowMap | undefined;
 /// ```
-pub(super) fn refresh(current: &mut State, scale: f32) -> Option<RowMap> {
+pub(super) fn refresh(
+    current: &mut State,
+    scale: f32,
+) -> Option<RowMap> {
     // `?` leaves with nothing when the layout is already current.
     let layout = rebuilt(current, scale)?;
     return install(current, layout);
@@ -416,7 +449,10 @@ pub(super) fn settle(
 /// ```ts
 /// function due(current: State, scale: number): boolean;
 /// ```
-pub(super) fn due(current: &mut State, scale: f32) -> bool {
+pub(super) fn due(
+    current: &mut State,
+    scale: f32,
+) -> bool {
     let expired = current.annotations.expire(Instant::now());
     let waiting = current.row_key.is_some()
         && current.row_key != Some(wanted_key(current, scale))
@@ -441,7 +477,11 @@ pub(super) fn due(current: &mut State, scale: f32) -> bool {
 /// ```ts
 /// function anchored(previous: RowMap, next: RowMap, offset: number): number;
 /// ```
-pub(super) fn anchored(previous: &RowMap, next: &RowMap, offset: f32) -> f32 {
+pub(super) fn anchored(
+    previous: &RowMap,
+    next: &RowMap,
+    offset: f32,
+) -> f32 {
     if offset <= 0.0 {
         return 0.0;
     }
@@ -469,7 +509,13 @@ pub(super) fn anchored(previous: &RowMap, next: &RowMap, offset: f32) -> f32 {
 /// ```ts
 /// function showing(map: RowMap, row: number, rowsDown: number, offset: number, height: number): number;
 /// ```
-pub(super) fn showing(map: &RowMap, row: usize, rows_down: usize, offset: f32, height: f32) -> f32 {
+pub(super) fn showing(
+    map: &RowMap,
+    row: usize,
+    rows_down: usize,
+    offset: f32,
+    height: f32,
+) -> f32 {
     let top = map.code_top(row) + rows_down as f32 * CODE_ROW;
     let mut wanted = offset;
     if top < offset {
@@ -486,7 +532,10 @@ pub(super) fn showing(map: &RowMap, row: usize, rows_down: usize, offset: f32, h
 }
 
 /// Largest scroll offset of a view of `height` over the mapped text.
-pub(super) fn limit(map: &RowMap, height: f32) -> f32 {
+pub(super) fn limit(
+    map: &RowMap,
+    height: f32,
+) -> f32 {
     return (map.height() - height).max(0.0);
 }
 
@@ -546,7 +595,10 @@ pub(super) struct Placement {
 /// ```ts
 /// function measure(current: State, anchorLine: number): Placement;
 /// ```
-pub(super) fn measure(current: &State, anchor_line: i32) -> Placement {
+pub(super) fn measure(
+    current: &State,
+    anchor_line: i32,
+) -> Placement {
     let map = &current.row_map;
     let mut tops = Vec::new();
     let mut numbers = Vec::new();
@@ -622,7 +674,10 @@ pub(super) fn measure(current: &State, anchor_line: i32) -> Placement {
 /// ```ts
 /// function anchorPlace(map: RowMap, anchorLine: number): [top: number, height: number];
 /// ```
-pub(super) fn anchor_place(map: &RowMap, anchor_line: i32) -> (f32, f32) {
+pub(super) fn anchor_place(
+    map: &RowMap,
+    anchor_line: i32,
+) -> (f32, f32) {
     // `max(0) as usize` turns the toolkit's integer into a line index.
     let line = (anchor_line.max(0) as usize).min(map.lines() - 1);
     let top = map.block_top(line);

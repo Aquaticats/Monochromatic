@@ -5,12 +5,20 @@
 //!  and close.
 
 /// Session state and the identity synchronization shared with the polling timer.
-use super::{Find, tick};
+use super::{
+    Find,
+    tick,
+};
 /// Source state,
 ///  the window,
 ///  the rendering boundary,
 ///  and scrolling a range into view.
-use crate::native::{AppWindow, State, render, viewport};
+use crate::native::{
+    AppWindow,
+    State,
+    render,
+    viewport,
+};
 /// A selected match is not a wrap-offset caret,
 /// so it stands on the default side.
 use ide_app::document::ReadingAffinity;
@@ -18,7 +26,11 @@ use ide_app::document::ReadingAffinity;
 ///  the same unit as the reading selection.
 use ide_app::find::FindRange;
 /// Enter uses matches only when they describe the displayed document and current find text.
-use ide_app::find_navigation::{at_or_after, at_or_before, navigable_matches};
+use ide_app::find_navigation::{
+    at_or_after,
+    at_or_before,
+    navigable_matches,
+};
 /// What:
 ///  `Rc<RefCell<State>>` is the shared,
 ///  borrow-checked source state of this window.
@@ -29,12 +41,19 @@ use ide_app::find_navigation::{at_or_after, at_or_before, navigable_matches};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Make one match the reading selection and scroll it into view.
 /// The active match is the selection,
 ///  so Ctrl+C copies it and reloads map it like any selection.
-pub(super) fn select(window: &AppWindow, state: &Rc<RefCell<State>>, range: FindRange) {
+pub(super) fn select(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    range: FindRange,
+) {
     // What: `borrow_mut` lends the source state mutably until `drop` below.
     // Why: The selection belongs to the document, which also owns reload correspondence.
     //
@@ -62,7 +81,11 @@ pub(super) fn select(window: &AppWindow, state: &Rc<RefCell<State>>, range: Find
 ///  focus its input with the previous find text selected,
 ///  and request matches.
 /// Ignored while the modal search overlay is open or no source file is displayed.
-pub(super) fn open(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find) {
+pub(super) fn open(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &mut Find,
+) {
     if window.get_search_open() {
         tracing::debug!("ignored in-file find request while project search is open");
         return;
@@ -88,7 +111,12 @@ pub(super) fn open(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Fi
 
 /// A changed find text is a new query generation;
 ///  its reply selects the nearest match.
-pub(super) fn edit(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find, raw: &str) {
+pub(super) fn edit(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &mut Find,
+    raw: &str,
+) {
     if !find.open {
         tracing::debug!("ignored find text edit while the bar is closed");
         return;
@@ -130,7 +158,12 @@ pub(super) fn edit(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Fi
 /// Enter (positive delta) or Shift+Enter (negative delta):
 ///  select the next or previous match,
 ///  wrapping.
-pub(super) fn navigate(window: &AppWindow, state: &Rc<RefCell<State>>, find: &Find, delta: i32) {
+pub(super) fn navigate(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &Find,
+    delta: i32,
+) {
     let current = state.borrow();
     let identity = tick::wanted(&current, find);
     // What: `let ... else` extracts usable matches or leaves early when there are none.
@@ -170,7 +203,11 @@ pub(super) fn navigate(window: &AppWindow, state: &Rc<RefCell<State>>, find: &Fi
 ///  cancel pending work,
 ///  and return focus to the source.
 /// The find text and the selection (the last active match) are kept.
-pub(super) fn close(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find) {
+pub(super) fn close(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &mut Find,
+) {
     if !find.open {
         return;
     }

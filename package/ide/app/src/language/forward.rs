@@ -13,7 +13,10 @@ use super::session::Session;
 /// What the registrations ask of the sender of a burst.
 use super::watched_files::WatchHost;
 /// The worker whose registrations and timers these steps use.
-use super::worker::{Internal, Worker};
+use super::worker::{
+    Internal,
+    Worker,
+};
 /// The changes the change watcher forwards.
 use crate::change_watch::ServerChange;
 /// The identifier helix-lsp gives each server.
@@ -29,7 +32,10 @@ use helix_lsp::LanguageServerId;
 /// const now = performance.now();
 /// ```
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 
@@ -45,7 +51,10 @@ use std::{
 /// ```ts
 /// function receive(worker: Worker, change: ServerChange): void
 /// ```
-pub(super) fn receive(worker: &mut Worker, change: ServerChange) {
+pub(super) fn receive(
+    worker: &mut Worker,
+    change: ServerChange,
+) {
     let now = Instant::now();
     if worker.watched.record(change, now) && !worker.forward_scheduled {
         worker.forward_scheduled = true;
@@ -108,7 +117,10 @@ struct WorkerHost<'a> {
 /// The worker's answers.
 impl WatchHost<LanguageServerId> for WorkerHost<'_> {
     /// Respell with the view when there is one.
-    fn respell(&self, path: &Path) -> PathBuf {
+    fn respell(
+        &self,
+        path: &Path,
+    ) -> PathBuf {
         return match self.view {
             Some(spelling) => spelling.to_helix(path),
             None => path.to_path_buf(),
@@ -116,7 +128,10 @@ impl WatchHost<LanguageServerId> for WorkerHost<'_> {
     }
 
     /// A server is live while its record holds a client.
-    fn live(&self, server: LanguageServerId) -> bool {
+    fn live(
+        &self,
+        server: LanguageServerId,
+    ) -> bool {
         if let Some(index) = self.session.index_of(server) {
             return self.session.servers[index].client.is_some();
         }

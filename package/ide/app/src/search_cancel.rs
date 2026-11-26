@@ -24,7 +24,9 @@ impl SearchCancellation {
         // return new AbortController();
         // ```
         let (sender, _receiver) = watch::channel(false);
-        return Self { sender };
+        return Self {
+            sender,
+        };
     }
 
     /// Cancellation is idempotent and survives the absence of a subscribed worker.

@@ -20,13 +20,21 @@
 //! mapping in `crate::row_map`.
 
 /// The diagnostic records and their severities as the Language module reports them.
-use crate::language::diagnostics::{DiagnosticsSnapshot, Severity};
+use crate::language::diagnostics::{
+    DiagnosticsSnapshot,
+    Severity,
+};
 /// The hint records as the Language module reports them.
 use crate::language::hints::HintsSnapshot;
 /// File generation and content revision of the text a snapshot describes.
 use crate::language::identity::DocumentStamp;
 /// The rows a line shows above its code row.
-use crate::virtual_row::{Block, HintPlace, MessageRow, message_rows};
+use crate::virtual_row::{
+    Block,
+    HintPlace,
+    MessageRow,
+    message_rows,
+};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
 /// Why:
@@ -56,7 +64,12 @@ use helix_core::Rope;
 /// ```ts
 /// type Shared<T> = Readonly<T>; // and a Map whose keys are iterated in ascending order
 /// ```
-use std::{collections::BTreeMap, ops::Range, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    ops::Range,
+    sync::Arc,
+    time::Instant,
+};
 
 /// Blocks of virtual rows per line:
 ///  hint accumulation,
@@ -87,7 +100,11 @@ use severity::shown;
 /// ```ts
 /// export { describe, rank, severityName } from './severity';
 /// ```
-pub use severity::{describe, rank, severity_name};
+pub use severity::{
+    describe,
+    rank,
+    severity_name,
+};
 
 /// What:
 ///  One diagnostic as a frame underlines it;
@@ -382,7 +399,10 @@ fn severity_order(problem: &&Problem) -> u8 {
 /// ```ts
 /// function firstReaching(reach: number[], threshold: number): number;
 /// ```
-fn first_reaching(reach: &[usize], threshold: usize) -> usize {
+fn first_reaching(
+    reach: &[usize],
+    threshold: usize,
+) -> usize {
     let mut low = 0;
     let mut high = reach.len();
     // Each step halves the candidates between `low` and `high`.
@@ -588,7 +608,10 @@ impl Annotations {
     /// ```ts
     /// groupMessages(text: Rope): void;
     /// ```
-    fn group_messages(&mut self, text: &Rope) {
+    fn group_messages(
+        &mut self,
+        text: &Rope,
+    ) {
         let mut grouped: BTreeMap<usize, Vec<&Problem>> = BTreeMap::new();
         let length = text.len_chars();
         for problem in &self.problems {
@@ -622,7 +645,10 @@ impl Annotations {
     /// ```ts
     /// hints(displayed: DocumentStamp): HintsSnapshot | undefined;
     /// ```
-    pub fn hints(&self, displayed: DocumentStamp) -> Option<&HintsSnapshot> {
+    pub fn hints(
+        &self,
+        displayed: DocumentStamp,
+    ) -> Option<&HintsSnapshot> {
         // The trailing `?` answers nothing when no snapshot is held.
         let held = self.hints.as_deref()?;
         // The snapshot is lent only while it describes the displayed text.
@@ -634,7 +660,10 @@ impl Annotations {
 
     /// The held diagnostics while they describe `displayed`,
     ///  otherwise nothing.
-    pub fn diagnostics(&self, displayed: DocumentStamp) -> Option<&DiagnosticsSnapshot> {
+    pub fn diagnostics(
+        &self,
+        displayed: DocumentStamp,
+    ) -> Option<&DiagnosticsSnapshot> {
         let held = self.diagnostics.as_deref()?;
         if held.stamp == displayed {
             return Some(held);
@@ -696,7 +725,11 @@ impl Annotations {
     /// ```ts
     /// answeredCovers(displayed: DocumentStamp, lines: [number, number]): boolean;
     /// ```
-    pub fn answered_covers(&self, displayed: DocumentStamp, lines: Range<usize>) -> bool {
+    pub fn answered_covers(
+        &self,
+        displayed: DocumentStamp,
+        lines: Range<usize>,
+    ) -> bool {
         return self.answered.covers(displayed, lines);
     }
 
@@ -730,7 +763,11 @@ impl Annotations {
     /// ```ts
     /// staleIn(wrap: number | undefined, focus: Range): boolean;
     /// ```
-    pub fn stale_in(&self, wrap: Option<f32>, focus: &Range<usize>) -> bool {
+    pub fn stale_in(
+        &self,
+        wrap: Option<f32>,
+        focus: &Range<usize>,
+    ) -> bool {
         // A line whose hint rows were made for another width makes the blocks stale.
         for (_, placed) in self.placed.range(focus.clone()) {
             if placed.wrap != wrap {
@@ -753,7 +790,10 @@ impl Annotations {
     }
 
     /// Whether the held diagnostics describe exactly the displayed text.
-    fn diagnostics_current(&self, stamp: DocumentStamp) -> bool {
+    fn diagnostics_current(
+        &self,
+        stamp: DocumentStamp,
+    ) -> bool {
         // `if let Some(...)` answers false for no snapshot and otherwise compares the stamps.
         if let Some(snapshot) = self.diagnostics.as_ref() {
             return snapshot.stamp == stamp;
@@ -776,7 +816,13 @@ impl Annotations {
     /// ```ts
     /// marks(stamp: DocumentStamp, text: Rope, first: number, last: number): Mark[];
     /// ```
-    pub fn marks(&self, stamp: DocumentStamp, text: &Rope, first: usize, last: usize) -> Vec<Mark> {
+    pub fn marks(
+        &self,
+        stamp: DocumentStamp,
+        text: &Rope,
+        first: usize,
+        last: usize,
+    ) -> Vec<Mark> {
         let mut result = Vec::new();
         let lines = text.len_lines();
         if first >= lines || !self.diagnostics_current(stamp) {
@@ -814,7 +860,11 @@ impl Annotations {
     /// ```ts
     /// at(stamp: DocumentStamp, position: number): Problem[];
     /// ```
-    pub fn at(&self, stamp: DocumentStamp, position: usize) -> Vec<&Problem> {
+    pub fn at(
+        &self,
+        stamp: DocumentStamp,
+        position: usize,
+    ) -> Vec<&Problem> {
         let mut result = Vec::new();
         if !self.diagnostics_current(stamp) {
             return result;

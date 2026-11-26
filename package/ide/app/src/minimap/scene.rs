@@ -23,7 +23,10 @@
 /// The paint items cut into the chunks.
 use super::chunks::cut;
 /// The marks drawn under the glyphs.
-use super::fills::{Fills, fill_items};
+use super::fills::{
+    Fills,
+    fill_items,
+};
 /// The geometry of the picture:
 /// its fixed scale.
 use super::geometry::Geometry;
@@ -32,9 +35,17 @@ use super::horizontal::text_span;
 /// Shaped lines kept by what shaped them.
 use super::line_cache::LineCache;
 /// The rows of the picture a slice holds.
-use super::plan::{MIN_SCALE, chunk_rows, slice_rows};
+use super::plan::{
+    MIN_SCALE,
+    chunk_rows,
+    slice_rows,
+};
 /// The lines of a slice and the view that carries their marks.
-use super::shape::{lines_of, shape_lines, view_of};
+use super::shape::{
+    lines_of,
+    shape_lines,
+    view_of,
+};
 /// Diagnostic marks.
 use crate::annotation::Mark;
 /// The positioning of hints and messages beside the rows.
@@ -47,7 +58,10 @@ use crate::document::Document;
 /// Matches of the in-file find.
 use crate::find::FindRange;
 /// The vertical mapping the lines are placed by.
-use crate::row_map::{CODE_ROW, RowMap};
+use crate::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// Shaping,
 /// and the frame it prepares.
 use crate::shaped_text::TextShaper;
@@ -55,14 +69,25 @@ use crate::shaped_text::TextShaper;
 use crate::source_style::StyleSpan;
 /// The paint items of a shaped view,
 /// and the scene they encode to.
-use crate::tile_scene::{Item, TileScene, encode, tile_items};
+use crate::tile_scene::{
+    Item,
+    TileScene,
+    encode,
+    tile_items,
+};
 /// Blocks of virtual rows.
 use crate::virtual_row::Block;
 /// Blocks are shared between the window and the worker;
 /// a window of bands is a range of numbers.
-use std::{ops::Range, sync::Arc};
+use std::{
+    ops::Range,
+    sync::Arc,
+};
 /// Vello's scene and transforms.
-use vello::{Scene, kurbo::Affine};
+use vello::{
+    Scene,
+    kurbo::Affine,
+};
 
 /// What:
 ///  Work,

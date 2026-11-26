@@ -4,14 +4,27 @@
 ///  so the platform is installed before the thread's first window.
 use super::gpu_snapshot::install_gpu_platform;
 /// Use the actual native project component and its activation callback.
-use super::{AppWindow, ui::TreeEntry};
+use super::{
+    AppWindow,
+    ui::TreeEntry,
+};
 /// Public pointer events exercise the real TouchArea press/release lifecycle.
 use slint::{
-    ComponentHandle, LogicalPosition, ModelRc, SharedString, VecModel,
-    platform::{PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    ModelRc,
+    SharedString,
+    VecModel,
+    platform::{
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// A shared scalar records which model row was activated without mutating real files.
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::Cell,
+    rc::Rc,
+};
 
 /// Sixty tree entries labeled `<prefix>-0.txt` to `<prefix>-59.txt`.
 pub(super) fn sixty_entries(prefix: &str) -> Vec<TreeEntry> {

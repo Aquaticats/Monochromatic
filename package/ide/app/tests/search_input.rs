@@ -1,7 +1,11 @@
 //! Search overlay parsing and double-Shift timing are deterministic without a native event loop.
 
 /// The same input rules are used by native capture and query-edit callbacks.
-use ide_app::search_input::{DOUBLE_SHIFT_GAP, DoubleShift, SearchInput};
+use ide_app::search_input::{
+    DOUBLE_SHIFT_GAP,
+    DoubleShift,
+    SearchInput,
+};
 /// Inject elapsed times so the gesture boundary is measured exactly rather than through sleeps.
 use std::time::Duration;
 

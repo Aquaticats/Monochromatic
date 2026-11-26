@@ -15,11 +15,22 @@
 /// import { Block, messageRows, wrap } from 'ide-app/virtual-row';
 /// ```
 use ide_app::{
-    annotation::{Mark, Problem},
+    annotation::{
+        Mark,
+        Problem,
+    },
     language::diagnostics::Severity,
     virtual_row::{
-        BLOCK_GAP, Block, HintPlace, LINE_MESSAGES, MESSAGE_ROWS, MessageRow, ROW_HEIGHT,
-        WRAP_COLUMNS, message_rows, wrap,
+        BLOCK_GAP,
+        Block,
+        HintPlace,
+        LINE_MESSAGES,
+        MESSAGE_ROWS,
+        MessageRow,
+        ROW_HEIGHT,
+        WRAP_COLUMNS,
+        message_rows,
+        wrap,
     },
 };
 
@@ -33,7 +44,11 @@ use ide_app::{
 /// ```ts
 /// function problem(start: number, severity: Severity, message: string): Problem;
 /// ```
-fn problem(start: usize, severity: Severity, message: &str) -> Problem {
+fn problem(
+    start: usize,
+    severity: Severity,
+    message: &str,
+) -> Problem {
     return Problem {
         mark: Mark {
             start,

@@ -25,7 +25,10 @@ use helix_lsp::lsp;
 /// ```
 use std::{
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -73,7 +76,10 @@ pub enum TargetRefusal {
 impl fmt::Display for TargetRefusal {
     /// Write the user-facing reason;
     ///  `&mut fmt::Formatter` is the output sink being appended to.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::UnsupportedScheme(scheme) => write!(
                 formatter,
@@ -137,7 +143,10 @@ pub enum Classified {
 ///   return real.startsWith(root + sep) ? inside(real) : outside(real);
 /// }
 /// ```
-pub fn classify(uri: &lsp::Url, root: &Path) -> Classified {
+pub fn classify(
+    uri: &lsp::Url,
+    root: &Path,
+) -> Classified {
     if uri.scheme() != "file" {
         // What: `to_string` copies the borrowed scheme text into an owned `String`.
         // Why: The verdict outlives the address it was read from.
