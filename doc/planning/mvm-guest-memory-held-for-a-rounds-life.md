@@ -612,9 +612,10 @@ before reporting was decided:
 
 What the readings show about swapped pages,
 and what they do not:
-between 23:01:12Z and 23:01:46Z the charge fell from 5.52 to 3.24 GiB while the resident part
-stayed near 0.20 GiB,
-so about 2.3 GiB of pages that were in swap were released after the guest
+between the samples at 23:01:12Z and 23:01:46Z the charge fell from 5.52 to 3.24 GiB,
+the resident part rose from 0.20 to 0.25 GiB,
+and the swapped part fell from 5.32 to 2.99 GiB.
+So about 2.3 GiB of pages that were in swap were released after the guest
 dropped its cache,
 without being touched again.
 The first draft said reporting cannot return pages the host has already swapped out;
