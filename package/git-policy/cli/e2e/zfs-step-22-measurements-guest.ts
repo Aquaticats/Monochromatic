@@ -21,7 +21,8 @@
  run instead of reporting a green suite.
  */
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
+import { homedir, } from 'node:os';
 import {
   basename,
   join,
@@ -171,28 +172,51 @@ function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Option
  @throws Error naming the status the script ended with, or the wait that ended
  */
 function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; readonly log: string; readonly timeout: number; }): string {
-  const path = `/mnt/shared/${log}`;
+  const path = sharedFile(chosen.name, log);
   const deadline = Date.now() + timeout;
   let finished = false;
   while (Date.now() < deadline) {
-    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'tail', '--lines=1', path,], {
-      encoding: 'utf8',
-      timeout: HOST_COMMAND_TIMEOUT_MS,
-    });
-    if ((answer.stdout ?? '').trim().startsWith('DONE=')) {
+    if (existsSync(path) && lastLine(path).startsWith('DONE=')) {
       finished = true;
       break;
     }
     spawnSync('sleep', [String(POLL_INTERVAL_MS / 1000),], { timeout: POLL_INTERVAL_MS * 2, });
   }
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, path, join(chosen.logDir, log),], log: `host-pull-${log}`, });
-  const pulled = readFileSync(join(chosen.logDir, log), 'utf8');
+  const pulled = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  writeFileSync(join(chosen.logDir, log), pulled, { mode: 0o600, });
   if (!finished)
     throw new Error(`${log}: the guest script did not finish inside ${String(timeout)} ms; see ${log}`);
   const status = /^DONE=(?<status>\d+)$/m.exec(pulled)?.groups?.status;
   if (status !== '0')
     throw new Error(`${log}: the guest script ended ${status ?? 'without a status'}; see ${log}`);
   return pulled;
+}
+
+/**
+ The host folder a guest's shared folder is mounted from, which needs no
+ guest agent to read.
+
+ @param name - the guest's name
+
+ @param file - the file inside the shared folder
+
+ @returns the host path of that file
+ */
+function sharedFile(name: string, file: string): string {
+  return join(homedir(), '.local', 'share', 'mvm', 'vms', name, 'shared', file);
+}
+
+/**
+ The last line of a file, or an empty string.
+
+ @param path - the file to read
+
+ @returns its last line
+ */
+function lastLine(path: string): string {
+  const text = readFileSync(path, 'utf8');
+  const lines = text.split('\n');
+  return (lines.at(-1) ?? '').trim();
 }
 
 /**
@@ -298,8 +322,8 @@ async function run(chosen: Options): Promise<void> {
   ].join('\n');
   guestStart({ chosen, script: arm, log: 'guest-arm.log', timeout: ARM_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'guest-arm.log', timeout: ARM_TIMEOUT_MS + 180_000, });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, `/mnt/shared/${ARM_LOG}`, join(chosen.logDir, ARM_LOG),], log: 'host-pull-arm.log', });
-  const pulled = readFileSync(join(chosen.logDir, ARM_LOG), 'utf8');
+  const pulled = readFileSync(sharedFile(chosen.name, ARM_LOG), 'utf8');
+  writeFileSync(join(chosen.logDir, ARM_LOG), pulled, { mode: 0o600, });
   for (const marker of EXPECTED_MARKERS) {
     if (!pulled.includes(marker))
       throw new Error(`the pulled arm log lacks ${marker}; the guest ran the arm without performing it`);
@@ -339,8 +363,8 @@ function holderScan(chosen: Options): void {
   ].join('\n');
   guestStart({ chosen, script, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS + 120_000, });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/holder-scan-arm.log', join(chosen.logDir, 'holder-scan-arm.log'),], log: 'host-pull-holder-scan.log', });
-  const pulled = readFileSync(join(chosen.logDir, 'holder-scan-arm.log'), 'utf8');
+  const pulled = readFileSync(sharedFile(chosen.name, 'holder-scan-arm.log'), 'utf8');
+  writeFileSync(join(chosen.logDir, 'holder-scan-arm.log'), pulled, { mode: 0o600, });
   if (!pulled.includes('MEASUREMENT holder-scan-ms='))
     throw new Error('the pulled holder-scan log lacks its timing line; the arm ran without timing the scan');
 }
