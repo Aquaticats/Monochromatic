@@ -1,11 +1,13 @@
 //! What:
 //!  Iterative JSONC structural parsing:
-//!  the two document entry points and the two steps each loop pass
-//!  takes.
+//!  the two document entry points,
+//!  the step that begins one value,
+//!  and the step
+//!  that delivers a finished child to the parent that asked for it.
 //! Why:
 //!  Native Rust test threads overflowed their stacks before 512 nested containers returned,
 //!  so the driver
-//!  holds the explicit stack in `parse_frames` and never calls itself per container.
+//!  keeps its open containers in `parse_frames` instead of on the call stack.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,8 +38,8 @@ use crate::error::JsoncParseError;
 /// What:
 ///  Re-export the nesting bound from the frame module.
 /// Why:
-///  The bound is a property of the parser a caller and a test name,
-///  and the frame list it bounds lives there.
+///  The bound is the parser's own limit that a caller and a test name,
+///  and the frame list it bounds lives in the frame module.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

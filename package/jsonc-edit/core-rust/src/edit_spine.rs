@@ -4,8 +4,8 @@
 //!  setting that value's
 //!           comment,
 //!  deleting the addressed member or element,
-//!  and setting the comment of the key that names
-//!           it.
+//!  and setting the comment of the key that
+//!           names it.
 //! Why:
 //!       Each of them changes one node and returns a new document,
 //!  leaving the input state usable,
