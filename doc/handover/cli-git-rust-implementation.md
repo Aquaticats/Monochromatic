@@ -219,6 +219,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6511 as `e8915aeb0c`: the push child watch controls that arm the lazy runtime's two process-wide stand-ins, and the two descriptor counters,
+  run in a child of their own, so `push::child_watch::` passes threaded (47 of 47; the gate read 7 and 8 failures of 48).
 - 6501 as `1755e4d894`: the relay control's child leads a process group the control owns and ends, so no gate reports it leaky again,
   and a guard refuses a relay control that does not own its child's group.
 - 6500 as `a1f6b3414e`: the two handler review controls run their review in a runner of their own, and a guard refuses one that does not.
