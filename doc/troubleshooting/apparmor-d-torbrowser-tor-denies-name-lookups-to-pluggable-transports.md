@@ -121,24 +121,35 @@ the file's commits are `7b4db8fd41` (2024-09-12, profile added), `5ed4df6916`, `
 (abi and whitespace changes),
 and none of the 21 open pull requests touches Tor.
 
-1.  **Is it really upstream's fault?**
-     Yes: the shipped rules stop a supported Tor Browser feature on every system that uses them.
-2.  **Can upstream fix it?**
-     Yes; the patch is one changed rule, one signal rule and one child profile.
-3.  **Are they supporting this use case?**
-     Yes: they ship `torbrowser` and `torbrowser-tor`,
-     and Snowflake is one of Tor Browser's built-in bridge choices.
-4.  **Would the repo welcome our contribution?**
-     `docs/report.md:9` asks for "an issue on Github" with a paste of `aa-log -R`. [Report docs][report]
-    There are no issue templates (`.github` holds `FUNDING.yml` and `workflows`),
-     and `docs/` has no rule on AI-assisted reports; no ban was found.
-5.  **Will they likely fix it?**
-     Likely: in #490 the maintainer answered the same day, "I will fix this shortly". [Issue 490][i490]
-    That issue argues for strict Tor Browser profiles;
-     the patch keeps every `deny` on `tor` itself and confines the transports separately,
-     in line with the guidelines' "The use of `deny` should be limited to the minimum". [Guidelines][guide]
-6.  **Have we prototyped a minimal fix compatible with their architecture?**
-     Yes; see "Verification".
+### Is it really upstream's fault?
+
+Yes: the shipped rules stop a supported Tor Browser feature on every system that uses them.
+
+### Can upstream fix it?
+
+Yes; the patch is one changed rule, one signal rule and one child profile.
+
+### Are they supporting this use case?
+
+Yes: they ship `torbrowser` and `torbrowser-tor`,
+and Snowflake is one of Tor Browser's built-in bridge choices.
+
+### Would the repo welcome our contribution?
+
+`docs/report.md:9` asks for "an issue on Github" with a paste of `aa-log -R`. [Report docs][report]
+There are no issue templates (`.github` holds `FUNDING.yml` and `workflows`),
+and `docs/` has no rule on AI-assisted reports; no ban was found.
+
+### Will they likely fix it?
+
+Likely: in #490 the maintainer answered the same day, "I will fix this shortly". [Issue 490][i490]
+That issue argues for strict Tor Browser profiles;
+the patch keeps every `deny` on `tor` itself and confines the transports separately,
+in line with the guidelines' "The use of `deny` should be limited to the minimum". [Guidelines][guide]
+
+### Have we prototyped a minimal fix compatible with their architecture?
+
+Yes; see "Verification".
 
 Readiness on 2026-11-26:
 reproduced on the only line apparmor.d ships (`main`, the installed commit);
@@ -185,12 +196,14 @@ Posting puts the owner's GitHub account in front of the maintainer,
 and filing is the owner's decision.
 Before posting, check the live repository again for a duplicate or a fix.
 
-~~~md
-**Title:** torbrowser-tor: pluggable transports cannot resolve names or open UDP sockets, so Snowflake never connects
+Issue title: `torbrowser-tor: pluggable transports cannot resolve names or open UDP sockets, so Snowflake never connects`.
 
+~~~md
 With `torbrowser-tor` enforcing, Tor Browser cannot connect through Snowflake bridges.
 
-**Cause.** The profile runs every pluggable transport inside Tor's own profile
+### Cause
+
+The profile runs every pluggable transport inside Tor's own profile
 ([`PluggableTransports/** mix`][pt]), which allows only [`network inet stream`][net]
 and denies [`/etc/nsswitch.conf` and `/etc/resolv.conf`][deny].
 Snowflake's client needs name resolution and UDP:
@@ -202,7 +215,9 @@ Without a readable `resolv.conf`, glibc [uses `INADDR_LOOPBACK`][glibc]
 and Go's resolver [uses `127.0.0.1:53` and `[::1]:53`][go];
 on systems using systemd-resolved nothing listens there.
 
-**Logs** (trimmed, from `/var/log/audit/audit.log`):
+### Logs
+
+Trimmed, from `/var/log/audit/audit.log`:
 
 ```text
 apparmor="DENIED" operation="create" class="net" profile="torbrowser-tor" comm="lyrebird" family="inet" sock_type="dgram"
@@ -211,7 +226,9 @@ apparmor="DENIED" operation="create" class="net" profile="torbrowser-tor" comm="
 apparmor="DENIED" operation="signal" class="signal" profile="torbrowser-tor" requested_mask="receive" signal=term peer="torbrowser"
 ```
 
-**Reproduction.** [This workflow][repo] builds apparmor.d at `4c4fec7` on a clean Ubuntu 26.04 runner
+### Reproduction
+
+[This workflow][repo] builds apparmor.d at `4c4fec7` on a clean Ubuntu 26.04 runner
 with `just build` and `prebuild`, installs only `torbrowser-tor` in enforce mode,
 and runs `getent hosts app.datapacket.com`:
 the name resolves outside the profile and fails under it ([run 1][run1], [run 2][run2]).
@@ -225,7 +242,9 @@ $ getent hosts app.datapacket.com; echo $?
 0
 ```
 
-**Proposed fix** ([patch][patch]), in `apparmor.d/groups/browsers/torbrowser-tor`:
+### Proposed fix
+
+The [patch][patch] changes `apparmor.d/groups/browsers/torbrowser-tor`:
 
 - run the transports in a child profile, `PluggableTransports/** rcx -> pluggable-transports`,
   with `golang`, `nameservice-strict` and `ssl_certs`,

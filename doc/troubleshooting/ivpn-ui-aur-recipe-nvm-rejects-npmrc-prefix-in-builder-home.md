@@ -259,36 +259,47 @@ all about the `nvm` dependency listing or nvm defaults, none about this failure;
 `gh search issues --repo ivpn/desktop-app` for `npmrc`, `nvm prefix` and `PKGBUILD nvm` returned nothing.
 No work in progress on the recipe was found.
 
-1.  **Is it really upstream's fault?**
-     Yes, at the recipe level:
-    nvm's refusal is deliberate,
-     and a `prefix` line is an ordinary npm setup,
-     but the recipe lets the builder's home configuration decide whether it builds.
-2.  **Can upstream fix it?**
-     Yes; the prototype is three lines.
-3.  **Are they supporting this use case?**
-     Soft yes:
-    the package is meant to build for AUR users,
-     whose home folders vary;
-     no statement either way was found.
-4.  **Would the repo welcome our contribution?**
-     AUR comments are the package's intake,
-     and a comment thanking the maintainer for an earlier fix shows they respond.
-    On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
-     its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
-     had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
-    The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
-    The "Arch User Repository" page's "Commenting on packages" tip says:
-     "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
-     or even use a [[pastebin]]."
-    The draft's three-line excerpt is short,
-     but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
-    The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
-     so the live package page was read with `curl` only.
-5.  **Will they likely fix it?**
-     Plausible; no sign of refusal.
-6.  **Have we prototyped a minimal fix compatible with their architecture?**
-     Yes; see "Recipe fix (prototype)".
+### Is it really upstream's fault?
+
+Yes, at the recipe level:
+nvm's refusal is deliberate,
+and a `prefix` line is an ordinary npm setup,
+but the recipe lets the builder's home configuration decide whether it builds.
+
+### Can upstream fix it?
+
+Yes; the prototype is three lines.
+
+### Are they supporting this use case?
+
+Soft yes:
+the package is meant to build for AUR users,
+whose home folders vary;
+no statement either way was found.
+
+### Would the repo welcome our contribution?
+
+AUR comments are the package's intake,
+and a comment thanking the maintainer for an earlier fix shows they respond.
+On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
+its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
+had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
+The "Arch User Repository" page's "Commenting on packages" tip says:
+"Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
+or even use a [[pastebin]]."
+The draft's three-line excerpt is short,
+but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
+The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
+so the live package page was read with `curl` only.
+
+### Will they likely fix it?
+
+Plausible; no sign of refusal.
+
+### Have we prototyped a minimal fix compatible with their architecture?
+
+Yes; see "Recipe fix (prototype)".
 
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
