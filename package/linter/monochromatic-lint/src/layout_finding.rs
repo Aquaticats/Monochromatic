@@ -103,7 +103,8 @@ pub fn key_path(
 ///  only findings that hold the same words reach this state,
 ///  such as two empty `impl` blocks of one type or two glob re-exports of one module.
 ///  The first keeps the plain key and a later one gains `#2`,
-/// `#3` and so on, in the rule's own order,
+/// `#3` and so on,
+/// in the rule's own order,
 ///  so an entry written before the numbering existed still names its finding,
 ///  and only an identical finding added above renumbers the ones below it.
 ///  No line number enters a key.
@@ -136,7 +137,8 @@ pub fn unique_keys(findings: &mut [LayoutFinding]) {
 /// What:
 ///  The key of the `count`th finding of a shape whose own words an earlier finding already holds.
 /// Why:
-///  The number goes into the key's first word, right after the shape it repeats,
+///  The number goes into the key's first word,
+/// right after the shape it repeats,
 ///  because no literal key holds `#` there:
 ///  every key a rule prints starts with a shape word and a space,
 ///  so `foreign-name#2 src/lib.rs x` can never be read as a doc entry named `x#2`,

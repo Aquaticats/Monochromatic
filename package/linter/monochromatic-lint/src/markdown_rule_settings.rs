@@ -42,7 +42,8 @@ use monochromatic_jsonc_edit::JsoncValue;
 ///  so the file must be read,
 ///  and a bound keeps a mistyped destination or a file that grew far past its kind
 ///  from filling memory in the middle of a lint run.
-///  The bound is the rule's `max-image-bytes` option, defaulted here,
+///  The bound is the rule's `max-image-bytes` option,
+/// defaulted here,
 ///  because a repository with a larger image must raise it without editing this crate,
 ///  which ships as a published binary.
 ///  This repository's largest tracked image is 3,380,183 bytes

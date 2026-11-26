@@ -286,9 +286,12 @@ fn folder_below_uses(
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum LoopGraph {
-    /// The source folders, each using the other.
+    /// The source folders,
+    /// each using the other.
     Folders,
-    /// The entries: a group, or a folder outside every group.
+    /// The entries:
+    /// a group,
+    /// or a folder outside every group.
     Entries,
 }
 

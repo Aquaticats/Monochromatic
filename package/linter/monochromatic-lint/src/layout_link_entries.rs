@@ -144,7 +144,8 @@ pub fn link_command(
 /// so a link into a loop packs the same folders over and over:
 ///  the wrapper measured `cargo package --list` answering in 1.9 seconds over 3038 paths with its 109 links,
 ///  and giving no answer after 120 seconds with 421 added
-///  (`doc/planning/cli-git-source-layout.md`, section "The `uses/` links and cargo").
+///  (`doc/planning/cli-git-source-layout.md`,
+/// section "The `uses/` links and cargo").
 ///  A finding that only says `Create the link:` sends a looped crate into that hang,
 ///  so `link_help` puts this hazard before the command.
 ///

@@ -27,7 +27,6 @@ use crate::{
     diagnostic::{
         Diagnostic,
         Severity,
-        Span,
     },
     layout_allow_list::{
         AllowList,
@@ -37,6 +36,7 @@ use crate::{
     layout_file_order::check_file_order,
     layout_finding::LayoutFinding,
     layout_folder_links::check_folder_links,
+    layout_line_spans::LineSpans,
     layout_module_tree::{
         ModuleTree,
         build_module_tree,
@@ -64,7 +64,6 @@ use crate::{
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
-    io::Read,
     path::{
         Path,
         PathBuf,
@@ -173,139 +172,6 @@ fn select_packages(
         }
     }
     return chosen;
-}
-
-/// What:
-///  The span of every line of each file this step reports findings in,
-///  read once per file.
-/// Why:
-///  Findings carry a byte offset,
-/// a line and a column,
-///  and one file can carry many findings:
-///  a list near its cap full of dead lines makes one finding per line about that one file,
-///  so reading the file again for each finding cost one read per finding.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class LineSpans { span(file: Path, line: number): Span }
-/// ```
-#[derive(Debug, Default)]
-struct LineSpans {
-    /// The lines of each file already read,
-    ///  or nothing when the file could not be read.
-    by_file: BTreeMap<PathBuf, Option<Vec<Span>>>,
-}
-
-/// What:
-///  The most bytes of one file this step reads to answer its lines:
-///  two mebibytes.
-/// Why:
-///  Lines are answered for the files a finding is reported in:
-///  the Rust files of the package,
-///  whose largest tracked file here was 176,292 bytes on 2026-11-26,
-///  and a rule's allow list,
-///  which cannot be over one mebibyte (`layout_allow_list::MAX_BYTES`).
-///  Two mebibytes is about eleven times that largest file and twice that cap,
-///  so every file this repository can hold keeps its finding's line,
-///  while a path that turns out to be a device or a file that grew is never read whole.
-///  A line the bound cuts off reports the file start,
-///  because a span with a guessed length would point at the wrong bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const MAX_SPAN_BYTES = 2 * 1024 * 1024;
-/// ```
-const MAX_SPAN_BYTES: u64 = 2 * 1024 * 1024;
-
-/// What:
-///  The span of each line of a file in file order,
-///  or nothing when the file cannot be read.
-/// Why:
-///  One pass over at most `MAX_SPAN_BYTES` of the file answers every line the read reaches,
-///  and the bytes are split on the line break itself,
-///  so no decoding stands between a finding's offset and the bytes of the file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function readLineSpans(file: Path): Span[] | undefined;
-/// ```
-fn read_line_spans(file: &Path) -> Option<Vec<Span>> {
-    // What: the file opened for a bounded read, or nothing when it cannot be opened.
-    // Why: a folder or a link that vanished between two findings must not fail the run.
-    let opened: std::fs::File = std::fs::File::open(file).ok()?;
-    let mut bytes: Vec<u8> = Vec::<u8>::new();
-    opened.take(MAX_SPAN_BYTES).read_to_end(&mut bytes).ok()?;
-    let cut: bool = bytes.len() as u64 == MAX_SPAN_BYTES;
-    let mut spans: Vec<Span> = Vec::<Span>::new();
-    let mut start: usize = 0;
-    for (index, part) in bytes
-        .split_inclusive(|byte| return *byte == b'\n')
-        .enumerate()
-    {
-        // A bound that cut this line left its true length unknown, so this line and the rest get no span.
-        if cut && part.last() != Some(&b'\n') {
-            break;
-        }
-        let mut length: usize = part.len();
-        while length > 0 && (part[length - 1] == b'\n' || part[length - 1] == b'\r') {
-            length -= 1;
-        }
-        spans.push(Span {
-            offset: start,
-            length,
-            line: index + 1,
-            column: 1,
-        });
-        start += part.len();
-    }
-    return Some(spans);
-}
-
-/// What:
-///  The lines of each file already read,
-///  asked for one line at a time.
-/// Why:
-///  A caller reports findings file by file and never needs the whole table,
-///  so the table stays inside this type and only the span it asks for comes out.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class LineSpans { span(file: Path, line: number): Span }
-/// ```
-impl LineSpans {
-    /// What:
-    ///  The span of one line of one file,
-    ///  or the file start when the line is zero,
-    ///  the file does not hold it,
-    ///  or the file cannot be read.
-    /// Why:
-    ///  A finding about a folder or a link has no line,
-    ///  and a file that vanished between two findings must not fail the run.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// span(file: Path, line: number): Span
-    /// ```
-    fn span(
-        &mut self,
-        file: &Path,
-        line: usize,
-    ) -> Span {
-        if line == 0 {
-            return file_start();
-        }
-        if !self.by_file.contains_key(file) {
-            self.by_file
-                .insert(file.to_path_buf(), read_line_spans(file));
-        }
-        let Some(Some(spans)) = self.by_file.get(file) else {
-            return file_start();
-        };
-        return match spans.get(line - 1) {
-            Some(span) => span.clone(),
-            None => file_start(),
-        };
-    }
 }
 
 /// What:
