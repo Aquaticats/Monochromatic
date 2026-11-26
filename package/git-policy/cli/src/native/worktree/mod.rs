@@ -185,8 +185,19 @@
 //! - `worktree_removal_clears_the_pool.rs`:
 //!   the removal of the shadow pool a removed worktree's commits were served from,
 //!   taken after the removal proved the worktree is gone.
+//! - `worktree_removal_held_commits_words.rs`:
+//!   the words a person reads about a held commit,
+//!   and the paragraph that stops a removal and names the command that finishes it.
+//! - `worktree_removal_held_commits_keeping.rs`:
+//!   keeping one held commit a record names on a reference of the common Git directory,
+//!   at the batch's own kept name or beside a name another commit holds.
+//! - `worktree_removal_held_commits_unreadable_record.rs`:
+//!   the commit behind a held record this build cannot read,
+//!   read from its batch's own reference and kept the same way,
+//!   or the refusal that keeps the worktree.
 //! - `worktree_removal_held_commits.rs`:
-//!   what becomes of the commit a reference lock holds in a linked worktree that Git removes.
+//!   what becomes of the commit a reference lock holds in a linked worktree that Git removes:
+//!   the service of every linked worktree and the answer the sweep reads.
 //! - `worktree_removal_interrupted_destroy.rs`:
 //!   the finish of a removal whose destroy happened and whose registration did not go.
 //! - `worktree_removal_leaving_that_outlives_its_record.rs`:
@@ -278,6 +289,11 @@
 //!   the clone rung itself:
 //!   tracked files cloned into the new worktree,
 //!   the source's index installed with fresh stat fields.
+//! - `worktree_ladder_target_conversion_agreement.rs`:
+//!   the checks that the new worktree converts files the way the source does:
+//!   its conversion settings in the order the configuration gives them,
+//!   its `.gitattributes` files against the source's,
+//!   and every filter an attribute selects or the configuration extends.
 //! - `worktree_ladder_target.rs`:
 //!   what both filling rungs read from Git's `--no-checkout` result,
 //!   and the one step that applies the tree difference.
@@ -294,6 +310,21 @@
 //!   the same fence beside the clone:
 //!   its reads on a thread of their own while the tracked files are copied,
 //!   and the seed the index is installed from once both have answered.
+//! - `worktree_clone_conversion_size_read_answer.rs`:
+//!   the answer a size read sends and the value one add holds while it runs,
+//!   with the join within its deadline and the abandon that ends its Git child.
+//! - `worktree_clone_conversion_size_read_seams.rs`:
+//!   the seams a control arms to hold a read before its Git run,
+//!   to hold it after its child ended,
+//!   and to make its thread die before it answers.
+//! - `worktree_clone_conversion_size_read_git_read.rs`:
+//!   the early read's one `git ls-tree` run,
+//!   the variable that keeps a partial clone from fetching,
+//!   and the parse of the sizes it prints.
+//! - `worktree_clone_conversion_size_read_start.rs`:
+//!   the start of that read beside the add's source check,
+//!   the thread that carries it,
+//!   and the answer it sends once.
 //! - `worktree_clone_conversion_size_read.rs`:
 //!   the fence's one `git ls-tree` size read:
 //!   the task a rung-1 add can start before its source check,
@@ -364,9 +395,25 @@
 //! - `worktree_remove_hand_over_service_removal.rs`:
 //!   the service's own removal of a whole worktree with Git,
 //!   and the choice of which destroy a record asks for.
+//! - `worktree_landed_removal_records.rs`:
+//!   what one landed sweep is asked with and answers with:
+//!   where it looks,
+//!   each worktree it removed,
+//!   left,
+//!   finished or handed to the commit service,
+//!   and everything one sweep did.
+//! - `worktree_landed_removal_landed_branches.rs`:
+//!   which branches the merge that just ran landed,
+//!   and which of them hold a commit of their own.
+//! - `worktree_landed_removal_one_candidate.rs`:
+//!   one candidate of a landed sweep:
+//!   the conditions it must meet,
+//!   the fast destroy or the hand over to the commit service,
+//!   and what the attempt came to.
 //! - `worktree_landed_removal.rs`:
 //!   the removal of every wrapper-made worktree whose branch a merge landed,
-//!   which the commit service performs.
+//!   which the commit service performs:
+//!   the candidates this merge landed and the walk over them.
 //! - `worktree_landed_sweep_notice.rs`:
 //!   the words one landed sweep prints.
 //! - `worktree_landed_after_a_merge.rs`:
@@ -498,7 +545,21 @@ pub mod worktree_completion_file_inspection;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
-/// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
+/// The words a person reads about a held commit,
+/// and the paragraph that stops a removal and names the command that finishes it.
+pub mod worktree_removal_held_commits_words;
+
+/// Keeping one held commit a record names on a reference of the common Git directory,
+/// at the batch's own kept name or beside a name another commit holds.
+pub mod worktree_removal_held_commits_keeping;
+
+/// The commit behind a held record this build cannot read,
+/// read from its batch's own reference and kept the same way,
+/// or the refusal that keeps the worktree.
+pub mod worktree_removal_held_commits_unreadable_record;
+
+/// What becomes of the commit a reference lock holds in a linked worktree that Git removes:
+/// the service of every linked worktree and the answer the sweep reads.
 pub mod worktree_removal_held_commits;
 
 /// The option table of `git worktree add`,
@@ -869,9 +930,39 @@ pub mod worktree_clone_conversion_git_reads;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_size_read;
 
+/// The answer a size read sends and the value one add holds while it runs,
+/// with the join within its deadline and the abandon that ends its Git child.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_answer;
+
+/// The seams a control arms to hold a read before its Git run,
+/// to hold it after its child ended,
+/// and to make its thread die before it answers.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_seams;
+
+/// The early read's one `git ls-tree` run,
+/// the variable that keeps a partial clone from fetching,
+/// and the parse of the sizes it prints.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_git_read;
+
+/// The start of that read beside the add's source check,
+/// the thread that carries it,
+/// and the answer it sends once.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_start;
+
 /// The pool's block-cloning switch and what the clone rung does when it reads off.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_block_cloning;
+
+/// The checks that the new worktree converts files the way the source does:
+/// its conversion settings in the order the configuration gives them,
+/// its `.gitattributes` files against the source's,
+/// and every filter an attribute selects or the configuration extends.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_target_conversion_agreement;
 
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
@@ -1059,8 +1150,23 @@ pub mod worktree_landed_registrations;
 /// which keep it.
 pub mod worktree_landed_ignored_files;
 
+/// What one landed sweep is asked with and answers with,
+/// and everything one sweep did.
+pub mod worktree_landed_removal_records;
+
+/// Which branches the merge that just ran landed,
+/// and which of them hold a commit of their own.
+pub mod worktree_landed_removal_landed_branches;
+
+/// One candidate of a landed sweep:
+/// the conditions it must meet,
+/// the fast destroy or the hand over to the commit service,
+/// and what the attempt came to.
+pub mod worktree_landed_removal_one_candidate;
+
 /// The removal of every wrapper-made worktree whose branch a merge landed,
-/// which the commit service performs.
+/// which the commit service performs:
+/// the candidates this merge landed and the walk over them.
 pub mod worktree_landed_removal;
 
 /// The words one landed sweep prints.

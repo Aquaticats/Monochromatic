@@ -1195,6 +1195,39 @@ The difference is the reformat of 2026-11-26 (`00b6a940b4`), which grew the crat
 (answered on 2026-11-26: "Keep 300, split everything", `doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`)
 (`doc/handover/questions-for-the-owner.md`; the counts are in `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/`).
 
+Note of 2026-11-26T14:09-05:00:
+the split round for four of these files ended
+on branch `refactor/git-policy-cli-split-worktree-ladder-conversion-and-removal-record-files-over-the-line-budget`,
+and the linter reports none of the four over 300 now
+(`monochromatic-lint` 0.5.2-alpha.15,
+run on `package/git-policy/cli`).
+Each is split into sibling files in `worktree/`,
+declared in that folder's `mod.rs` and re-exported,
+so no caller changed,
+and each part is at most 300 code lines by the linter's own count:
+
+- `worktree/worktree_clone_conversion_size_read.rs` 489 to seven files,
+  the largest 151 (`worktree_clone_conversion_size_read_answer.rs`),
+- `worktree/worktree_ladder_target.rs` 453 to two files,
+  the largest 254 (`worktree_ladder_target.rs`),
+- `worktree/worktree_removal_held_commits.rs` 450 to four files,
+  the largest 167 (`worktree_removal_held_commits_words.rs`),
+- `worktree/worktree_landed_removal.rs` 443 to four files,
+  the largest 165 (`worktree_landed_removal.rs`).
+
+Each module's own controls pass with the same count before and after:
+
+- the size read 36 passed,
+- the ladder target 14 passed,
+- the held commits 8 passed,
+- the landed removal 43 passed.
+
+The run finds zero `rust/folder-uses-links` and zero `rust/file-order-in-folder` findings,
+and neither layout allow list gained a line.
+The work is unapproved and non-final;
+the owner declares completion.
+
+
 ### Item 16. Twenty-nine of fifty-five source folders sit in one dependency loop, and the layout rules are not enforced
 
 Category 6, release.

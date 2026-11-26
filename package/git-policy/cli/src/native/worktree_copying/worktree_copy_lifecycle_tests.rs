@@ -15,12 +15,30 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+/// What is left to do once a created worktree holds its ignored state.
+use crate::worktree_copy_after_lock::AfterLock;
+/// The entry point of the lifecycle and the creating command it hands its work to,
+/// each written in the file that holds it.
+use crate::worktree_copy_creation_settlement::settle_creation;
 use crate::worktree_copy_journal::{
     create_journal_for,
     journal_root,
     read_pending_journals,
 };
 use crate::worktree_copy_notices::UNKNOWN_DESTINATION_NOTICE;
+/// The records the lifecycle reads about a command's source.
+use crate::worktree_copy_registry::{
+    WorktreeCopyObservation,
+    observe_copy_source,
+};
+/// The hand-over of a snapshot's trash and the package repairs that follow the copy.
+#[cfg(target_os = "linux")]
+use crate::worktree_copy_settles_one_invocation::finish_trash_and_repair;
+/// The words of the lifecycle's own failures.
+use crate::worktree_copy_settles_one_invocation::run_with_worktree_copy;
+/// The trash a snapshot leaves in a new worktree.
+#[cfg(target_os = "linux")]
+use crate::worktree_trash::PendingTrash;
 use std::process::Output;
 
 /// A function-like value with the right shape is a Git runner in these controls:

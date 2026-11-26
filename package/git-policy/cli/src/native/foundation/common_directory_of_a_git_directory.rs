@@ -13,6 +13,8 @@
 //!  (`commit_timing.rs` said so in its own copy),
 //!  so the rule lives here once.
 //!  Git strips every trailing carriage return and line feed and resolves a relative path against the Git directory.
+//!  The name it holds is read as bytes,
+//! because a directory whose name is no UTF-8 text is still the directory named.
 //!  A path that cannot be resolved is used as written,
 //!  so a Git directory whose `commondir` names a missing place still gets a record beside itself rather than none.
 //!  The file is opened as a plain one (`crate::plain_file`):
@@ -23,6 +25,25 @@
 //! ```ts
 //! existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
 //! ```
+
+/// What:
+///  `std::ffi::OsStr` is a borrowed piece of an operating system's own text,
+/// which is what one part of a path is made of;
+///  its siblings are `str`,
+/// which holds UTF-8 text alone,
+/// and `OsString`,
+/// the owned version.
+/// Why:
+///  A `commondir` names a directory by bytes,
+/// and a name that is no UTF-8 text still names a directory a record belongs in.
+use std::ffi::OsStr;
+
+/// What:
+///  `std::os::unix::ffi::OsStrExt` is the Unix extension that builds an `OsStr` from bytes (`OsStr::from_bytes`),
+///  where `String::from_utf8` refuses bytes that are no text.
+/// Why:
+///  It is the one place the name the file holds becomes a path part without asking whether it is text.
+use std::os::unix::ffi::OsStrExt;
 
 /// Paths of directories.
 use std::path::{
@@ -67,26 +88,41 @@ pub fn bytes_named(git_dir: &Path) -> std::io::Result<Option<Vec<u8>>> {
 }
 
 /// What:
-///  `fn text_named(git_dir) -> Option<String>` is what the `commondir` file says without its trailing line breaks,
+///  `fn named_without_line_endings(git_dir) -> Option<Vec<u8>>` is the bytes the `commondir` file of `git_dir` holds
+///  without Git's trailing carriage returns and line feeds,
 ///  or nothing when there is no such file,
-///  it cannot be read as text,
+///  it cannot be read as a plain file,
 ///  or it says nothing.
+///  `Vec<u8>` is a growable list of bytes this function owns (siblings:
+/// `&[u8]`,
+/// a borrowed view of bytes;
+///  `String`,
+/// the same buffer with the promise that it is UTF-8).
 /// Why:
-///  Both answers this module gives start from the same words,
+///  Both answers this module gives start from the same name,
 ///  so the stripping of Git's own trailing line endings is written once.
+///  The name stays bytes rather than becoming text,
+/// because `String` would refuse a directory name that is no UTF-8 and
+///  this function would then answer nothing,
+/// which is the wrong directory for a record to land in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const named = readFileSync(join(gitDir, 'commondir'), 'utf8').replace(/[\r\n]+$/, '')
+/// const named = readFileSync(join(gitDir, 'commondir')).subarray(0, endWithoutLineEndings)
 /// ```
-fn text_named(git_dir: &Path) -> Option<String> {
+fn named_without_line_endings(git_dir: &Path) -> Option<Vec<u8>> {
     let bytes: Vec<u8> = bytes_named(git_dir).ok().flatten()?;
-    let text: String = String::from_utf8(bytes).ok()?;
-    let named: &str = text.trim_end_matches(['\r', '\n']);
+    // Where the name ends: just past its last byte that is neither of Git's line endings.
+    let mut end: usize = bytes.len();
+    while end > 0 && (bytes[end - 1] == b'\r' || bytes[end - 1] == b'\n') {
+        end -= 1;
+    }
+    // The name itself, lent from the bytes read above rather than copied.
+    let named: &[u8] = &bytes[..end];
     if named.is_empty() {
         return None;
     }
-    return Some(String::from(named));
+    return Some(named.to_vec());
 }
 
 /// What:
@@ -99,16 +135,17 @@ fn text_named(git_dir: &Path) -> Option<String> {
 /// const commonDir = commonDirectoryOf(gitDir);
 /// ```
 pub fn common_directory_of(git_dir: &Path) -> PathBuf {
-    let Some(named) = text_named(git_dir) else {
+    let Some(named) = named_without_line_endings(git_dir) else {
         return git_dir.to_path_buf();
     };
-    let joined: PathBuf = git_dir.join(named);
+    // The name as one path part: its bytes are the directory's own name, with no text conversion between them.
+    let joined: PathBuf = git_dir.join(OsStr::from_bytes(named.as_slice()));
     return std::fs::canonicalize(&joined).unwrap_or(joined);
 }
 
 /// What:
 ///  The common directory `git_dir`'s `commondir` file names,
-///  resolved by its text alone,
+///  resolved by its own bytes alone,
 ///  or nothing when the Git directory names none or names one that climbs out of the file system root.
 /// Why:
 ///  A linked worktree's registration records a path relative to the worktree's own Git directory,
@@ -120,10 +157,13 @@ pub fn common_directory_of(git_dir: &Path) -> PathBuf {
 /// path.resolve(gitDir, named) // undefined when the file is missing, empty or climbs past the root
 /// ```
 pub fn common_directory_named_by(git_dir: &Path) -> Option<PathBuf> {
-    let named: String = text_named(git_dir)?;
+    let named: Vec<u8> = named_without_line_endings(git_dir)?;
     // The path built one part at a time, so a `..` is taken off the part before it rather than left in the text.
     let mut resolved: PathBuf = PathBuf::new();
-    for part in git_dir.join(named).components() {
+    for part in git_dir
+        .join(OsStr::from_bytes(named.as_slice()))
+        .components()
+    {
         match part {
             // `.` names the directory itself, so it adds nothing.
             std::path::Component::CurDir => {}

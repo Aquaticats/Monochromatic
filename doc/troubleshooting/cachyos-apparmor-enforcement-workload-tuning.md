@@ -2048,6 +2048,31 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Fourteenth batch: the ssh terminal tests on the host, and a round's preloaded shim, 2026-11-26T17:05:00-05:00
+
+Met while checking the alpha.47 host-key round before its merge:
+the wrapper's four `ssh_terminal` binary tests (`package/git-policy/cli/src/native/binary/binary_ssh_terminal_tests.rs`)
+failed four of four on the host, on `main` too, while the container gate passed them.
+Each starts a throwaway `sshd` from a fixture under the cargo build folder
+(`~/.cargo/build/<toolchain>/<hash>/debug/build/monochromatic-git-policy-cli/test-fixtures/process-<pid>/...`),
+and the earlier batches had granted that fixture only under the gate's `/work`.
+Under the owner's rule recorded under "Eleventh batch" the profiles were widened, each step measured from `/var/log/audit/audit.log`
+(the kernel journal held none of these records):
+
+1.  `sshd` was denied reading the fixture's `sshd_config` (one record per test), exited, and each test waited ten seconds for a port:
+    `/etc/apparmor.d/local/sshd` gained `owner @{HOME}/.cargo/build/** rwlk,`, and `local/sshd-session` `owner @{HOME}/.cargo/build/** r,`
+    (`ssh-keygen` already held that tree for the signing tests). Two of four then passed.
+2.  `ssh` was denied 7 reads and 1 create in the fixture (keys, `known_hosts`), and `git//ssh` 13 reads, 1 create and one exec of `/usr/bin/bash`
+    (the shell ssh starts a `ProxyCommand` through): `local/ssh` and `local/git_ssh` gained `owner @{HOME}/.cargo/build/** rwk,`, and `local/git_ssh` `@{bin}/bash rix,`.
+    Four of four then passed: `test result: ok. 4 passed; 0 failed`.
+3.  One denial was left: `git//ssh` running the fixture's `relay`, the program the test's `ProxyCommand` names; the test passed without it,
+    so it was not exercising what it names: `local/git_ssh` gained `owner @{HOME}/.cargo/build/**/test-fixtures/**/relay rix,`.
+
+In the same window, issue 6518's round preloaded a measurement shim it built in its scratch folder into Git,
+and the `git` profile denied 378 `file_mmap` of `scratch/shim/eraser_shim.so`:
+`local/git` gained `owner @{HOME}/temp/agent/**/scratch/**.so m,`.
+Logs: `~/temp/agent/ssh-terminal-sshd-on-the-host-2026-11-26/keep/`.
+
 ## Thirteenth batch: IVPN Desktop 3.15.15, and apparmor_parser reading scratch drafts, 2026-11-26T01:41:13-05:00
 
 Met while installing the AUR packages `ivpn` and `ivpn-ui` `3.15.15` through Shelly
