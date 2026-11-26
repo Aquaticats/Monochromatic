@@ -121,6 +121,9 @@
 //! - `worktree_copy.rs`:
 //!   the linked-worktree ignored-state copy around one forwarded Git invocation:
 //!   the integrator's entry point.
+//! - `worktree_removal_of_a_bound_clone.rs`:
+//!   the refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
+//!   with the slot's state printed beside it.
 //! - `worktree_copy_forward.rs`:
 //!   which forwarded invocations the copy applies to,
 //!   and the child run that performs it.
@@ -198,9 +201,6 @@
 //!   each is moved aside with one line,
 //!   what it named is found again from the records beside it where it can be,
 //!   and the command that met it runs.
-//! - `worktree_removal_of_a_bound_clone.rs`:
-//!   the refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
-//!   with the slot's state printed beside it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

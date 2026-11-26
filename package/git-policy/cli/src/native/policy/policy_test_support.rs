@@ -299,6 +299,7 @@ pub(crate) fn main_worktree(
             worktree_root: PathBuf::from(root),
         },
         prefix: prefix.as_bytes().to_vec(),
+        common_directory_outside_a_worktree: None,
     };
 }
 
@@ -314,6 +315,7 @@ pub(crate) fn linked_worktree(
             worktree_root: PathBuf::from(root),
         },
         prefix: Vec::<u8>::new(),
+        common_directory_outside_a_worktree: None,
     };
 }
 
@@ -322,6 +324,7 @@ pub(crate) fn outside_worktree() -> RepositoryLocation {
     return RepositoryLocation {
         identity: WorktreeIdentity::OutsideWorktree,
         prefix: Vec::<u8>::new(),
+        common_directory_outside_a_worktree: None,
     };
 }
 

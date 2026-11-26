@@ -7903,6 +7903,17 @@ in order:
     Its count of 37 files is the measurement of 2026-11-04;
     the ledger's of 2026-11-25 counts 24 over 300 non-comment lines and 30 more at 290 to 300,
     and that is the list to brief from.
+    Note of 2026-11-26T12:50-05:00:
+    the reformat with the root `rustfmt.toml` (`00b6a940b4`) grew the crate's code lines 1.472 times,
+    so the locked linter counts 281 files over 300 on `987635373a`;
+    19 of them were over before the reformat, and 262 are over only because of it
+    (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`).
+    The 19 are this round's list:
+    13 run in five queued branches (`refactor/git-policy-cli-split-*-files-over-the-line-budget`),
+    one commit per file,
+    and six wait for open rounds that touch them
+    (four in `merge/` beside the record-folder pipes round, `commit/native_commit_waiting_notice.rs` and `invocation/entry.rs` beside the notices round).
+    What happens to the 262 waits for the owner (`doc/handover/questions-for-the-owner.md`, the line budget after the reformat).
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,

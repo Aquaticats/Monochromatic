@@ -9,8 +9,11 @@
 //!  would hide the stretch a stopped commit waited in,
 //! which is the defect the build's ledger was added for;
 //! and an unbounded list would grow with the work.
-//!  The ledger is one list for the whole process and other controls of this crate build shadows,
-//!  so each control here holds its own lock and empties the list before it starts:
+//!  The ledger is one list for the whole process,
+//!  and other controls of this crate build shadows,
+//!  so each control here runs its body in a child of its own
+//!  (`crate::process_wide_state_child_test_support`),
+//!  whose list holds nothing but what it marked:
 //!  the names it asserts on are the ones at the end of what it kept.
 //!
 //! In TS you'd write (pseudocode):
@@ -29,28 +32,10 @@ use super::{
 };
 use crate::commit_prepare_part_durations::PreparePart;
 use crate::transaction_step_durations::note_step;
-use std::sync::{
-    Mutex,
-    MutexGuard,
-};
 use std::time::{
     Duration,
     Instant,
 };
-
-/// Held by every control here,
-/// so no two of them mark and drain the one list at the same time.
-static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
-
-/// The lock and an empty list,
-/// which every control in this module starts from.
-fn exclusive() -> MutexGuard<'static, ()> {
-    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _taken: (Vec<PreparePart>, usize) = drain_build_parts();
-    return held;
-}
 
 /// The names the list ends with,
 /// which are the ones the control under test marked.
@@ -77,16 +62,21 @@ fn last(parts: &[PreparePart]) -> &PreparePart {
 /// The clock names each stretch and keeps the one that was running when the build left.
 #[test]
 fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
-    let _held: MutexGuard<'static, ()> = exclusive();
-    let mut clock: BuildPartClock = BuildPartClock::begin("branch");
-    std::thread::sleep(Duration::from_millis(3));
-    clock.next("shadow links");
-    std::thread::sleep(Duration::from_millis(3));
-    // The build leaves here, as a stop or a failure does.
-    drop(clock);
-    let (parts, _dropped) = drain_build_parts();
-    assert_eq!(lasts(parts.as_slice(), 2), vec!["branch", "shadow links"]);
-    assert!(last(&parts).took >= Duration::from_millis(2), "{parts:?}");
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "each_stretch_keeps_its_name_and_the_open_one_is_kept",
+        || {
+            let mut clock: BuildPartClock = BuildPartClock::begin("branch");
+            std::thread::sleep(Duration::from_millis(3));
+            clock.next("shadow links");
+            std::thread::sleep(Duration::from_millis(3));
+            // The build leaves here, as a stop or a failure does.
+            drop(clock);
+            let (parts, _dropped) = drain_build_parts();
+            assert_eq!(lasts(parts.as_slice(), 2), vec!["branch", "shadow links"]);
+            assert!(last(&parts).took >= Duration::from_millis(2), "{parts:?}");
+        },
+    );
 }
 
 /// A Git step that ran inside a stretch is taken out of it and kept under the
@@ -94,85 +84,100 @@ fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
 /// it held no child.
 #[test]
 fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
-    let _held: MutexGuard<'static, ()> = exclusive();
-    let mut clock: BuildPartClock = BuildPartClock::begin("client build");
-    note_step("git commit", Instant::now(), Duration::from_millis(500));
-    std::thread::sleep(Duration::from_millis(3));
-    clock.next("commit read back");
-    std::thread::sleep(Duration::from_millis(3));
-    drop(clock);
-    let (parts, _dropped) = drain_build_parts();
-    assert_eq!(
-        lasts(parts.as_slice(), 2),
-        vec!["client build", "commit read back"]
-    );
-    let named: &[PreparePart] = &parts[parts.len() - 2..];
-    assert!(
-        named[0].took < Duration::from_millis(1),
-        "the step's half second is taken out: {:?}",
-        named[0]
-    );
-    assert!(
-        named[0].children >= Duration::from_millis(2),
-        "the child's time is clipped to the stretch and kept under it: {:?}",
-        named[0]
-    );
-    assert!(
-        named[1].took >= Duration::from_millis(2),
-        "no step ran in this stretch: {:?}",
-        named[1]
-    );
-    assert_eq!(
-        named[1].children,
-        Duration::ZERO,
-        "no child ran in this stretch: {:?}",
-        named[1]
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it",
+        || {
+            let mut clock: BuildPartClock = BuildPartClock::begin("client build");
+            note_step("git commit", Instant::now(), Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(3));
+            clock.next("commit read back");
+            std::thread::sleep(Duration::from_millis(3));
+            drop(clock);
+            let (parts, _dropped) = drain_build_parts();
+            assert_eq!(
+                lasts(parts.as_slice(), 2),
+                vec!["client build", "commit read back"]
+            );
+            let named: &[PreparePart] = &parts[parts.len() - 2..];
+            assert!(
+                named[0].took < Duration::from_millis(1),
+                "the step's half second is taken out: {:?}",
+                named[0]
+            );
+            assert!(
+                named[0].children >= Duration::from_millis(2),
+                "the child's time is clipped to the stretch and kept under it: {:?}",
+                named[0]
+            );
+            assert!(
+                named[1].took >= Duration::from_millis(2),
+                "no step ran in this stretch: {:?}",
+                named[1]
+            );
+            assert_eq!(
+                named[1].children,
+                Duration::ZERO,
+                "no child ran in this stretch: {:?}",
+                named[1]
+            );
+        },
     );
 }
 
 /// A name marked more than once is added together and says how many stretches it is made of.
 #[test]
 fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
-    let _held: MutexGuard<'static, ()> = exclusive();
-    note_build_part(
-        "shadow links",
-        Duration::from_millis(11),
-        Duration::from_millis(2),
-    );
-    note_build_part("client build", Duration::from_millis(13), Duration::ZERO);
-    note_build_part(
-        "shadow links",
-        Duration::from_millis(17),
-        Duration::from_millis(200),
-    );
-    let (parts, _dropped) = drain_build_parts();
-    assert_eq!(
-        build_parts_json(parts.as_slice()),
-        String::from(
-            "{\"shadow links\":{\"ms\":28,\"calls\":2,\"childrenMs\":202},\"client build\":{\"ms\":13,\"calls\":1,\"childrenMs\":0}}"
-        )
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_name_marked_twice_adds_up_and_says_how_many_calls",
+        || {
+            note_build_part(
+                "shadow links",
+                Duration::from_millis(11),
+                Duration::from_millis(2),
+            );
+            note_build_part("client build", Duration::from_millis(13), Duration::ZERO);
+            note_build_part(
+                "shadow links",
+                Duration::from_millis(17),
+                Duration::from_millis(200),
+            );
+            let (parts, _dropped) = drain_build_parts();
+            assert_eq!(
+                build_parts_json(parts.as_slice()),
+                String::from(
+                    "{\"shadow links\":{\"ms\":28,\"calls\":2,\"childrenMs\":202},\"client build\":{\"ms\":13,\"calls\":1,\"childrenMs\":0}}"
+                )
+            );
+        },
     );
 }
 
 /// The record carries at most `MAX_BUILD_PARTS` stretches and says how many it dropped.
 #[test]
 fn the_list_stops_at_its_bound_and_counts_the_rest() {
-    let _held: MutexGuard<'static, ()> = exclusive();
-    let over: usize = MAX_BUILD_PARTS + 3;
-    for at in 0..over {
-        note_build_part(
-            "shadow skeleton",
-            Duration::from_millis(u64::try_from(at).expect("fits")),
-            Duration::ZERO,
-        );
-    }
-    let (parts, dropped) = drain_build_parts();
-    assert_eq!(parts.len(), MAX_BUILD_PARTS);
-    assert_eq!(dropped, 3);
-    assert_eq!(
-        drain_build_parts().0.len(),
-        0,
-        "one record takes the stretches it describes"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_list_stops_at_its_bound_and_counts_the_rest",
+        || {
+            let over: usize = MAX_BUILD_PARTS + 3;
+            for at in 0..over {
+                note_build_part(
+                    "shadow skeleton",
+                    Duration::from_millis(u64::try_from(at).expect("fits")),
+                    Duration::ZERO,
+                );
+            }
+            let (parts, dropped) = drain_build_parts();
+            assert_eq!(parts.len(), MAX_BUILD_PARTS);
+            assert_eq!(dropped, 3);
+            assert_eq!(
+                drain_build_parts().0.len(),
+                0,
+                "one record takes the stretches it describes"
+            );
+        },
     );
 }
 
@@ -180,13 +185,18 @@ fn the_list_stops_at_its_bound_and_counts_the_rest() {
 /// so a name can never break the record's line.
 #[test]
 fn a_name_with_delimiters_stays_one_member() {
-    let _held: MutexGuard<'static, ()> = exclusive();
-    note_build_part("a\"b\\c\nd", Duration::from_millis(1), Duration::ZERO);
-    let (parts, _dropped) = drain_build_parts();
-    let json: String = build_parts_json(parts.as_slice());
-    assert_eq!(
-        json,
-        String::from("{\"a\\\"b\\\\c\\nd\":{\"ms\":1,\"calls\":1,\"childrenMs\":0}}")
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_name_with_delimiters_stays_one_member",
+        || {
+            note_build_part("a\"b\\c\nd", Duration::from_millis(1), Duration::ZERO);
+            let (parts, _dropped) = drain_build_parts();
+            let json: String = build_parts_json(parts.as_slice());
+            assert_eq!(
+                json,
+                String::from("{\"a\\\"b\\\\c\\nd\":{\"ms\":1,\"calls\":1,\"childrenMs\":0}}")
+            );
+            assert!(!json.contains('\n'));
+        },
     );
-    assert!(!json.contains('\n'));
 }

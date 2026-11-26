@@ -153,13 +153,40 @@ pub fn parse_identity_output(
     success: bool,
     stdout: &[u8],
 ) -> std::io::Result<WorktreeIdentity> {
+    let (identity, _common_directory): (WorktreeIdentity, Option<PathBuf>) =
+        parse_identity_and_common_directory(success, stdout)?;
+    return Ok(identity);
+}
+
+/// What:
+///  The same reading,
+///  with the common directory Git printed for a command that stands in no
+///  worktree of it.
+/// Why:
+///  Git prints the Git directory and the common directory before it refuses
+///  `--show-toplevel`,
+///  so a command started inside a repository's Git directory
+///  (`git -C <repository>/.git worktree remove <slot>`) has a repository
+///  whose records the refusals of a managed clone's slot must still read;
+///  reading only the identity would throw away the answer Git gave.
+///  The directory is absent for every identity that carries its own,
+///  and for a folder that belongs to no repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseIdentityAndCommonDirectory(success: boolean, stdout: Buffer): [WorktreeIdentity, string?];
+/// ```
+pub fn parse_identity_and_common_directory(
+    success: bool,
+    stdout: &[u8],
+) -> std::io::Result<(WorktreeIdentity, Option<PathBuf>)> {
     if stdout.is_empty() {
         if success {
             // `Err(...)` is the failure variant.
             return Err(malformed("no output"));
         }
         // `Ok(...)` is the success variant.
-        return Ok(WorktreeIdentity::OutsideWorktree);
+        return Ok((WorktreeIdentity::OutsideWorktree, None));
     }
     // What: `Vec<&[u8]>` is an owned list of borrowed byte lines; `.split(...)` with a
     //       named predicate cuts at each line feed.
@@ -198,28 +225,37 @@ pub fn parse_identity_output(
     };
     if !success {
         if bare {
-            return Ok(WorktreeIdentity::BareRepository {
-                common_dir,
-                git_dir,
-            });
+            return Ok((
+                WorktreeIdentity::BareRepository {
+                    common_dir,
+                    git_dir,
+                },
+                None,
+            ));
         }
-        return Ok(WorktreeIdentity::OutsideWorktree);
+        return Ok((WorktreeIdentity::OutsideWorktree, Some(common_dir)));
     }
     let Some(worktree_root) = path_from_git_bytes(lines[3]) else {
         return Err(malformed("an empty worktree top level"));
     };
     if git_dir == common_dir {
-        return Ok(WorktreeIdentity::MainWorktree {
+        return Ok((
+            WorktreeIdentity::MainWorktree {
+                common_dir,
+                git_dir,
+                worktree_root,
+            },
+            None,
+        ));
+    }
+    return Ok((
+        WorktreeIdentity::LinkedWorktree {
             common_dir,
             git_dir,
             worktree_root,
-        });
-    }
-    return Ok(WorktreeIdentity::LinkedWorktree {
-        common_dir,
-        git_dir,
-        worktree_root,
-    });
+        },
+        None,
+    ));
 }
 
 /// Named predicate for splitting output into lines;

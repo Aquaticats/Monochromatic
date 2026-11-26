@@ -88,6 +88,7 @@ fn location_is_what_real_git_reports() {
         RepositoryLocation {
             identity: identity.clone(),
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
     assert_eq!(
@@ -95,6 +96,7 @@ fn location_is_what_real_git_reports() {
         RepositoryLocation {
             identity: identity.clone(),
             prefix: "nested/deep \u{e9}/".as_bytes().to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
     // Git chains `-C` itself: down into a directory and back up to the top level.
@@ -113,6 +115,7 @@ fn location_is_what_real_git_reports() {
         RepositoryLocation {
             identity,
             prefix: b"nested/".to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
     let linked: PathBuf = root.join("linked");
@@ -137,6 +140,7 @@ fn location_is_what_real_git_reports() {
                 worktree_root: linked,
             },
             prefix: b"inner/".to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
     remove(root.as_path());
@@ -154,6 +158,7 @@ fn location_without_a_worktree_has_an_empty_prefix() {
         RepositoryLocation {
             identity: WorktreeIdentity::OutsideWorktree,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
     git(root.as_path(), &["init", "--quiet", "--bare", "bare.git"]);
@@ -166,14 +171,18 @@ fn location_without_a_worktree_has_an_empty_prefix() {
                 git_dir: bare,
             },
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
     let main: PathBuf = repository(root.as_path(), "main");
+    // A command started inside the repository's Git directory stands in no worktree, and Git still names the repository
+    // it belongs to: that answer is what the slot refusals read (`git -C <repository>/.git worktree remove <slot>`).
     assert_eq!(
         located(&[main.join(".git").as_path()]),
         RepositoryLocation {
             identity: WorktreeIdentity::OutsideWorktree,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: Some(main.join(".git")),
         }
     );
     remove(root.as_path());
@@ -393,6 +402,7 @@ fn each_fact_is_one_process_with_the_global_prefix_and_overlay() {
         Ok(RepositoryLocation {
             identity: WorktreeIdentity::OutsideWorktree,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         })
     );
     assert_eq!(facts.index_vs_head(), Ok(IndexVsHead::Differs));

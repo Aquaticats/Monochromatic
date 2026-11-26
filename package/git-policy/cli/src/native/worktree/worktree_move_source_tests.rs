@@ -36,7 +36,7 @@ fn the_plain_form_names_the_first_operand() {
         let found = parse_move_source(
             os_arguments(values.as_slice()).as_slice(),
             0,
-            root.as_path(),
+            Some(root.as_path()),
             None,
         );
         assert_eq!(
@@ -78,7 +78,7 @@ fn every_other_form_is_left_to_git() {
             parse_move_source(
                 os_arguments(values.as_slice()).as_slice(),
                 0,
-                root.as_path(),
+                Some(root.as_path()),
                 None
             ),
             None,
@@ -122,7 +122,7 @@ fn a_registered_last_component_names_the_registration() {
     let found = parse_move_source(
         os_arguments(&["worktree", "move", "elsewhere-topic", "../moved"]).as_slice(),
         0,
-        root.as_path(),
+        Some(root.as_path()),
         Some(common.as_path()),
     );
     assert_eq!(

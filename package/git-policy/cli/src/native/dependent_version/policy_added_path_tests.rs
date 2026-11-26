@@ -394,6 +394,7 @@ fn the_real_index_is_listed_in_the_repository_the_command_line_named() {
             worktree_root: work_tree.clone(),
         },
         prefix: Vec::new(),
+        common_directory_outside_a_worktree: None,
     };
     let index: PathBuf = git_dir.join("index");
     let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
@@ -430,6 +431,7 @@ fn a_location_without_a_work_tree_is_refused() {
             git_dir: PathBuf::from("/bare/cfg.git"),
         },
         prefix: Vec::new(),
+        common_directory_outside_a_worktree: None,
     };
     let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
     let index: PathBuf = PathBuf::from("/bare/cfg.git/index");

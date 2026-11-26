@@ -629,6 +629,11 @@ mod fallback_tests;
 #[path = "entry_stop_tests.rs"]
 mod stop_tests;
 
+/// The slot refusals read one command line behind every global option Git accepts.
+#[cfg(test)]
+#[path = "entry_slot_refusals_read_every_spelling_tests.rs"]
+mod slot_refusal_spellings;
+
 /// Decision controls and the shared fixtures stay out of the release executable.
 #[cfg(test)]
 #[path = "entry_tests.rs"]

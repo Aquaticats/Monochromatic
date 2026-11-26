@@ -609,6 +609,75 @@ unapproved and not final;
 the owner declares completion.
 
 Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6509-commit-ledger-controls-own-their-process`:
+issue 6509 is fixed,
+and the four ledgers the run above left open read the figures they were meant to.
+Each control that counts the index builds,
+the preparation's stretches,
+the build's stretches or the step ledger runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`),
+as the room,
+the bound,
+the durability switch and the preparation's steps do,
+and `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
+refuses a control that names one of them without a child.
+The two causes of the same run that are no ledger are fixed beside them:
+the two `commit::commit_preparation::tests` controls that assert this process has no descendant left own a
+process too,
+and every control that steps a notice takes the two control windows before it starts
+(`source_guard/notice_controls_take_their_window_tests.rs`).
+All three guards share one scan,
+`source_guard/process_wide_fact_readers_tests.rs`,
+which issue 6507's guard now uses as well.
+Measured on this host:
+two threaded runs of `commit::` answered
+`test result: FAILED. 464 passed; 10 failed` both times before the change,
+and the same baseline answered `FAILED. 467 passed; 7 failed` and `FAILED. 464 passed; 10 failed`
+in two later runs,
+so the count holds while which controls fail moves;
+after the change `ok. 474 passed; 0 failed` in each of two runs;
+the modules answered
+`commit::commit_index_builds::tests` `ok. 11 passed` (from `4 passed; 7 failed`),
+`commit::commit_prepare_part_durations::tests` `ok. 5 passed` (from `3 passed; 2 failed`),
+`commit::commit_build_part_durations::tests` `ok. 5 passed`;
+it answered `ok. 5 passed` alone before the change and failed only beside other modules,
+so its count did not move,
+`commit::commit_preparation::tests` `ok. 23 passed` (from `21 passed; 2 failed`),
+`commit::native_commit_waiting_notice::tests` `ok. 19 passed` (the `19 passed` of `main` plus the window),
+`transaction::transaction_step_durations::tests` `ok. 6 passed` (from `5 passed; 1 failed` in a threaded
+run of its own module),
+`repo_read::git_metadata::tests` `ok. 11 passed`,
+`shadow::shadow_pool::tests` `ok. 29 passed` and
+`source_guard::` `ok. 147 passed`.
+The step ledger's own module was measured red in a threaded run of itself:
+`a_slow_step_names_its_arguments_and_a_short_one_does_not` read no arguments for a step another
+control's drain had taken.
+`repo_read::git_metadata::tests` was `ok. 11 passed` alone before the change,
+and its control owns a child because it reads the same ledger.
+After `origin/main` made the starter take the control's body (issue 6503,
+`run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`),
+each of the 28 guards hands its body to that call and the three guards excuse its name;
+on the merged tree `commit::` answered `ok. 474 passed; 0 failed` in both runs,
+`source_guard::` `ok. 151 passed`,
+and each of the 34 controls `1 passed` alone with `--exact`.
+A sixth fact of the same shape was measured after that merge,
+in the first threaded run of `commit::`:
+`commit::git_step_failure::tests::a_note_never_carries_a_path_or_a_line_break` failed with
+`the note just written` (`FAILED. 473 passed; 1 failed`),
+because `commit/git_step_failure.rs` keeps the note of the last failed Git step in one
+`Mutex<Option<FailedStep>>` for the process,
+and a control beside it cleared the note between this control's write and its read.
+Its four controls hand their body to the child too,
+the ledger guard gains that note as a fifth requirement,
+and the module answers `ok. 4 passed; 0 failed` alone and `commit::` `ok. 474 passed; 0 failed` twice after it.
+The causes and all three guards' failing proofs,
+before and after that merge,
+are in
+`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`.
+Status:
+incomplete,
+unapproved and not final.
+
 branch `fix/git-policy-cli-issue-6514-started-as-git-control-reads-its-own-record`:
 issue 6514 is fixed,
 and it is a mechanism this item did not list:
@@ -709,6 +778,37 @@ The measurement is in
 Status:
 incomplete,
 unapproved and not final.
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6511-push-child-watch-controls-own-their-clock`:
+issue 6511 is fixed,
+and it is a mechanism this item did not list:
+the two stand-ins `foundation/lazy_runtime.rs` holds for a system that refused every thread
+(`a_control_refuses_every_task`),
+and for a build that outlasted its deadline (`a_control_stands_in_for_a_late_runtime`).
+`tasks_can_run` and `built_flavor` answer for the whole process,
+so a threaded run of `push::child_watch::` failed a different set of controls each time:
+measured on this host,
+`test result: FAILED. 42 passed; 5 failed; 1 ignored`,
+whose two groups name the two facts,
+no watcher where a thread was refused,
+and a count of `/proc/self/fd` reading every thread's table.
+Each control that arms one,
+and the two controls that count this process's descriptors,
+runs its body in a child of its own,
+and both setters call `refuse_outside_the_child`,
+which names the starter.
+After the change the module answered `test result: ok. 47 passed; 0 failed; 1 ignored`
+in two threaded runs of 21.38 s each,
+and with `--test-threads=1` in 41.35 s.
+Issue 6503 landed while this branch was open,
+so the ten guards hand their body to `run_the_body_in_a_child_of_its_own`.
+The measured reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
 
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
@@ -1023,6 +1123,10 @@ Cost: lint errors the moment the linter runs here (inferred); the big sidecars a
 Fix: split each by role into sibling modules, re-exporting, never stripping docs (MXL); one agent per file.
 Size: 24 files.
 Label: approximated count; confirm by running the linter once before the round.
+Note of 2026-11-26T12:50-05:00: the linter, run on `987635373a`, counts 281 files over 300 and the ledger's measure gives the same count on the largest file (1012).
+The difference is the reformat of 2026-11-26 (`00b6a940b4`), which grew the crate's code lines 1.472 times; `worktree/worktree_remove_hand_over.rs` went from 572 to 1012.
+19 files were over 300 before it and are split now; the 262 over only because of it wait for the owner's answer on the budget
+(`doc/handover/questions-for-the-owner.md`; the counts are in `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/`).
 
 ### Item 16. Twenty-nine of fifty-five source folders sit in one dependency loop, and the layout rules are not enforced
 

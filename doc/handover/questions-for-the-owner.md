@@ -18,6 +18,83 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: what becomes of the 300-line budget now that the reformat lays code out vertically? Recorded 2026-11-26T12:50-05:00
+
+The repository linter's `rust/max-lines` is 300 code lines, as an error, for every `.rs` file
+(`monochromatic-lint.config.jsonc`, the `rust` block; `*_tests.rs` files are exempt).
+The root `rustfmt.toml` you set on 2026-11-25 puts one struct field, one import and one parameter on each line,
+and the wrapper was formatted with it as `00b6a940b4` (2026-11-26T01:51:40-05:00).
+Measured on `main` at `987635373a` (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`):
+
+- The wrapper's code lines grew 1.472 times across 1740 files.
+- 281 of its files are over 300 now. 19 were over before the reformat, and 262 are over only because of it.
+- In the other crates, 152 files are over 300 now; most are in `package/ide/app` (32), `package/cargo-shadow/cli` (28) and `package/mpm-shadow/cli` (22). Their counts before the reformat were not measured.
+- Example: `worktree/worktree_remove_hand_over.rs` had 572 code lines before the reformat and has 1012 now.
+
+The 19 files that were over before are being split now, as the rule stands, in five queued rounds (six of them wait for open rounds that touch them).
+The 262 wait for this answer, because splitting them only answers the layout.
+
+### Option A: keep 300 and split every file over it
+
+Example: `worktree_remove_hand_over.rs` becomes four files of at most 300 lines.
+Pros: the rule stays as written, and files get smaller.
+Cons: about 430 splits across the repository, 262 of them in files whose code did not grow; every split changes a folder's file list just before the crate split moves the folders.
+
+### Option B: raise the budget to 450 code lines
+
+Example: `worktree_remove_hand_over.rs` becomes three files; 55 wrapper files and 26 in the other crates stay over 450.
+Pros: keeps about the reading length the 300 meant before the reformat, with one line of configuration.
+Cons: the number fits this layout only; the next change to `rustfmt.toml` moves it again.
+
+### Option C: have the linter count what the layout does not change
+
+The rule would count the lines the code would take under rustfmt's default layout (or the statements and items), so the reformat leaves the count where it was.
+Example: `worktree_remove_hand_over.rs` counts about 572 and becomes two files; the wrapper is back to about its 19.
+Pros: a format choice never moves the budget again; the 300 keeps meaning what it meant.
+Cons: a change to the linter and its documentation, and a count that differs from what an editor shows.
+
+### Option D: undo the three vertical settings in `rustfmt.toml`
+
+Example: `worktree_remove_hand_over.rs` is back to 572 lines and two files.
+Pros: counts return to their old values with no linter change.
+Cons: undoes your format choice of 2026-11-25 and reflows every crate again.
+
+Ranking: C > B > A > D, because C makes the budget stand apart from any layout while B holds only for this one;
+B over A because A spends 262 splits on files whose logic did not grow, right before the crate split moves them;
+A over D because D reverses your format choice and reformats every crate a second time.
+
+## Open: should a slot removal behind a global option this wrapper does not know be refused? Recorded 2026-11-26T12:20-05:00
+
+The round that fixed the alpha.47 pass's High (branch `fix/git-policy-cli-alpha-47-zfs-refusals-read-every-global-option`)
+made the removal and move refusals read every global option in the wrapper's copy of Git 2.56's option table
+(`-c`, `--git-dir`, `--work-tree`, `--namespace`, `--config-env` and the rest of `handle_options` in Git's `git.c`).
+It left one opening, and named it as yours to decide.
+When a newer Git adds a global option that takes a value,
+and a person types it before `worktree remove -f -f slot-one` with a relative path,
+the wrapper cannot tell where the value ends and the path begins.
+It then finds the slot only if the operand is the slot's last name, as `slot-one` is;
+a path such as `../checkouts/slot-one` is forwarded to Git,
+and Git deletes the bound slot's registration and underlay pointer while its record still says filled.
+The decided text of `package/git-policy/cli/SPEC.md:5424` leaves to Git a slot nothing proves,
+so no round changes this without you.
+Whichever you pick, the session will add a check that fails when the installed Git is newer than the table, so the table is updated at each Git upgrade.
+
+### Option A: refuse the removal or move when an unknown global option comes first and the repository holds slot records
+
+Example: `git --future-option=x worktree remove -f -f ../checkouts/slot-one` in a repository with a slot record folder prints
+that the wrapper does not know `--future-option`, so it cannot tell whether the command names a bound slot, and that the command without it, or `git -C <repository> worktree remove ...`, is read.
+In a repository with no slot records the command is forwarded as today.
+Pros: no bound slot is removed behind an option the wrapper cannot read; the refusal names the way through.
+Cons: a person on a newer Git than the table cannot use that option with `worktree remove` or `move` in such a repository until the table is updated.
+
+### Option B: keep forwarding, and rely on the table being kept current
+
+Example: the same command is forwarded, and Git deletes the registration and pointer.
+Pros: Git keeps every option it adds, with no refusal.
+Cons: between a Git upgrade and the table's update, a removal can drop a bound slot's registration.
+
+Ranking: A > B, because the refusal costs one retyped command, and the forward can lose a slot's registration; the case is rare either way, since Git adds global options seldom.
+
 ## Open: should a slot whose record cannot be read refuse its removal as it refuses its move? Recorded 2026-11-26T09:50-05:00
 
 The alpha.47 release pass on the ZFS route (`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`, finding 12)
