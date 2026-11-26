@@ -106,6 +106,23 @@ impl OwnedGroups {
             "the helper {} was registered as a process group but is in group {group}: it must be started with `process_group(0)` (spawn_owned does that), or nothing it starts dies with the test",
             child.id()
         );
+        self.remember(group);
+    }
+
+    /// What:
+    ///  Add one group number to the list the thread's end kills.
+    /// Why:
+    ///   `own` and `own_group_of_number` each prove the number they are given,
+    ///  and both then want this one thing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// remember(group: number): void; // groups.push(group)
+    /// ```
+    fn remember(
+        &self,
+        group: libc::pid_t,
+    ) {
         // What: `borrow_mut` asks the `RefCell` for a mutable view of the list, and `push` adds one group number.
         // Why: the thread's destructor kills every group the list holds.
         //
@@ -284,6 +301,57 @@ pub(crate) fn group_of(child: &Child) -> libc::pid_t {
 pub(crate) fn own_group(child: &Child) {
     OWNED_GROUPS.with(|owned| {
         owned.own(child);
+    });
+}
+
+/// What:
+///  Make the process group a child of a shipped call leads die with the test thread that started the call,
+///  named by the number that call or the child itself answered rather than by a `Child` the test keeps.
+/// Why:
+///   The relay starts the child it reads itself and keeps no `Child` the test can reach,
+///  so a control of what the child left holds a number and nothing `own_group` takes (issue 6501).
+///  The child must be started with `process_group(0)`,
+///  and a group's number cannot be given to another process while one member is left in it,
+///  so the number names that child's group and nothing else.
+/// Gotcha:
+///  A number of `0`, or one whose group holds no process, is refused,
+///  because nothing would die at the thread's end and one of them would end the run itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownGroupOfNumber(number: number): void; // assert(groupHasAMember(number)); ownedGroups.push(number)
+/// ```
+pub(crate) fn own_group_of_number(number: u32) {
+    let group: libc::pid_t = libc::pid_t::try_from(number).expect("a pid fits the pid type");
+    // What: to `killpg` and every other signal call, `0` names the group of the process that sends it.
+    // Why:  A read answers `0` as the child's number when no `SignalGuard` started that child
+    //  (`read_to_the_child_s_end`), and a group registered as `0` would have the thread's end kill every process of
+    //  the run, this test binary included (issue 6501).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert(group > 0, 'the group of a helper is the process number of the child that leads it');
+    // ```
+    assert!(
+        group > 0,
+        "a group number names a helper, and {group} names the group of the process that sends the signal instead: the read answers 0 for a child no signal guard started"
+    );
+    // What: `killpg` with signal `0` asks whether the group has any member and sends no signal.
+    // Why:  A number that names no group names nothing this thread must end: either the child was not started with
+    //  `process_group(0)`, so the number is the child alone and no group, or what it left has ended already.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert(killpg(group, 0) === 0, `the group ${group} holds no process`);
+    // ```
+    // SAFETY: `killpg` takes a group number and a signal number and touches no memory of this process.
+    let present: libc::c_int = unsafe { libc::killpg(group, 0) };
+    assert_eq!(
+        present, 0,
+        "the group {group} holds no process: start the child with `process_group(0)`, so what it leaves stays in a group the test can end, or end what it left before registering it"
+    );
+    OWNED_GROUPS.with(|owned| {
+        owned.remember(group);
     });
 }
 
