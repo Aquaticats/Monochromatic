@@ -52,6 +52,11 @@
 //!   the fork,
 //!   the pid descriptor,
 //!   the kill and the ending a wait answers.
+//! - `companion_group_drop_probe.rs`:
+//!   the probe `doctor` makes of the `setgroups` step and what its records
+//!   mean.
+//! - `companion_group_drop_line.rs`:
+//!   the line `doctor` prints about a host that skips the group drop.
 //! - `companion_child_tree.rs`:
 //!   the scratch tree and the walk to the slot.
 //! - `companion_child_controls.rs`:
@@ -99,6 +104,10 @@ pub mod companion_deadline;
 pub mod companion_descriptor_calls;
 /// The file and identity calls.
 pub mod companion_file_calls;
+/// The line `doctor` prints about a skipped group drop.
+pub mod companion_group_drop_line;
+/// The probe `doctor` makes of the `setgroups` step.
+pub mod companion_group_drop_probe;
 /// The verdict and its lines.
 pub mod companion_lines;
 /// The namespace,

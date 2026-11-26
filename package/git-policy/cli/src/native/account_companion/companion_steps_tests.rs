@@ -77,6 +77,61 @@ fn the_first_mapping_write_skips_and_the_second_does_not() {
 }
 
 /// What:
+///  The open of `/proc/self/setgroups` for its `deny` write is a skip when the
+///  host answers `EACCES`,
+///  which `proc_setgroups_open` gives when the capability it asks for inside the
+///  new user namespace is denied,
+///  and no other answer of that open or of the write is.
+#[test]
+fn the_setgroups_open_skips_only_its_eacces() {
+    assert!(
+        is_skip(
+            CompanionStep::Setgroups,
+            CompanionCall::OpenSetgroups,
+            libc::EACCES,
+            ENTRY_PRESENT
+        ),
+        "the capability the open asks for inside a new user namespace is what Ubuntu 24.04's profile denies"
+    );
+    for errno in [
+        libc::EPERM,
+        libc::ENOSPC,
+        libc::EINVAL,
+        libc::ENOMEM,
+        libc::EBUSY,
+        libc::ENOENT,
+    ] {
+        assert!(
+            !is_skip(
+                CompanionStep::Setgroups,
+                CompanionCall::OpenSetgroups,
+                errno,
+                ENTRY_PRESENT
+            ),
+            "errno {errno} at the setgroups open is not on the skip's list"
+        );
+    }
+    assert!(
+        is_skip(
+            CompanionStep::Setgroups,
+            CompanionCall::OpenSetgroups,
+            libc::EACCES,
+            ENTRY_ABSENT
+        ),
+        "the skip is the answer at the open, and the namespace entry says nothing about it"
+    );
+    assert!(
+        !is_skip(
+            CompanionStep::Setgroups,
+            CompanionCall::WriteSetgroups,
+            libc::EACCES,
+            ENTRY_PRESENT
+        ),
+        "the write asks for no capability, so an EACCES there is the companion's own defect"
+    );
+}
+
+/// What:
 ///  The mount namespace,
 /// the propagation and the scratch mount are skips for
 ///  the answers the design names,

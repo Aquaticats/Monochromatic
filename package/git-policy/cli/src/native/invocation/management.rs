@@ -393,10 +393,15 @@ fn run_convert(
 
 /// The doctor's filesystem section read from the running system,
 /// followed by its line about the repository's link to the
-/// 860 drive below the home the invocation names.
+/// 860 drive below the home the invocation names,
+/// and its report on the account companion's group drop.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(viewpoint: &CheckoutViewpoint<'_>) -> String {
-    return filesystem_section_with_link_line(viewpoint);
+    return format!(
+        "{}{}",
+        filesystem_section_with_link_line(viewpoint),
+        crate::account_companion::companion_group_drop_line::group_drop_line()
+    );
 }
 
 /// The doctor's filesystem section followed by its line about the repository's link to the 860 drive (plan item W15),
@@ -679,3 +684,6 @@ pub fn plan_management_with_section(
 #[cfg(test)]
 #[path = "management_tests.rs"]
 mod tests;
+
+// temporary layout probe
+const _LAYOUT_PROBE: Option<crate::account_companion::CompanionVerdict> = None;
