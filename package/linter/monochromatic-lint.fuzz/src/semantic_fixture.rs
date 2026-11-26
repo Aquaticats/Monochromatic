@@ -15,7 +15,12 @@ use ra_ap_hir::EditionedFileId;
 use ra_ap_ide_db::RootDatabase;
 use ra_ap_test_fixture::WithFixture;
 /// Import owned file identities and virtual paths.
-use ra_ap_vfs::{FileExcluded, FileId, Vfs, VfsPath};
+use ra_ap_vfs::{
+    FileExcluded,
+    FileId,
+    Vfs,
+    VfsPath,
+};
 
 /// Build one fixed,
 ///  dependency-free crate;
