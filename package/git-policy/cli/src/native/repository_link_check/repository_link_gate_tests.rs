@@ -245,6 +245,45 @@ fn an_unreadable_identity_file_lets_the_command_go_on() {
     remove(home.as_path());
 }
 
+/// What:
+///  An identity file that is a named pipe answers at once:
+///  the gate cannot use it,
+///  so it checks nothing and the command goes on.
+/// Why:
+///  Opening a pipe for reading waits for a writer that may never come,
+///  and this file is read on the start of every wrapped command,
+///  so one pipe at its name held every command with nothing said (issue 6415's shape,
+///  `SPEC.md` "Every file this wrapper reads from its own record folders is opened as a plain file").
+///  A pipe is not the identity, so the answer is the same one any unreadable identity earns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifoSync(join(home, '.config/monochromatic-dev/repository-link.json'), 0o600); expect(await finishedWithin(() => linkGate({ home, paths }))).toBe('clear');
+/// ```
+#[test]
+fn an_identity_file_that_is_a_named_pipe_lets_the_command_go_on_at_once() {
+    let home: PathBuf = fixture("link-gate-named-pipe");
+    let path: PathBuf = home.join(IDENTITY_RELATIVE_PATH);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("config folder");
+    crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600)
+        .expect("a named pipe where the identity file goes");
+    let inside: PathBuf = home.clone();
+    let answered = crate::test_support::finished_within(move || {
+        let probe: Arc<FixtureProbe> = probe_over(folder_world());
+        return link_gate_with_probe(probe, Some(inside.as_path()), &[PathBuf::from(LINK)]);
+    });
+    let Some(gate) = answered else {
+        panic!("the link gate waited on a named pipe instead of answering")
+    };
+    assert_eq!(
+        gate,
+        LinkGate::Clear,
+        "a pipe is no identity, so the gate names nothing to check and the command goes on"
+    );
+    assert!(path.exists(), "the pipe is left where it is");
+    remove(home.as_path());
+}
+
 /// A world in which the repository is ready on the 860 under the identity `write_identity` records in phase `after`.
 fn ready_world() -> World {
     let root: &str = "/mnt/860/repository/Monochromatic";

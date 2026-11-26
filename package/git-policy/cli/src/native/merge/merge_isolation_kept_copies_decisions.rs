@@ -835,7 +835,7 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// function mergesWhoseOwnerRuns(gitDir: string): string[]; // listMergeIntents().filter(isAlive).map(nameKey)
 /// ```
-fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
+pub(crate) fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
     let mut keys: Vec<String> = Vec::new();
     let Ok(records) = list_merge_intents(git_dir) else {
         return keys;
