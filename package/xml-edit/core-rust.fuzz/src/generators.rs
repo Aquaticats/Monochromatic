@@ -21,7 +21,11 @@
 /// ```ts
 /// import { Arbitrary, Unstructured } from 'arbitrary';
 /// ```
-use arbitrary::{Arbitrary, Result as ArbitraryResult, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Result as ArbitraryResult,
+    Unstructured,
+};
 
 /// Deepest element nesting the generator builds;
 /// the parser's own stack is iterative.
@@ -81,8 +85,28 @@ const PIECES: [&str; 8] = [
 
 /// Tokens the mutation helper splices into a document to reach rejection paths.
 const TOKENS: [&str; 22] = [
-    "<", ">", "</", "/>", "&", "&amp;", "&#", ";", "\"", "'", "<!--", "-->", "--", "<![CDATA[", "]]>", "<?", "?>",
-    "<!DOCTYPE", "=", "\r", "\u{0}", "\u{FEFF}",
+    "<",
+    ">",
+    "</",
+    "/>",
+    "&",
+    "&amp;",
+    "&#",
+    ";",
+    "\"",
+    "'",
+    "<!--",
+    "-->",
+    "--",
+    "<![CDATA[",
+    "]]>",
+    "<?",
+    "?>",
+    "<!DOCTYPE",
+    "=",
+    "\r",
+    "\u{0}",
+    "\u{FEFF}",
 ];
 
 /// What:
@@ -202,7 +226,9 @@ impl Arbitrary<'_> for GeneratedDocument {
         if unstructured.ratio(1, 2)? {
             source.push_str(eol);
         }
-        return Ok(GeneratedDocument { source });
+        return Ok(GeneratedDocument {
+            source,
+        });
     }
 }
 
@@ -216,7 +242,10 @@ impl Arbitrary<'_> for GeneratedDocument {
 /// ```ts
 /// function boundary(text: string, offset: number): number;
 /// ```
-fn boundary(text: &str, offset: usize) -> usize {
+fn boundary(
+    text: &str,
+    offset: usize,
+) -> usize {
     let mut index: usize = offset;
     while index < text.len() && !text.is_char_boundary(index) {
         index += 1;
@@ -236,7 +265,10 @@ fn boundary(text: &str, offset: usize) -> usize {
 /// ```ts
 /// function mutated(source: string, u: Unstructured): string;
 /// ```
-pub fn mutated(source: &str, unstructured: &mut Unstructured<'_>) -> ArbitraryResult<String> {
+pub fn mutated(
+    source: &str,
+    unstructured: &mut Unstructured<'_>,
+) -> ArbitraryResult<String> {
     let start: usize = boundary(source, unstructured.int_in_range(0..=source.len())?);
     let length: usize = unstructured.int_in_range(1..=8)?;
     let end: usize = boundary(source, std::cmp::min(source.len(), start + length));
