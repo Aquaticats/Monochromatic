@@ -1,5 +1,6 @@
 //! What:
-//!  One group of a batch, landed:
+//!  One group of a batch,
+//! landed:
 //!  its trees,
 //!  its admission to the landing board,
 //!  the landing itself,
@@ -62,9 +63,11 @@ use std::time::Duration;
 /// type TheGroupLanding = 'landed' | 'the-stop-began';
 /// ```
 pub enum TheGroupLanding {
-    /// The group was landed or dropped, and the loop goes on with the next group.
+    /// The group was landed or dropped,
+    /// and the loop goes on with the next group.
     Landed,
-    /// The shutdown began, so nothing more lands.
+    /// The shutdown began,
+    /// so nothing more lands.
     TheStopBegan,
 }
 

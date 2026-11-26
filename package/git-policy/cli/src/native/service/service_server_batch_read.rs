@@ -1,5 +1,6 @@
 //! What:
-//!  One arrived batch of requests, read:
+//!  One arrived batch of requests,
+//! read:
 //!  the withdrawals their clients sent answered before anything lands,
 //!  the identities of withdrawn requests remembered so they can never land,
 //!  and the commits grouped by branch in the order of their first arrival.
@@ -84,7 +85,9 @@ pub(super) fn answer_the_withdrawals(
 
 /// What one arrived batch is once its jobs are read.
 /// Why:
-///  The loop needs the groups, whether the service was asked to retire, and how many commits it was asked to land.
+///  The loop needs the groups,
+/// whether the service was asked to retire,
+/// and how many commits it was asked to land.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
