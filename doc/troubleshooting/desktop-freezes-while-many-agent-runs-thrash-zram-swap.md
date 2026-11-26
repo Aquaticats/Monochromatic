@@ -1455,6 +1455,12 @@ the means span hours and the 5 s sample fell between runs.
 A sampler records the minute after each run's start and a control minute 150 s later, for three hours from 20:31,
 in `~/temp/agent/zram-writeback-stall-sampling-2026-11-25/keep/writeback-runs-and-control-minutes.log`,
 so the next heavy runs real load brings are measured against their own control.
+By 21:09 it held seven runs, which wrote between 56 thousand and 1.4 million pages each (`bd_stat` writes 43211870 at 20:34:03 to 46312496 at 21:04:17).
+Over the 467 sampled seconds of run minutes, IO "full" avg10 averaged 1.89 against 0.50 over 420 seconds of control minutes, and memory "full" 1.11 against 0.43;
+the old drive was 45% busy against 15%, and 90 to 99% busy in the seconds a run wrote 47 to 68 MiB/s, when IO "full" read 2.2 to 2.4.
+The largest reading, IO "full" 42.16 at 21:03:52, fell inside the run that ended 21:04:17 but in a second when the partition wrote nothing and the old drive was 3% busy,
+so the drive's own writes do not explain it; what does is not measured (one reading: the writeback holding zram1 while swap-ins wait on it, which these counters cannot show).
+Control minutes peaked at 5.17.
 
 A misreading to avoid: `systemctl --user show <scope> --property=MemoryMax` prints `infinity` for a scope that has already
 ended, because it reports defaults for a unit it no longer has;
