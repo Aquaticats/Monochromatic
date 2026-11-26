@@ -198,6 +198,114 @@ which the fallback would have to clear first:
   (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
   and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
 
+## The Mac client, probed read-only over `ssh m1` (2026-11-25T18:50:01-05:00)
+
+- macOS 27.2 on arm64;
+  `kern.maxfiles: 122880`,
+  `kern.maxfilesperproc: 61440`,
+  `launchctl limit maxfiles` soft 256 and hard unlimited,
+  `ulimit -n` 256.
+  directory-watcher's kqueue backend needs about 11786 descriptors for a tree the size of this PC's `~/Plain`:
+  under the per-process ceiling,
+  far over the default soft limit,
+  so a LaunchAgent for it would have to raise its own soft limit.
+- `~/Plain` exists there,
+  and `launchctl list` shows `cat.aquati.rclone-bisync-garage` loaded with last exit status 7,
+  the status bisync exits with when it aborts.
+  Read at 2026-11-25T18:51:49-05:00 on the owner's go-ahead:
+  every run since the agent's log began (2026-09-14 16:00, 682 runs) aborted
+  with "cannot find prior Path1 or Path2 listings",
+  none succeeded,
+  and `~/Library/Caches/rclone/bisync/` is empty;
+  recorded in `doc/handover/garage-file-sync.md` "Client check (macOS, `ssh m1`)".
+
+## Owner answers, round 6 (2026-11-25T18:51:49-05:00)
+
+- onchange exits: its per-event queue meets the round 3 wording but not its purpose.
+- modd exits on the provenance gate; building it from source was declined.
+- The Mac's failing agent was read, not changed (see the Mac client section).
+- directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
+
+## Trigger call mode measured (2026-11-25T19:48:30-05:00)
+
+Under systemd 262 in the `docker.io/cachyos/cachyos:latest` container,
+with an 8-second stand-in sync and a trigger oneshot ordered `After=` it whose step is
+`systemctl start --no-block` of the sync,
+every request sent as `systemctl start --no-block` of the trigger:
+
+- one request with no sync running started one sync;
+- five more requests during that sync, a second apart, gave exactly one follow-up sync,
+  started 54 ms after the first ended;
+  a request after it went idle started one more;
+- a sync started directly (the timer's path) plus two requests during it gave exactly one follow-up.
+
+So with non-blocking requests systemd merges every request that lands during a sync into one pending follow-up,
+and the watcher's hook returns at once.
+directory-watcher's own queue would otherwise add one run per batch window during a long sync
+("runs from different waits are never merged", `docs/guide/running.md:51` at `v3.2.1`),
+and past `queue.size` (2048) the watcher stops with `dispatch queue full` (`:93-95`);
+bisync's own downloads rename `.partial` files to final names inside the watched tree,
+so a long download run would feed that queue.
+
+## Watcher recommendation (2026-11-25T19:44:55-05:00)
+
+The vet recommends directory-watcher 3.2.1;
+see the vet report sections "Finalist validation" and "Recommendation".
+Measured on Linux with the design's trigger shape:
+one edit gives one sync about 2 s later (2000 ms batch wait),
+an edit during a sync gives exactly one more,
+a timer-started sync is waited out,
+`touch` and `chmod` start nothing (so the settle pass's mtime stamp starts no extra run),
+and `.partial` downloads start nothing until renamed.
+Not adopted yet.
+
+## Owner answers, round 7 (2026-11-25T19:51:58-05:00)
+
+- Watcher:
+  adopt directory-watcher 3.2.1,
+  installed through the repository toolchain (`toolchain.plan.jsonc`, then `mise run toolchain:update`);
+  its decision record is written when the work is implemented.
+- Call mode:
+  the watcher's hook runs `systemctl --user start --no-block` of the trigger unit,
+  and the trigger runs `systemctl --user start --no-block` of the sync unit,
+  so requests during a sync merge into one follow-up (measured, "Trigger call mode measured").
+- Quiet period:
+  `hookBatch.waitMillisecond` 2000.
+- Alerts:
+  one desktop alert on the first failure of a streak and one on the next success,
+  by changing `~/.local/bin/rclone-bisync-garage-alert.ts` to remember the last state;
+  the watcher unit gets the same `OnFailure=` alert and `Restart=on-failure`.
+- Timeout:
+  `TimeoutStartSec=3000` stays on the sync unit.
+- Config home:
+  the unit files and the watcher config have their sources in the repository,
+  written to `~/.config` by file-enforcer's per-user rules;
+  if no rule kind fits, that is a change to file-enforcer,
+  or the runbook stays the source and the owner is told.
+- The Mac:
+  compare its `~/Plain` with the bucket read-only first,
+  then the owner decides on a `--resync`.
+
+## Names the watcher would skip by default (2026-11-25T19:51:58-05:00)
+
+directory-watcher excludes names starting with `.` or `_` unless re-included
+(vet record GW-19, `docs/guide/configuration.md` at `v3.2.1`).
+`find ~/Plain -mindepth 1 \( -name '.*' -o -name '_*' \)` counted 168 such entries,
+among them app data folders whose edits matter (a notes app's settings folder, an e-reader's position folder).
+Round 1's answer "every folder, including folders created later" decides it:
+the watcher config re-includes these names.
+Adopted unless the owner vetoes.
+
+## The Mac recovered (2026-11-25T20:04:52-05:00)
+
+The owner chose the bucket as the golden copy;
+the Mac's 214 Mac-only files were moved aside and its 12 differing files copied aside,
+then a `--resync` and a normal agent run both succeeded
+(`doc/handover/garage-file-sync.md`, "Client check (macOS, `ssh m1`)").
+The Mac writes to the bucket again,
+so the bucket now has two writers,
+and its agent still lacks `--conflict-resolve newer` and the settle pass.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),

@@ -28,7 +28,11 @@ use crate::hooks_off::StartOwner;
 use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::class_of;
-use crate::child_watch::{StepBound, WatchTerms, output_watched_within_for_a_stop};
+use crate::child_watch::{WatchTerms, output_watched_within_for_a_stop};
+/// The bound of a step,
+/// which the controls of the steps' bounds still ask.
+#[cfg(test)]
+use crate::child_watch::StepBound;
 /// The request,
 /// reply and failure types and the text of a command line,
 /// re-exported so `crate::transaction_git::GitRequest`
@@ -37,9 +41,14 @@ pub use crate::transaction_git_request_and_reply_types::{GitContext, GitFailure,
 /// The rules for which steps may be run again or ended,
 /// re-exported under the path they had in this file.
 pub(crate) use crate::transaction_git_step_rerun_and_end_rules::{NO_REFLOG_SETTING, subcommand_of};
-use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, may_be_rerun};
-/// The bound of a step,
-/// and the test-only shortened bounds of the current thread.
+use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
+/// The step both faces start,
+/// what it answers once it ended,
+/// and how one start's answer is read.
+use crate::transaction_git_step_about_to_start::{StepAboutToStart, answer_of_a_start, start_failure, step_about_to_start, step_finished, step_is_run_again};
+/// The bound a step is given,
+/// which the step's own preparation reads and the controls of the bounds still ask.
+#[cfg(test)]
 use crate::transaction_git_step_bounds::step_bound;
 #[cfg(test)]
 pub(crate) use crate::transaction_git_step_bounds::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
@@ -57,8 +66,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 /// `Command` builds a child process;
 ///  `Stdio` configures its streams.
-use std::io::Write;
-use std::process::{Command, Stdio};
+/// `Command` builds a child process.
+use std::process::Command;
 /// A span of time,
 /// for the bounded rerun.
 use std::time::Duration;
@@ -235,6 +244,7 @@ pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
         && String::from_utf8_lossy(output.stderr.as_slice()).contains("Resource temporarily unavailable");
 }
 
+
 /// What:
 ///  Run one request,
 /// running it again within the budget when Git reports a refused process or thread
@@ -278,32 +288,52 @@ fn run_git_pausing(
 /// a refusal is told to the retry as `WouldBlock` and the output that carried it is kept
 ///  here,
 /// so that after the budget the caller can return Git's own last words.
+///  Both faces start this one value:
+/// the synchronous face below,
+/// and the awaited face (`transaction_git_awaiting.rs`),
+///  so neither can keep a different part of a refused run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class RefusableGitRun implements RefusableStart<GitOutput> { refused?: GitOutput; start() {} }
 /// ```
-struct RefusableGitRun<'a> {
+pub(crate) struct RefusableGitRun<'a> {
     /// The Git program and the directories the run uses.
-    context: &'a GitContext,
+    pub(crate) context: &'a GitContext,
     /// What to run.
-    request: &'a GitRequest,
+    pub(crate) request: &'a GitRequest,
     /// The last output Git gave when the system refused it a process.
-    refused: Option<GitOutput>,
+    pub(crate) refused: Option<GitOutput>,
 }
 
 impl RefusableStart<GitOutput> for RefusableGitRun<'_> {
     fn start(&mut self) -> std::io::Result<GitOutput> {
-        let output: GitOutput = match run_git_once(self.context, self.request) {
+        // What:     `match run_git_once(...)` opens the run's answer: the output Git gave, or the failure that ended it.
+        // Why:      The two are read differently, and a failure is turned into the retry's own shape before it travels.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const finished = attempt(() => runGitOnce(context, request));
+        // ```
+        let finished: GitOutput = match run_git_once(self.context, self.request) {
             Ok(finished) => finished,
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Err(std::io::Error::other(error)),
-            Err(error) => return Err(error),
+            // What:     `start_failure(error)` makes a refusal the retry waits out, and hands any other failure on.
+            // Why:      The awaited face reads this start the same way, and the rule is `start_failure`'s.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // Err: return fail(startFailure(error));
+            // ```
+            Err(error) => return Err(start_failure(error)),
         };
-        if refused_by_the_system(&output) {
-            self.refused = Some(output);
-            return Err(std::io::Error::from(std::io::ErrorKind::WouldBlock));
-        }
-        return Ok(output);
+        // What:     `answer_of_a_start(...)` keeps a refused run's output and tells the retry to ask again.
+        // Why:      The rule of one start's answer is shared with the awaited face.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return answerOfAStart(this.refused, finished);
+        // ```
+        return answer_of_a_start(&mut self.refused, finished);
     }
 }
 
@@ -406,17 +436,13 @@ fn run_git_once_with(
     let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms.terms());
     return match first {
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !crate::child_watch::is_ceiling(&error) => {
-            // Terminal output error: a notice is advisory; a failed write must not stop the commit.
-            let _written = writeln!(
-                std::io::stderr(),
-                "monochromatic-git-policy-cli: {} showed no sign of work and was ended; running it again",
-                step_subject(request)
-            );
+            step_is_run_again(request);
             run_git_watched(context, request, terms.terms())
         }
         other => other,
     };
 }
+
 
 /// How a request names itself in notices and in the sentence of a step that was ended:
 /// the command and the kind of step.
@@ -440,37 +466,43 @@ pub(crate) fn step_subject(request: &GitRequest) -> String {
 /// await runWatched({ gitPath, cwd, args, terms, stoppable: mayBeRerun(request) })
 /// ```
 fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms) -> std::io::Result<GitOutput> {
-    let mut command: Command = build_command(context, request);
-    match &request.input {
-        Some(bytes) => {
-            command.stdin(Stdio::from(input_file(bytes.as_slice(), context.common_dir.as_deref())?));
-        }
-        None => {
-            command.stdin(Stdio::null());
-        }
-    }
-    // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
-    let subject: String = step_subject(request);
-    let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    let bound: StepBound = step_bound(request);
-    // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
-    let _recorded = if matches!(bound, StepBound::Unbounded) {
-        crate::service_busy_step_record_on_this_thread::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
-    } else {
-        None
-    };
-    // The step is written down whatever its outcome: a step that failed or was ended spent its time too.
-    let began: std::time::Instant = std::time::Instant::now();
-    // A stop of the service lets the branch write finish (owner, 2026-11-08, "B: let a branch write finish (Recommended)").
-    let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
-    let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish, request.started_child.as_ref());
-    crate::transaction_step_durations::note_step_asked(ledger_step.as_str(), request.arguments.as_slice(), began, began.elapsed());
-    let output: std::process::Output = watched?;
-    return Ok(GitOutput {
-        code: output.status.code(),
-        stdout: output.stdout,
-        stderr: output.stderr,
-    });
+    // What:     `step_about_to_start(...)` makes everything the step needs before it starts: the child command, its input,
+    //           the words that name it, its watch terms, its bound and its record.
+    // Why:      The awaited face makes the same value, so a step cannot be started with a different bound or a different name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const step = stepAboutToStart({ context, request, terms });
+    // ```
+    let mut step: StepAboutToStart = step_about_to_start(context, request, terms)?;
+    // What:     `output_watched_within_for_a_stop(...)` starts the step on this thread and reads its output,
+    //           ending it at its ceiling or when a stop asks;
+    //           it answers the child's `Output`, or the failure that kept the child from starting.
+    // Why:      This is the whole difference between the two faces: the awaited one waits for the same step on the runtime.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const watched = outputWatchedWithinForAStop(step.command, step.subject, step.ledgerStep, step.terms, step.stoppable, step.bound, step.aStopLetsItFinish, request.startedChild);
+    // ```
+    let watched: std::io::Result<std::process::Output> = output_watched_within_for_a_stop(
+        &mut step.command,
+        step.subject.as_str(),
+        step.ledger_step.as_str(),
+        step.terms,
+        step.stoppable,
+        step.bound,
+        step.a_stop_lets_it_finish,
+        request.started_child.as_ref(),
+    );
+    // What:     `step_finished(&step, request, watched?)` writes the step into the ledger and turns the child's output into
+    //           the answer a caller reads; the `?` hands a start failure on and skips the ledger, as the synchronous face did.
+    // Why:      The ledger entry and the answer are the awaited face's too, and they are written in one place.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return stepFinished(step.ledgerStep, request, step.began, watched);
+    // ```
+    return Ok(step_finished(step.ledger_step.as_str(), request, step.began, watched?));
 }
 
 /// What:
