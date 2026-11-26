@@ -228,9 +228,20 @@ fn glob_reexports(
         );
         shapes.entry(shape).or_default().push(index);
     }
-    for nodes in shapes.values() {
+    // What: the shapes in the order of the module node each one starts at.
+    // Why: a finding belongs where the tree first reads the file that holds it,
+    // and a file that two `mod` declarations reach is still read once.
+    let mut order: Vec<&(PathBuf, Vec<usize>)> = shapes.keys().collect::<Vec<_>>();
+    order.sort_by_key(|shape| shapes.get(*shape).and_then(|found| found.first().copied()));
+    for shape in order {
+        // What: every node of this shape, which is every context the file is read in.
+        // Why: a glob can resolve in one context and not in another, so every one of them is asked.
+        let nodes: &Vec<usize> = match shapes.get(shape) {
+            Some(found) => found,
+            None => continue,
+        };
         // What: the one finding of each glob of this shape,
-        // keyed by where its source path starts, what it names and how many earlier globs of that line name the same module.
+        // keyed by where its source path starts, what it names and how many globs before it name the same module.
         // Why: the same glob read in the two contexts of one file is one finding,
         // and two globs on one line, or on two lines, keep one finding each.
         let mut found: BTreeMap<(usize, String, usize), LayoutFinding> =

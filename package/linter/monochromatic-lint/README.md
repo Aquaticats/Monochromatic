@@ -1387,7 +1387,7 @@ What a hand-written line can and cannot hide:
   so no line recorded from `--debug` can hold one,
   and only a hand-written `uses` line for every use of that loop can,
   which the point above already covers.
-  A use written in a group's own file is the exception above,
+  A use written in a group's own file is the exception,
   and its line is the one a round writes.
 
 Which package a list belongs to is the rule's file,
