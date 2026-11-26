@@ -55,11 +55,13 @@ fn a_repository(name: &str) -> PathBuf {
 ///  and a registration Git made is one Git's own housekeeping keeps:
 ///  a directory made by hand is no worktree entry,
 ///  so the housekeeping `git commit` starts in the same repository prunes it,
-///  `index.pending` with it (measured 2026-11-26: gone 1.237 ms after the commit
-///  returned, in one run of ten, which failed this file's two controls beside other
-///  modules; issue 6518).
-///  The words are the add's own: `--no-checkout` leaves no index at the worktree's
-///  name, and `--lock` is the lock the route takes for its registration.
+///  `index.pending` with it.
+///  The pruner ran 1.237 ms after a fixture's commit returned,
+///  in one run of ten,
+///  and failed this file's two controls beside other modules (issue 6518).
+///  The words are the add's own:
+///  `--no-checkout` leaves no index at the worktree's name,
+///  and `--lock` is the lock the route takes for its registration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,19 +182,21 @@ fn an_index_that_is_no_index_refuses() {
 }
 
 /// What:
-///  The repository's own housekeeping, which `git commit` starts in the background,
+///  The repository's own housekeeping,
+///  which `git commit` starts in the background,
 ///  leaves the private index standing and takes a registration made by hand beside it.
 /// Why:
 ///   `git maintenance run --auto` runs `git worktree prune --expire 3.months.ago`,
 ///  and that removes a `worktrees/<name>` directory Git did not make,
 ///  taking `index.pending` with it:
-///  the pruner ran 1.237 ms after a fixture's commit returned, in one run of ten,
+///  the pruner ran 1.237 ms after a fixture's commit returned,
+///  in one run of ten,
 ///  and failed this file's two controls beside other modules (issue 6518).
-///  A registration Git made is an entry the prune keeps, so this control refuses a
-///  fixture that goes back to a directory made by hand.
+///  A registration Git made is an entry the prune keeps,
+///  so this control refuses a fixture that goes back to a directory made by hand.
 ///  The hand-made registration beside it is the proof that the prune ran at all:
-///  without it, a standing registration would say nothing about a housekeeping that
-///  never reached this repository.
+///  without it,
+///  a standing registration would say nothing about a housekeeping that never reached this repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
