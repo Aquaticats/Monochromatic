@@ -519,6 +519,23 @@ the four module runs answered
 `source_guard::` `ok. 141 passed; 0 failed`;
 and the locked linter (`monochromatic-lint` 0.5.2-alpha.15) found no `rust/folder-uses-links` and no
 `rust/file-order-in-folder` finding over this package.
+Beside this cause,
+the rest of the `commit/` folder is still red in a threaded run for the same shape in other ledgers the timing
+record drains:
+two runs of the whole `commit::` filter answered
+`test result: FAILED. 464 passed; 10 failed` and `FAILED. 463 passed; 11 failed`,
+and the failures are
+`commit::commit_index_builds::tests` (3 followed by 4),
+`commit::commit_prepare_part_durations::tests` (2 and 2),
+`commit::commit_build_part_durations::tests` (1 and 2),
+`commit::commit_preparation::tests` (2 and 2) and
+`commit::native_commit_waiting_notice::tests` (2 and 2,
+which may be the descriptor limit of mechanism 3b rather than a ledger).
+The index-builds ledger alone failed 5 of its 11 controls in a threaded run of its own module,
+and 3 of them in one process that had run one preparation first,
+which is the shape this round fixed for the spans ledger.
+This round fixed the ledger the issue named;
+those sites stay measured and unfixed.
 Status:
 incomplete,
 unapproved and not final.

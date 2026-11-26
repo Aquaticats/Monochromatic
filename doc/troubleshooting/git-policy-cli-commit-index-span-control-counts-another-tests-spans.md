@@ -88,3 +88,10 @@ The child that hang left behind is worth its own line: the watchdog aborted the 
 `git add --interactive` it had started kept the run's output pipe open, so the capped scope around the run stayed
 alive for 21 minutes after the abort and was stopped by hand. A control whose body runs in a child of the test
 binary ends with that child (`spawn_owned`), which is the other half of why the controls above run there.
+
+The same shape sits beside this one and is not fixed here: two threaded runs of the whole `commit::` filter
+answered `464 passed; 10 failed` and `463 passed; 11 failed` on 2026-11-26, in
+`commit::commit_index_builds::tests`, `commit::commit_prepare_part_durations::tests`,
+`commit::commit_build_part_durations::tests`, `commit::commit_preparation::tests` and
+`commit::native_commit_waiting_notice::tests`, each reading a ledger of its own that the same process fills.
+Item 3 of `package/git-policy/cli/doc/debt-ledger-2026-11-25.md` carries those counts.
