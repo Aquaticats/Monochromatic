@@ -391,7 +391,9 @@ The decision and its consequences are recorded in `doc/decision/rust-closure-lin
 
 The rule is enabled by naming it in configuration,
 with the directory of the Dylint library in its `library` option,
-relative to the configuration file:
+relative to the directory the configuration is read from
+(the folder holding a discovered configuration file,
+or the working directory for `--config`):
 
 ```jsonc
 // monochromatic-lint.config.jsonc
@@ -912,13 +914,15 @@ so a finding is never reported twice.
 - A group's own code owes its group no summary and makes no edge of the entry graph:
   the finding above reports the file that holds it,
   and a group's summary is what its child folders use.
-  A `uses` line naming a use written in a group's own file therefore tolerates nothing,
-  unless a loop of folders holds that use.
-  The loop of folders does still see the use:
-  the group folder is a folder of the package,
-  so a use from its own file into a folder that uses the group back is reported as a loop of folders.
-  It joins no loop of entries,
-  and no `uses` link is owed for it.
+  A `uses` line naming a use written in a group's own file therefore tolerates nothing.
+  A use from that file is still reported as a loop whenever it closes one:
+  the loop of folders reports it while the two folders sit in one folder loop
+  (a use added inside a loop the list already tolerates is reported the same way),
+  and the entries are searched back from the folder it uses,
+  so a use that makes the group and another entry use each other is reported
+  even when no folder loop holds the two.
+  That last finding carries no key,
+  and no `uses` link is owed for any of these uses.
 - A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
   and no other link.
   A folder inside the group uses an entry when the folder's code names a folder of that entry
@@ -1004,13 +1008,29 @@ Findings:
   for example when a `#[path]` declaration in another folder names them;
   when the module tree itself must read the index to find them,
   an unreadable index ends the package with a `core/processing-failure` naming it instead.
+  A `mod.rs` that no `mod` line declares is therefore read only when it cannot be read:
+  a readable one is no part of the package,
+  so it is no folder's index,
+  it moves no key,
+  it hides no code check of the folder's real index,
+  and it makes no group of the folder around it.
+  Such a file gets no layout finding at all;
+  the per-file rules still lint it like any other source file the walk selects.
 - A file's name holds a space,
   which a `#[path]` attribute can declare.
   The finding names the file and its folder,
-  its key names only the folder (`space-in-file-name src`),
-  and the file stays out of the list and loop checks until it is renamed,
-  because a key and a `file-uses` line separate their words by spaces
-  and could not name it without ambiguity.
+  and its key names both (`space-in-file-name src/m p q.rs`),
+  so a line recorded for it never tolerates a file renamed later.
+  A key line is read as its whole text and names such a file exactly,
+  so the file stays in every list,
+  loop and order check:
+  a loop through it is reported,
+  and its missing list entry is reported under a key that names it.
+  What such a name does forbid is a `file-uses` line,
+  which separates its words by spaces,
+  so a loop through that file cannot be tolerated:
+  the file is renamed,
+  or the loop is untangled.
 - An index file holds code (see "Index files hold only the index").
 - The top doc has no file list,
   and a doc with no list then reports every file of its folder as missing from the list,
@@ -1164,8 +1184,10 @@ and the rule then tolerates exactly the entries of that list:
 }
 ```
 
-The path is relative to the configuration file's directory,
-the same way the closure check's `library` is.
+The path is relative to the directory the configuration is read from:
+the folder holding a discovered `monochromatic-lint.config.jsonc`,
+or the working directory for one named by `--config`,
+which is also the base of that configuration's file patterns.
 A run whose list cannot be read fails with a `core/processing-failure` finding naming the list,
 because a rule checked without its list would report every finding it tolerates.
 A list is read only when it is a regular file of at most one mebibyte,
@@ -1192,8 +1214,13 @@ never absolute and never climbing out with `..`,
 and no line may repeat another.
 A `.` segment and a trailing separator are read away,
 so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the second line for it is refused.
-A `uses` or `file-uses` path that holds a backslash is refused too,
+A `uses` path that holds a backslash is refused too,
 because a key writes `/` on every machine and a backslash would name a folder no finding names.
+The two file words of a `file-uses` line are read as written,
+backslash and all,
+because a file name is not a path:
+a key about a file keeps that name exactly,
+so such a line names the file it spells.
 A line that is a key may hold a backslash,
 because a macro call's key keeps the escapes of its arguments as the source writes them:
 such a line is read as the key it spells,
@@ -1254,12 +1281,22 @@ Every key names exactly one finding:
   such as `link src/a/uses/b broken`,
   because one entry can go wrong in ten ways.
 - A key about a file or a folder writes its path relative to the package folder,
-  and a module file outside the package,
+  and the package folder itself is written `.`,
+  so `no-top-doc .` and `missing-link . -> sub` name it,
+  and no key ends in the space a list reader trims away.
+  A module file outside the package,
   which a `#[path]` attribute can declare,
   is written by the walk from the package folder:
   `missing-entry ../outside x.rs`.
   No key holds an absolute path,
-  so a key line reads the same in every checkout.
+  so a file inside the package folder reads the same in every checkout.
+  A file outside the repository is named from the package folder,
+  so its `..` count is the distance between the two folders:
+  the same in every checkout of one repository,
+  and different when the same outside file is named from a package at another depth.
+  A `uses` line cannot name such a folder either,
+  because an entry never climbs out of the package with `..`,
+  so a loop through a folder outside the repository is reported and cannot be tolerated.
 - Two findings a rule still cannot tell apart,
   such as two blocks of one type that declare the same members
   or two glob re-exports of one module,
@@ -1324,7 +1361,8 @@ a folder whose top doc cannot be read reports a new line per file it holds,
 and two `uses` shapes that alpha.10 held are no longer tolerated,
 so a list written for alpha.10 needs one regeneration,
 and every other line stays as it is.
-A list written before alpha.10 first needs the mapping in that release's note.
+A list written before alpha.10 predates both of those shapes,
+so it is regenerated from a `--debug` run rather than mapped here.
 
 - An `impl` block's key gained the members it declares,
   sorted and separated by spaces:
@@ -1372,23 +1410,59 @@ and `uses-unlistable`.
 
 #### How a list written before alpha.12 maps
 
-No key shape changed between alpha.11 and alpha.12,
-and this repository's two lists need no edit.
-Measured on 2026-11-26 against `main`'s `package/git-policy/cli`:
-both releases report the same 2,008 layout findings and the same 1,939 keys,
+alpha.12 changed key shapes that `main`'s tree does not hold,
+so this repository's two lists needed no edit,
+and a measurement on 2026-11-26 against `main`'s `package/git-policy/cli` confirmed it:
+alpha.11 and alpha.12 report the same 2,008 layout findings and the same 1,939 keys,
 and with the repository's own configuration and the committed lists both report none.
-Two finding shapes are new,
-and neither occurs in this repository's tree:
+A tree that holds one of the shapes below needs one regeneration:
 
-- A module file whose name holds a space is reported once,
-  keyed `space-in-file-name <folder>`,
-  and the file stays out of the list and loop checks until it is renamed.
 - Two glob re-exports written on one line are two findings,
   so a line naming only the first no longer tolerates the second.
+- A module file that two `mod` declarations reach,
+  such as the shared modules of a library and an executable,
+  reported each of its globs twice,
+  keyed `glob` and `glob#2`,
+  where alpha.11 reported one finding.
+- A `mod.rs` that no `mod` line declares was read as its folder's index,
+  so a leftover file moved that folder's keys onto itself,
+  hid the code check of the folder's real index,
+  and could turn the crate-root folder into a group.
+- A key about a module file in the package folder itself ended in a space,
+  which no list line can hold,
+  and a key about a `#[path]` module outside the package held an absolute path
+  where it now writes the walk from the package folder (`missing-entry ../outside x.rs`).
 
-A key about a `#[path]` module outside the package now writes the walk from the package folder
-(`missing-entry ../outside x.rs`) instead of an absolute path,
-so a line that held an absolute path is dead and is rewritten relative.
+#### How a list written before alpha.13 maps
+
+A tree that holds one of these shapes needs one regeneration,
+and every other line stays as it is.
+
+- A module file that two `mod` declarations reach is one module,
+  so each glob re-export in it is one finding,
+  keyed `glob`,
+  and a `glob#2` line written for the second report is dead.
+- A key about the package folder itself is written `.`:
+  `no-top-doc .`,
+  `missing-entry . x.rs`,
+  `missing-link . -> sub`.
+  A key that ended in a space could not be written on any line,
+  so such a finding was never tolerated.
+- A file whose name holds a space is keyed `space-in-file-name <folder> <file>`.
+  The file stays in the list,
+  loop and order checks,
+  so its folder also reports a missing list entry for it,
+  and a loop through it is reported and cannot be tolerated.
+- A `mod.rs` that no `mod` line declares is no longer its folder's index:
+  the folder goes back to its own index,
+  or reports `no-top-doc` when it has none,
+  and the keys of that folder move with it.
+- A use written in a group's own file that makes its group and another entry use each other
+  is a loop finding with no key,
+  so a tree that holds such a use needs the use removed rather than a line recorded.
+- A configuration naming `max-image-bytes` at or above 2^64
+  is refused with the largest accepted value in the message,
+  which costs no list line.
 
 ### Known limits
 
@@ -1424,6 +1498,13 @@ so a line that held an absolute path is dead and is rewritten relative.
 - A module that a macro declares is not seen.
 - The rules cannot see a use through a trait method or a type alias that never names the module.
 - `/*! ... */` top docs are not read.
+- A folder whose name holds a space can be reported but not tolerated:
+  `missing-link src/a b -> src/c` is a key line,
+  while `uses src/a b -> src/c` cannot be read as four words.
+  Only a module file name is refused with `space-in-file-name`,
+  and only for the space character itself:
+  a tab or a no-break space in a module file name is keyed as written,
+  and no `file-uses` line can name that file either.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.
@@ -1621,14 +1702,14 @@ so a reader who needs the rule's coverage would have to exclude the whole Markdo
 The largest bound the option takes is 18446744073709551614,
 one less than the largest value of the unsigned 64-bit word it is read under.
 The reader reads one byte past the bound,
-so it can tell an image of exactly the bound from one that grew after the rule looked,
+so it can tell an image of exactly the bound from one that is over it,
 and a bound of 18446744073709551615 has no byte past it.
 A configuration naming a larger bound is refused when it loads,
 with a message naming `max-image-bytes` and that largest value,
 and the run stops before any file is read.
 The other repair,
 reading the bound without the extra byte,
-was rejected because the extra byte is what refuses an image that grew:
+was rejected because the extra byte is what refuses an image over the bound:
 without it the rule would hash the first bound's worth of a larger file and rewrite the link to the wrong object id.
 Refusing the value is also what a release build needs:
 with overflow checks off,
