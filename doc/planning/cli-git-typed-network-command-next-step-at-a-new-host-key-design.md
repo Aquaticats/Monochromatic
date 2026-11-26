@@ -408,6 +408,17 @@ which the second question under "The owner's question" either pays on every comm
   plus `+0.85 ms` if the remote is read first, so about `1.6 ms` on every typed network command.
   On the typed path it is `+5.44 ms` against a floor whose own twin differs by `-8.59 ms`,
   inside this harness's noise.
+  (Corrected 2026-11-26T13:00-05:00:
+  this figure did not hold for the shipped relay.
+  The terminal shape kept the pseudo-terminal's slave open in the wrapper after Git started,
+  so the master never reported Git's end and the read noticed it only at its next `poll` slice:
+  the alpha.47 release pass measured the relay at `114.9 ms` against `21.1 ms` for the same wrapper on a remote it does
+  not relay, 25 interleaved rounds, median `+93.8 ms`
+  (`e11-relay-added-latency-pty-vs-pipe-interleaved.txt` in the alpha.47 release pass's `keep/evidence/`,
+  `~/temp/agent/wrapper-alpha-47-release-review-the-rest-2026-11-26/`).
+  The relay now closes its own handle on that stream before it waits,
+  and the same comparison in one interleaved run of 25 rounds measured `+0.1 ms` at a terminal and `+0.3 ms` in the
+  pipe shape.)
 - K: `+0.85 ms`, range `-2.73` to `+2.61`, 20 of 24, plus the same `+0.85 ms`, so about `1.7 ms`;
   against C in the same rounds it is `+0.16 ms`, range `-1.68` to `+1.80`, 13 of 24,
   which this harness cannot tell from no difference.
