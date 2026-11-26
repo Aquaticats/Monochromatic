@@ -477,9 +477,9 @@ and the pressure of the day does not move it:
    measured on the real arm
    in one run.
 2. A default 8 GiB guest that builds the crate inside itself:
-   8.16 GiB peak charge in the first
-   round,
-   one run.
+   7.98 GiB peak charge here,
+   one run
+   (8.16 GiB in the first round's default guest).
 3. An 8 GiB guest with reporting on:
    8.20 GiB peak charge in the first round,
    one run;
@@ -911,7 +911,7 @@ ready to paste (under 1,500 characters):
 ```text
 Should a round destroy its guest between arms instead of keeping it for the round?
 Adopt for rounds that compile nothing (Recommended): destroying returns everything the guest held.
-Measured here: create 10.5 s and 10.7 s, destroy about 2 s, and the ZFS binding's preparation, OpenZFS
+Measured here: create 10.5 s and 10.7 s, destroy 2 to 5 s, and the ZFS binding's preparation, OpenZFS
 included, 7 m 24 s to 8 m 44 s. A round whose arms do not build pays only the create and that
 preparation for each gap. An arm that builds pays the build again: 7 m 40 s with default jobs here,
 33 to 34 minutes with one job in the first round.
