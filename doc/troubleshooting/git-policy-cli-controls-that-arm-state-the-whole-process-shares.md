@@ -34,7 +34,9 @@ three runs of the same module, 36 passed and 0 failed each time, in 5.26 to 5.31
 three more after `origin/main` was merged at `73f1091ce0`, 36 passed and 0 failed each time,
 in 5.27, 5.36 and 5.39 seconds;
 and three more after the second merge of `origin/main` at `0aa42fdb9f`, 36 passed and 0 failed each time,
-in 5.25, 5.29 and 5.30 seconds.
+in 5.25, 5.29 and 5.30 seconds;
+and three more after the third merge of `origin/main` at `556b3a6118`, 36 passed and 0 failed each time,
+in 5.24, 5.25 and 5.27 seconds.
 
 ## Root cause
 
