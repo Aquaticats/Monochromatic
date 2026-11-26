@@ -232,6 +232,20 @@ which is what the two refusals in `testing/no_threads_child_test_support.rs` and
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
 and judges the ending itself; a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.
+A fixture's own Git starts one more child outside any test's reach:
+`git commit` starts `git maintenance run --auto` in that repository in the background,
+and that runs `git worktree prune --expire 3.months.ago`,
+which removes a `.git/worktrees/<name>` directory Git did not make,
+recursively and whatever its age,
+so a registration a control makes by hand goes while the control still asserts on it
+(measured 2026-11-26:
+gone 1.237 ms after the commit returned,
+in one run of ten,
+issue 6518).
+A fixture's registration is the one Git's own `worktree add --no-checkout --lock` makes,
+and a control whose subject is that registration runs the housekeeping itself,
+proving it keeps the registration Git made while removing one made by hand
+(`worktree_clone_add_route/add_index_tests.rs`).
 
 ## Every wait has a deadline
 
