@@ -5,6 +5,7 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS;
 
 /// A file length that spans two comparison chunks with a short last chunk.
 const LARGE_LENGTH: usize = 64 * 1_024 + 17;
@@ -266,9 +267,75 @@ fn added_source_entry_fails_final_check_by_count() {
     remove(root.as_path());
 }
 
+/// What:
+///  Give one fixture file a modification time the copy's own granularity margin before now.
+/// Why:
+///   The file times this host's filesystems record advance in steps of one millisecond
+/// (measured 2026-11-26 for issue 6520:
+/// two stamps of one file a write apart differed by exactly 1,000,000 ns),
+///  so a write made less than a step after the stamp leaves that stamp exactly as it was,
+/// and the final check then rightly passes.
+///  Stating the file's own modification time this margin into the past puts the control's write
+///  a whole step later than the stamp whatever the host's filesystem rounds a write's time to,
+/// and states it instead of waiting for a clock to move.
+///  The margin is the one the copy trusts for the same question (`RECENT_CHANGE_NANOS`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settle = (path) => utimesSync(path, { mtime: new Date(Date.now() - RECENT_CHANGE_NANOS / 1_000_000) });
+/// ```
+#[cfg(unix)]
+fn settle_the_modification_time(path: &Path) {
+    // What: a duration of the same nanoseconds `RECENT_CHANGE_NANOS` counts, which is a number wide enough for the
+    //  clock's figures and so is converted to the unsigned width `Duration` takes; the siblings are `u32` and `i64`.
+    // Why: the margin is stated once, next to the copy that trusts it, and used here as a length of time.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const margin = RECENT_CHANGE_NANOS / 1_000_000; // milliseconds
+    // ```
+    let margin: std::time::Duration = std::time::Duration::from_nanos(
+        u64::try_from(RECENT_CHANGE_NANOS).expect("a margin of nanoseconds"),
+    );
+    // What: the instant this control states, which is now less that margin; `checked_sub` answers nothing where the
+    //  subtraction leaves the clock's range, and a fixture file's instant is never that close to the epoch.
+    // Why: the write the control makes after the stamp then lands at a time a whole margin later than the stamp's own.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const stated = new Date(Date.now() - margin);
+    // ```
+    let stated: std::time::SystemTime = std::time::SystemTime::now()
+        .checked_sub(margin)
+        .expect("an instant before now");
+    // What: the fixture file, opened for writing, which is how the kernel lets a caller change a time of it; the
+    //  sibling is `std::fs::File` opened for reading, which may not.
+    // Why: the call below changes the time through this handle.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const file = openSync(path, 'w');
+    // ```
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .expect("open the fixture file to state its time");
+    // What: one change of the times, with only the modification time stated, so the access time stays as it is.
+    // Why: the controls compare stamps, and this is the fact that makes a later write tellable from the stamp.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // file.utimes(undefined, stated); // throws
+    // ```
+    file.set_times(std::fs::FileTimes::new().set_modified(stated))
+        .expect("state the fixture file's modification time");
+}
+
 /// The source and stage of one cached file,
 /// the manifest of the source,
-/// and the stamp of the source file.
+/// and the stamp of the source file,
+/// whose stated modification time is a margin before the stamp's own
+/// (`settle_the_modification_time`).
 #[cfg(unix)]
 fn stamped_pair(
     name: &str,
@@ -279,6 +346,7 @@ fn stamped_pair(
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), source_bytes).expect("file");
+    settle_the_modification_time(source.join("cache/file").as_path());
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(source.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");
@@ -378,7 +446,8 @@ fn a_source_written_after_the_stamp_fails_the_final_check() {
         stamps.as_slice(),
     )
     .expect("unchanged before the write");
-    // Same size, so only the times can tell; the change time moves on every write.
+    // Same size, so only the times can tell; the source's stated modification time is a margin before the stamp, so
+    //  this write lands in a later step of the file's own clock than the stamp was recorded in.
     std::fs::write(source.join("cache/file"), b"other").expect("write");
     let failure: WorktreeCopyError = final_check(
         source.as_path(),
