@@ -55,7 +55,9 @@ fn judge_seeing(pid: i64) -> Judge {
 /// A process number that no running process has:
 /// one that has just ended.
 fn ended_pid() -> i64 {
-    let mut child: Child = Command::new("true").spawn().expect("start true");
+    let mut command: Command = Command::new("true");
+    // Owned, so even this short-lived stand-in is the test thread's if an assertion unwinds before it is reaped.
+    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start true");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reap true");
     return pid;
@@ -63,7 +65,10 @@ fn ended_pid() -> i64 {
 
 /// A long-running process whose command name is not `git`.
 fn sleeper() -> Helper {
-    return Helper(Command::new("sleep").arg("120").stdin(Stdio::null()).spawn().expect("start sleep"));
+    let mut command: Command = Command::new("sleep");
+    command.arg("120").stdin(Stdio::null());
+    // Owned: the stand-in leads a group of its own, which the test thread's fixtures kill when the thread ends.
+    return Helper(crate::test_support::spawn_owned(&mut command).expect("start sleep"));
 }
 
 /// Write an empty lock and,
@@ -179,7 +184,10 @@ fn a_lock_that_a_process_holds_open_stays_though_its_pid_file_names_a_gone_proce
     let stage: Stage = killed::stage("stale-refs-open", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let lock: PathBuf = stage.lock_of(PLANTED_REF);
-    let holder: Helper = Helper(Command::new("sh").arg("-c").arg("exec 3<>\"$1\"; exec sleep 120").arg("sh").arg(lock.as_os_str()).spawn().expect("start the holder"));
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"]).arg(lock.as_os_str());
+    // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
+    let holder: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
     let holder_pid: i64 = holder.pid();
     let descriptors: PathBuf = PathBuf::from(format!("/proc/{holder_pid}/fd"));
     let started: std::time::Instant = std::time::Instant::now();
@@ -276,7 +284,10 @@ fn a_process_named_like_this_program_is_not_git(program: &str) {
     std::fs::copy(Path::new("/usr/bin/sleep"), &named).expect("a copy of sleep under the executable's name");
     killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
     std::thread::sleep(Duration::from_millis(400));
-    let other: Helper = Helper(Command::new(&named).arg("120").stdin(Stdio::null()).spawn().expect("start the copy"));
+    let mut command: Command = Command::new(&named);
+    command.arg("120").stdin(Stdio::null());
+    // Owned, so this copy under the executable's name is ended with the test that started it.
+    let other: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the copy"));
     let comm: String = std::fs::read_to_string(format!("/proc/{}/comm", other.pid())).expect("comm").trim().to_string();
     // The kernel reports at most fifteen bytes of a command name.
     assert_eq!(comm, program.chars().take(KERNEL_COMMAND_NAME_BYTES).collect::<String>());
@@ -796,7 +807,10 @@ fn a_git_that_started_after_the_lock_is_not_proven_the_holder() {
 fn a_staging_file_that_a_process_holds_open_stays() {
     let stage: Stage = killed::stage("stale-refs-open-staging", true);
     killed::write_file(stage.packed_staging().as_path(), "# pack-refs with:\n");
-    let holder: Helper = Helper(Command::new("sh").arg("-c").arg("exec 3<>\"$1\"; exec sleep 120").arg("sh").arg(stage.packed_staging().as_os_str()).spawn().expect("start the holder"));
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "exec 3<>\"$1\"; exec sleep 120", "sh"]).arg(stage.packed_staging().as_os_str());
+    // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
+    let holder: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("start the holder"));
     let descriptors: PathBuf = PathBuf::from(format!("/proc/{}/fd", holder.pid()));
     let staging: PathBuf = stage.packed_staging();
     let started: std::time::Instant = std::time::Instant::now();
@@ -966,13 +980,14 @@ impl NestedProcess {
     fn start(first: i64) -> Option<Self> {
         use std::io::BufRead as _;
         let script: String = format!("echo {first} > /proc/sys/kernel/ns_last_pid; sleep 120 & echo $!; read _; kill $!");
-        let mut child: Child = Command::new("unshare")
+        let mut command: Command = Command::new("unshare");
+        command
             .args(["--user", "--map-root-user", "--pid", "--fork", "--mount-proc", "sh", "-c", script.as_str()])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()?;
+            .stderr(Stdio::null());
+        // Owned, so the namespace's init goes with the test thread; its output is read, so it stays piped.
+        let mut child: Child = crate::test_support::spawn_owned(&mut command).ok()?;
         let output = child.stdout.take()?;
         let mut line: String = String::new();
         std::io::BufReader::new(output).read_line(&mut line).ok()?;
