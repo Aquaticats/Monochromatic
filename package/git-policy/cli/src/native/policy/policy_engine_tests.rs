@@ -215,7 +215,7 @@ fn a_read_that_was_ended_carries_its_own_hint() {
         }]
     );
     // The code's own hint still speaks of what it answers, and it says nothing about a stopped read.
-    let generic: &str = crate::event_hints::engine_failure_hint("content-unavailable")
+    let generic: &str = crate::invocation_config::engine_failure_hint("content-unavailable")
         .expect("a hint for content-unavailable");
     assert!(generic.contains("shallow history"), "{generic}");
     assert!(

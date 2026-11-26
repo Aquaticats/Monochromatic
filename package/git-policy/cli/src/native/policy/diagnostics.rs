@@ -10,8 +10,9 @@
 //! // process.stderr.write(JSON.stringify({ schemaVersion: 1, sequence: 0, type: 'engine-failure', ... }) + '\n');
 //! ```
 
-/// The hint that follows an engine failure line.
-use crate::event_hints::{
+/// The hint that follows an engine failure line,
+/// and the field a line carries it in.
+use crate::invocation_config::{
     engine_failure_hint,
     push_hint_field,
 };

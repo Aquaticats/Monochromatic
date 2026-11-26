@@ -30,8 +30,11 @@
 //! and from nothing else.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
+//! - `origin_cleanup_refusal.rs`:
+//!   why bytes are not a record,
+//!   and the sentence a person reads.
 //! - `origin_cleanup_words.rs`:
 //!   the header line,
 //!   the fifteen keys,
@@ -39,12 +42,13 @@
 //!   the four reasons and the folder's name.
 //! - `origin_cleanup_bounds.rs`:
 //!   the record's 9,217 bytes and each field's widest value.
-//! - `origin_cleanup_refusal.rs`:
-//!   why bytes are not a record,
-//!   and the sentence a person reads.
 //! - `origin_cleanup_record.rs`:
 //!   the record as a value,
 //!   its two state constructors and its bytes.
+//! - `origin_cleanup_attempt.rs`:
+//!   the seven steps of one attempt.
+//! - `origin_cleanup_lines.rs`:
+//!   the lines it prints and when a block speaks.
 //! - `origin_cleanup_parse.rs`:
 //!   reading those bytes back.
 //! - `origin_cleanup_reading.rs`:
@@ -54,10 +58,6 @@
 //! - `origin_cleanup_publication.rs`:
 //!   the folder's creation,
 //!   one write and one removal.
-//! - `origin_cleanup_attempt.rs`:
-//!   the seven steps of one attempt.
-//! - `origin_cleanup_lines.rs`:
-//!   the lines it prints and when a block speaks.
 //! - `origin_cleanup_look.rs`:
 //!   the look the five worktree commands make.
 //!

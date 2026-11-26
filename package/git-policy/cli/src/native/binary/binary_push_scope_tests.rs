@@ -29,10 +29,8 @@ use super::support::{
     stderr_of,
     wrapped,
 };
-use git_policy_cli::event_hints::{
-    engine_failure_hint,
-    manual_push_failure_hint,
-};
+use git_policy_cli::event_hints::manual_push_failure_hint;
+use git_policy_cli::invocation_config::engine_failure_hint;
 use git_policy_cli::manual_push_cause::ManualPushCause;
 
 /// Runs one wrapped command in the repository with its hint fields kept,

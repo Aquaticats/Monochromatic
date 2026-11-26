@@ -14,7 +14,7 @@
 //!  and one process holding a preparation's test and another's record failed the record's list.
 //!  The container gate starts each test in a process of its own,
 //!  so the gate cannot show it.
-//!  A control that starts `started_within_a_child_of_its_own` first asks its question in a child of the test
+//!  A control that hands its body to `run_the_body_in_a_child_of_its_own` first asks its question in a child of the test
 //!  binary,
 //!  whose ledger holds nothing but what that control noted
 //!  (`testing/process_wide_state_child_test_support.rs`).
@@ -22,7 +22,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // every control that names drain_spans(, note_span(, prepare_work_spans:: or prepareSpans must also name
-//! // started_within_a_child_of_its_own(.
+//! // run_the_body_in_a_child_of_its_own(.
 //! ```
 
 /// What:
@@ -124,7 +124,7 @@ fn no_control_reads_the_preparation_steps_in_the_run_s_own_process() {
         read.findings.is_empty(),
         "the preparation's steps are one ledger for the whole process, and a test run holds its controls as \
          threads of it, so a control that asks about them reads another control's work: start the control's body \
-         in a child of its own first (`started_within_a_child_of_its_own`, \
+         in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
          `testing/process_wide_state_child_test_support.rs`, issue 6507):\n{}",
         read.findings.join("\n")
     );
@@ -168,10 +168,9 @@ fn asks_in_the_run_s_own_process() {\n\
 #[test]\n\
 fn asks_in_a_child_of_its_own() {\n\
     /// The doc comment names drain_spans( and it is no call.\n\
-    if started_within_a_child_of_its_own(module_path!(), \"asks_in_a_child_of_its_own\") {\n\
-        return;\n\
-    }\n\
-    let taken = crate::prepare_work_spans::drain_spans();\n\
+    run_the_body_in_a_child_of_its_own(module_path!(), \"asks_in_a_child_of_its_own\", || {\n\
+        let taken = crate::prepare_work_spans::drain_spans();\n\
+    });\n\
 }\n\
 \n\
 #[test]\n\

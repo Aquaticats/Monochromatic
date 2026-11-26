@@ -1,10 +1,10 @@
 //! What:
-//!  The two renames that lose nothing:
-//! the one that never replaces an existing name,
-//! and the one that exchanges two names in a single step;
+//!  The rename that exchanges two names in a single step,
+//! the same rename made as a job of the blocking pool,
 //!  and the test for a filesystem that cannot do either.
 //! Why:
-//!  A lock is placed and an earlier name is moved to its current name by one step that is as exclusive as `create_new`:
+//!  A name is moved to its current name by one step that is as exclusive as `create_new`,
+//!  which lives with the private-file primitives in `private_storage.rs`:
 //!  when the target exists the call fails and both names stay,
 //! so no data is written over.
 //!  A file a caller read a moment ago is replaced without a window by the exchange:
@@ -26,49 +26,15 @@ use crate::blocking_job::BlockingJobError;
 /// One job of the blocking pool,
 /// under the process's own bound on them.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// The rename that never replaces the name it lands on,
+/// which the private-file primitives keep beside the rest of their publishing rules.
+use crate::private_storage::rename_noreplace;
 /// A borrowed `Path`,
 /// and an owned `PathBuf` for the job that outlives the caller's borrow.
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// Renames `from` to `to` unless `to` exists:
-/// one step that is as exclusive as `create_new` and leaves no second name.
-#[cfg(target_os = "linux")]
-pub fn rename_noreplace(
-    from: &Path,
-    to: &Path,
-) -> std::io::Result<()> {
-    use std::os::unix::ffi::OsStrExt;
-    let source =
-        std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    let target =
-        std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    // SAFETY: both strings are valid NUL-terminated paths for the call.
-    let done: i32 = unsafe {
-        libc::renameat2(
-            libc::AT_FDCWD,
-            source.as_ptr(),
-            libc::AT_FDCWD,
-            target.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    };
-    return if done == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    };
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn rename_noreplace(
-    _from: &Path,
-    _to: &Path,
-) -> std::io::Result<()> {
-    return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
-}
 
 /// Renames `from` to `to` and `to` to `from` in one step:
 /// afterwards each name holds what the other held,

@@ -17,27 +17,27 @@
 //!  own checkout, and the conversion fence's writes, are step 11's.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
-//! - `add_route_gate.rs`: which add the route serves, and its facts.
-//! - `add_route_plan.rs`: the names it chooses, its request, and the test-only stop switch.
 //! - `add_capture_tree.rs`: one descriptor-relative walk of tracked paths.
 //! - `add_capture.rs`: the frozen capture's facts and the walk that takes them.
 //! - `add_capture_record.rs`: the capture's durable grammar and its refusals.
 //! - `add_capture_store.rs`: where the capture and the proof marker live, and how they are published.
+//! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
 //! - `add_frozen_proof.rs`: the clone's index and tracked files against the capture.
-//! - `add_index.rs`: the fill's private index and its publication.
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
+//! - `add_index.rs`: the fill's private index and its publication.
+//! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
 //! - `add_registration.rs`: the scan of `<common>/worktrees` and what it settles.
+//! - `add_route_gate.rs`: which add the route serves, and its facts.
+//! - `add_route_git.rs`:
+//!   the Git runner the fill's own restore steps start.
+//! - `add_route_plan.rs`: the names it chooses, its request, and the test-only stop switch.
+//! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
+//! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
 //! - `add_zfs.rs`: the pool's reads, the snapshot, the clone, the inventories and the mount request.
 //! - `add_plan_clone_presence.rs`:
 //!   what the pool answers about the clone a standing plan records.
-//! - `add_plan_stop.rs`: the stop a standing plan leaves,
-//!   with the command that ends it.
-//! - `add_grants.rs`: the account's effective delegation, refused unless it is the decided one.
-//! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
-//! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
-//! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
 //! - `add_route_steps_facts_and_refusal.rs`:
 //!   the facts every step is given and the refusal each stops with.
 //! - `add_route_steps_slot_and_registration.rs`:
@@ -45,7 +45,9 @@
 //! - `add_route_steps_snapshot_and_capture.rs`:
 //!   the frozen capture and the checkout snapshot taken after it.
 //! - `add_route_steps.rs`: one step per phase, each reading what a kill left.
-//! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
+//! - `add_grants.rs`: the account's effective delegation, refused unless it is the decided one.
+//! - `add_plan_stop.rs`: the stop a standing plan leaves,
+//!   with the command that ends it.
 //! - `add_preflight.rs`: what A0 proves before the claim writes anything.
 //! - `add_route_run.rs`: the entry point, the claim, the phase machine and the end.
 //!

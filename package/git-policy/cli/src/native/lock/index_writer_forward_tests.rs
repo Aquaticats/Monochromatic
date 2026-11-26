@@ -15,7 +15,7 @@ use crate::test_support::{
     remove,
     repository,
 };
-use crate::worktree_copy_forward::CopyFacts;
+use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_identity::resolve_worktree_identity;
 use std::path::Path;
 

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -199,6 +200,23 @@ await describe({
             right: releaseBeforeTheRootModes,
           },) > 0,],).toEqual([release, releaseBeforeTheRootModes, true,],);
         }
+      },
+    }),
+    it({
+      name: 'says the floor decides and the list never does, so a release no round adds is answered by its place',
+      fn: async () => {
+        /**
+         The file the list's own sentence lives in, which is the statement this control reads.
+         */
+        const steps = await readFile(join(import.meta.dirname, 'native-install-steps.ts'), 'utf8',);
+        expect(steps,).toContain('The floor alone decides the skip',);
+        expect(steps,).not.toContain('is added here when it is released',);
+        /**
+         A release newer than every entry, which no round has added and no list can name yet.
+         */
+        const aboveTheList = '0.6.1-alpha.99';
+        expect([aboveTheList, releaseAnswersTheRootModes({ version: aboveTheList, }),],).toEqual([aboveTheList, true,],);
+        expect(rootModesReleases,).not.toContain(aboveTheList,);
       },
     }),
     it({

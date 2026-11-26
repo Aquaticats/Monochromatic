@@ -40,12 +40,12 @@ use crate::diagnostic_log::{
 };
 use crate::fs_btrfs_ioctl::subvolume_destroy_at;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_conversion_beside_the_clone::CloneFence;
 use crate::worktree_clone_conversion_fence::{
     AttributeFence,
     Fence,
 };
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_copy::{
     GitStatus,
     GitStep,

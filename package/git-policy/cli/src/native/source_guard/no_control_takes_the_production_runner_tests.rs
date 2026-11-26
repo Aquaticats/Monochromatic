@@ -90,6 +90,33 @@ const NAMES_THE_CALLS_WITHOUT_MAKING_THEM: &[(&str, &str)] = &[(
 )];
 
 /// What:
+///  `ROUTES_THROUGH_THE_HANDLERS` is each call that asks the service's real handlers for a review,
+///  whose job then runs in `crate::standards_review_run::RUNNER`
+///  unless the control hands the handlers a runner of its own.
+/// Why:
+///  `GitHandlers::review` and `GitHandlers::review_awaiting` reach the runner without naming any call above,
+///  so this scan could not see that route and two controls of
+///  `landing/service_work_tests.rs` reviewed in the shared runner (issue 6500,
+///  measured there: two of them in one process answered `1 passed; 1 failed` in each of three runs).
+///  Pointing the review's gateway call at a mock is what says a control reviews through these handlers.
+/// Gotcha:
+///  The check is per file:
+///  a file that hands one pair of handlers a runner and points a second pair at a mock passes,
+///  so a new control of such a file states its own runner by the review it makes,
+///  and a control that reviews through the handlers without a mock is not seen at all.
+const ROUTES_THROUGH_THE_HANDLERS: &[(&str, &str)] = &[(
+    "with_review_endpoint(",
+    "points the real handlers' review at a gateway, so their reviews run in `RUNNER` unless the control hands them one",
+)];
+
+/// What:
+///  `HANDS_THE_HANDLERS_A_RUNNER` is the call that gives the real handlers a runner of the control's own.
+/// Why:
+///  A control that takes a route above must name it,
+///  and the finding says which call to write.
+const HANDS_THE_HANDLERS_A_RUNNER: &str = "with_review_runner(";
+
+/// What:
 ///  `lines_making_the_call(text, call)` is the number of each line of `text` that makes `call`,
 ///  counting from one as an editor does.
 ///  A call split over two lines is found where it starts,
@@ -144,6 +171,7 @@ fn lines_making_the_call(
 /// What:
 ///  `findings_in(root, roots)` is every `file:line` of the test-only sources under `root` that makes one of the
 ///  calls above,
+///  or that asks the real handlers for a review without handing them a runner,
 ///  or one text saying why the scan cannot answer.
 /// Why:
 ///  Release code may take the production runner:
@@ -180,6 +208,26 @@ fn findings_in(
                 ));
             }
         }
+        // What:     `takes_the_route` is whether this file asks the handlers for a review, and
+        //           `hands_a_runner` whether it gives them a runner of the control's own.
+        // Why:      a file that does both is what the rule asks for, and one that does neither is no site.
+        for (route, why) in ROUTES_THROUGH_THE_HANDLERS {
+            let takes_the_route: Vec<usize> = lines_making_the_call(text.as_str(), route);
+            let hands_a_runner: Vec<usize> =
+                lines_making_the_call(text.as_str(), HANDS_THE_HANDLERS_A_RUNNER);
+            if takes_the_route.is_empty() || !hands_a_runner.is_empty() {
+                continue;
+            }
+            for number in takes_the_route {
+                found.push(format!(
+                    "{}:{number} names `{route}`, which {why}; declare `static OWN: \
+                     crate::standards_review_run::Containment = \
+                     crate::standards_review_run::Containment::new();` and write \
+                     `{HANDS_THE_HANDLERS_A_RUNNER}&OWN)` beside it",
+                    file.path
+                ));
+            }
+        }
     }
     return Ok(found);
 }
@@ -212,7 +260,8 @@ fn sources() -> Vec<SourceFile> {
 }
 
 /// No control runs a job in the runner the whole process shares.
-/// A control that reviews a commit declares a `Containment` of its own and calls `review_item_in`.
+/// A control that reviews a commit declares a `Containment` of its own and calls `review_item_in`,
+/// and one that reviews through the real handlers gives them that runner with `with_review_runner`.
 #[test]
 fn no_control_takes_the_runner_the_whole_process_shares() {
     let found: Vec<String> = findings();
@@ -221,7 +270,8 @@ fn no_control_takes_the_runner_the_whole_process_shares() {
         "the runner is one job at a time for the whole process, and a crate's tests run as threads of it, so a \
          control that takes it fails while another control's job holds it: declare `static OWN: \
          crate::standards_review_run::Containment = crate::standards_review_run::Containment::new();` and call \
-         `review_item_in(&OWN, ..)` (issue 6499):\n{}",
+         `review_item_in(&OWN, ..)`, or give the real handlers that runner with `with_review_runner(&OWN)` (issues \
+         6499 and 6500):\n{}",
         found.join("\n")
     );
 }
@@ -247,7 +297,8 @@ fn every_exempt_file_is_a_test_only_source_of_this_crate() {
     );
 }
 
-/// The scan fires on the shared runner's calls and on nothing a control owns,
+/// The scan fires on the shared runner's calls and on the handlers' review route,
+/// and spares what a control owns,
 /// so a check that stopped reading would fail here rather than passing every tree.
 #[test]
 fn the_scan_finds_a_planted_call_and_spares_the_one_a_control_owns() {
@@ -255,7 +306,30 @@ fn the_scan_finds_a_planted_call_and_spares_the_one_a_control_owns() {
     write_tree(
         root.as_path(),
         &[
-            ("lib.rs", "#[cfg(test)]\nmod helper_tests;\n"),
+            (
+                "lib.rs",
+                "#[cfg(test)]\nmod handler_tests;\n#[cfg(test)]\nmod handler_with_a_runner_tests;\n\
+                 #[cfg(test)]\nmod helper_tests;\n",
+            ),
+            (
+                "handler_tests.rs",
+                "/// A control that reviews through the real handlers, which take the shared runner.\n\
+                 fn a_control() {\n\
+                 static OWN: Containment = Containment::new();\n\
+                 let handlers = GitHandlers::new(context).with_review_endpoint(\"http://127.0.0.1:9\");\n\
+                 assert_eq!(handlers.review(&item), Verdict::Done);\n\
+                 }\n",
+            ),
+            (
+                "handler_with_a_runner_tests.rs",
+                "/// A control that hands the real handlers a runner of its own.\n\
+                 fn a_control() {\n\
+                 static OWN: Containment = Containment::new();\n\
+                 let handlers = GitHandlers::new(context).with_review_endpoint(\"http://127.0.0.1:9\")\n\
+                 .with_review_runner(&OWN);\n\
+                 assert_eq!(handlers.review(&item), Verdict::Done);\n\
+                 }\n",
+            ),
             (
                 "helper_tests.rs",
                 "/// A comment that names review_item( is not a call.\n\
@@ -275,10 +349,18 @@ fn the_scan_finds_a_planted_call_and_spares_the_one_a_control_owns() {
     .expect("the fixture sources");
     assert_eq!(
         found,
-        vec![String::from(
-            "helper_tests.rs:6 names `review_item(`, which runs a work item's review in `RUNNER`"
-        )],
-        "the planted call was not found, or a call the control owns was"
+        vec![
+            String::from(
+                "handler_tests.rs:4 names `with_review_endpoint(`, which points the real handlers' review at a \
+                 gateway, so their reviews run in `RUNNER` unless the control hands them one; declare `static OWN: \
+                 crate::standards_review_run::Containment = crate::standards_review_run::Containment::new();` and \
+                 write `with_review_runner(&OWN)` beside it"
+            ),
+            String::from(
+                "helper_tests.rs:6 names `review_item(`, which runs a work item's review in `RUNNER`"
+            ),
+        ],
+        "the planted call or the planted route was not found, or a control's own runner was"
     );
     crate::test_support::remove(root.as_path());
 }

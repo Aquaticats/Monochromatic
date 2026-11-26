@@ -48,9 +48,9 @@ use crate::worktree_add_binding::{
     bind_registration,
     verify_association,
 };
-use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_clone_conversion_fence::Fence;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_copy::{
     GitRunner,
     GitStatus,

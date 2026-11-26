@@ -905,14 +905,30 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The conversion command it prints follows the layout Git reports:
   `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
 - It reports on the account companion's group drop at the end of that host section,
-  as "The account companion before each managed add" states it.
+  as "The account companion before each managed add" states it,
+  and only where the checkout Git reports stands on a ZFS dataset,
+  which is where the ZFS clone route can serve an add:
+  on any other file system the section carries no line about the group drop,
+  because every sentence of the report is about that route's adds.
   A host whose group drop is skipped gets four lines:
   the open of `/proc/self/setgroups` and the number it answered,
   the three user-namespace settings this host read,
-  why Ubuntu 24.04's AppArmor restriction on unprivileged user namespaces answers there,
-  and what a person can do about it,
-  which is nothing (every managed add goes ahead with the skip) or
-  `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0` for the whole machine until its next boot.
+  why the kernel answers there,
+  and what a person can do about it.
+  The third line names Ubuntu 24.04's AppArmor restriction on unprivileged user
+  namespaces only where `kernel.apparmor_restrict_unprivileged_userns`,
+  which the second line prints,
+  reads `1`;
+  where it reads anything else the line says that restriction is not what
+  answered here and names the kernel's own audit log,
+  which records the profile
+  and the capability that was.
+  The fourth line says that nothing needs doing,
+  because every managed add goes ahead with the skip and prints the same call and
+  number on its own line as it runs,
+  and it names `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0`
+  only under that same setting,
+  for the whole machine until its next boot.
   A host that wrote the `deny` gets no line,
   and so does one whose companion answered elsewhere,
   because the add's own line names that answer;
@@ -920,6 +936,35 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The report is read under a bound of its own,
   the command writes nothing,
   and the exit status never depends on it.
+
+#### The ZFS route's checks, built and reached by no command
+
+The checks plan step 18 adds to `doctor` are built in `src/native/health/doctor_zfs_route/`:
+the device,
+ABI and dataset facts,
+the checkout mount and its propagation,
+the snapshot directories' visibility on the checkout dataset and the clone container,
+the recorded parent and slot identities,
+the slot identity store's listing and the two staging forms it removes,
+the effective delegation,
+the handler's installation and its folders,
+ZED and service wiring,
+the latest readiness and unresolved requests,
+the staging folder and its bind's propagation,
+the holders of a clone,
+the managed Git lock's line,
+the blocked-removal state,
+the deferred-origin check,
+and the backup coverage.
+Each check takes its facts as a value and answers a pass,
+a finding that names the failing field or path component,
+or unknown with the reason it could not read the proof;
+the facts themselves are a wiring run's to gather once from the live system.
+`doctor` reaches none of them in this release,
+except the add route's own call to the delegation and the dataset checks,
+so a person reads no receipt,
+readiness record or clone record from `doctor`,
+and the sentences a refusal prints say so.
 
 ## Lifecycle
 
@@ -5071,6 +5116,18 @@ and every step reads the state a kill at the step before it leaves:
   a clone inherits its parent's `mountpoint`,
   which is the clone container and not the origin,
   so the clone reads `mountpoint=legacy` inherited from the container.
+  A container that inherits `legacy` from an ancestor of its own gives every clone
+  that ancestor's name as the source,
+  which the read after the clone request refuses,
+  so the preflight requires the container to set `mountpoint=legacy` on itself and
+  refuses one that does not before the claim,
+  the slot,
+  the Git registration,
+  the snapshot and the clone are written.
+  `doctor` judges the same container with the same check
+  (`check_dataset`,
+  the container role),
+  so the two reports a person can read name one requirement.
   `mountpoint` is also a delegation the design forbids the account,
   so a request that carried it is refused for the account the add runs as
   (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,
@@ -5442,7 +5499,13 @@ A slot whose registration stands and whose pointer nothing can restore stops the
 Git starts,
 with the link's report and the sentence that nothing was pruned,
 so no managed registration is dropped silently.
-A dry run (`-n` or `--dry-run`) writes nothing and is left wholly to Git.
+A dry run writes nothing and is left wholly to Git,
+and Git's own parser decides which spellings are one:
+`-n` inside a cluster of short options,
+`--dry-run`,
+any unique prefix of it,
+and the `--no-` form of it,
+with the last of them typed deciding.
 The pass reads no pool and writes no record.
 
 The repair report says what a damaged link can and cannot restore,
@@ -5499,7 +5562,8 @@ What this release does not do:
   after the recorded clone's destruction is proven.
 - It does not remove a clone;
   the refusal above is the whole of its removal behaviour,
-  and plan steps 14 and 16 build the removal.
+  and plan steps 14 to 17 build the removal's writing path,
+  which no command of this release reaches.
 - `doctor` does not print this report yet;
   plan step 18 reads it,
   and the slot and link report's shape is the one it prints.
@@ -5829,6 +5893,82 @@ What this release does not do:
 - It adopts no plan from a command;
   a removal that finds one adopts it and continues,
   and no release command runs one.
+
+#### The cancel command, built and reachable from no command
+
+Design:
+`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
+"The cancel command" and "What a removal that cancels itself restores";
+`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`.
+The code is `src/native/worktree_clone_removal_cancel/`.
+
+A removal whose wrapper was killed after it recorded the unmount,
+or that ran past its deadline,
+leaves a clone unmounted with its plan and its registration standing.
+The project's manual way back is
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>`:
+one positional slot name from `.claude/worktrees` and no option,
+`--help` printing its usage and exiting `0`,
+a caller mistake exiting `2`,
+and a state that prevents the command exiting `1`.
+It is built ahead of the plan's order:
+
+- No management grammar admits it,
+  no `git` command reaches it,
+  `doctor`, the mount handler and the boot units do not either,
+  and the round that switches the removal's command path on adds it to the grammar.
+  This release's binary prints the management usage and exits `2` for the word.
+- It takes the slot's removal claim through the repository's own generation claim,
+  reads the binding record,
+  the clone's own children and its recorded GUID,
+  the slot's `.git` and its registration,
+  the caller's mount table,
+  the intent and the plan,
+  and proves the clone and the record before the claim and again under it,
+  comparing the GUID it proved before the claim with the one under the claim.
+- It settles every destroyed tuple of the plan against the clone's live inventory,
+  reports every snapshot already destroyed,
+  and restores none of them.
+- It asks the handler for one `mount` request under a fresh nonce,
+  settles the staging folder and its record on the answer,
+  and puts the clone back at its slot.
+- It destroys nothing,
+  forces no unmount,
+  ends no holder,
+  and refuses where the plan's head is `gone` or a destroy outcome cannot be attributed,
+  leaving every record as it stands.
+
+#### The forced arm, built and reachable from no command
+
+Design:
+`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`;
+`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`.
+The code is `src/native/worktree_clone_forced_removal/`.
+
+The holders a removal launched with `--force` may end are built ahead of the grammar that would offer the
+option.
+What it never ends is the never-end set:
+
+- The caller and every process of its session,
+  and every ancestor of the command from the wrapper's parent to pid 1.
+  A holder in that set refuses the removal in both arms,
+  and with `--force` the word it answers is `caller-protected-holds`.
+- `--force` is refused outright when the command's parent is the service manager,
+  or when the command's session was started by it,
+  and the refusal tells a person to run the removal as a child of the process that wants it.
+
+Every ending is gated twice:
+by the evidence the probe rounds recorded for that kind of holder
+(`src/native/worktree_clone_forced_removal/holder_endings.rs`),
+and by the waits and the heartbeat the arm would need,
+which ship with no value
+(`src/native/worktree_clone_forced_removal/forced_arm_numbers.rs`).
+A kind the evidence does not show is identified and refused,
+never ended,
+and the receipt's seven refusal words name what stopped the act.
+No sentence of this release offers `--force`,
+the removal's command path stays behind the cut,
+and the only callers are the folder's own controls and its guest arms.
 
 #### The settling command, built and reachable from no command
 
@@ -6952,6 +7092,29 @@ except
 a Zig project cache (`.zig-cache`,
 left out of a copy as a cache) and uv virtual environments (no project of this repository has
 one).
+
+#### The clone route's repair and its watches, built and reached by no command
+
+A clone-filled worktree is repaired at the add's end
+(`finish_the_add` in `src/native/worktree_clone_add_route/add_route_run.rs`),
+through the same repair a copied worktree gets:
+`pnpm install --offline --frozen-lockfile` where a lock and a `node_modules` are there,
+the Cargo prewarm and the workspace-member clean with the cross-filesystem lockfile restore,
+and the mise launchers'.
+That runs only where the route serves the add,
+which plan step 19's migration makes possible,
+and the repair is the copy route's own.
+What plan step 21 builds is reached by no command:
+
+- `src/native/worktree_clone_watch_rebinding/` decides whether the slot's path names another directory object
+  than the one the registration recorded,
+  because an inotify watch belongs to the directory object it was set on and a mount over the slot covers it,
+  and writes the sentence naming the watches a person must reopen.
+  It never reopens another process's watch and never stops Git's fsmonitor daemon.
+- The skip of the separate ignored-file copy after a successful clone fill is not built:
+  every rung still copies the ignored files.
+
+The wiring step is the one that calls the comparison after the fill.
 
 ### The descriptor mount of a ZFS worktree clone
 
@@ -8087,6 +8250,57 @@ A child that refused does not stop the run,
 because one malformed clone must not leave every later clone unmounted;
 a listing that stopped does end it,
 and the clones it already attached keep their mounts.
+
+#### The boot and shutdown units, built and reached by no command
+
+Plan step 19's texts live in `src/native/checkout_boot_units/`,
+and no command writes one of them:
+
+- `reconcile-git-worktree-clone-mounts.service`:
+  `Type=oneshot`,
+  `RemainAfterExit=yes`,
+  the ordering the owner's answers fix after the checkout and the key providers,
+  `ExecStart` running `zfs-root boot-reconcile`,
+  and `ExecStopPost` running `zfs-root shutdown-unmount`,
+  whose mode refuses in this build.
+- Its stop-failure drop-in,
+  the provider drop-in that asks the gate to reconcile again after post-key-load checkout readiness,
+  the propagation service and the mount drop-in that start it,
+  and one unit per nested dataset whose mountpoint lies inside the checkout.
+- The values a setup fills into those texts,
+  the refusal that names an unusable one,
+  the install paths under `/etc/systemd/system`,
+  the owner's two time bounds,
+  and one file of the install plan.
+- The immutable covered entry of the checkout underlay and its verdict,
+  in `src/native/checkout_underlay_entry/`,
+  which an attach verifies before it serves a clone.
+
+No command installs any of it:
+`doctor` prints the root-once commands and runs none,
+no release writes a unit file,
+and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
+The migration,
+the property changes and the install are the owner's act,
+written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+
+#### Sanoid coverage and the space guard's scope, built and reached by no command
+
+Plan step 20's checks live in `src/native/health/sanoid_coverage/`:
+the `sanoid.conf` sections that cover home recursively and name the nine exclusions in the order that takes
+effect,
+the `com.sun:auto-snapshot=false` marker every exclusion carries,
+`doctor`'s comparison of the measured dataset tree and store against that coverage,
+with the concrete INI or `zfs set` correction for confirmed drift,
+and the report of what the space guard can actually prune.
+Every check takes its facts as a value,
+so the wording and the decision are tested on built facts and no control opens the device.
+
+No command reaches the folder in this release:
+`doctor` prints none of these lines,
+nothing writes `sanoid.conf` or sets the marker,
+and a property on an existing dataset is the owner's act,
+written up in `doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md`.
 
 #### The wrapper's side and its deadline
 

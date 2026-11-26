@@ -33,12 +33,12 @@
 //! - `companion_buffers.rs`:
 //!   every name and line the child writes,
 //!   made before the fork.
+//! - `companion_file_calls.rs`:
+//!   the file and identity calls.
 //! - `companion_records.rs`:
 //!   one step's eight bytes and their decode.
 //! - `companion_settings.rs`:
 //!   the three settings the skip line prints.
-//! - `companion_file_calls.rs`:
-//!   the file and identity calls.
 //! - `companion_mount_calls.rs`:
 //!   the namespace,
 //!   tmpfs,

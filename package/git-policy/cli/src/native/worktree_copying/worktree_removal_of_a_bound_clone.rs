@@ -60,10 +60,8 @@ use crate::worktree_clone_slot_state::slot_state_live_read::{
     GatedCloneIntentReads,
     SlotReadingSources,
 };
-use crate::worktree_copy_forward::{
-    CopyFacts,
-    ForwardedRun,
-};
+use crate::worktree_command_facts::CopyFacts;
+use crate::worktree_copy_forward::ForwardedRun;
 use crate::worktree_identity::common_directory;
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;

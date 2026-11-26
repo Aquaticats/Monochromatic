@@ -282,6 +282,61 @@ fn publish_by_checked_rename(
 }
 
 /// What:
+///  Renames `from` to `to` unless `to` exists,
+///  by the one kernel call that is as exclusive as `create_new`.
+///  `&Path` lends a path;
+/// `std::io::Result<()>` is the operating system's own answer.
+/// Why:
+///  A lock is placed and an earlier name is moved to its current name by this step:
+///  when the target exists the call fails and both names stay,
+/// so no data is written over.
+///  The sibling `exchange` of `rename_that_never_replaces.rs` replaces a name and hands back what stood there;
+/// this one refuses to replace anything.
+///  A platform without `renameat2` answers `Unsupported`,
+/// which the caller reads through `rename_that_never_replaces::rename_unsupported`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done: void = renameNoReplace(from, to); // no Node API; the kernel call is renameat2(RENAME_NOREPLACE)
+/// ```
+#[cfg(target_os = "linux")]
+pub fn rename_noreplace(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let source =
+        std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let target =
+        std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    // SAFETY: both strings are valid NUL-terminated paths for the call.
+    let done: i32 = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            source.as_ptr(),
+            libc::AT_FDCWD,
+            target.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    return if done == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
+}
+
+/// Declines the rename on a platform with no no-replace request,
+/// so a caller reads one `Unsupported` answer instead of another call.
+#[cfg(not(target_os = "linux"))]
+pub fn rename_noreplace(
+    _from: &Path,
+    _to: &Path,
+) -> std::io::Result<()> {
+    return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
+}
+
+/// What:
 ///  The outcome of the exclusive publish `persist_noclobber` made:
 /// a taken name is the operating system's own `EEXIST`,
 /// and

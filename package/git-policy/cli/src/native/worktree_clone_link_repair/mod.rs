@@ -22,7 +22,7 @@
 //!  rebuilt pointer that brings nothing back.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `repair_report.rs`:
 //!   the four states of one link and the lines a person reads.

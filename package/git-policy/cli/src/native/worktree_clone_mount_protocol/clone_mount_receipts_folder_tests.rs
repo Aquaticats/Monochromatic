@@ -648,7 +648,9 @@ fn two_publishes_at_once_leave_one_whole_receipt() {
     );
 }
 
-/// Every refusal carries the way forward and says nothing acted on the file.
+/// Every refusal carries the way forward and says nothing acted on the file,
+/// and no sentence sends a person to a `doctor` line or a journal unit this
+/// release does not have.
 #[test]
 fn every_refusal_carries_the_way_forward() {
     let folder: ReceiptsFolder = ReceiptsFolder::at(PathBuf::from("/nonexistent/receipts"), 0);
@@ -664,5 +666,21 @@ fn every_refusal_carries_the_way_forward() {
     assert!(
         message.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"),
         "{message}"
+    );
+    assert!(
+        message.contains("`git monochromatic-git-policy-cli doctor`"),
+        "the doctor is named as a person types it: {message}"
+    );
+    assert!(
+        message.contains("installs no handler unit"),
+        "the sentence says this release installs the unit nowhere: {message}"
+    );
+    assert!(
+        message.contains(RESULTS_DIRECTORY),
+        "and the receipts' own directory is the way forward: {message}"
+    );
+    assert!(
+        !message.contains("whose unit plan step 19"),
+        "no sentence claims a later step installs it: {message}"
     );
 }
