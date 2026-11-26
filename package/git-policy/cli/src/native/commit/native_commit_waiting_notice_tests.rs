@@ -821,7 +821,8 @@ const A_STALLED_READER_CADENCE: Cadence = Cadence {
 ///  Thirty times `NOTICE_BOUND` is thirty times the measured answer and fifteen times what `finish` may honestly
 /// wait,
 /// so a host that wakes a thread late delays the control instead of failing it,
-/// and a `finish` that really waits for the reader still fails, naming the reader.
+/// and a `finish` that really waits for the reader still fails,
+/// naming the reader.
 /// Gotcha:
 ///  A wider window is a weaker guard,
 /// so it stays far below the reader's own stall:

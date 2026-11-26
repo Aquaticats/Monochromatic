@@ -239,7 +239,8 @@ A test waits for a condition with a bound and fails at the bound with what it wa
 never by sleeping for a guess and never without an end.
 A bound in an assertion holds under this host's load,
 because other sessions build on it all the time (issue 6405 is a bound that did not).
-A bound that is the control's own wait, rather than the code's promise,
+A bound that is the control's own wait,
+rather than the code's promise,
 is stated as a multiple of the bound the code owes,
 so a host that wakes the control's own thread late spends the control's window and never the code's promise
 (issue 6519:

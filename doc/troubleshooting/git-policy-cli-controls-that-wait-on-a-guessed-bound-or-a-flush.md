@@ -115,12 +115,15 @@ and the whole module passed 9 of 9 in 2.5 s without that sleep.
 failed in three threaded runs of the whole `commit::` module on 2026-11-26
 (`463 passed; 11 failed` and `473 passed; 1 failed` among them),
 passed alone three times out of three (0.90 s each),
-and passed in its own module twice out of two (19 passed, 5.28 s) (issue 6519).
+and passed in its own module twice out of two (19 passed,
+5.28 s) (issue 6519).
 It panicked at its assertion that the finish answered within its two-second window.
 
 That window held on this host,
-where `commit::` at the default threads passed (`474 passed; 0 failed`, 24.44 s).
-At 24 test threads the same module failed (`473 passed; 1 failed`, 20.69 s)
+where `commit::` at the default threads passed (`474 passed; 0 failed`,
+24.44 s).
+At 24 test threads the same module failed (`473 passed; 1 failed`,
+20.69 s)
 on the control's other assertion,
 and the record named what was missing:
 
@@ -147,10 +150,13 @@ the thread starting 0.985 ms after the window opened;
 - alone,
 `--exact`,
 three runs:
-500.210, 500.198 and 500.360 ms,
-the thread starting 0.072, 0.080 and 0.205 ms after the window opened.
+500.210,
+  500.198 and 500.360 ms,
+the thread starting 0.072,
+  0.080 and 0.205 ms after the window opened.
 
-`finish` waits no longer than twice the notice's own bound (`NOTICE_BOUND`, 500 ms),
+`finish` waits no longer than twice the notice's own bound (`NOTICE_BOUND`,
+500 ms),
 once for the notice's answer and once for the line it handed over,
 so the product's own maximum is one second
 and the two-second window was twice that and nothing more.
@@ -247,7 +253,8 @@ so every line a reader that stopped reading costs is offered within the first fe
 
 ## Verification
 
-- The control the issue named, after the change:
+- The control the issue named,
+  after the change:
   its module `19 passed; 0 failed` in 5.28 s,
   alone `1 passed; 0 failed` in 0.77 s,
   `commit::` at the default threads `474 passed; 0 failed` in 25.00 s,
@@ -255,7 +262,9 @@ so every line a reader that stopped reading costs is offered within the first fe
 - The same control shown failing without its arrangement:
   with its file at its parent's version,
   `commit::` at 24 test threads failed twice of two
-  (`473 passed; 1 failed` in 20.73 s and 20.65 s, `lines_dropped: 0`, `looks: 3`),
+  (`473 passed; 1 failed` in 20.73 s and 20.65 s,
+  `lines_dropped: 0`,
+  `looks: 3`),
   and it passed again once the file was restored.
 - The Markdown notice controls' constants:
   `markdown_linter_guard::`,
@@ -319,7 +328,8 @@ a notice write must not hold a finished result: Err(Timeout)
   `commit::` at the default threads passed on this host (`474 passed; 0 failed`),
   so the window's size rests on the measured answer above and on the three recorded runs,
   not on a red seen here.
-  The red seen here is the control's other assertion, which the same arrangement now reaches
+  The red seen here is the control's other assertion,
+  which the same arrangement now reaches
   without waiting on the notice thread's wakeups.
 - The wider window is a weaker guard than two seconds was:
   a `finish` that waited for the reader for ten seconds would pass it.
@@ -328,7 +338,8 @@ a notice write must not hold a finished result: Err(Timeout)
   so the window stands above the product's maximum by a stated multiple and the reader's stall stays far longer.
 - No product code changed:
   the control reached the writer's queue through the sender `lines_for_the_wait` already hands a wait,
-  and `finish`, `NOTICE_BOUND` and the line queue are as they were.
+  and `finish`,
+  `NOTICE_BOUND` and the line queue are as they were.
 
 ## Records this changes
 
