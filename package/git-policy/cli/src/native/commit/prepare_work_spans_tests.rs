@@ -11,19 +11,21 @@
 //! so the count,
 //! the longest run,
 //! the order and the bound are each asked here.
+//!  The ledger is one value of the whole process (`prepare_work_spans.rs`),
+//!  and `cargo test` runs a crate's tests as threads of one process,
+//!  so each control below runs its body in a child of its own
+//!  (`testing/process_wide_state_child_test_support.rs`):
+//!  in the run's own process another test's preparation lands its steps in this control's drain,
+//!  and a control that asked for empty steps read six of another test's instead
+//!  (issue 6507).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
+//! // if (startedWithinAChildOfItsOwn(import.meta.url, 'a_step_of_no_measurable_time_is_stated_as_one_call')) return;
 //! // noteSpan('index copy', 12); noteSpan('index copy', 30); expect(drainSpans()).toEqual([[{ name: 'index copy', calls: 2, total: 42, longest: 30 }], 0]);
 //! ```
 
 use super::*;
-
-/// The spans this process noted,
-/// which a control starts with none of.
-fn noted() -> (Vec<PrepareSpan>, usize) {
-    return drain_spans();
-}
 
 /// Runs under one name are added to one entry,
 /// with how often,
@@ -32,12 +34,22 @@ fn noted() -> (Vec<PrepareSpan>, usize) {
 /// so a reader sees the work in the order the preparation did it.
 #[test]
 fn runs_under_one_name_are_added_to_one_entry_in_the_order_first_noted() {
-    assert_eq!(noted(), (Vec::new(), 0), "a control starts with no step");
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "runs_under_one_name_are_added_to_one_entry_in_the_order_first_noted",
+    ) {
+        return;
+    }
+    assert_eq!(
+        drain_spans(),
+        (Vec::new(), 0),
+        "a control starts with no step"
+    );
     note_span("index copy", Duration::from_millis(12));
     note_span("index stat check", Duration::from_millis(31));
     note_span("index copy", Duration::from_millis(30));
     note_span("index copy", Duration::from_millis(4));
-    let taken: (Vec<PrepareSpan>, usize) = noted();
+    let taken: (Vec<PrepareSpan>, usize) = drain_spans();
     assert_eq!(
         taken.0,
         vec![
@@ -57,7 +69,7 @@ fn runs_under_one_name_are_added_to_one_entry_in_the_order_first_noted() {
     );
     assert_eq!(taken.1, 0);
     assert_eq!(
-        noted(),
+        drain_spans(),
         (Vec::new(), 0),
         "the record takes the steps of its own preparation"
     );
@@ -67,8 +79,14 @@ fn runs_under_one_name_are_added_to_one_entry_in_the_order_first_noted() {
 /// so a reader never tells "it did not run" from "it was fast".
 #[test]
 fn a_step_of_no_measurable_time_is_stated_as_one_call() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_of_no_measurable_time_is_stated_as_one_call",
+    ) {
+        return;
+    }
     note_span("index read", Duration::ZERO);
-    let taken: (Vec<PrepareSpan>, usize) = noted();
+    let taken: (Vec<PrepareSpan>, usize) = drain_spans();
     assert_eq!(
         taken.0,
         vec![PrepareSpan {
@@ -87,6 +105,12 @@ fn a_step_of_no_measurable_time_is_stated_as_one_call() {
 /// so a record never grows with the work.
 #[test]
 fn names_after_the_bound_are_counted_and_not_kept() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "names_after_the_bound_are_counted_and_not_kept",
+    ) {
+        return;
+    }
     for index in 0..MAX_SPAN_NAMES {
         note_span(format!("step {index}").as_str(), Duration::from_millis(1));
     }
@@ -94,7 +118,7 @@ fn names_after_the_bound_are_counted_and_not_kept() {
     note_span("another step past the bound", Duration::from_millis(1));
     // A name already listed keeps counting its runs: the bound is on names, not on the work.
     note_span("step 0", Duration::from_millis(2));
-    let taken: (Vec<PrepareSpan>, usize) = noted();
+    let taken: (Vec<PrepareSpan>, usize) = drain_spans();
     assert_eq!(taken.0.len(), MAX_SPAN_NAMES);
     assert_eq!(taken.1, 2);
     assert_eq!(
