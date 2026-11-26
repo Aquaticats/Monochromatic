@@ -113,7 +113,7 @@ pub struct GitRemoteRecord<'a> {
 ///   `@{upstream}` is Git's own answer,
 /// so a branch whose upstream was never set is not guessed at from the
 ///  settings,
-/// and the answer is the ref the wrapper's own push plan asks about (`auto_push::plan_named_push`).
+/// and the answer is the ref the wrapper's own push plan asks about (`auto_push_awaiting::plan_named_push_awaiting`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
