@@ -4,9 +4,9 @@ Documentation=file://%h/Monochromatic/package/garage-file-sync/linux-client/READ
 # Template, started by OnSuccess=rclone-bisync-garage-recovered@%n.service (drop-in
 # 60-alert-on-failure.conf of the sync unit, and the trigger unit); the instance is the
 # unit whose run ended cleanly. With no open alert streak the entry exits without a
-# notice, so this runs after every five-minute sync for almost nothing. OnSuccess= also
-# fires for a run stopped by hand, which the entry tells apart from exit status 0 through
-# MONITOR_EXIT_CODE and MONITOR_EXIT_STATUS. It is a separate template from
+# notice, so this runs after every five-minute sync for almost nothing. The entry checks
+# MONITOR_EXIT_CODE and MONITOR_EXIT_STATUS for exit status 0 before it calls a run a
+# recovery. It is a separate template from
 # rclone-bisync-garage-alert@.service because systemd 262 passes no MONITOR_* variables to
 # a handler one unit names in both OnFailure= and OnSuccess= (measured, 2026-11-25).
 # The handler calls notify-send, which needs the graphical session's notification server,

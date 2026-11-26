@@ -49,9 +49,9 @@ Garage cannot notify a client that the bucket changed.
 - `systemd/rclone-bisync-garage-recovered@.service`:
   the success template, started by `OnSuccess=`,
   which runs `src/alert.ts` with `--trigger=unit-succeeded`.
-  The entry reads systemd's `MONITOR_*` variables to tell a run that exited with status 0
-  from a run stopped by hand,
-  and stays silent when they are missing.
+  The entry reads systemd's `MONITOR_*` variables and calls a run a recovery only when it
+  exited with status 0;
+  it stays silent when they say otherwise or are missing.
   The two templates must stay separate:
   systemd 262 passes no `MONITOR_*` variables to a handler that one unit names in both
   `OnFailure=` and `OnSuccess=`
@@ -92,8 +92,11 @@ Garage cannot notify a client that the bucket changed.
   `~/.local/state/rclone-bisync-garage-alert/<unit>.json`.
 - Further failures inside an hour are silent; one an hour or more later alerts again.
 - A run that exits with status 0 closes the streak with one recovery alert and removes
-  the file. A run stopped by hand also ends in the unit's "success" result, and the
-  entry stays silent for it, because `MONITOR_EXIT_CODE` says `killed`, not `exited 0`.
+  the file.
+- A run stopped by hand is a failure to systemd:
+  stopping a running oneshot ends it in `Result=signal`,
+  so `OnFailure=` handles it like any failed run
+  (measured under systemd 262 on this PC at 2026-11-25T21:54:10-05:00).
 - The watcher's change hook reports a `systemctl` failure by running the entry directly
   under `node`, so the notice does not depend on the thing that failed.
 - The watcher's target `onStartWatch` hook reports its recovery once, when its streak is open;
