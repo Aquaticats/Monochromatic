@@ -59,7 +59,19 @@
 //! await unloadKey(encrypted); await sweep('two'); await loadKey(encrypted); await sweep('two'); // item 5
 //! ```
 
+use git_policy_cli::fs_beneath_mount_facts::mount_id_of;
+use git_policy_cli::lazy_runtime::run_on_runtime;
 use git_policy_cli::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptOutcome};
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
+use git_policy_cli::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use git_policy_cli::worktree_clone_mount_protocol::mount_request_wait::{MountRequest, wait_for_answer};
+use git_policy_cli::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+use git_policy_cli::worktree_clone_removal_cancel::the_reversing_request::{ExpectedMount, MountAnswer, verify_the_mount_answer};
+use git_policy_cli::worktree_clone_unmount::staging_calls::BOOT_ID_PATH;
+use git_policy_cli::zfs_compatibility_gate::LiveGate;
 use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::{PropertyValue, value_of};
 use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ZfsDatasetReader};
 use git_policy_cli::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
@@ -198,6 +210,14 @@ pub(super) fn mount_row(folder: &Path) -> Option<String> {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm reads this process's mount table");
     let wanted: String = folder.display().to_string();
     return table.lines().find(|line| return line.split(' ').nth(4) == Some(wanted.as_str())).map(|line| return String::from(line));
+}
+
+/// Every row of this process's mount table whose source is `dataset`,
+/// which is how the arm counts the mounts of one dataset.
+pub(super) fn rows_naming(dataset: &str) -> Vec<String> {
+    let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm reads this process's mount table");
+    let needle: String = format!(" - zfs {dataset} ");
+    return table.lines().filter(|line| return line.contains(needle.as_str())).map(|line| return String::from(line)).collect();
 }
 
 /// Take one mount down by its path where the arm cannot be sure it stands,
@@ -564,6 +584,41 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     println!("SWEEP twice-swept receipt=done nonce={nonce}");
     unmount_at(slot_folder.as_path());
     assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
+    // H3: a second mount request under a fresh nonce, written by the cancel command's own writer, is answered done from
+    // the mount that stands, one mount is in the table, and the command's own wait and verification read that answer.
+    let second_digits: &str = "ffeeddccbbaa99887766554433221100";
+    let second_nonce: RequestNonce = RequestNonce::parse(second_digits).expect("a canonical nonce");
+    let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, clone.as_str()).expect("the guest's module passes the compatibility gate");
+    writer
+        .request(&MountIntent { operation: MountOperation::Mount, nonce: second_nonce.clone() })
+        .expect("a fresh mount request is written on a mounted clone, which is the case a cancellation writes");
+    let row_before: String = mount_row(slot_folder.as_path()).expect("the clone's mount stands at its slot before the request");
+    let third: Run = sweep();
+    assert_eq!(third.status, Some(0), "the sweep answering a second request reaches the end: {}", third.said);
+    let answered: &str = line_about(third.said.as_str(), clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {clone}: {}", third.said));
+    assert!(answered.starts_with("attached "), "a second mount request for a clone at its slot is answered attached: {answered}");
+    let row_after: String = mount_row(slot_folder.as_path()).expect("the clone's mount still stands at its slot");
+    assert_eq!(row_after, row_before, "no second mount replaced the one at the slot");
+    assert_eq!(rows_naming(clone.as_str()).len(), 1, "the mount table shows one mount of the clone, not a second one beside it");
+    let command_folder: ReceiptsFolder = ReceiptsFolder::live();
+    let carried: String = std::fs::read_to_string(BOOT_ID_PATH).expect("the guest's boot identifier reads").trim().to_string();
+    let request: MountRequest = MountRequest {
+        dataset: DatasetGuid::parse(guid.as_str()).expect("the clone's GUID is canonical"),
+        operation: MountOperation::Mount,
+        nonce: second_nonce.clone(),
+        boot: carried,
+    };
+    let receipt: CloneMountReceipt = run_on_runtime(wait_for_answer(&command_folder, &request, Duration::from_secs(5)))
+        .expect("the command's wait runs")
+        .expect("the second request's answer is filed");
+    assert_eq!(receipt.outcome, ReceiptOutcome::Done, "the second request is answered done");
+    assert_eq!(receipt.nonce, second_nonce, "the answer carries the second request's nonce");
+    let expected: ExpectedMount =
+        ExpectedMount { clone_guid: request.dataset, clone_dataset: clone.clone(), slot_path: slot_folder.clone(), nonce: second_nonce.clone() };
+    let proof = verify_the_mount_answer(&MountAnswer::of_receipt(&receipt), &expected).expect("the cancel command's own verification accepts the answer");
+    assert_eq!(Some(proof.mount.mount_id), mount_id_of(&std::fs::File::open(slot_folder.as_path()).expect("the slot opens")).ok(), "the verified answer names the mount the kernel shows at the slot");
+    println!("SWEEP second-request nonce={second_digits} answered=done mounts=1 mount={}", proof.mount.mount_id);
+
     // The clone keeps its request after the arm, so it is taken off before the later arms sweep this container.
     zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, clone.as_str()]);
     let _slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));

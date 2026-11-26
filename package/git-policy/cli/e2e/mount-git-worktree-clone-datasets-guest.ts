@@ -93,6 +93,7 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP attached item=1 slot=one origin=checkout-snapshot',
   'SWEEP first-attach outcome=attached slot=one',
   'SWEEP twice-swept receipt=done',
+  'SWEEP second-request answered=done mounts=1',
   'SWEEP refusal item=5 step=key-unavailable receipt=refused',
   'SWEEP attached item=5 slot=two',
   'SWEEP refusal item=2 step=intent',
