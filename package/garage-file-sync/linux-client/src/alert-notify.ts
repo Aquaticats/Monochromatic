@@ -30,6 +30,37 @@ export type NotifyOutcome = {
 };
 
 /**
+ Builds notify-send's arguments for one notification.
+
+ A failure is critical, with the error icon, so it stays on screen until dismissed;
+ a recovery is normal, with the information icon, so it does not read as the failure it
+ reports the end of.
+
+ @param notification - kind, summary and body to show
+
+ @returns the arguments, summary and body last
+
+ @example
+ ```ts
+ notifySendArguments({ kind: 'recovery', summary: 'Garage sync recovered', body: '', },);
+ // ['--urgency=normal', '--app-name=Garage sync', '--icon=dialog-information', 'Garage sync recovered', '']
+ ```
+ */
+export function notifySendArguments(notification: Readonly<Notification>,): readonly string[] {
+  /**
+   Whether the notice reports a recovery.
+   */
+  const recovery = notification.kind === 'recovery';
+  return [
+    recovery ? '--urgency=normal' : '--urgency=critical',
+    '--app-name=Garage sync',
+    recovery ? '--icon=dialog-information' : '--icon=dialog-error',
+    notification.summary,
+    notification.body,
+  ];
+}
+
+/**
  Shows one notification.
 
  @param notification - summary and body to show
@@ -38,7 +69,7 @@ export type NotifyOutcome = {
 
  @example
  ```ts
- const { sent } = await sendNotification({ summary: 'Garage sync failed', body: 'disk full', },);
+ const { sent } = await sendNotification({ kind: 'failure', summary: 'Garage sync failed', body: 'disk full', },);
  ```
  */
 export async function sendNotification(notification: Readonly<Notification>,): Promise<NotifyOutcome> {
@@ -47,13 +78,7 @@ export async function sendNotification(notification: Readonly<Notification>,): P
    */
   const result = await runCommand({
     command: 'notify-send',
-    args: [
-      '--urgency=critical',
-      '--app-name=Garage sync',
-      '--icon=dialog-error',
-      notification.summary,
-      notification.body,
-    ],
+    args: notifySendArguments(notification,),
     timeoutMs: NOTIFY_TIMEOUT_MS,
   },);
   if (result.problem !== undefined) return {

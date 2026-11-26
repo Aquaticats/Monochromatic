@@ -1,24 +1,27 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/seungyeop-lee/directory-watcher/v3/directory-watcher.schema.json
 # directory-watcher config for rclone-bisync-garage-watch.service.
-# The unit sets WorkingDirectory=%h, so `path: Plain` is ~/Plain and relative paths in
-# hooks resolve against the home folder (directory-watcher resolves a relative path
-# against the folder it was started in: docs/guide/configuration.md at v3.2.1).
+# The unit sets WorkingDirectory=%h, so `path: Plain` is ~/Plain (directory-watcher
+# resolves a relative path against the folder it was started in:
+# docs/guide/configuration.md at v3.2.1). A target's hooks run inside its path, so every
+# hook here names its programs by absolute path.
 # Installed as ~/.config/directory-watcher/garage-plain.yml by
 # `mise run //package/garage-file-sync/linux-client:install`;
 # this file is the single source of the installed copy.
 # Hooks run through `sh -c`, so $HOME is the home folder and `||` chains commands.
-global:
-  lifeCycle:
-    # A watcher outage has no other way to announce its end: the watcher's crash is
-    # reported by the unit's OnFailure=, and this hook reports the recovery, once, for
-    # the watcher's open alert streak. It is silent when no streak is open.
-    onStartWatch:
-      - >-
-        /usr/bin/env node "$HOME/Monochromatic/package/garage-file-sync/linux-client/src/alert.ts"
-        rclone-bisync-garage-watch.service --trigger=watcher-started
 watchTargets:
   - path: Plain
     lifeCycle:
+      # A watcher outage has no other way to announce its end: the watcher's crash is
+      # reported by the unit's OnFailure=, and this hook reports the recovery, once, for
+      # the watcher's open alert streak, and is silent when no streak is open.
+      # It is the target's hook, not the global one: directory-watcher runs a target's
+      # onStartWatch only after it has started watching the target directory
+      # (docs/guide/how-it-works.md at v3.2.1), so a watcher that fails while adding its
+      # watches (the inotify limit) never reports a recovery it did not make.
+      onStartWatch:
+        - >-
+          /usr/bin/env node "$HOME/Monochromatic/package/garage-file-sync/linux-client/src/alert.ts"
+          rclone-bisync-garage-watch.service --trigger=watcher-started
       # A change starts the trigger unit, which starts the sync unit once the run that
       # may be going now has ended; systemd merges requests that land during a run.
       # directory-watcher only logs a failed hook command and keeps watching

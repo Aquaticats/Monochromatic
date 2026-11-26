@@ -3,7 +3,7 @@ Description=Run Garage bisync every five minutes
 
 [Timer]
 # Every five minutes, so a change made on another device reaches this PC within
-# about five and a half minutes (the interval plus the jitter below). Garage cannot notify a client that the bucket changed (its S3
+# about five and a half minutes (the interval plus RandomizedDelaySec). Garage cannot notify a client that the bucket changed (its S3
 # compatibility page lists the notification endpoints as missing), so listing the
 # bucket on a timer is the only way to see another device's change.
 OnCalendar=*:0/5

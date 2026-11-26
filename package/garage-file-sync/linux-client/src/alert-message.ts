@@ -41,6 +41,11 @@ const RESYNC_MARKERS: readonly string[] = [
 ];
 
 /**
+ Marker that bisync has no prior listings at all, so only a resync can start it again.
+ */
+const NO_LISTINGS_MARKER = 'cannot find prior Path1 or Path2 listings';
+
+/**
  Journal line that says bisync aborted the run.
  */
 const ABORT_MARKER = 'Bisync aborted';
@@ -59,6 +64,7 @@ const WATCHER_TAIL_LINES = 3;
  A notification as notify-send receives it.
  */
 export type Notification = {
+  readonly kind: 'failure' | 'recovery';
   readonly summary: string;
   readonly body: string;
 };
@@ -72,6 +78,11 @@ export type MessageInput = {
   readonly outcome: UnitOutcome;
   readonly journalLines: readonly string[];
   readonly home: string;
+  /**
+   Whether bisync kept both backup listings; absent counts as no, which gives the safer
+   advice that a `--resync` is needed.
+   */
+  readonly backupListingsExist?: boolean;
 };
 
 /**
@@ -232,9 +243,18 @@ function syncFailureBody(input: Readonly<MessageInput>,): readonly string[] {
   const aborted = errors.some(function mentionsAbort(error,) {
     return error.includes(ABORT_MARKER,) || needsResync([error,],);
   },);
-  if (needsResync(errors,)) {
+  /**
+   Whether bisync found no prior listings at all, which no backup can stand in for.
+   */
+  const noListings = errors.some(function mentionsNoListings(error,) {
+    return error.includes(NO_LISTINGS_MARKER,);
+  },);
+  // rclone prints "Must run --resync to recover" in every abort; with --recover and both
+  // backup listings present the next run resumes anyway, so only their absence, or no
+  // prior listings at all, means syncing stays stopped.
+  if (noListings || (aborted && (input.backupListingsExist !== true))) {
     body.push(
-      `bisync stopped syncing until a --resync. Steps: ${RECOVERY_DOC}`,
+      `No backup listings to fall back on: syncing stays stopped until a --resync. Steps: ${RECOVERY_DOC}`,
     );
   } else if (aborted) {
     body.push(
@@ -343,6 +363,7 @@ export function composeMessage(input: Readonly<MessageInput>,): Notification {
   }
   body.push(`Log: journalctl --user -u ${input.unit} --since today`,);
   return {
+    kind: recovered ? 'recovery' : 'failure',
     summary: summaryFor(input,),
     body: body.join('\n',),
   };

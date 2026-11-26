@@ -96,7 +96,11 @@ Garage cannot notify a client that the bucket changed.
   entry stays silent for it, because `MONITOR_EXIT_CODE` says `killed`, not `exited 0`.
 - The watcher's change hook reports a `systemctl` failure by running the entry directly
   under `node`, so the notice does not depend on the thing that failed.
-- The watcher's start hook reports its recovery once, when its streak is open.
+- The watcher's target `onStartWatch` hook reports its recovery once, when its streak is open;
+  directory-watcher runs it only after the watches are in place,
+  so a watcher that fails while adding them reports no recovery.
+- A recovery notice uses normal urgency and an information icon;
+  a failure uses critical urgency and an error icon.
 - The state file is written only after `notify-send` exits 0, so a failed notification
   does not silence the next attempt.
 
@@ -127,7 +131,7 @@ which is how the tests run it.
 
 ## Go-live order
 
-1.  Install the files and reload the user manager, as above.
+1.  Install the files and reload the user manager, with the commands under "Install".
 2.  First the sync, the timer and the alert units:
     a timer run and a manual start must both work, and a forced failure must alert.
 3.  Then the trigger and the watcher.

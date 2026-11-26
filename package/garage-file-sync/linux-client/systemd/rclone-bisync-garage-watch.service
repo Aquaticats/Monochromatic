@@ -3,12 +3,13 @@ Description=Start a Garage bisync run when ~/Plain changes
 Documentation=file://%h/Monochromatic/package/garage-file-sync/linux-client/README.md
 # No start limit. Measured under systemd 262 with Restart=on-failure and RestartSec=1:
 # five crashes in ten seconds reached the default start limit and left the unit failed
-# with Result=start-limit-hit, after which nothing watched the folder. The thirty-second
-# delay below alone would already stay under the default limit, and this line makes the
-# guarantee independent of the delay.
+# with Result=start-limit-hit, after which nothing watched the folder. RestartSec=30
+# alone would already stay under the default limit, and this line makes the guarantee
+# independent of that delay.
 StartLimitIntervalSec=0
 # The watcher's own crash is an outage worth a desktop alert; the entry deduplicates
-# repeated failures into one alert per hour, and reports the recovery when it starts again.
+# repeated failures into one alert per hour, and the config's target onStartWatch hook
+# reports the recovery once the watcher is watching ~/Plain again.
 OnFailure=rclone-bisync-garage-alert@%n.service
 
 [Service]

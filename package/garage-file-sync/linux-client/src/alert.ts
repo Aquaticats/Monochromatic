@@ -16,6 +16,7 @@
 import { homedir, } from 'node:os';
 import { readRunJournal, } from './alert-journal.ts';
 import { sendNotification, } from './alert-notify.ts';
+import { backupListingsExist, } from './bisync-backup-listings.ts';
 import {
   AlertArgumentError,
   type AlertRequest,
@@ -101,6 +102,9 @@ function alertDeps({
         unit: request.unit,
         invocationId: request.invocationId,
       },);
+    },
+    backupListingsExist: function readBackupListings() {
+      return backupListingsExist({ home, },);
     },
     notify: sendNotification,
     nowMs: Date.now,

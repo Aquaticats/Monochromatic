@@ -13,6 +13,7 @@ import {
   type Notification,
 } from './alert-message.ts';
 import type { NotifyOutcome, } from './alert-notify.ts';
+import type { BackupListings, } from './bisync-backup-listings.ts';
 import {
   classifyRequest,
   type AlertRequest,
@@ -36,6 +37,7 @@ export type AlertDeps = {
   readonly writeStreak: (streak: Streak,) => Promise<void>;
   readonly removeStreak: () => Promise<void>;
   readonly readJournal: () => Promise<JournalRead>;
+  readonly backupListingsExist: () => Promise<BackupListings>;
   readonly notify: (notification: Notification,) => Promise<NotifyOutcome>;
   readonly nowMs: () => number;
   readonly writeOut: (text: string,) => void;
@@ -130,11 +132,23 @@ async function alertFailure({
   deps: AlertDeps;
 }>): Promise<number> {
   /**
-   The failed run's own journal.
+   The failed run's own journal. A failed hook has no run of its own, and its message
+   quotes no journal, so reading one would only hold the watcher's hook slot.
    */
-  const journal = await deps.readJournal();
+  const journal: JournalRead = request.trigger === 'hook-failed'
+    ? { lines: [], }
+    : await deps.readJournal();
   if (journal.problem !== undefined) {
     deps.writeError(`${request.unit}: could not read the run's journal: ${journal.problem}`,);
+  }
+  /**
+   Whether bisync kept the backup listings that let the next run resume an aborted one.
+   */
+  const listings = request.trigger === 'hook-failed'
+    ? { exist: false, }
+    : await deps.backupListingsExist();
+  if (listings.problem !== undefined) {
+    deps.writeError(`${request.unit}: ${listings.problem}`,);
   }
   /**
    The notification to show.
@@ -145,6 +159,7 @@ async function alertFailure({
     outcome: request.outcome,
     journalLines: journal.lines,
     home: deps.home,
+    backupListingsExist: listings.exist,
   },);
   /**
    What notify-send reported.

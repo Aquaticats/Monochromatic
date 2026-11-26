@@ -14,6 +14,7 @@ import {
   composeMessage,
   describeOutcome,
 } from './alert-message.ts';
+import { notifySendArguments, } from './alert-notify.ts';
 import {
   ALERT_TRIGGERS,
   classifyOutcome,
@@ -128,6 +129,30 @@ await describe({
             expect(() => parseAlertArguments(['--trigger=later',],),).toThrow('--trigger must be one of',);
             expect(() => parseAlertArguments(['--force',],),).toThrow('unknown option',);
             expect(() => parseAlertArguments(['a.service', 'b.service',],),).toThrow('only one unit name',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: notifySendArguments.name,
+      children: [
+        it({
+          name: 'a failure is critical with the error icon, a recovery normal with the information icon',
+          fn: async function urgencyByKind() {
+            expect(notifySendArguments({ kind: 'failure', summary: 'Garage sync failed', body: 'b', },),).toEqual([
+              '--urgency=critical',
+              '--app-name=Garage sync',
+              '--icon=dialog-error',
+              'Garage sync failed',
+              'b',
+            ],);
+            expect(notifySendArguments({ kind: 'recovery', summary: 'Garage sync recovered', body: 'b', },),).toEqual([
+              '--urgency=normal',
+              '--app-name=Garage sync',
+              '--icon=dialog-information',
+              'Garage sync recovered',
+              'b',
+            ],);
           },
         },),
       ],
@@ -327,12 +352,61 @@ await describe({
                 'ERROR : Bisync aborted.',
               ],
               home: HOME,
+              backupListingsExist: true,
             },);
             expect(message.summary,).toBe('Garage sync failed',);
             expect(message.body,).toContain('Plain/main.kdbx: permission denied',);
             expect(message.body,).not.toContain('hourly',);
             expect(message.body,).toContain('the next run should recover by itself',);
             expect(message.body,).toContain(`Log: journalctl --user -u ${SYNC_UNIT} --since today`,);
+          },
+        },),
+        it({
+          name: 'an abort with both backup listings says the next run recovers, without them a resync is needed',
+          fn: async function abortAdvice() {
+            /**
+             What rclone 1.76.0 prints when bisync aborts (quoted in
+             doc/troubleshooting/rclone-bisync-aborts-on-a-name-the-local-disk-refuses.md).
+             */
+            const abortLines = ['ERROR : Bisync critical error: some file failed', 'ERROR : Bisync aborted. Must run --resync to recover.',];
+            /**
+             The message with both backups kept.
+             */
+            const withBackups = composeMessage({
+              trigger: 'unit-failed',
+              unit: SYNC_UNIT,
+              outcome: FAILED_RUN,
+              journalLines: abortLines,
+              home: HOME,
+              backupListingsExist: true,
+            },);
+            expect(withBackups.body,).toContain('the next run should recover by itself',);
+            expect(withBackups.body,).not.toContain('until a --resync',);
+            expect(withBackups.kind,).toBe('failure',);
+            /**
+             The same abort with no backups.
+             */
+            const withoutBackups = composeMessage({
+              trigger: 'unit-failed',
+              unit: SYNC_UNIT,
+              outcome: FAILED_RUN,
+              journalLines: abortLines,
+              home: HOME,
+              backupListingsExist: false,
+            },);
+            expect(withoutBackups.body,).toContain('until a --resync',);
+            /**
+             No prior listings at all, which backups cannot replace.
+             */
+            const noListings = composeMessage({
+              trigger: 'unit-failed',
+              unit: SYNC_UNIT,
+              outcome: FAILED_RUN,
+              journalLines: ['ERROR : Bisync critical error: cannot find prior Path1 or Path2 listings, likely due to critical error on prior run',],
+              home: HOME,
+              backupListingsExist: true,
+            },);
+            expect(noListings.body,).toContain('until a --resync',);
           },
         },),
         it({

@@ -15,6 +15,7 @@ import {
 } from './alert-run.ts';
 import type { NotifyOutcome, } from './alert-notify.ts';
 import type { Streak, StreakLookup, } from './alert-streak.ts';
+import type { BackupListings, } from './bisync-backup-listings.ts';
 import {
   SYNC_UNIT,
   WATCH_UNIT,
@@ -60,6 +61,7 @@ type Recorded = {
   readonly stdout: string[];
   readonly stderr: string[];
   readonly journalReads: string[];
+  readonly listingReads: string[];
   streak?: Streak;
 };
 
@@ -78,6 +80,7 @@ function fakeDeps(options: Readonly<{
   notifySucceeds?: boolean;
   nowMs?: number;
   home?: string;
+  backupListingsExist?: boolean;
 }> = {},): { deps: AlertDeps; recorded: Recorded; } {
   /**
    Effects recorded for assertions.
@@ -87,6 +90,7 @@ function fakeDeps(options: Readonly<{
     stdout: [],
     stderr: [],
     journalReads: [],
+    listingReads: [],
     ...(options.streak === undefined ? {} : { streak: options.streak, }),
   };
   /**
@@ -108,6 +112,10 @@ function fakeDeps(options: Readonly<{
       return options.journalProblem === undefined
         ? { lines: options.journalLines ?? ['ERROR : disk full',], }
         : { lines: [], problem: options.journalProblem, };
+    },
+    backupListingsExist: async function backupListingsExist(): Promise<BackupListings> {
+      recorded.listingReads.push('read',);
+      return { exist: options.backupListingsExist ?? true, };
     },
     notify: async function notify(notification,): Promise<NotifyOutcome> {
       recorded.notifications.push(notification,);
@@ -344,14 +352,17 @@ await describe({
 
     //region Watcher modes
     it({
-      name: 'a failed watcher hook is a failure of the watcher unit',
+      name: 'a failed watcher hook is a failure of the watcher unit, and reads no journal or listings',
       fn: async function hookFailureAlertsForTheWatcher() {
         /**
          The run under test, for the watcher's own failed hook.
          */
         const { deps, recorded, } = fakeDeps({},);
         await runAlert({ request: request({ trigger: 'hook-failed', unit: WATCH_UNIT, outcome: { result: '', exitCode: '', exitStatus: '', }, }), deps, },);
+        expect(recorded.journalReads,).toHaveLength(0,);
+        expect(recorded.listingReads,).toHaveLength(0,);
         expect(recorded.notifications,).toHaveLength(1,);
+        expect(recorded.notifications[0]?.kind,).toBe('failure',);
         expect(recorded.notifications[0]?.summary,).toBe(`Garage sync failed (${WATCH_UNIT})`,);
         expect(recorded.notifications[0]?.body,).toContain('rclone-bisync-garage-after-current.service',);
         expect(recorded.streak,).toBeDefined();
@@ -367,6 +378,7 @@ await describe({
         await runAlert({ request: request({ trigger: 'watcher-started', unit: WATCH_UNIT, outcome: { result: '', exitCode: '', exitStatus: '', }, }), deps: openWatcherRun.deps, },);
         expect(openWatcherRun.recorded.notifications,).toHaveLength(1,);
         expect(openWatcherRun.recorded.notifications[0]?.summary,).toBe(`Garage sync recovered (${WATCH_UNIT})`,);
+        expect(openWatcherRun.recorded.notifications[0]?.kind,).toBe('recovery',);
         expect(openWatcherRun.recorded.streak,).toBeUndefined();
         /**
          The same start hook with no streak open.
