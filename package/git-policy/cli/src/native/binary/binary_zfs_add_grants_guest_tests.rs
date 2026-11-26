@@ -883,46 +883,12 @@ fn run_add_as_the_account(
 }
 
 /// What:
-///  Remove the plain worktree the ladder made at one slot,
-///  as the account that made it.
-/// Why:
-///  The checkout belongs to the account for this arm,
-///  so Git's own ownership rule refuses a `worktree remove` run as root,
-///  and the folder would stay registered into the next arm's fixture.
-fn remove_the_ladders_worktree(
-    fixture: &Fixture,
-    name: &str,
-) {
-    let removed: Output = Command::new("/usr/sbin/runuser")
-        .args(["--user", ACCOUNT_NAME, "--", "/usr/bin/env"])
-        .arg(format!("HOME={ACCOUNT_HOME}/zfs-add-home"))
-        .arg("GIT_CONFIG_NOSYSTEM=1")
-        .arg("/usr/bin/git")
-        .args([
-            "worktree",
-            "remove",
-            "--force",
-            "--force",
-            fixture.slot(name).to_str().expect("a text path"),
-        ])
-        .current_dir(fixture.root.as_path())
-        .output()
-        .expect("the account's git starts");
-    assert!(
-        removed.status.success(),
-        "the ladder's worktree at {} cannot be removed by {ACCOUNT_NAME}: {}",
-        fixture.slot(name).display(),
-        String::from_utf8_lossy(removed.stderr.as_slice())
-    );
-}
-
-/// What:
 ///  Clear this arm's own slots as the account,
 ///  so a second run starts from nothing.
 /// Why:
 ///  A run that failed mid-arm leaves the checkout with the account,
 ///  and Git's own ownership rule then refuses a cleanup run as root,
-///  so the arm clears its slots the same way it removes the ladder's worktree.
+///  so the arm clears its slots with the account's own `git`.
 fn start_the_arm_from_nothing(fixture: &Fixture) {
     for name in ["account-companion", "account-legacy", "account-refused"] {
         let path: PathBuf = fixture.slot(name);
@@ -945,7 +911,37 @@ fn start_the_arm_from_nothing(fixture: &Fixture) {
                 .output()
                 .expect("the account's git starts");
         }
+        // What: a clone the previous run made at this slot is unmounted and destroyed.
+        // Why: the run after it must find the slot empty, and a standing clone dataset would refuse the add.
+        let clone: String = fixture.clone(name);
+        let _unmounted: Output = fixture.zfs(&["unmount", "-f", clone.as_str()]);
+        let _destroyed: Output = fixture.zfs(&["destroy", "-r", "-f", clone.as_str()]);
     }
+}
+
+/// Run the doctor as the delegated account,
+/// which is the user whose user namespace the companion asks for.
+fn doctor_as_the_account(fixture: &Fixture) -> Output {
+    return Command::new("/usr/sbin/runuser")
+        .args(["--user", ACCOUNT_NAME, "--", "/usr/bin/env"])
+        .arg(format!("HOME={ACCOUNT_HOME}/zfs-add-home"))
+        .arg(format!("XDG_RUNTIME_DIR={ACCOUNT_HOME}/zfs-add-runtime"))
+        .arg(format!("PATH={ACCOUNT_BIN}:{}:/usr/bin:/bin", fixture.sbin))
+        .arg(format!(
+            "LD_LIBRARY_PATH={}/lib",
+            fixture.sbin.trim_end_matches("/sbin")
+        ))
+        .arg("GIT_CONFIG_NOSYSTEM=1")
+        .arg("GIT_CONFIG_GLOBAL=/nonexistent-global-config")
+        .arg(format!("{ACCOUNT_BIN}/git"))
+        .args(["monochromatic-git-policy-cli", "doctor"])
+        .current_dir(fixture.root.as_path())
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("the account's doctor starts");
 }
 
 /// Run one whole add as the delegated account with the companion's own check
@@ -1036,44 +1032,64 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     start_the_arm_from_nothing(&fixture);
     // Arm one, the host's own state:
     // with the companion running,
-    // this guest refuses the managed add at its `setgroups` step,
-    // because Ubuntu 24.04's AppArmor profile denies the capability that step's
-    // `open` asks for inside the user namespace,
-    // and the add takes the ladder instead of the clone route.
-    // The arm's other halves therefore take the companion's own check out of the
-    // way through its documented test switch:
-    // the companion is not this issue's subject, and its guest arm lives beside
-    // its own module.
-    let refused: Output = run_add_as_the_account(&fixture, "account-companion");
+    // this guest skips the companion's group drop at the `open` of
+    // `/proc/self/setgroups`,
+    // because Ubuntu 24.04's AppArmor profile denies the capability that open
+    // asks for inside the user namespace,
+    // and the add goes ahead and makes its clone anyway
+    // (`doc/decision/cli-git-zfs-start-probe.md`,
+    // "The account companion's group drop on Ubuntu 24.04").
+    // `doctor` reports the same skip, its reason and its remedies without
+    // running an add,
+    // which is what the owner asked for beside the skip.
+    let went_ahead: Output = run_add_as_the_account(&fixture, "account-companion");
     let companion: String = format!(
         "{}{}",
-        String::from_utf8_lossy(refused.stdout.as_slice()),
-        String::from_utf8_lossy(refused.stderr.as_slice())
+        String::from_utf8_lossy(went_ahead.stdout.as_slice()),
+        String::from_utf8_lossy(went_ahead.stderr.as_slice())
     );
     assert!(
-        companion.contains("the account companion's setgroups failed"),
-        "this guest refuses the managed add at the companion's `setgroups` step, which is why the next halves take that check out of the way: {companion}"
+        companion.contains(
+            "account companion skipped: open /proc/self/setgroups answered EACCES (errno 13)"
+        ),
+        "this guest skips the companion's group drop at the open of `/proc/self/setgroups`: {companion}"
     );
     assert!(
-        companion.contains("the reflink or ordinary Git route"),
-        "the refusal names what the slot takes instead: {companion}"
+        companion.contains("made the worktree as a ZFS clone"),
+        "the add goes ahead after the skip and takes the clone route: {companion}"
     );
     println!(
         "the companion's own line on this guest: {}",
         companion
             .lines()
-            .find(|line| return line.contains("managed add refused"))
+            .find(|line| return line.contains("account companion skipped"))
             .unwrap_or("none")
     );
     assert!(
-        !fixture.dataset_stands(fixture.clone("account-companion").as_str()),
-        "the refused managed add made no clone: {companion}"
+        fixture.dataset_stands(fixture.clone("account-companion").as_str()),
+        "the skip lets the managed add make its clone: {companion}"
     );
     assert!(
-        !fixture.home().join("account-companion.binding").exists(),
-        "the refused managed add wrote no binding: {companion}"
+        fixture.home().join("account-companion.binding").exists(),
+        "the add that went ahead after the skip wrote its binding: {companion}"
     );
-    remove_the_ladders_worktree(&fixture, "account-companion");
+    let reported: Output = doctor_as_the_account(&fixture);
+    let doctor_said: String = format!(
+        "{}{}",
+        String::from_utf8_lossy(reported.stdout.as_slice()),
+        String::from_utf8_lossy(reported.stderr.as_slice())
+    );
+    assert!(
+        doctor_said.contains(
+            "account companion: this host skips the account companion's group drop: open /proc/self/setgroups answered EACCES (errno 13)"
+        ),
+        "the doctor reports the skip this host makes, and it said: {doctor_said}"
+    );
+    assert!(
+        doctor_said.contains("sysctl --write kernel.apparmor_restrict_unprivileged_userns=0"),
+        "the doctor names the remedy a person has, and it said: {doctor_said}"
+    );
+    println!("the doctor's own report on this guest: {doctor_said}");
     // Arm two: the add as the account, with the companion's own check out of the way,
     // makes the clone and the clone reads the container's `legacy`.
     let made: Output = run_add_as_the_account_without_the_companion(&fixture, "account-legacy");

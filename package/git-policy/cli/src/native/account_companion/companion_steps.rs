@@ -15,6 +15,12 @@
 //!  answers,
 //! so a defect in the companion's own code refuses the managed attach
 //!  rather than turning it off in silence.
+//!  The open of `/proc/self/setgroups` for its `deny` write is one of the
+//!  capability checks the skip covers,
+//!  since `proc_setgroups_open` asks `CAP_SYS_ADMIN` in the new user namespace
+//!  and Ubuntu 24.04's default AppArmor profile denies every capability there
+//!  (`doc/decision/cli-git-zfs-start-probe.md`,
+//!  "The account companion's group drop on Ubuntu 24.04").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -153,10 +159,18 @@ impl CompanionStep {
 ///  user-namespace entry at all:
 /// with the entry there,
 ///  `EINVAL` is the companion's own malformed request.
+///  The `setgroups` step's `EACCES` is the skip the owner added on 2026-11-26:
+///  the open of `/proc/self/setgroups` for write asks `CAP_SYS_ADMIN` in the new
+///  user namespace (`proc_setgroups_open`),
+///  so a profile that denies every capability inside one answers `EACCES` there
+///  and the write is never reached.
+///  Every other answer of that open is an arm failure,
+///  and so is every answer of the write,
+///  which asks for no capability to write `deny`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// skipsAt({ step: 'user-namespace', errno: 'EPERM', userNamespaceEntry: true }) // true
+/// skipsAt({ step: 'setgroups', call: 'open /proc/self/setgroups', errno: 'EACCES' }) // true
 /// ```
 pub fn is_skip(
     step: CompanionStep,
@@ -172,6 +186,7 @@ pub fn is_skip(
             matches!(errno, libc::ENOSPC | libc::EPERM | libc::EACCES)
                 || (errno == libc::EINVAL && !user_namespace_entry)
         }
+        (CompanionStep::Setgroups, CompanionCall::OpenSetgroups) => errno == libc::EACCES,
         (CompanionStep::UidMap, _) => errno == libc::EPERM,
         (CompanionStep::MountNamespace, CompanionCall::UnshareMountNamespace) => {
             errno == libc::EPERM
