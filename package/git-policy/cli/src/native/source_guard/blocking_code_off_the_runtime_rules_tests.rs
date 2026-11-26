@@ -498,10 +498,4 @@ pub(super) const ALLOWED: &[Allowed] = &[
               calling command thread, not a worker of the runtime, `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP` arms it, the control's release file ends \
               it and `HOLD_BOUND` bounds it. The entry goes when the add path is a task, where an awaited `tokio::time::sleep` ends the pause",
     },
-    // One call on a known small file inside a task, which the plan allows once and the merge's own step batches.
-    Allowed {
-        file: "merge/merge_second_pass_tree.rs",
-        rule: "storage-read-on-a-task",
-        why: "one removal of a known private index file; the merge's own step owns batching it on the blocking pool",
-    },
 ];
