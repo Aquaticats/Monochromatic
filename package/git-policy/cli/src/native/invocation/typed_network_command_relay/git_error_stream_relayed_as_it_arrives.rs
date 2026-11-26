@@ -165,10 +165,10 @@ pub fn shape_of_this_process() -> ErrorStreamShape {
 /// class RelayedStart { constructor(readonly child: Child, readonly source: OwnedFd) {} }
 /// ```
 pub struct RelayedStart {
-    /// The child itself, owned here until the read that ends it.
-    child: Child,
-    /// The end the relay reads: the pseudo-terminal's master, or the pipe's reading end.
-    source: OwnedFd,
+    /// The child itself, owned here until the read that ends it, or nothing once it is taken.
+    child: Option<Child>,
+    /// The end the relay reads: the pseudo-terminal's master, or the pipe's reading end, or nothing once it is taken.
+    source: Option<OwnedFd>,
     /// The token that points the signal relay at the child until the read is over, or nothing when no guard was given.
     relayed: Option<RelayedChild>,
 }
@@ -198,10 +198,23 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
     // let master: number | undefined;
     // ```
     let mut master: Option<OwnedFd> = None;
-    if shape == ErrorStreamShape::Terminal {
-        let pair: (OwnedFd, OwnedFd) = open_a_terminal_pair()?;
-        master = Some(pair.0);
-        command.stderr(Stdio::from(pair.1));
+    match shape {
+        ErrorStreamShape::Terminal => {
+            let pair: (OwnedFd, OwnedFd) = open_a_terminal_pair()?;
+            master = Some(pair.0);
+            command.stderr(Stdio::from(pair.1));
+        }
+        // What: `Stdio::piped()` gives the child a pipe whose reading end the `Child` value holds.
+        // Why:   When this process's standard error is not a terminal, plain Git would draw nothing, and a pipe presents
+        //        exactly that.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // command.stderr = 'pipe';
+        // ```
+        ErrorStreamShape::Pipe => {
+            command.stderr(Stdio::piped());
+        }
     }
     // What: A `RelayedChild` is a started child the signal relay points at until the token is dropped.
     // Why:  The token's own start publishes the child and hands it back still published.
@@ -263,7 +276,7 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
     // ```ts
     // return { child, source, relayed };
     // ```
-    Ok(RelayedStart { child, source, relayed })
+    Ok(RelayedStart { child: Some(child), source: Some(source), relayed })
 }
 
 /// What:
@@ -277,9 +290,43 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
 /// ```ts
 /// for (;;) { await pollOne(source, 100ms); drain(); const s = child.tryWait(); if (s) { drain(); return { outcome: s, kept }; } }
 /// ```
-pub fn read_to_the_child_s_end(start: RelayedStart) -> io::Result<RelayedErrorStream> {
+pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write) -> io::Result<RelayedErrorStream> {
     // `mut` lets the wait take the child's status and the tail grow.
-    let RelayedStart { mut child, source, relayed } = start;
+    // What: `mut start` lets the child and the token be taken out of the start, whose own drop then finds nothing to end.
+    // Why:   The read is the one owner of the child.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const owned = start.takeChild()!;
+    // ```
+    let mut start: RelayedStart = start;
+    let mut owned: Child = match start.child.take() {
+        Some(taken) => taken,
+        None => {
+            return Err(io::Error::other("the relayed child was already taken"));
+        }
+    };
+    // What: `take` moves the token out, so the start's drop retires nothing twice.
+    // Why:   One owner points the relay away, and it is this function's token.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const token = start.takeToken();
+    // ```
+    let relayed: Option<RelayedChild> = start.relayed.take();
+    // What: `source` is the descriptor the read takes from the start, which then owns no stream.
+    // Why:   The relay reads exactly one descriptor.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const source = start.takeSource();
+    // ```
+    let source: OwnedFd = match start.source.take() {
+        Some(taken) => taken,
+        None => {
+            return Err(io::Error::other("the relayed descriptor was already taken"));
+        }
+    };
     // What: `map_or` answers zero when no guard was given, which is a caller that records no child.
     // Why:   The number is a fact about the token, and there may be none.
     //
@@ -314,12 +361,12 @@ pub fn read_to_the_child_s_end(start: RelayedStart) -> io::Result<RelayedErrorSt
         // ```ts
         // const eof = copyWhatIsReadable(source, buffer, kept);
         // ```
-        let eof: bool = copy_what_is_readable(&source, &mut buffer, &mut kept)?;
+        let eof: bool = copy_what_is_readable(&source, &mut buffer, &mut kept, out)?;
         if eof {
             // One last look at whatever the stream still holds, and then the child's own wait: no process holds this wrapper
             //  past the child's end.
-            drain_what_is_left(&source, &mut buffer, &mut kept);
-            let status: std::process::ExitStatus = child.wait()?;
+            drain_what_is_left(&source, &mut buffer, &mut kept, out);
+            let status: std::process::ExitStatus = owned.wait()?;
             return finish(status, child_number, kept, relayed);
         }
         // What: `try_wait` asks whether the child has ended without waiting for it.
@@ -329,9 +376,9 @@ pub fn read_to_the_child_s_end(start: RelayedStart) -> io::Result<RelayedErrorSt
         // ```ts
         // const status = child.tryWait(); if (status) { drain(); return { status, kept }; }
         // ```
-        match child.try_wait()? {
+        match owned.try_wait()? {
             Some(status) => {
-                drain_what_is_left(&source, &mut buffer, &mut kept);
+                drain_what_is_left(&source, &mut buffer, &mut kept, out);
                 return finish(status, child_number, kept, relayed);
             }
             None => {}
@@ -368,3 +415,45 @@ fn finish(status: std::process::ExitStatus, child_number: u32, kept: Vec<u8>, re
     // ```
     return Ok(RelayedErrorStream { outcome, child_number, kept });
 }
+
+/// What:
+///  End a child the read never took, so a panic between the start and the read leaves no Git running.
+/// Why:
+///  The wrapper dies with a panic sometimes, and a Git child it started would go on holding the repository's locks with nobody
+///  left to reap it;
+///  the token's own drop retires the relay first, so the kill reaches only this child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [Symbol.dispose]() { if (this.child) { this.child.kill(); this.child.wait(); } }
+/// ```
+impl Drop for RelayedStart {
+    /// What:
+    ///  Kill and reap the child this start still owns, and point the relay away from it.
+    /// Why:
+    ///  A child nobody read is a child nobody will wait for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose]() { const child = this.child; if (!child) return; child.kill(); child.wait(); }
+    /// ```
+    fn drop(&mut self) {
+        // What: `as_mut` borrows the child when the start still owns one, and answers nothing once it was taken.
+        // Why:   A taken child is the read's to end, and this drop must not kill a child the read is waiting for.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const owned = this.child; if (owned) { owned.kill(); owned.wait(); }
+        // ```
+        let Some(owned) = self.child.as_mut() else {
+            return;
+        };
+        let _killed: std::io::Result<()> = owned.kill();
+        let _reaped: std::io::Result<std::process::ExitStatus> = owned.wait();
+    }
+}
+
+/// The relay's readings are controlled in the test module.
+#[cfg(test)]
+#[path = "git_error_stream_relayed_as_it_arrives_tests.rs"]
+mod tests;

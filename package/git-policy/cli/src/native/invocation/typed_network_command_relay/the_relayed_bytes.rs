@@ -57,7 +57,7 @@ use super::git_error_stream_relayed_as_it_arrives::KEPT_TAIL_BYTES;
 /// ```ts
 /// for (;;) { const n = read(fd, buf); if (n === 0) return true; if (n < 0 && errno === EAGAIN) return false; write(2, buf.subarray(0, n)); keep(...); }
 /// ```
-pub(super) fn copy_what_is_readable(source: &OwnedFd, buffer: &mut [u8], kept: &mut Vec<u8>) -> io::Result<bool> {
+pub(super) fn copy_what_is_readable(source: &OwnedFd, buffer: &mut [u8], kept: &mut Vec<u8>, out: &mut dyn Write) -> io::Result<bool> {
     loop {
         // What: `read` takes the descriptor and a buffer, and answers how many bytes it wrote there.
         // Why:  The bytes are relayed exactly as the child wrote them.
@@ -76,7 +76,7 @@ pub(super) fn copy_what_is_readable(source: &OwnedFd, buffer: &mut [u8], kept: &
             // ```
             Ok(0) => return Ok(true),
             Ok(read) => {
-                relay_one_chunk(&buffer[..read], kept);
+                relay_one_chunk(&buffer[..read], kept, out);
             }
             // What: `AGAIN` means "nothing to read now", not a failure.
             // Why:  A non-blocking descriptor answers this at every point where the child wrote nothing.
@@ -104,14 +104,14 @@ pub(super) fn copy_what_is_readable(source: &OwnedFd, buffer: &mut [u8], kept: &
 /// ```ts
 /// for (let turn = 0; turn < 16; turn += 1) { const n = readNonBlocking(); if (n <= 0) return; relay(buf.subarray(0, n)); }
 /// ```
-pub(super) fn drain_what_is_left(source: &OwnedFd, buffer: &mut [u8], kept: &mut Vec<u8>) {
+pub(super) fn drain_what_is_left(source: &OwnedFd, buffer: &mut [u8], kept: &mut Vec<u8>, out: &mut dyn Write) {
     // Sixteen turns each taking `CHUNK_BYTES` is a hundred and twenty-eight kilobytes, and a stream that holds more than that
     //  after the child ended is one this relay stops reading rather than loop on.
     for _turn in 0..16 {
         match rustix::io::read(source, &mut *buffer) {
             Ok(0) => return,
             Ok(read) => {
-                relay_one_chunk(&buffer[..read], kept);
+                relay_one_chunk(&buffer[..read], kept, out);
             }
             // Nothing more is there, or the stream is gone: either way the drain is over.
             Err(_nothing_more) => return,
@@ -129,17 +129,17 @@ pub(super) fn drain_what_is_left(source: &OwnedFd, buffer: &mut [u8], kept: &mut
 /// ```ts
 /// try { write(2, chunk); } catch {} kept = Buffer.concat([kept, chunk]).subarray(-65536);
 /// ```
-fn relay_one_chunk(chunk: &[u8], kept: &mut Vec<u8>) {
-    // What: `locked()` hands back one handle on the standard error for both calls below.
-    // Why:  Each `stderr()` call takes the same lock, and one handle writes and flushes without letting go of it.
+fn relay_one_chunk(chunk: &[u8], kept: &mut Vec<u8>, out: &mut dyn Write) {
+    // What: `out` is the stream the caller relays to: this process's standard error in production, and a control's own list
+    //       when the relay is measured.
+    // Why:   One writer makes the relay testable without writing a hundred kilobytes into the run's log.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const out = process.stderr;
+    // out.write(chunk); out.flush();
     // ```
-    let mut output = std::io::stderr().lock();
-    let _written: io::Result<()> = output.write_all(chunk);
-    let _flushed: io::Result<()> = output.flush();
+    let _written: io::Result<()> = out.write_all(chunk);
+    let _flushed: io::Result<()> = out.flush();
     kept.extend_from_slice(chunk);
     if kept.len() > KEPT_TAIL_BYTES {
         let drop_this_many: usize = kept.len().saturating_sub(KEPT_TAIL_BYTES);

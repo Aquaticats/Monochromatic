@@ -596,12 +596,21 @@ pub fn reads_as_a_strict_host_key_refusal(text: &str) -> bool {
 /// text.includes('Host key verification failed') && lines.every((line) => !namesAHostKeyOutsideQuotes(line) || isAnUnknownKeysOwnLine(line))
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
-    if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
+    // What: `own` holds the lines this program wrote, without what Git relayed from the far end.
+    // Why:   The phrase is looked for in the same lines the loop below reads, so a transcript whose only refusal's words came
+    //        from the far end is not read as one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const own = ownLinesOf(text); if (!own.includes('Host key verification failed')) return false;
+    // ```
+    let own: String = own_lines_of(text);
+    if !own.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
         return false;
     }
     // One fold of the constant, and one of each line: the comparison is the whole reason to read the lines.
     let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
-    for line in own_lines_of(text).lines() {
+    for line in own.lines() {
         let folded: String = line.to_ascii_lowercase();
         if is_a_debug_line(folded.as_str()) || !names_a_host_key_outside_quotes(folded.as_str()) {
             continue;

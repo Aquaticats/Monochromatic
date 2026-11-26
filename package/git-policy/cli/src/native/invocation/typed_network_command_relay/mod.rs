@@ -211,7 +211,7 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const relayed = readToTheChildSEnd(start);
     // ```
-    let relayed: RelayedErrorStream = match read_to_the_child_s_end(started) {
+    let relayed: RelayedErrorStream = match read_to_the_child_s_end(started, &mut std::io::stderr()) {
         Ok(read) => read,
         Err(error) => return Some(Err(error)),
     };

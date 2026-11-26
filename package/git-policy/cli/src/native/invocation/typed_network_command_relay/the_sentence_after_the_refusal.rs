@@ -112,19 +112,12 @@ pub fn sentence_for(refusal: Refusal, target: &super::a_target_the_sentence_may_
     // `match` picks by variant and binds nothing here: each arm is one text.
     return match refusal {
         Refusal::HostKey => format!(
-            "monochromatic-git-policy-cli: this machine does not know the SSH host key of `{host}`, or holds an outdated one for it, \
-             and no command the wrapper runs asks whether to trust a new one, so no connection got past the key. Connect with plain \
-             `ssh {connect}`, which the wrapper does not touch, and answer the question it asks; if it names a key that changed \
-             instead, compare the fingerprint it shows with the one you know to be right before you accept it, then remove the line \
-             it names and connect once more, which then asks about the new key, and run this command again.\n",
+            "monochromatic-git-policy-cli: this machine does not know the SSH host key of `{host}`, or holds an outdated one for it, and no command the wrapper runs asks whether to trust a new one, so no connection got past the key. Connect with plain `ssh {connect}`, which the wrapper does not touch, and answer the question it asks; if it names a key that changed instead, compare the fingerprint it shows with the one you know to be right before you accept it, then remove the line it names and connect once more, which then asks about the new key, and run this command again.\n",
             host = target.host,
             connect = target.connect,
         ),
         Refusal::StrictChecking => format!(
-            "monochromatic-git-policy-cli: this machine has no SSH host key recorded for `{host}`, and your settings refuse to ask \
-             about a new one (`StrictHostKeyChecking=yes`), so the connection stopped before any login. Connect once with plain \
-             `ssh -o StrictHostKeyChecking=ask {connect}`, which the wrapper does not touch and which asks once, then run this \
-             command again; or add that host's key to `known_hosts` yourself.\n",
+            "monochromatic-git-policy-cli: this machine has no SSH host key recorded for `{host}`, and your settings refuse to ask about a new one (`StrictHostKeyChecking=yes`), so the connection stopped before any login. Connect once with plain `ssh -o StrictHostKeyChecking=ask {connect}`, which the wrapper does not touch and which asks once, then run this command again; or add that host's key to `known_hosts` yourself.\n",
             host = target.host,
             connect = target.connect,
         ),
@@ -176,3 +169,8 @@ pub fn print_after_a_refusal(kept: &[u8], ended_with: i32, target: &super::a_tar
     let _written = std::io::Write::write_all(&mut standard_error, sentence.as_bytes());
     PRINTED.store(true, Ordering::SeqCst);
 }
+
+/// The words and their reading are controlled in the test module.
+#[cfg(test)]
+#[path = "the_sentence_after_the_refusal_tests.rs"]
+mod tests;
