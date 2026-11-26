@@ -112,6 +112,8 @@ The host's own part is unprivileged:
 and a `cp` of the finished file into the image folder,
 because `mvm pull` refuses a file above 2 GiB
 and this one is 3.8 GiB.
+The build guest was destroyed through `mvm` once the image was copied out,
+and `mvm list` then reported it gone.
 
 The build driver is kept with this record
 (`keep/template-build/build-cachyos-template.ts` in the round's folder),
