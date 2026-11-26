@@ -442,6 +442,24 @@ Measured after:
 answered `test result: ok. 12 passed; 0 failed; 0 ignored`,
 and each changed control alone answered `1 passed; 0 failed`.
 
+Round of 2026-11-26:
+issue 6495 is fixed by running one control's body in a child of its own
+(`process_wide_state_child_test_support.rs`),
+`worktree::worktree_clean`'s one-place control (`3a4f2ee6d8` and `8ba6a8c5be`).
+Measured there:
+a threaded module run has already made the budget with seven places,
+so `hold_blocking_jobs_to(1)` arrived too late and the control held one place of seven;
+the same control passed in other runs because another test's job happened to be waiting.
+The child reads its bound before the work runs and fails when it is not the one place,
+so a body back in the parent fails at once,
+naming the cause,
+instead of at the holder's ten-second patience.
+That fixes the one site and not the shared helper:
+`hold_the_only_place` holds the process's only place only where it is the process's first
+blocking-job user,
+which is issue 6477,
+and the other call sites of it are unchanged.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;

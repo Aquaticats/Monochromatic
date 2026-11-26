@@ -69,6 +69,12 @@ apparmor="DENIED" operation="capable" class="cap" profile="unprivileged_userns" 
 Second,
 on that guest the open of `/proc/self/setgroups` for write answers `EACCES`,
 before any write the design reasoned about.
+That is the kernel's own refusal:
+`proc_setgroups_open` answers `-EACCES` for a write open whose caller lacks
+`CAP_SYS_ADMIN` in the file's user namespace
+(`kernel/user_namespace.c:3140` to `:3144` of the guest's 6.8 series),
+so the capability the profile denies is asked for at the open and not at the
+write.
 A probe that makes the companion's three calls in the companion's order,
 as the account,
 answers:
@@ -219,6 +225,14 @@ which amends the skip reach in `doc/decision/cli-git-zfs-start-probe.md` and the
 their control,
 or the managed route stays off on Ubuntu 24.04,
 and the ladder serves every add there.
+
+The owner took the first on 2026-11-26T00:05-05:00,
+answering "Add the skip and make the doctor tell user what to do."
+(`doc/decision/cli-git-zfs-start-probe.md`,
+"The account companion's group drop on Ubuntu 24.04"):
+the open's `EACCES` is a skip that prints its line and lets the add go ahead,
+and `doctor` reports the skip,
+its reason and the remedies above without running an add.
 
 ## What does not work
 

@@ -1188,6 +1188,15 @@ the line of the kernel or of a security module that answers it:
   capability rather than the companion's line.
 - `unshare(CLONE_NEWNS)` answering `EPERM`: `unshare_nsproxy_namespaces` requires `CAP_SYS_ADMIN` in the caller's
   user namespace (`kernel/nsproxy.c:221` to `:223`).
+- The open of `/proc/self/setgroups` for the `deny` write answering `EACCES`: `proc_setgroups_open` asks
+  `CAP_SYS_ADMIN` over the new user namespace's `ns`, so a profile that denies every capability inside one answers at
+  the open and the write is never reached. Ubuntu 24.04's default AppArmor profile does exactly that, measured on
+  2026-11-25 in a throwaway guest on the recipe's own kernel
+  (`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`), and the owner put
+  that answer on the skip on 2026-11-26T00:05-05:00
+  (`doc/decision/cli-git-zfs-start-probe.md`, "The account companion's group drop on Ubuntu 24.04"). Every other
+  answer of that open is an arm failure, and so is every answer of the write, which asks for no capability to write
+  `deny`.
 - A capability check a mount call makes during the setup answering `EPERM`: `may_mount` requires
   `CAP_SYS_ADMIN` over the mount namespace's own (`fs/namespace.c:2063` to `:2066`) and answers a bool, so a policy
   hook's denial there reaches the caller as `EPERM`; `mount` asks it (`fs/namespace.c:4270` to `:4271`), which is
@@ -1246,12 +1255,15 @@ of user namespaces for unprivileged and unconfined applications but will deny th
 within the user namespace". That guest is the one every measurement in this design runs on. Reading mainline v7.3, the
 call that answers there is the first mapping write, not `unshare(CLONE_NEWNS)`: `map_write` asks for
 `CAP_SYS_ADMIN` over the new namespace before it parses anything (`kernel/user_namespace.c:986`), and the profile
-is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds, the `setgroups` write succeeds because
-`proc_setgroups_write` asks for no capability to write `deny`, and the first map write answers `EPERM`. That is a
-reading of mainline source, not a run on that guest's patched 6.8 kernel, and
-[M6](#m6-user-namespace-limits) and [M11](#m11-the-account-companion-per-add) record which call it named rather
-than assuming this one. A boundary at the first call would make it a failed arm, so every managed add on such a
-host would be refused and the probe's pass controls could not pass there either.
+is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds and the first map write answers `EPERM`. That
+reading was wrong about the calls before it: a guest measured on 2026-11-25 answers `EACCES` at the open of
+`/proc/self/setgroups` for write, because `proc_setgroups_open` asks for that same capability, and the `deny` write
+is never reached
+(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`). That reading of
+mainline source is still a reading, and [M11](#m11-the-account-companion-per-add) now records the measured answer.
+The skip paragraph above names that answer, so the call a person sees on such a host is the open and not the first
+map write. A boundary at the first call would make it a failed arm, so every managed add on such a host would be
+refused and the probe's pass controls could not pass there either.
 
 The companion then prints one line naming the call, the errno and the settings it read
 (`/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and, where the running kernel
@@ -1656,6 +1668,11 @@ the run `doctor` makes: a pass, a failed arm with its call and errno, the skip w
 settings it read, or `unknown` for every ending it cannot prove
 ([The account companion](#the-account-companion)). The section goes to standard error and changes
 no exit status, as the design requires for setup findings (the [proposal][proposal], lines 1153 to 1155).
+
+The skip's own report shipped on 2026-11-26 with the jump the owner took for it
+(`doc/decision/cli-git-zfs-start-probe.md`, "The account companion's group drop on Ubuntu 24.04"): four lines on
+the skip, one line where the probe could not be read, and nothing for a pass or for another call's answer, because
+the add's own line carries those. The rest of this section, the pass and the failed arm included, is step 18's.
 
 The companion prints its own line on the add it refuses or skips, as [The account companion](#the-account-companion)
 states, and the wrapper's refusal line names the companion's arm and errno beside the probe's when both apply.
@@ -2075,9 +2092,13 @@ skip list names: it must print the skip line naming `unshare` and `EINVAL`, must
 a guest exists this arm is unrun and this item says so. A guest booted with
 `kernel.apparmor_restrict_unprivileged_userns` at 1, on a
 distribution whose default profile denies capabilities inside the namespace, is the arm the skip boundary exists
-for: it must print the skip line naming the setup call the kernel denied and `EPERM`, must record which call it
-named (the first mapping write on a mainline reading, as [The account companion](#the-account-companion) states),
-must not refuse the add, and must leave `doctor` naming the setting and the skip. A guest whose kernel has no
+for: it must print the skip line naming the setup call the kernel denied, which the guest measured on 2026-11-25 as
+the open of `/proc/self/setgroups` answering `EACCES`
+(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`), must not refuse
+the add, and must leave `doctor` naming the setting and the skip, with the remedies that record measures. A
+control beside it holds the other side: an `EACCES` from the `deny` write itself, or from that open with any other
+errno, must refuse the add as a failed arm and must print no skip line, because only the open's `EACCES` is the
+host denying the capability. A guest whose kernel has no
 `/proc/sys/kernel/unprivileged_userns_clone` must print `absent` for it rather than nothing. And because the child
 repeats the probe's syscall sequence in its own no-allocation island, this
 run compares that sequence against the probe's arms on the same controls, so an island that diverged from the probe

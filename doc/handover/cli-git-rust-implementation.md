@@ -123,13 +123,13 @@ Rounds started earlier run on the pool they named.
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
   starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
   at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
-  and the setgroups round touches `invocation/` too.
+  and the setgroups round that also touched `invocation/` merged at 07:31.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
 - Issue 6504 (two driver controls fail in its parallel suite and pass alone),
   window `issue-6504-driver-suite-controls-fail-together-and-pass-alone`, the first round on the virtual writer.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issues 6493 and 6495 (flex),
+- Issue 6493 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
@@ -137,8 +137,6 @@ Rounds started earlier run on the pool they named.
 - Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
   briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `invocation/`.
-- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
-  (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
@@ -166,9 +164,13 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6498 as `ed9766ffad`,
   6496 as `03212a32ff`,
   6497 as `ad67562f20`,
-  6499 as `2f5b9c87bd` and
+  6499 as `2f5b9c87bd`,
+  6495 as `2024335d64` and
   6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
+- The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
+  the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
+  proved in an Ubuntu 6.8 guest with the remedy arm.
 - ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
   record `doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`;
   every arm passed on `7.3.5-1-cachyos` with OpenZFS `2.4.4-1` except the gate arm issue 6502 fixes.
@@ -258,11 +260,11 @@ Of those filed tonight,
 6498,
 6496,
 6497,
-6499 and
-6489 are merged (`### Merged tonight`),
-and 6493,
-6494 and
-6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+6499,
+6489 and
+6495 are merged (`### Merged tonight`),
+and 6493 and
+6494 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
