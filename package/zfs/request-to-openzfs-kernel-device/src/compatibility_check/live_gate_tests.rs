@@ -20,16 +20,32 @@
 //!  The driver sets it per arm and reads the `MEASUREMENT gate` line,
 //! so a run that
 //!  never reached the arm is visible rather than green.
+//!  A pass also shows the header length the checker reports is the one the
+//! module's own file declares in its own header,
+//! read from that file and never
+//!  written as a number,
+//! and that it is one of the two shapes the header reader knows,
+//! so
+//!  no accepted module is reported with a length no file stated.
 //!  The arm opens no device:
 //! it reads two sysfs files,
 //! so a machine without
 //!  `/dev/zfs` runs it,
 //! and only the guest's own files are read.
 
+use super::bounded_read::{
+    ReadRequest,
+    read_bounded,
+};
+use super::btf_header::{
+    LAYOUT_HEADER_BYTES,
+    OLDEST_HEADER_BYTES,
+};
 use super::refusal::Step;
 use super::{
     Compatible,
     LayoutRequest,
+    MODULE_BTF_BOUND,
     Refusal,
     check_module_layout,
 };
@@ -102,9 +118,33 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
                 );
             };
             assert!(compatible.module_bytes > 0);
+            // What: the module's own file, read again from the path the
+            // checker read, through the crate's one bounded read.
+            // Why: the header length the arm compares against must come from
+            // the file's own bytes, not from the checker's report of them.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const moduleFile = readBounded({ path: module, bound: MODULE_BTF_BOUND, step: Step.ModuleBtf });
+            // ```
+            let module_file: Vec<u8> = read_bounded(&ReadRequest {
+                path: module.as_path(),
+                bound: MODULE_BTF_BOUND,
+                step: Step::ModuleBtf,
+            })
+            .expect("the module's own type information is readable");
+            let declared: usize = declared_header_bytes(&module_file);
+            println!(
+                "MEASUREMENT gate-header declared={declared} reported={} oldest={OLDEST_HEADER_BYTES} layout={LAYOUT_HEADER_BYTES}",
+                compatible.module_header_bytes
+            );
+            assert!(
+                declared == OLDEST_HEADER_BYTES || declared == LAYOUT_HEADER_BYTES,
+                "the module's own header is {declared} bytes, and this reader knows only the {OLDEST_HEADER_BYTES}-byte and {LAYOUT_HEADER_BYTES}-byte shapes"
+            );
             assert_eq!(
-                compatible.module_header_bytes, 24,
-                "a 6.8 guest's tools write the oldest header"
+                compatible.module_header_bytes, declared,
+                "the checker reports the header length the module's own file declares"
             );
         }
         "member:dds_flags" => {
@@ -137,4 +177,22 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
         }
         other => panic!("the driver named an expectation this arm does not know: {other}"),
     }
+}
+
+/// The header length a file states in its own first eight bytes,
+/// kept to the field's four bytes
+/// and parsed here rather than by the checker's own header reader,
+/// so the arm compares two readings of one file and not one reading with
+/// itself.
+///
+/// # Panics
+/// When the file is shorter than the four bytes the field sits in.
+fn declared_header_bytes(bytes: &[u8]) -> usize {
+    // What: the field's four bytes, little-endian on this target, widened to
+    // `usize` so they compare with the checker's own `usize` report.
+    // Why: the type information format counts every section from this length.
+    let field: &[u8] = bytes
+        .get(4..8)
+        .expect("the module's own type information holds its header length");
+    return u32::from_le_bytes([field[0], field[1], field[2], field[3]]) as usize;
 }
