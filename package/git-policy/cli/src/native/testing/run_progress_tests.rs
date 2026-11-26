@@ -372,7 +372,8 @@ fn in_a_helper_of_its_own(
 /// This names that run and the helper process that keeps the body alone,
 /// where a figure no test of this crate controls would only fail the comparison (issue 6486).
 /// A control's own figure moving is the fault these controls exist for:
-/// a reader's readings counted as the run's work, so a run that only reads it looks busy at every look.
+/// a reader's readings counted as the run's work,
+/// so a run that only reads it looks busy at every look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -444,8 +445,10 @@ fn bytes_a_task_showed(
 const ANOTHER_TASK_MOVED: u64 = 4_096;
 
 /// What:
-///  A look of two tasks: the one numbered `other` had moved the bytes in `other_task`, and this control's own the bytes
-///  in `own_task`, each pair being a task's number and the bytes that task had moved.
+///  A look of two tasks:
+///  the one numbered `other` had moved the bytes in `other_task`,
+///  and this control's own the bytes in `own_task`,
+///  each pair being a task's number and the bytes that task had moved.
 /// Why:
 ///  The guard compares the figures of the tasks a look found,
 ///  and a look made here states them exactly,

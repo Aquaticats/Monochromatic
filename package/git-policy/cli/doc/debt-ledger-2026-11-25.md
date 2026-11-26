@@ -243,7 +243,10 @@ each one reading its figures in a helper process of its own through `testing/hel
 as 6478's descriptor-room control does,
 with one shared comparison that refuses a look where a task which is not the control's own moved),
 and four threaded-only failures are filed and open:
-6483, 6484, 6485 and 6487.
+6483,
+6484,
+6485 and
+6487.
 
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
