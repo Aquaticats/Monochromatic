@@ -18,7 +18,7 @@ use crate::service_index_marker::{
     marker_of_file,
     own_identity,
 };
-use crate::service_index_placement::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 use crate::test_support::{
     fixture,
     remove,

@@ -36,10 +36,8 @@ use crate::service_index_marker::{
     marker_of,
     pid_of_self_stat,
 };
-use crate::service_index_placement::{
-    place_marked,
-    rename_noreplace,
-};
+use crate::private_storage::rename_noreplace;
+use crate::service_index_placement::place_marked;
 use crate::service_index_staging::stage_marker;
 use crate::test_support::{
     fixture,

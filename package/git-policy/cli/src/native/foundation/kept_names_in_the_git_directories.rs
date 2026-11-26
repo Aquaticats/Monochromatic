@@ -43,7 +43,7 @@ use crate::earlier_names_folded_into_current::{
     fold_kept_names_and_tell,
 };
 /// The rename that never replaces.
-use crate::rename_that_never_replaces::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 /// The pairs of names.
 use crate::wrapper_names_old_and_new::{
     COMMIT_TIMING_LOG,

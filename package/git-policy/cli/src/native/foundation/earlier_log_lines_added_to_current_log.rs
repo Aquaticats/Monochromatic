@@ -90,7 +90,7 @@ use crate::file_open_for_write_by_any_process::{
     writer_check,
 };
 use crate::private_storage::sync_directory;
-use crate::rename_that_never_replaces::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 use crate::wrapper_names_old_and_new::RenamedName;
 use std::fs::{
     File,

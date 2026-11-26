@@ -66,11 +66,12 @@ use crate::recovery_error::{
     RecoveryError,
     io_failure,
 };
-/// The rename that never replaces,
-/// as a job of the blocking pool.
+/// The rename that never replaces.
+use crate::private_storage::rename_noreplace;
+/// The same rename as a job of the blocking pool,
+/// and what it came to.
 use crate::rename_that_never_replaces::{
     TheAnswerOfARename,
-    rename_noreplace,
     rename_noreplace_on_the_blocking_pool,
 };
 use crate::transaction_git::{
