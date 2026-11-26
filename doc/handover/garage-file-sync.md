@@ -56,7 +56,7 @@ output in `~/temp/agent/mac-plain-vs-bucket-compare-2026-11-25/` on the Mac):
 rclone's `docs/content/bisync.md` at `v1.76.0` says `--resync` implies `--resync-mode path1`,
 so a default resync uploads the 214, downloads the 312,
 and overwrites the 12 on the Mac with the bucket's versions.
-The Mac's LaunchAgent in Stage D (macOS) also lacks `--conflict-resolve newer` and the settle pass this PC's unit has.
+The Mac's LaunchAgent in Stage D (macOS) also lacks `--conflict-resolve newer`; neither client's unit has the settle pass yet (the design adds it).
 
 Recovered at 2026-11-25T20:04:52-05:00 on the owner's word
 ("Treat the bucket as the golden copy. I intentionally deleted the game mods from the bucket. Resync."):
