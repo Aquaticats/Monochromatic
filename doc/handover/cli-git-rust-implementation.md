@@ -251,10 +251,12 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - Lane 2: the alpha.47 record-folder pipes round as `9ee93e7873`, the host-key sentence as `5466fe1000`, the landing split as `4d7eed1014`.
   All four alpha.47 rounds outside the ZFS route are on `main`.
   The service split did not merge: `service::service_log_lines_off_the_calling_thread::tests::a_line_handed_before_the_end_waits_and_reaches_the_stream`
-  (a control the notices round added) failed on its branch and passed on `main` twice; it is being rerun alone and in `service::` on both.
+  failed on its branch and passed on `main` twice; rerun, the module `service::service_log_lines_off_the_calling_thread::` fails four or five of its six controls
+  threaded on `main` itself, before the notices merge (`66d4b6fb08`) and after it, and passes in the gate: issue 6521, its round queued after 6520.
+  The service split is rechecked with that module skipped on both sides.
   `service::` threaded fails 14 and 15 on `main` itself; 12 of those failed on both sides.
   The host-key round's `ssh_terminal` binary tests failed 4 of 4 on `main` too: AppArmor's `sshd` profile refused the fixture's `sshd_config` under `~/.cargo/build/`;
-  `sshd` and `sshd-session` gained that tree (as `ssh-keygen` had) and the tests rerun on `main`.
+  after the fourteenth AppArmor batch (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) they pass 4 of 4 on the host.
 - Lane 3: the removal split as `66d4b6fb08` (`worktree_remove_hand_over.rs` split; `worktree_remove.rs` waits for round 3's loop breaks),
   the copy split as `4bfbcbe591` (eight allow-list lines deleted with the loop it broke; its one red, `a_source_written_after_the_stamp_fails_the_final_check`, failed on `main` too and is issue 6520).
   The ladder split's check named a filter that matches no test; rerun without it, it merged as `df41971d71` (16:37).
