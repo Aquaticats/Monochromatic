@@ -266,12 +266,6 @@ pub fn planned_record(destination: &Path) -> String {
     return planned_record_with(destination, None, None);
 }
 
-/// The record text of a planned add whose Git process is named,
-/// so a reader can tell an add that still runs from one whose Git is gone.
-pub fn planned_record_with_child(destination: &Path, child: &crate::worktree_copy_owner::CopyOwner) -> String {
-    return planned_record_with(destination, None, Some(child));
-}
-
 /// What:
 ///  The record text of a planned add,
 /// with the Git process it started and the ignored-state copy it owes when each is known.

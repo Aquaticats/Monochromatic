@@ -115,6 +115,19 @@ pub enum Bail {
 /// changing nothing.
 pub const MAX_ROUNDS: usize = 20;
 
+/// What:
+///  The status a merge ends with when the branch moved while it was prepared and no command can land it as it was made.
+/// Why:
+///   Nothing of the merge is in the checkout and no record will finish it, so a caller that read 0 would name a merge that
+/// never happened (issue 6473); a branch that moves again later is the same ending as a branch that moved in every round of
+///  `MAX_ROUNDS`, which already refuses with 2.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const BRANCH_MOVED_EXIT_CODE = 2;
+/// ```
+pub const BRANCH_MOVED_EXIT_CODE: i32 = 2;
+
 /// A failed query is a reason to forward,
 /// with the cause in the diagnostic log.
 impl From<String> for Bail {

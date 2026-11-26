@@ -27,7 +27,7 @@ use super::staged_folder_identity::{StagedFolderField, StagedFolderIdentity};
 use super::staged_folder_record::{read_record_text, record_from_text, StagedFolderRecord, StagedFolderRefusal};
 use super::staging_calls::{StagingCall, StagingCallRefusal, StagingCalls};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// What:
 ///  What one read of the record beside a GUID's folder found.
@@ -82,11 +82,6 @@ impl RecordReading {
             RecordReading::Current { .. } => "current",
             RecordReading::Refused { .. } => "refused",
         };
-    }
-
-    /// The record a binding invocation replaces before it binds.
-    pub fn is_replaceable(&self) -> bool {
-        return matches!(self, RecordReading::Absent | RecordReading::Unrecorded { .. } | RecordReading::Void { .. });
     }
 }
 
@@ -202,12 +197,6 @@ impl BindingDecision {
             BindingDecision::Refuse => "refuse",
         };
     }
-}
-
-/// The folder's path beneath the cache folder,
-/// for the path-keyed test and a report.
-pub fn folder_path_beneath(cache_path: &Path, component: &str) -> PathBuf {
-    return cache_path.join(component);
 }
 
 /// Controls stay out of the release executable.

@@ -1147,3 +1147,21 @@ fn a_removal_whose_own_destroy_is_refused_leaves_the_delete_queued_for_a_round()
     assert!(!hidden.exists(), "the worktree's files are gone with it");
     remove(root.as_path());
 }
+
+/// A failed removal record that is a named pipe is skipped at the bound,
+/// so the command that offers an earlier release's refusals again ends instead of waiting for a writer (issue 6415).
+#[test]
+fn a_failed_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("remove-failed-named-pipe");
+    let common: PathBuf = root.join("common");
+    let failed: PathBuf = state_directory(work_directory(common.as_path()).as_path(), crate::work_item::FAILED);
+    crate::private_storage::create_private_directory_all(failed.as_path()).expect("the failed folder");
+    let record: PathBuf = failed.join(crate::work_item::WorkItem { kind: WorkKind::SubvolumeDelete, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: String::from("refs/worktree/cli-git-service/worktree-remove"), oid: String::from("0123456789abcdef0123456789abcdef01234567"), parent: String::new(), created: String::new(), tries: 0, transport: false }.id());
+    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600).expect("a named pipe where a removal record goes");
+    let inside: PathBuf = common.clone();
+    let answered = crate::test_support::finished_within(move || return requeue_removals_an_earlier_release_refused(inside.as_path()));
+    let Some(said) = answered else { panic!("a failed record that is a named pipe held the command") };
+    assert!(said.is_empty(), "a pipe is no removal this command offers again");
+    assert!(record.exists(), "and it is left where it is, for a person to look at");
+    remove(root.as_path());
+}

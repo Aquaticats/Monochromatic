@@ -22,6 +22,9 @@
 //!  The preflight answers nothing for such a source and the add reaches the
 //!  ladder, which settles its own failed restore and falls back to Git's own
 //!  checkout.
+//!  That answer is judged before the route's own invocation rules, so the person's
+//!  `--lock`, `--reason` or `--checkout` reaches the ladder with the add instead of
+//!  failing in a rule of a route that is not serving it (issue 6453).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -81,12 +84,6 @@ pub(super) struct Preflight {
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
 pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
-    if let Some(word) = person_lock_word(arguments) {
-        return Err(StepRefusal::refused(format!(
-            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
-            word.to_string_lossy()
-        )));
-    }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
     // What:
     //  A checkout with uncommitted edits is a source too.
@@ -135,6 +132,26 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             crate::diagnostic_log::debug("addPreflight", format!("the route declines a source whose shapes it could not read ({reason})").as_str());
             return Ok(None);
         }
+    }
+    // What:
+    //  The person's own `--lock`, `--reason` or `--checkout` is refused here,
+    //  after the source's answer and before the device is opened.
+    // Why:
+    //  The sentence names a rule of the ZFS clone route, which takes the managed
+    //  lock itself, and a rule of a route that is not serving this add stops an
+    //  add another rung makes: the ladder hands the person's own words to Git,
+    //  whose `worktree add` takes the lock and the reason by itself
+    //  (`SPEC.md`, the ladder's forms).
+    //  So a source the route declines, which the check just before this one
+    //  answers, takes the ladder with its words instead of failing here (issue
+    //  6453).
+    //  The cost is the source check on every add this refusal ends, which the issue
+    //  accepts for the routing to be right.
+    if let Some(word) = person_lock_word(arguments) {
+        return Err(StepRefusal::refused(format!(
+            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
+            word.to_string_lossy()
+        )));
     }
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;

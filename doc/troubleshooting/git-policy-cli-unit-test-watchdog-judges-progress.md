@@ -12,6 +12,14 @@ The tests that copy a checkout into btrfs subvolumes spend almost all of their t
 so the wall clock ended tests that were working,
 and which tests it ended followed the host's load.
 
+Note 2026-11-25:
+`cargo-nextest` is absent from these worktrees,
+so this module runs as threads of one `cargo test` process.
+A guard that is process-wide,
+or a test that signals that process,
+then reaches every control of the module;
+the section "A control that signalled the test binary itself" below is the measured case.
+
 ## Symptom
 
 Two host runs of the library suite on 2026-11-08:
@@ -1381,6 +1389,87 @@ so nothing of the run outlives the control.
   because a child writes its report before it ends.
 - The 39 findings of the last run are outside this change and are left where they are.
 
+## A control that signalled the test binary itself (2026-11-25T15:39:15-05:00)
+
+### Symptom
+
+`cargo test --locked --offline --lib lfs::lfs_upload` in `package/git-policy/cli` sometimes ends with no `test result`
+line and
+
+```text
+process didn't exit successfully: ... (signal: 15, SIGTERM: termination signal)
+```
+
+after two or three tests had printed `ok`.
+The same module passes when it is run alone.
+A `/usr/bin/sleep 3000` that one control started stayed alive after the run,
+re-parented to the user manager and holding the run's output pipe open,
+so a caller that piped the output waited for a process the run had already lost.
+
+### Root cause
+
+`package/git-policy/cli/src/native/lfs/lfs_upload_tests.rs`'s `a_signal_sent_to_the_wrapper_stops_the_upload` sent
+`libc::kill(libc::getpid(), libc::SIGTERM)`.
+`libc::getpid()` is the test binary.
+The wrapper's guard installs its handlers process-wide,
+and the first `SignalGuard` of a process owns them (`package/git-policy/cli/src/native/process/signal_relay.rs`),
+so the signal reached every control of the threaded run.
+A guard made while another owns the handlers relays nothing,
+and the owner's drop restores the default disposition,
+so wherever no guard was installed at the instant the signal arrived,
+its default action ended every thread of the test binary.
+The control's stand-in, `exec /usr/bin/sleep 3000`,
+was in the same process group and outlived the binary,
+because nothing that survives the process reaps it.
+
+The module was written for one process per test,
+where signalling that process is exactly "the wrapper" the control meant to stop;
+a threaded `cargo test` run has no such process of its own.
+
+### What was measured
+
+- Three threaded runs before the change:
+two ended with `test result: ok. 53 passed`,
+and one ended with `signal: 15, SIGTERM` and no `test result` line after eight tests had printed `ok`.
+That run left a `sleep 3000` whose working directory was its own `native-unit-<pid>-lfs-upload-relay` fixture,
+which names the relay control.
+- One run under `strace -f -e trace=kill,pidfd_send_signal` recorded a thread of the test binary sending the signal to
+that same process (`kill(<binary pid>, SIGTERM)`),
+and the kernel recorded the delivery with `si_code=SI_USER` and `si_pid` equal to the binary's pid.
+Every thread then reported `killed by SIGTERM`,
+and the stand-in was ended only by the scope's own `RuntimeMaxSec` ten minutes later.
+- The only place in the module that signals the process itself is the control named above.
+
+### The control now
+
+The wrapper runs in a helper process started from the test binary with `test_support::spawn_owned`,
+the way `package/git-policy/cli/src/native/process/signal_relay_tests.rs` runs its guard scenarios,
+and the control signals only `helper.id()`.
+`spawn_owned` puts the helper in a process group of its own,
+which the test thread's fixtures kill when the thread ends,
+panic included,
+so the stand-in cannot outlive the test.
+The stall control runs the same way,
+for the same reason.
+
+### Verification
+
+- Three threaded runs after the change each end with `test result: ok. 54 passed; 0 failed`,
+and no `sleep 3000` of this worktree's fixtures is alive afterwards.
+- A planted panic after the stand-in recorded its number fails the control and leaves no stand-in behind,
+so the group kill was shown to work rather than assumed.
+- `native:check`, `native:clippy` and the whole `source_guard` module pass on the changed tree.
+- Issue 6463 records the symptom and the cause.
+
+### What is not claimed
+
+- Five `sleep 3000` processes were already alive on this host when the round started,
+from an earlier round's unit whose runs were still going;
+this round left them alone and did not prove their ownership.
+- A test binary ended by `SIGKILL` still cannot clean up after itself:
+the group kill runs when the test thread ends,
+not after the whole process is gone.
+
 ## Records this changes
 
 - `doc/troubleshooting/git-policy-cli-landing-controls-wait-on-order-not-time.md` names the old `RUN_LIMIT` in its
@@ -1389,3 +1478,120 @@ so nothing of the run outlives the control.
 - The open question in `doc/handover/cli-git-rust-implementation.md` about the shape of a fix for a control that
   reached the old `RUN_LIMIT` is answered by this record;
   the handover itself is left to its own session.
+
+## Another module's process-wide state, and a threaded run that hung (2026-11-25T22:40:00-05:00)
+
+### Symptom
+
+`cargo test --locked --offline --lib process::signal_relay` in `package/git-policy/cli`, run as threads of one process
+(the way these worktrees run without `cargo-nextest`), reported
+
+```text
+test result: FAILED. 11 passed; 9 failed; 0 ignored; 0 measured; 10106 filtered out; finished in 0.35s
+```
+
+and a later threaded run of the same module then hung for 31 minutes,
+ignoring `SIGTERM`,
+until the coordinating session sent `SIGKILL`.
+Measured by the LFS round on `main` plus its own fix branch,
+which touches nothing under `process/`,
+in that round's `keep/premerge-check-on-main.log` under `${HOME}/temp/agent`.
+
+### Root cause
+
+Two pieces of process-wide state,
+not one signal.
+
+- The stop record.
+  `stop_of_the_service_noticed_by_its_children` records a service stop in the process,
+  and `a_commit_step_running_when_the_service_is_stopped_is_ended_by_the_stop` set it in the test process itself.
+  Every later `run_relayed` of the same process then refused its child with
+  `EndedByStop("a Git step of a commit was not started because the service is stopping")`,
+  which is what `waiting_ends_at_the_childs_exit_and_reports_it`,
+  `an_interrupted_wait_continues_until_the_child_exits` and
+  `the_child_of_a_guard_without_handlers_is_never_published` failed with.
+- The guards and the lock.
+  Five controls called `SignalGuard::install()` or changed a disposition in the test process,
+  and one of them panicked while holding `RELAY_STATICS`,
+  so every later control of the module failed with `PoisonError { .. }` whatever it measured.
+- The hang.
+  A control that installed the relay handlers and failed before dropping its guard left those handlers in place.
+  A relay handler does not end the process by the signal it catches,
+  so the `SIGTERM` a person sends is swallowed,
+  and the binary waits.
+
+### What was measured
+
+- Threaded, before the change: 9 of 20 failed in 0.35 s,
+  with `EndedByStop` in three tests, `PoisonError` in six,
+  and three tests still running after 60 s.
+- `--test-threads=1` still failed 7 of them:
+  the poison is what serial order removes, and the stop record outlives every test of the process.
+- After the change: `test result: ok. 20 passed; 0 failed` in 1.08 s, three runs in a row.
+
+### The controls now
+
+`testing/helper_process_test_support.rs` holds one shape for a control whose state is process-wide:
+a fresh fixture,
+this test binary re-started on exactly that control with a variable naming the fixture,
+a verdict file the helper writes the sentences it failed with,
+and a 60 s step timeout on both the verdict and the helper's own end.
+`spawn_owned` owns the helper's group, so a control that fails kills it with the test thread.
+`process/signal_relay_tests.rs` runs seven bodies that way,
+and `service/service_client_interrupted_tests.rs` runs five,
+including the one that used to signal the test binary itself.
+The controls of the stop word that stay in the process take a module lock,
+taken through the poison.
+
+### What is not claimed
+
+- A threaded pass does not prove the container gate's one-process-per-test run still passes;
+  it passes module by module here, and the gate stays the authority.
+- The 31 minute hang is attributed to a relay handler left installed, from the shape of the failure and the swallowed
+  `SIGTERM`; no run of this round reproduced the hang itself, because every run after the change ends in about a second.
+
+## `PR_SET_PDEATHSIG` ended a helper but not `/bin/sleep` here (2026-11-25T23:00:00-05:00)
+
+### Symptom
+
+`test_support::spawn_owned` asks the kernel for `PR_SET_PDEATHSIG` with `SIGKILL` in a `pre_exec`,
+the way the binary target's copy does,
+so that a child ends when the test process is killed outright,
+which no `Drop` can arrange.
+A control that kills the process which started such a child and waits for the child to go
+(`testing/test_support_tests.rs`, `a_child_dies_with_the_test_process_that_started_it`)
+passes with the `pre_exec` and fails without it,
+so the mechanism works for a child that runs this crate's own test binary,
+which is the shape of every helper a control starts.
+
+### What was measured
+
+Probes in the round's scratch folder,
+each starting a middle process that starts one child with the `pre_exec`,
+then ending the middle with `SIGKILL` and asking whether the child is still running:
+
+- a child that runs this crate's test binary: gone within 10 ms;
+- `/usr/bin/tail -f /dev/null`: gone within 100 ms;
+- `/bin/sleep 600`: still running two seconds later, in state `S`, reparented;
+- `/bin/sh -c 'exec /bin/sleep 600'` and `/bin/sh -c '/bin/sleep 600'`: still running two seconds later.
+
+A file written from the `pre_exec` proves the closure ran in every case,
+so the difference is not the start path.
+`/bin/sleep` is a regular file of GNU coreutils 9.12 with no set-user-ID bit and no extended attributes,
+and `strace -f -e trace=prctl /bin/sleep 0.1` shows no `prctl` call of its own.
+
+### What the crate does about it
+
+Nothing depends on the parent-death signal alone for a stand-in:
+a stand-in a control starts is in the group `spawn_owned` made,
+which `ThreadFixtures::drop` kills,
+and `spawn_owned_quiet` gives a stand-in whose output nobody reads all three streams on the null device,
+so it holds no pipe open even if it somehow survives.
+The forced-removal fixture of issue 6471 uses it.
+
+### What is not claimed
+
+- The cause of `/bin/sleep` outliving the parent-death signal is not established.
+  The measurement above is what a later round starts from,
+  and the probe sources are in
+  this round's `scratch/pdeath` folder under `${HOME}/temp/agent`.

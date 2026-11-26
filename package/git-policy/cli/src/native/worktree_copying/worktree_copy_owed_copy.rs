@@ -32,29 +32,51 @@
 //! ```
 
 use crate::transaction_git::GitContext;
-use crate::worktree_add_binding::{Binding, OwedCopy, OwedSelection, Recorded, bind_registration, decode_record, owed_copy_of, path_identity};
+use crate::worktree_add_binding::{Binding, OwedCopy, OwedSelection, Recorded, decode_record, owed_copy_of, path_identity};
 use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_interrupted_add_settlement::{add_is_finished, registration_directory};
 use crate::worktree_copy_interrupted_checkout::CheckoutFinish;
-use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals};
-use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
-use crate::worktree_copy_journal_removal::remove_stage;
+use crate::worktree_copy_journal::{journal_root, read_pending_journals};
 use crate::worktree_copy_registry::{WorktreeCopyObservation, read_registered_roots};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_source_still_being_filled::source_is_still_being_filled;
-use crate::worktree_copy_stage_binding::stage_binding;
 use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, StageClaim, claim_names};
-use crate::worktree_copy_stage_claim_reaping::{SCRATCH_SUFFIX, StageVerdicts, read_claim};
+use crate::worktree_copy_stage_claim_reaping::{StageVerdicts, read_claim};
 use crate::worktree_copy_synchronize::synchronize_created_worktree_noting;
 use crate::worktree_copy_owed_copy_source::{source_could_be_a_worktree, source_is_no_worktree_reason};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_unfilled_record::remember_unfilled_with;
 use crate::json_record::quote;
-use crate::shell_quote::shell_quote;
 use std::io::Write;
-use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
+
+//region The pieces this pass reads from their own modules
+
+/// What:
+///  `pub(crate) use` names each piece of this pass under the one module path its callers already write,
+///  `crate::worktree_copy_owed_copy::name`.
+/// Why:
+///   The pass was split into sibling modules so each file stays a size a reader can hold,
+/// and the glob-free re-export keeps every caller and the sidecar's `use super::*` unchanged.
+/// Gotcha:
+///   Only the names the pass itself uses are listed;
+///  a private helper of a sibling stays there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { owedInAnotherWorktreeNotice } from './worktree_copy_owed_copy_notices';
+/// export { takeTheCopy } from './worktree_copy_owed_taking';
+/// ```
+pub use super::worktree_copy_owed_copy_notices::owed_in_another_worktree_notice;
+pub(crate) use super::worktree_copy_owed_copy_notices::{finished_notice, finishing_notice, not_finished_notice, still_owed_notice};
+pub(crate) use super::worktree_copy_owed_copy_proofs::{clear_the_own_stage, source_is_registered, whole_registration};
+pub(crate) use super::worktree_copy_owed_taking::{Taking, remove_dead_taking_marks, take_the_copy};
+
+// The sidecar reads this name through `use super::*`, and the check that needs it now lives in
+// `worktree_copy_owed_copy_proofs.rs`, so the name stays here for the test build alone.
+#[cfg(test)]
+pub(crate) use crate::worktree_copy_interrupted_add_settlement::registration_directory;
+
+//endregion
 
 /// What:
 ///  The selection an add's record names,
@@ -91,234 +113,6 @@ pub fn owed_selection_of(selection: &CopySelection) -> Option<OwedSelection> {
         CopySelection::Ignored => Some(OwedSelection::Ignored),
         CopySelection::MainCheckout => Some(OwedSelection::MainCheckout),
         CopySelection::Paths(_) => None,
-    };
-}
-
-/// What:
-///  The line a command prints when it meets a copy owed into another worktree,
-/// and the worktree whose own commands fill it.
-/// Why:
-///   The work is the worktree's own,
-/// so the person learns which worktree is short of files,
-/// that no command pays for it here,
-/// and that nothing is lost while it waits.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: the ignored-state copy an interrupted \`git worktree add\` owed ${shown} is still owed; the first command run in that worktree makes it, and this command does not wait for it.`
-/// ```
-pub fn owed_in_another_worktree_notice(destination: &Path) -> String {
-    let shown: String = quote(destination.to_string_lossy().as_ref());
-    return format!(
-        "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {shown} is still owed; the first command run in that worktree makes it, and this command does not wait for it."
-    );
-}
-
-/// What:
-///  The line that says this worktree's own command is about to make the copy it owes,
-/// naming the worktree and the source.
-/// Why:
-///   The copy costs what the source's ignored tree costs,
-/// which can be minutes;
-/// a command that says what it is doing before it starts leaves nothing silent while it lasts.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted \`git worktree add\` owed ${shown} from ${source}; this command waits for it, and it stops at the ceiling one command holds for a copy it did not start.`
-/// ```
-fn finishing_notice(destination: &Path, source: &Path) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted `git worktree add` owed {} from {}, because this command runs in that worktree and its files are missing there; it stops at the ceiling one command holds for a copy it did not start.",
-        quote(destination.to_string_lossy().as_ref()),
-        quote(source.to_string_lossy().as_ref())
-    );
-}
-
-/// What:
-///  The line that says the copy an interrupted add owed is still owed,
-/// and why the command in that worktree did not make it.
-/// Why:
-///   A command that runs in the worktree its files are missing from must never leave the person guessing:
-/// it either makes the copy or says what stands in the way,
-/// and the record stays so the next command tries again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `the ignored-state copy an interrupted \`git worktree add\` owed ${shown} is still owed, and this command did not make it: ${reason}`
-/// ```
-fn still_owed_notice(destination: &Path, reason: &str) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {} is still owed, and this command did not make it: {reason}. Nothing was changed; the next command run in that worktree tries again.",
-        quote(destination.to_string_lossy().as_ref())
-    );
-}
-
-/// What:
-///  The line that says the copy an interrupted add owed was made,
-/// and how much it copied.
-/// Why:
-///   The person reads one line naming the worktree,
-/// the source and the count,
-/// and knows nothing is left to do there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `finished the ignored-state copy an interrupted git worktree add owed ${destination}: copied ${copied} entries from ${source}.`
-/// ```
-fn finished_notice(destination: &Path, source: &Path, copied: usize) -> String {
-    let entry_noun: &str = if copied == 1 { "entry" } else { "entries" };
-    return format!(
-        "monochromatic-git-policy-cli: finished the ignored-state copy an interrupted `git worktree add` owed {}: copied {copied} ignored filesystem {entry_noun} from {}.",
-        quote(destination.to_string_lossy().as_ref()),
-        quote(source.to_string_lossy().as_ref())
-    );
-}
-
-/// What:
-///  The line that says the copy could not be made,
-/// names the worktree,
-/// what failed,
-/// and the two commands that settle it.
-/// Why:
-///   The same words come again from the record of the unfilled worktree on every later command,
-/// so they must say everything the person needs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `the ignored-state copy an interrupted git worktree add owed ${destination} could not be made (${reason}); ...`
-/// ```
-fn not_finished_notice(destination: &Path, reason: &str) -> String {
-    let shown: String = quote(destination.to_string_lossy().as_ref());
-    let commands: String = shell_quote(destination.as_os_str().as_bytes());
-    return format!(
-        "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {shown} could not be made ({reason}), and nothing in that worktree was changed. `git worktree remove --force {commands}` removes that worktree, and running the same `git worktree add` line again copies the ignored state; this line comes again from every command in this repository until that worktree is removed or replaced."
-    );
-}
-
-/// What:
-///  The marker one command writes in the journal root before it stages a copy,
-/// and removes when it is done with that destination.
-/// Why:
-///   Two commands that find the same dead add's claim would both stage into one name and one of them would remove the
-/// other's live stage;
-/// the marker is one exclusive create whose name carries its owner,
-/// so exactly one command copies and a marker
-///  whose owner died is taken over rather than left waiting.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// using taking = await takeTheCopy(root, claim); // undefined when another command holds it
-/// ```
-struct Taking {
-    /// The marker file this command created.
-    path: PathBuf,
-}
-
-impl Drop for Taking {
-    /// Removes the marker however this command ends,
-    /// so a copy that fails leaves no claim that another command holds it.
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_file(self.path.as_path());
-    }
-}
-
-/// The suffix of that marker.
-const TAKING_SUFFIX: &str = ".taking";
-
-/// What:
-///  The marks one add's identifier has been given,
-/// in name order.
-/// Why:
-///   A command that finds a dead owner's marker removes it and takes the copy;
-/// one that finds a live owner's leaves the copy to it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const marks = takingMarksOf(root, id);
-/// ```
-fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, WorktreeCopyError> {
-    let listing = match std::fs::read_dir(root) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(crate::worktree_copy_error::raw_failure(&error)),
-    };
-    let prefix: String = format!("{identifier}.");
-    let mut marks: Vec<PathBuf> = Vec::new();
-    let mut names: Vec<String> = Vec::new();
-    for listed in listing {
-        let name: String = listed.map_err(crate::worktree_copy_error::raw_failure_of)?.file_name().to_string_lossy().into_owned();
-        if name.starts_with(prefix.as_str()) && name.ends_with(TAKING_SUFFIX) {
-            names.push(name);
-        }
-    }
-    names.sort_by(|left, right| return by_mark_name(left, right));
-    for name in names {
-        marks.push(root.join(name.as_str()));
-    }
-    return Ok(marks);
-}
-
-/// What:
-///  Order two mark names the way JavaScript's default sort does.
-/// Why:
-///   Which marker is judged first must not depend on the directory's order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// marks.sort(([left], [right]) => compareJs(left, right))
-/// ```
-fn by_mark_name(left: &str, right: &str) -> std::cmp::Ordering {
-    return crate::worktree_copy_selection::js_order(left, right);
-}
-
-/// What:
-///  Takes the copy of one add's destination,
-/// or answers that another command holds it.
-/// Why:
-///   The take is one exclusive create whose name carries this command's owner,
-/// so of two commands that find the same dead
-///  claim exactly one copies;
-/// a marker whose owner died is taken over,
-/// because nothing of that command runs and
-///  the worktree it would have filled is still unfilled.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const taking = await takeTheCopy(root, claim);
-/// ```
-fn take_the_copy(root: &Path, claim: &Path) -> Result<Option<Taking>, WorktreeCopyError> {
-    let Some(stem) = claim.file_stem() else { return Ok(None) };
-    let identifier: String = stem.to_string_lossy().into_owned();
-    let owner: CopyOwner = current_copy_owner()?;
-    // A marker whose owner is proven dead holds nothing, so it is removed; one whose owner lives keeps the copy.
-    let mut held: bool = false;
-    for mark in taking_marks_of(root, identifier.as_str())? {
-        let token: Option<String> = match std::fs::read_to_string(mark.as_path()) {
-            Ok(text) => Some(text.trim().to_string()),
-            Err(_unreadable) => None,
-        };
-        if !token_owner_is_dead(token.as_deref(), mark.as_path())? {
-            held = true;
-            break;
-        }
-        // The name carries the owner, and the file is a marker of this namespace alone.
-        let _removed: std::io::Result<()> = std::fs::remove_file(mark.as_path());
-    }
-    if held {
-        return Ok(None);
-    }
-    let path: PathBuf = root.join(format!("{identifier}.{}{TAKING_SUFFIX}", owner.token()));
-    // `match` on the exclusive create: the one command that made the file copies, and the rest read it as another's, so no
-    // second attempt is needed, not even when two commands removed the same dead marker.
-    return match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
-        Ok(mut written) => {
-            use std::io::Write as _;
-            written.write_all(owner.token().as_bytes()).map_err(crate::worktree_copy_error::raw_failure_of)?;
-            written.sync_all().map_err(crate::worktree_copy_error::raw_failure_of)?;
-            Ok(Some(Taking { path }))
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(None),
-        Err(error) => Err(crate::worktree_copy_error::raw_failure(&error)),
     };
 }
 
@@ -371,166 +165,6 @@ fn owed_add_of(claim: &Path, container: &Path) -> Option<OwedAdd> {
     };
     let owed: OwedCopy = owed_copy_of(text.as_str())?;
     return Some(OwedAdd { claim: claim.to_path_buf(), container: container.to_path_buf(), record, destination, destination_identity, owed });
-}
-
-/// What:
-///  The registration of a destination,
-/// when its checkout is whole and it is still a worktree of this repository.
-/// Why:
-///   The copy fills a worktree;
-/// a destination that is gone,
-/// whose checkout is not whole,
-/// or whose pointer no longer names a registration here has nothing this pass may write into,
-/// and the
-///  settlement names it instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const binding = wholeRegistration(commonDir, destination); // undefined when nothing may be filled
-/// ```
-fn whole_registration(common_dir: &Path, destination: &Path) -> Option<Binding> {
-    let bound: Binding = bind_registration(common_dir, destination).ok()?.binding;
-    // `match` on the pointer: the registration it names now is the one whose index the proof reads, and a destination whose
-    // pointer cannot be read is proven against the registration this command bound.
-    let admin: PathBuf = match registration_directory(destination) {
-        Some(found) => found,
-        None => bound.admin.clone(),
-    };
-    if !add_is_finished(destination, admin.as_path()) {
-        return None;
-    }
-    return Some(bound);
-}
-
-/// What:
-///  Whether the source a record names is a worktree of this repository now.
-/// Why:
-///   Staging reads the source's ignored files,
-/// so a source that was removed,
-/// moved or replaced is another worktree and never one this copy may take state from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registered = roots.some((root) => canonical(root) === canonical(source));
-/// ```
-fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
-    let wanted: PathBuf = match std::fs::canonicalize(source) {
-        Ok(canonical) => canonical,
-        Err(_gone) => return false,
-    };
-    // Git writes the roots as it sees them, so both sides are compared in their canonical form: a symbolic link above a
-    // worktree must not hide a source the repository still registers.
-    for root in roots {
-        let Ok(found) = std::fs::canonicalize(root) else { continue };
-        if found.as_path() == wanted.as_path() {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Removes the stage this copy itself left,
-/// or says that nothing proves it is the copy's.
-/// Why:
-///   A stage killed while it was being filled holds part of the source's ignored state,
-/// and the copy cannot fill that name again without removing it first;
-/// only a container that records the registration this copy was made for proves the stage is the
-///  copy's own,
-/// so a directory another process put at that name is never removed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// clearTheOwnStage(container, destination); // false when the container is not the copy's own
-/// ```
-fn clear_the_own_stage(container: &Path, destination: &Path) -> Result<bool, WorktreeCopyError> {
-    let present: bool = match std::fs::symlink_metadata(container) {
-        Ok(_) => true,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
-        Err(error) => return Err(crate::worktree_copy_error::raw_failure(&error)),
-    };
-    if !present {
-        return Ok(true);
-    }
-    // A copy writes its binding into the container before its first payload entry, so a container that holds nothing but
-    // the parts of that record is a copy killed while recording it; nothing of the source's state is there to lose, and
-    // only the claim's random identifier names that container. A container that holds nothing at all is the step before
-    // that write, and it holds nothing to lose either.
-    let own: bool = match stage_binding(container)? {
-        Some(binding) => binding.destination == destination,
-        None => holds_nothing_a_copy_wrote(container),
-    };
-    if !own {
-        return Ok(false);
-    }
-    assert_private_path(container, Role::PrivateStage)?;
-    remove_stage(container)?;
-    return Ok(true);
-}
-
-/// What:
-///  Whether a container holds nothing this wrapper cannot account for:
-/// no entry at all,
-/// or nothing but the stage binding a copy writes before its first payload entry
-/// and a part of the write that publishes it.
-/// Why:
-///   A copy creates its container and records which registration it fills as the step after it,
-/// so a kill in between leaves an empty
-///  container at a name only this wrapper's own private claim chose,
-/// and nothing stands in it that can be lost:
-/// the add it serves names the
-///  same container,
-/// so the empty folder is the wrapper's own step and not the person's work.
-/// The write of that record publishes it by a rename,
-/// so a kill at the next instruction leaves either the record's own temporary or the
-///  file that temporary was being written in;
-/// such a container holds no ignored file of the source,
-/// while one that holds a payload,
-///  a snapshot or anything else holds data unless its binding names this destination,
-/// and is never removed.
-/// Only the record's own names count,
-/// so an ignored file of the source that merely begins with them keeps the container.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const named = readdir(container);
-/// const bare = named.every((name) => namesTheBindingWrite(name));
-/// ```
-fn holds_nothing_a_copy_wrote(container: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(container) else { return false };
-    for entry in entries.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if !names_the_binding_write(name.as_str()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
-///  Whether one entry of a stage container is the binding record,
-/// the temporary that publishes it,
-/// or the file that temporary is written in.
-/// Why:
-///   Those three names are the only ones a kill between the container's creation and its first payload entry leaves,
-/// so anything else is the source's ignored state or a directory another program put there,
-/// and it keeps the container.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const written = (name) => name === RECORD || /^\.?RECORD\..*\.(tmp|partial)$/.test(name);
-/// ```
-fn names_the_binding_write(name: &str) -> bool {
-    // The file a write is made in is hidden by a leading dot (`private_storage::staging_beside`), the temporary it is
-    // published as is not.
-    let bare: &str = name.strip_prefix('.').unwrap_or(name);
-    let Some(rest): Option<&str> = bare.strip_prefix(crate::worktree_copy_stage_binding::STAGE_BINDING_NAME) else {
-        return false;
-    };
-    if rest.is_empty() {
-        return true;
-    }
-    return rest.starts_with('.') && (rest.ends_with(TEMPORARY_SUFFIX) || rest.ends_with(SCRATCH_SUFFIX));
 }
 
 /// What:
@@ -710,45 +344,6 @@ fn settle_unfilled(add: &OwedAdd, reason: &str) -> Result<Option<String>, Worktr
         Some(_identified) => Ok(None),
         None => Ok(Some(not_finished_notice(add.destination.as_path(), reason))),
     };
-}
-
-/// What:
-///  Removes the taking markers of commands that no longer run.
-/// Why:
-///   A marker holds the copy of one destination back for as long as its owner lives,
-/// and a command killed after making one
-///  leaves it behind;
-/// removing it loses nothing,
-/// because the marker says only which command was copying,
-/// and its
-///  name carries the owner that is gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await removeDeadTakingMarks(root);
-/// ```
-fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyError> {
-    let listing = match std::fs::read_dir(root) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(crate::worktree_copy_error::raw_failure(&error)),
-    };
-    for listed in listing {
-        let path: PathBuf = listed.map_err(crate::worktree_copy_error::raw_failure_of)?.path();
-        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        if !name.ends_with(TAKING_SUFFIX) {
-            continue;
-        }
-        // The name is `<identifier>.<owner>.taking`, and the owner field is the one before the suffix.
-        let token: Option<String> = match name.strip_suffix(TAKING_SUFFIX) {
-            Some(stem) => stem.rsplit_once('.').map(|(_item, owner)| { return owner.to_string(); }),
-            None => None,
-        };
-        if token_owner_is_dead(token.as_deref(), path.as_path())? {
-            let _removed: std::io::Result<()> = std::fs::remove_file(path.as_path());
-        }
-    }
-    return Ok(());
 }
 
 /// What:

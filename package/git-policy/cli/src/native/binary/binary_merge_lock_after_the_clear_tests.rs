@@ -32,6 +32,7 @@ use super::merge_carries_edits::{
 };
 use super::merge_carries_edits_kill::{Paused, edited, paused_at};
 use super::support::{Fixture, Observed, fixture, observe, git};
+use git_policy_cli::merge_isolation_run_types::BRANCH_MOVED_EXIT_CODE;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
@@ -217,6 +218,7 @@ fn a_merge_whose_side_ref_cannot_be_kept_says_what_stands_and_the_next_command_p
 ///  A lock taken after the clear while another session moves the branch says the branch moved,
 ///  promises no finish,
 ///  keeps nothing on a side ref,
+///  refuses with the branch-moved status,
 ///  and the next command puts the person's own bytes back.
 /// Why:
 ///  That merge cannot land as it was prepared,
@@ -225,13 +227,16 @@ fn a_merge_whose_side_ref_cannot_be_kept_says_what_stands_and_the_next_command_p
 /// and the next command abandoned the merge to a side ref the line had promised would finish it
 ///  (the review of `ce51914d2a`,
 /// its second finding).
+///  A command that exits 0 while nothing of the merge is in the checkout and nothing of it is saved is read by its
+///  caller as a merge that was made, which is what happened on 2026-11-25 (issue 6473),
+///  so the ending is a refusal and the line says that running the merge again is safe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const paused = pausedAt('merge-cleared'); movingCommit(); write('.git/index.lock', '');
-/// const ran = paused.released('merge-cleared'); expect(ran.code).toBe(0);
+/// const ran = paused.released('merge-cleared'); expect(ran.code).toBe(BRANCH_MOVED_EXIT_CODE);
 /// expect(ran.stderr).toContain('the branch moved while this merge was prepared'); expect(ran.stderr).not.toContain('has not moved');
-/// expect(sideRefs()).toBe(''); rm(lock); await wrapped(['status']); expect(read('a.txt')).toContain('the person line');
+/// rm(lock); await wrapped(['status']); expect(read('a.txt')).toContain('the person line');
 /// ```
 #[test]
 fn a_merge_whose_branch_moved_behind_the_lock_says_so_and_lands_nothing() {
@@ -247,21 +252,50 @@ fn a_merge_whose_branch_moved_behind_the_lock_says_so_and_lands_nothing() {
     std::fs::write(lock_of(repo.as_path()), b"").expect("another program takes the index and keeps it");
     let output: Output = paused.released("merge-cleared");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert_eq!(output.status.code(), Some(0), "a lock after the clear does not fail the merge: {said}");
+    assert_eq!(
+        output.status.code(),
+        Some(BRANCH_MOVED_EXIT_CODE),
+        "a merge that did not land does not report success: {said}"
+    );
     assert!(said.contains("the branch moved while this merge was prepared"), "the line states the move: {said}");
     assert!(said.contains("this merge does not land"), "the line promises no landing: {said}");
+    assert!(said.contains("running the merge again is safe"), "the line says the next run is safe: {said}");
     assert!(!said.contains("has not moved"), "the line never claims an unmoved branch: {said}");
-    assert!(said.contains("refs/cli-git/carried/"), "where the bytes are is stated: {said}");
-    assert!(!said.contains("saved on refs/cli-git/kept/"), "no side ref is written for a merge that cannot land: {said}");
+    assert!(
+        said.contains("refs/cli-git/carried/"),
+        "where the bytes are is stated: {said}"
+    );
+    assert!(
+        !said.contains("saved on refs/cli-git/kept/"),
+        "no side ref is written for a merge that cannot land: {said}"
+    );
     assert_eq!(kept_refs(&fixture, repo.as_path()), "", "no side ref is left behind: {said}");
-    assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(on_main_a().as_str()), "the clear's content stands until the next command");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt").as_deref(),
+        Some(on_main_a().as_str()),
+        "the clear's content stands until the next command"
+    );
     // The next command does what the line said: it puts the person's own bytes back, and the branch keeps the other commit.
     std::fs::remove_file(lock_of(repo.as_path())).expect("the other program lets go");
     let after: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), b"");
     let next: String = String::from_utf8_lossy(after.stderr.as_slice()).into_owned();
     assert_eq!(after.code, Some(0), "the next command goes on: {next}");
-    assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(format!("{}{PERSON_LINE}\n", on_main_a()).as_str()), "the person's bytes are back: {next}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned(), concurrent, "the branch keeps the other session's commit");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt").as_deref(),
+        Some(format!("{}{PERSON_LINE}\n", on_main_a()).as_str()),
+        "the person's bytes are back: {next}"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned(),
+        concurrent,
+        "the branch keeps the other session's commit"
+    );
+    // What the line promised: the merge runs again on the branch as it is now, and lands there.
+    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]), b"");
+    let merged: String = String::from_utf8_lossy(again.stderr.as_slice()).into_owned();
+    assert_eq!(again.code, Some(0), "running the merge again is safe: {merged}");
+    assert_merged(&fixture, repo.as_path(), "the merge run again after the branch moved");
+    assert!(text_at(repo.as_path(), "a.txt").expect("a.txt is there").contains(FEATURE_THIRD), "the merge's line is in the file: {merged}");
     assert_eq!(records(repo.as_path()), "", "no record stays: {next}");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "no ref stays: {next}");
     assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");

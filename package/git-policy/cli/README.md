@@ -2507,7 +2507,13 @@ on one writing path no command reaches
 - the removal's own records,
   removed last,
   and the report that names what was destroyed,
-  what went with the head and what a person still has to do.
+  what went with the head and what a person still has to do;
+- the finish pass,
+  which reads the plan folder before a forwarded command once a later step calls it,
+  settles the registration a plan whose head is `gone` still names,
+  removes the binding's files and then the plan,
+  and releases the slot's claim,
+  so a tail no next removal of that slot can reach is finished without an add.
 
 All of that waits for one thing a person needs:
 `cancel-worktree-removal <slot>`,
@@ -4398,10 +4404,21 @@ and it ends in one of two states:
   and says that the next git command puts the person's own bytes back and that the merge is theirs to run
   again,
   which is what that command does.
-- A lock that meets a merge whose branch moved while it was prepared ends the same way:
-  the line says the branch moved and that this merge does not land,
-  no side reference is written for a merge that cannot be applied,
-  and the next git command puts the person's own bytes back.
+- A lock that meets a merge whose branch moved while it was prepared is never a save:
+  a save promises a later command that it finishes that very merge,
+  and no command can finish one built on a head the branch has moved past,
+  so the merge is neither applied nor kept.
+  The command settles its record,
+  writes no side reference,
+  and refuses with status 2,
+  saying the branch moved,
+  that nothing of the merge is in the checkout,
+  where the person's own bytes are,
+  and that running the merge again is safe
+  (issue 6473,
+  2026-11-25:
+  the line said the branch had not moved and exited 0,
+  and the caller read it as a merge that had been made).
 
 Every one of those lines states what the settle read,
 so none of them says the branch has not moved,
@@ -4425,6 +4442,13 @@ The merge is then computed again on the moved head and lands as a merge commit w
  up to twenty times in a row;
 each round says so on standard error.
 No `MERGE_HEAD` is ever left behind by a merge that did not finish.
+A round that finds the index still held by another command cannot land the merge either,
+ and a merge built on a head the branch has moved past cannot be saved for a later command,
+ so the command refuses with status 2:
+ the line names the branch,
+ says the merge does not land,
+ states what the checkout and the person's own bytes hold,
+ and says that running the merge again is safe and merges onto the branch as it is now.
 
 #### A conflict
 
@@ -4465,6 +4489,10 @@ Each with its cause:
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.
+- A branch that moved while the merge was prepared,
+  at the instant the merge would have been saved on a side reference for a later command (status 2):
+  nothing of the merge is in the checkout and none of it is kept,
+  and running the merge again lands it on the branch as it is now.
 - A form the wrapper does not complete and native Git runs unchanged:
   `--squash`,
   `--no-commit`,

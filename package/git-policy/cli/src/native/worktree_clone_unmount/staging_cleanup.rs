@@ -228,10 +228,12 @@ pub fn create_the_staging_folder(home: &Path, pin: &crate::user_cache_pin::UserC
 
 /// What:
 ///  The account's cache folder reached from its home,
-///  which the wrapper's creation step opens before it makes a folder.
+///  which the cancel command's staged-state settle opens before it cleans a folder.
 /// Why:
 ///  The accessor keeps the deliberate one-mount hop in this module beside the
 ///  cleanup that reads the same descriptor.
+///  Its caller is `worktree_clone_removal_cancel/the_staged_state.rs`
+///  (plan step 17), built on its own branch while `1f5aa01430` removed this function from `main` as uncalled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,12 +256,6 @@ pub fn the_account_cache(home: &Path) -> Result<std::fs::File, String> {
 pub fn make_staging_folder(cache: &std::fs::File, guid: DatasetGuid) -> Result<bool, String> {
     let name: OsString = OsString::from(staging_folder_name(guid));
     return crate::fs_beneath::make_directory_at(cache, name.as_os_str(), 0o700).map_err(|error| return format!("the staging folder {name:?} could not be made: {error}"));
-}
-
-/// The mount a cache descriptor is on,
-/// read by the creation step before any folder is made.
-pub fn mount_of(cache: &std::fs::File) -> Result<MountFacts, String> {
-    return crate::user_cache_pin::cache_mount_facts(cache).map_err(|refusal| return refusal.message());
 }
 
 /// Controls stay out of the release executable.

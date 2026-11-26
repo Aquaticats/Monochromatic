@@ -8,6 +8,13 @@
 //! `Also=`,
 //! `Alias=` or `DefaultInstance=` line in a unit it
 //!  writes,
+//! except the root boot gate's own text and the nested-dataset units' text,
+//!  which the one-time ZFS setup installs at boot
+//!  by the owner's cited exception of 2026-11-25
+//!  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`;
+//!  step 19's accepted design,
+//!  `doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`),
+//!  and every other unit text this release writes still carries none;
 //! never asks the user manager to enable,
 //! link,
 //! preset or default anything,
@@ -29,7 +36,7 @@
 //! A unit with an
 //!  `[Install]` section is what `systemctl --user enable` links into a `*.wants` folder that the login session starts,
 //! so the
-//!  guard keeps that out of the texts,
+//!  guard keeps that out of every other text,
 //! and the call that would enable one out of the code.
 //!
 //! In TS you'd write (pseudocode):
@@ -88,6 +95,44 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
 /// and the text it may carry.
 /// The removal of the link an earlier release made.
 const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision_earlier_service_retirement.rs", "sockets.target.wants")];
+
+/// The unit texts the one-time ZFS setup installs under `multi-user.target`,
+/// and the only lines they may carry that start a unit at boot:
+///  the install section,
+///  and the one target line below.
+/// The root boot gate reconciles every clone mount after a reboot,
+/// and one unit per nested dataset mounts a dataset the boot left unmounted;
+/// the owner chose this cited exception on 2026-11-25
+///  over installing the gate without an install section,
+///  which would leave every clone worktree an empty folder until a command ran
+///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`;
+///  step 19's accepted design,
+///  `doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`).
+/// It is by exact file,
+/// never by folder or pattern.
+const UNIT_TEXTS_INSTALLED_AT_BOOT: &[&str] = &["checkout_boot_units/boot_gate_unit_text.rs", "checkout_boot_units/nested_dataset_unit_text.rs"];
+
+/// The one target line those unit texts may name.
+/// Any other target,
+/// and every other install line,
+/// stays refused in them too.
+const BOOT_TARGET_LINE: &str = "WantedBy=multi-user.target";
+
+/// Whether this release code line is the boot-start exception,
+/// given the exact file it sits in:
+///  the install section,
+///  and the one target line that names `multi-user.target`.
+/// Every other install line stays refused in those files too,
+/// and both lines stay refused in every other file.
+fn is_the_boot_start_exception(relative: &str, line: &str, forbidden: &str) -> bool {
+    if !UNIT_TEXTS_INSTALLED_AT_BOOT.contains(&relative) {
+        return false;
+    }
+    if forbidden == "[Install]" {
+        return true;
+    }
+    return forbidden == "WantedBy=" && line.contains(BOOT_TARGET_LINE);
+}
 
 /// The lines of a unit's text that would make it start at startup or at login (`systemd.unit(5)`,
 /// "[Install] Section Options"):
@@ -240,7 +285,9 @@ fn a_link_that_is_not_a_uses_folder_link_is_refused() {
 /// starts `systemctl`,
 /// or writes an
 ///  install line;
-/// the one text from the list that stays is the removal of the link an earlier release made.
+/// the one text from the list that stays is the removal of the link an earlier release made,
+/// and the two unit texts the owner's record names may carry their own install section
+/// and `WantedBy=multi-user.target`.
 #[test]
 fn no_release_code_makes_a_unit_start_at_startup_or_login() {
     let root: PathBuf = native_root();
@@ -252,7 +299,8 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
         let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
         for (number, line) in code_lines(text.as_str()) {
             for forbidden in FORBIDDEN_IN_CODE {
-                if line.contains(forbidden) {
+                let boot_start: bool = is_the_boot_start_exception(relative.as_str(), line, forbidden);
+                if line.contains(forbidden) && !boot_start {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
             }
@@ -294,12 +342,32 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
     assert!(outside.is_empty(), "members outside the list: {outside:?}");
 }
 
+/// Whether this release code line asks the manager to read every unit it holds:
+///  the `Reload` and `DaemonReload` members,
+///  a `reload` call spelled some other way,
+///  and the shell's own `daemon-reload`.
+/// A unit text's own `ExecReload=` line is not one of them:
+///  it names the line a reload of that one unit runs,
+///  and the manager re-reads only that unit
+///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`).
+fn asks_the_manager_for_a_reload(line: &str) -> bool {
+    // What: the line with every `ExecReload` taken out, so a unit text's own key is not read as a request.
+    let outside_a_unit_text: String = line.replace("ExecReload", "");
+    // What: the three spellings left are the member, the quoted call and the shell's own reply to a new unit file.
+    return outside_a_unit_text.contains("Reload") || outside_a_unit_text.contains("\"reload\"") || outside_a_unit_text.contains("daemon-reload");
+}
+
 /// What:
 ///  No release code line asks the manager to read every unit it holds,
 /// on any path:
 /// no `Reload` member,
-/// no `DaemonReload` and no
-///  `reload` call.
+/// no `DaemonReload`,
+/// no
+///  `reload` call and no `daemon-reload`.
+/// A unit text's own `ExecReload=` line is not such a request:
+///  it names the line that reloads that one unit,
+///  and the record accepts it beside the gate
+///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`).
 /// Why:
 ///   A reload holds the manager's own event loop for a time that grows with every unit it holds,
 /// and on 2026-11-12 one
@@ -314,7 +382,7 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(releaseCodeLines().filter((line) => /Reload|"reload"/.test(line))).toEqual([]);
+/// expect(releaseCodeLines().filter(asksTheManagerForAReload)).toEqual([]);
 /// ```
 #[test]
 fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
@@ -326,7 +394,7 @@ fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
         }
         let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
         for (number, line) in code_lines(text.as_str()) {
-            if line.contains("Reload") || line.contains("\"reload\"") {
+            if asks_the_manager_for_a_reload(line) {
                 found.push(format!("{relative}:{number}: {line}"));
             }
         }
@@ -335,4 +403,47 @@ fn no_release_code_line_makes_the_manager_read_every_unit_it_holds() {
     // What: The list the members are checked against is the reason a `Reload` member cannot be added, so it is checked
     //       while the absence is.
     assert!(!ALLOWED_MEMBERS.iter().any(|member| { return member.contains("Reload"); }), "a reload is no member this wrapper may call: {ALLOWED_MEMBERS:?}");
+}
+
+/// What:
+///  The boot-start exception is one exact file at a time,
+///  and one target line at a time.
+/// Why:
+///  the owner's exception names the root boot gate and the nested-dataset units,
+/// so the same two lines in another release file,
+/// and another target in the same file,
+/// stay refused,
+/// and the list cannot outlive the two texts that need it
+///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`).
+#[test]
+fn the_boot_start_exception_is_one_file_and_one_target() {
+    let elsewhere: &str = "service/service_instance.rs";
+    for file in UNIT_TEXTS_INSTALLED_AT_BOOT {
+        let text: String = std::fs::read_to_string(native_root().join(file)).expect("a unit text file");
+        assert!(text.contains("[Install]") && text.contains(BOOT_TARGET_LINE), "the exception is still needed in {file}; remove it from the list when the file goes");
+        assert!(is_the_boot_start_exception(file, "String::from(\"[Install]\")", "[Install]"), "{file}");
+        assert!(is_the_boot_start_exception(file, "String::from(\"WantedBy=multi-user.target\")", "WantedBy="), "{file}");
+        assert!(!is_the_boot_start_exception(file, "String::from(\"WantedBy=graphical.target\")", "WantedBy="), "{file}");
+        assert!(!is_the_boot_start_exception(file, "String::from(\"RequiredBy=x.target\")", "RequiredBy="), "{file}");
+    }
+    assert!(!is_the_boot_start_exception(elsewhere, "String::from(\"[Install]\")", "[Install]"));
+    assert!(!is_the_boot_start_exception(elsewhere, "String::from(\"WantedBy=multi-user.target\")", "WantedBy="));
+}
+
+/// What:
+///  The narrowed reload detector still refuses a manager reload in every spelling,
+///  and passes a unit text's own `ExecReload=` line.
+/// Why:
+///  the record narrows the guard by that one key,
+/// so the request the guard exists for has to be shown still refused,
+/// and the key that reloads one unit accepted
+///  (`doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`).
+#[test]
+fn the_reload_detector_refuses_every_spelling_of_a_manager_reload() {
+    for planted in ["member: \"Reload\"", "member: \"DaemonReload\"", "call(\"reload\")", "Command::new(\"systemctl\").arg(\"daemon-reload\")", "args([\"daemon-reload\"])"] {
+        assert!(asks_the_manager_for_a_reload(planted), "{planted}");
+    }
+    for a_unit_text_line in ["format!(\"ExecReload={reconcile}\")", "line.starts_with(\"ExecReload=\")", "UnitTextRefusal::MissingLine { line: \"ExecReload=\", unit: BOOT_GATE_UNIT_NAME }"] {
+        assert!(!asks_the_manager_for_a_reload(a_unit_text_line), "{a_unit_text_line}");
+    }
 }

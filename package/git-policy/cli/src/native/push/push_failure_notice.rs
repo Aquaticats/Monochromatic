@@ -506,7 +506,8 @@ pub struct Worktrees {
 /// branchOfHead(gitDir)
 /// ```
 pub fn branch_of_head(git_dir: &Path) -> Option<String> {
-    let text: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    // A HEAD that is a named pipe is no HEAD, and it answers at once rather than holding every command that asks.
+    let text: String = crate::plain_file::read_plain_text(&git_dir.join("HEAD")).ok()?;
     let target: &str = text.lines().next()?.strip_prefix("ref: ")?.trim();
     if target.starts_with("refs/heads/") {
         return Some(target.to_string());
@@ -636,7 +637,8 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
             notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        // A notice that is a named pipe answers as unreadable at once instead of holding the command that shows notices.
+        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else { continue };
         let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
         if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
             && !is_for(asking, branch)
@@ -681,7 +683,7 @@ fn file_name_of(path: &Path) -> String {
 /// const text = await readFile(claim); const parsed = parseRecord(text); return parsed ? worded(parsed) : text
 /// ```
 fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
-    let Ok(text) = std::fs::read_to_string(path) else { return Vec::new() };
+    let Ok(text) = crate::plain_file::read_plain_text(path) else { return Vec::new() };
     let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
     if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
         && !is_for(asking, branch)
