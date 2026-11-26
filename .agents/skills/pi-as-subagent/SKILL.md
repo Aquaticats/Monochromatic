@@ -592,6 +592,21 @@ which `mise run toolchain:install` makes.
   and "Claude Code native subagents, when they end their turn, will directly return to the main agent, which is annoying and wasteful. Pi agents don't have this quirk because we drive pi ourselves."
   The coordinator's launcher waits for such work and resumes the session with a short note
   (`${HOME}/temp/agent/pi-runs/start-pi-run-in-worktree.ts`, region "Wake an agent whose own work outlived its turn").
+- A round a restart ended goes on from its own session,
+  not from a fresh one:
+  `resume-a-build-round.ts` in the round's launch folder takes the round folder,
+  the worktree name,
+  the branch,
+  the round's own continuation file and a new unit name,
+  starts Pi from the newest session of that worktree,
+  and makes the worktree again when it is gone.
+  The session already holds its turns.
+  A round that ended by itself has `summary.json` in its run folder and its report under its
+  `keep/`.
+  Before a restart of the machine,
+  check that every round still going has a commit of its work on `origin` or a `state-so-far.md` in
+  its `keep/`,
+  since nothing under `${HOME}/temp/agent` is counted on to outlast one.
 - Leave extensions loaded:
   some providers exist only because an extension registers them,
   and `--no-extensions` made `synthetic` unknown.
