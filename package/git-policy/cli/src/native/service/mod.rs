@@ -100,8 +100,25 @@
 //!   beside the landing loop.
 //! - `service_shadow_draw.rs`:
 //!   the service's stock of finished shadows drawn ahead of the commits that ask for one.
+//! - `service_timing_records.rs`:
+//!   what one request's timing is made of.
+//! - `service_timing_wait_line.rs`:
+//!   the line about the wait for the index lock,
+//!   and the read of a step's duration from a line already written.
+//! - `service_timing_answered_line.rs`:
+//!   the one line each answered request gets.
+//! - `service_timing_line_text.rs`:
+//!   the prefix of every line,
+//!   the wall clock it states,
+//!   and the text of one line.
+//! - `service_timing_life_lines.rs`:
+//!   the lines about the service's own life.
+//! - `service_timing_log_entry.rs`:
+//!   writing one entry,
+//!   and the three macros every call site uses.
 //! - `service_timing.rs`:
-//!   the lines the commit service writes about its life and about the time each request took.
+//!   the lines the commit service writes about its life and about the time each request took,
+//!   and the parts they are made of re-exported from here.
 //! - `service_server_land_group_answer_log.rs`:
 //!   what one batch's answer says about that batch:
 //!   the times it shares,
@@ -192,8 +209,29 @@
 //!   which worktree a unit belongs to,
 //!   whether it is gone,
 //!   and the stop of its units through the manager.
+//! - `service_server_batch_and_idle_limits.rs`:
+//!   the numbers one service run is held to:
+//!   the batch cap,
+//!   the idle exit,
+//!   and how often the run asks whether its own worktree is still there.
+//! - `service_server_serve_settings.rs`:
+//!   what one service run is configured with.
+//! - `service_server_scratch_trees_of_a_group.rs`:
+//!   the scratch trees one group's requests name,
+//!   and their removal once the landing that read them is over.
+//! - `service_server_batch_read.rs`:
+//!   one arrived batch of requests read:
+//!   its withdrawals answered,
+//!   its commits grouped by branch.
+//! - `service_server_after_commit_work_start.rs`:
+//!   the start of the after-commit work,
+//!   and the end of the service when no thread can be had for it.
+//! - `service_server_landing_one_group.rs`:
+//!   one group of a batch,
+//!   landed and answered.
 //! - `service_server.rs`:
-//!   the commit service's loop.
+//!   the commit service's loop,
+//!   and the parts it is made of re-exported so every caller keeps naming them through it.
 //! - `service_address_of_a_worktree.rs`:
 //!   the address one worktree's service listens at:
 //!   a socket file under the runtime directory when that path fits one socket address,
@@ -328,7 +366,31 @@ pub mod journald_native_socket_target;
 /// written by a thread of their own so no landing waits for the stream.
 pub mod service_log_lines_off_the_calling_thread;
 
-/// The lines the commit service writes about its life and about the time each request took.
+/// What one request's timing is made of.
+pub mod service_timing_records;
+
+/// The line about the wait for the index lock,
+/// and the read of a step's duration from a line already written.
+pub mod service_timing_wait_line;
+
+/// The one line each answered request gets.
+pub mod service_timing_answered_line;
+
+/// The prefix of every line,
+/// the wall clock it states,
+/// and the text of one line.
+pub mod service_timing_line_text;
+
+/// The lines about the service's own life.
+pub mod service_timing_life_lines;
+
+/// Writing one entry,
+/// the sink it goes to,
+/// and the three macros every call site uses.
+pub mod service_timing_log_entry;
+
+/// The lines the commit service writes about its life and about the time each request took,
+/// and the parts they are made of re-exported from here.
 pub mod service_timing;
 
 /// The line the commit service writes when a signal ends it.
@@ -343,6 +405,33 @@ pub mod service_server_shutdown_after_a_stop;
 /// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
 /// read at a service's start on a thread of its own.
 pub mod service_journal_restored_at_start;
+
+/// The numbers one service run is held to:
+/// the batch cap,
+/// the batch whose cost still grows as its size does,
+/// the idle exit,
+/// and how often the run asks whether its own worktree is still there.
+pub mod service_server_batch_and_idle_limits;
+
+/// What one service run is configured with.
+pub mod service_server_serve_settings;
+
+/// The scratch trees one group's requests name,
+/// and their removal once the landing that read them is over.
+pub mod service_server_scratch_trees_of_a_group;
+
+/// One arrived batch of requests read:
+/// its withdrawals answered,
+/// its commits grouped by branch.
+pub mod service_server_batch_read;
+
+/// The start of the after-commit work,
+/// and the end of the service when no thread can be had for it.
+pub mod service_server_after_commit_work_start;
+
+/// One group of a batch,
+/// landed and answered.
+pub mod service_server_landing_one_group;
 
 /// The commit service's loop.
 pub mod service_server;
