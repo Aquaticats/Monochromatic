@@ -184,8 +184,11 @@ moved verbatim on 2026-11-23:
 The owner chose the moment on 2026-11-25 at about 22:05 -05:00,
 asked whether to split to cut build memory
 (one build of the wrapper peaked around 6.6 GiB,
-and half its test code left out measured 4.7 GiB, 0.70 times,
-`package/git-policy/cli/doc/development-profile-measurements.md`, "Memory per build, measured 2026-11-25"):
+and half its test code left out measured 4.7 GiB,
+0.70 times,
+`package/git-policy/cli/doc/development-profile-measurements.md`,
+"Memory per build,
+measured 2026-11-25"):
 "Window after live rounds (Recommended)".
 So no new round starts in `package/git-policy/cli`;
 when the rounds open at that moment have merged,
@@ -767,6 +770,13 @@ and a release's `cargo publish --dry-run`.
 
 ## Oversized files
 
+Note 2026-11-26:
+the count below is the measurement of 2026-11-04.
+`package/git-policy/cli/doc/debt-ledger-2026-11-25.md` item 15 counts the same rule again on 2026-11-25:
+24 files over 300 non-comment lines and 30 more at 290 to 300,
+and that ledger item is the list a split round is briefed from
+(section "Next" of `cli-git-source-layout-target-tree.md`,
+its second item).
 The 37 files over the `rust/max-lines` limit overlap with the file loops
 (`transaction_git`,
 `service_land`,
