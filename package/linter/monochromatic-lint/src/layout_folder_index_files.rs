@@ -143,8 +143,9 @@ pub(crate) fn index_file(
 /// What:
 ///  Whether a module file's name holds a space.
 /// Why:
-///  A key separates its words by spaces,
-///  so a file name holding one cannot be read back from the key that names it.
+///  A `file-uses` line separates its words by spaces,
+///  so such a name cannot be written in one,
+///  and a use through that file can never be tolerated.
 ///  A `#[path]` attribute can declare such a file, so the rule must answer it.
 ///
 /// In TS you'd write (pseudocode):
@@ -158,11 +159,13 @@ pub(crate) fn name_holds_space(file: &Path) -> bool {
 /// What:
 ///  The finding for a module file whose name holds a space.
 /// Why:
-///  No key and no `file-uses` line can name that file unambiguously,
-///  because both separate their words by spaces;
-///  the finding therefore names the folder and the file in its message,
-///  and its key names only the folder,
-///  so the line a round records is itself unambiguous.
+///  A key line is read as its whole text,
+///  so it names the file exactly, spaces and all,
+///  and renaming the file kills the line rather than passing it to another file.
+///  What such a name does forbid is a `file-uses` line,
+///  which separates its words by spaces,
+///  so a loop through this file is reported and cannot be tolerated:
+///  the file is renamed, or the loop is untangled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,14 +180,18 @@ pub(crate) fn space_finding(
         file: file.to_path_buf(),
         line: 0,
         message: format!(
-            "{} in the folder {} holds a space, so no key and no file-use line can name it unambiguously.",
+            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as three words.",
             file_name(file),
             shown(folder, base)
         ),
         help: Some(String::from(
-            "Rename the file so its name holds no space, and update the mod line or the `#[path]` attribute that declares it.",
+            "Rename the file so its name holds no space, and update the mod line or the `#[path]` attribute that declares it; until then a loop through this file cannot be tolerated.",
         )),
-        key: format!("space-in-file-name {}", key_path(folder, base)),
+        key: format!(
+            "space-in-file-name {} {}",
+            key_path(folder, base),
+            file_name(file)
+        ),
     };
 }
 

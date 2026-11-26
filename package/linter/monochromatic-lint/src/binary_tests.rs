@@ -2024,8 +2024,9 @@ fn layout_an_unreadable_index_reports_every_file_it_cannot_list() {
     }
 }
 
-/// A module file whose name holds a space is refused by a finding that names the folder in its key,
-///  because a key separates its words by spaces and no line could name that file unambiguously.
+/// A module file whose name holds a space is reported by a finding whose key names the file,
+///  so the line that tolerates it never passes to a file renamed later,
+///  and the file still owes its folder a list entry.
 #[test]
 fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     let fixture: Fixture = Fixture::new();
@@ -2046,7 +2047,10 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     assert_eq!(found.status, 1, "{}", found.stderr);
     assert_eq!(
         located(found.stdout.as_str()),
-        [String::from("src/a b.rs rust/file-order-in-folder 1 1")],
+        [
+            String::from("src/a b.rs rust/file-order-in-folder 1 1"),
+            String::from("src/lib.rs rust/file-order-in-folder 1 1"),
+        ],
         "{}",
         found.stdout
     );
@@ -2057,7 +2061,7 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
         "{}",
         found.stdout
     );
-    // The key names the folder and never the file, so no list line is ambiguous either.
+    // Both lines name the file, so neither passes to another name.
     let key_lines: Vec<&str> = found
         .stderr
         .lines()
@@ -2066,7 +2070,8 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     assert_eq!(
         key_lines,
         [
-            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src"
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src a b.rs",
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: missing-entry src/lib.rs a b.rs",
         ],
         "{}",
         found.stderr
@@ -2233,6 +2238,106 @@ fn layout_a_module_file_in_the_package_folder_has_a_matchable_key() {
         (0, ""),
         "{}",
         linked.stderr
+    );
+}
+
+/// A module file whose name holds a space stays in the list, loop and order checks:
+///  a loop through it is reported,
+///  and its key names the file, so a list line never tolerates a rename.
+#[test]
+fn layout_a_file_name_holding_a_space_stays_in_every_check() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\nmod m;\nmod n;\n");
+    // The spaced file is declared by `#[path]`, which is the one way a module file can carry a space.
+    fixture.write(
+        "src/m/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `q.rs`: the q.\n//! - `p q.rs`: the spaced one.\n#[path = \"p q.rs\"] mod pq;\nmod p;\nmod q;\n",
+    );
+    fixture.write("src/m/p.rs", "pub struct X;\nuse super::pq::Y;\n");
+    fixture.write("src/m/q.rs", "pub struct Q;\n");
+    fixture.write("src/m/p q.rs", "pub struct Y;\nuse super::p::X;\n");
+    // A folder whose one spaced file no other file uses, so only its own key is in play.
+    fixture.write(
+        "src/n/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `p q.rs`: the spaced one.\n#[path = \"p q.rs\"] mod pq;\nmod p;\n",
+    );
+    fixture.write("src/n/p.rs", "pub struct X;\n");
+    fixture.write("src/n/p q.rs", "pub struct Y;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    // The loop through the spaced file is reported, and its own line names the file.
+    let looped: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    assert!(
+        looped.stdout.contains("use each other in a loop"),
+        "{}",
+        looped.stdout
+    );
+    for part in ["p q.rs uses p.rs", "p.rs uses p q.rs"] {
+        assert!(
+            looped.stdout.contains(part),
+            "{part} missing in {}",
+            looped.stdout
+        );
+    }
+    assert!(
+        looped
+            .stderr
+            .contains("allow-list key: space-in-file-name src/m p q.rs"),
+        "{}",
+        looped.stderr
+    );
+    // A line for the spaced file tolerates its own finding and never the loop.
+    std::fs::write(
+        fixture.path.join("folder.txt"),
+        "space-in-file-name src/m p q.rs\n",
+    )
+    .expect("fixture list");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let tolerated: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(tolerated.status, 1, "{}", tolerated.stderr);
+    assert!(
+        tolerated.stdout.contains("use each other in a loop"),
+        "{}",
+        tolerated.stdout
+    );
+    // The other folder's line holds, and a rename makes it dead instead of letting it pass.
+    std::fs::write(
+        fixture.path.join("folder.txt"),
+        "space-in-file-name src/n p q.rs\n",
+    )
+    .expect("fixture list");
+    let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
+    // The line holds: no finding of that folder is left, and the other folder's loop is still reported.
+    assert_eq!(clean.status, 1, "{}", clean.stderr);
+    assert!(
+        !clean.stdout.contains("\"filename\":\"src/n"),
+        "{}",
+        clean.stdout
+    );
+    std::fs::remove_file(fixture.path.join("src/n/p q.rs")).expect("remove the spaced file");
+    fixture.write("src/n/x y.rs", "pub struct Y;\n");
+    fixture.write(
+        "src/n/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `x y.rs`: the spaced one.\n#[path = \"x y.rs\"] mod pq;\nmod p;\n",
+    );
+    let renamed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(renamed.status, 1, "{}", renamed.stderr);
+    assert!(
+        renamed
+            .stdout
+            .contains("space-in-file-name src/n p q.rs` in folder.txt tolerates nothing any more"),
+        "{}",
+        renamed.stdout
     );
 }
 
