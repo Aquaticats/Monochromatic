@@ -109,6 +109,73 @@ the control failed with those same two lines
 (`Err(Ceiling(50ms))` against `Ok(7)`),
 and the whole module passed 9 of 9 in 2.5 s without that sleep.
 
+## The notice sink control rested on the notice thread's own wakeups (2026-11-26T16:52:50-05:00)
+
+`commit::native_commit_waiting_notice::tests::a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`
+failed in three threaded runs of the whole `commit::` module on 2026-11-26
+(`463 passed; 11 failed` and `473 passed; 1 failed` among them),
+passed alone three times out of three (0.90 s each),
+and passed in its own module twice out of two (19 passed, 5.28 s) (issue 6519).
+It panicked at its assertion that the finish answered within its two-second window.
+
+That window held on this host,
+where `commit::` at the default threads passed (`474 passed; 0 failed`, 24.44 s).
+At 24 test threads the same module failed (`473 passed; 1 failed`, 20.69 s)
+on the control's other assertion,
+and the record named what was missing:
+
+```text
+the record says a line was dropped because the reader was not taking it:
+ScratchStepFacts { ceiling: Some(60s), armed: true, notice: 500.062751ms, wrote: 0ns,
+lines_dropped: 0, looks: 3, looks_found: 0, ... }
+```
+
+### What was measured
+
+A probe in the control
+(a scratch change,
+reverted)
+recorded how its two-second window was spent,
+over six runs:
+
+- `commit::` at the default threads:
+the finish answered in 500.212 ms,
+and the thread that ran it started 0.075 ms after the window opened;
+- its module:
+501.622 ms,
+the thread starting 0.985 ms after the window opened;
+- alone,
+`--exact`,
+three runs:
+500.210, 500.198 and 500.360 ms,
+the thread starting 0.072, 0.080 and 0.205 ms after the window opened.
+
+`finish` waits no longer than twice the notice's own bound (`NOTICE_BOUND`, 500 ms),
+once for the notice's answer and once for the line it handed over,
+so the product's own maximum is one second
+and the two-second window was twice that and nothing more.
+
+### Root cause
+
+Both verdicts of that control rested on wall clocks the host decides,
+and neither was a promise of the notice.
+
+The first was the arrangement:
+the control slept three cadences and expected the notice thread to have offered three lines by then,
+so that the third was the one a reader that stopped reading costs.
+The notice hands over one line per look,
+and the pause between its looks is the cadence's interval,
+so the third line needed the third look after the first.
+At 24 threads the notice thread made three looks in the 400 ms the control gave it (`looks: 3`),
+the third line was never offered,
+and the record counted no drop.
+Nothing outside the notice says that a line was dropped,
+so the control could not wait for that event and waited on the notice thread's scheduling instead.
+
+The second was the window over the thread that calls `finish`:
+it covered a thread start and the one second of bounded waits `finish` owes,
+which leaves a second and a half on a quiet host and nothing on a host that wakes a thread late.
+
 ## The fixes
 
 The adoption controls' setup batch now lands inside a landing task,
@@ -165,8 +232,31 @@ and the write ending can never be the answer such a guard owes.
 A broken guard is still found in 60 s,
 under the runner's per-test bound.
 
+The notice sink control now reaches the state it is about itself:
+it offers one line into the queue the writer takes its lines from,
+through the sender the notice already hands the wait that owns the step (`lines_for_the_wait`),
+so the writer holds a line while the queue cannot hold another,
+and the notice's own look then decides only which line is dropped and never whether that state exists.
+It waits one `LOOK_INTERVAL` for that look,
+the longest the notice goes between two,
+and its window over the finish is thirty times `NOTICE_BOUND`:
+thirty times the measured answer,
+and fifteen times what `finish` may honestly wait.
+Its cadence is short (20 ms) as well,
+so every line a reader that stopped reading costs is offered within the first few looks.
+
 ## Verification
 
+- The control the issue named, after the change:
+  its module `19 passed; 0 failed` in 5.28 s,
+  alone `1 passed; 0 failed` in 0.77 s,
+  `commit::` at the default threads `474 passed; 0 failed` in 25.00 s,
+  and `commit::` at 24 test threads `474 passed; 0 failed` in 20.76 s.
+- The same control shown failing without its arrangement:
+  with its file at its parent's version,
+  `commit::` at 24 test threads failed twice of two
+  (`473 passed; 1 failed` in 20.73 s and 20.65 s, `lines_dropped: 0`, `looks: 3`),
+  and it passed again once the file was restored.
 - The Markdown notice controls' constants:
   `markdown_linter_guard::`,
   `Summary [2.459s] 9 tests run: 9 passed, 6218 skipped`.
@@ -225,6 +315,20 @@ a notice write must not hold a finished result: Err(Timeout)
   What carries over is the attribution (the flushes of the control's own thread,
   and the guessed bounds),
   not the seconds.
+- The window failure the issue records was not reproduced here:
+  `commit::` at the default threads passed on this host (`474 passed; 0 failed`),
+  so the window's size rests on the measured answer above and on the three recorded runs,
+  not on a red seen here.
+  The red seen here is the control's other assertion, which the same arrangement now reaches
+  without waiting on the notice thread's wakeups.
+- The wider window is a weaker guard than two seconds was:
+  a `finish` that waited for the reader for ten seconds would pass it.
+  Nothing tighter can hold under load,
+  because the notice's own promise is a wall clock as well,
+  so the window stands above the product's maximum by a stated multiple and the reader's stall stays far longer.
+- No product code changed:
+  the control reached the writer's queue through the sender `lines_for_the_wait` already hands a wait,
+  and `finish`, `NOTICE_BOUND` and the line queue are as they were.
 
 ## Records this changes
 
