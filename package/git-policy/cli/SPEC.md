@@ -2454,8 +2454,8 @@ an await,
 where no timeout can expire and every other task of the runtime stops with it.
 An index whose rewrite was given up on before it could start is reported as unchanged,
 and that is a fact rather than a hope:
-the job takes a one-shot claim on its work before its first effect and the report takes the same claim
-when it gives up,
+the call that runs each rewrite as a job of the blocking pool takes a one-shot claim on that job's work before
+its first effect, and takes the same claim when it gives up on the job,
 so a job the report gave up on does nothing,
 while one that took the claim first makes the report say the result is not known.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
