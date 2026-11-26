@@ -75,9 +75,18 @@
 //!   and the comparison every attach makes.
 //! - `clone_mount_readiness_parse.rs`:
 //!   the record's parse and its own refusals.
+//! - `clone_mount_readiness_file_refusals.rs`:
+//!   why the readiness directory or its record was refused,
+//!   and the sentence a person reads.
+//! - `clone_mount_readiness_file_publish.rs`:
+//!   the staging name one publish writes under,
+//!   and the write of one whole record.
+//! - `clone_mount_readiness_file_read.rs`:
+//!   the directory opened and proved,
+//!   and the read of one whole record.
 //! - `clone_mount_readiness_file.rs`:
-//!   the root-owned readiness directory,
-//!   its atomic publish and its read.
+//!   the root-owned readiness directory and its record:
+//!   where one boot's readiness lives and how it is written.
 //! - `clone_mount_intent_write.rs`:
 //!   the wrapper's request and nudge payloads and the gated writes.
 //! - `mount_request_wait.rs`:
