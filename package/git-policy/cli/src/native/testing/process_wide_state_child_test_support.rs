@@ -180,3 +180,9 @@ pub(crate) fn hold_the_blocking_jobs_to(places: usize) {
     refuse_outside_the_child("the bound on blocking jobs");
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(places);
 }
+
+/// The controls of the refusal and of the child's own answer;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "process_wide_state_child_test_support_tests.rs"]
+mod tests;
