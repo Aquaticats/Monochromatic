@@ -251,8 +251,12 @@ and the clone's `used` was 1,024 after the attach.
 Twelve mebibytes written into an ignored folder of the checkout did not raise `usedbydataset` above 39,523,840,
 because the arm's output was one repeated byte and the pool stored it at almost no cost.
 The hourly snapshot taken after that write pinned 38,912 bytes of `usedbysnapshots`.
-Destroying the clone freed its 1,024 bytes,
-and destroying the hourly freed the 38,912.
+The clone's own `used` was 1,024 bytes.
+The `used` readings taken after the clone's destroy and after the hourly's destroy printed the same number as before
+them,
+because each frees asynchronously and the arm did not wait for the transaction group to settle.
+So the freed bytes this arm reports are ZFS's own accounting figures for the clone and the snapshot,
+not a measured drop in the dataset's `used`.
 
 A compressible fixture therefore shows what a snapshot's own accounting costs,
 and nothing about retained build output.
