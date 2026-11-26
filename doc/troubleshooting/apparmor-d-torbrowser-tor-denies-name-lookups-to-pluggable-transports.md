@@ -69,12 +69,12 @@ getent hosts app.datapacket.com; echo "exit=$?"
 
 ### Works
 
-- Outside the profile: `185.59.222.177  1232748490.rsc.cdn77.org`, `exit=0`.
+- Outside the profile: `<address>  <name>`, `exit=0`.
 - With the local workaround (next section), after a full Tor Browser restart:
   `lyrebird` ran as `torbrowser-tor//lyrebird`,
   the owner reported Tor Browser connected,
   and `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
-  `{"IsTor":true,"IP":"204.8.96.168"}`, with the child profile enforcing.
+  `{"IsTor":true,"IP":"<exit address>"}`, with the child profile enforcing.
 - The upstream patch beside this file
   ([the patch file][patch]),
   applied to the installed abi 4.0 build and loaded under a test name with no attachment:
@@ -238,7 +238,7 @@ Locally:
 $ aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com; echo $?
 2
 $ getent hosts app.datapacket.com; echo $?
-185.59.222.177  1232748490.rsc.cdn77.org
+<address>  <name>
 0
 ```
 
