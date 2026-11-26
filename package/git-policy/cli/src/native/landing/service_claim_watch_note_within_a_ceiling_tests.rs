@@ -1,6 +1,9 @@
 //! Controls for the wait a landing gives the note that names its repository to the next service:
 //! one write at a time for the whole process,
 //! and the place of that one write given back when it ends.
+//! Each control runs its body in a child of its own:
+//! the place of that one write and the control's refusal of a thread belong to the whole process,
+//! so two controls of a threaded run took each other's place and both could not pass (issue 6497).
 
 use super::*;
 use crate::service_claim_watch::{
@@ -64,6 +67,12 @@ fn git_dir_with_work(
 /// so "while a write has not ended" is a state and not a duration.
 #[test]
 fn a_second_note_is_not_handed_over_while_the_first_has_not_ended() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_second_note_is_not_handed_over_while_the_first_has_not_ended",
+    ) {
+        return;
+    }
     let root: PathBuf = scratch("one-write-at-a-time");
     let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
     let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
@@ -151,6 +160,12 @@ fn a_second_note_is_not_handed_over_while_the_first_has_not_ended() {
 /// so the control cannot be starved of threads by whatever else runs on the machine.
 #[test]
 fn a_note_whose_thread_was_refused_leaves_the_place_free_for_the_next_landing() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_note_whose_thread_was_refused_leaves_the_place_free_for_the_next_landing",
+    ) {
+        return;
+    }
     let root: PathBuf = scratch("refused-thread");
     let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
     let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);

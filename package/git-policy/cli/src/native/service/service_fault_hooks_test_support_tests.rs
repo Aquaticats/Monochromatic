@@ -8,10 +8,11 @@
 //!  (issue 6497: three heartbeat controls of `service_server_connection_handling_tests.rs` failed together).
 //!  The first control below fails on that slot,
 //!  the second on a hold registry that would let one point be armed twice.
+//! Each control names points of its own, so no two of them arm one point of this process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! holdThePoint('a-point-one-control-owns'); holdThePoint('another-point-another-control-owns');
+//! holdThePoint('the-first-point-of-the-control-that-holds-two'); holdThePoint('the-second-point-of-the-control-that-holds-two');
 //! expect(takenByItsOwnPoint()).toBe(true);
 //! ```
 
@@ -20,11 +21,14 @@ use super::{
     run_on_any_thread,
 };
 
-/// The point one control of this file owns.
-const THE_FIRST_POINT: &str = "the-first-point-of-this-file";
+/// The point the control that holds two points owns on its first side.
+const THE_FIRST_POINTS_FIRST_SIDE: &str = "the-first-point-of-the-control-that-holds-two";
 
-/// The point another control of this file owns.
-const THE_SECOND_POINT: &str = "the-second-point-of-this-file";
+/// The point the control that holds two points owns on its second side.
+const THE_FIRST_POINTS_SECOND_SIDE: &str = "the-second-point-of-the-control-that-holds-two";
+
+/// The point the refusal control owns.
+const THE_REFUSAL_CONTROLS_POINT: &str = "the-point-of-the-control-that-arms-one-twice";
 
 /// How long a hold's reach may take before the control that waits for it fails.
 /// It is the window `finished_within` gives a read of a pipe that never answers,
@@ -68,15 +72,15 @@ fn reached(
 /// ```
 #[test]
 fn each_hold_is_taken_by_the_point_it_names_while_another_is_held() {
-    let (first_reached, first_go) = hold_the_point(THE_FIRST_POINT);
+    let (first_reached, first_go) = hold_the_point(THE_FIRST_POINTS_FIRST_SIDE);
     // What: the second arming happens while the first hold has not been taken yet.
     // Why:  that is the state one slot for the whole process could not hold: it replaced the first hold here.
-    let (second_reached, second_go) = hold_the_point(THE_SECOND_POINT);
+    let (second_reached, second_go) = hold_the_point(THE_FIRST_POINTS_SECOND_SIDE);
     let taking_the_first = std::thread::spawn(|| {
-        return run_on_any_thread(THE_FIRST_POINT);
+        return run_on_any_thread(THE_FIRST_POINTS_FIRST_SIDE);
     });
     let taking_the_second = std::thread::spawn(|| {
-        return run_on_any_thread(THE_SECOND_POINT);
+        return run_on_any_thread(THE_FIRST_POINTS_SECOND_SIDE);
     });
     let first_said: Option<()> = reached(first_reached);
     let second_said: Option<()> = reached(second_reached);
@@ -87,11 +91,13 @@ fn each_hold_is_taken_by_the_point_it_names_while_another_is_held() {
     let _second_ended = taking_the_second.join();
     assert!(
         first_said.is_some(),
-        "the thread that reached {THE_FIRST_POINT} said so while {THE_SECOND_POINT} was held beside it"
+        "the thread that reached {THE_FIRST_POINTS_FIRST_SIDE} said so while {THE_FIRST_POINTS_SECOND_SIDE} was held \
+         beside it"
     );
     assert!(
         second_said.is_some(),
-        "the thread that reached {THE_SECOND_POINT} said so while {THE_FIRST_POINT} was held beside it"
+        "the thread that reached {THE_FIRST_POINTS_SECOND_SIDE} said so while {THE_FIRST_POINTS_FIRST_SIDE} was held \
+         beside it"
     );
 }
 
@@ -104,7 +110,8 @@ fn each_hold_is_taken_by_the_point_it_names_while_another_is_held() {
 ///  the refusal fails the control that forgot to name the instance it owns at its own first line,
 ///  every time it runs,
 ///  instead of leaving the other control's hold dropped and a run of the module failing where the reason is not.
-///  The first hold is taken and let go before any assertion,
+///  The hold that was refused changes nothing,
+/// and the one that was there is taken and let go before any assertion,
 /// so nothing of this control's own is left in the registry for the controls that run beside it.
 ///
 /// In TS you'd write (pseudocode):
@@ -113,25 +120,25 @@ fn each_hold_is_taken_by_the_point_it_names_while_another_is_held() {
 /// ```
 #[test]
 fn a_second_hold_of_one_point_in_one_process_is_refused() {
-    let (first_reached, first_go) = hold_the_point(THE_FIRST_POINT);
+    let (refusal_reached, refusal_go) = hold_the_point(THE_REFUSAL_CONTROLS_POINT);
     let refused: std::thread::Result<()> = std::panic::catch_unwind(|| {
-        let (_second_reach, _second_go) = hold_the_point(THE_FIRST_POINT);
+        let (_second_reach, _second_go) = hold_the_point(THE_REFUSAL_CONTROLS_POINT);
         return ();
     });
     // The hold that was there before the refusal is the one this process answers, and it is taken and let go here.
-    let taking_the_first = std::thread::spawn(|| {
-        return run_on_any_thread(THE_FIRST_POINT);
+    let taking_the_point = std::thread::spawn(|| {
+        return run_on_any_thread(THE_REFUSAL_CONTROLS_POINT);
     });
-    let first_said: Option<()> = reached(first_reached);
-    let _first_let_go = first_go.send(());
-    let _first_ended = taking_the_first.join();
+    let said: Option<()> = reached(refusal_reached);
+    let _let_go = refusal_go.send(());
+    let _ended = taking_the_point.join();
     assert!(
         refused.is_err(),
-        "a second hold of {THE_FIRST_POINT} in one process is refused, because a hold answers the first thread that \
-         reaches its point and two controls of one run would answer for each other"
+        "a second hold of {THE_REFUSAL_CONTROLS_POINT} in one process is refused, because a hold answers the first \
+         thread that reaches its point and two controls of one run would answer for each other"
     );
     assert!(
-        first_said.is_some(),
+        said.is_some(),
         "the hold armed before the refusal still answers the point it names"
     );
 }
