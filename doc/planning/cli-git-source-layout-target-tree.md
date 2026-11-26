@@ -659,10 +659,15 @@ merged `00b6a940b4`)
 and the two layout rules already on
 (`44e8ef805e`,
 merged `a1b9b1e850`).
+The scan was run on that commit and run again on the same tree merged with `fcdbdf72de`
+(this branch's tip,
+`282735ef3c`),
+and the two scans differ only in the two `source_guard` test sidecars that landed meanwhile,
+so every count below is the merged tree's.
 Since the last scan (`e728c63911`,
-2026-11-07T10:43:12-05:00) 5269 commits changed the crate's `src`:
-2046 files were added and 9 deleted
-(1914 and 9 of them `.rs`),
+2026-11-07T10:43:12-05:00) 5290 commits changed the crate's `src`:
+2048 files were added and 9 deleted
+(1916 and 9 of them `.rs`),
 and the tree grew from 653 production modules to 1622.
 The ZFS route's steps 1 to 22 landed in those commits
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`),
@@ -716,11 +721,11 @@ this round changes no source file.
 
 ### What the scan counts now
 
-- 3219 `.rs` files:
+- 3221 `.rs` files:
   1622 modules the scan calls production (653),
-  1478 sidecars (632),
+  1480 sidecars (632),
   64 index files,
-  and 119 modules declared `cfg(test)`.
+  and 121 modules declared `cfg(test)`.
   Of the 1622,
   41 are the three test-support folders,
   so 1581 production files are placed.
