@@ -5487,17 +5487,6 @@ records,
 which Git still names although the command stands in no worktree.
 Only the ladder's own steps keep the shorter list of globals they serve
 ("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
-A global option this build does not know is refused rather than forwarded while the
-repository holds slot records:
-`git worktree remove` and `git worktree move` behind such an option stop before Git,
-because the option leaves the worktree's path unread and Git would then delete a
-bound slot's registration or rename it while the record kept the old path.
-The refusal names that option and the two spellings the wrapper reads,
-the command without it and `git -C <repository> worktree ...`.
-A repository with no slot record forwards the command as it always did,
-because no record can be endangered there,
-and the refusal reads no pool and no mount table
-(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
@@ -5516,6 +5505,17 @@ naming the record and what to repair,
 as `git worktree move` already refuses it.
 That refusal is decided from the record alone,
 so no pool and no mount table is read before it.
+A global option this build does not know is refused rather than forwarded while the
+repository holds slot records:
+`git worktree remove` and `git worktree move` behind such an option stop before Git,
+because the option leaves the worktree's path unread and Git would then delete a
+bound slot's registration or rename it while the record kept the old path.
+The refusal names that option and the two spellings the wrapper reads,
+the command without it and `git -C <repository> worktree ...`.
+A repository with no slot record forwards the command as it always did,
+because no record can be endangered there,
+and that refusal too reads no pool and no mount table
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
 
 The underlay pointer is kept for `git worktree prune`,
 independent of the clone's own pointer:
