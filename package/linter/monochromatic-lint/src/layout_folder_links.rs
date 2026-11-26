@@ -578,9 +578,7 @@ fn forward_path(
                     Vec::<(PathBuf, PathBuf, Proof)>::new();
                 let mut node_walked: PathBuf = goal.to_path_buf();
                 while node_walked != *start {
-                    let Some((before, step_proof)) = came_from.get(&node_walked).cloned() else {
-                        return None;
-                    };
+                    let (before, step_proof) = came_from.get(&node_walked).cloned()?;
                     steps.push((before.clone(), node_walked.clone(), step_proof));
                     node_walked = before;
                 }
@@ -1187,19 +1185,19 @@ pub fn check_folder_links(
             base,
         ));
     }
-    let reported: FolderUses = match allow {
+    let untolerated: FolderUses = match allow {
         Some(list) => without_tolerated(&grouped, list, base),
         None => grouped.clone(),
     };
     findings.extend(use_loops(
         folder_list.as_slice(),
-        &reported,
+        &untolerated,
         base,
         "folders",
         None,
     ));
     findings.extend(group_findings(tree, &groups, &grouped, &sources, base));
-    findings.extend(group_loops(&groups, &reported, base));
+    findings.extend(group_loops(&groups, &untolerated, base));
     findings.extend(glob_reexports(tree, base));
     findings.extend(folder_below_uses(folder_list.as_slice(), base));
     let loops: FolderLoops = loops_of_each_folder(&folder_list, &grouped, &groups);
@@ -1221,7 +1219,7 @@ pub fn check_folder_links(
     let Some(list) = allow else {
         return findings;
     };
-    let reported_loops: FolderLoops = loops_of_each_folder(&folder_list, &reported, &groups);
+    let reported_loops: FolderLoops = loops_of_each_folder(&folder_list, &untolerated, &groups);
     let tolerated_loops: BTreeSet<(LoopGraph, usize)> =
         tolerated_loops(&grouped, &loops, list, &groups, base);
     findings.extend(new_loop_uses(

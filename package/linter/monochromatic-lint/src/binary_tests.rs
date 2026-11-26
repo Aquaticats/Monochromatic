@@ -3908,7 +3908,7 @@ fn write_generated_tree(
         // What: the same entry's child folders, which may only point forward.
         // Why: their uses can never close a loop, so only a group's own file can.
         for child in 0..children[index] {
-            let mut body: String = String::from("//! One child.\n");
+            let mut child_body: String = String::from("//! One child.\n");
             for other in &order {
                 if position_of(other) <= position_of(name) {
                     continue;
@@ -3921,13 +3921,13 @@ fn write_generated_tree(
                     format!("crate::{other}::c{chosen}::X")
                 };
                 if rolls.chance(30) {
-                    body.push_str(format!("use {target};\n").as_str());
+                    child_body.push_str(format!("use {target};\n").as_str());
                 }
             }
-            body.push_str("pub struct X;\n");
+            child_body.push_str("pub struct X;\n");
             fixture.write(
                 format!("src/{name}/c{child}/mod.rs").as_str(),
-                body.as_str(),
+                child_body.as_str(),
             );
         }
     }
