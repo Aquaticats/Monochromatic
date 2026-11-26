@@ -28,7 +28,8 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/dom/core"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/dom/core"
 }

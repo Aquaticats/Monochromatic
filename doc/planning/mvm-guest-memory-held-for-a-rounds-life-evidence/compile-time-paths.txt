@@ -1,63 +1,72 @@
 # Compile-time host paths the crate's test binaries carry
 
+Read from `main` at commit `4aa035890d` on 2026-11-26T03:56Z, and read again after `main` was merged at
+commit `d7201d4501` with the same counts, with
+`rg -n 'env!\("CARGO_(MANIFEST_DIR|BIN_EXE_monochromatic-git-policy-cli|TARGET_TMPDIR)"' package/git-policy/cli/src`.
+
 ## env! values (compile-time text, baked into the binary)
 
-package/git-policy/cli/src/native/zfs_compatibility_gate/gate_verdict_tests.rs:31:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-package/git-policy/cli/src/native/zfs_compatibility_gate/module_identity_tests.rs:22:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-package/git-policy/cli/src/native/service/service_instance_tests.rs:126:    let doc: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/service/service_instance.rs")).expect("this module's source");
-package/git-policy/cli/src/native/service/service_instance_tests.rs:127:    let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
-package/git-policy/cli/src/native/service/service_main_tests.rs:109:    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
-package/git-policy/cli/src/native/service/service_main_tests.rs:145:    let text: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/service/service_main.rs")).expect("service_main.rs");
-package/git-policy/cli/src/native/source_guard/typed_ban_configuration_tests.rs:45:    let crate_root: &Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-package/git-policy/cli/src/native/source_guard/typed_ban_configuration_tests.rs:70:    let configuration: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("clippy.toml")).expect("the Clippy configuration");
+package/git-policy/cli/src/native/config/config_repository_tests.rs:42:    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+package/git-policy/cli/src/native/account_companion/companion_cost_measurement_tests.rs:127:    let binary: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/monochromatic-git-policy-cli");
+package/git-policy/cli/src/native/source_guard/release_bins_tests.rs:79:    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
+package/git-policy/cli/src/native/source_guard/release_bins_tests.rs:104:    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
+package/git-policy/cli/src/native/binary/binary_support_installed_name.rs:32:pub const BUILT_WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 package/git-policy/cli/src/native/source_guard/packaged_uses_links_tests.rs:39:    let manifest: std::path::PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
 package/git-policy/cli/src/native/source_guard/no_start_at_login_tests.rs:213:    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
+package/git-policy/cli/src/native/push/auto_push_reconcile_tests.rs:1957:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
+package/git-policy/cli/src/native/source_guard/typed_ban_configuration_tests.rs:45:    let crate_root: &Path = Path::new(env!("CARGO_MANIFEST_DIR"));
+package/git-policy/cli/src/native/source_guard/typed_ban_configuration_tests.rs:70:    let configuration: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("clippy.toml")).expect("the Clippy configuration");
 package/git-policy/cli/src/native/source_guard/source_scan_tests.rs:43:///  `env!("CARGO_MANIFEST_DIR")` is a compile-time text the build fills in with the crate's directory.
 package/git-policy/cli/src/native/source_guard/source_scan_tests.rs:52:    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
 package/git-policy/cli/src/native/source_guard/source_scan_tests.rs:66:    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-package/git-policy/cli/src/native/source_guard/release_bins_tests.rs:79:    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
-package/git-policy/cli/src/native/source_guard/release_bins_tests.rs:104:    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
-package/git-policy/cli/src/native/source_guard/service_lock_inventory_tests.rs:168:    let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
+package/git-policy/cli/src/native/source_guard/service_lock_inventory_tests.rs:169:    let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
 package/git-policy/cli/src/native/merge/word_merge_tests.rs:15:    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus");
 package/git-policy/cli/src/native/merge/word_merge_tests.rs:26:    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_refusals");
-package/git-policy/cli/src/native/config/config_repository_tests.rs:42:    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
-package/git-policy/cli/src/native/testing/test_support.rs:117:                .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
-package/git-policy/cli/src/native/push/auto_push_reconcile_tests.rs:1957:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
+package/git-policy/cli/src/native/binary/binary_support_program_names_and_time_bound.rs:16:pub const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 package/git-policy/cli/src/native/merge/merge_second_pass_tests.rs:23:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
-package/git-policy/cli/src/native/landing/service_claim_watch_note_within_a_ceiling_tests.rs:23:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-tests").join(format!("{name}-{}", std::process::id()));
-package/git-policy/cli/src/native/account_companion/companion_cost_measurement_tests.rs:127:    let binary: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/landing/service_claim_watch_cost_measurement_tests.rs:71:        None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-cost"),
-package/git-policy/cli/src/native/landing/service_replay_tests.rs:324:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
+package/git-policy/cli/src/native/service/service_instance_tests.rs:126:    let doc: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/service/service_instance.rs")).expect("this module's source");
+package/git-policy/cli/src/native/service/service_instance_tests.rs:127:    let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
+package/git-policy/cli/src/native/binary/binary_worktree_clone_zfs_measurement_tests.rs:77:    let sources: Vec<(PathBuf, PathBuf)> = files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path());
 package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store_tests.rs:847:    let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
+package/git-policy/cli/src/native/service/service_main_tests.rs:109:    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
+package/git-policy/cli/src/native/service/service_main_tests.rs:145:    let text: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/service/service_main.rs")).expect("service_main.rs");
+package/git-policy/cli/src/native/binary/binary_catalog_specifiers_tests.rs:202:    let shipped: PathBuf = git_policy_cli::config_file::settings_file_of(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").as_path());
+package/git-policy/cli/src/native/zfs_compatibility_gate/gate_verdict_tests.rs:31:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+package/git-policy/cli/src/native/zfs_compatibility_gate/module_identity_tests.rs:22:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+package/git-policy/cli/src/native/binary/binary_zfs_add_guest_tests.rs:72:const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 package/git-policy/cli/src/native/worktree/worktree_clone_conversion_size_read_tests.rs:438:    let here: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/worktree/worktree_clone_conversion_size_read.rs")).expect("this module's source");
 package/git-policy/cli/src/native/worktree/worktree_clone_conversion_size_read_tests.rs:444:    let ladder: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/worktree/worktree_ladder_run.rs")).expect("the ladder's source");
-package/git-policy/cli/src/native/binary/binary_zfs_slot_state_guest_tests.rs:71:const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/candidate/candidate_consumer_tests.rs:184:    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("native-consumer-{}", std::process::id()));
-package/git-policy/cli/src/native/binary/binary_support_fixture_directories.rs:40:        .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
-package/git-policy/cli/src/native/binary/binary_support_installed_name.rs:32:pub const BUILT_WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/binary/binary_zfs_doctor_route_guest_tests.rs:250:    let built: String = format!("{}/target/release/monochromatic-git-policy-cli", env!("CARGO_MANIFEST_DIR"));
-package/git-policy/cli/src/native/binary/binary_worktree_clone_zfs_measurement_tests.rs:77:    let sources: Vec<(PathBuf, PathBuf)> = files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path());
-package/git-policy/cli/src/native/subvolume/fs_mount_options_tests.rs:78:    let facts: MountFacts = read_mount_facts(Path::new(env!("CARGO_MANIFEST_DIR"))).expect("readable").expect("a mount holds it");
 package/git-policy/cli/src/native/binary/binary_zfs_removal_refusal_guest_tests.rs:63:const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/binary/binary_fixture_tests.rs:134:            created.root.starts_with(std::fs::canonicalize(env!("CARGO_TARGET_TMPDIR")).expect("target scratch")),
-package/git-policy/cli/src/native/binary/binary_support_fixture_service.rs:307:pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/binary/binary_support_program_names_and_time_bound.rs:16:pub const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
-package/git-policy/cli/src/native/binary/binary_catalog_specifiers_tests.rs:202:    let shipped: PathBuf = git_policy_cli::config_file::settings_file_of(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").as_path());
-package/git-policy/cli/src/native/binary/binary_zfs_add_guest_tests.rs:72:const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
+package/git-policy/cli/src/native/binary/binary_support_fixture_service_start.rs:28:pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
+package/git-policy/cli/src/native/candidate/candidate_consumer_tests.rs:194:    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("native-consumer-{}", std::process::id()));
+package/git-policy/cli/src/native/binary/binary_zfs_slot_state_guest_tests.rs:71:const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
+package/git-policy/cli/src/native/binary/binary_zfs_doctor_route_guest_tests.rs:250:    let built: String = format!("{}/target/release/monochromatic-git-policy-cli", env!("CARGO_MANIFEST_DIR"));
 package/git-policy/cli/src/native/binary/binary_mount_git_worktree_clone_datasets_tests.rs:107:const RELEASE_BINS: [&str; 1] = [env!("CARGO_BIN_EXE_monochromatic-git-policy-cli")];
 package/git-policy/cli/src/native/binary/binary_word_merge_tests.rs:48:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
+package/git-policy/cli/src/native/subvolume/fs_mount_options_tests.rs:78:    let facts: MountFacts = read_mount_facts(Path::new(env!("CARGO_MANIFEST_DIR"))).expect("readable").expect("a mount holds it");
+package/git-policy/cli/src/native/testing/fixture_support_shared_by_both_test_targets.rs:190:                .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
+package/git-policy/cli/src/native/landing/service_replay_tests.rs:324:    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
+package/git-policy/cli/src/native/landing/service_claim_watch_note_within_a_ceiling_tests.rs:23:    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-tests").join(format!("{name}-{}", std::process::id()));
+package/git-policy/cli/src/native/landing/service_claim_watch_cost_measurement_tests.rs:71:        None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-cost"),
 
 ## counts
 
 CARGO_MANIFEST_DIR uses: 34
 CARGO_BIN_EXE uses: 7
-CARGO_TARGET_TMPDIR uses: 3
+CARGO_TARGET_TMPDIR uses: 1
 files with CARGO_MANIFEST_DIR: 26
 files with CARGO_BIN_EXE: 7
+path sites in all: 42
+env! sites of every kind: 59
+env! sites of CARGO_PKG_NAME and CARGO_PKG_VERSION, which are text and not paths: 14
+env! sites inside string literals that write a fixture crate's source, and so not sites of this crate's code: 3
 
 ## files read from the crate root at run time
 
-26:  # `source_guard/typed_ban_configuration_tests.rs` reads `clippy.toml`, and `service::service_instance_tests` and
-27:  # `worktree_clone_mount::slot_identity_store_tests` read `SPEC.md`.
-28:  "/clippy.toml",
-29:  "/SPEC.md",
+The wrapper snapshot's own list names them
+(`package/git-policy/cli/bin/native-wrapper-snapshot.ts`,
+the `crateEntryNames` table): the crate's `Cargo.toml`, `Cargo.lock`,
+`README.md`, `SPEC.md`, `clippy.toml` and `src/native`,
+and each path crate's manifest, lock file, sources and fixtures.
+Tests read `clippy.toml`, `SPEC.md`, `README.md`, the manifests and the source tree
+through `CARGO_MANIFEST_DIR`, so all of them have to exist at the same absolute path in the guest.
