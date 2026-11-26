@@ -98,9 +98,13 @@ fn end_groups(groups: &[libc::pid_t]) {
 #[allow(dead_code, reason = "the library's thread fixtures are what call this before their directories go; a target that keeps no fixtures ends its groups with the thread's own end")]
 pub(crate) fn end_owned_groups() {
     // The list is taken first and emptied after, so a group ended twice is not an error and no group is missed.
-    let groups: Vec<libc::pid_t> = OWNED_GROUPS.with(|owned| {
-        return std::mem::take(&mut *owned.groups.borrow_mut());
-    });
+    // A thread whose own list was destroyed before its fixtures is the case `try_with` answers: that list's `Drop`
+    //  ended its groups already, so there is nothing here to end.
+    let groups: Vec<libc::pid_t> = OWNED_GROUPS
+        .try_with(|owned| {
+            return std::mem::take(&mut *owned.groups.borrow_mut());
+        })
+        .unwrap_or_default();
     end_groups(groups.as_slice());
 }
 
