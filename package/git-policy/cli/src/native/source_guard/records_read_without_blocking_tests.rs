@@ -229,7 +229,7 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const found = findingsIn(fixture); expect(found.map((f) => f.split(':')[0])).toEqual(['identity.rs', 'records.rs']);
+/// const found = findingsIn(fixture); expect(found.map((f) => f.split(':')[0]).sort()).toEqual(['identity.rs', 'landed.rs', 'listed.rs']);
 /// ```
 #[test]
 fn a_waiting_read_of_the_merge_records_or_the_identity_file_is_a_finding() {
