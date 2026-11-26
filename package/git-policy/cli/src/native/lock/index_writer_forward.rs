@@ -76,8 +76,9 @@ use crate::service_index_wait::wait_for_service_hold_here;
 use crate::transaction_git::GitContext;
 /// Running real Git,
 /// settling the linked-worktree copy around it when one applies.
+/// The facts a settled forward carries.
+use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_copy_forward::{
-    CopyFacts,
     ForwardedRun,
     run_forwarded_git,
 };

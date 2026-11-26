@@ -8,7 +8,7 @@ use crate::test_support::{
     fixture,
     remove,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_ladder_test_support::{
     main_identity,
     plan_to,

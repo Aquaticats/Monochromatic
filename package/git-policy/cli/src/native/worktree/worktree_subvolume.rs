@@ -51,7 +51,7 @@ use crate::fs_kind::{
     FilesystemKind,
     filesystem_kind,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use std::fs::File;
 use std::path::{
     Path,

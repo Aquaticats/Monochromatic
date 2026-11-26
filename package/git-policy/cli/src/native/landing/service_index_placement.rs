@@ -146,10 +146,8 @@ fn unlink_file(path: &Path) -> std::io::Result<()> {
     return std::fs::remove_file(path);
 }
 
-pub use crate::rename_that_never_replaces::{
-    rename_noreplace,
-    rename_unsupported,
-};
+pub use crate::private_storage::rename_noreplace;
+pub use crate::rename_that_never_replaces::rename_unsupported;
 
 /// Whether a failed hard link means the filesystem makes none (link(2):
 /// `EPERM`),

@@ -53,7 +53,7 @@ use crate::systemd_dbus::{
     EXCHANGE_WAIT,
     session_bus_path,
 };
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove_registry::registered_worktree;
 use std::path::{
     Path,

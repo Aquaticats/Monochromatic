@@ -61,7 +61,7 @@ use crate::fs_beneath::{
     plain_components,
     remove_at,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{

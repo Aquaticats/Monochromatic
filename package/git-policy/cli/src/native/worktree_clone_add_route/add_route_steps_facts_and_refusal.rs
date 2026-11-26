@@ -19,7 +19,6 @@
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_route_plan::{
     AddNames,
     Stops,
@@ -28,6 +27,7 @@ use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::record_publication::write_binding;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::ffi::OsString;
 use std::path::Path;

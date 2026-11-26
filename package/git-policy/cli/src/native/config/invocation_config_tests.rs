@@ -14,8 +14,10 @@
 /// Import the lookup under test and shared fixtures.
 use super::{
     config_invalid_event,
+    engine_failure_hint,
     legacy_warning_events,
     load_identity_config,
+    push_hint_field,
 };
 use crate::config_error::ConfigError;
 use crate::config_file::{
@@ -23,6 +25,14 @@ use crate::config_file::{
     LoadedConfig,
 };
 use crate::config_schema::CliGitConfig;
+/// The engine-failure codes and the names a hint is looked up by.
+use crate::diagnostics::{
+    EngineFailureCode,
+    LEGACY_CONFIG_IGNORED_CODE,
+    engine_failure_code_name,
+};
+/// The warn-unsafe hint the escaping control names.
+use crate::event_hints::WARN_UNSAFE_HINT;
 use crate::policy_registry::{
     PolicyId,
     Severity,
@@ -39,6 +49,9 @@ use crate::test_support::{
     remove,
     repository,
 };
+/// The traditional-hooks warning's code,
+/// whose hint names the doctor.
+use crate::traditional_hook_warning::TRADITIONAL_HOOKS_UNSUPPORTED_CODE;
 use std::ffi::OsString;
 use std::path::{
     Path,
@@ -237,4 +250,69 @@ fn events_render_configuration_failures_and_legacy_warnings() {
         earlier_name_notice: None,
     };
     assert_eq!(legacy_warning_events(&without_source), "");
+}
+
+/// Every engine failure code,
+/// with an exhaustive match so a new variant stops compilation here.
+fn every_engine_failure() -> Vec<EngineFailureCode> {
+    let all = vec![
+        EngineFailureCode::ConfigInvalid,
+        EngineFailureCode::CoreIncomplete,
+        EngineFailureCode::ContentUnavailable,
+        EngineFailureCode::PolicyIncomplete,
+        EngineFailureCode::PatchInvalid,
+        EngineFailureCode::PatchConflict,
+        EngineFailureCode::FixCycle,
+        EngineFailureCode::FixPassLimit,
+        EngineFailureCode::TransactionFailed,
+    ];
+    for code in &all {
+        match code {
+            EngineFailureCode::ConfigInvalid
+            | EngineFailureCode::CoreIncomplete
+            | EngineFailureCode::ContentUnavailable
+            | EngineFailureCode::PolicyIncomplete
+            | EngineFailureCode::PatchInvalid
+            | EngineFailureCode::PatchConflict
+            | EngineFailureCode::FixCycle
+            | EngineFailureCode::FixPassLimit
+            | EngineFailureCode::TransactionFailed => {}
+        }
+    }
+    return all;
+}
+
+/// Every engine failure code has a hint that opens with the common marker and offers a next step.
+#[test]
+fn every_engine_failure_code_has_a_hint() {
+    for code in every_engine_failure() {
+        let name: &str = engine_failure_code_name(code);
+        let hint: &str = engine_failure_hint(name).unwrap_or_else(|| panic!("{name} has no hint"));
+        assert!(hint.starts_with("Hint: "), "{name}: {hint}");
+        assert!(hint.len() > 80, "{name} is too thin to help: {hint}");
+    }
+    assert!(engine_failure_hint(LEGACY_CONFIG_IGNORED_CODE).is_some());
+    let traditional: &str = engine_failure_hint(TRADITIONAL_HOOKS_UNSUPPORTED_CODE)
+        .expect("the traditional-hooks warning has a hint");
+    assert!(
+        traditional.starts_with("Hint: ")
+            && traditional.contains("git monochromatic-git-policy-cli doctor"),
+        "{traditional}"
+    );
+    assert_eq!(engine_failure_hint("not-a-code"), None);
+}
+
+/// The hint field is appended as escaped JSON,
+/// and nothing is appended without a hint.
+#[test]
+fn the_hint_field_is_escaped_json_and_absent_without_a_hint() {
+    let mut line: String = String::from("{\"message\":\"m\"");
+    push_hint_field(&mut line, None);
+    assert_eq!(line, "{\"message\":\"m\"");
+    push_hint_field(&mut line, Some("Hint: a \"quoted\" word\nnext"));
+    assert_eq!(
+        line,
+        "{\"message\":\"m\",\"hint\":\"Hint: a \\\"quoted\\\" word\\nnext\""
+    );
+    assert!(WARN_UNSAFE_HINT.starts_with("Hint: if you"));
 }

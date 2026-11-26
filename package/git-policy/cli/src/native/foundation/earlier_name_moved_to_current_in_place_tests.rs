@@ -20,7 +20,7 @@ use super::{
     look,
     place_kept_name,
 };
-use crate::rename_that_never_replaces::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 use crate::wrapper_names_old_and_new::{
     DATA_FOLDER,
     DISCARD_AUDIT_LOG,

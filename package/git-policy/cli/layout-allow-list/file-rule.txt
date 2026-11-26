@@ -1927,7 +1927,6 @@ no-file-list src/native/shadow/mod.rs
 no-file-list src/native/standards_review/mod.rs
 no-file-list src/native/subvolume/mod.rs
 no-file-list src/native/transaction/mod.rs
-no-file-list src/native/worktree/mod.rs
 no-file-list src/native/worktree_clone_add_route/mod.rs
 no-file-list src/native/worktree_clone_binding_record/mod.rs
 no-file-list src/native/worktree_clone_link_repair/mod.rs

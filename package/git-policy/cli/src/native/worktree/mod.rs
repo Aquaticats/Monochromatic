@@ -9,6 +9,12 @@
 //! Why:
 //!  Worktree lifecycle code shares plans and journals.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `worktree_command_facts.rs`:
+//!   the plain facts of one worktree command that several folders pass around.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // worktree/index.ts: one `export * from './file'` per module below.
@@ -20,6 +26,11 @@ pub mod checkout_workers;
 
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
+
+/// The plain facts of one worktree command that several folders pass around:
+///  what a forwarded run must copy,
+///  and the plans of a `git worktree add` and a `git worktree remove`.
+pub mod worktree_command_facts;
 
 /// The folder a taken worktree folder is kept in when the name it came from is taken,
 /// and the cleanup that must leave it alone.
