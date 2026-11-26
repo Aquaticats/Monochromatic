@@ -25,68 +25,41 @@
 //! const line = mountPathDescendant({ dataset: 'zpcachyos/nosnap/vm-builder-output' }); // the mounted line, or a refusal
 //! ```
 
-use crate::worktree_clone_mount::attach_the_clone::{AttachRefusal, attach_with_attributes};
-use crate::worktree_clone_mount_handler::handler_install_paths::{CHECKOUT_RECORD_PATH, CONFIGURATION_PATH, root_modes_name};
+use crate::worktree_clone_mount::attach_the_clone::attach_with_attributes;
+use crate::worktree_clone_mount_handler::handler_install_paths::{CHECKOUT_RECORD_PATH, CONFIGURATION_PATH};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::MountPathDescendantRequest;
-use crate::worktree_clone_mount_handler::record_checkout_mode::{RecordCheckoutFailure, RecordedCheckout, read_record};
-use crate::worktree_clone_mount_handler::root_mode_caller::NotRootRefusal;
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
-    CloneObjectFacts, PropertyValue, value_of,
-};
+use crate::worktree_clone_mount_handler::record_checkout_mode::{RecordedCheckout, read_record};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, value_of};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ReadFailure, ZfsDatasetReader};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasetInstance, MountedDatasets};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 use rustix::process::geteuid;
 use std::path::{Path, PathBuf};
 
+/// Why the mode mounted nothing,
+/// one variant per cause,
+/// and the words each answers.
+#[path = "mount_path_descendant_mode_refusals.rs"]
+mod refusals;
+
+/// The properties and values an explicit mount is refused by,
+/// and the attributes the dataset's own properties resolve to.
+#[path = "mount_path_descendant_mode_properties.rs"]
+mod properties;
+
+/// Why the mode mounted nothing,
+/// with the words each cause answers.
+pub use self::refusals::MountPathDescendantFailure;
+
 /// The properties whose values decide whether an explicit mount succeeds,
-/// which upstream's `share_mount_one` refuses one by one.
-pub const CANMOUNT_PROPERTY: &str = "canmount";
-/// The property that says the dataset belongs to a non-global zone.
-pub const ZONED_PROPERTY: &str = "zoned";
-/// The property holding how much of a received stream is redacted.
-pub const REDACTED_PROPERTY: &str = "redacted";
-/// The property that says a receive is unfinished.
-pub const INCONSISTENT_PROPERTY: &str = "inconsistent";
-/// The property holding a partially received stream's resume token.
-pub const RECEIVE_RESUME_TOKEN_PROPERTY: &str = "receive_resume_token";
-/// The property naming the folder a dataset mounts at.
-pub const MOUNTPOINT_PROPERTY: &str = "mountpoint";
-/// The property that allows one mount above another.
-pub const OVERLAY_PROPERTY: &str = "overlay";
-/// The property naming the cipher a dataset's data is encrypted with.
-pub const ENCRYPTION_PROPERTY: &str = "encryption";
-/// The property that says whether an encrypted dataset's key is loaded.
-pub const KEY_STATUS_PROPERTY: &str = "keystatus";
-/// The property that says a mount of the dataset carries no access-time writes.
-pub const ATIME_PROPERTY: &str = "atime";
-/// The property that says access times are updated relative to the modification.
-pub const RELATIME_PROPERTY: &str = "relatime";
-/// The property that says a mount of the dataset carries device nodes.
-pub const DEVICES_PROPERTY: &str = "devices";
-/// The property that says a mount of the dataset may run its files.
-pub const EXEC_PROPERTY: &str = "exec";
-/// The property that says a mount of the dataset is read-only.
-pub const READONLY_PROPERTY: &str = "readonly";
-/// The property that says a mount of the dataset carries set-user-ID execution.
-pub const SETUID_PROPERTY: &str = "setuid";
-/// The property that has no Linux mount attribute and is read as the no-op it
-/// is.
-pub const NBMAND_PROPERTY: &str = "nbmand";
-/// The value `canmount` holds when nothing may mount the dataset itself.
-pub const CANMOUNT_OFF: &str = "off";
-/// The value a property holds when it is switched on.
-pub const SWITCHED_ON: &str = "on";
-/// The value `keystatus` holds when the key is loaded.
-pub const KEY_STATUS_AVAILABLE: &str = "available";
-/// The value a property holds when it is switched off.
-pub const SWITCHED_OFF: &str = "off";
-/// The value `mountpoint` holds when nothing may mount the dataset by name.
-pub const MOUNTPOINT_LEGACY: &str = "legacy";
-/// The value `mountpoint` holds when nobody mounts the dataset.
-pub const MOUNTPOINT_NONE: &str = "none";
-/// The value `mountpoint` holds when the dataset has no mountpoint at all.
-pub const MOUNTPOINT_DASH: &str = "-";
+/// and the values they hold.
+pub use self::properties::{
+    ATIME_PROPERTY, CANMOUNT_OFF, CANMOUNT_PROPERTY, DEVICES_PROPERTY, ENCRYPTION_PROPERTY, EXEC_PROPERTY, INCONSISTENT_PROPERTY, KEY_STATUS_AVAILABLE, KEY_STATUS_PROPERTY, MOUNTPOINT_DASH,
+    MOUNTPOINT_LEGACY, MOUNTPOINT_NONE, MOUNTPOINT_PROPERTY, NBMAND_PROPERTY, OVERLAY_PROPERTY, READONLY_PROPERTY, RECEIVE_RESUME_TOKEN_PROPERTY, REDACTED_PROPERTY, RELATIME_PROPERTY,
+    SETUID_PROPERTY, SWITCHED_OFF, SWITCHED_ON, ZONED_PROPERTY,
+};
+
+use self::properties::{attributes_of, refuse_unmountable};
 
 /// What:
 ///  The one mount this mode may place,
@@ -135,203 +108,6 @@ pub enum Answer {
     },
     /// Every proof answered and the mount may be placed.
     Plan(MountPlan),
-}
-
-/// What:
-///  Why the mode mounted nothing.
-/// Why:
-///  Each refusal names the property, name or path a person must look at,
-///  and no refusal is answered after a mount has been placed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type MountPathDescendantFailure = { kind: 'not-root' | 'no-recorded-checkout' | ... };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MountPathDescendantFailure {
-    /// The mode is not running as root.
-    NotRoot {
-        /// The effective user the mode found.
-        effective_user: u32,
-    },
-    /// The record is not there.
-    NoRecordedCheckout {
-        /// The record's path.
-        record: PathBuf,
-    },
-    /// The record could not be read.
-    Record(RecordCheckoutFailure),
-    /// The record no longer agrees with the kernel.
-    RecordNoLongerMatches {
-        /// The field that differs.
-        field: String,
-        /// What the record holds.
-        recorded: String,
-        /// What the kernel shows.
-        kernel: String,
-    },
-    /// The dataset's own reply could not be read.
-    DatasetRead {
-        /// The dataset whose reply was asked for.
-        dataset: String,
-        /// What the read answered.
-        failure: ReadFailure,
-    },
-    /// The mount table does not show the recorded checkout mounted now.
-    CheckoutNotMounted {
-        /// The recorded checkout.
-        checkout: PathBuf,
-        /// The dataset the record names.
-        dataset: String,
-    },
-    /// The dataset's mountpoint is not strictly under the recorded checkout.
-    DatasetOutsideTheCheckout {
-        /// The dataset.
-        dataset: String,
-        /// The mountpoint the property gives.
-        mountpoint: PathBuf,
-        /// The recorded checkout.
-        checkout: PathBuf,
-    },
-    /// The dataset is in another pool than the recorded one.
-    DatasetInAnotherPool {
-        /// The dataset.
-        dataset: String,
-        /// The pool the dataset is in.
-        pool: String,
-        /// The pool the record holds.
-        recorded: String,
-    },
-    /// The dataset has no mountpoint this mode may use.
-    DatasetWithoutAMountpoint {
-        /// The dataset.
-        dataset: String,
-        /// The value the property holds.
-        mountpoint: String,
-    },
-    /// The kernel has the dataset mounted somewhere else.
-    DatasetAlreadyMountedElsewhere {
-        /// The dataset.
-        dataset: String,
-        /// Where the kernel has it.
-        mounted_at: PathBuf,
-        /// Where its property says it belongs.
-        mountpoint: PathBuf,
-    },
-    /// An explicit mount would refuse this dataset.
-    DatasetNotMountable {
-        /// The dataset.
-        dataset: String,
-        /// The property that refuses it.
-        property: String,
-        /// The value the property holds.
-        value: String,
-        /// What the value means for a mount.
-        because: String,
-    },
-    /// An encrypted dataset's key is not loaded.
-    EncryptionKeyNotLoaded {
-        /// The dataset.
-        dataset: String,
-        /// The value `keystatus` holds.
-        keystatus: String,
-    },
-    /// The mountpoint holds something and the dataset does not overlay.
-    MountpointNotEmpty {
-        /// The dataset.
-        dataset: String,
-        /// The mountpoint.
-        mountpoint: PathBuf,
-    },
-    /// The walk to the mountpoint refused.
-    MountpointUnusable {
-        /// The dataset.
-        dataset: String,
-        /// The mountpoint.
-        mountpoint: PathBuf,
-        /// What the walk found.
-        because: String,
-    },
-    /// The mount itself refused.
-    MountFailed {
-        /// The dataset.
-        dataset: String,
-        /// The refusal the primitive answered.
-        refusal: AttachRefusal,
-    },
-}
-
-impl MountPathDescendantFailure {
-    /// The refusal in words,
-    /// opening with the words every root mode is reached through.
-    pub fn message(&self) -> String {
-        let prefix: String = format!("{}: ", root_modes_name());
-        return match self {
-            MountPathDescendantFailure::NotRoot { effective_user } => {
-                return NotRootRefusal {
-                    mode: "mount-path-descendant",
-                    nothing: "read, mounted or recorded",
-                    because: "a mount this mode places stands in the one mount namespace of the process that placed it, and an account that could place one inside a served checkout could mount anything there",
-                    way: "run the mode as root, from the boot unit or by hand",
-                    effective_user: *effective_user,
-                }
-                .sentence();
-            }
-            MountPathDescendantFailure::NoRecordedCheckout { record } => format!(
-                "{prefix}no-recorded-checkout: {} holds no record, so nothing says which checkout this dataset's mountpoint descends from. Nothing was mounted. Ways forward: run `{} record-checkout --checkout <path>` as root, then run the mode again, or let the record's repair run from the value the boot printed.",
-                record.display(),
-                root_modes_name()
-            ),
-            MountPathDescendantFailure::Record(refusal) => refusal.message(),
-            MountPathDescendantFailure::RecordNoLongerMatches { field, recorded, kernel } => format!(
-                "{prefix}checkout-record-no-longer-matches: the record's {field} is {recorded} and the kernel shows {kernel}. Nothing was mounted. Ways forward: run `{} record-checkout --checkout <path> --replace {kernel}` as root when the record only moved its GUID, or restore the dataset the record names; until then this dataset stays unmounted.",
-                root_modes_name()
-            ),
-            MountPathDescendantFailure::DatasetRead { dataset, failure } => format!(
-                "{prefix}`{dataset}` could not be read from the kernel, so nothing was mounted: {}. Ways forward: check that the dataset exists in an imported pool, then run the mode again.",
-                failure.message()
-            ),
-            MountPathDescendantFailure::CheckoutNotMounted { checkout, dataset } => format!(
-                "{prefix}checkout-not-mounted: the mount table does not show `{dataset}` mounted at {} now, so the folder this dataset would be placed under is not a mount the route verified. Nothing was mounted. Ways forward: check that the checkout's own mount is in place (the boot's checkout unit, or `zfs mount <the checkout dataset>`), then run the mode again.",
-                checkout.display()
-            ),
-            MountPathDescendantFailure::DatasetOutsideTheCheckout { dataset, mountpoint, checkout } => format!(
-                "{prefix}dataset-outside-the-checkout: `{dataset}` mounts at {}, which is not strictly under the recorded checkout {}. Nothing was mounted. Ways forward: give the dataset a `mountpoint` under the checkout, or mount it with the unit that owned it before this mode.",
-                mountpoint.display(),
-                checkout.display()
-            ),
-            MountPathDescendantFailure::DatasetInAnotherPool { dataset, pool, recorded } => format!(
-                "{prefix}dataset-in-another-pool: `{dataset}` is in pool `{pool}` and the recorded checkout is in pool `{recorded}`, so this dataset would put another pool's subtree inside a served checkout. Nothing was mounted. Ways forward: name a dataset in the recorded checkout's own pool, or serve the checkout whose pool holds it.",
-            ),
-            MountPathDescendantFailure::DatasetWithoutAMountpoint { dataset, mountpoint } => format!(
-                "{prefix}dataset-without-a-mountpoint: `{dataset}`'s `mountpoint` is `{mountpoint}`, so the dataset is mounted by someone else's rule and this mode would be guessing. Nothing was mounted. Ways forward: give the dataset a `mountpoint` under the checkout, then run the mode again."
-            ),
-            MountPathDescendantFailure::DatasetAlreadyMountedElsewhere { dataset, mounted_at, mountpoint } => format!(
-                "{prefix}dataset-already-mounted-elsewhere: the kernel has `{dataset}` mounted at {}, and its own `mountpoint` is {}. Nothing was mounted. Ways forward: unmount the dataset where it stands, or give its property the path it is mounted at, then run the mode again.",
-                mounted_at.display(),
-                mountpoint.display()
-            ),
-            MountPathDescendantFailure::DatasetNotMountable { dataset, property, value, because } => format!(
-                "{prefix}dataset-not-mountable: `{dataset}`'s `{property}` is `{value}`, and {because}. Nothing was mounted. Ways forward: clear the property the refusal names, or let the unit that owned this dataset before this mode mount it."
-            ),
-            MountPathDescendantFailure::EncryptionKeyNotLoaded { dataset, keystatus } => format!(
-                "{prefix}encryption-key-not-loaded: `{dataset}` is encrypted and its `keystatus` is `{keystatus}`. Nothing was mounted. Ways forward: load the key by hand (`zfs load-key <dataset>`), then run the mode again; a boot unit has nobody to prompt."
-            ),
-            MountPathDescendantFailure::MountpointNotEmpty { dataset, mountpoint } => format!(
-                "{prefix}mountpoint-not-empty: {} holds files and `{dataset}`'s `overlay` is off, so a mount there would hide them. Nothing was mounted. Ways forward: empty the folder, or give the dataset `overlay=on` when hiding what it holds is intended.",
-                mountpoint.display()
-            ),
-            MountPathDescendantFailure::MountpointUnusable { dataset, mountpoint, because } => format!(
-                "{prefix}mountpoint-unusable: the walk to {} refused for `{dataset}`: {because}. Nothing was mounted. Ways forward: check the folder's components as the refusal names them, then run the mode again; this mode creates the last component and no tree above it.",
-                mountpoint.display()
-            ),
-            MountPathDescendantFailure::MountFailed { dataset, refusal } => format!(
-                "{prefix}the mount of `{dataset}` refused at {}: {}. Nothing was mounted. Ways forward: read the step the refusal names, fix what it reports, then run the mode again.",
-                refusal.call.call_name(),
-                refusal.message()
-            ),
-        };
-    }
 }
 
 /// What:
@@ -650,111 +426,6 @@ fn the_container_is_beside(dataset: &str, container: &str, container_mountpoint:
     return !is_strictly_under(Path::new(container_mountpoint), checkout);
 }
 
-/// What:
-///  Refuse an explicit mount of a dataset upstream refuses,
-///  naming the property and its value.
-/// Why:
-///  An explicit `zfs mount` fails loudly for each of these and returns 1,
-///  and a unit that reported success while mounting nothing is the failure this
-///  refusal replaces;
-///  the receive-token case also names the resume a person can run.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// refuseUnmountable('pool/dataset', facts); // throws dataset-not-mountable
-/// ```
-///
-/// # Errors
-/// `DatasetNotMountable` for each property that refuses a mount.
-fn refuse_unmountable(dataset: &str, facts: &CloneObjectFacts) -> Result<(), MountPathDescendantFailure> {
-    if value_of(&facts.properties, CANMOUNT_PROPERTY).text() == Some(CANMOUNT_OFF) {
-        return Err(MountPathDescendantFailure::DatasetNotMountable {
-            dataset: String::from(dataset),
-            property: String::from(CANMOUNT_PROPERTY),
-            value: String::from(CANMOUNT_OFF),
-            because: String::from("an explicit mount of a `canmount=off` dataset refuses rather than mounting it"),
-        });
-    }
-    if value_of(&facts.properties, ZONED_PROPERTY).text() == Some(SWITCHED_ON) {
-        return Err(MountPathDescendantFailure::DatasetNotMountable {
-            dataset: String::from(dataset),
-            property: String::from(ZONED_PROPERTY),
-            value: String::from(SWITCHED_ON),
-            because: String::from("a dataset exported to a local zone is mounted by that zone and an explicit mount in the global zone refuses"),
-        });
-    }
-    let redacted: PropertyValue = value_of(&facts.properties, REDACTED_PROPERTY);
-    if redacted.number().is_some_and(|count| return count != 0) {
-        return Err(MountPathDescendantFailure::DatasetNotMountable {
-            dataset: String::from(dataset),
-            property: String::from(REDACTED_PROPERTY),
-            value: redacted.describe(REDACTED_PROPERTY),
-            because: String::from("a redacted dataset is not mounted by an explicit mount"),
-        });
-    }
-    let inconsistent: bool = value_of(&facts.properties, INCONSISTENT_PROPERTY).number() == Some(1);
-    let token: PropertyValue = value_of(&facts.properties, RECEIVE_RESUME_TOKEN_PROPERTY);
-    if inconsistent && token.text().is_some_and(|text| return !text.is_empty()) {
-        return Err(MountPathDescendantFailure::DatasetNotMountable {
-            dataset: String::from(dataset),
-            property: String::from(INCONSISTENT_PROPERTY),
-            value: String::from("1"),
-            because: String::from("a partially received dataset is refused by an explicit mount, and its receive can be resumed with `zfs send -t <the token>`"),
-        });
-    }
-    let encryption: PropertyValue = value_of(&facts.properties, ENCRYPTION_PROPERTY);
-    let keystatus: PropertyValue = value_of(&facts.properties, KEY_STATUS_PROPERTY);
-    if encryption.text().is_some_and(|cipher| return cipher != SWITCHED_OFF) && keystatus.text() != Some(KEY_STATUS_AVAILABLE) {
-        return Err(MountPathDescendantFailure::EncryptionKeyNotLoaded {
-            dataset: String::from(dataset),
-            keystatus: keystatus.text().map_or_else(|| return keystatus.describe(KEY_STATUS_PROPERTY), String::from),
-        });
-    }
-    return Ok(());
-}
-
-/// What:
-///  The `fsmount` attributes the dataset's own properties resolve to,
-///  in upstream's order.
-/// Why:
-///  Upstream derives one option from each pair and skips the `relatime` pair
-///  when `atime` is off,
-///  and a pool imported read-only forces every mount read-only;
-///  `nbmand` has no Linux attribute and is read as the no-op it is,
-///  which the mode states rather than passing an option nothing reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const attributes = attributesOf(facts, reader, 'zpcachyos'); // MOUNT_ATTR_NOATIME
-/// ```
-///
-/// # Errors
-/// The pool's own `readonly` could not be read.
-fn attributes_of(facts: &CloneObjectFacts, datasets: &dyn DatasetReader, pool: &str) -> Result<u64, MountPathDescendantFailure> {
-    let mut attributes: u64 = 0;
-    let atime_on: bool = value_of(&facts.properties, ATIME_PROPERTY).text() == Some(SWITCHED_ON);
-    let relatime_on: bool = value_of(&facts.properties, RELATIME_PROPERTY).text() != Some(SWITCHED_OFF);
-    if !atime_on {
-        attributes |= libc::MOUNT_ATTR_NOATIME;
-    } else if !relatime_on {
-        attributes |= libc::MOUNT_ATTR_STRICTATIME;
-    }
-    if value_of(&facts.properties, DEVICES_PROPERTY).text() == Some(SWITCHED_OFF) {
-        attributes |= libc::MOUNT_ATTR_NODEV;
-    }
-    if value_of(&facts.properties, EXEC_PROPERTY).text() == Some(SWITCHED_OFF) {
-        attributes |= libc::MOUNT_ATTR_NOEXEC;
-    }
-    if value_of(&facts.properties, SETUID_PROPERTY).text() == Some(SWITCHED_OFF) {
-        attributes |= libc::MOUNT_ATTR_NOSUID;
-    }
-    let identity: DatasetIdentity = datasets.identity(pool).map_err(|failure| return MountPathDescendantFailure::DatasetRead { dataset: String::from(pool), failure })?;
-    let pool_readonly: bool = value_of(&identity.properties, READONLY_PROPERTY).text() == Some(SWITCHED_ON);
-    if pool_readonly || value_of(&facts.properties, READONLY_PROPERTY).text() == Some(SWITCHED_ON) {
-        attributes |= libc::MOUNT_ATTR_RDONLY;
-    }
-    return Ok(attributes);
-}
 
 /// One dataset's facts,
 /// or the refusal naming the dataset and what the read answered.

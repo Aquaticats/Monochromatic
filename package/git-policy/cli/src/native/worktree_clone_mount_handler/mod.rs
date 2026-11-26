@@ -82,6 +82,12 @@
 //!   the checkout's path, dataset, GUID, container and pool,
 //!   recorded under root control,
 //!   and the GUID a legitimate restore replaces.
+//! - `mount_path_descendant_mode_refusals.rs`:
+//!   why the mode mounted nothing,
+//!   one variant per cause and the words each answers.
+//! - `mount_path_descendant_mode_properties.rs`:
+//!   the properties an explicit mount is refused by,
+//!   and the attributes a dataset's own properties resolve to.
 //! - `mount_path_descendant_mode.rs`:
 //!   one nested dataset mounted at its own mountpoint beneath the recorded
 //!   checkout.
