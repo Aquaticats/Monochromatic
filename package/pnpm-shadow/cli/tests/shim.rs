@@ -9,12 +9,9 @@ mod launcher;
 #[path = "shim/world.rs"]
 mod world;
 
-/// Imports the launcher arrangement and its deadline helpers.
-use crate::launcher::{
-    TIMED_OUT_EXIT_CODE,
-    put_a_launcher_in_front,
-    run_limited,
-};
+/// Includes the launcher-chain tests from their own file in this test's folder.
+#[path = "shim/launcher_tests.rs"]
+mod launcher_tests;
 /// Imports the world builder and its constants.
 use crate::world::{
     CLEAN,
@@ -221,95 +218,6 @@ fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
     // The shadow replaced itself with pnpm, so the caller sees pnpm's own death by signal and no exit code.
     assert_eq!(output.status.signal(), Some(SIGTERM_NUMBER));
     assert_eq!(output.status.code(), None);
-}
-
-#[test]
-fn through_a_launcher_both_start_paths_reach_the_real_pnpm_without_looping() {
-    let world = make_world();
-    write_workspace(&world, CLEAN);
-    put_a_launcher_in_front(&world);
-    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
-
-    let exec_path = run_limited(&world, &path, &["install"]);
-    let spawn_path = run_limited(&world, &path, &["--version"]);
-
-    assert_ne!(
-        exec_path.status.code(),
-        Some(TIMED_OUT_EXIT_CODE),
-        "the exec path looped"
-    );
-    assert_ne!(
-        spawn_path.status.code(),
-        Some(TIMED_OUT_EXIT_CODE),
-        "the spawn path looped"
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&exec_path.stdout),
-        format!("{FAKE_MARKER} install\n")
-    );
-    assert_eq!(exec_path.status.code(), Some(0));
-    // The notice appears once, after pnpm's own line, whatever the chain between the link and pnpm.
-    let version_stdout = String::from_utf8_lossy(&spawn_path.stdout);
-    assert_eq!(
-        version_stdout,
-        format!("{FAKE_MARKER} --version\n{}", expected_version_line(&world))
-    );
-    assert_eq!(spawn_path.status.code(), Some(0));
-}
-
-#[test]
-fn through_a_launcher_a_violation_warns_exactly_once() {
-    let world = make_world();
-    write_workspace(&world, LITERAL);
-    put_a_launcher_in_front(&world);
-    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
-
-    let output = run_limited(&world, &path, &["install"]);
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(
-        stderr.matches("problem in the package manifests").count(),
-        1,
-        "stderr: {stderr}"
-    );
-    assert_eq!(output.status.code(), Some(0));
-}
-
-#[test]
-fn a_pnpm_that_pnpm_itself_runs_still_finds_the_real_pnpm_so_the_guard_does_not_leak() {
-    let world = make_world();
-    write_workspace(&world, CLEAN);
-    put_a_launcher_in_front(&world);
-    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
-
-    // The fake pnpm runs `pnpm inner` through PATH, which is the launcher chain again, from inside the real pnpm.
-    let output = run_limited(&world, &path, &["nested"]);
-
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("{FAKE_MARKER} nested\n{FAKE_MARKER} inner\n"),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(output.status.code(), Some(0));
-}
-
-#[test]
-fn a_launcher_with_no_real_pnpm_behind_it_ends_with_127_and_does_not_loop() {
-    let world = make_world();
-    write_workspace(&world, CLEAN);
-    put_a_launcher_in_front(&world);
-    let path = path_of(&[&world.shadow_directory]);
-
-    for arguments in [["install"], ["--version"]] {
-        let output = run_limited(&world, &path, &arguments);
-
-        assert_eq!(output.status.code(), Some(127), "{arguments:?}");
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains("no real pnpm found on PATH"),
-            "{arguments:?}"
-        );
-    }
 }
 
 #[test]
