@@ -437,13 +437,28 @@ function resetDuration(value: string,): number {
 
 /**
  Longest delay a refusal body may set.
-
  The provider's own documented retry strategies name at most 60 seconds
  (`max_delay_s: 60` on its uncached-TPM case, https://docs.neuralwatt.com/guides/rate-limits.md,
  "Uncached TPM Limits"), so a longer suggestion is a wrong or hostile number rather than a hint,
  and holding a member past that would hide one that had recovered.
  */
 const BODY_DELAY_CAP_MS = 60_000;
+
+/**
+ How long the pool holds a member whose request it could not deliver, before asking it again.
+
+ A request that never reached the member carries no status and names no time, so the pool sets this
+ hold itself. A minute is longer than the two bounds the failing request already paid or will pay:
+ the transport's own ten-second connect limit, which the live failure of 2026-11-26 reports
+ (`timeout: 10000ms`), and Pi's agent retry, which repeats after two seconds and doubles to eight
+ (`@earendil-works/pi-coding-agent` dist/core/settings-defaults.js `baseDelayMs` 2000 and
+ `maxRetries` 3, `@earendil-works/pi-ai` dist/utils/retry.js `retryDelayMs`). It is also the
+ longest delay a refusal body may name ({@link BODY_DELAY_CAP_MS}), so a hold this pool sets never
+ outlives one a provider could set. The hold is not a demotion: after it the member is asked again,
+ and while every member is held the pool asks them anyway rather than refusing a request none of
+ them answered.
+ */
+export const UNREACHABLE_MEMBER_HOLD_MS: number = BODY_DELAY_CAP_MS;
 
 /**
  Delay a refusal asks for in its own body.

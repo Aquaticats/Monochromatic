@@ -64,7 +64,7 @@ export {
 
  @internal
  */
-export { headerReset, } from './rate-limit-evidence.ts';
+export { headerReset, UNREACHABLE_MEMBER_HOLD_MS, } from './rate-limit-evidence.ts';
 
 /**
  The lane reading of one NeuralWatt rate-limit response, exported because no shipped pool asks the
