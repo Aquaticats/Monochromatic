@@ -5,10 +5,12 @@
 //!  `cargo test --lib` runs a crate's tests as threads of one process,
 //!  and the holds once stood in one slot of that process,
 //!  so the second arming dropped the first control's hold and two controls answered for each other
-//!  (issue 6497: three heartbeat controls of `service_server_connection_handling_tests.rs` failed together).
+//!  (issue 6497:
+//!  three heartbeat controls of `service_server_connection_handling_tests.rs` failed together).
 //!  The first control below fails on that slot,
 //!  the second on a hold registry that would let one point be armed twice.
-//! Each control names points of its own, so no two of them arm one point of this process.
+//! Each control names points of its own,
+//! so no two of them arm one point of this process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

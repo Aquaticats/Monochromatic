@@ -132,7 +132,9 @@ pub(crate) struct HoldOnAnyThread {
 ///  so two controls of one module arm their points side by side,
 ///  and one slot made the later arming drop the earlier control's hold (issue 6497).
 ///  A point names the instance its own control owns
-///  (its own directory, its own request, as `collection_point` and `instance_read_point` state),
+///  (its own directory,
+///  its own request,
+///  as `collection_point` and `instance_read_point` state),
 ///  so two holds never answer for each other.
 ///
 /// In TS you'd write (pseudocode):
@@ -240,7 +242,8 @@ pub(crate) struct HoldAwaitingOnAnyThread {
 ///  The holds the controls of one process wait at,
 /// each taken by the task that reaches its point so a second reach passes.
 /// Why:
-///  A list and not one slot, for the reason `HELD_ON_ANY_THREAD` gives:
+///  A list and not one slot,
+///  for the reason `HELD_ON_ANY_THREAD` gives:
 ///  two controls of one module arm their points in one process.
 ///
 /// In TS you'd write (pseudocode):
@@ -337,8 +340,9 @@ pub(crate) fn run_on_any_thread(point: &str) {
     let _let_go = held.let_go.recv();
 }
 
-/// The controls of the holds themselves: each answers the point its own control names, and one point armed twice in
-///  one process is refused.
+/// The controls of the holds themselves:
+/// each answers the point its own control names,
+/// and one point armed twice in one process is refused.
 #[cfg(test)]
 #[path = "service_fault_hooks_test_support_tests.rs"]
 mod tests;
