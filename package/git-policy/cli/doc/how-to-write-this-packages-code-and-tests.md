@@ -107,6 +107,13 @@ so a control that sets it runs its body in a child,
 and without that a control that proves a sync was refused fails by which test ran first
 (issue 6498,
 `foundation/private_storage_syncs_test_support.rs`).
+A stand-in for a runtime that refused every thread,
+or for a build that outlasted its deadline,
+is one too
+(`foundation/lazy_runtime.rs`):
+`tasks_can_run` and `built_flavor` answer for the whole process,
+so a control that arms one runs its body in a child,
+and both setters refuse outside it (issue 6511).
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
@@ -114,6 +121,24 @@ so a control that counts them runs its body in a child of its own,
 and a control that names the ledger without one fails
 `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs`
 (issue 6507).
+The commit's four figure ledgers are the same shape
+(`commit/commit_index_builds.rs`,
+`commit/commit_prepare_part_durations.rs`,
+`commit/commit_build_part_durations.rs` and
+`transaction/transaction_step_durations.rs`,
+which `step_time_between` reads while a stretch is open),
+so a control that counts its own command's figures runs its body in a child of its own,
+and one that names any of them without one fails
+`source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
+(issue 6509).
+The two windows a notice reads are one window for the process as well,
+so a control that steps a notice takes them before it starts
+(`take_the_windows_a_notice_control_reads` in `commit/native_commit_waiting_notice_tests.rs`),
+and a control that names `step_started(` without a window of its own fails
+`source_guard/notice_controls_take_their_window_tests.rs`
+(issue 6509).
+A control that asserts this process has no descendant left owns a child for the same reason:
+every other test's child is a descendant of the same process.
 A child makes its own fixtures;
 nothing here counts this process's descriptors.
 A threaded run moves those counters on other tests' threads,

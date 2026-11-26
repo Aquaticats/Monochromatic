@@ -13,45 +13,28 @@
 //!  `commit::commit_index::tests::interactive_selection_succeeds_without_changes` printed its `What now>` prompt,
 //!  never ended,
 //!  and the run's watchdog aborted the module run after 120 s with no `test result` line (issue 6510).
-//!  A control that runs its body in `run_the_body_in_a_child_of_its_own` first starts the selection in a child
-//!  of the test binary,
+//!  A control that starts `run_the_body_in_a_child_of_its_own` first starts the selection in a child of the test
+//!  binary,
 //!  whose standard input is the null device (`testing/process_wide_state_child_test_support.rs`),
 //!  so the Git it starts reads no terminal,
 //!  and ends at once instead of waiting for an answer.
 //!  The container gate starts each test in a process of its own and gives it no terminal,
 //!  so the gate cannot show the hang.
+//!  The scan that splits a source into its controls is
+//!  `source_guard/process_wide_fact_readers_tests.rs`,
+//!  which this ban shares with the other bans of its shape.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // every control that names prepare_interactive_selection( must also name run_the_body_in_a_child_of_its_own(.
 //! ```
 
-/// What:
-///  `Scan` is what reading every test-only source of a tree answers,
-///  `scan` reads the tree,
-///  `controls` splits one source into its controls,
-///  and `findings_of` names the controls that ask without a child.
-///  They are shared with the guard over the preparation's ledger
-///  (`controls_naming_a_call_tests.rs`).
-/// Why:
-///  This guard and that one ask the same question about different calls,
-///  so the reading of a source,
-///  its code places and its controls is written once.
-use super::controls_naming_a_call_tests::{
+use super::process_wide_fact_readers_tests::{
+    Requirement,
     Scan,
-    controls,
-    findings_of,
+    findings_in_text,
+    missing_reader_files,
     scan,
-};
-/// What:
-///  `real_roots` answers the crate roots of this tree,
-///  and `source_root` the folder they stand in.
-/// Why:
-///  The scan reads the crate's own sources,
-///  so it needs where they start.
-use crate::source_scan_tests::{
-    real_roots,
-    source_root,
 };
 
 /// What:
@@ -78,6 +61,13 @@ const INTERACTIVE_GIT_CALLS: &[(&str, &str)] = &[(
 )];
 
 /// What:
+///  `IN_A_CHILD_OF_ITS_OWN` is the call that starts one control's body in a child process of the test binary.
+/// Why:
+///  A control that makes it asks its question where the standard input is the null device,
+///  so a control that names the interactive selection and not this call is the finding.
+const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
+
+/// What:
 ///  `FILES_THAT_START_THE_INTERACTIVE_SELECTION` is each file whose controls start the interactive selection,
 ///  with what its controls start it for.
 /// Why:
@@ -94,21 +84,43 @@ const FILES_THAT_START_THE_INTERACTIVE_SELECTION: &[(&str, &str)] = &[(
     "two controls start the selection, once over a clean index and once over a pathspec file that cannot be read",
 )];
 
+/// What:
+///  `THE_INTERACTIVE_SELECTION` is the ban itself:
+///  the call that reaches an interactive Git,
+///  the one call that answers it,
+///  what a control must do instead,
+///  and the files that must still start it.
+/// Why:
+///  The scan in `process_wide_fact_readers_tests.rs` takes a requirement like this one,
+///  so the ban states its own names and the scan stays the same for every ban of this shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_INTERACTIVE_SELECTION = { what: "the interactive selection's Git", named: INTERACTIVE_GIT_CALLS, excusedBy: [IN_A_CHILD_OF_ITS_OWN], required: '...', files: FILES_THAT_START_THE_INTERACTIVE_SELECTION };
+/// ```
+const THE_INTERACTIVE_SELECTION: Requirement = Requirement {
+    what: "the interactive selection's Git",
+    named: INTERACTIVE_GIT_CALLS,
+    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    required: "start the control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
+               `testing/process_wide_state_child_test_support.rs`, issue 6510)",
+    files: FILES_THAT_START_THE_INTERACTIVE_SELECTION,
+};
+
 /// No control starts the interactive selection in the run's own process.
 /// A control that starts it gives its Git a process whose standard input is not the run's.
 #[test]
 fn no_control_starts_the_interactive_selection_in_the_run_s_own_process() {
     // What: the whole crate's answer, which is a reason the tree could not be read when it is `Err`.
-    // Why: a guard that could not read a source would pass a tree it never looked at.
-    let read: Scan =
-        scan(&source_root(), &real_roots(), INTERACTIVE_GIT_CALLS).expect("the crate's sources");
+    // Why: a ban that could not read a source would pass a tree it never looked at.
+    let read: Scan = scan(&THE_INTERACTIVE_SELECTION).expect("the crate's sources");
     assert!(
         read.findings.is_empty(),
-        "the interactive selection's Git reads the standard input of the process that starts it, and a test run \
-         holds its controls as threads of one process, whose standard input is the terminal the run was started \
-         from, so a control that starts the selection hangs the whole run waiting for an answer: start the \
-         control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
-         `testing/process_wide_state_child_test_support.rs`, issue 6510):\n{}",
+        "{} reads the standard input of the process that starts it, and a test run holds its controls as \
+         threads of one process, whose standard input is the terminal the run was started from, so a control \
+         that starts it hangs the whole run waiting for an answer: {}:\n{}",
+        THE_INTERACTIVE_SELECTION.what,
+        THE_INTERACTIVE_SELECTION.required,
         read.findings.join("\n")
     );
 }
@@ -117,19 +129,14 @@ fn no_control_starts_the_interactive_selection_in_the_run_s_own_process() {
 /// so a run that finds no caller fails here instead of passing every tree.
 #[test]
 fn the_files_that_start_the_interactive_selection_still_do() {
-    let read: Scan =
-        scan(&source_root(), &real_roots(), INTERACTIVE_GIT_CALLS).expect("the crate's sources");
+    let read: Scan = scan(&THE_INTERACTIVE_SELECTION).expect("the crate's sources");
     // What: the entries of the list above whose file no longer holds such a control, with why each was listed.
     // Why: an entry whose control moved or went guards nothing, and the failure has to say which file to look at.
-    let missing: Vec<String> = FILES_THAT_START_THE_INTERACTIVE_SELECTION
-        .iter()
-        .filter(|(path, _why)| return !read.files_naming_a_call.contains(&String::from(*path)))
-        .map(|(path, why)| return format!("{path}: {why}"))
-        .collect();
+    let missing: Vec<String> = missing_reader_files(&read, &THE_INTERACTIVE_SELECTION);
     assert!(
         missing.is_empty(),
-        "these files hold no control that starts the interactive selection any more, so this check guards nothing \
-         there: move each entry to the file that holds such a control, or delete it:\n{}",
+        "these files hold no control that starts the interactive selection any more, so this ban guards \
+         nothing there: move each entry to the file that holds such a control, or delete it:\n{}",
         missing.join("\n")
     );
 }
@@ -141,7 +148,7 @@ fn the_files_that_start_the_interactive_selection_still_do() {
 fn the_scan_finds_a_control_that_starts_the_selection_without_a_child_of_its_own() {
     // What: a source holding three controls: one that starts the selection in the run's own process, one that
     //       starts a child first, and one that only writes the call's name into a string.
-    // Why: the scan has to name the first and only the first, so a guard that excused it would fail here.
+    // Why: the scan has to name the first and only the first, so a ban that excused it would fail here.
     let planted: &str = "\
 #[test]\n\
 fn starts_in_the_run_s_own_process() {\n\
@@ -161,10 +168,7 @@ fn plants_the_name_in_a_text() {\n\
     let planted: &str = \"prepare_interactive_selection(\";\n\
 }\n";
     assert_eq!(
-        findings_of(
-            "planted_tests.rs",
-            controls(planted, INTERACTIVE_GIT_CALLS).as_slice()
-        ),
+        findings_in_text(&THE_INTERACTIVE_SELECTION, "planted_tests.rs", planted),
         vec![String::from(
             "planted_tests.rs:1 (starts_in_the_run_s_own_process)"
         )],

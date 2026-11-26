@@ -87,8 +87,8 @@ so the Git reads an end of file and ends:
 back:
 a control of a test-only source that names `prepare_interactive_selection(` in code
 and does not name `run_the_body_in_a_child_of_its_own(` is a finding.
-It reads a test source through `source_guard/controls_naming_a_call_tests.rs`,
-the scan the guard over the preparation's ledger uses,
+It reads a test source through `source_guard/process_wide_fact_readers_tests.rs`,
+the scan the bans over a preparation's ledger and a commit's ledgers use,
 so a control's code places and controls are read once and not twice.
 
 Nothing of the release changed.

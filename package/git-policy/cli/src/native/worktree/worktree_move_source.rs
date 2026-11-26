@@ -14,7 +14,8 @@
 //!  here;
 //!  the plan is absent for a form the reading does not know,
 //!  and Git then answers the command as it always does.
-//!  The operands themselves come from `worktree_operands`, so this reading and
+//!  The operands themselves come from `worktree_operands`,
+//!  so this reading and
 //!  the removal's cannot disagree about which word names the worktree.
 //!
 //! In TS you'd write (pseudocode):
@@ -58,15 +59,19 @@ pub struct MoveSource {
 ///  and a form without the destination operand is Git's to refuse.
 ///  The destination is not read:
 ///  the refusal is the same wherever the slot would be renamed to.
+///  The start directory is optional because Git's own match against the
+///  registered paths needs none:
+///  a spelling whose global options the caller does not serve can still name a
+///  worktree by a name the registry knows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseMoveSource(args: string[], subcommandIndex: number, start: string, commonDir?: string): MoveSource | undefined;
+/// function parseMoveSource(args: string[], subcommandIndex: number, start?: string, commonDir?: string): MoveSource | undefined;
 /// ```
 pub fn parse_move_source(
     arguments: &[OsString],
     subcommand_index: usize,
-    start: &Path,
+    start: Option<&Path>,
     common_dir: Option<&Path>,
 ) -> Option<MoveSource> {
     if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
@@ -92,7 +97,7 @@ pub fn parse_move_source(
             operand: (*operand).clone(),
         });
     }
-    let source: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
+    let source: PathBuf = std::fs::canonicalize(start?.join(operand)).ok()?;
     return source.is_dir().then_some(MoveSource {
         source,
         operand: (*operand).clone(),

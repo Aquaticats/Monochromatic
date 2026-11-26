@@ -1045,27 +1045,33 @@ fn a_folder_the_wrapper_did_not_name_stays() {
 /// `note_refusal`).
 #[test]
 fn a_refused_member_is_named_in_the_build_parts() {
-    let root: PathBuf = fixture("shadow-pool-refusal-evidence");
-    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
-    let (template, member) = a_member(repo.as_path());
-    std::fs::write(
-        member.join("MERGE_HEAD").as_path(),
-        b"0123456789012345678901234567890123456789\n",
-    )
-    .expect("state");
-    let _before = crate::commit_build_part_durations::drain_build_parts();
-    assert!(
-        !take(&template, root.join("shadow").as_path()),
-        "a member with state is refused"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_refused_member_is_named_in_the_build_parts",
+        || {
+            let root: PathBuf = fixture("shadow-pool-refusal-evidence");
+            let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+            let (template, member) = a_member(repo.as_path());
+            std::fs::write(
+                member.join("MERGE_HEAD").as_path(),
+                b"0123456789012345678901234567890123456789\n",
+            )
+            .expect("state");
+            let _before = crate::commit_build_part_durations::drain_build_parts();
+            assert!(
+                !take(&template, root.join("shadow").as_path()),
+                "a member with state is refused"
+            );
+            let (parts, _dropped) = crate::commit_build_part_durations::drain_build_parts();
+            assert!(
+                parts.iter().any(|part| {
+                    return part.name == "shadow pool refused";
+                }),
+                "the record names the refusal: {parts:?}"
+            );
+            remove(root.as_path());
+        },
     );
-    let (parts, _dropped) = crate::commit_build_part_durations::drain_build_parts();
-    assert!(
-        parts.iter().any(|part| {
-            return part.name == "shadow pool refused";
-        }),
-        "the record names the refusal: {parts:?}"
-    );
-    remove(root.as_path());
 }
 
 /// What:

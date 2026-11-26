@@ -13,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type CopyFacts = { identity: WorktreeIdentity; creates: boolean; addPlan?: AddPlan; removePlan?: RemovePlan };
+//! type CopyFacts = { identity: WorktreeIdentity; commonDir?: string; creates: boolean; addPlan?: AddPlan; removePlan?: RemovePlan };
 //! type AddPlan = { destination: string; insertAt: number };
 //! type RemovePlan = { target: string; operand: string; force: boolean };
 //! ```
@@ -46,6 +46,14 @@ use std::path::PathBuf;
 pub struct CopyFacts {
     /// The repository shape the invocation selects.
     pub identity: WorktreeIdentity,
+    /// The Git common directory the command's repository has:
+    /// the one the identity names,
+    /// or the one Git named for a command that stands inside a Git directory of it and
+    ///  so in no worktree (`git -C <repository>/.git worktree remove <slot>`);
+    /// absent for a command that belongs to no repository.
+    /// It is carried beside the identity because the identity has no value for a command that stands
+    ///  outside every worktree and still belongs to a repository.
+    pub common_dir: Option<PathBuf>,
     /// Whether the command,
     /// after alias resolution,
     /// creates a worktree.

@@ -689,11 +689,14 @@ pub fn tasks_can_run() -> bool {
 ///  Whether a control stands in for a system that refuses every thread,
 /// so `tasks_can_run` answers false.
 /// Why:
-///  A control cannot exhaust this process's threads;
-/// the flag is the seam,
-/// and nextest gives every
-///  control its own process,
-/// so it cannot reach another.
+///  A control cannot exhaust this process's threads,
+/// so the flag is the seam.
+///  It answers for the whole process,
+/// because `tasks_can_run` does:
+/// a threaded run consults it from every control's threads,
+///  so the control that arms it runs its body in a child of its own
+/// (`crate::process_wide_state_child_test_support`),
+///  and `a_control_refuses_every_task` refuses in any other process.
 #[cfg(test)]
 static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -704,6 +707,12 @@ static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::n
 ///  The seam of the control above;
 /// the flag is cleared however the control ends,
 /// a panic included.
+/// Gotcha:
+///  The flag belongs to the whole process,
+/// so this refuses outside a child the control started,
+/// which names the starter;
+///  an answered value here reaches every other test of a threaded run,
+/// where their watchers are refused with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -711,6 +720,9 @@ static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::n
 /// ```
 #[cfg(test)]
 pub fn a_control_refuses_every_task() -> RefusalForTheControl {
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the stand-in for a system that refuses every thread of this process's runtime",
+    );
     REFUSED.store(true, std::sync::atomic::Ordering::SeqCst);
     return RefusalForTheControl;
 }
@@ -869,13 +881,38 @@ pub(crate) fn late_build_arrived() -> bool {
 ///  The flag makes `built_flavor` answer the stand-in,
 /// while `tasks_can_run` and `spawn_on_runtime` keep answering for the runtime this process really has,
 ///  which is the whole shape of that state.
+///  The answer belongs to the whole process,
+/// so the control that arms it runs its body in a child of its own.
 #[cfg(test)]
 static THE_BUILD_WAS_LATE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// Makes `built_flavor` answer the stand-in of a build that missed its deadline until the returned value is dropped.
+/// What:
+///  `fn a_control_stands_in_for_a_late_runtime() -> LateRuntimeForTheControl` makes `built_flavor` answer the stand-in
+///  of a build that missed its deadline,
+///  until the returned value is dropped.
+///  The sibling a reader might expect is a stand-in taken from the runtime itself,
+///  which no control can produce:
+///  this process builds one runtime,
+///  and only a build that outlasted `BUILD_DEADLINE` reaches it.
+/// Why:
+///  A caller that must tell a process with no worker of its own from one whose workers arrived late needs that state
+///  reachable in a control.
+/// Gotcha:
+///  The flag belongs to the whole process,
+/// so this refuses outside a child the control started,
+/// which names the starter;
+///  a `built_flavor` answered here is answered for every other test of a threaded run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const late = standInForALateBuild(); // builtFlavor() answers the stand-in until late is dropped
+/// ```
 #[cfg(test)]
 pub fn a_control_stands_in_for_a_late_runtime() -> LateRuntimeForTheControl {
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the stand-in for a runtime build that outlasted its deadline",
+    );
     THE_BUILD_WAS_LATE.store(true, std::sync::atomic::Ordering::SeqCst);
     return LateRuntimeForTheControl;
 }

@@ -5,6 +5,13 @@
 //! Why:
 //!  A note that outlives the step that made it names a step that did not stop the command,
 //! and one that survives being taken reaches a second record.
+//!  The note is one for the whole process,
+//!  so each control here runs its body in a child of its own
+//!  (`crate::process_wide_state_child_test_support`),
+//!  as issue 6509 found:
+//!  measured on 2026-11-26,
+//!  `a_note_never_carries_a_path_or_a_line_break` failed with `the note just written`
+//!  because a control beside it cleared the note between this control's write and its read.
 
 /// The ledger and its one note.
 use super::*;
@@ -16,15 +23,21 @@ const REFUSED_STATUS: i32 = 128;
 /// and taking it leaves nothing behind.
 #[test]
 fn a_note_is_taken_once() {
-    clear_failed_step();
-    note_failed_step("git add", Some(REFUSED_STATUS));
-    let taken: FailedStep = drain_failed_step().expect("the note just written");
-    assert_eq!(taken.name, "git add");
-    assert_eq!(taken.status, Some(REFUSED_STATUS));
-    assert_eq!(
-        drain_failed_step(),
-        None,
-        "a record never reads the note another record stated"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_note_is_taken_once",
+        || {
+            clear_failed_step();
+            note_failed_step("git add", Some(REFUSED_STATUS));
+            let taken: FailedStep = drain_failed_step().expect("the note just written");
+            assert_eq!(taken.name, "git add");
+            assert_eq!(taken.status, Some(REFUSED_STATUS));
+            assert_eq!(
+                drain_failed_step(),
+                None,
+                "a record never reads the note another record stated"
+            );
+        },
     );
 }
 
@@ -32,14 +45,20 @@ fn a_note_is_taken_once() {
 /// so a reader never reads zero as the status of a step that never exited.
 #[test]
 fn a_step_that_never_exited_keeps_no_status() {
-    clear_failed_step();
-    note_failed_step("git diff-index", None);
-    assert_eq!(
-        drain_failed_step(),
-        Some(FailedStep {
-            name: String::from("git diff-index"),
-            status: None
-        })
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_step_that_never_exited_keeps_no_status",
+        || {
+            clear_failed_step();
+            note_failed_step("git diff-index", None);
+            assert_eq!(
+                drain_failed_step(),
+                Some(FailedStep {
+                    name: String::from("git diff-index"),
+                    status: None
+                })
+            );
+        },
     );
 }
 
@@ -47,10 +66,16 @@ fn a_step_that_never_exited_keeps_no_status() {
 /// so a step that failed and let the command go on is never the reason a later stop gives.
 #[test]
 fn another_step_starting_drops_the_note() {
-    clear_failed_step();
-    note_failed_step("git add", Some(REFUSED_STATUS));
-    clear_failed_step();
-    assert_eq!(drain_failed_step(), None);
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "another_step_starting_drops_the_note",
+        || {
+            clear_failed_step();
+            note_failed_step("git add", Some(REFUSED_STATUS));
+            clear_failed_step();
+            assert_eq!(drain_failed_step(), None);
+        },
+    );
 }
 
 /// A name carrying a path,
@@ -58,16 +83,24 @@ fn another_step_starting_drops_the_note() {
 /// so no note can put a path or a second line into a record.
 #[test]
 fn a_note_never_carries_a_path_or_a_line_break() {
-    clear_failed_step();
-    note_failed_step(
-        "git add -- /home/someone/a b.txt\n{\"k\":1}",
-        Some(REFUSED_STATUS),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_note_never_carries_a_path_or_a_line_break",
+        || {
+            clear_failed_step();
+            note_failed_step(
+                "git add -- /home/someone/a b.txt\n{\"k\":1}",
+                Some(REFUSED_STATUS),
+            );
+            let taken: FailedStep = drain_failed_step().expect("the note just written");
+            assert!(
+                !taken.name.contains('/')
+                    && !taken.name.contains('\n')
+                    && !taken.name.contains('"'),
+                "{}",
+                taken.name
+            );
+            assert!(taken.name.starts_with("git add"), "{}", taken.name);
+        },
     );
-    let taken: FailedStep = drain_failed_step().expect("the note just written");
-    assert!(
-        !taken.name.contains('/') && !taken.name.contains('\n') && !taken.name.contains('"'),
-        "{}",
-        taken.name
-    );
-    assert!(taken.name.starts_with("git add"), "{}", taken.name);
 }

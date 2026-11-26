@@ -18,6 +18,9 @@
 //!  binary,
 //!  whose ledger holds nothing but what that control noted
 //!  (`testing/process_wide_state_child_test_support.rs`).
+//!  The scan that splits a source into its controls is
+//!  `source_guard/process_wide_fact_readers_tests.rs`,
+//!  which this ban shares with the other bans of its shape.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,32 +28,12 @@
 //! // run_the_body_in_a_child_of_its_own(.
 //! ```
 
-/// What:
-///  `Scan` is what reading every test-only source of a tree answers,
-///  `scan` reads the tree,
-///  `controls` splits one source into its controls,
-///  and `findings_of` names the controls that ask without a child.
-///  They are shared with the guard over the interactive selection
-///  (`controls_naming_a_call_tests.rs`).
-/// Why:
-///  This guard and that one ask the same question about different calls,
-///  so the reading of a source,
-///  its code places and its controls is written once.
-use super::controls_naming_a_call_tests::{
+use super::process_wide_fact_readers_tests::{
+    Requirement,
     Scan,
-    controls,
-    findings_of,
+    findings_in_text,
+    missing_reader_files,
     scan,
-};
-/// What:
-///  `real_roots` answers the crate roots of this tree,
-///  and `source_root` the folder they stand in.
-/// Why:
-///  The scan reads the crate's own sources,
-///  so it needs where they start.
-use crate::source_scan_tests::{
-    real_roots,
-    source_root,
 };
 
 /// What:
@@ -86,6 +69,13 @@ const LEDGER_NAMES: &[(&str, &str)] = &[
 ];
 
 /// What:
+///  The call that runs one control's body in a child process of the test binary.
+/// Why:
+///  A control that hands its body to it asks its question where nothing else noted a step,
+///  so a control that names the ledger and not this call is the finding.
+const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
+
+/// What:
 ///  `FILES_THAT_READ_THE_LEDGER` is each file whose controls still ask about the ledger,
 ///  with what its controls ask.
 /// Why:
@@ -112,20 +102,40 @@ const FILES_THAT_READ_THE_LEDGER: &[(&str, &str)] = &[
     ),
 ];
 
+/// What:
+///  `THE_PREPARATION_STEPS` is the ban itself:
+///  the ledger's names,
+///  the one call that answers it,
+///  what a control must do instead,
+///  and the files that must still read it.
+/// Why:
+///  The scan in `process_wide_fact_readers_tests.rs` takes a requirement like this one,
+///  so the ban states its own names and the scan stays the same for every ban of this shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_PREPARATION_STEPS = { what: "the preparation's named steps", named: LEDGER_NAMES, excusedBy: [IN_A_CHILD_OF_ITS_OWN], required: '...', files: FILES_THAT_READ_THE_LEDGER };
+/// ```
+const THE_PREPARATION_STEPS: Requirement = Requirement {
+    what: "the preparation's named steps",
+    named: LEDGER_NAMES,
+    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    required: "start the control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
+               `testing/process_wide_state_child_test_support.rs`, issue 6507)",
+    files: FILES_THAT_READ_THE_LEDGER,
+};
+
 /// No control reads the preparation's steps in the run's own process.
 /// A control that asks about them starts a child of its own first.
 #[test]
 fn no_control_reads_the_preparation_steps_in_the_run_s_own_process() {
-    // What: the whole crate's answer, which is a reason the tree could not be read when it is `Err`.
-    // Why: a guard that could not read a source would pass a tree it never looked at.
-    let read: Scan =
-        scan(&source_root(), &real_roots(), LEDGER_NAMES).expect("the crate's sources");
+    let read: Scan = scan(&THE_PREPARATION_STEPS).expect("the crate's sources");
     assert!(
         read.findings.is_empty(),
-        "the preparation's steps are one ledger for the whole process, and a test run holds its controls as \
-         threads of it, so a control that asks about them reads another control's work: start the control's body \
-         in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
-         `testing/process_wide_state_child_test_support.rs`, issue 6507):\n{}",
+        "{} are one ledger for the whole process, and a test run holds its controls as threads of it, so a \
+         control that asks about them reads another control's work: {}:\n{}",
+        THE_PREPARATION_STEPS.what,
+        THE_PREPARATION_STEPS.required,
         read.findings.join("\n")
     );
 }
@@ -134,19 +144,13 @@ fn no_control_reads_the_preparation_steps_in_the_run_s_own_process() {
 /// so a run that finds no reader fails here instead of passing every tree.
 #[test]
 fn the_files_that_read_the_ledger_still_do() {
-    let read: Scan =
-        scan(&source_root(), &real_roots(), LEDGER_NAMES).expect("the crate's sources");
-    // What: the entries of the list above whose file no longer holds such a control, with why each was listed.
-    // Why: an entry whose control moved or went guards nothing, and the failure has to say which file to look at.
-    let missing: Vec<String> = FILES_THAT_READ_THE_LEDGER
-        .iter()
-        .filter(|(path, _why)| return !read.files_naming_a_call.contains(&String::from(*path)))
-        .map(|(path, why)| return format!("{path}: {why}"))
-        .collect();
+    let read: Scan = scan(&THE_PREPARATION_STEPS).expect("the crate's sources");
+    let missing: Vec<String> = missing_reader_files(&read, &THE_PREPARATION_STEPS);
     assert!(
         missing.is_empty(),
-        "these files hold no control that names the preparation's steps any more, so this check guards nothing \
-         there: move each entry to the file that holds such a control, or delete it:\n{}",
+        "these files hold no control that names {} any more, so this check guards nothing there: move each \
+         entry to the file that holds such a control, or delete it:\n{}",
+        THE_PREPARATION_STEPS.what,
         missing.join("\n")
     );
 }
@@ -156,9 +160,6 @@ fn the_files_that_read_the_ledger_still_do() {
 /// nor about a call a comment or a planted text only names.
 #[test]
 fn the_scan_finds_a_control_that_asks_without_a_child_of_its_own() {
-    // What: a source holding three controls: one that asks in the run's own process, one that starts a child
-    //       first, and one that only writes the names into a string.
-    // Why: the scan has to name the first and only the first, so a guard that excused it would fail here.
     let planted: &str = "\
 #[test]\n\
 fn asks_in_the_run_s_own_process() {\n\
@@ -178,10 +179,7 @@ fn plants_the_name_in_a_text() {\n\
     let planted: &str = \"drain_spans(); prepareSpans\";\n\
 }\n";
     assert_eq!(
-        findings_of(
-            "planted_tests.rs",
-            controls(planted, LEDGER_NAMES).as_slice()
-        ),
+        findings_in_text(&THE_PREPARATION_STEPS, "planted_tests.rs", planted),
         vec![String::from(
             "planted_tests.rs:1 (asks_in_the_run_s_own_process)"
         )],
