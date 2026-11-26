@@ -5,7 +5,7 @@
 //! is made again,
 //! and fixtures in any root share one file.
 
-use super::support::{Fixture, WRAPPER, fixture, fixture_in};
+use super::support::{Fixture, WRAPPER, fixture, fixture_in, run_fixture_root};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
     remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named, shared_copy_waiting, wait_for_publisher, wait_for_publisher_on, WaitClock, WaitEnd,
@@ -544,10 +544,11 @@ fn assert_fixtures_follow_the_links_the_filesystem_allows(directory: &Path, firs
 /// its one
 /// stored copy where it does not (`EXDEV`),
 /// and copies of its bytes where no link works.
+/// The store stands in the run's shared fixture root, the parent of every process's own fixture root.
 #[test]
 fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
     let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
-    let root: PathBuf = first.root.parent().expect("the fixture root").to_path_buf();
+    let root: PathBuf = run_fixture_root();
     assert_fixtures_follow_the_links_the_filesystem_allows(root.as_path(), &first, &second);
 }
 
@@ -652,7 +653,9 @@ fn scratch_on_another_filesystem(candidates: &[PathBuf], built: &Path) -> Result
 
 /// Two fixtures in a root on another filesystem than the build,
 /// where the link of the build itself fails (`EXDEV`),
-/// are one stored copy of the build's bytes.
+/// are one stored copy of the build's bytes,
+/// because both the fixtures and their store stand on that other filesystem,
+/// as the gate's fixtures and its shared root stand together on its tmpfs.
 /// Where no such filesystem is available the control says why and ends.
 #[test]
 fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
@@ -663,9 +666,9 @@ fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
             return;
         }
     };
-    let (first, second): (Fixture, Fixture) =
-        (fixture_in(scratch.directory.as_path(), "share-first"), fixture_in(scratch.directory.as_path(), "share-second"));
-    let linking: Linking = assert_fixtures_follow_the_links_the_filesystem_allows(scratch.directory.as_path(), &first, &second);
+    let root: &Path = scratch.directory.as_path();
+    let (first, second): (Fixture, Fixture) = (fixture_in(root, root, "share-first"), fixture_in(root, root, "share-second"));
+    let linking: Linking = assert_fixtures_follow_the_links_the_filesystem_allows(root, &first, &second);
     assert_eq!(linking, Linking::Stored, "the scratch directory was chosen because it could not link the build");
 }
 
@@ -910,4 +913,255 @@ fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
     let alone = shared_copy_waiting(&built, name.as_str(), other_root.root.as_path(), &hook, &nobody).expect("a copy of its own");
     assert_eq!(copied_itself.load(Ordering::SeqCst), 1);
     assert_eq!(std::fs::read(alone).expect("copy"), std::fs::read(&built).expect("built"));
+}
+
+/// What:
+///  The control of one run's fixture root:
+///  two test processes of a run, on a file system other than the build's, leave one stored copy of the wrapper.
+/// Why:
+///  The gate's fixture root is a 768 MiB tmpfs (`bin/native-gate-fixture-root.ts`) while the build is on the image's
+///  file system,
+///  so every fixture's hard link of the build fails (`EXDEV`) and the store is what its fixtures link instead.
+///  The store stood in each process's own folder,
+///  so every one of the gate's test processes copied the 154 MB debug wrapper into that tmpfs and the whole gate failed
+///  with `No space left on device` (issue 6488).
+///  The file system other than the build's is a tmpfs this module mounts inside a user and mount namespace of its own,
+///  which no other namespace sees: nothing on the host is mounted (`crate::root_namespace_test_support`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!inARootNamespace('CLI_GIT_WRAPPER_STORE_IN_A_NAMESPACE', theControl)) return; // the inner half ran, or this host has no namespace
+/// ```
+#[cfg(target_os = "linux")]
+mod shared_by_a_run {
+    use crate::child_test_process::{ChildTest, passed};
+    use crate::root_namespace_test_support::in_a_root_namespace;
+    use crate::support::{FIXTURE_ROOT_VARIABLE, Fixture, WRAPPER, fixture, fixture_root};
+    use crate::wrapper_store::{STORE_DIRECTORY, content_name};
+
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
+    /// `Output` is what a child wrote and how it ended; `passed` answers one per child.
+    use std::process::Output;
+
+    /// What:
+    ///  The variable the inner half of the control is started with, so it knows which half it is.
+    /// Why:
+    ///  The test binary is the only program that can run this test, and the outer half has to know that the child it
+    ///  started ran the body rather than passing without one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const INSIDE_A_NAMESPACE = 'CLI_GIT_WRAPPER_STORE_IN_A_NAMESPACE';
+    /// ```
+    const INSIDE_A_NAMESPACE: &str = "CLI_GIT_WRAPPER_STORE_IN_A_NAMESPACE";
+
+    /// What:
+    ///  The path libtest answers to for this control,
+    ///  which the outer half hands the child that runs the inner half.
+    /// Why:
+    ///  `--exact` matches this text alone, so a wrong path runs no test,
+    ///  and `passed` fails the control instead of counting the child as the control.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const THE_CONTROL = 'wrapper_store_guard::shared_by_a_run::two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper';
+    /// ```
+    const THE_CONTROL: &str =
+        "wrapper_store_guard::shared_by_a_run::two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper";
+
+    /// The path libtest answers to for the test each of the control's two processes runs.
+    const A_PROCESS_MAKING_ONE_FIXTURE: &str =
+        "wrapper_store_guard::shared_by_a_run::a_process_makes_one_fixture_in_the_root_it_is_given";
+
+    /// What the one line the child prints about its fixture root begins with.
+    /// Why:
+    ///  The control compares the two roots the children name, so two processes that made a fixture each are told apart
+    ///  from one process run twice, which would prove nothing about sharing.
+    const THE_FIXTURE_ROOT_LINE: &str = "fixture root: ";
+
+    /// How many test processes of one run the control starts.
+    const PROCESSES_OF_THE_RUN: usize = 2;
+
+    /// What:
+    ///  How many copies of the build the tmpfs must hold at once:
+    ///  one for each of the control's processes, which is what a store rooted in each process's own folder writes.
+    /// Why:
+    ///  The file system has to be big enough for the copies a store per process makes,
+    ///  so a run that keeps one copy per process fails on the count below and never on a full file system.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const COPIES_BETWEEN_THE_PROCESSES = 2;
+    /// ```
+    const COPIES_BETWEEN_THE_PROCESSES: u64 = 2;
+
+    /// The room the tmpfs leaves, over those copies, for the fixtures' folders,
+    /// a publisher's partial copy beside the stored one, and the file system's own bookkeeping.
+    const ROOM_BESIDE_THE_COPIES: u64 = 64 << 20;
+
+    /// What:
+    ///  Two test processes of one run, whose fixtures sit on a tmpfs of this control's own,
+    ///  end with one stored copy of the build in the run's shared fixture root.
+    /// Why:
+    ///  One stored copy per run is what keeps the gate's 768 MiB tmpfs from filling with a copy per test process;
+    ///  the count is what the gate failed on, and the fixture roots the children name prove two processes made them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const roots = [child(), child()]; assert(roots[0] !== roots[1]); assert(storedCopiesUnder(runRoot) === 1);
+    /// ```
+    #[test]
+    fn two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper() {
+        if !in_a_root_namespace(INSIDE_A_NAMESPACE, THE_CONTROL) {
+            return;
+        }
+        // What: the folder the tmpfs stands at, inside this process's own fixture root, and the tmpfs mounted there.
+        // Why: the control needs a file system other than the build's, and this one lives in the namespace alone.
+        let mount_point: PathBuf = fixture_root().join("tmpfs-of-the-wrapper-store-control");
+        std::fs::create_dir_all(&mount_point).expect("the folder the tmpfs stands at");
+        // What: the size the tmpfs may not grow past, measured from the build it holds copies of.
+        // Why: a bounded file system fails a runaway copy here instead of filling the host's memory.
+        let build_bytes: u64 = std::fs::metadata(WRAPPER).expect("the built wrapper's size").len();
+        crate::fixture_root_taking_any_name::mount_a_tmpfs(
+            mount_point.as_path(),
+            Some(build_bytes * COPIES_BETWEEN_THE_PROCESSES + ROOM_BESIDE_THE_COPIES),
+        );
+        // What: the root both processes are given, which is what one run's shared fixture root is in the gate.
+        // Why: the two processes then differ only in the `process-<pid>` folder each one's fixtures are made in.
+        let run_root: PathBuf = mount_point.join("run");
+        let mut named: Vec<PathBuf> = Vec::new();
+        for _ in 0..PROCESSES_OF_THE_RUN {
+            // What: `&[(name, value)]` is a borrowed list of the one variable the child gets.
+            // Why: `CLI_GIT_TEST_ROOT` is how a run names its own fixture root, which is how the gate names its tmpfs.
+            let environment: [(&str, &OsStr); 1] = [(FIXTURE_ROOT_VARIABLE, run_root.as_os_str())];
+            // What: the child's ending and its two streams, which `passed` reads once the child is gone.
+            // Why: the child's own line says which fixture root it made its fixture in.
+            let child: Output = passed(ChildTest {
+                exact_test: A_PROCESS_MAKING_ONE_FIXTURE,
+                environment: environment.as_slice(),
+                ignored: true,
+                ..ChildTest::default()
+            });
+            named.push(the_root_the_child_named(child.stdout.as_slice()));
+        }
+        assert_ne!(
+            named[0],
+            named[1],
+            "both processes reported the fixture root {}, so the control proved one process's fixtures and not two",
+            named[0].display()
+        );
+        for root in &named {
+            assert!(
+                root.starts_with(&run_root),
+                "a process made its fixtures in {} rather than under the run root {} the control named",
+                root.display(),
+                run_root.display()
+            );
+        }
+        let name: String = content_name(Path::new(WRAPPER)).expect("the name the store writes the build under");
+        // What: every file under the run's root that the store names after the build.
+        // Why: the number of them is what one run keeps, and where they are says which folder the store stood in.
+        let kept: Vec<PathBuf> = stored_copies_under(run_root.as_path(), name.as_str());
+        let expected: Vec<PathBuf> = vec![run_root.join(STORE_DIRECTORY).join(name.as_str())];
+        assert_eq!(
+            kept,
+            expected,
+            "the two processes of one run keep one stored copy of the build in {}, and left {kept:?}",
+            run_root.display()
+        );
+    }
+
+    /// What:
+    ///  The body of each of the control's two processes:
+    ///  one fixture in the run root this process was given, and one line naming the fixture root it made.
+    /// Why:
+    ///  The line is what tells the control that two processes made a fixture each, and the fixture is what makes the
+    ///  wrapper link, which is the store's one caller here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const made = fixture('one-copy-per-run'); console.log('fixture root: ' + fixtureRoot());
+    /// ```
+    #[test]
+    #[ignore = "started by `two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper`, never on its own"]
+    fn a_process_makes_one_fixture_in_the_root_it_is_given() {
+        // What: the fixture, kept in a `_`-prefixed binding so it is removed when this body ends.
+        // Why: a fixture left behind would hold a link to the stored copy for the rest of this process.
+        let _made: Fixture = fixture("one-copy-per-run");
+        // What: the line the control reads, naming the folder this process's fixtures were made in.
+        // Why: it is the only thing that says the process made a fixture, and where.
+        println!("{THE_FIXTURE_ROOT_LINE}{}", fixture_root().display());
+    }
+
+    /// What:
+    ///  The fixture root a child named in its one line.
+    /// Why:
+    ///  The control compares the two, so it fails rather than passes when both children shared one folder.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function theRootTheChildNamed(stdout: Uint8Array): string; // the line after 'fixture root: ', or throw
+    /// ```
+    fn the_root_the_child_named(stdout: &[u8]) -> PathBuf {
+        // What: `from_utf8_lossy` reads the bytes as text, replacing a byte that is not text.
+        // Why: a failure report is text, and the path is this host's own.
+        let said: String = String::from_utf8_lossy(stdout).into_owned();
+        // What: `split_once` answers the text before the marker and the text after it.
+        // Why: libtest writes `test <path> ... ` with no newline before the test's own output, so the marker is in the
+        //  middle of a line and never at the start of one.
+        let printed: Option<&str> = said
+            .split_once(THE_FIXTURE_ROOT_LINE)
+            .map(|(_before, after)| { return after.lines().next().unwrap_or(after); });
+        let Some(named) = printed else {
+            panic!("the child printed no line beginning {THE_FIXTURE_ROOT_LINE:?}, so the control cannot tell which fixture root it made: {said}");
+        };
+        // What: the tail expression is the path the child wrote, as an owned path.
+        // Why: the control compares it with the other child's and with the run root.
+        return PathBuf::from(named.trim_end());
+    }
+
+    /// What:
+    ///  Every file under `root` whose name is `name`, in the order of their paths.
+    /// Why:
+    ///  A stored copy is the one file the store names after the build's content,
+    ///  and a walk of the whole run root finds a copy wherever a process kept it,
+    ///  which is what tells the store in the run's root apart from one in each process's folder.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function storedCopiesUnder(root: string, name: string): string[]; // walk with a work list, keep the basenames equal to name
+    /// ```
+    fn stored_copies_under(root: &Path, name: &str) -> Vec<PathBuf> {
+        let mut found: Vec<PathBuf> = Vec::new();
+        // What: a work list of the folders still to read, starting with the run's root.
+        // Why: a stack walks the tree without recursion, however deep a fixture's folders are.
+        let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+        while let Some(directory) = stack.pop() {
+            // What: `read_dir` lists one folder; `let ... else` skips a folder that went while this walked.
+            // Why: a fixture's folder may go as its process ends, which must not end the walk.
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path: PathBuf = entry.path();
+                let Ok(kind) = entry.file_type() else {
+                    continue;
+                };
+                if kind.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                // What: the file's own name as text, compared with the store's name of the build.
+                // Why: only a stored copy carries that name; a fixture's link is named after the program it runs.
+                if path.file_name().and_then(|each| { return each.to_str(); }) == Some(name) {
+                    found.push(path);
+                }
+            }
+        }
+        found.sort();
+        // What: the tail expression hands the paths back in the order the rest of the file compares things in.
+        // Why: the expectation is one path, and a sort makes the failure message readable.
+        return found;
+    }
 }
