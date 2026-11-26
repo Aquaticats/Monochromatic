@@ -654,7 +654,15 @@ The step ledger's own module was measured red in a threaded run of itself:
 control's drain had taken.
 `repo_read::git_metadata::tests` was `ok. 11 passed` alone before the change,
 and its control owns a child because it reads the same ledger.
-The causes and all three guards' failing proofs are in
+After `origin/main` made the starter take the control's body (issue 6503,
+`run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`),
+each of the 28 guards hands its body to that call and the three guards excuse its name;
+on the merged tree `commit::` answered `ok. 474 passed; 0 failed` in both runs,
+`source_guard::` `ok. 151 passed`,
+and each of the 34 controls `1 passed` alone with `--exact`.
+The causes and all three guards' failing proofs,
+before and after that merge,
+are in
 `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`.
 Status:
 incomplete,

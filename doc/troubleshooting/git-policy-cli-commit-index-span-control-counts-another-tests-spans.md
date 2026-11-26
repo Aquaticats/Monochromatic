@@ -156,11 +156,12 @@ The two causes of that run that are no ledger have their own answers:
   With the helper's call taken out of that control, it answered
   `commit/native_commit_waiting_notice_tests.rs:331 (the_notice_reports_the_programs_that_ran_below_the_step)`.
 
-Both guards share one scan, `source_guard/process_wide_fact_readers_tests.rs`, and issue 6507's guard for the
-preparation's steps uses it too,
+All three guards share one scan, `source_guard/process_wide_fact_readers_tests.rs`, and issue 6507's guard for
+the preparation's steps uses it too,
 so the next ledger of this shape writes a table and no new scanner.
 
-Measured after the change, on this host and threaded:
+Measured after the change and before the merge of `origin/main`,
+on this host and threaded:
 two runs of `commit::` answered `test result: ok. 474 passed; 0 failed`,
 and each module answered
 `commit::commit_index_builds::tests` `ok. 11 passed`,
@@ -173,6 +174,39 @@ and each module answered
 `repo_read::git_metadata::tests` `ok. 11 passed`,
 `shadow::shadow_pool::tests` `ok. 29 passed` and
 `source_guard::` `ok. 147 passed`.
+
+## After main made the starter take the control's body (issue 6503)
+
+`origin/main` replaced the starter that answered a yes or a no with
+`run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`,
+because a control that read the answer inverted ran its body in the process that answer was written to keep its
+state out of.
+The merge at `6f081469d5` therefore broke these 28 guards,
+and each now hands its body to that call,
+with the three guards excusing its name instead of the removed one.
+`commit/native_commit_waiting_notice_tests.rs` needed no child either way:
+its controls take the two control windows.
+
+Measured on the merged tree,
+on this host and threaded:
+`commit::` answered `test result: ok. 474 passed; 0 failed` in both runs,
+and the modules answered the counts above,
+`source_guard::` `ok. 151 passed`,
+each of the 34 controls `1 passed` alone with `--exact`,
+and `cargo check --locked --offline --all-targets` and `cargo clippy --locked --offline --all-targets -- -D warnings`
+finished with no message.
+
+The three guards were shown failing on that tree again:
+with one control's body unwrapped,
+so it ran in the run's own process,
+`source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs` answered
+`commit/commit_prepare_part_durations_tests.rs:177 (a_name_with_delimiters_stays_one_member)`;
+with the window helper's call taken out of `the_notice_reports_the_programs_that_ran_below_the_step`,
+`source_guard/notice_controls_take_their_window_tests.rs` answered
+`commit/native_commit_waiting_notice_tests.rs:330 (the_notice_reports_the_programs_that_ran_below_the_step)`;
+and with one control of issue 6507's module unwrapped,
+`source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` answered
+`commit/prepare_work_spans_tests.rs:80 (a_step_of_no_measurable_time_is_stated_as_one_call)`.
 
 ## What this page does not cover
 
