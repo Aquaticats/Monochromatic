@@ -26,7 +26,6 @@ binary/binary_kept_references_tests.rs | the binary folder is not moved yet; a l
 binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
-binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_lfs_server_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_long_runtime_directory_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_merge_carries_edits_kill_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
@@ -122,7 +121,6 @@ landing/service_land_witness_tests.rs | the landing folder is not moved yet; a l
 lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
-lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/lock_holder_records_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
@@ -163,10 +161,8 @@ push/bounded_query_tests.rs | the push folder is not moved yet; a later round ta
 push/bounded_query_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
-push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/push_minimum_rate_socket_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/push_progress_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
-push/push_wait_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
@@ -176,7 +172,6 @@ repair/package_repair_command_tests.rs | the repair folder is not moved yet; a l
 repair/package_repair_toolchain_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
 testing/fixture_executable.rs | the testing folder is not moved yet; a later round takes it folder by folder
 testing/fixture_git_commands.rs | the testing folder is not moved yet; a later round takes it folder by folder
-testing/run_progress_tests.rs | the testing folder is not moved yet; a later round takes it folder by folder
 testing/smart_http_support.rs | the testing folder is not moved yet; a later round takes it folder by folder
 transaction/transaction_git_tests.rs | the control proves the fixture ends the fake Git a failed test left, so its child must outlive the test thread
 worktree/worktree_clone_conversion_size_read_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
