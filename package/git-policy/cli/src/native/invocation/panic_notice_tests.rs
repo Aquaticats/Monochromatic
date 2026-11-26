@@ -17,7 +17,7 @@
 
 /// Import the module under test.
 use super::{install_payload_free_panic_hook, panic_notice, panics_are_expected_here, while_panics_are_expected};
-use std::process::{Command, Output};
+use std::process::Output;
 
 /// The variable that makes the re-run test act as the child,
 ///  and says which hook it uses.
@@ -86,22 +86,13 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
     }
     let mut stderr_by_mode: Vec<String> = Vec::new();
     for mode in ["payload-free", "default"] {
-        let output: Output = Command::new(crate::test_support::this_test_binary().expect("test executable"))
-            .args([
-                "--exact",
-                "invocation::panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
-                "--nocapture",
-                "--test-threads=1",
-            ])
-            .env(CHILD_VARIABLE, mode)
-            .output()
-            .expect("start the child");
-        let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
-        assert!(output.status.success(), "{mode}: {stdout}");
-        assert!(
-            stdout.contains("test result: ok. 1 passed; 0 failed"),
-            "{mode}: the child ran exactly one test: {stdout}"
-        );
+        // The child's pass is this control's assertion; what this reads is the standard error of each hook.
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(CHILD_VARIABLE, std::ffi::OsStr::new(mode))];
+        let output: Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "invocation::panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
+            environment: environment.as_slice(),
+            ..crate::child_test_process::ChildTest::default()
+        });
         stderr_by_mode.push(String::from_utf8_lossy(&output.stderr).into_owned());
     }
     // With the hook: the notice and its location, never the payload.

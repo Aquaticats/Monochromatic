@@ -20,7 +20,6 @@
 //! ```
 
 use super::{DEADLINE_SWITCH_VARIABLE, PROBE_DEADLINE, PROBE_DEADLINE_MARGIN, deadline_from_words, deadline_passed, remaining, the_bound};
-use std::ffi::OsString;
 use std::time::{Duration, Instant};
 
 /// The variable that tells the child it is the child,
@@ -90,14 +89,12 @@ fn the_shipped_bound_holds_with_the_test_variable_set() {
         );
         return;
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-        "start_probe::probe_deadline::tests::the_shipped_bound_holds_with_the_test_variable_set",
-        &[
-            (OsString::from(THE_DEADLINE_CHILD), OsString::from("1")),
-            (OsString::from(DEADLINE_SWITCH_VARIABLE), OsString::from("900000")),
-        ],
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "a release build read {DEADLINE_SWITCH_VARIABLE} and took the raised bound:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // `passed` is the whole assertion: the child's body fails when this build reads the switch.
+    let environment: [(&str, &std::ffi::OsStr); 2] =
+        [(THE_DEADLINE_CHILD, std::ffi::OsStr::new("1")), (DEADLINE_SWITCH_VARIABLE, std::ffi::OsStr::new("900000"))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "start_probe::probe_deadline::tests::the_shipped_bound_holds_with_the_test_variable_set",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }

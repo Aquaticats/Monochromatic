@@ -171,11 +171,11 @@ fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
         std::mem::forget(record);
         return;
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run(
-        DESCRIPTOR_CHILD_VARIABLE,
-        "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "the record took the descriptor a child reads as its standard input:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // The child's pass is this control's assertion: a record that took the descriptor a child reads makes the child fail.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(DESCRIPTOR_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }

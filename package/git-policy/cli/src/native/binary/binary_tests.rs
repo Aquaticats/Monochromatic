@@ -19,6 +19,19 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The owner a helper process is started with,
+/// which the child-test runner beside it asks for;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+///  This crate's fixtures start their helpers through the `spawn_owned` and `own_group` this file holds,
+///  which `support` names on to every control.
+#[path = "../testing/test_process_owner.rs"]
+mod test_process_owner;
+
+/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+#[path = "../testing/child_test_process.rs"]
+mod child_test_process;
+
 /// The fixture lifecycle both test targets run on, written once and included here by `#[path]`
 /// as the unit tests include it.
 #[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]

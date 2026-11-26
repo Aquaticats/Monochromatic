@@ -26,6 +26,12 @@
 /// Running real Git for a blob hash,
 /// on either face.
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+/// The one file look of each read handed to the blocking pool,
+/// so a disk that makes it wait holds no worker of the runtime
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown").
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
 /// The process's one runtime,
 /// entered once by each synchronous face.
@@ -292,11 +298,15 @@ pub async fn worktree_state_awaiting(context: &GitContext, root: &Path, path: &[
 /// async function stateOfFile({ context, root, path, location }): Promise<WorktreeState>;
 /// ```
 pub async fn state_of_file_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
-        Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(WorktreeState::Missing),
-        Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+    // The look at the entry is a file call that can wait on a disk, a lock or a mount, so a job of the blocking pool makes it.
+    let looked_at: PathBuf = location.to_path_buf();
+    let metadata: std::fs::Metadata = match run_blocking_job_within_the_budget(move || return std::fs::symlink_metadata(looked_at.as_path())).await {
+        Ok(Ok(found)) => found,
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(WorktreeState::Missing),
+        Ok(Err(error)) => return Err(format!("{} could not be read: {error}", location.display())),
+        // The system gave the pool no thread, so the entry was not read and this is not the answer "missing".
+        Err(refused) => return Err(format!("{} could not be read: {refused}", location.display())),
     };
     if metadata.file_type().is_symlink() {
         let object: String = the_objects_a_link_hashes_to_awaiting(context, root, location).await?;
@@ -345,9 +355,12 @@ const SYMBOLIC_LINK_MODE: &str = "120000";
 /// async function theObjectsALinkHashesTo(context, root, location): Promise<string>; // hash-object --no-filters --stdin < readlink(location)
 /// ```
 pub async fn the_objects_a_link_hashes_to_awaiting(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
-    let target: PathBuf = match std::fs::read_link(location) {
-        Ok(read) => read,
-        Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+    // Reading what a link points at is a file call that can wait on a disk, so a job of the blocking pool makes it.
+    let read_at: PathBuf = location.to_path_buf();
+    let target: PathBuf = match run_blocking_job_within_the_budget(move || return std::fs::read_link(read_at.as_path())).await {
+        Ok(Ok(read)) => read,
+        Ok(Err(error)) => return Err(format!("{} could not be read: {error}", location.display())),
+        Err(refused) => return Err(format!("{} could not be read: {refused}", location.display())),
     };
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
     request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());

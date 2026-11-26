@@ -30,7 +30,7 @@ use crate::lock_holder_records::{folder_of, identity_of_birth, identity_of_proce
 use crate::stale_ref_lock_walk::pid_file_beside;
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 
 /// A process of this control that holds nothing,
 /// ended when it is dropped.
@@ -561,13 +561,15 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
 /// spawn(process.execPath, ['--exact', name], { env: { [HOLD]: lock } })
 /// ```
 fn start_non_dumpable_holder(lock: &Path) -> Child {
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-    let mut command: Command = Command::new(binary);
-    command
-        .args(["--exact", "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
-        .env(HOLD_NON_DUMPABLY, lock);
-    // Quiet and owned: this holder parks until it is killed, and the fixtures end it should the control fail before that.
-    return crate::test_support::spawn_owned_quiet(&mut command).expect("the non-dumpable holder starts");
+    // The holder answers nothing the parent reads: it records itself through the lock file and its ready marker.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HOLD_NON_DUMPABLY, lock.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control",
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:

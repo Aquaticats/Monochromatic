@@ -531,16 +531,14 @@ fn an_environment_that_moves_the_ref_store_declines_the_database() {
         return;
     }
     // The variable belongs to one process, so the body runs in a child and the parent asserts its report.
-    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-        "repo_read::repo_read_odb::tests::an_environment_that_moves_the_ref_store_declines_the_database",
-        &[
-            (OsString::from(REFERENCE_BACKEND_CHILD), OsString::from("1")),
-            (OsString::from(REFERENCE_BACKEND_ENVIRONMENT), OsString::from(NAMED_STORE)),
-        ],
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "the environment's store was not declined:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // `passed` is the whole assertion: the child reports that the reader declined the database, and a child that
+    //  failed or ran nothing fails this control with what it said.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(REFERENCE_BACKEND_CHILD, std::ffi::OsStr::new("1")), (REFERENCE_BACKEND_ENVIRONMENT, std::ffi::OsStr::new(NAMED_STORE))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "repo_read::repo_read_odb::tests::an_environment_that_moves_the_ref_store_declines_the_database",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// The marker that tells the child of the replacement-base control which body it runs.
@@ -605,16 +603,14 @@ fn an_environment_that_moves_the_replacement_base_declines_the_database() {
         remove(root.as_path());
         return;
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-        "repo_read::repo_read_odb::tests::an_environment_that_moves_the_replacement_base_declines_the_database",
-        &[
-            (OsString::from(REPLACE_BASE_CHILD), OsString::from("1")),
-            (OsString::from("GIT_REPLACE_REF_BASE"), OsString::from(NAMED_REPLACE_BASE)),
-        ],
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "the environment's replacement base was not declined:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // `passed` is the whole assertion: the child reports that the reader declined the database, and a child that
+    //  failed or ran nothing fails this control with what it said.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(REPLACE_BASE_CHILD, std::ffi::OsStr::new("1")), ("GIT_REPLACE_REF_BASE", std::ffi::OsStr::new(NAMED_REPLACE_BASE))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "repo_read::repo_read_odb::tests::an_environment_that_moves_the_replacement_base_declines_the_database",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:
@@ -645,16 +641,14 @@ fn an_environment_that_names_another_object_store_declines_the_database() {
         remove(root.as_path());
         return;
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-        "repo_read::repo_read_odb::tests::an_environment_that_names_another_object_store_declines_the_database",
-        &[
-            (OsString::from(OBJECT_STORE_CHILD), OsString::from("1")),
-            (OsString::from("GIT_OBJECT_DIRECTORY"), OsString::from(NAMED_OBJECT_STORE)),
-        ],
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "the environment's object store was not declined:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // `passed` is the whole assertion: the child reports that the reader declined the database, and a child that
+    //  failed or ran nothing fails this control with what it said.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(OBJECT_STORE_CHILD, std::ffi::OsStr::new("1")), ("GIT_OBJECT_DIRECTORY", std::ffi::OsStr::new(NAMED_OBJECT_STORE))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "repo_read::repo_read_odb::tests::an_environment_that_names_another_object_store_declines_the_database",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:
@@ -686,14 +680,12 @@ fn an_environment_that_names_alternate_object_directories_declines_the_database(
         remove(root.as_path());
         return;
     }
-    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-        "repo_read::repo_read_odb::tests::an_environment_that_names_alternate_object_directories_declines_the_database",
-        &[
-            (OsString::from(ALTERNATE_STORE_CHILD), OsString::from("1")),
-            (OsString::from("GIT_ALTERNATE_OBJECT_DIRECTORIES"), OsString::from(NAMED_OBJECT_STORE)),
-        ],
-    );
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "the environment's alternate directories were not declined:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    // `passed` is the whole assertion: the child reports that the reader declined the database, and a child that
+    //  failed or ran nothing fails this control with what it said.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(ALTERNATE_STORE_CHILD, std::ffi::OsStr::new("1")), ("GIT_ALTERNATE_OBJECT_DIRECTORIES", std::ffi::OsStr::new(NAMED_OBJECT_STORE))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "repo_read::repo_read_odb::tests::an_environment_that_names_alternate_object_directories_declines_the_database",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }

@@ -3,7 +3,7 @@
 
 use super::*;
 use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::Child;
 
 /// A test thread that panics after creating a fixture leaves nothing behind.
 #[test]
@@ -530,15 +530,15 @@ const PARENT_DEATH_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 /// const process = spawnOwned(binary, ['--exact', thisTest], { env: { VARIABLE: root } })
 /// ```
 fn spawn_a_waiting_process(variable: &str, root: &std::path::Path) -> Child {
-    let binary: PathBuf = this_test_binary().expect("this test binary");
-    let mut command: Command = Command::new(binary);
-    command
-        .args(["--exact", "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it", "--test-threads=1"])
-        .env(variable, root)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    return spawn_owned(&mut command).expect("the process starts");
+    // The waiting process answers nothing the parent reads: it records its own child through the fixture directory.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, root.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
+        environment: environment.as_slice(),
+        standard_output: std::process::Stdio::null(),
+        standard_error: std::process::Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// Whether a process number still names a running process:
@@ -579,16 +579,16 @@ fn a_child_dies_with_the_test_process_that_started_it() {
         return;
     }
     if let Some(directory) = crate::helper_process_test_support::helper_directory(PARENT_DEATH_CHILD) {
-        let mut command: Command = Command::new(this_test_binary().expect("this test binary"));
-        command
-            .args(["--exact", "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it", "--test-threads=1"])
-            .env(PARENT_DEATH_GRANDCHILD, directory.as_path())
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(PARENT_DEATH_GRANDCHILD, directory.as_os_str())];
         // The middle is killed outright, so this child is never waited on: the control is that it goes without one.
         #[allow(clippy::zombie_processes, reason = "the control ends the middle with SIGKILL, so its child is never reaped by it")]
-        let child: Child = spawn_owned(&mut command).expect("the child starts");
+        let child: Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
+            exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
+            environment: environment.as_slice(),
+            standard_output: std::process::Stdio::null(),
+            standard_error: std::process::Stdio::null(),
+            ..crate::child_test_process::ChildTest::default()
+        });
         std::fs::write(directory.join("child"), child.id().to_string()).expect("the child's number");
         std::thread::sleep(WAITING_PATIENCE);
         return;

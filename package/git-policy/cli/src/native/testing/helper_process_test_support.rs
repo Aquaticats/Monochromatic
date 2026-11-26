@@ -26,10 +26,11 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::Child;
 use std::time::{Duration, Instant};
 
-use super::test_support::{fixture, remove, spawn_owned, this_test_binary};
+use super::child_test_process::{ChildTest, started};
+use super::test_support::{fixture, remove};
 
 /// The file a helper writes the sentences it failed with to,
 /// one per line.
@@ -155,15 +156,15 @@ pub(crate) fn in_a_helper(variable: &str, fixture_name: &str, exact_test: &str) 
 /// ```
 pub(crate) fn in_a_helper_then(variable: &str, fixture_name: &str, exact_test: &str, before: impl FnOnce(&Path, &mut Child)) -> Vec<String> {
     let root: PathBuf = fixture(fixture_name);
-    let binary: PathBuf = this_test_binary().expect("this test binary");
-    let mut command: Command = Command::new(binary);
-    command
-        .args(["--exact", exact_test, "--nocapture", "--test-threads=1"])
-        .env(variable, root.as_path())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let mut helper: Child = spawn_owned(&mut command).expect("the helper starts");
+    // The helper answers nothing the parent reads from a stream: everything it reports goes through the verdict file.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, root.as_os_str())];
+    let mut helper: Child = started(ChildTest {
+        exact_test,
+        environment: environment.as_slice(),
+        standard_output: std::process::Stdio::null(),
+        standard_error: std::process::Stdio::null(),
+        ..ChildTest::default()
+    });
     before(root.as_path(), &mut helper);
     let failures: Vec<String> = settle_after_a_helper(helper, root.as_path());
     remove(root.as_path());

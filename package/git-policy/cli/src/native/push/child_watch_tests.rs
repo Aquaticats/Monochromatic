@@ -996,16 +996,15 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
         ),
     )
     .expect("the step");
-    // The test binary is the program this process was started as (the test harness starts it by its path).
-    #[allow(clippy::disallowed_methods, reason = "identification only: the test binary is the program this process was started as, and the helper runs one test of it again")]
-    let test_binary: PathBuf = PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
-    let mut running = Command::new(test_binary)
-        .args(["--exact", "push::child_watch::tests::left_running_helper", "--nocapture"])
-        .env(HELPER_DIRECTORY, directory.as_os_str())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the command runs");
+    // The command is this test binary on its own helper, owned by this thread, and its streams answer nothing read here.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, directory.as_os_str())];
+    let mut running = crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "push::child_watch::tests::left_running_helper",
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
     // A command that waits for the step it left (the defect under test) must fail this test and not hang it (sol-1 round 2).
     let command_began: Instant = Instant::now();
     let helper = loop {

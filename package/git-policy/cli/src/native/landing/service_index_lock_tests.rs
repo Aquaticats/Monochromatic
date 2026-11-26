@@ -1838,10 +1838,6 @@ const OUTSIDE_SCOPE: &str = "INDEX_LOCK_TEST_OUTSIDE_PID_SCOPE";
 /// the inner half only runs when started that way.
 #[test]
 #[cfg(target_os = "linux")]
-#[allow(
-    clippy::disallowed_methods,
-    reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start"
-)]
 fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
     let Ok(outside) = std::env::var(OUTSIDE_SCOPE) else {
         let probe = std::process::Command::new("unshare").args(["--user", "--map-root-user", "--pid", "--fork", "true"]).output();
@@ -1851,16 +1847,17 @@ fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
         }
         let own: String = std::fs::read_link("/proc/self/ns/pid").expect("own namespace").to_string_lossy().to_string();
         let own_number: &str = own.strip_prefix("pid:[").and_then(|rest| { return rest.strip_suffix(']'); }).expect("a pid link");
-        let done = std::process::Command::new("unshare")
-            .args(["--user", "--map-root-user", "--pid", "--fork"])
-            .arg(std::env::current_exe().expect("this test binary"))
-            .args(["--exact", "landing::service_index_lock::tests::a_new_pid_namespace_over_the_old_proc_is_told_from_the_view", "--nocapture"])
-            .env(OUTSIDE_SCOPE, own_number)
-            .output()
-            .expect("unshare runs");
-        let text: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
-        assert!(done.status.success(), "the inner half failed:\n{text}");
-        assert!(text.contains("1 passed"), "the inner half did not run:\n{text}");
+        // The inner half is this test binary in a PID namespace of its own, and its pass is this control's assertion.
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(OUTSIDE_SCOPE, std::ffi::OsStr::new(own_number))];
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "landing::service_index_lock::tests::a_new_pid_namespace_over_the_old_proc_is_told_from_the_view",
+            environment: environment.as_slice(),
+            running_program: Some(crate::child_test_process::ProgramRunningTheTest {
+                program: "unshare",
+                arguments_before_the_test_binary: &["--user", "--map-root-user", "--pid", "--fork"],
+            }),
+            ..crate::child_test_process::ChildTest::default()
+        });
         return;
     };
     let view = crate::service_index_identity::ReaderView::current();
