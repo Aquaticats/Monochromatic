@@ -12,6 +12,10 @@
 //!  so what the control sets reaches nothing else,
 //!  and the setters of that state refuse in any other process,
 //!  naming the starter below.
+//!  The child's standard input is the null device,
+//!  so a control that starts a program which reads this process's standard input runs its body here too,
+//!  and the program reads no terminal the run was started from
+//!  (issue 6510's `git add --interactive`).
 //!  A child makes its own fixtures:
 //!  unlike the descriptor-limit child (`descriptor_limit_child_test_support.rs`),
 //!  nothing here counts this process's open descriptors,
