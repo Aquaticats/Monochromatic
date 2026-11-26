@@ -208,6 +208,32 @@ fn loop_findings(
 }
 
 /// What:
+///  The key of a finding whose last word is the name a top doc lists.
+/// Why:
+///  An entry whose backticks hold no name would end the key in the space a list reader trims away,
+///  so an entry that names nothing is keyed by its shape and index alone,
+///  and `unique_keys` numbers a second such entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function entryKey(shape: string, index: Path, name: string, base: Path): string;
+/// ```
+fn entry_key(
+    shape: &str,
+    index: &Path,
+    name: &str,
+    base: &Path,
+) -> String {
+    let named: String = format!("{shape} {}", key_path(index, base));
+    // What: an entry that names nothing contributes no word.
+    // Why: no module file is named by an empty name, so the shape and the index name the finding alone.
+    if name.is_empty() {
+        return named;
+    }
+    return format!("{named} {name}");
+}
+
+/// What:
 ///  The findings about how a top doc lists a folder's files.
 /// Why:
 ///  A file must be listed once,
@@ -259,7 +285,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: None,
-                key: format!("listed-twice {} {}", key_path(index, base), entry.name),
+                key: entry_key("listed-twice", index, entry.name.as_str(), base),
             });
             continue;
         }
@@ -280,7 +306,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: Some(String::from("Remove the line, or correct the file name.")),
-                key: format!("foreign-name {} {}", key_path(index, base), entry.name),
+                key: entry_key("foreign-name", index, entry.name.as_str(), base),
             });
         }
     }
