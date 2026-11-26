@@ -250,6 +250,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- The owner's two removal answers merged as `cfa14e5968` (17:05): a removal or move behind an unknown global option is refused where slot records exist,
+  and the removal of a slot whose record cannot be read is refused. The owner's two follow-up answers (the `-C` spelling, three more unproven slots;
+  `doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`) are briefed in `~/temp/agent/wrapper-zfs-removal-refusals-for-the-c-spelling-and-three-unproven-slots-2026-11-26/`, starting now.
 - The rest of split round 2, after the owner's "Keep 300, split everything": on `main` at 16:55, 269 wrapper files are over 300;
   265 are briefed in 42 rounds (`~/temp/agent/split-wrapper-*-files-over-the-line-budget-*-2026-11-26/`, list in
   `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/wrapper-split-rounds.tsv`), up to eight files each, folders interleaved,
@@ -262,7 +265,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   threaded on `main` itself, before the notices merge (`66d4b6fb08`) and after it, and passes in the gate: issue 6521, its round queued after 6520.
   Rechecked with that module skipped on both sides, the service split merged as `4cfa4d8fb8` (16:52); all five split round 2 branches are on `main`.
   `service::` threaded on `main` still fails ten controls with that module skipped: their modules fail threaded and pass one test at a time,
-  sharing `static MANAGER` and the stop flag: issue 6522, its round queued after 6521. 6517's round ended (ETXTBSY traced to a sibling test's fork) and its merge check runs.
+  sharing `static MANAGER` and the stop flag: issue 6522, its round queued after 6521. 6517 merged as `c4c7590d2f` (ETXTBSY traced to a sibling test's fork; the fixture-Git controls run in children of their own).
   `service::` threaded fails 14 and 15 on `main` itself; 12 of those failed on both sides.
   The host-key round's `ssh_terminal` binary tests failed 4 of 4 on `main` too: AppArmor's `sshd` profile refused the fixture's `sshd_config` under `~/.cargo/build/`;
   after the fourteenth AppArmor batch (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) they pass 4 of 4 on the host.
