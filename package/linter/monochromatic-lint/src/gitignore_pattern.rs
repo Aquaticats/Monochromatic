@@ -46,6 +46,9 @@
 /// ```
 pub fn for_matcher(pattern: &str) -> String {
     let characters: Vec<char> = pattern.chars().collect();
+    // What: where the first `]` at or after each position is, read once from the pattern's end.
+    // Why: a class's end is then one lookup instead of a scan, so a line of unclosed `[` costs one pass.
+    let closing: Vec<usize> = next_closing_bracket(characters.as_slice());
     let mut line: String = String::with_capacity(pattern.len());
     let mut index: usize = 0;
     while index < characters.len() {
@@ -62,7 +65,7 @@ pub fn for_matcher(pattern: &str) -> String {
                 }
             }
             // A character class is copied whole, because its parser reads a backslash as itself.
-            '[' => match closing_bracket(characters.as_slice(), index) {
+            '[' => match closing_bracket(characters.as_slice(), index, closing.as_slice()) {
                 Some(close) => {
                     line.push_str(class_as_git_reads_it(&characters[index..=close]).as_str());
                     index = close + 1;
@@ -164,20 +167,51 @@ fn class_as_git_reads_it(members: &[char]) -> String {
 }
 
 /// What:
+///  For every position,
+/// the index of the first `]` at or after it,
+///  or `usize::MAX` when the pattern holds none there.
+/// Why:
+///  Looking for a class's end from its own `[` reads the rest of the line every time,
+///  so a line of unclosed brackets took quadratic time
+///  (150,000 of them did not finish in ten seconds in a test build).
+///  One backward pass answers every class in constant time after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nextClose = (chars) => { const out = new Array(chars.length + 1).fill(-1); for (let i = chars.length - 1; i >= 0; i -= 1) out[i] = chars[i] === ']' ? i : out[i + 1]; return out; };
+/// ```
+fn next_closing_bracket(characters: &[char]) -> Vec<usize> {
+    // One entry past the last character, so a class that opens at the end reads a real entry.
+    let mut next: Vec<usize> = vec![usize::MAX; characters.len() + 1];
+    let mut index: usize = characters.len();
+    while index > 0 {
+        index -= 1;
+        next[index] = if characters[index] == ']' {
+            index
+        } else {
+            next[index + 1]
+        };
+    }
+    return next;
+}
+
+/// What:
 ///  Where the character class opened at `open` ends,
 ///  or nothing when it never does.
 /// Why:
 ///  The class parser reads `]` as its first member when it comes first,
 ///  and after a `!` or `^` that negates the class,
-///  so a naive search would end the class too early.
+///  so the search starts after those,
+///  and `closing` then answers where the class ends without reading the line again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const closingBracket = (chars, open) => { let i = open + 1; if (chars[i] === '!' || chars[i] === '^') i += 1; if (chars[i] === ']') i += 1; while (i < chars.length) { if (chars[i] === ']') return i; i += 1; } return undefined; };
+/// const closingBracket = (chars, open, next) => { let i = open + 1; if (chars[i] === '!' || chars[i] === '^') i += 1; if (chars[i] === ']') i += 1; const found = next[i]; return found === -1 ? undefined : found; };
 /// ```
 fn closing_bracket(
     characters: &[char],
     open: usize,
+    closing: &[usize],
 ) -> Option<usize> {
     let mut index: usize = open + 1;
     if matches!(characters.get(index), Some('!' | '^')) {
@@ -186,13 +220,11 @@ fn closing_bracket(
     if matches!(characters.get(index), Some(']')) {
         index += 1;
     }
-    while let Some(character) = characters.get(index) {
-        if *character == ']' {
-            return Some(index);
-        }
-        index += 1;
+    let found: usize = *closing.get(index)?;
+    if found == usize::MAX {
+        return None;
     }
-    return None;
+    return Some(found);
 }
 
 /// Pattern controls stay outside release artifacts.

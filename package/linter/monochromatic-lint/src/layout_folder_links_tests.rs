@@ -351,7 +351,8 @@ fn findings_with(
         .collect::<Vec<String>>();
 }
 
-/// A package whose folders `a`, `b` and `c` use each other in one loop,
+/// A package whose folders `a`,
+/// `b` and `c` use each other in one loop,
 ///  with the links the rule asks for.
 #[cfg(unix)]
 fn a_loop_of_three() -> crate::test_fs::Fixture {
@@ -453,23 +454,26 @@ fn a_listed_use_that_holds_no_loop_is_reported() {
 }
 
 /// A listed key takes exactly the finding it names out of the report,
-///  and the use of the globbed folder is still a finding.
+///  and the second glob re-export of the same module stays a finding,
+///  which a fixture with one finding could not show.
 #[test]
 fn a_listed_key_takes_one_finding_out_of_the_report() {
     let fixture = package_with(&[
-        ("src/lib.rs", "mod native;\npub use native::*;\n"),
+        (
+            "src/lib.rs",
+            "mod native;\npub use native::*;\npub use native::*;\n",
+        ),
         ("src/native/mod.rs", "pub mod saving;\n"),
         ("src/native/saving.rs", ""),
     ]);
-    assert_eq!(findings_with(&fixture.path, "").len(), 2);
-    let listed: &str = "glob src/lib.rs native\n";
+    // The two glob re-exports and the use of the globbed folder.
+    assert_eq!(findings_with(&fixture.path, "").len(), 3);
+    let listed: &str = "missing-link src -> src/native\nglob src/lib.rs native\n";
     let found: Vec<String> = findings_with(&fixture.path, listed);
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert!(
-        found[0].contains("src uses the folder src/native"),
-        "{}",
-        found[0]
-    );
+    assert!(found[0].contains("re-exports every item"), "{}", found[0]);
+    // The second of the two, on its own line.
+    assert!(found[0].starts_with("src/lib.rs:3"), "{}", found[0]);
 }
 
 /// A listed key that names no finding is a finding of its own.
@@ -516,4 +520,22 @@ fn a_new_mutual_use_inside_a_tolerated_loop_is_one_loop_finding() {
     );
     assert!(found[0].contains("src/a uses src/c"), "{}", found[0]);
     assert!(found[0].contains("src/c uses src/a"), "{}", found[0]);
+}
+
+/// The help for a missing link warns what a link into a loop does to `cargo package`,
+///  because a looped crate that only reads `Create the link:` writes one into a hang.
+#[test]
+fn the_missing_link_help_warns_about_a_looped_crate() {
+    let fixture = package_with(&a_uses_b());
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), &fixture.path, None);
+    let help: &str = found[0].help.as_deref().expect("a missing link has help");
+    assert!(help.starts_with("Create the link: "), "{help}");
+    assert!(
+        help.contains("`cargo package` follows a link into a loop"),
+        "{help}"
+    );
+    assert!(help.contains("untangle that loop first"), "{help}");
+    assert!(help.contains("exclude"), "{help}");
 }

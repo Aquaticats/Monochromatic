@@ -33,6 +33,7 @@
 use crate::{
     layout_finding::{
         LayoutFinding,
+        key_path,
         shown,
     },
     layout_folder_index_files::{
@@ -104,7 +105,7 @@ fn shelf_findings(
                     shown(group, base),
                     shown(&outer, base)
                 )),
-                key: format!("nested-group {}", shown(group, base)),
+                key: format!("nested-group {}", key_path(group, base)),
             });
         }
         for file in by_folder.get(group).into_iter().flatten() {
@@ -124,7 +125,7 @@ fn shelf_findings(
                 )),
                 key: format!(
                     "group-file {} {}",
-                    shown(group, base),
+                    key_path(group, base),
                     file_name(file)
                 ),
             });
@@ -163,7 +164,11 @@ fn names_group(
             "Name the folder inside {} that holds what is needed, and link that folder.",
             shown(group, base)
         )),
-        key: format!("names-group {} {}", shown(from, base), shown(group, base)),
+        key: format!(
+            "names-group {} {}",
+            key_path(from, base),
+            key_path(group, base)
+        ),
     };
 }
 
@@ -193,7 +198,7 @@ pub fn links_group(
             "Remove the link, and link the folder inside {} that the code uses.",
             shown(&link.target, base)
         )),
-        key: format!("links-group {}", shown(&link.entry, base)),
+        key: format!("links-group {}", key_path(&link.entry, base)),
     };
 }
 

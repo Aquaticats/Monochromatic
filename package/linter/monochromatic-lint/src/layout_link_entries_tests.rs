@@ -175,3 +175,42 @@ fn layout_a_uses_path_that_cannot_be_read_is_reported_and_not_skipped() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].contains("cannot be read"), "{}", found[0]);
 }
+
+/// Each kind of wrong entry writes its own fault into its key,
+///  so one line of a list tolerates one fault and not whichever fault the entry has later.
+#[cfg(unix)]
+#[test]
+fn every_kind_of_wrong_entry_names_its_fault_in_its_key() {
+    let fixture = package_with(&[
+        ("src/a/mod.rs", ""),
+        ("src/b/mod.rs", ""),
+        ("src/a/uses/readme.txt", "words"),
+        ("src/a/file_target.rs", ""),
+    ]);
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/broken", "../../missing");
+    crate::layout_test_support::link(
+        &fixture.path,
+        "src/a/uses/file_target.rs",
+        "../file_target.rs",
+    );
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/a", "..");
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/wrong_name", "../../b");
+    let sources = sources_of(&fixture.path, &["src/a", "src/b"]);
+    let read: LinkRead = read_links(&fixture.path.join("src/a"), &sources, &fixture.path);
+    let mut keys: Vec<String> = read
+        .findings
+        .iter()
+        .map(|found| return found.key.clone())
+        .collect::<Vec<String>>();
+    keys.sort();
+    assert_eq!(
+        keys,
+        [
+            "link src/a/uses/a points-to-its-own-folder",
+            "link src/a/uses/broken broken",
+            "link src/a/uses/file_target.rs points-to-a-file",
+            "link src/a/uses/readme.txt not-a-symbolic-link",
+            "link src/a/uses/wrong_name named-after-another-folder",
+        ]
+    );
+}

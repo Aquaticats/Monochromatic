@@ -34,6 +34,18 @@ A test that passes alone and fails threaded is a defect of that test until a mea
 (`AGENTS.md`'s SUF);
 report its cause, never host load.
 
+No round runs the whole library on this host.
+Measured on 2026-11-25:
+a whole-library threaded run hangs in `process::child_awaited_until_it_exits_the_stop_or_the_ceiling`
+and fails three `process::signal_relay` tests on `main`'s own code,
+so a round runs the modules it touched and the whole container gate stands in for a whole-library run.
+A combined run's output can also carry a `panicked at` line from a thread named `git-policy-worker`
+that is not a failure of the run:
+the fault-limit controls start the wrapper or the service as a child process on purpose
+(`binary/binary_fault_limits_tests.rs`),
+and that child's runtime thread carries the name (`foundation/lazy_runtime.rs`).
+Read the test's own result line before counting such a line as a failure.
+
 ## Nothing a test changes may be process-wide
 
 Threads share the process, so a test never changes the current directory, the environment, the umask,

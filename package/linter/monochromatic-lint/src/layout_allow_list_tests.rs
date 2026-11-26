@@ -21,7 +21,8 @@ use crate::{
 };
 use std::path::Path;
 
-/// Read a list from text, as the file it would be.
+/// Read a list from text,
+/// as the file it would be.
 fn parsed(lines: &str) -> AllowList {
     return parse_allow_list(lines, Path::new("package/allow-list.txt"))
         .expect("the fixture list is valid");
@@ -176,4 +177,24 @@ fn a_list_file_that_is_there_is_read_whole() {
     let list: AllowList = read_allow_list(&written).expect("the fixture list reads");
     assert_eq!(list.entries().len(), 1);
     assert_eq!(list.source(), written.as_path());
+}
+
+/// A path is written with `/` on every machine,
+///  so an entry that holds a backslash is refused instead of naming a folder no key names.
+#[test]
+fn a_path_with_a_backslash_is_refused() {
+    let error: String = error_of("uses src\\a -> src/b\n");
+    assert!(error.contains("backslash"), "{error}");
+    assert!(error.contains("relative to the package folder"), "{error}");
+}
+
+/// A `.` segment and a trailing separator name the folder a finding names,
+///  so a line spelled either way tolerates the use,
+///  and a line that repeats the use is refused however it is spelled.
+#[test]
+fn a_dot_segment_and_a_trailing_separator_name_the_folder_findings_show() {
+    let list: AllowList = parsed("uses ./src/a/ -> src/b\n");
+    assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
+    let error: String = error_of("uses src/a -> src/b\nuses ./src/a/ -> src/b\n");
+    assert!(error.contains("repeats the entry"), "{error}");
 }
