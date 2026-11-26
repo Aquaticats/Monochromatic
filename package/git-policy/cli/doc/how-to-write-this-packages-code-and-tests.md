@@ -239,6 +239,20 @@ A test waits for a condition with a bound and fails at the bound with what it wa
 never by sleeping for a guess and never without an end.
 A bound in an assertion holds under this host's load,
 because other sessions build on it all the time (issue 6405 is a bound that did not).
+A bound that is the control's own wait,
+rather than the code's promise,
+is stated as a multiple of the bound the code owes,
+so a host that wakes the control's own thread late spends the control's window and never the code's promise
+(issue 6519:
+the control that proves a reader which stopped reading does not hold the commit waited two seconds,
+twice the notice's own maximum,
+and failed that way in three threaded `commit::` runs;
+it waits thirty times the notice's own bound now,
+sized from a measured answer of 500.1 to 501.6 ms).
+A state a control means to test is reached by the control and not by a sleep:
+that control offers a line into the queue the writer takes its lines from,
+where sleeping three cadences expected a starved notice thread to have offered one
+(a thread with three looks in 400 ms never did).
 Code under test bounds its waits too: every read of a file a person or another program controls opens it so it cannot
 block (not a named pipe, not a device; the type checked through the open handle, never by a path check before the open)
 and has a size bound (issues 6415 and 6433).

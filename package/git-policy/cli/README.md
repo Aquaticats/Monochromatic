@@ -2473,6 +2473,20 @@ and the removal stays pending with its own record,
 and its sentence names every snapshot the plan already records as destroyed,
 so a later refusal never hides a loss an earlier one caused.
 A refusal prints no destructive command.
+A slot whose binding record cannot be read is refused too,
+as a move of such a slot already refuses,
+and that refusal names the record it could not read and how to repair it,
+rather than let Git delete a registration nothing proved safe.
+It is decided from the record alone,
+so no mount table and no pool is read to make it.
+A `git worktree remove` or `git worktree move` behind a global option this build does not know
+(a spelling a newer Git may add) is refused while the repository holds slot records,
+because the option leaves the worktree's path unread and Git would then delete a bound
+slot's registration or rename it while the record kept the old path.
+The refusal names that option and the two spellings the wrapper reads:
+the command without it,
+or `git -C <repository> worktree ...`.
+A repository with no slot record forwards the command as before.
 The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
 which plan steps 15 to 18 call rather than reading the folder again.

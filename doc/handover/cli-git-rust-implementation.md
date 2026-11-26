@@ -250,6 +250,11 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6519 as `176ded09cb` (17:20): the notice sink control reaches its dropped line by one `try_send` and waits 15 s, not 2 s,
+  because a late-woken thread under load missed the old window; its stated limit is that a `finish` waiting 3 to 10 s would now pass.
+- The owner's two removal answers merged as `cfa14e5968` (17:05): a removal or move behind an unknown global option is refused where slot records exist,
+  and the removal of a slot whose record cannot be read is refused. The owner's two follow-up answers (the `-C` spelling, three more unproven slots;
+  `doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`) are briefed in `~/temp/agent/wrapper-zfs-removal-refusals-for-the-c-spelling-and-three-unproven-slots-2026-11-26/`, starting now.
 - The rest of split round 2, after the owner's "Keep 300, split everything": on `main` at 16:55, 269 wrapper files are over 300;
   265 are briefed in 42 rounds (`~/temp/agent/split-wrapper-*-files-over-the-line-budget-*-2026-11-26/`, list in
   `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/wrapper-split-rounds.tsv`), up to eight files each, folders interleaved,

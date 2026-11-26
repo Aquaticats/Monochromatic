@@ -790,10 +790,45 @@ impl Write for StoppedReaderSink {
     }
 }
 
-/// How long a control gives a commit to return after its step ended:
-///  longer than the notice's own bound,
-/// and far shorter than a reader that never reads again.
-const COMMIT_RETURN_BOUND: Duration = Duration::from_secs(2);
+/// The cadence the control gives the notice.
+///  Short on purpose:
+/// the notice hands over one line per look,
+/// so every line a stopped reader costs is offered within the first few of them,
+/// and a control that waited out the shipped ten-second cadence would be waiting on the notice's own wakeups.
+const A_STALLED_READER_CADENCE: Cadence = Cadence {
+    grace: Duration::from_millis(20),
+    interval: Duration::from_millis(20),
+};
+
+/// What:
+///  How long the control waits for the finish of a notice whose reader stopped reading,
+///  before it counts the commit as held by that reader.
+/// Why:
+///   This is not the notice's promise.
+///  `finish` waits no longer than twice `NOTICE_BOUND`,
+/// once for the notice's answer and once for the line it handed over,
+/// and this is how long a control waits before it stops waiting.
+///  Measured on 2026-11-26 from this control's own record over six runs,
+/// `finish` answered in 500.1 to 501.6 ms
+/// (three runs alone,
+/// one of its module,
+/// one of the `commit::` module,
+/// and one of `commit::` at 24 threads),
+/// and the thread that ran it started within 0.99 ms of the window opening.
+///  The recorded failure of 2026-11-26 lost more than a second of wall clock that way and reported a commit held
+/// at two seconds,
+/// which is twice the product's own maximum and nothing like a wide window.
+///  Thirty times `NOTICE_BOUND` is thirty times the measured answer and fifteen times what `finish` may honestly
+/// wait,
+/// so a host that wakes a thread late delays the control instead of failing it,
+/// and a `finish` that really waits for the reader still fails,
+/// naming the reader.
+/// Gotcha:
+///  A wider window is a weaker guard,
+/// so it stays far below the reader's own stall:
+/// the reader takes nothing until this control lets its line go,
+/// which is after this window has passed.
+const COMMIT_RETURN_BOUND: Duration = NOTICE_BOUND.saturating_mul(30);
 
 /// What:
 ///  A standard error whose reader stopped reading keeps neither the notice nor the commit.
@@ -815,10 +850,7 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
         released: released.clone(),
         written: written.clone(),
     };
-    let cadence: Cadence = Cadence {
-        grace: Duration::from_millis(100),
-        interval: Duration::from_millis(100),
-    };
+    let cadence: Cadence = A_STALLED_READER_CADENCE;
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
@@ -826,7 +858,7 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
         ceiling: Duration::from_secs(60),
         sink: Box::new(sink),
     });
-    // Bounded: the first line is due 100 ms after the start.
+    // Bounded, and by the event: the first line is due one cadence after the start, so this waits for that write and not for a time.
     let writing_started: Instant = Instant::now() + Duration::from_secs(10);
     while !entered.load(std::sync::atomic::Ordering::SeqCst) && Instant::now() < writing_started {
         std::thread::sleep(Duration::from_millis(10));
@@ -835,8 +867,24 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
         entered.load(std::sync::atomic::Ordering::SeqCst),
         "the notice never wrote a line"
     );
-    // Three cadences: the writer holds the first line, the queue holds the second, and the third cannot be handed over.
-    std::thread::sleep(cadence.interval.saturating_mul(3));
+    // What: one line offered into the queue the writer takes its lines from, which the writer cannot take yet.
+    // Why:  the state the record calls a reader that stopped taking lines is the writer holding one line
+    //       while the queue cannot hold another, and one send reaches it.
+    //       Waiting for the notice to reach it by its own looks took a wall clock the notice's own wakeups decide:
+    //       measured 2026-11-26, a notice thread starved by a threaded `commit::` run made three looks in 400 ms,
+    //       so the third line the control used to sleep out was never offered and the record counted no drop.
+    let queued: Result<(), std::sync::mpsc::TrySendError<String>> = notice
+        .lines_for_the_wait()
+        .expect("a notice whose writer thread was started")
+        .try_send(String::new());
+    assert!(
+        !matches!(&queued, Err(std::sync::mpsc::TrySendError::Disconnected(_))),
+        "the writer's queue ended before the notice was over, so no line of it could be dropped: {queued:?}"
+    );
+    // One look interval is the longest the notice goes between two looks, so after one of those it has looked again
+    // and offered the line the full queue costs. A starved thread makes that look later and never skips it, and the
+    // record says what it offered.
+    std::thread::sleep(LOOK_INTERVAL);
     let (sent, told) = std::sync::mpsc::channel::<ScratchStepFacts>();
     let began: Instant = Instant::now();
     let finishing: std::thread::JoinHandle<()> = std::thread::spawn(move || {
