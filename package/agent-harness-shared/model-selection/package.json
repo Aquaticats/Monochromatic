@@ -6,7 +6,7 @@
   "version": "0.0.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/agent-harness-shared/model-selection"
   },
   "exports": {
@@ -34,5 +34,6 @@
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/agent-harness-shared/model-selection"
 }

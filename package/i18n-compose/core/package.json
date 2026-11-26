@@ -31,11 +31,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/i18n-compose/core"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/i18n-compose/core"
 }

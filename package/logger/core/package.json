@@ -72,5 +72,6 @@
         "default": "./dist/final/neutral/browser.mjs"
       }
     }
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/logger/core"
 }

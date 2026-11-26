@@ -12,7 +12,8 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/forbidden-strings/cli.fuzz"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/forbidden-strings/cli.fuzz"
 }

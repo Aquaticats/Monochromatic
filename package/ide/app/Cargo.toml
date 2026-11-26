@@ -149,8 +149,8 @@ notify = { version = ">=8.2.2", default-features = false }
 parley = ">=0.13.0"
 serde = ">=1.0.229"
 serde_json = ">=1.0.154"
-slint = { version = ">=1.18.1", default-features = false }
-slint-build = ">=1.18.1"
+slint = { version = ">=1.19.0", default-features = false }
+slint-build = ">=1.19.0"
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 toml = ">=1.2.1"
