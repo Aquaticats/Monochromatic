@@ -565,6 +565,12 @@ run: set it in a child of the control's own,
 which `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts
 ```
 
+That is the sentence as the refusal gave it on 2026-11-26 at the measurement above.
+The starter is `run_the_body_in_a_child_of_its_own` since the same day (issue 6503):
+it takes the body to run in the child,
+so the refusal names a call that runs a body rather than one a control could read as a flag,
+and each of this round's controls hands its body to it.
+
 No shipped behaviour changed:
 every seam and every refusal is `#[cfg(test)]`,
 and what ends a watched step,
