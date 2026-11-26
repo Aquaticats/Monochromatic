@@ -586,9 +586,11 @@ it closes the record first and then names a feed that failed to write,
 rather than reading a missing tail as the run's last word.
 
 Measured on 2026-11-26 on the host the issue was filed from,
-by noting a line through a real record and reading the file straight back,
-with the stream warm from a line noted before it,
-and again after closing the record:
+by noting a waiting line through a real record,
+waiting a gap,
+noting the line the wall clock writes,
+reading the file straight back,
+then closing the record and reading it again:
 
 ```ts
 // ${HOME}/temp/agent/probe-feed-flush-race-warmed.ts
@@ -613,8 +615,14 @@ three hundred runs of note, read straight back, missed it in every one,
 and `close` showed the line in every one.
 A read taken in that state can even beat the stream's open:
 the probe's first run ended on `ENOENT` for the feed file itself.
-So the miss needs either a write still in flight or a read that beats the open,
-which is what the suite's load widens.
+The two shorter gaps do not separate a stream still opening from one whose write is in flight;
+the two-poll-interval gap,
+where the stream had opened and finished its first write,
+missed none in thirty runs on a quiet process.
+So the miss needs a stream still opening,
+a write still in flight,
+or a read that beats either,
+and the suite's load widens all three.
 
 ### Verification
 
