@@ -400,7 +400,7 @@ async fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::P
     if !matches!(command.word(), b"merge" | b"pull") {
         return Some(Vec::new());
     }
-    let head: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head: String = crate::plain_file::read_plain_text_at(git_dir.join("HEAD").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
     let Some(branch) = head.trim().strip_prefix("ref: refs/heads/") else { return Some(Vec::new()) };
     let key: String = format!("branch.{branch}.mergeoptions");
     return match runner.run(&["config", "--get", key.as_str()], None, None).await {

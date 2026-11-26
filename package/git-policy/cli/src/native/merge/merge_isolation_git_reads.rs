@@ -261,14 +261,19 @@ pub fn unsaved_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
 ///  none,
 /// to native Git,
 /// which words that refusal itself.
+///  The file is read as a plain one and to a bound:
+/// a named pipe at `FETCH_HEAD` is a file native Git reports on,
+///  not a read that waits for a writer that may never come,
+/// and this repository's own `FETCH_HEAD` was 183,958 bytes on 2026-11-25
+/// inside `SMALL_FILE_LIMIT`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readFetchHead(gitDir: string): { oid: string; text: string }; // throws Bail
 /// ```
 pub fn read_fetch_head(git_dir: &Path) -> Result<(String, String), Bail> {
-    // A missing or unreadable file is native Git's to report.
-    let Ok(text) = std::fs::read_to_string(git_dir.join("FETCH_HEAD")) else {
+    // A missing, unreadable or over-long file is native Git's to report.
+    let Ok(text) = crate::plain_file::read_plain_text_at(git_dir.join("FETCH_HEAD").as_path(), crate::plain_file::SMALL_FILE_LIMIT) else {
         return Err(Bail::Forward(None));
     };
     let mut heads: Vec<String> = fetch_head_merge_heads(text.as_str());
@@ -277,3 +282,8 @@ pub fn read_fetch_head(git_dir: &Path) -> Result<(String, String), Bail> {
     }
     return Ok((heads.remove(0), text));
 }
+
+/// Controls for the fetched head these questions read stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_git_reads_tests.rs"]
+mod tests;

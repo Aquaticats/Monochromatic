@@ -296,6 +296,16 @@ Round 1's answer "every folder, including folders created later" decides it:
 the watcher config re-includes these names.
 Adopted unless the owner vetoes.
 
+## The Mac recovered (2026-11-25T20:04:52-05:00)
+
+The owner chose the bucket as the golden copy;
+the Mac's 214 Mac-only files were moved aside and its 12 differing files copied aside,
+then a `--resync` and a normal agent run both succeeded
+(`doc/handover/garage-file-sync.md`, "Client check (macOS, `ssh m1`)").
+The Mac writes to the bucket again,
+so the bucket now has two writers,
+and its agent still lacks `--conflict-resolve newer` and the settle pass.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),

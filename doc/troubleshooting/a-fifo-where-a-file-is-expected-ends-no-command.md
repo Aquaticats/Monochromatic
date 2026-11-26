@@ -407,6 +407,11 @@ They fall into these groups:
   the same files.
   Not changed here,
   so the wrapper is not slower to refuse than the Git it forwards to.
+  The `commondir`,
+  `HEAD`,
+  `FETCH_HEAD`,
+  todo-list and configuration reads among them were moved on 2026-11-25;
+  see "The Git-directory group, moved on 2026-11-25".
 - The real Git executable and its version cache (`invocation/real_git_candidate.rs`,
   `invocation/git_version_cache.rs`):
   a FIFO replacing the Git binary would hold the wrapper.
@@ -419,8 +424,54 @@ They fall into these groups:
   the rest are
   the next group for the class work.
 
-## Upstream filing decision
+## The Git-directory group, moved on 2026-11-25
 
+Seventeen reads in eleven release files of `package/git-policy/cli` now go through
+`crate::plain_file`, which opens with `O_NONBLOCK | O_NOFOLLOW`, takes the type from the open handle and reads to
+the caller's bound.
+`foundation/common_directory_of_a_git_directory.rs` is the one reader of a Git directory's `commondir` file
+(`bytes_named`), and its two answers are built on it (`common_directory_of`, `common_directory_named_by`).
+
+- `commondir`: that one reader, and its callers in `repo_read/git_directory_roots.rs`,
+  `repo_read/repo_read_layout.rs`, `landing/service_head.rs`, `landing/service_work_common_directory.rs`,
+  `service/service_review.rs` and `worktree_clone_add_route/add_fill.rs`.
+- `HEAD`: `landing/service_head.rs` and `merge/merge_second_pass_worktree.rs`.
+- The `.git` pointer file: `repo_read/git_directory_roots.rs` and `worktree_clone_add_route/add_fill.rs`,
+  at `GIT_FILE_LIMIT` (64 KiB).
+- `FETCH_HEAD`: `merge/merge_isolation_git_reads.rs` and `merge/pull_isolation.rs`.
+- A rebase or sequencer todo list: `merge/merge_second_pass_finish.rs`.
+- A configuration file: `repo_read/repo_read_config_scan.rs` (through links, at `CONFIG_TEXT_LIMIT`) and
+  `landing/service_work_common_directory.rs` (`config` and `config.worktree`).
+
+The bounds are `SMALL_FILE_LIMIT` (1 MiB) unless a file has one of its own.
+Measured on this repository on 2026-11-25: `.git/FETCH_HEAD` 183,958 bytes,
+`.git/config` 164,616 bytes, a linked worktree's `commondir` 6 bytes, a `HEAD` file 21 to 81 bytes.
+
+What each site does with a file it cannot read, and why:
+
+- The common directory: a Git directory whose `commondir` is no plain file is its own common directory, which is
+  what it already answered for a directory with no such file, so a record lands beside that Git directory rather
+  than nowhere.
+- `HEAD`: the head cannot answer, so the caller asks Git, which is what an unreadable `HEAD` already meant.
+- The `.git` pointer: an add reports that its fill is not the worktree the record names, and a lock sweep finds no
+  repository at that working directory.
+- `FETCH_HEAD`: the pull or the merge goes to native Git, which words its own refusal for a fetched head it cannot
+  read.
+- A todo list: no later step asks for an editor.
+- A configuration file: `read_following` answers "ask Git", and the bare check answers not bare, which keeps the
+  records for the main worktree's instance, the safe side of a wrong answer.
+
+A control per class puts a FIFO at the name the code reads, runs the read inside `finished_within` (five
+seconds), and, where the old body would have waited, reads the same fixture the old way inside the same bound so
+that the bound is shown able to see a wait.
+The two reads a type check stands in front of (`repo_read/git_directory_roots.rs` looks at `.git` with
+`symlink_metadata` first, and `repo_read_config_scan.rs` looked at a configuration's metadata first) could not be
+made to wait by a fixture that stands still: the window they leave is a name swapped between the look and the
+read, which a plain read of the fixed name does not show.
+Their controls prove the outcome at the bound instead, and the positive control at the same fixture shows what a
+plain read of that name does.
+
+## Upstream filing decision
 Nothing to file upstream.
 Every site is code this repository owns,
 so the six-constraint check has no upstream to address,
