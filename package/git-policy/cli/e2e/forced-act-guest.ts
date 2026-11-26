@@ -199,12 +199,18 @@ async function run(chosen: Options): Promise<void> {
     // `mvm push` lands the tarball on the shared folder, so the guest copies it where the build reads it, over whatever
     // an earlier run left there: a kept copy from an earlier run is a stale tree, not this run's.
     'cp --force /mnt/shared/subject.tar.gz /root/subject.tar.gz',
+    // The dependency build is the guest's heaviest work and outlives one run, so it is kept out of the tree this run
+    // replaces: a second run then compiles this crate's own test binary alone.
+    `if test -d ${CRATE_DIR}/package/git-policy/cli/target; then rm --recursive --force /root/target-kept; mv ${CRATE_DIR}/package/git-policy/cli/target /root/target-kept; fi`,
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
+    `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/forced-act-build.log 2>&1',
+    // `-j 2` because one rustc of this crate took the guest's whole memory when two ran at once (a killed rustc, the
+    // run's own log), and the library's test binary is the only target the arm needs.
+    'cargo test --release --lib --no-run --locked -j 2 > /root/forced-act-build.log 2>&1',
     'tail --lines=3 /root/forced-act-build.log',
   ].join('\n');
   guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
