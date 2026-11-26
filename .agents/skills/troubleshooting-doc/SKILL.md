@@ -901,6 +901,24 @@ a future session can re-evaluate if upstream signal changes.
 "do not file as-is" only in that second case.
  Wrap the draft body in a
 `~~~md` fence so the future filer can copy it cleanly.
+
+DLK:
+ Every source claim in the draft body carries its own selection link
+(a `#:~:text=` fragment or a commit-pinned line range),
+opened in `agent-browser` before the draft reaches the user.
+
+MXV:
+ Before a draft or doc reaches the user,
+ mask every value tied to the poster's network,
+ location or session:
+ resolved addresses,
+ exit IPs,
+ local host and interface names.
+
+HDG:
+ A draft's sections are headings with prose;
+ its title sits outside the body.
+
  The new-issue
 draft contains:
  title,
