@@ -13,18 +13,22 @@
 //! function latestOptionsDirectory(view: View, prefixes: string[]): string | undefined
 //! ```
 
-/// Imports `OsStr` from `std::ffi`.
-use std::ffi::OsStr;
-/// Imports `Component`,
-/// `Path`,
-/// `PathBuf` from `std::path`.
-use std::path::{Component, Path, PathBuf};
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// Imports `EntryKind` from `monochromatic_file_enforcer::real_fs`.
 use monochromatic_file_enforcer::real_fs::EntryKind;
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
+/// Imports `OsStr` from `std::ffi`.
+use std::ffi::OsStr;
+/// Imports `Component`,
+/// `Path`,
+/// `PathBuf` from `std::path`.
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// The JetBrains configuration directory when `XDG_CONFIG_HOME` does not name one,
 /// relative to the home directory the per-user view is rooted at.
@@ -48,7 +52,10 @@ pub const USER_FILE: &str = "UserDefinedLanguageServerSettings.xml";
 /// ```ts
 /// function belowRoot(root: string, directory: string): string | undefined
 /// ```
-fn below_root(root: &Path, directory: &Path) -> Option<PathBuf> {
+fn below_root(
+    root: &Path,
+    directory: &Path,
+) -> Option<PathBuf> {
     if let Ok(rest) = directory.strip_prefix(root) {
         return Some(rest.to_path_buf());
     }
@@ -76,8 +83,13 @@ fn below_root(root: &Path, directory: &Path) -> Option<PathBuf> {
 /// ```ts
 /// function jetbrainsConfigDirectory(root: string, xdgConfigHome: string | undefined): string // throws
 /// ```
-pub fn jetbrains_config_directory(root: &Path, xdg_config_home: Option<&OsStr>) -> Result<String, String> {
-    let Some(value) = xdg_config_home else { return Ok(CONFIG_DIRECTORY.to_string()) };
+pub fn jetbrains_config_directory(
+    root: &Path,
+    xdg_config_home: Option<&OsStr>,
+) -> Result<String, String> {
+    let Some(value) = xdg_config_home else {
+        return Ok(CONFIG_DIRECTORY.to_string());
+    };
     let configured = Path::new(value);
     if !configured.is_absolute() {
         return Ok(CONFIG_DIRECTORY.to_string());
@@ -92,10 +104,16 @@ pub fn jetbrains_config_directory(root: &Path, xdg_config_home: Option<&OsStr>) 
     let mut segments: Vec<&str> = Vec::new();
     for component in rest.components() {
         let Component::Normal(segment) = component else {
-            return Err(format!("XDG_CONFIG_HOME is {}, which contains a path segment other than a plain name", configured.display()));
+            return Err(format!(
+                "XDG_CONFIG_HOME is {}, which contains a path segment other than a plain name",
+                configured.display()
+            ));
         };
         let Some(text) = segment.to_str() else {
-            return Err(format!("XDG_CONFIG_HOME is {}, which is not valid UTF-8", configured.display()));
+            return Err(format!(
+                "XDG_CONFIG_HOME is {}, which is not valid UTF-8",
+                configured.display()
+            ));
         };
         segments.push(text);
     }
@@ -118,7 +136,10 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 /// ```ts
 /// function versionParts(name: string, prefixes: string[]): number[] | undefined
 /// ```
-pub fn version_parts(name: &str, prefixes: &[String]) -> Option<Vec<u64>> {
+pub fn version_parts(
+    name: &str,
+    prefixes: &[String],
+) -> Option<Vec<u64>> {
     let mut matched: Option<&String> = None;
     for candidate in prefixes {
         if name.starts_with(candidate.as_str()) {
@@ -148,7 +169,10 @@ pub fn version_parts(name: &str, prefixes: &[String]) -> Option<Vec<u64>> {
 /// ```ts
 /// function compareVersionParts(left: number[], right: number[]): number
 /// ```
-pub fn compare_versions(left: &[u64], right: &[u64]) -> std::cmp::Ordering {
+pub fn compare_versions(
+    left: &[u64],
+    right: &[u64],
+) -> std::cmp::Ordering {
     let length = left.len().max(right.len());
     for index in 0..length {
         let left_part = left.get(index).copied().unwrap_or(0);
@@ -171,13 +195,19 @@ pub fn compare_versions(left: &[u64], right: &[u64]) -> std::cmp::Ordering {
 /// ```ts
 /// function latestOptionsDirectory(view: View, configDirectory: string, prefixes: string[]): string | undefined
 /// ```
-pub fn latest_options_directory(view: &mut View, config_directory: &str, prefixes: &[String]) -> Result<Option<String>, Diagnostic> {
+pub fn latest_options_directory(
+    view: &mut View,
+    config_directory: &str,
+    prefixes: &[String],
+) -> Result<Option<String>, Diagnostic> {
     let mut best: Option<(Vec<u64>, String)> = None;
     for (name, kind) in view.list(config_directory)? {
         if kind != EntryKind::Directory {
             continue;
         }
-        let Some(version) = version_parts(&name, prefixes) else { continue };
+        let Some(version) = version_parts(&name, prefixes) else {
+            continue;
+        };
         let newer = match &best {
             None => true,
             Some((best_version, best_name)) => match compare_versions(&version, best_version) {
@@ -190,7 +220,9 @@ pub fn latest_options_directory(view: &mut View, config_directory: &str, prefixe
             best = Some((version, name));
         }
     }
-    let Some((_, name)) = best else { return Ok(None) };
+    let Some((_, name)) = best else {
+        return Ok(None);
+    };
     return Ok(Some(format!("{config_directory}/{name}/options")));
 }
 
