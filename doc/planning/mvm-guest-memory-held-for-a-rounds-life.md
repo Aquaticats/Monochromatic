@@ -4,88 +4,120 @@ This draft is written by an agent and is unapproved:
 it proposes,
 it changes no code and no `mvm` default,
 and the owner chooses.
-It was rewritten after the gate read of 2026-11-25T22:10-05:00.
+It was rewritten after a gate read of 2026-11-26T00:00-05:00.
 Every figure here is one run,
 and each says so where it appears.
 The readings and logs behind them are committed in
 `doc/planning/mvm-guest-memory-held-for-a-rounds-life-evidence/`,
 whose `README.md` names each file.
 
-## What changed since the gate read of 2026-11-25T22:10-05:00
+The units are the samplers':
+a guest's or the host's `/proc/meminfo` fields are kB,
+as the kernel prints them,
+and a QEMU process's charge is its `smaps_rollup` `Rss` plus `Swap`,
+also kB;
+the ARC,
+zram and systemd counters are bytes.
+Every figure below carries its unit,
+and a byte count is never written where the sample holds kB.
 
-The cache drop no longer rests on a reason the guests' own readings contradict.
-Its evidence is all six kept readings,
-and they do not agree:
-one default guest kept every byte while its guest freed 5 GiB,
-another returned 1.23 GiB with the host's memory free,
-and the section "What the charge measures,
-and its limits" says what the charge counts and how pressure moves it.
-Its recommendation is now "not now".
+## What changed since the gate read of 2026-11-26T00:00-05:00
 
-The smaller-guest question is split in two,
-so each can be answered alone:
-where the crate's test binaries are built
-("Should the crate's test binaries be built outside the guest?")
-and how much memory a guest gets
-("Should mvm's guests be smaller than 8,192 MiB?").
-Each recommendation now names a scope that holds guests today.
+Every memory figure was checked against its own sample's `MemTotal`,
+which is 64,668,036 kB in every host sample and 8,131,780 kB or 4,009,156 kB in a guest's.
+The `/proc/meminfo` fields are kB,
+so the opening `MemAvailable` is 5,498,576 kB (5.24 GiB);
+as bytes the same number reads 5,498,576 bytes (5.24 MiB),
+which is a different quantity
+and the error this revision removes.
 
-The destroy-between-arms numbers are the kept logs' own spans
-and this round's timings;
-the preparation split that no log held is gone,
-and so is the push duration that no log held.
+"The host out of memory" against "memory free" was false and is gone.
+`MemAvailable` was above 64 MiB in 167 of the 178 samples that hold a guest in
+`mem-a`'s file,
+and in 180 of the 182 in `mem-b`'s,
+and the drops of both guests ran with the host's memory free.
+Each kept drop is now a reading of its own,
+one run,
+with the `MemAvailable` and `some avg10` of the sample each one followed,
+and nothing named as the variable that decides between them.
 
-A cell the readings of 2026-11-26T01:50Z to 02:27Z did not measure is measured here:
-a default 8 GiB guest running the same arm on the same container-built binaries,
-which separates the in-guest build from the guest's size.
+Every peak of one run set beside a peak of another is gone.
+`mem-third-8g-prebuilt`'s 6.17 GiB charge was reached at 04:01:26,
+before its binaries were pushed at 04:01:43,
+so it is the preparation's footprint and not the arm's;
+the 4 GiB guest's 4.04 GiB is its own ceiling;
+and the two preparation peaks differ by 1.47 GiB under unlike pressure.
+What the cells show about the build is the guest's own `AnonPages`:
+7,641,948 kB (7.29 GiB) in the one guest that built the crate,
+and 1.48 and 1.47 GiB in the two that only ran prebuilt binaries.
+No effect size for building outside the guest is claimed.
 
-The order the cells were ranked in is gone:
-the figures are one run each,
-the runs differ in pressure,
-and no question needs a rank.
+The build-location question's form now carries the container build's own host cost,
+9,651,453,952 bytes (9.0 GiB) of cgroup peak over 289 seconds,
+says that one arm of one driver was measured and the rest are extrapolated,
+and says a container build is owed per commit or per round.
 
-KSM's recommendation is now "no",
-with the reasons measured and the kernel's own words quoted.
+The cache-drop and guest-per-arm questions were scoped to "rounds that keep one guest",
+which no driver does:
+every driver's `all` step creates,
+prepares,
+runs its arms and destroys its own guest.
+Both now ask for a change of the drivers,
+named with its cost,
+and the section "How a round uses guests today" states what the code does,
+with file and line.
 
-The opening reading's `MemAvailable` is 5,498,576 bytes (5.24 MiB);
-an earlier draft printed it as 5.24 GiB.
+Every question gives its options with pros and cons and a ranking that names a reason
+for each adjacent pair,
+and no question folds two decisions into one option.
+
+The corrected sentence for `doc/decision/mvm-guests-report-free-pages.md` is now in this document,
+under "Free page reporting:
+decided,
+and shipped",
+because a report outside the repository is no place for text the record needs.
 
 ## What the owner is asked
 
-Five decisions stand,
-each with its own section under "The decisions,
+Each decision has its own section under "The decisions,
 each on its own",
-its evidence,
+with its evidence,
+its cost,
 a recommendation,
 and a compact form for a question dialog.
 
-- Drop each guest's page cache after an arm:
+- Drop a guest's page cache between the arms of one driver run:
   not now;
-  it is one command and its cost is small,
-  but the six kept readings disagree:
-  nothing returned in the default guest that freed 5 GiB with the host's memory free,
-  while a 4 GiB guest under the same free memory returned 1.23 GiB,
-  matching the 1.4 GiB of cache it freed.
-- Destroy the guest between arms:
+  the step costs a cold cache,
+  it would live in the drivers,
+  and the kept drops returned 0,
+  2.28,
+  1.25,
+  1.23,
+  0 and 0 GiB,
+  one run each,
+  with nothing naming what decides between them.
+- Create,
+  prepare and destroy a guest per arm instead of per driver run:
   not now;
-  destroying returns the whole charge,
-  but a create and the preparation cost minutes against arms measured in about a second,
-  and no run here measured the share of a round spent between arms.
+  a create and the preparation are measured in minutes against arms measured in under two seconds,
+  and no run measured the gap between two arms of one driver run.
 - Build the crate's test binaries outside the guest,
   in an image whose glibc is the guest's,
-  and place them at the same absolute path:
+  at the same absolute path:
   recommended for arms whose subject is not the crate's own build;
-  measured to lower the arm's peak charge from 7.98 GiB to 6.17 GiB,
-  and it costs a container build per commit and one build path per driver.
+  the lock arm passed on such binaries in two guests,
+  and the route costs a container build of 289 s with a 9.0 GiB host peak,
+  plus one build path per driver.
 - Keep the guest at 8,192 MiB while an arm builds the crate inside it:
-  the build needed 7.29 GiB of the guest's own `AnonPages`,
-  and the guest's size was worth 0.66 GiB at most with the build in the guest,
-  2.13 GiB once it is out.
+  the one guest that built the crate put 7.29 GiB of its own `AnonPages` into the build,
+  and no run here shows a smaller guest building it.
 - Turn KSM on for a measurement round:
   no;
   the memfd route's RAM is page cache,
   which KSM never merges,
-  and the only mergeable route gives up the share every driver's arms use.
+  and the one route that can merge has no `/mnt/shared`,
+  which every driver's transfers need.
 
 Free page reporting is decided and shipped
 (`doc/decision/mvm-guests-report-free-pages.md`,
@@ -107,11 +139,12 @@ The rest was in the guests' swap,
 which the zram device held as 1.13 GiB over 34.43 GiB swapped across everything on the host
 (3.3 percent)
 at that moment.
-The machine's `MemAvailable` was 5,498,576 bytes (5.24 MiB),
+The machine's `MemAvailable` was 5,498,576 kB (5.24 GiB),
 and the ARC held 2,088,789,208 bytes against a `c_min` of 2,069,377,152,
 19,412,056 bytes above its floor
 (`mem-b-host-samples.jsonl`,
-line 1).
+line 1:
+its `/proc/meminfo` fields are kB and its ARC fields bytes).
 
 One `mvm` guest asks for 8,192 MiB.
 The host must be able to give it,
@@ -170,7 +203,7 @@ so what a guest carried is a claim about the source and about the round that cre
   device id `0x0005`,
   with `virtio_balloon` bound
   (`balloon-check.txt`);
-- the two cells of 01:50Z and 02:27Z were created after that commit,
+- `mem-second-4g` and `mem-second-8g` were created after that commit,
   and their round added the element by a temporary probe block as well;
 - the four guests of 2026-11-25T21:14Z to 23:35Z were created before the commit,
   and which of them carried the element is what their round recorded:
@@ -243,45 +276,118 @@ the `prepare` step,
 installs `cargo-nextest` from source,
 and then the driver builds and runs the crate's own test binaries in the guest.
 
-Nine drivers run that way,
-and each builds at a path of its own:
-
-1.  `deferred-origin-check-guest.ts` at `/opt/deferred-origin-check`.
-2.  `doctor-zfs-route-guest.ts` at `/opt/git-policy-cli-doctor-route`.
-3.  `managed-git-lock-guest.ts` at `/opt/git-policy-cli-lock`.
-4.  `mount-git-worktree-clone-datasets-guest.ts` at `/opt/git-policy-cli-adoption`.
-5.  `removal-lineage-proof-guest.ts` at `/opt/removal-lineage-proof`.
-6.  `sanoid-coverage-guest.ts` at `/opt/git-policy-cli-sanoid-coverage`.
-7.  `settling-command-guest.ts` at `/opt/settling-command`.
-8.  `slot-state-and-move-refusal-guest.ts` at `/opt/git-policy-cli-slot-state`.
-9.  `start-probe-guest.ts` at `/opt/git-policy-cli-start-probe`.
-
-The build each driver runs differs too,
-in its own source:
-most build with `--features test-only-switches`,
-`removal-lineage-proof-guest.ts` and `settling-command-guest.ts` add `--jobs 1`,
-`mount-git-worktree-clone-datasets-guest.ts` sets `CARGO_BUILD_JOBS=1`,
-`start-probe-guest.ts` builds a second copy into `target/raised-deadline`,
-three drivers run the `--lib` tests as well as the `native_binary` ones,
-and `sanoid-coverage-guest.ts` builds without `--release`.
-So a build placed on the host must reproduce each driver's features,
-target directory and profile,
-not only its path,
-and the arms of three drivers run more than one test binary.
-
 The lock arm this document measures is
 `zfs_managed_lock_guest::the_managed_lock_outlives_the_pointer_and_goes_after_the_clone`,
 which `managed-git-lock-guest.ts` selects with a nextest filterset for `test(zfs_managed_lock_guest)`:
 
 ```sh
-# package/git-policy/cli/e2e/managed-git-lock-guest.ts: the arm's own command
-cargo nextest run --release --locked --test native_binary --no-capture --status-level all \
-  --filterset "test(zfs_managed_lock_guest)"
+# package/git-policy/cli/e2e/managed-git-lock-guest.ts:210-212: the arm's own command
+cargo nextest run --release --locked --features test-only-switches --test native_binary \
+  --no-capture --status-level all --filterset "test(zfs_managed_lock_guest)"
 ```
+
+The measuring cells did not run that command.
+The guest that built the crate ran `cargo nextest` without `--features test-only-switches`,
+and the two guests given the container's binaries ran the test binary directly with `--nocapture`,
+so the cells' flags rest on this document's account and not on a kept log.
 
 Its subject is a lock's lifetime in a ZFS dataset,
 not the crate's build,
 so it is an arm the build location can move without losing its subject.
+
+### How a round uses guests today
+
+A round is one agent's work on this repository,
+a revising round or a test round alike.
+A round that runs guest arms runs one or more drivers' `all` steps.
+An arm is one test case,
+nextest filterset or probe step a driver runs in its guest.
+
+Every driver under `package/git-policy/cli/e2e/*-guest.ts` runs one guest per `all` step:
+it creates the guest,
+prepares it,
+runs every arm of that driver run in it,
+and destroys it
+(`deferred-origin-check-guest.ts:252`,
+`doctor-zfs-route-guest.ts:265`,
+`managed-git-lock-guest.ts:239`,
+`mount-git-worktree-clone-datasets-guest.ts:931`,
+`removal-lineage-proof-guest.ts:473`,
+`sanoid-coverage-guest.ts:271`,
+`settling-command-guest.ts:295`,
+`slot-state-and-move-refusal-guest.ts:249`,
+`start-probe-guest.ts:859`).
+So a guest lives for one driver run,
+not for a round's arms,
+and a round that runs several drivers creates and destroys one guest per driver.
+A guest's charge matters between the arms of one driver run and not after them.
+
+Every driver builds in that guest,
+at a path of its own:
+
+- `deferred-origin-check-guest.ts:36` and `:203`,
+  at `/opt/deferred-origin-check`;
+- `doctor-zfs-route-guest.ts:27` and `:191` to `:193`,
+  at `/opt/git-policy-cli-doctor-route`;
+- `managed-git-lock-guest.ts:28` and `:196`,
+  at `/opt/git-policy-cli-lock`;
+- `mount-git-worktree-clone-datasets-guest.ts:37` and `:435`,
+  at `/opt/git-policy-cli-adoption`;
+- `removal-lineage-proof-guest.ts:47` and `:383`,
+  at `/opt/removal-lineage-proof`;
+- `sanoid-coverage-guest.ts:31` and `:204`,
+  at `/opt/git-policy-cli-sanoid-coverage`;
+- `settling-command-guest.ts:35` and `:245`,
+  at `/opt/settling-command`;
+- `slot-state-and-move-refusal-guest.ts:33` and `:212`,
+  at `/opt/git-policy-cli-slot-state`;
+- `start-probe-guest.ts:40` and `:207` to `:208`,
+  at `/opt/git-policy-cli-start-probe`.
+
+The build's flags differ too:
+every driver but `sanoid-coverage-guest.ts` passes `--features test-only-switches`
+(`sanoid-coverage-guest.ts:204` passes none),
+`sanoid-coverage-guest.ts` builds and runs without `--release`,
+`start-probe-guest.ts:208` builds a second tree in `target/raised-deadline`,
+and four drivers cap the compiler's parallelism:
+`removal-lineage-proof-guest.ts:383` and `settling-command-guest.ts:245` with `--jobs 1`,
+`mount-git-worktree-clone-datasets-guest.ts:435` with `CARGO_BUILD_JOBS=1`,
+and `sanoid-coverage-guest.ts:203` with `CARGO_BUILD_JOBS=2`.
+The guest recipe caps its own wrapper builds at `--jobs 2`
+(`run-fixture.ts:660`)
+and OpenZFS's at `make --jobs=4`
+(`run-fixture.ts:386`).
+
+Two drivers run more than one test binary in their one guest:
+`doctor-zfs-route-guest.ts:212` runs `native_binary` through nextest and `:215` runs the lib through `cargo test`,
+and `removal-lineage-proof-guest.ts:417` runs the lib and `:423` the `native_binary`,
+both through nextest.
+One driver runs four nextest invocations and a Python probe in its guest
+(`mount-git-worktree-clone-datasets-guest.ts:457`,
+`:510`,
+`:650` and `:896`),
+one runs its own probe steps against the built wrapper and no test binary
+(`start-probe-guest.ts:859`),
+and every other driver runs one nextest invocation.
+So a build placed on the host must reproduce each driver's features,
+path,
+target directory and profile,
+and a driver that runs two test binaries needs both.
+
+Every driver's transfers go through `/mnt/shared`
+(`deferred-origin-check-guest.ts:197`,
+`doctor-zfs-route-guest.ts:183`,
+`managed-git-lock-guest.ts:190`,
+`mount-git-worktree-clone-datasets-guest.ts:421`,
+`removal-lineage-proof-guest.ts:356`,
+`sanoid-coverage-guest.ts:194`,
+`settling-command-guest.ts:234`,
+`slot-state-and-move-refusal-guest.ts:199`,
+`start-probe-guest.ts:201`),
+and three of them run a step itself from there through `guestStart` and `guestFinish`
+(`mount-git-worktree-clone-datasets-guest.ts:321` and `:356`,
+`removal-lineage-proof-guest.ts:248` and `:283`,
+`settling-command-guest.ts:133` and `:163`).
 
 ### The host paths the test binaries carry
 
@@ -342,6 +448,7 @@ Under "External tools" it adds:
 A one-file check with rustc 1.102.0 on this host showed the same:
 
 ```text
+# a one-file probe: rustc's remapping leaves the env! text alone
 CARGO_MANIFEST_DIR=/original/build/path rustc --edition 2024 \
   --remap-path-prefix=/original/build/path=/remapped ./probe.rs -o ./probe
 ./probe
@@ -376,7 +483,7 @@ which the guest does anyway.
 So two routes exist:
 
 - the same absolute path,
-  which needs no code change and is what this round measured;
+  which needs no code change and is the route the cells here used;
 - a nextest archive with `--workspace-remap`,
   which needs the crate's 42 `env!` path sites changed to reads at run time,
   because `env!` bakes the build machine's text into the binary,
@@ -425,8 +532,7 @@ not of any one build.
 What this says per image and backend:
 
 - Ubuntu 24.04:
-  measured,
-  this round,
+  measured here,
   one arm on host-built test binaries.
 - Fedora 43:
   not measured.
@@ -465,8 +571,7 @@ No `mvm` source was patched:
 `main`'s own domain is what ran,
 with the reporting balloon commit `269b812807` in it.
 
-Before each create the round's memory gate is read in one command of its own
-(`scratch/gate.ts` in the round folder):
+Before each create a memory gate is read in one command of its own:
 `MemAvailable` plus the ARC's `size` minus `c_min` at least 16 GiB,
 and memory pressure's `some avg10` at or under its `avg60`.
 The gate reading and the create it permitted are in
@@ -486,38 +591,41 @@ The guest samples its own `/proc/meminfo` every 5 seconds for its whole life,
 as a transient unit inside the guest,
 so a failure inside a step still leaves the guest's view.
 
-Two of the three cells were read on 2026-11-26 between 01:50Z and 02:27Z,
-and their readings are kept in the evidence folder unchanged.
-The third is this round's,
-and its step timings come from the driver's own clock
+The readings of `mem-second-4g` and `mem-second-8g` were taken
+between 2026-11-26T01:50:43+00:00 and 2026-11-26T02:27:32+00:00,
+and are kept in the evidence folder unchanged.
+`mem-third-8g-prebuilt` was read at 2026-11-26T03:56:49+00:00,
+and its step timings come from its driver's own clock
 (`step-timings-2026-11-26T03-56Z.txt`),
 because the preparation's three logs carry no timestamps.
 
-One of the two earlier cells needed a memory size `mvm` has no flag for,
-so that round's worktree carried a temporary block in `package/mvm/cli/src/domain-xml.ts`
-that read `MVM_MEMORY_PROBE`,
-and the diff is in that round's folder,
-outside this repository,
-reverted before its commit.
-This round's cell needed no block:
-it ran `mvm`'s own defaults.
+`mem-second-4g` needed a memory size `mvm` has no flag for,
+so the worktree that created it carried a temporary block in
+`package/mvm/cli/src/domain-xml.ts`
+that read `MVM_MEMORY_PROBE`;
+that worktree was reverted before its commit,
+and the block is in no commit here.
+`mem-second-8g` and `mem-third-8g-prebuilt` needed none:
+both ran `mvm`'s own defaults.
 
-About the earlier cells' gate readings,
-stated as the file shows them:
-the openings that permitted their creates were at 01:35:10Z and 02:02:06Z,
-15 and 8 minutes before the creates at 01:50:43Z and 02:10:07Z,
-and two further openings (00:25:01Z and 01:17:26Z) started no guest
+The gate readings those creates followed,
+as the file shows them:
+the openings that permitted them were at 2026-11-26T01:35:10+00:00 and 2026-11-26T02:02:06+00:00,
+15 and 8 minutes before the creates at 2026-11-26T01:50:43+00:00 and 2026-11-26T02:10:07+00:00,
+and two further openings (2026-11-26T00:25:01+00:00 and 2026-11-26T01:17:26+00:00) started no guest
 (`memory-gate-readings-2026-11-26.txt`).
-This round's create follows its gate line in the file directly.
+`mem-third-8g-prebuilt`'s create follows its gate line in the file directly.
 
-A guest's load is one real arm,
-the lock arm,
-run as `managed-git-lock-guest.ts` runs it.
-The guest that builds builds the crate inside itself with
-`cargo build --release --tests --locked` and runs the test through `cargo nextest`;
-the guests given the container's binaries are given the same source tree and the two binaries at the
-container's own path,
-and run the test binary directly with the same environment variables.
+Each cell's load was one real arm,
+the lock arm:
+the guest that built the crate ran `cargo build --release --tests --locked` inside itself
+and then the test through `cargo nextest`;
+the guests given the container's binaries received the same source tree and the two binaries
+at the container's own path,
+and ran the test binary directly with the same environment variables.
+Neither command carries the driver's `--features test-only-switches`
+(the section "How a round uses guests today" quotes the driver's own),
+and no kept log records the flags the cells used.
 
 After the arm,
 each guest drops its page cache (`sync; echo 3 > /proc/sys/vm/drop_caches`),
@@ -527,6 +635,7 @@ and the host's samples show what that returns.
 
 The charge is what the host holds for a guest at one moment:
 the QEMU process's `smaps_rollup` `Rss` plus `Swap`,
+which the samplers keep as `rssKb` and `swapKb`,
 its RAM mapping being the largest mapping,
 named in every sample.
 Read as host memory,
@@ -570,11 +679,12 @@ The ranges the kept files give:
 
 The resident part has a limit of its own,
 and it is the one that matters most for the at-rest figures:
-the host reclaims a guest's page cache freely,
+the host reclaims a guest's page cache,
 because that cache is the host's own page cache over the memfd.
-Under pressure the charge therefore falls while the guest still believes it holds the memory.
+The charge therefore falls while the guest still believes it holds the memory,
+and one sample shows how far.
 Measured in `mem-second-8g`:
-at 02:15:01Z the charge was 4.70 GiB,
+at 2026-11-26T02:15:01Z the charge was 4.70 GiB,
 and at 02:15:45Z it was 0.36 GiB (0.18 resident,
 0.18 swapped),
 while the guest's own `MemTotal` minus `MemFree` read 4.18 GiB,
@@ -587,28 +697,33 @@ not a property of an option,
 and an at-rest figure is a lower bound of what the guest believes it uses.
 A peak is the steadier reading,
 because the guest's own anonymous pages must be resident or in swap to run,
-and it is the peak the questions turn on.
+but only within one configuration and one stage:
+a peak taken while the preparation builds OpenZFS and a peak taken while the crate is built
+measure different work,
+and the questions turn on none of those peaks for an effect size.
 
 ## The cells, one run each
 
-Three cells were measured for the lock arm,
-and the four guests of 2026-11-25T21:14Z to 23:35Z for the rest.
+Each cell below ran the lock arm in one guest;
+the guests under "The four guests of 2026-11-25T21:14:34+00:00 to 2026-11-25T23:35:20+00:00" measured other loads.
 
 ### A default guest that builds the crate inside itself
 
 Guest `mem-second-8g` was `mvm`'s default:
-8,192 MiB asked for (`MemTotal` 7,755 MiB),
+8,192 MiB asked for (`MemTotal` 8,131,780 kB,
+7,755 MiB),
 the virtiofs share,
 the shared memfd backing,
 and reporting on.
 The ZFS binding's recipe prepared it as it prepares the arms' guests today,
 and then it built the crate inside itself,
-as `managed-git-lock-guest.ts` does:
+as `managed-git-lock-guest.ts` does,
+except that the build command carries no `--features test-only-switches`:
 `cargo build --release --tests --locked`,
 which took 7 minutes 40 seconds (`mem-second-8g-guest-crate-build.log.txt`)
 and used almost the whole guest:
 its own `AnonPages` peaked at 7,641,948 kB (7.29 GiB) of the 7,755 MiB at 02:24:26Z,
-with `MemAvailable` down to 88,740 kB.
+with `MemAvailable` down to 88,740 kB (86.7 MiB).
 `cargo nextest` ran the same lock test:
 1 passed,
 1354 filtered out,
@@ -625,12 +740,13 @@ with three or four other rounds' guests on the host:
 - peak charge:
   7.98 GiB at 02:25:13Z (7.71 GiB resident,
   0.27 GiB swapped),
-  with three other guests on the host.
+  with three other guests on the host,
+  and the crate build's own `AnonPages` peak at 02:24:26Z.
   Its swapped part peaked at 2.99 GiB at 02:21:23Z and fell back as the guest faulted pages in.
 - the crate build:
   7 minutes 40 seconds.
 - the arm:
-  0.57 seconds;
+  0.57 seconds by the test binary's summary;
   at 02:26:59Z the charge read 6.12 GiB (5.92 resident,
   0.20 swapped).
 - the drop:
@@ -638,17 +754,22 @@ with three or four other rounds' guests on the host:
   0.24 swapped) and 5.44 GiB at 02:27:22Z (5.24 resident,
   0.19 swapped),
   1.25 GiB less over 35 seconds.
-  In the same window the guest's own `AnonPages` fell from 2,072,236 kB to 46,288 kB
-  and its `Cached` from 488,648 kB to 26,120 kB at 02:27:02Z,
-  so 0.57 GiB of the fall went with the guest's own collapse of anonymous pages,
-  the remaining 0.68 GiB came after it,
+  In the same window the guest's own `AnonPages` fell from 2,072,236 kB (1.98 GiB) at 02:26:47Z
+  to 46,288 kB (0.04 GiB) at 02:27:02Z,
+  and its `Cached` from 488,648 kB (0.47 GiB) to 26,120 kB (0.02 GiB).
+  The cache fall,
+  0.44 GiB,
+  is the part a cache drop frees;
+  the anonymous collapse,
+  1.93 GiB,
+  is a candidate for the rest,
   and no mechanism is named here for that part.
 - destroy:
   1.03 seconds (02:27:31.250Z to 02:27:32.278Z).
 
 The guest's own view at the end is worth stating:
 `MemTotal` 8,131,780 kB,
-`MemFree` 7,769,540 kB,
+`MemFree` 7,769,540 kB (7.41 GiB),
 `Cached` 26,080 kB,
 `AnonPages` 46,648 kB,
 while the host still held 5.24 GiB resident for its mapping
@@ -659,7 +780,9 @@ The host had not discarded that memory by the time the guest was destroyed.
 
 Guest `mem-second-4g` was `mvm`'s own create with a 4 GiB memory size,
 4,096 MiB,
-and the reporting balloon (`MemTotal` 3,915 MiB in the guest).
+and the reporting balloon (`MemTotal` 4,009,156 kB,
+3,915 MiB,
+in the guest).
 The ZFS binding's recipe prepared it exactly as it prepares the arms' guests today,
 OpenZFS included.
 Then,
@@ -694,29 +817,35 @@ with three or four other rounds' guests on the host:
 - whole-life peak charge:
   4.04 GiB at 01:56:18Z,
   all resident and no swap,
-  during the preparation's toolchain step,
-  with three other guests on the host.
+  held at 4.03 GiB from 01:55:30Z to 01:57:42Z,
+  with four other guests on the host.
+  That is the guest's whole 4,096 MiB request plus QEMU's own overhead,
+  so the reading measures the guest's ceiling,
+  not its need.
   The guest's own view did not peak there:
   its `AnonPages` reached 1,555,568 kB (1.48 GiB) at 01:57:51Z,
-  with `MemAvailable` 1,973,592 kB (1.88 GiB).
-  So the host held the guest's whole 4 GiB while the guest called about half of it available;
-  the difference is the guest's page cache,
+  with `MemAvailable` 1,973,592 kB (1.88 GiB),
+  so the rest of the charge was guest page cache,
   which the guest counts as reclaimable and the host holds.
 - the arm:
-  1.13 seconds;
+  1.13 seconds by the test binary's summary;
   at 01:58:28Z the charge read 3.23 GiB (2.92 resident,
   0.31 swapped).
+  The fall from 4.03 GiB at 01:57:42Z began before the drop:
+  at 01:57:54Z the host's `MemAvailable` read 0.00 GiB with `some avg10` 5.17,
+  at 01:58:05Z 5.29 GiB with `avg10` 8.52,
+  and the charge read 3.14 GiB at 01:58:17Z
+  (`mem-second-4g-host-samples.jsonl` lines 36 to 39).
 - the drop:
-  the charge read 2.00 GiB at 01:58:40Z,
-  11 seconds after the 3.23 GiB sample
+  the charge read 2.00 GiB at 01:58:40Z at the next sample after 3.23 GiB
   (1.90 resident,
   0.11 swapped),
   and 2.00 GiB at 01:58:51Z (1.86 resident,
   0.14 swapped),
-  so the drop returned 1.23 GiB.
-  The guest's own `Cached` fell from 1,521,904 kB at 01:58:26Z to 51,288 kB at 01:58:31Z,
-  and `MemFree` rose to 3,759,068 kB,
-  so the guest freed 1.4 GiB of cache and the host's charge fell 1.23 GiB.
+  so the charge fell 1.23 GiB in the drop's own window.
+  The guest's own `Cached` fell from 1,521,904 kB (1.45 GiB) at 01:58:26Z to 51,288 kB (0.05 GiB) at 01:58:31Z,
+  and `MemFree` rose to 3,759,068 kB (3.58 GiB),
+  so the guest freed 1.40 GiB of cache in that window.
   The host still held 1.86 GiB resident after both the drop and reporting.
 - destroy:
   0.85 seconds (01:59:01.311Z to 01:59:02.165Z).
@@ -755,28 +884,38 @@ with two other rounds' guests on the host and the host's `MemAvailable` between 
   and 9.5 seconds between the two lines of `mvm create`'s own log.
 - the preparation:
   284.22 seconds (4 minutes 44 seconds),
-  the ZFS binding's recipe with OpenZFS built in the guest.
+  the ZFS binding's recipe with OpenZFS built in the guest;
+  it ended at 04:01:43.826Z.
 - the push of the container's source tree and both binaries,
   and their placement at `/opt/git-policy-cli-lock`:
-  2.17 seconds for a 12,994,872-byte source tarball and the two binaries,
+  2.17 seconds for a 12,994,872-byte source tarball and two binaries of
+  31,524,648 and 17,218,360 bytes (61.7 MB in all),
   with both starting at the end of it.
 - the pool:
   0.39 seconds.
 - peak charge:
-  6.17 GiB at 04:01:37Z,
+  6.16 GiB at 04:01:26Z and 6.17 GiB from 04:01:37Z,
   all resident and no swap,
-  first reached at 04:01:26Z at the end of the preparation and held to the destroy;
   with the host's `some avg10` at or under 0.48 throughout.
+  The peak was reached before the preparation ended at 04:01:43.826Z,
+  so it is the preparation's footprint,
+  and the arm at 04:01:46Z did not lift it (6.17 GiB at 04:01:48Z).
+  This run therefore does not measure the arm's charge on the container's binaries;
+  what it adds is the arm's pass and the guest's own readings.
 - the arm:
   0.75 seconds by the driver's clock,
-  0.39 seconds by the test binary's own summary.
+  0.39 seconds by the test binary's own summary,
+  and the summary is the figure comparable with the other cells'.
 - the drop:
   no return.
+  It ran from 04:01:47.139Z to 04:02:18.067Z.
   The charge read 6.17 GiB at 04:01:37Z,
   04:01:48Z,
   04:01:59Z and 04:02:10Z,
-  while the guest's own `Cached` fell from 3,912,288 kB at 04:01:34Z to 59,012 kB at 04:01:49Z
-  and its `AnonPages` from 1,541,700 kB to 49,328 kB.
+  while the guest's own `Cached` fell from 3,912,288 kB (3.73 GiB) at 04:01:34Z
+  to 59,012 kB (0.06 GiB) at 04:01:49Z,
+  its peak having been 3,949,596 kB (3.77 GiB) at 04:01:39Z,
+  and its `AnonPages` from 1,541,700 kB (1.47 GiB) to 49,328 kB (0.05 GiB).
   The guest ended reading `MemFree` 7,756,180 kB of 8,131,780 kB,
   `Cached` 58,648 kB and `AnonPages` 49,480 kB,
   so it had freed about 5 GiB by its own account,
@@ -786,7 +925,7 @@ with two other rounds' guests on the host and the host's `MemAvailable` between 
   1.17 seconds by the driver's clock,
   0.90 seconds between the two lines of `mvm destroy`'s own log (04:02:18.686Z to 04:02:19.581Z).
 
-### The four guests of 2026-11-25T21:14Z to 23:35Z
+### The four guests of 2026-11-25T21:14:34+00:00 to 2026-11-25T23:35:20+00:00
 
 Guests `mem-a` to `mem-d` were one throwaway `mvm` guest each,
 destroyed after their readings were pulled.
@@ -794,17 +933,19 @@ destroyed after their readings were pulled.
 - `mem-a`,
   reporting off,
   one wrapper build:
-  240 host samples between 21:14:34Z and 22:10:05Z,
+  240 host samples between 2026-11-25T21:14:34+00:00 and 2026-11-25T22:10:05+00:00,
   of which 178 hold its QEMU process;
   peak charge 8.16 GiB at 21:47:19Z (3.71 resident,
   4.45 swapped);
   7.98 GiB before its drop at 21:54:43Z (0.98 resident,
-  7.00 swapped);
+  7.00 swapped),
+  which ran with `MemAvailable` 17.12 GiB and `some avg10` 0.13;
   and 7.98 GiB after it at 21:55:46Z (1.09 resident,
   6.89 swapped),
   so the drop returned nothing.
   `some avg10` reached 53.54 and was above 1 in 83 of its 178 samples;
-  `MemAvailable` was at or under 64 MiB in all 178.
+  `MemAvailable` was at or under 64 MiB in 11 of those 178 samples,
+  and its lowest was 0.00 GiB.
   Its guest-side log ends at 21:51:34Z,
   before the drop,
   so no guest-side reading of the drop is kept,
@@ -812,20 +953,23 @@ destroyed after their readings were pulled.
 - `mem-b`,
   reporting on,
   one wrapper build:
-  183 host samples between 22:00:41Z and 23:09:46Z;
+  183 host samples between 2026-11-25T22:00:41+00:00 and 2026-11-25T23:09:46+00:00,
+  of which 182 hold its QEMU process;
   peak charge 8.20 GiB at 22:46:32Z (6.48 resident,
   1.72 swapped);
   at rest 5.52 GiB at 23:01:00Z (0.20 resident,
   5.32 swapped),
-  the device holding 13.25 percent;
+  the device holding 13.25 percent,
+  with `MemAvailable` 6.75 GiB and `some avg10` 0.00;
   after the drop 3.24 GiB at 23:01:46Z (0.25 resident,
   2.99 swapped),
-  the device holding 8.73 percent.
+  the device holding 8.73 percent,
+  and the sample after the drop read `MemAvailable` 0.73 GiB with `some avg10` 1.20.
   So the drop returned 2.28 GiB,
   all of it from the swapped part,
   while the resident part rose 0.05 GiB.
   `some avg10` reached 24.94 and was above 1 in 68 of its 182 samples;
-  `MemAvailable` was at or under 64 MiB in all of them.
+  `MemAvailable` was at or under 64 MiB in 2 of them.
 - `mem-c`,
   the guest-agent route,
   which is what a host without `virtiofsd` gets:
@@ -843,14 +987,18 @@ destroyed after their readings were pulled.
   It was charged 3.07 GiB after the same preparation the others ran
   (2.67 resident,
   0.40 swapped),
+  with `MemAvailable` 9.96 GiB and `some avg10` 0.10,
   and its drop returned nothing:
   3.07 GiB before,
   3.08 GiB after,
-  while the guest's own `Cached` fell from 1,564,048 kB to 59,248 kB.
+  while the guest's own `Cached` fell from 1,564,048 kB (1.49 GiB) to 59,248 kB (0.06 GiB).
   The price of the route is also visible:
-  `mvm push` of the 12.6 MB snapshot took 11 seconds through the guest agent where virtiofs took 3,
-  and the guest has no `/mnt/shared`,
-  which every arm driver's `guestStart` and `guestFinish` use.
+  the guest has no `/mnt/shared`,
+  through which every driver copies its subject tarball and pulls its logs,
+  and that round pushed its snapshot through the guest agent instead,
+  where the memfd route uses the share.
+  That round's push durations are not kept in this evidence folder,
+  and neither are `mem-c`'s create and destroy logs.
 - `mem-d`,
   a 4 GiB guest,
   ran a smoke script rather than the arm,
@@ -866,32 +1014,51 @@ destroyed after their readings were pulled.
 ### What the cells do not compare
 
 The figures are one run each,
-under unlike pressure,
-and no rank is drawn from them:
+under unlike pressure:
 
 - the heaviest host pressure was in `mem-a`
   (`some avg10` 53.54,
-  `MemAvailable` at or under 64 MiB in all 178 samples),
+  `MemAvailable` at or under 64 MiB in 11 of the 178 samples that hold its guest),
   and the lightest in `mem-third-8g-prebuilt`
   (`some avg10` 0.48 at most,
   `MemAvailable` minimum 9.08 GiB);
-- `mem-a` ran without a reporting balloon,
-  which the decision comparing it states,
-  and the two cells of 2026-11-26T01:50Z and 02:27Z ran with one;
+- the same preparation read 4.70 GiB at 02:15:01Z in `mem-second-8g`
+  and 0.36 GiB by 02:15:45Z as the host's `some avg10` passed 34.75,
+  while `mem-third-8g-prebuilt`'s preparation peak of 6.17 GiB was held
+  with `some avg10` at or under 0.48:
+  two runs of the same work,
+  1.47 GiB apart;
+- the 4 GiB guest's 4.04 GiB is its whole request,
+  so it measures a ceiling;
+- `mem-a` and `mem-c` ran without a reporting balloon,
+  `mem-b` and `mem-d` with one,
+  which is what their round recorded;
   no kept file records a guest's domain XML,
-  and `balloon-check.txt` is the one guest whose own view of its devices is kept;
+  and `balloon-check.txt` shows a balloon device only,
+  which libvirt adds to a domain that does not name one,
+  so it does not show reporting negotiated;
 - `mem-c` held private RAM and the rest shared memfd RAM;
-- the other rounds' guests numbered two in `mem-third-8g-prebuilt`,
-  two to four in the two cells of 2026-11-26T01:50Z and 02:27Z,
-  and up to four on 2026-11-25T21:14Z,
+- the other rounds' guests numbered none in `mem-a`'s samples,
+  one in `mem-b`'s,
+  `mem-c`'s and `mem-d`'s,
+  two in `mem-third-8g-prebuilt`'s,
+  and three or four in `mem-second-4g`'s and `mem-second-8g`'s,
   so "the same other guests" is true of no pair here;
 - the two cells that differ in the guest's size and share a route to the binaries,
   `mem-second-4g` and `mem-third-8g-prebuilt`,
   ran two hours and five minutes apart,
-  their peaks at 01:56:18Z and 04:01:37Z.
+  their peaks at 01:56:18Z and 04:01:26Z,
+  and their test binaries' test counts differ (1354 and 1356 filtered out),
+  so they do not even share a crate revision.
 
-What the cells do support is a reading per option,
-which is what the questions use.
+What the cells do support is a reading per option:
+the lock arm passes from binaries built outside the guest,
+a guest that builds the crate used 7.29 GiB of its own memory for the build,
+and the drops returned 0,
+2.28,
+1.25,
+1.23,
+0 and 0 GiB with no mechanism named.
 
 ## The decisions, each on its own
 
@@ -900,21 +1067,47 @@ which is what the questions use.
 Decided by the owner on 2026-11-25T18:58-05:00
 (`doc/decision/mvm-guests-report-free-pages.md`),
 and in `mvm`'s source since commit `269b812807`:
-every libvirt guest `mvm` creates carries the reporting balloon.
-Its saving is real and smaller than the charge difference that led to it:
-the decision's own `Why` compares 7.98 GiB against 5.52 GiB of charge
+every libvirt guest `mvm` creates asks for the reporting balloon.
+Its saving is smaller than the charge difference that led to it,
+and that difference is a difference of charge,
+not of host RAM:
+the decision's own `Why` compares 7.98 GiB against 5.52 GiB
 (`mem-a` at rest and `mem-b` at rest),
 and charge counts swapped pages at the size the guest swapped them.
-Counting them at the size zram held them,
-which is the host's RAM,
-gives about 0.9 GiB for `mem-b`;
-`mem-a`'s file holds no zram counters,
-so its share is estimated from `mem-b`'s at the same sample,
-about 0.2 GiB,
-and that estimate is not a measurement.
-The saving is therefore somewhere near 0.7 GiB of host RAM at rest in that pair,
+Counted at the size zram held them at the same sample:
+
+- `mem-b`,
+  0.20 GiB resident plus 5.32 GiB swapped at the device's 13.25 percent,
+  is about 0.9 GiB of host RAM;
+- `mem-a`'s file holds no zram counters,
+  so its compressed part is estimated at the 3.3 percent the device held at
+  2026-11-25T22:00:41+00:00,
+  inside that guest's own window,
+  and 0.98 GiB resident plus about 0.23 GiB gives about 1.2 GiB.
+
+So the pair differs by about 0.3 GiB of estimated host RAM,
 not 2.46 GiB,
-and the report accompanying this round proposes the corrected sentence for the decision record.
+and neither guest's compressed share was measured.
+The decision record's measured sentence needs replacing with this one,
+which is also the sentence the record should cite from here:
+
+```text
+# doc/decision/mvm-guests-report-free-pages.md: the measured sentence, corrected
+Measured once each on this host (libvirt 12.9.0, QEMU 11.1.3) with an Ubuntu 24.04 guest after one build of
+the git wrapper: the default guest's charge, its QEMU process's `Rss` plus `Swap`, stayed at 7.98 GiB at rest
+and the guest with reporting on at 5.52 GiB. Charge counts swapped pages at the size the guest swapped them;
+counting them at the size zram held them gives about 1.2 GiB for the default guest and about 0.9 GiB for the
+guest with reporting on, about 0.3 GiB apart, and both are estimates from one run each under different
+pressure. Reporting's saving on host RAM at rest is therefore smaller than that 2.46 GiB charge difference
+(`doc/planning/mvm-guest-memory-held-for-a-rounds-life.md`, the section "Free page reporting: decided, and
+shipped").
+```
+
+The section the record cites today,
+"Free page reporting on,
+the same guest with one domain attribute",
+is not a heading of this document;
+the section above is the one to cite.
 
 The decision's limits are the ones measured here:
 one run each,
@@ -922,117 +1115,153 @@ a pressure-dependent split,
 an unmeasured page-fault cost,
 and no return while a build's pages are live.
 
-### Should a round drop its guest's page cache after an arm?
+### Should a driver drop its guest's page cache between its arms?
 
 What it would change:
-one command in each round's guest,
-after the arm's evidence is saved.
-No `mvm` code,
-no arm's steps.
+a driver change,
+one command after each arm's evidence is pulled,
+in the drivers whose `all` step runs more than one arm
+(`doctor-zfs-route-guest.ts:212` and `:215`,
+`removal-lineage-proof-guest.ts:417` and `:423`,
+`mount-git-worktree-clone-datasets-guest.ts:457`,
+`:510`,
+`:650` and `:896`,
+`start-probe-guest.ts:859`).
+No `mvm` code and no arm's steps.
+A driver that runs one arm and then destroys its guest has no next step to warm,
+so a drop there buys nothing.
 
 What is measured,
-one run per guest,
-in the order the drops ran.
-Each line names what the guest's own `/proc/meminfo` read beside the host's charge,
+one run per guest.
+Each line names what the host read at the drop and after it,
+and what the guest's own `/proc/meminfo` read in the same window,
 because the guest's view is what says whether a fall could be the drop's doing:
 
 - `mem-b`,
   a default guest with reporting on,
-  host out of memory (`MemAvailable` at or under 64 MiB in all 183 samples):
-  5.52 GiB before,
-  3.24 GiB after,
-  2.28 GiB returned,
-  all of it swapped pages,
-  with the resident part rising 0.05 GiB.
-  The guest's own log ends 5 minutes before the drop,
-  so its side of this fall has no reading.
+  5.52 GiB (0.20 resident,
+  5.32 swapped) at 23:01:00Z,
+  with `MemAvailable` 6.75 GiB and `some avg10` 0.00;
+  3.24 GiB (0.25 resident,
+  2.99 swapped) at 23:01:46Z,
+  so 2.28 GiB less,
+  all of it from the swapped part,
+  with the resident part up 0.05 GiB.
+  The sample after the drop read `MemAvailable` 0.73 GiB with `some avg10` 1.20.
+  The guest's own log ends at 22:56:01Z,
+  five minutes before the drop,
+  so this fall has no guest-side reading.
 - `mem-second-8g`,
   a default guest that built the crate,
-  host with memory free (`MemAvailable` 13.12 GiB at the sample before the drop):
-  6.69 GiB before,
-  5.44 GiB after 35 seconds,
-  1.25 GiB.
-  In that window the guest's own `AnonPages` fell 2.02 GiB and its `Cached` 0.45 GiB;
-  0.57 GiB of the charge went with the anonymous pages,
-  the remaining 0.68 GiB came after them,
-  and no mechanism is named here for it.
+  6.69 GiB at 02:26:47Z with `MemAvailable` 13.12 GiB and `some avg10` 0.04;
+  5.44 GiB at 02:27:22Z,
+  so 1.25 GiB.
+  In that window the guest's own `Cached` fell 0.44 GiB and its `AnonPages` 1.93 GiB;
+  the cache is the part a drop frees,
+  and no mechanism is named here for the rest.
 - `mem-second-4g`,
   a 4 GiB guest on container-built binaries,
-  host with memory free (`MemAvailable` 14.05 GiB):
-  3.23 GiB before,
-  2.00 GiB after 11 seconds,
-  1.23 GiB,
-  and the guest's own `Cached` fell 1.4 GiB in the same 5 seconds,
-  which matches the fall and names no cause beyond the drop.
+  3.23 GiB at 01:58:28Z;
+  2.00 GiB at 01:58:40Z,
+  so 1.23 GiB,
+  while the guest's own `Cached` fell 1.40 GiB in the five seconds before it.
+  The charge had already fallen 0.89 GiB from 4.03 GiB at 01:57:42Z,
+  as `MemAvailable` went from 1.40 GiB to 0.00 GiB at 01:57:54Z
+  with `some avg10` 8.52 at 01:58:05Z.
 - `mem-third-8g-prebuilt`,
   a default guest on container-built binaries,
-  host with memory free (`MemAvailable` 12.57 GiB):
-  6.17 GiB before,
-  6.17 GiB at 11 and 23 seconds after,
-  nothing,
-  while the guest's own `Cached` fell 3.66 GiB and its `AnonPages` 1.42 GiB.
+  6.17 GiB at 04:01:37Z with `MemAvailable` 12.57 GiB and `some avg10` 0.03;
+  6.17 GiB at 04:01:48Z,
+  04:01:59Z and 04:02:10Z,
+  so nothing,
+  while the guest's own `Cached` fell 3.67 GiB and its `AnonPages` 1.42 GiB.
 - `mem-a`,
   the default guest of the decision's comparison,
   which carried no reporting balloon,
-  host thrashing (`MemAvailable` at or under 64 MiB in all 178 samples):
-  7.98 GiB before and after,
-  nothing,
-  and the guest's own log ends before the drop.
+  7.98 GiB (0.98 resident,
+  7.00 swapped) at 21:54:43Z
+  with `MemAvailable` 17.12 GiB and `some avg10` 0.13;
+  7.98 GiB (1.09 resident,
+  6.89 swapped) at 21:55:46Z,
+  so nothing,
+  and the guest's own log ends at 21:51:34Z,
+  before the drop.
 - `mem-c`,
   a guest with private RAM whose round recorded no reporting balloon:
-  3.07 GiB before,
-  3.08 GiB after,
-  nothing,
-  while the guest's own `Cached` fell 1.5 GiB.
+  3.07 GiB at 23:20:41Z with `MemAvailable` 9.96 GiB and `some avg10` 0.10;
+  3.08 GiB at 23:21:02Z,
+  so nothing,
+  while the guest's own `Cached` fell 1.44 GiB.
+
+Six readings,
+one run each:
+three returned nothing,
+and 2.28,
+1.25 and 1.23 GiB came back.
+The `MemAvailable` at each drop's own sample ran from 6.75 to 17.12 GiB,
+and no ordering holds:
+the 2.28 GiB return came at the lowest of those readings,
+the 1.23 GiB one at 14.05 GiB,
+and `mem-a`'s drop at 17.12 GiB returned nothing.
+Nothing here names what decides.
 
 What it costs:
-the next step of the same guest starts with a cold page cache,
-so an arm whose time is being measured must not follow a drop,
-and a guest that is destroyed after its readings pays nothing.
+a cold page cache for the next arm in the same guest,
+plus the driver change;
+in a driver that runs one arm,
+a drop before the destroy buys nothing.
 
 Recommendation:
 not now.
-The reason is in the two readings taken with the host's memory free:
-the 4 GiB guest returned 1.23 GiB,
-matching the cache it freed,
-and the default guest returned nothing at all,
-keeping 6.17 GiB of the host's RAM for a guest that read `MemFree` 7.76 GiB of 8.13 GiB,
-freed 5 GiB of its own,
-and sat that way for the 23 seconds before its destroy.
-Nothing here names what decides between the two,
-and the step's return is therefore unestablished,
-while its cost,
+The returns run from nothing to 2.28 GiB with no mechanism named,
+a drop only helps the next arm of the same driver run,
+and the cost,
 a cold cache,
 is certain.
-The scope is every round that keeps its guest after an arm,
-which is every round that runs a guest arm today;
-if the return is established later,
-the step costs one line per round.
+The scope is a driver change in the four drivers named above;
+if a return is established later,
+each owes one line.
+
+Ranking:
+not now > drop in the four drivers that run more than one arm > never.
+Not now keeps a measured 2.28 GiB possibility open for a step that costs nothing today,
+while the middle option spends a driver change and a cold next arm on a return nothing explains;
+the middle option still beats never,
+because never throws away the largest reading,
+2.28 GiB.
 
 Question for the owner,
 ready to paste
-(this one is 812 characters,
-and every form here is under 1,500):
+(this one is under 1,500 characters,
+as every form here is):
 
 ```text
-Should a round drop its guest's page cache after each arm?
-Not now (Recommended): the six kept readings disagree. With the host's memory free, a 4 GiB guest
-returned 1.23 GiB (its own Cached fell 1.4 GiB) and a default guest returned nothing in 23 s while it
-freed 3.7 GiB of cache and 1.4 GiB of its own pages and the host kept 6.17 GiB. With the host out of
-memory, a default guest's drop removed 2.28 GiB of swapped pages. The step costs a cold page cache for
-the next step, so an arm whose time is measured must not follow it, and no mechanism here says when it
-returns anything.
-Adopt: one `sync; echo 3 > /proc/sys/vm/drop_caches` after each arm's evidence is pulled, accepting that
-it may return nothing and that the next step starts cold.
-Never: rounds keep no guest-side step, and the memory stays held.
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the cache-drop question
+Should a driver drop its guest's page cache between its arms?
+Not now (Recommended): six drops, one run each. Three returned nothing; 2.28, 1.25 and 1.23 GiB
+came back. MemAvailable at each drop's own sample ran from 6.75 to 17.12 GiB, with no ordering,
+so nothing here names what decides. A drop only helps the next arm of the same driver run, and
+most drivers run one arm and destroy the guest. Pro: costs nothing today. Con: the host keeps a
+guest's cache between arms.
+Drop in the four drivers that run more than one arm (doctor-zfs-route, removal-lineage-proof,
+mount-git-worktree-clone-datasets, start-probe): pro, a drop returned 2.28 GiB once. Con, a driver
+change and a cold next arm, for a return nothing explains.
+Never: pro, the question closes. Con, gives up the largest reading, 2.28 GiB.
+Ranking: not now > drop in those four > never, because not now keeps the reading open at no cost.
 ```
 
-### Should a round destroy its guest between arms?
+### Should a driver create, prepare and destroy a guest per arm?
 
 What it would change:
-a round's own driver runs create,
-preparation and the arm once per arm instead of
-once per round.
+the drivers whose `all` step runs more than one arm
+(`doctor-zfs-route-guest.ts:265`,
+`removal-lineage-proof-guest.ts:473`,
+`mount-git-worktree-clone-datasets-guest.ts:931`,
+`start-probe-guest.ts:859`,
+all quoted in "How a round uses guests today")
+would create,
+prepare and destroy a guest for each arm instead of for each `all` step.
+No `mvm` code.
 
 What is measured,
 one run per guest:
@@ -1040,48 +1269,63 @@ one run per guest:
 - destroy returns the whole charge:
   the sample after `mem-b`'s destroy holds no QEMU process for it,
   and the destroys kept took 0.85,
-  1.03 and 1.17 seconds
-  (each `mvm destroy` log carries both timestamps).
+  1.03 and 1.17 seconds by their drivers' clocks,
+  the last being 0.90 seconds between the two lines of `mvm destroy`'s own log.
 - create took 10.7,
-  10.5 and 9.78 seconds.
+  10.5 and 9.78 seconds by the drivers' clocks,
+  the last being 9.5 seconds between the two lines of `mvm create`'s own log.
 - the preparation each create owes:
-  the guest that runs the ZFS binding's recipe installs packages,
+  the guest installs packages,
   builds OpenZFS 2.4.4 and installs Rust and `cargo-nextest` from source.
-  The third cell's preparation took 284.22 seconds (4 minutes 44 seconds),
-  timed by its driver;
-  the two earlier cells' preparation logs carry no timestamps,
-  so no split of theirs is claimed here,
-  and the 7-minute figures an earlier draft gave for them are gone.
+  One preparation was timed,
+  284.22 seconds (4 minutes 44 seconds);
+  the other cells' preparation logs carry no timestamps,
+  so no split of theirs is claimed.
 - an arm that compiles pays the build again:
   7 minutes 40 seconds with cargo's default jobs in `mem-second-8g`;
-  the arms themselves took 0.57,
-  1.13 and 0.75 seconds.
-- the saving is the share of a round spent between arms,
-  and nothing here measured that share:
-  each of the three cells ran one arm,
-  so no kept reading holds a gap between two arms.
+  the arms themselves took 1.13,
+  0.57 and 0.39 seconds by their test binaries' summaries.
+- `mem-c`'s create and destroy were not kept in the evidence folder,
+  so no duration of that route is quoted here.
+
+So one more guest owes about 10 seconds of create plus the one timed preparation of 284.22 seconds,
+before any build,
+against arms of 0.39 to 1.13 seconds.
+No run here measured the gap between two arms of one driver run:
+each cell ran one arm,
+and the drivers' own logs are not in this folder.
 
 Recommendation:
 not now.
-Destroying returns everything the guest held,
-but every new guest owes a create and a preparation,
-measured in minutes,
-against arms measured in about a second,
-so a round pays more than it saves unless its gaps are long and its arms cheap.
-The scope is every round that runs guest arms today,
-all of which keep one guest for the round's arms.
+A create plus the preparation is about five minutes per extra guest,
+an arm is about a second,
+and only four drivers would have a next arm to isolate;
+no measured gap justifies that price.
+The scope is those four drivers;
+the rest already destroy their guest after their one arm.
+
+Ranking:
+keep one guest per driver run > clone a prepared image per arm > create per arm.
+Keeping one guest is measured and costs one preparation per driver run;
+cloning a prepared image could cut the 284.22 second preparation that makes per-arm guests dear,
+but nothing here measured it;
+creating per arm is measured to cost about five minutes per arm it isolates.
 
 Question for the owner,
-ready to paste:
+ready to paste
+(this one is under 1,500 characters):
 
 ```text
-Should a round destroy its guest between arms instead of keeping it for the round?
-Keep the guest (Recommended): destroying returns everything, but each new guest owes a create (9.78 to
-10.7 s measured, one run each) and the ZFS binding's preparation, which installs packages, builds OpenZFS
-2.4.4 and installs cargo-nextest from source (284 s in the one preparation timed by its driver). The arms
-measured take 0.57 to 1.13 s, and the crate build an arm may need took 7 m 40 s. No run here measured the
-share of a round's time spent between arms, so a gap has to be long to pay that.
-Destroy between arms: everything returns at each gap, and every gap pays a create and a preparation.
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the guest-per-arm question
+Should a driver create, prepare and destroy a guest per arm instead of per driver run?
+Keep one guest per driver run (Recommended): pro, the preparation is paid once per run and the arms
+are 0.39 to 1.13 s. Con, the guest's charge stays between arms.
+Clone a prepared image per arm: pro, it could cut the 284.22 s preparation that makes per-arm guests
+dear. Con, unmeasured, and it needs a prepared image and a driver change.
+Create per arm: pro, every arm starts fresh and the charge returns at each gap. Con, about 10 s of
+create plus the 284.22 s preparation per arm, plus 7 m 40 s if that arm builds the crate.
+Ranking: keep one guest > clone a prepared image > create per arm, because keeping is measured and
+cheapest, cloning could beat it but is unmeasured, and creating per arm is measured to cost minutes.
 ```
 
 ### Should the crate's test binaries be built outside the guest?
@@ -1099,123 +1343,170 @@ No `mvm` code.
 What is measured:
 
 - the same lock arm passed in two guests on the container's binaries,
-  in 1.13 and 0.75 seconds,
+  in 1.13 and 0.39 seconds by their test binaries' summaries,
+  0.75 seconds by `mem-third-8g-prebuilt`'s driver clock,
   each with all 15 marker lines
   (`mem-second-4g-lock-arm.log.txt`,
-  `mem-third-8g-prebuilt-lock-arm.log.txt`);
-- the crate's build is what raises a guest's peak:
-  `mem-second-8g`,
-  which built inside the guest,
-  put 7,641,948 kB (7.29 GiB) of the guest's own `AnonPages` at its peak
-  and charged the host 7.98 GiB;
-  the same arm on container-built binaries,
-  in a guest of the same 8,192 MiB,
-  peaked at 6.17 GiB
-  (`mem-third-8g-prebuilt`);
+  `mem-third-8g-prebuilt-lock-arm.log.txt`),
+  and the binary that ran in `mem-third-8g-prebuilt` began at the container's own path
+  (`mem-third-8g-prebuilt-guest-unpack.log.txt`);
+  no driver was run this way,
+  and one arm of one driver is what these two runs cover;
+- the guest that built the crate put 7,641,948 kB (7.29 GiB) of its own `AnonPages` at its peak,
+  against a 7,755 MiB `MemTotal`,
+  with `MemAvailable` down to 88,740 kB (86.7 MiB);
+  the two guests that only ran the binaries peaked at 1.48 and 1.47 GiB of their own `AnonPages`.
+  These are one run each;
+  the guest's own count is the guest's accounting and the two prebuilt readings differ by 0.01 GiB,
+  and no spread of repeated runs was measured;
+- the host's charge does not separate the two routes:
+  `mem-third-8g-prebuilt`'s 6.17 GiB was reached at 04:01:26Z,
+  before its binaries were pushed at 04:01:43Z,
+  so it is the preparation's footprint,
+  and the two 8 GiB guests' charges (7.98 GiB building,
+  6.17 GiB not building) are two runs
+  two hours apart under unlike pressure.
+  No saving of host charge is therefore claimed for this option;
 - the container build took 289 seconds here,
-  and its own container charged 9,651,453,952 bytes (9.0 GiB) at most;
+  and its own cgroup peaked at 9,651,453,952 bytes (9.0 GiB);
 - the source tree and the two binaries moved into the guest in 2.17 seconds:
-  a 12,994,872-byte source tarball and the two binaries,
-  61 MB in all,
+  a 12,994,872-byte source tarball,
+  a 31,524,648-byte wrapper and a 17,218,360-byte test binary
+  (61.7 MB in all),
   with both binaries starting at the end of it.
 
 What it costs:
-a container build per commit,
-which charged this host up to 9,651,453,952 bytes (9.0 GiB) of RAM in its own container and took 289 seconds;
+a container build per commit or per round,
+which charged this host up to 9,651,453,952 bytes (9.0 GiB) of RAM in its own container
+and took 289 seconds;
 one build path per driver;
-each driver's own features and target directory;
+each driver's own features,
+target directory and profile;
+a first run per driver that reproduces those flags,
+because the measured cells carried neither the drivers' `--features test-only-switches` nor their job limits;
 and the arms whose subject is the in-guest build,
 which lose their subject.
-The host's peak is not what a guest holds,
-so the two figures beside each other are the guest's peak charge on each route,
-not a sum.
+The container's cgroup peak and a guest's charge are different quantities,
+so they are not added and no net host effect is claimed:
+the guest-side saving is what is unmeasured.
 The alternative route,
 a nextest archive with `--workspace-remap`
 (the section "What can place them where the guest finds them"),
-needs the crate's 42 `env!` path sites changed and is not measured.
+needs the crate's 42 `env!` path sites changed and is not measured;
+it is a separate decision,
+not a variant of this one.
 
 Recommendation:
 yes,
 for arms whose subject is not the crate's own build.
-The reason is measured:
-the same arm passed on the container's binaries,
-and moving the build out of the guest lowered the peak charge from 7.98 GiB to 6.17 GiB
-for a guest of the same size.
+The measured reason is the arm's pass:
+the lock arm ran from binaries built outside the guest in two guests,
+and the one guest that built the crate spent 7 m 40 s and 7.29 GiB of its own memory on the build.
 The scope is every arm whose subject is not the build,
 which the lock arm shows is not empty:
 its subject is a lock's lifetime in a ZFS dataset.
 
+Ranking:
+build outside at the same path > keep building in the guest.
+Building outside keeps every measured arm running and removes the build from each guest's life,
+at the price of a 289 second container with a 9.0 GiB peak and a first run per driver;
+keeping the build inside costs nothing new but leaves a 7 m 40 s,
+7.29 GiB build in every guest that runs an arm,
+and its memory benefit cannot be measured without the change.
+
 Question for the owner,
-ready to paste:
+ready to paste
+(this one is under 1,500 characters):
 
 ```text
-Should the crate's test binaries be built once on the host, in an image whose glibc is the guest's, and
-placed at the absolute path each guest arm driver uses?
-Adopt for arms whose subject is not the crate's build (Recommended): the lock arm passed in 1.13 s in a
-4 GiB guest and in 0.75 s in a default guest, each on binaries built in an Ubuntu 24.04 container
-at /opt/git-policy-cli-lock, with all 15 marker lines. A guest that builds the crate itself put 7.29 GiB
-of its own memory into cargo build and charged the host 7.98 GiB; the same arm on the container's binaries
-charged 6.17 GiB. Cost: a container build per commit (289 s here), one build path per driver
-(nine today), each driver's own features and target dir, and no arm whose subject is the in-guest build.
-Keep building in the guest: nothing changes, and every arm keeps its in-guest build.
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the build-location question
+Should the crate's test binaries be built outside the guest, in an image whose glibc is the guest's,
+and placed at the absolute path each driver uses?
+Build outside (Recommended), for arms whose subject is not the crate's build: pro, the lock arm passed
+in two guests on such binaries, in 1.13 s and 0.39 s, and the guest that built the crate spent 7 m 40 s
+and 7.29 GiB of its own memory on it. Con, a container build of 289 s and a 9.0 GiB host peak per
+commit or round, one build path per driver, each driver's flags, a first run per driver to prove them,
+and no arm whose subject is the in-guest build. One arm of one driver was measured; the rest is
+extrapolated.
+Keep building in the guest: pro, nothing changes and every arm keeps its subject. Con, every guest
+owes a 7 m 40 s build and 7.29 GiB, and the saving stays unmeasured.
+Ranking: build outside > keep inside, because outside keeps measured arms running and takes the build
+out of every guest, while inside leaves it in each one.
 ```
 
 ### Should mvm's guests be smaller than 8,192 MiB?
 
 What it would change:
-`DEFAULT_MEMORY_MIB`,
-or a per-guest flag with a `meta.json` field,
-and every driver,
-because a 4 GiB guest cannot hold the crate's build.
+`DEFAULT_MEMORY_MIB` in `package/mvm/cli/src/config.ts:38`,
+and every driver's expectations,
+because every arm here ran in a guest of the default size or larger.
+A per-guest flag with a `meta.json` field would be a separate change,
+not part of this question.
 
 What is measured,
-one run per cell:
+one run per guest:
 
-- the build does not fit in 4 GiB:
-  `mem-second-8g`'s own `AnonPages` peaked at 7,641,948 kB (7.29 GiB) of its 7,755 MiB,
-  with `MemAvailable` down to 88,740 kB,
-  so no 4 GiB guest can run an arm that builds;
-- with the build kept inside the guest,
-  the size was worth 0.66 GiB at most:
-  the default guest's charge at its pre-build peak was 4.70 GiB at 02:15:01Z
-  (`mem-second-8g-host-samples.jsonl` line 24),
-  against the 4 GiB guest's whole-life peak of 4.04 GiB,
-  both during the preparation's toolchain step;
-- with the build moved out of the guest,
-  the size was worth 2.13 GiB:
-  the 4 GiB guest on container-built binaries peaked at 4.04 GiB,
-  and the default guest on the same binaries at 6.17 GiB;
-- a 4 GiB guest does hold the preparation itself:
-  `mem-second-4g` built OpenZFS 2.4.4 in the guest,
-  and its whole-life peak never passed 4.04 GiB.
+- the one guest that built the crate used 7,641,948 kB (7.29 GiB) of its own `AnonPages`
+  of a 7,755 MiB `MemTotal`,
+  with `MemAvailable` down to 88,740 kB (86.7 MiB).
+  That is what the build used with cargo's default jobs,
+  not what it needs:
+  four drivers cap the compiler's parallelism,
+  and no run here built the crate in a guest smaller than 8 GiB;
+- the 4 GiB guest on container-built binaries peaked at 4.04 GiB,
+  its whole 4,096 MiB request,
+  from 01:55:30Z to 01:57:42Z,
+  so that reading measures the ceiling and not the guest's need;
+- a 4 GiB guest does hold the preparation:
+  `mem-second-4g` ran the ZFS binding's recipe with OpenZFS built in the guest
+  and stayed up,
+  its charge at that same ceiling;
+- the 8 GiB guest on the same binaries peaked at 6.17 GiB during its preparation,
+  two runs under unlike pressure and at different stages,
+  so no difference between the guest sizes is claimed from the two.
+
+The guest that only ran prebuilt binaries peaked at 1,541,700 kB (1.47 GiB) of its own `AnonPages`
+over its whole life,
+so it used far less than its 7,755 MiB;
+no run here gave that guest less.
+What would make a smaller default affordable is therefore the build's location,
+which the section before asks about,
+and this question is answerable without it only as "keep 8,192 MiB".
 
 What it would cost:
 every driver changes,
-and an arm whose subject is the in-guest build cannot run at all.
+and an arm that builds the crate in the guest would have to be re-measured in the smaller guest,
+which no run here did.
 
 Recommendation:
-keep 8,192 MiB,
-and treat the size as a follow-on to the build location,
-not a decision that stands while arms build in the guest.
-The reason is measured:
-a guest that runs the crate's build needs 7.29 GiB of its own memory,
-so a 4 GiB guest cannot hold that arm at all,
-and with the build moved out the size is worth 2.13 GiB,
-which the build location's own question decides first.
+keep 8,192 MiB.
+No run here shows a smaller guest building the crate,
+the only smaller guest that ran an arm was fed binaries built outside it,
+and the measured saving of a smaller guest is not established.
 The scope is every guest `mvm` creates today,
 which the default covers.
 
+Ranking:
+keep 8,192 MiB > 4,096 MiB.
+Keeping costs nothing and leaves every arm runnable;
+a 4,096 MiB default would block every arm that builds the crate in the guest,
+and its memory saving is unmeasured for the guests that would gain it.
+
 Question for the owner,
-ready to paste:
+ready to paste
+(this one is under 1,500 characters):
 
 ```text
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the guest-size question
 Should mvm's default guest memory stay at 8,192 MiB?
-Keep 8,192 MiB (Recommended): a guest that runs the crate's build needs 7.29 GiB of its own memory
-(measured, one run) with MemAvailable down to 85 MB, so a 4 GiB guest cannot hold an arm that builds.
-With the build kept inside the guest, the size was worth 0.66 GiB at most; with the build moved out it was
-worth 2.13 GiB (4.04 GiB peak in a 4 GiB guest against 6.17 GiB in a default one, one run each).
-4 GiB, once the build is moved out: the preparation fits (4.04 GiB peak measured), the host saves
-2.13 GiB of peak charge, every driver changes, and no arm whose subject is the in-guest build can run.
+Keep 8,192 MiB (Recommended): pro, every arm stays runnable and nothing changes. Con, a guest that only
+runs prebuilt binaries peaks at 1.47 GiB of its own pages, so 8 GiB is more than it uses.
+4,096 MiB for every guest: pro, the preparation fits (a 4 GiB guest ran it, its charge at 4.04 GiB, its
+ceiling). Con, an arm that builds the crate in the guest would need re-measuring in the smaller guest,
+every driver changes, and the saving is unmeasured (the 8 GiB guest on the same binaries peaked at
+6.17 GiB, a different run and stage).
+Ranking: keep 8,192 MiB > 4,096 MiB, because keeping leaves every arm runnable at no cost, while 4,096
+blocks every in-guest build for a saving nothing measured.
 ```
 
 ### Should the host turn KSM on so a round can measure it?
@@ -1223,8 +1514,8 @@ worth 2.13 GiB (4.04 GiB peak in a 4 GiB guest against 6.17 GiB in a default one
 What it would change:
 a host setting (`/sys/kernel/mm/ksm/run`),
 which the kernel's KSM documentation says is writable only by root,
-and a round built to measure merging between two guests of one template.
-It would also need a guest whose RAM is private,
+and a host where `ksmd` scans while guests run.
+A round that wanted merged pages would also need guests whose RAM is private,
 which today means the guest-agent route,
 because a memfd's page cache is never merged.
 
@@ -1236,10 +1527,11 @@ What is measured:
   and its bytes are charged to `anon`;
 - KSM read 0 throughout every run and merged nothing,
   so the saving is unmeasured;
-- the guest-agent route costs the file route:
-  11 seconds against 3 for a 12.6 MB push,
-  and no `/mnt/shared`,
-  which every arm driver's `guestStart` and `guestFinish` use;
+- the guest-agent route has no `/mnt/shared`,
+  through which every driver copies its subject tarball and pulls its logs
+  (the section "How a round uses guests today"),
+  and that round pushed its snapshot through the guest agent instead of the share;
+  the durations of that push are not kept in the evidence folder;
 - the kernel's KSM documentation states that KSM "only merges anonymous (private) pages,
   never pagecache (file) pages",
   and that "KSM's scans may use a lot of processing power:
@@ -1252,45 +1544,72 @@ What is measured:
 
 What it would cost:
 the host's `ksmd` scans every registered range while it runs,
-spending CPU on the whole host,
-and the guests that could merge would have to give up the share,
-which costs every driver its `/mnt/shared`.
+spending CPU on the whole host;
+and the guests that could merge are the guest-agent ones,
+which no driver can run today,
+so a measurement round owes the drivers another transfer route first.
 
 Recommendation:
 no.
 The reason is measured and quoted:
 the route every guest uses today cannot be merged,
 because its RAM is page cache and KSM merges only anonymous pages,
-and the one route that can be merged is the guest-agent route,
-which every arm driver's `guestStart` and `guestFinish` cannot run without `/mnt/shared`.
+and a round that chose guest-agent guests to merge would have to replace the
+`/mnt/shared` transfers every driver depends on first.
+So this is not a host switch with a measurement behind it;
+it is a driver change followed by a measurement.
 The scope is every guest `mvm` creates today,
 which is the memfd route unless libvirt finds no `virtiofsd`.
 
+Ranking:
+no > yes,
+for one measurement round.
+No costs nothing and leaves every driver's transfers working;
+yes would begin with a driver change every arm needs,
+spend CPU host-wide on scans,
+and measure a saving that no arm here could use today.
+
 Question for the owner,
-ready to paste:
+ready to paste
+(this one is under 1,500 characters):
 
 ```text
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the KSM question
 Should the host turn KSM on so a round can measure what it merges between guests?
-No (Recommended): every guest mvm creates today holds its RAM as a memfd, which is page cache, and the
-kernel's KSM documentation states that KSM only merges anonymous pages, never page cache. Measured: the
-memfd guests' RAM mapping carries no mergeable flag; the guest-agent route's private mapping does, and
-that route costs every driver /mnt/shared and a 11 s push where virtiofs takes 3 s. Turning KSM on is a
-root-owned host-wide setting whose scans cost CPU on the whole host (run=1 on, run=2 unmerges, run=0
-stops), and no arm here could use it.
-Yes, for one measurement round: write 1 to /sys/kernel/mm/ksm/run, run two guest-agent guests at once,
-record pages_shared and pages_sharing, then write 2 and 0 to unmerge and stop, and measure what the
-guest-agent route costs every driver.
+No (Recommended): pro, no root-owned host-wide switch, no ksmd scans, no driver change. Con, the
+saving stays unmeasured. Every guest mvm creates today holds its RAM as a memfd, and the kernel's
+KSM documentation states that KSM only merges anonymous pages, never page cache.
+Yes, for one measurement round: pro, it would measure pages_shared and pages_sharing between two
+private-RAM guests. Con, only the guest-agent route has private RAM, and that route has no /mnt/shared,
+which every driver copies its tarball and logs through, so the drivers need another transfer route
+first; ksmd also scans host-wide (run=1 on, run=2 unmerges, run=0 stops).
+Ranking: no > yes, because no costs nothing and yes begins with a driver change every arm needs.
 ```
 
 ## What is not measured, and is owed
 
-- The run-to-run spread of the charge's resident and swapped split:
-  every figure is one run,
+- The run-to-run spread of every figure:
+  each is one run,
   and the host's pressure changed between all of them.
+  Until a spread exists,
+  no difference between two runs here is an effect.
+- The host-charge effect of building outside the guest:
+  only the guest's own `AnonPages` separates the two routes,
+  and its two prebuilt readings are one run each.
+- A driver run that uses the container's binaries with the driver's own flags:
+  the measured cells carried neither `--features test-only-switches` nor the drivers' job limits,
+  and no kept log records what they did carry.
 - The cache drop on a guest without reporting:
   reporting is unconditional now,
   so that arm cannot be run again,
   and `mem-a`'s single reading is all there is.
+- The gap between two arms of one driver run,
+  which is what the guest-per-arm question turns on.
+- `mem-c`'s create and destroy durations,
+  whose logs are not in the evidence folder,
+  and the guest-agent push's duration.
+- A prepared image cloned per arm,
+  which the guest-per-arm question names and nothing measured.
 - KSM's saving,
   for the reason under "Should the host turn KSM on so a round can measure it?".
 - The page-fault cost of reporting:
@@ -1303,8 +1622,6 @@ guest-agent route costs every driver.
   and the Hetzner backend.
 - The nextest archive route of the section "What can place them where the guest finds them",
   which is documented and not measured on this crate.
-- The share of a round spent between arms,
-  which is what the destroy question turns on.
 
 ## What shipping a choice would change in mvm
 
@@ -1314,14 +1631,17 @@ guest-agent route costs every driver.
   and every new guest has it from its next create.
 - Building the crate's test binaries outside the guest:
   no `mvm` change at all,
-  and a change to every driver under `package/git-policy/cli/e2e/`.
+  and a change to every driver under `package/git-policy/cli/e2e/`,
+  plus a container build per commit or per round.
 - A smaller guest:
-  the memory constant in `package/mvm/cli/src/config.ts`,
+  the memory constant in `package/mvm/cli/src/config.ts:38`,
   and a per-guest value would need a flag and a `meta.json` field too.
-  It is only safe together with moving the build off the guest.
-- A cache drop or a destroy between arms:
+  It would need the build to move off the guest first,
+  because nothing here shows an in-guest build fitting a smaller guest.
+- A cache drop between arms,
+  or a guest per arm:
   no `mvm` change at all;
-  both are round steps.
+  both are changes to the drivers named in their questions.
 
 ## Options considered and not measured
 
@@ -1335,7 +1655,7 @@ but it needs the guest's own balloon driver to find the pages,
 it leaves the inflated pages unusable to the guest until they are deflated,
 and `mvm` exposes no command that would carry it:
 a probe would have to run `virsh` itself,
-which this round's rules do not allow.
+which no agent round here may do.
 Free page reporting reaches the same place without asking the guest to surrender pages it might use.
 
 ### virtio-mem
@@ -1343,7 +1663,7 @@ Free page reporting reaches the same place without asking the guest to surrender
 QEMU's virtio-mem would let the host add and remove memory from a running guest in 2 MiB blocks.
 It needs a virtio-mem device and a guest driver,
 and libvirt's domain XML has to name it.
-This round did not measure it;
+No run here measured it;
 it is the one alternative that could shrink a guest's memory while it runs,
 which reporting cannot do,
 and it is the only alternative that would make the guest's own size
@@ -1361,11 +1681,11 @@ and the direction is away from the goal.
 ### Spreading the ARC instead of the guests
 
 The ARC was not at its floor when the readings were taken:
-the opening reading of the 2026-11-25T22:00:41Z sample found it at 2,088,789,208 bytes against a `c_min` of
+the opening reading of the 2026-11-25T22:00:41+00:00 sample found it at 2,088,789,208 bytes against a `c_min` of
 2,069,377,152,
 19,412,056 bytes above the floor,
 and `mem-a`'s samples hold it anywhere from 1.55 GiB,
-below that floor,
+below that floor of 1.93 GiB,
 to 13.92 GiB.
 So the ARC is not a fixed cost,
 but the gate's own sum treats only `size` minus `c_min` as reclaimable,

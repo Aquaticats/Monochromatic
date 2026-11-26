@@ -15,7 +15,7 @@ a guest's name being the `mvm` name the run gave it:
 `mem-third-8g-prebuilt`.
 Times are UTC and every file keeps the host's own clock.
 
-## The four guests of 2026-11-25T21:14Z to 23:35Z
+## The four guests of 2026-11-25T21:14:34+00:00 to 2026-11-25T23:35:20+00:00
 
 Guests `mem-a` to `mem-d` were one throwaway `mvm` guest each,
 destroyed after its readings were pulled.
@@ -42,15 +42,15 @@ destroyed after its readings were pulled.
   the guest's package installation output.
 - `mem-c-guest-readings.txt`:
   guest `mem-c`'s readings,
-  transcribed by that round because the guest was destroyed before its own log was pulled.
+  transcribed when the guest was destroyed before its own log was pulled.
 - `mem-d-guest-run.log.txt`:
   the smoke script `mem-d` ran,
   which stopped at a worktree refusal;
-  that round reported the failure rather than a passing arm.
+  the failure was reported rather than a passing arm.
 - `memory-gate-readings-2026-11-25.txt`:
-  the memory gate's readings while that round waited for a guest window.
+  the memory gate's readings while a guest window was waited for.
 
-## The guests of 2026-11-26T01:50Z to 02:27Z
+## The guests of 2026-11-26T01:50:43+00:00 to 2026-11-26T02:27:32+00:00
 
 Two guests,
 one that built the crate inside itself and one that did not,
@@ -93,18 +93,19 @@ each on the lock arm.
   `mvm create` and `mvm destroy` output,
   whose timestamps give the two durations.
 - `memory-gate-readings-2026-11-26.txt`:
-  the gate's readings every 30 seconds while that round waited,
+  the gate's readings every 30 seconds while the guests were waited for,
   each line naming `MemAvailable`,
   the ARC's `size` and `c_min`,
   and memory pressure's two averages.
 
-## The guest of 2026-11-26T03:56Z
+## The guest of 2026-11-26T03:56:49+00:00
 
 One default guest on the binaries the container built,
-which measures the cell the two earlier guests did not.
+the control the other two cells lacked:
+a default guest on the same container-built binaries.
 
 - `container-build-binaries-2026-11-26T03-51Z.txt`:
-  this round's container build,
+  the container build of 2026-11-26T03:51+00:00,
   its versions,
   its two binaries' sizes and glibc floors,
   its wall time,
