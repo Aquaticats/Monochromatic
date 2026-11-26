@@ -125,8 +125,8 @@ Rounds started earlier run on the pool they named.
   at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
   and the setgroups round touches `invocation/` too.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6502 (step 23's one failing arm pins the BTF header to the Ubuntu guest's 24 bytes; the CachyOS module declares 32),
-  window `issue-6502-live-gate-arm-reads-the-header-the-module-declares`, on Qwen, in `mvm` guests.
+- Issue 6504 (two driver controls fail in its parallel suite and pass alone),
+  window `issue-6504-driver-suite-controls-fail-together-and-pass-alone`, the first round on the virtual writer.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
 - Issues 6493 and 6495 (flex),
@@ -142,11 +142,12 @@ Rounds started earlier run on the pool they named.
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
-  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`;
-  its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-14-release-review`.
-  The fix round's claim of 244 `rust/folder-uses-links` findings on `main` did not reproduce:
-  clean `git archive` exports of `44996d08eb` and `1efb8a1163` give 0 and 0
-  (`~/temp/agent/layout-findings-on-a-clean-export-of-main-2026-11-26/keep/`).
+  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`.
+  Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-14-release-review-2026-11-26/keep/review.md`) found no High;
+  its two Mediums (a listed `own-file-loop` line lets the loop grow with no finding; a nested group's own-file use is never searched)
+  and its Lows go to the `alpha.15` fix round, window `monochromatic-lint-alpha-14-release-pass-fixes`, on the virtual writer.
+  The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
+  clean `git archive` exports of `main` give 0.
 
 Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
 so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
@@ -167,6 +168,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6497 as `ad67562f20`,
   6499 as `2f5b9c87bd` and
   6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
+- 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
 - ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
   record `doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`;
   every arm passed on `7.3.5-1-cachyos` with OpenZFS `2.4.4-1` except the gate arm issue 6502 fixes.
