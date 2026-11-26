@@ -180,9 +180,9 @@ fn layout_a_code_file_in_a_group_is_reported() {
     );
 }
 
-/// A code file of a group whose name holds a space is reported by that name,
-///  and its key names only the folder,
-///  because a key separates its words by spaces and could not name the file unambiguously.
+/// A code file of a group whose name holds a space is reported by its own key,
+///  which names the file,
+///  so a line written for it never tolerates another file of that group.
 #[test]
 fn layout_a_code_file_of_a_group_whose_name_holds_a_space_is_reported() {
     let mut files = two_groups();
@@ -198,10 +198,10 @@ fn layout_a_code_file_of_a_group_whose_name_holds_a_space_is_reported() {
     let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), &fixture.path, None);
     let spaced: Vec<&LayoutFinding> = found
         .iter()
-        .filter(|item| return item.key.starts_with("space-in-file-name"))
+        .filter(|item| return item.key.starts_with("group-file src/g "))
         .collect::<Vec<&LayoutFinding>>();
     assert_eq!(spaced.len(), 1, "{found:#?}");
-    assert_eq!(spaced[0].key, "space-in-file-name src/g");
+    assert_eq!(spaced[0].key, "group-file src/g own file.rs");
     assert!(
         spaced[0].message.contains("own file.rs"),
         "{}",

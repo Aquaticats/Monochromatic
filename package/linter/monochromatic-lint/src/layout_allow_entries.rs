@@ -172,13 +172,25 @@ fn unusable_reason(path: &str) -> Option<&'static str> {
 ///  A use is counted from the path the code makes,
 ///  while an entry is read from its own words,
 ///  so a spelling difference between them would make a line that records a use tolerate nothing.
+///  A `.` on its own names the package folder itself,
+///  which is how a key writes it,
+///  and `./` is the same folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const listedPath = (text) => lexical_normal(text)
+/// const listedPath = (text) => {
+///   const normal = lexicalNormal(text)
+///   return normal === '' && text !== '' ? '.' : normal
+/// }
 /// ```
 fn listed_path(text: &str) -> PathBuf {
-    return crate::markdown_lfs_target::lexical_normal(Path::new(text));
+    let normal: PathBuf = crate::markdown_lfs_target::lexical_normal(Path::new(text));
+    // What: the spelling a key uses for the package folder, kept instead of being read away.
+    // Why: an entry about the package folder must compare equal to the key that names it.
+    if normal.as_os_str().is_empty() && !text.is_empty() {
+        return PathBuf::from(".");
+    }
+    return normal;
 }
 
 /// What:

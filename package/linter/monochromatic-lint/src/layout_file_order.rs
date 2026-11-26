@@ -668,11 +668,10 @@ pub fn check_file_order(
             if Some(file) == index.as_ref() || roots.contains(file) {
                 continue;
             }
-            // A name holding a space cannot be written back into a key, so the name is the finding
-            // and the file stays out of the list and loop checks until it is renamed.
+            // A name holding a space forbids a `file-uses` line, which a loop needs to be tolerated.
+            // The file stays in every check, so a loop through it is reported rather than hidden.
             if name_holds_space(file) {
                 findings.push(space_finding(file, folder, base));
-                continue;
             }
             listed.push(file.clone());
         }

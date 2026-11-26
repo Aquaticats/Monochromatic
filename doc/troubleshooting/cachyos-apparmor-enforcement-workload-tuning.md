@@ -2275,7 +2275,7 @@ Snowflake has to resolve its front (`app.datapacket.com`) and its STUN servers.
 Without `/etc/resolv.conf` a resolver falls back to `127.0.0.1:53`,
 and nothing listens there on this host (systemd-resolved is on `127.0.0.53`).
 `aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com` exited `2` with no AVC,
-while the same lookup outside the profile returned `185.59.222.177`.
+while the same lookup outside the profile returned an address.
 
 An exact-path `cx` rule for `lyrebird` failed to compile
 ("profile has merged rule with conflicting x modifiers") against the stock glob.
@@ -2319,7 +2319,7 @@ which succeeded at 07:14 UTC with `lyrebird` labelled `torbrowser-tor//lyrebird 
 it logged only the `cpu.max` read, which was added before switching it to enforce.
 Under enforce,
 `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
-`{"IsTor":true,"IP":"204.8.96.168"}`,
+`{"IsTor":true,"IP":"<exit address>"}`,
 and the next 45 seconds held no `torbrowser-tor` denial.
 
 Upstream, on 2026-11-26:
