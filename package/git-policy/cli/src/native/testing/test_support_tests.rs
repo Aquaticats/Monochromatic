@@ -640,6 +640,60 @@ fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
     }
 }
 
+//region A descriptor limit is lowered in a child of the control's own, and nowhere else (issue 6492)
+
+/// What:
+///  A control that lowers the soft descriptor limit in the process the run holds is refused,
+///  and the limit it would have lowered stays exactly as it was.
+/// Why:
+///   The limit belongs to the whole process,
+///  and `cargo test` runs a crate's tests as threads of one process,
+///  so lowering it here fails every other test of the run with `EMFILE` on its next open (issue 6492);
+///  the refusal names the child helper to start instead,
+///  so a control that forgot the child fails every time it runs and not now and then.
+///  A control that removes the refusal makes this one fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = getrlimit('nofile'); const caught = callCatchingPanics(room, setSoftLimit);
+/// expect(whatThePanicSaid(caught)).toContain('started_this_test_in_a_child');
+/// expect(getrlimit('nofile')).toEqual(before);
+/// ```
+#[test]
+fn lowering_the_soft_limit_outside_a_child_of_the_controls_own_is_refused() {
+    let before: rustix::process::Rlimit =
+        rustix::process::getrlimit(rustix::process::Resource::Nofile);
+    // The room a child would leave itself, which must never reach this process.
+    let room: u64 = u64::try_from(open_descriptors()).expect("a count of descriptors") + 1;
+    let caught: std::thread::Result<rustix::process::Rlimit> =
+        crate::call_catching_panics::call_catching_panics(room, set_soft_limit);
+    // What:     `expect_err` takes the panic out of the `Result` and answers it; a limit that came back instead means
+    //           the refusal is gone. A panic payload is the text `panic!` was given, here a `String`.
+    // Why:      the words of the refusal are the whole point: they name the helper that lowers the limit safely.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const payload = expectedError(caught); const text = payload.downcastRef('string') ?? '';
+    // ```
+    let payload: Box<dyn std::any::Any + Send> = caught.expect_err(
+        "the soft descriptor limit is refused in the process the run holds other tests in",
+    );
+    let said: &str = payload.downcast_ref::<String>().map_or("", |text| {
+        return text.as_str();
+    });
+    assert!(
+        said.contains("started_this_test_in_a_child"),
+        "the refusal names the child helper to start instead: {said}"
+    );
+    assert_eq!(
+        rustix::process::getrlimit(rustix::process::Resource::Nofile),
+        before,
+        "the refusal lowered nothing"
+    );
+}
+
+//endregion
+
 //region A child of a test dies with the process that started it (the debt audit of 2026-11-25, item 5)
 
 /// The variable that makes a run of this test the process whose child must die with it,

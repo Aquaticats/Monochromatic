@@ -1,8 +1,8 @@
 //! The child helper under a descriptor limit:
-//! each sweep lowers the soft `RLIMIT_NOFILE` of the test's own process (nextest runs
-//! every test in a process of its own),
+//! each sweep lowers the soft `RLIMIT_NOFILE` of a child process of this test's own,
 //! so the limit reaches `pidfd_open`,
-//! the pipes of a start and the files of a capture in turn.
+//! the pipes of a start and the files of a capture in turn,
+//! and never another test of the run (which `cargo test` runs as threads of one process).
 //! The invariants are the plan's ("A child is started twice,
 //! or a started child is reported as failed"):
 //! a start the limit refuses
@@ -14,6 +14,10 @@
 //! no child).
 
 use super::*;
+use crate::descriptor_limit_child_test_support::{
+    started_this_test_in_a_child,
+    this_process_is_the_child,
+};
 use crate::lazy_runtime::run_on_runtime;
 use crate::test_support::{
     leave_free,
@@ -94,6 +98,14 @@ fn quick_child(code: i32) -> std::io::Result<std::process::Child> {
 /// whose every run used the pidfd would test nothing).
 #[test]
 fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut seen: Vec<(usize, bool)> = Vec::new();
@@ -142,6 +154,14 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
 /// The limit sweeps from one that refuses the start to one with room.
 #[test]
 fn a_descriptor_limit_never_leaves_a_child_or_a_descriptor() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_descriptor_limit_never_leaves_a_child_or_a_descriptor",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut refused: usize = 0;
@@ -197,6 +217,14 @@ fn a_descriptor_limit_never_leaves_a_child_or_a_descriptor() {
 /// no descriptor and no child stays either way.
 #[test]
 fn a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_nothing() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_nothing",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut refused: usize = 0;
