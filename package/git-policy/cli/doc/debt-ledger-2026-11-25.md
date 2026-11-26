@@ -630,8 +630,11 @@ All three guards share one scan,
 which issue 6507's guard now uses as well.
 Measured on this host:
 two threaded runs of `commit::` answered
-`test result: FAILED. 464 passed; 10 failed` both times before the change
-and `ok. 474 passed; 0 failed` in each of two runs after it;
+`test result: FAILED. 464 passed; 10 failed` both times before the change,
+and the same baseline answered `FAILED. 467 passed; 7 failed` and `FAILED. 464 passed; 10 failed`
+in two later runs,
+so the count holds while which controls fail moves;
+after the change `ok. 474 passed; 0 failed` in each of two runs;
 the modules answered
 `commit::commit_index_builds::tests` `ok. 11 passed` (from `4 passed; 7 failed`),
 `commit::commit_prepare_part_durations::tests` `ok. 5 passed` (from `3 passed; 2 failed`),
@@ -640,14 +643,17 @@ it answered `ok. 5 passed` alone before the change and failed only beside other 
 so its count did not move,
 `commit::commit_preparation::tests` `ok. 23 passed` (from `21 passed; 2 failed`),
 `commit::native_commit_waiting_notice::tests` `ok. 19 passed` (the `19 passed` of `main` plus the window),
-`transaction::transaction_step_durations::tests` `ok. 6 passed`,
+`transaction::transaction_step_durations::tests` `ok. 6 passed` (from `5 passed; 1 failed` in a threaded
+run of its own module),
 `repo_read::git_metadata::tests` `ok. 11 passed`,
 `shadow::shadow_pool::tests` `ok. 29 passed` and
 `source_guard::` `ok. 147 passed`.
-The step ledger's own two modules were not measured red before the change,
-because nothing else notes a step in a threaded run of their own module;
-their controls own a child because they read the same ledger the two parts controls did.
-The causes and both guards' failing proofs are in
+The step ledger's own module was measured red in a threaded run of itself:
+`a_slow_step_names_its_arguments_and_a_short_one_does_not` read no arguments for a step another
+control's drain had taken.
+`repo_read::git_metadata::tests` was `ok. 11 passed` alone before the change,
+and its control owns a child because it reads the same ledger.
+The causes and all three guards' failing proofs are in
 `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`.
 Status:
 incomplete,

@@ -114,6 +114,14 @@ the whole `commit::` filter,
 which is how the planted window was found.
 Every control that failed was `1 passed` alone with `--exact`.
 
+A later threaded run of the same baseline measured the step ledger's own module red too:
+`transaction::transaction_step_durations::tests` `5 passed; 1 failed`,
+where `a_slow_step_names_its_arguments_and_a_short_one_does_not` read no arguments for its step
+(`left: None`) because another control's drain had taken it.
+Two further runs of `commit::` on that baseline answered `FAILED. 467 passed; 7 failed` and
+`FAILED. 464 passed; 10 failed`,
+so the count of failures holds near ten while which controls fail moves from run to run.
+
 ## The fix for the other four ledgers
 
 Every control that counts one of those figures runs its body in a child of its own,
@@ -157,6 +165,7 @@ and each module answered
 `commit::commit_index_builds::tests` `ok. 11 passed`,
 `commit::commit_prepare_part_durations::tests` `ok. 5 passed`,
 `commit::commit_build_part_durations::tests` `ok. 5 passed`,
+`commit::commit_timing::tests` `ok. 21 passed`,
 `commit::commit_preparation::tests` `ok. 23 passed`,
 `commit::native_commit_waiting_notice::tests` `ok. 19 passed`,
 `transaction::transaction_step_durations::tests` `ok. 6 passed`,
@@ -183,8 +192,8 @@ this page keeps their counts and causes in the sections above.
 Item 3 of `package/git-policy/cli/doc/debt-ledger-2026-11-25.md` carries those counts.
 
 One site of the same shape is measured beside them and stays open:
-`transaction::transaction_step_durations::tests` and `repo_read::git_metadata::tests` read the step ledger,
-and their controls now own a child each,
-but no run here measured them red on `main` before the change,
-because nothing else notes a step in a threaded run of their own module.
-The two parts tests above are the sites that did.
+`repo_read::git_metadata::tests` reads the step ledger and its control owns a child,
+but it was `ok. 11 passed` alone before the change.
+The step ledger's own module did fail in a threaded run of itself,
+`transaction::transaction_step_durations::tests` `5 passed; 1 failed` on 2026-11-26;
+the two parts tests above are the sites that failed in the whole `commit::` filter.
