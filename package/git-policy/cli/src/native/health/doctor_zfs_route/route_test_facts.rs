@@ -28,7 +28,7 @@ use super::clone_origin_checks::{CloneOriginFacts, RecordedOrigin};
 use super::clone_retention_checks::{AccountingFacts, CloneRetentionFacts};
 use super::clone_snapshot_checks::CloneSnapshotFacts;
 use super::clone_state_checks::CloneStateFacts;
-use super::delegation_checks::{DelegationFacts, Grant};
+use super::delegation_reply::{DelegationFacts, Grant};
 use super::handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PathFacts, PathState, ReadinessFacts, RequestFacts, RESULTS_DIRECTORY_MODE, READINESS_DIRECTORY_MODE, ROOT_OWNER,
 };
@@ -298,14 +298,14 @@ pub(crate) fn folder_identity(inode: u64) -> crate::worktree_clone_mount::CloneF
 }
 
 /// One grant in the kernel's model.
-pub(crate) fn grant(carried_by: &str, permission: &str, who: super::delegation_checks::Who, inheritance: super::delegation_checks::Inheritance) -> Grant {
+pub(crate) fn grant(carried_by: &str, permission: &str, who: super::delegation_reply::Who, inheritance: super::delegation_reply::Inheritance) -> Grant {
     return Grant { carried_by: String::from(carried_by), permission: String::from(permission), who, inheritance };
 }
 
 /// The nine decided grants,
 /// each where the design puts it.
 pub(crate) fn healthy_grants() -> Vec<Grant> {
-    use super::delegation_checks::{Inheritance, Who};
+    use super::delegation_reply::{Inheritance, Who};
     let user: Who = Who::User(ACCOUNT);
     return vec![
         grant(CHECKOUT_DATASET, "snapshot", user.clone(), Inheritance::Local),
