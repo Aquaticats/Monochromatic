@@ -89,6 +89,22 @@ function parseCommand(argv: readonly string[],): InstallCommand {
   return command;
 }
 
+/**
+ Shortens the package's own path to something a reader can type.
+
+ @param path - absolute path inside this checkout
+
+ @returns the path relative to the home folder when it is inside it, else unchanged
+ */
+function relativeUserPath(path: string,): string {
+  /**
+   Home folder of the user who is reading the usage line.
+   */
+  const home = homedir();
+  if (path.startsWith(`${home}/`,)) return `~/${path.slice(home.length + 1,)}`;
+  return path;
+}
+
 try {
   /**
    What this run does and where.
@@ -136,20 +152,4 @@ try {
     ),)} [--check] [--home=<folder>]`,
   );
   process.exitCode = USAGE_EXIT_STATUS;
-}
-
-/**
- Shortens the package's own path to something a reader can type.
-
- @param path - absolute path inside this checkout
-
- @returns the path relative to the home folder when it is inside it, else unchanged
- */
-function relativeUserPath(path: string,): string {
-  /**
-   Home folder of the user who is reading the usage line.
-   */
-  const home = homedir();
-  if (path.startsWith(`${home}/`,)) return `~/${path.slice(home.length + 1,)}`;
-  return path;
 }

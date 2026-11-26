@@ -45,74 +45,14 @@ export type AlertDeps = {
 };
 
 /**
- Reports the streak and writes the recovery or failure alert.
+ Renders a notification as the entry's stdout.
 
- @param request - the trigger, unit, invocation id and outcome to act on
+ @param notification - the notification that went out
 
- @param deps - effects the alert needs
-
- @returns the exit status: 0 when the entry did what the event asked for, 1 when the
-   notification or the state write failed
-
- @example
- ```ts
- const status = await runAlert({ request, deps, },);
- ```
+ @returns summary and body, one blank line apart
  */
-export async function runAlert({
-  request,
-  deps,
-}: Readonly<{
-  request: AlertRequest;
-  deps: AlertDeps;
-}>): Promise<number> {
-  /**
-   What this event means: a failure, a recovery, or neither.
-   */
-  const outcomeClass = classifyRequest(request,);
-  /**
-   The unit's open streak, and the reason its file could not be used.
-   */
-  const lookup = await deps.readStreak(request.unit,);
-  if (lookup.problem !== undefined) {
-    deps.writeError(`${request.unit}: ${lookup.problem}; treating it as no open streak`,);
-  }
-  if (outcomeClass === 'stopped') {
-    deps.writeOut(
-      `${request.unit}: the run was stopped, not failed and not finished with status 0; no alert.`
-        + ' An open streak, if any, stays open.',
-    );
-    return 0;
-  }
-  if (outcomeClass === 'failure') {
-    /**
-     Whether this failure is due an alert.
-     */
-    const decision = decideFailure({
-      lookup,
-      nowMs: deps.nowMs(),
-    },);
-    if (decision === 'suppressed') {
-      deps.writeOut(`${request.unit}: still failing, and the last alert was less than an hour ago; no alert.`,);
-      return 0;
-    }
-    return alertFailure({
-      request,
-      deps,
-    },);
-  }
-  /**
-   Whether this clean run closes an open streak.
-   */
-  const recovery = decideRecovery({ lookup, },);
-  if (recovery === 'nothing') {
-    deps.writeOut(`${request.unit}: finished cleanly with no open streak; no alert.`,);
-    return 0;
-  }
-  return alertRecovery({
-    request,
-    deps,
-  },);
+function renderNotification(notification: Readonly<Notification>,): string {
+  return `${notification.summary}\n${notification.body}`;
 }
 
 /**
@@ -228,12 +168,72 @@ async function alertRecovery({
 }
 
 /**
- Renders a notification as the entry's stdout.
+ Reports the streak and writes the recovery or failure alert.
 
- @param notification - the notification that went out
+ @param request - the trigger, unit, invocation id and outcome to act on
 
- @returns summary and body, one blank line apart
+ @param deps - effects the alert needs
+
+ @returns the exit status: 0 when the entry did what the event asked for, 1 when the
+   notification or the state write failed
+
+ @example
+ ```ts
+ const status = await runAlert({ request, deps, },);
+ ```
  */
-function renderNotification(notification: Readonly<Notification>,): string {
-  return `${notification.summary}\n${notification.body}`;
+export async function runAlert({
+  request,
+  deps,
+}: Readonly<{
+  request: AlertRequest;
+  deps: AlertDeps;
+}>): Promise<number> {
+  /**
+   What this event means: a failure, a recovery, or neither.
+   */
+  const outcomeClass = classifyRequest(request,);
+  /**
+   The unit's open streak, and the reason its file could not be used.
+   */
+  const lookup = await deps.readStreak(request.unit,);
+  if (lookup.problem !== undefined) {
+    deps.writeError(`${request.unit}: ${lookup.problem}; treating it as no open streak`,);
+  }
+  if (outcomeClass === 'stopped') {
+    deps.writeOut(
+      `${request.unit}: the run was stopped, not failed and not finished with status 0; no alert.`
+        + ' An open streak, if any, stays open.',
+    );
+    return 0;
+  }
+  if (outcomeClass === 'failure') {
+    /**
+     Whether this failure is due an alert.
+     */
+    const decision = decideFailure({
+      lookup,
+      nowMs: deps.nowMs(),
+    },);
+    if (decision === 'suppressed') {
+      deps.writeOut(`${request.unit}: still failing, and the last alert was less than an hour ago; no alert.`,);
+      return 0;
+    }
+    return alertFailure({
+      request,
+      deps,
+    },);
+  }
+  /**
+   Whether this clean run closes an open streak.
+   */
+  const recovery = decideRecovery({ lookup, },);
+  if (recovery === 'nothing') {
+    deps.writeOut(`${request.unit}: finished cleanly with no open streak; no alert.`,);
+    return 0;
+  }
+  return alertRecovery({
+    request,
+    deps,
+  },);
 }
