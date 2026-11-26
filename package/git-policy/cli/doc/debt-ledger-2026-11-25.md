@@ -635,6 +635,7 @@ every one `test result: ok. 15 passed; 0 failed`;
 `invocation::` answered `394 passed; 0 failed` in three runs after the change,
 where the one run this round made before it failed three `git_version_cache` controls with
 `Text file busy` and not this one.
+Those failures are a fault of that module's own controls and are issue 6516.
 The reds and greens are in
 `doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
 Status:

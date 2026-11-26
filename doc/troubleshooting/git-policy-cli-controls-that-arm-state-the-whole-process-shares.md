@@ -375,13 +375,16 @@ failing the guard's own assertion now and then.
   and the rounds that fixed 6487,
   6486 and 6484 moved others.
 - Issues 6483 and 6485 are still open on `origin/main` at `73f1091ce0`.
-- The three `invocation::git_version_cache::tests` failures the first pre-change `invocation::` run of this round
-  printed
-  (`Text file busy (os error 26)` when a fixture `git` is started while another thread writes a fixture executable)
-  are a separate fault,
-  in a module this change does not touch;
-  they did not recur in the three post-change runs,
-  and no round has diagnosed them.
+- The `invocation::git_version_cache::tests` failures are a separate fault,
+  in a module this change does not touch,
+  and they are issue 6516.
+  They are not a flake of the wider filter:
+  twelve runs of `invocation::git_version_cache::` alone,
+  in two batches of six,
+  failed four of them
+  (three times `12 passed; 1 failed`,
+  and once with three failing fixtures named)
+  and answered `13 passed; 0 failed` in the other eight.
 - The container gate was not run for this change:
   the round ran the module on this host,
   as issue 6493 measured it,
