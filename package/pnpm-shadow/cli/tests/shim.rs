@@ -2,128 +2,38 @@
 //! the built binary started as `pnpm` and as `pnpm-shadow`,
 //! against a fake pnpm on PATH.
 
-/// Imports the link helper and the executable-mode helper.
-use std::os::unix::fs::{
-    PermissionsExt,
-    symlink,
+/// Includes the launcher arrangement from its own file in this test's folder.
+#[path = "shim/launcher.rs"]
+mod launcher;
+/// Includes the world builder from its own file in this test's folder.
+#[path = "shim/world.rs"]
+mod world;
+
+/// Imports the launcher arrangement and its deadline helpers.
+use crate::launcher::{
+    TIMED_OUT_EXIT_CODE,
+    put_a_launcher_in_front,
+    run_limited,
+};
+/// Imports the world builder and its constants.
+use crate::world::{
+    CLEAN,
+    DISTINCT_EXIT_CODE,
+    FAKE_MARKER,
+    KILL_VARIABLE,
+    LITERAL,
+    SHADOW_BINARY,
+    SIGTERM_NUMBER,
+    expected_version_line,
+    make_world,
+    path_of,
+    run_shadow,
+    write_workspace,
 };
 /// Imports `.signal()` on an exit status.
 use std::os::unix::process::ExitStatusExt;
-/// Imports the path types.
-use std::path::{
-    Path,
-    PathBuf,
-};
-/// Imports the child-process builder and its captured output.
-use std::process::{
-    Command,
-    Output,
-};
-
-/// The built `pnpm-shadow` binary,
-/// which Cargo builds before running these tests.
-const SHADOW_BINARY: &str = env!("CARGO_BIN_EXE_pnpm-shadow");
-
-/// Where integration-test scratch goes:
-/// the package's build directory,
-/// never the system temporary directory.
-const SCRATCH_ROOT: &str = env!("CARGO_TARGET_TMPDIR");
-
-/// What the fake pnpm prints first,
-/// so the tests can tell its output from the shadow's.
-const FAKE_MARKER: &str = "fake-pnpm-ran";
-
-/// The fake pnpm's exit code,
-/// taken from the environment variable of this name.
-const EXIT_VARIABLE: &str = "FAKE_PNPM_EXIT";
-
-/// When this variable is `1` the fake pnpm kills itself with SIGTERM after printing.
-const KILL_VARIABLE: &str = "FAKE_PNPM_KILL";
-
-/// The number of the termination signal on Linux and macOS,
-/// written once and named.
-const SIGTERM_NUMBER: i32 = 15;
-
-/// An exit code no default maps to,
-/// so a pass-through is visible.
-const DISTINCT_EXIT_CODE: i32 = 9;
-
-/// One test world:
-/// a directory holding the shadow linked as `pnpm`,
-/// a directory holding the fake real pnpm,
-/// and a
-/// workspace directory to run in.
-struct World {
-    _guard: tempfile::TempDir,
-    shadow_directory: PathBuf,
-    fake_directory: PathBuf,
-    workspace: PathBuf,
-}
-
-fn make_world() -> World {
-    std::fs::create_dir_all(SCRATCH_ROOT).expect("make the scratch root");
-    let guard: tempfile::TempDir =
-        tempfile::tempdir_in(SCRATCH_ROOT).expect("make a scratch directory");
-    let shadow_directory: PathBuf = guard.path().join("shadow");
-    let fake_directory: PathBuf = guard.path().join("fake");
-    let workspace: PathBuf = guard.path().join("workspace");
-    for directory in [&shadow_directory, &fake_directory, &workspace] {
-        std::fs::create_dir_all(directory).expect("make a directory");
-    }
-    symlink(SHADOW_BINARY, shadow_directory.join("pnpm")).expect("link the shadow as pnpm");
-
-    let fake: PathBuf = fake_directory.join("pnpm");
-    let script: String = format!(
-        "#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nif [ \"${{{KILL_VARIABLE}:-}}\" = 1 ]; then kill -TERM $$; fi\nif [ \"$1\" = nested ]; then pnpm inner; fi\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n"
-    );
-    std::fs::write(&fake, script).expect("write the fake pnpm");
-    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
-    return World {
-        _guard: guard,
-        shadow_directory,
-        fake_directory,
-        workspace,
-    };
-}
-
-fn path_of(directories: &[&Path]) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    for directory in directories {
-        parts.push(directory.to_string_lossy().to_string());
-    }
-    return parts.join(":");
-}
-
-fn run_shadow(
-    world: &World,
-    path: &str,
-    arguments: &[&str],
-    fake_exit: i32,
-) -> Output {
-    return Command::new(world.shadow_directory.join("pnpm"))
-        .args(arguments)
-        .current_dir(&world.workspace)
-        .env("PATH", path)
-        .env(EXIT_VARIABLE, fake_exit.to_string())
-        .output()
-        .expect("start the shadow");
-}
-
-fn write_workspace(
-    world: &World,
-    manifest: &str,
-) {
-    std::fs::write(
-        world.workspace.join("pnpm-workspace.yaml"),
-        "packages: []\n",
-    )
-    .expect("write the marker");
-    std::fs::write(world.workspace.join("package.json"), manifest).expect("write the manifest");
-}
-
-const LITERAL: &str = r#"{ "dependencies": { "left-pad": "1.3.0" } }"#;
-const CLEAN: &str = r#"{ "dependencies": { "x": "catalog:" } }"#;
+/// Imports the child-process builder.
+use std::process::Command;
 
 #[test]
 fn a_violation_warns_on_stderr_and_pnpm_runs_with_its_own_output_and_status() {
@@ -166,16 +76,6 @@ fn a_clean_workspace_is_silent_and_pnpm_runs() {
         format!("{FAKE_MARKER} list")
     );
     assert_eq!(output.status.code(), Some(0));
-}
-
-/// The text the notice prints for `--version`,
-/// from the fake's own path.
-fn expected_version_line(world: &World) -> String {
-    return format!(
-        "pnpm-shadow {}, shadowing pnpm at {}\n",
-        env!("CARGO_PKG_VERSION"),
-        world.fake_directory.join("pnpm").display()
-    );
 }
 
 #[test]
@@ -321,70 +221,6 @@ fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
     // The shadow replaced itself with pnpm, so the caller sees pnpm's own death by signal and no exit code.
     assert_eq!(output.status.signal(), Some(SIGTERM_NUMBER));
     assert_eq!(output.status.code(), None);
-}
-
-/// How long a case may run before `timeout` kills it:
-/// a loop is a failure,
-/// not a hang.
-const LIMIT_SECONDS: &str = "30";
-
-/// `timeout` by absolute path:
-/// the child's `PATH` holds only the shadow and the fake pnpm,
-/// and Rust resolves a bare program
-/// name against the `PATH` it is given.
-const TIMEOUT_PROGRAM: &str = "/usr/bin/timeout";
-
-/// The exit code `timeout` gives a command it had to kill.
-const TIMED_OUT_EXIT_CODE: i32 = 124;
-
-/// Replaces the shadow's link with the real toolchain's arrangement:
-/// `pnpm` links to a launcher,
-/// a separate executable
-/// that starts the shadow under the name `pnpm`.
-/// Its resolved path is therefore not the shadow's own executable path.
-fn put_a_launcher_in_front(world: &World) {
-    let launcher_directory: PathBuf = world.shadow_directory.join("..").join("launcher");
-    std::fs::create_dir_all(&launcher_directory).expect("make the launcher directory");
-    let launcher: PathBuf = launcher_directory.join("pnpm-shadow-launcher");
-    std::fs::write(
-        &launcher,
-        format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n"),
-    )
-    .expect("write the launcher");
-    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
-    // The toolchain writes a record beside every launcher it makes; the shadow reads it to see that the launcher leads back to a shadow and
-    // skips it without starting it. A launcher with no record is covered by `never_start_another_shadow.rs`.
-    std::fs::write(
-        launcher_directory.join("pnpm-shadow-launcher.launch"),
-        format!("{{\"toolId\":\"cargo:monochromatic-pnpm-shadow\",\"lockFile\":\"/dev/null\",\"real\":\"{SHADOW_BINARY}\",\"scope\":\"repo\"}}"),
-    )
-    .expect("write the launcher record");
-    let link: PathBuf = world.shadow_directory.join("pnpm");
-    std::fs::remove_file(&link).expect("remove the direct link");
-    symlink(&launcher, &link).expect("link pnpm to the launcher");
-}
-
-/// Runs the link under `timeout`,
-/// so a loop fails the test instead of hanging it.
-fn run_limited(
-    world: &World,
-    path: &str,
-    arguments: &[&str],
-) -> Output {
-    // The notice handshake keeps its marker files in the per-user runtime directory; this world gets one of its own.
-    let runtime: PathBuf = world.shadow_directory.join("..").join("runtime");
-    std::fs::create_dir_all(&runtime).expect("make the runtime directory");
-    return Command::new(TIMEOUT_PROGRAM)
-        .env("XDG_RUNTIME_DIR", &runtime)
-        .arg(LIMIT_SECONDS)
-        .arg(world.shadow_directory.join("pnpm"))
-        .args(arguments)
-        .current_dir(&world.workspace)
-        .env("PATH", path)
-        .env(EXIT_VARIABLE, "0")
-        .output()
-        .expect("start timeout");
 }
 
 #[test]
