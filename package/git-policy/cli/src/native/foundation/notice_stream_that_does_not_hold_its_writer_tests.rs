@@ -162,17 +162,30 @@ fn a_stream_with_no_writer_says_nothing_and_counts_every_line() {
 }
 
 /// What:
-///  The commit command hands its waiting notices to this stream and to nothing else.
+///  The commit command hands its waiting notices to this stream,
+/// and this stream writes them to the standard error descriptor rather than to the
+/// standard library's shared handle.
 /// Why:
 ///   The bound is only real where the stream is,
 /// and this is the one place the commit path chooses it:
 /// a later change that goes back to
 ///  writing those lines straight to standard error would hold the commit again,
 /// and this control names that.
+///  The sink matters as much as the stream:
+/// `std::io::stderr()` hands out one handle behind one lock for the whole process,
+///  so a notice line held inside a write would keep the command's own next note waiting
+/// on that lock with no end (`standard_error_descriptor.rs`,
+/// issue 6421),
+/// while
+///  the descriptor's write takes no lock another writer of this process needs.
 #[test]
 fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
     let submission: &str = include_str!("../landing/service_commit_waiting_notices.rs");
-    assert!(submission.contains("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(std::io::stderr()))"), "the submission starts the stream of its waiting notices");
+    assert!(
+        submission.contains("NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(crate::standard_error_descriptor::StandardErrorDescriptor))"),
+        "the submission starts the stream of its waiting notices on this process's standard error descriptor"
+    );
+    assert!(!submission.contains("std::io::stderr()"), "no waiting notice goes to the shared standard error handle, whose one lock a held write would keep the command's own notes waiting on");
     assert!(submission.contains("submit_traced(&waiting_config, request, &mut notices, trace)"), "the stream is what the client writes its notices to");
     assert!(submission.contains("notices.finish()"), "the last line is given its ceiling before the command goes on");
     let commit_path: &str = include_str!("../landing/service_commit.rs");
