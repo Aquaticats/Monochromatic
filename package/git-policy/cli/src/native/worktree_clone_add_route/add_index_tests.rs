@@ -181,7 +181,7 @@ fn an_index_that_is_no_index_refuses() {
 
 /// What:
 ///  The repository's own housekeeping, which `git commit` starts in the background,
-///  leaves the private index standing.
+///  leaves the private index standing and takes a registration made by hand beside it.
 /// Why:
 ///   `git maintenance run --auto` runs `git worktree prune --expire 3.months.ago`,
 ///  and that removes a `worktrees/<name>` directory Git did not make,
@@ -189,15 +189,19 @@ fn an_index_that_is_no_index_refuses() {
 ///  the pruner ran 1.237 ms after a fixture's commit returned, in one run of ten,
 ///  and failed this file's two controls beside other modules (issue 6518).
 ///  A registration Git made is an entry the prune keeps, so this control refuses a
-///  fixture that goes back to a directory made by hand,
-///  and it names the command a commit starts and the command that command runs.
+///  fixture that goes back to a directory made by hand.
+///  The hand-made registration beside it is the proof that the prune ran at all:
+///  without it, a standing registration would say nothing about a housekeeping that
+///  never reached this repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [root, registration] = aRepositoryAndTheRegistrationGitMade('index-housekeeping');
 /// writeThePrivateIndex(admin, normalized);
+/// mkdirSync(join(root, '.git/worktrees/hand-made')); // no gitdir file, so no entry
 /// git(root, ['maintenance', 'run', '--auto']);
 /// git(root, ['worktree', 'prune', '--expire', '3.months.ago']);
+/// expect(existsSync(join(root, '.git/worktrees/hand-made'))).toBe(false);
 /// expect(pendingStands(registration)).toBe(true);
 /// ```
 #[test]
@@ -210,10 +214,18 @@ fn the_repositorys_own_housekeeping_leaves_the_private_index_standing() {
     let normalized: Vec<u8> =
         index_for_the_fill(index.as_slice(), 20).expect("the index is normalized");
     write_the_private_index(&admin, normalized.as_slice()).expect("the private write");
+    let hand_made: PathBuf = root.join(".git").join("worktrees").join("hand-made");
+    std::fs::create_dir_all(hand_made.as_path()).expect("the hand-made registration");
+    std::fs::write(hand_made.join("index.pending"), b"x\n").expect("its private name");
     git(root.as_path(), &["maintenance", "run", "--auto"]);
     git(
         root.as_path(),
         &["worktree", "prune", "--expire", "3.months.ago"],
+    );
+    assert!(
+        !hand_made.exists(),
+        "the prune that ran here removes a registration Git did not make, so the standing \
+         registration beside it says something"
     );
     assert!(
         pending_stands(registration.as_path()),
