@@ -112,8 +112,18 @@
 //! - `sweep_standing_mounts.rs`:
 //!   whether a clone's own mount stands at its slot,
 //!   from one polled read of the kernel's mount table and that one mount's source.
+//! - `sweep_attach_step_answers.rs`:
+//!   what one attach step is asked,
+//!   the answers it gives,
+//!   and the step and errno each refusal is written as.
+//! - `sweep_attach_step_calls.rs`:
+//!   the rollback's two calls and the one mount call,
+//!   each as a seam a control answers.
+//! - `sweep_attach_step_rollback.rs`:
+//!   the rollback of a mount the attach made that landed beside its slot,
+//!   read back before it is reported as taken down.
 //! - `sweep_attach_step.rs`:
-//!   the attach step one clone goes through and its rollback,
+//!   the attach step one clone goes through,
 //!   and the answer an occupied slot gets before the attach.
 //! - `sweep_one_clone.rs`:
 //!   one clone's whole turn of the sweep.
@@ -204,7 +214,18 @@ pub mod sweep_standing_mount_source;
 /// source.
 pub mod sweep_standing_mounts;
 
-/// The attach step one clone goes through and its rollback,
+/// What one attach step is asked and the answers it gives,
+/// with the step and errno each refusal is written as.
+pub mod sweep_attach_step_answers;
+
+/// The rollback's two calls and the one mount call,
+/// each as a seam a control answers.
+pub mod sweep_attach_step_calls;
+
+/// The rollback of a mount the attach made that landed beside its slot.
+pub mod sweep_attach_step_rollback;
+
+/// The attach step one clone goes through,
 /// and the answer an occupied slot gets before the attach.
 pub mod sweep_attach_step;
 
