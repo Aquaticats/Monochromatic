@@ -23,8 +23,18 @@
 
 use slint::ComponentHandle;
 
-use crate::ui_focus_ring_tests::{Case, RingReport, case, check_ring};
-use crate::ui_render_support::{Frame, RoundedBox, draw_frame, install_software_platform};
+use crate::ui_focus_ring_tests::{
+    Case,
+    RingReport,
+    case,
+    check_ring,
+};
+use crate::ui_render_support::{
+    Frame,
+    RoundedBox,
+    draw_frame,
+    install_software_platform,
+};
 
 slint::slint! {
     import { FocusRing } from "../ui/focus.slint";
@@ -72,21 +82,35 @@ fn fixture_frames() -> (Frame, Frame, ([u8; 3], [u8; 3])) {
     let window = install_software_platform();
     let fixture = RingFixture::new().expect("the fixture builds");
     fixture.global::<Theme>().set_scheme_override(1);
-    fixture.window().set_size(slint::PhysicalSize::new(360, 200));
+    fixture
+        .window()
+        .set_size(slint::PhysicalSize::new(360, 200));
     fixture.show().expect("the fixture shows");
     let off = draw_frame(&window, 360, 200);
     fixture.set_on(true);
     let on = draw_frame(&window, 360, 200);
     let theme = fixture.global::<Theme>();
     let (primary, on_primary) = (theme.get_primary(), theme.get_on_primary());
-    let colors = ([primary.red(), primary.green(), primary.blue()], [on_primary.red(), on_primary.green(), on_primary.blue()]);
+    let colors = (
+        [primary.red(), primary.green(), primary.blue()],
+        [on_primary.red(), on_primary.green(), on_primary.blue()],
+    );
     return (on, off, colors);
 }
 
 /// What:
 /// `check` checks one shape of the fixture and gives the counts.
-fn check(on: &Frame, off: &Frame, colors: ([u8; 3], [u8; 3]), shape: RoundedBox) -> Result<RingReport, String> {
-    let options = Case { far: false, coverage: true, ..case("fixture", "", (0.0, 0.0), 0.0) };
+fn check(
+    on: &Frame,
+    off: &Frame,
+    colors: ([u8; 3], [u8; 3]),
+    shape: RoundedBox,
+) -> Result<RingReport, String> {
+    let options = Case {
+        far: false,
+        coverage: true,
+        ..case("fixture", "", (0.0, 0.0), 0.0)
+    };
     return check_ring(on, off, shape, colors, false, &options);
 }
 
@@ -96,20 +120,50 @@ fn the_ring_component_hugs_a_pill_a_circle_a_rounded_rectangle_and_a_square_box(
     for (name, shape) in [
         ("pill", RoundedBox::new(20.0, 20.0, 100.0, 40.0, 20.0)),
         ("circle", RoundedBox::new(150.0, 20.0, 40.0, 40.0, 20.0)),
-        ("rounded rectangle", RoundedBox::new(20.0, 100.0, 100.0, 60.0, 12.0)),
+        (
+            "rounded rectangle",
+            RoundedBox::new(20.0, 100.0, 100.0, 60.0, 12.0),
+        ),
         ("square box", RoundedBox::new(150.0, 100.0, 60.0, 40.0, 0.0)),
     ] {
-        let report = check(&on, &off, colors, shape).unwrap_or_else(|message| panic!("{name}: {message}"));
-        assert!(report.near > 20 && report.outer > 8, "{name}: both bands were judged, {} and {}", report.near, report.outer);
-        assert!(report.partial >= 4, "{name}: the coverage of curved or cornered pixels was judged, {} pixels", report.partial);
+        let report =
+            check(&on, &off, colors, shape).unwrap_or_else(|message| panic!("{name}: {message}"));
+        assert!(
+            report.near > 20 && report.outer > 8,
+            "{name}: both bands were judged, {} and {}",
+            report.near,
+            report.outer
+        );
+        assert!(
+            report.partial >= 4,
+            "{name}: the coverage of curved or cornered pixels was judged, {} pixels",
+            report.partial
+        );
     }
 }
 
 #[test]
 fn a_ring_in_a_layer_above_a_clipping_parent_stays_whole_and_one_inside_it_is_cut() {
     let (on, off, colors) = fixture_frames();
-    let above = check(&on, &off, colors, RoundedBox::new(240.0, 10.0, 50.0, 50.0, 0.0));
-    assert!(above.is_ok(), "the ring above the clip is whole: {:?}", above.err());
-    let inside = check(&on, &off, colors, RoundedBox::new(240.0, 100.0, 50.0, 50.0, 0.0));
-    assert!(inside.is_err(), "the control: the clip cuts a ring that is inside it, so the bands are not found");
+    let above = check(
+        &on,
+        &off,
+        colors,
+        RoundedBox::new(240.0, 10.0, 50.0, 50.0, 0.0),
+    );
+    assert!(
+        above.is_ok(),
+        "the ring above the clip is whole: {:?}",
+        above.err()
+    );
+    let inside = check(
+        &on,
+        &off,
+        colors,
+        RoundedBox::new(240.0, 100.0, 50.0, 50.0, 0.0),
+    );
+    assert!(
+        inside.is_err(),
+        "the control: the clip cuts a ring that is inside it, so the bands are not found"
+    );
 }

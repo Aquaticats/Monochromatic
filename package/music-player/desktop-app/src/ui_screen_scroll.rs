@@ -15,9 +15,15 @@
 //! leaves the scroll position where it is.
 
 /// Imports the row type and the current row lookup.
-use crate::ui_screen_rows::{ListRow, current_row_position};
+use crate::ui_screen_rows::{
+    ListRow,
+    current_row_position,
+};
 /// Imports the state and the view that a scroll decision compares.
-use crate::ui_screen_view::{ScreenState, ScreenView};
+use crate::ui_screen_view::{
+    ScreenState,
+    ScreenView,
+};
 
 /// Height of a track row without a second line,
 /// in logical pixels.
@@ -104,7 +110,10 @@ pub fn row_height_px(row: &ListRow) -> f32 {
 /// const rowOffsetPx = (rows: ListRow[], index: number): number =>
 ///   rows.slice(0, index).reduce((sum, row) => sum + rowHeightPx(row), 0);
 /// ```
-pub fn row_offset_px(rows: &[ListRow], index: usize) -> f32 {
+pub fn row_offset_px(
+    rows: &[ListRow],
+    index: usize,
+) -> f32 {
     return rows.iter().take(index).map(row_height_px).sum();
 }
 
@@ -153,7 +162,10 @@ pub fn row_tops_px(rows: &[ListRow]) -> Vec<f32> {
 /// const rowAtPx = (tops: number[], offset: number): number =>
 ///   Math.max(0, Math.min(tops.length - 2, upperBound(tops, offset) - 1));
 /// ```
-pub fn row_at_px(tops: &[f32], offset: f32) -> usize {
+pub fn row_at_px(
+    tops: &[f32],
+    offset: f32,
+) -> usize {
     let rows = tops.len().saturating_sub(1);
     if rows == 0 {
         return 0;
@@ -177,7 +189,10 @@ pub fn row_at_px(tops: &[f32], offset: f32) -> usize {
 /// or the end of the content for an index past the last row.
 /// Why:
 /// the pane places its first built row at this distance from the top of the content.
-pub fn top_of_px(tops: &[f32], index: usize) -> f32 {
+pub fn top_of_px(
+    tops: &[f32],
+    index: usize,
+) -> f32 {
     return match tops.get(index) {
         Some(top) => *top,
         None => match tops.last() {
@@ -229,7 +244,10 @@ fn folder_position(rows: &[ListRow]) -> usize {
 /// ```ts
 /// const scrollOffsetFor = (request: ScrollRequest, rows: ListRow[]): number => { ... };
 /// ```
-pub fn scroll_offset_for(request: ScrollRequest, rows: &[ListRow]) -> f32 {
+pub fn scroll_offset_for(
+    request: ScrollRequest,
+    rows: &[ListRow],
+) -> f32 {
     let target = match request {
         ScrollRequest::Top => 0,
         ScrollRequest::PlayingRow => playing_position(rows).unwrap_or(0),
@@ -281,7 +299,10 @@ pub fn decide_scroll_request(input: ScrollInput<'_>) -> Option<ScrollRequest> {
 /// and the page is recorded only once rows are shown,
 /// so
 /// a list that is still empty at startup does not count as an earlier page.
-pub fn next_scroll_request(state: &mut ScreenState, screen: &ScreenView) -> Option<ScrollRequest> {
+pub fn next_scroll_request(
+    state: &mut ScreenState,
+    screen: &ScreenView,
+) -> Option<ScrollRequest> {
     let mut playing_row_shown: bool = false;
     for row in &screen.rows {
         if row.kind == 0 && row.current {

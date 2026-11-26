@@ -127,7 +127,11 @@ pub fn failure_title(step: StartupStep) -> &'static str {
 /// ```ts
 /// function failureMessage(step: StartupStep, detail: string, executable: string): string { ... }
 /// ```
-pub fn failure_message(step: StartupStep, detail: &str, executable: &str) -> String {
+pub fn failure_message(
+    step: StartupStep,
+    detail: &str,
+    executable: &str,
+) -> String {
     let log_hint = format!(
         "To see this message with the program's log lines, start Music Player from Command Prompt by typing its path \
          in quotes:\n\"{executable}\"\nThe log lines then appear in the Command Prompt window."
@@ -206,7 +210,10 @@ pub fn without_nul(text: &str) -> String {
 ///       A panic payload is a `&str` or a `String` almost always;
 /// anything else has no text,
 /// and the message says so.
-pub fn panic_detail(message: Option<&str>, location: Option<&str>) -> String {
+pub fn panic_detail(
+    message: Option<&str>,
+    location: Option<&str>,
+) -> String {
     let text = message.unwrap_or("the panic carried no text");
     return match location {
         Some(place) => format!("{text} (at {place})"),

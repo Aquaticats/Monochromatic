@@ -36,10 +36,16 @@
 /// Imports the channel module whose `channel` function creates the worker's input queue,
 /// and the sender that the handle posts through.
 #[cfg(target_os = "linux")]
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{
+    self,
+    Sender,
+};
 /// Imports the shared ownership and lock types that let every clone of the notifier reach one worker.
 #[cfg(target_os = "linux")]
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 /// Imports the handle through which the last notifier clone joins the worker thread.
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
@@ -54,7 +60,10 @@ use zbus::Connection;
 /// Imports the thread's input type and state,
 /// which the handle posts to and starts.
 #[cfg(target_os = "linux")]
-use crate::analysis_notification_worker::{Input, Worker};
+use crate::analysis_notification_worker::{
+    Input,
+    Worker,
+};
 
 /// What:
 /// `METHOD_TIMEOUT` bounds every call that waits for a reply.
@@ -110,7 +119,11 @@ impl NotifierConfig {
     /// Why:
     /// this is what the app passes;
     /// the bus address comes from the environment as for every D-Bus client.
-    pub fn session(identity: Identity, suspendable: bool, on_pause: Box<dyn Fn(bool) + Send + 'static>) -> NotifierConfig {
+    pub fn session(
+        identity: Identity,
+        suspendable: bool,
+        on_pause: Box<dyn Fn(bool) + Send + 'static>,
+    ) -> NotifierConfig {
         return NotifierConfig {
             identity,
             suspendable,
@@ -209,7 +222,10 @@ impl AnalysisNotifier {
     /// Why:
     /// a stopped thread is not an error for the caller;
     /// the analysis simply has no indicator.
-    fn post(&self, input: Input) {
+    fn post(
+        &self,
+        input: Input,
+    ) {
         if self.shared.sender.send(input).is_err() {
             tracing::debug!("analysis notifier input dropped: the thread has stopped");
         }
@@ -222,15 +238,25 @@ impl AnalysisNotifier {
     /// Why:
     /// this is called from the engine's update path for every report,
     /// so it only posts a message.
-    pub fn report(&self, done: usize, total: usize) {
-        self.post(Input::Progress { done, total });
+    pub fn report(
+        &self,
+        done: usize,
+        total: usize,
+    ) {
+        self.post(Input::Progress {
+            done,
+            total,
+        });
     }
 
     /// What:
     /// `fail` ends the indicator with an engine failure message.
     /// Why:
     /// the user is told why the analysis stopped.
-    pub fn fail(&self, message: &str) {
+    pub fn fail(
+        &self,
+        message: &str,
+    ) {
         self.post(Input::Fail(message.to_string()));
     }
 
@@ -282,13 +308,22 @@ impl AnalysisNotifier {
     /// `report` does nothing.
     /// Why:
     /// there is no indicator off Linux yet.
-    pub fn report(&self, _done: usize, _total: usize) {}
+    pub fn report(
+        &self,
+        _done: usize,
+        _total: usize,
+    ) {
+    }
 
     /// What:
     /// `fail` does nothing.
     /// Why:
     /// there is no indicator off Linux yet.
-    pub fn fail(&self, _message: &str) {}
+    pub fn fail(
+        &self,
+        _message: &str,
+    ) {
+    }
 
     /// What:
     /// `shutdown` does nothing.

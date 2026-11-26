@@ -13,7 +13,10 @@
 use super::*;
 // What:     `use truepeak_core::{Decision, DecisionKind};`. The cached value and its tag.
 // Why:      Round-trip tests build and compare `Decision`s.
-use truepeak_core::{Decision, DecisionKind};
+use truepeak_core::{
+    Decision,
+    DecisionKind,
+};
 // What:     `use std::fs;`. Filesystem helpers for fixtures.
 // Why:      Create real temp files to fingerprint.
 use std::fs;
@@ -22,18 +25,30 @@ use std::fs;
 // Why:      Upserts are fire-and-forget, so a test waits for the value to land; the clock
 //           builds collision-free temp paths.
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `fn exact(gain: f32) -> Decision`. A full-scan-exact decision for the tests.
 // Why:      An exact decision appears in the known-fingerprint (exact) snapshot.
 fn exact(gain: f32) -> Decision {
-    return Decision { gain, kind: DecisionKind::FullScanExact, measured_peak: 1.2, duration_secs: 200.0 }
+    return Decision {
+        gain,
+        kind: DecisionKind::FullScanExact,
+        measured_peak: 1.2,
+        duration_secs: 200.0,
+    };
 }
 
 // What:     `fn wait_for_decision(cache: &CacheHandle, key: u64) -> Option<Decision>`. Poll the
 //           cache until the key appears, up to ~2s.
 // Why:      `upsert` is fire-and-forget, so the row may not be committed on the first read.
-fn wait_for_decision(cache: &CacheHandle, key: u64) -> Option<Decision> {
+fn wait_for_decision(
+    cache: &CacheHandle,
+    key: u64,
+) -> Option<Decision> {
     // What:     up to 100 polls, 20ms apart.
     // Why:      Bounded wait for the async write to land without hanging forever.
     for _ in 0..100 {
@@ -42,7 +57,7 @@ fn wait_for_decision(cache: &CacheHandle, key: u64) -> Option<Decision> {
         }
         thread::sleep(Duration::from_millis(20));
     }
-    return None
+    return None;
 }
 
 // What:     `fn unique_path(suffix: &str) -> PathBuf`. A fresh throwaway path under
@@ -63,7 +78,7 @@ fn unique_path(suffix: &str) -> PathBuf {
         std::process::id(),
         nanos,
         suffix
-    ))
+    ));
 }
 
 // What:     `#[test]` fingerprint behaviour.
@@ -85,8 +100,7 @@ fn fingerprint_is_stable_and_change_sensitive() {
     // What:     a file with different bytes (so a different size) fingerprints differently.
     // Why:      Change-sensitivity: size is part of the key, so a re-encode invalidates it.
     let other = unique_path("b.flac");
-    fs::write(&other, b"hello world")
-        .expect("changed fingerprint fixture should be written");
+    fs::write(&other, b"hello world").expect("changed fingerprint fixture should be written");
     assert_ne!(fingerprint(&other).unwrap(), first);
 
     // What:     a missing path yields no fingerprint.

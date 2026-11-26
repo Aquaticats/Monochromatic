@@ -78,8 +78,14 @@ fn split_tail_clusters_takes_the_last_characters() {
 // Why:      A name no longer than the tail has no start, so the whole name is the tail and nothing is cut.
 #[test]
 fn split_tail_clusters_of_a_short_name_is_all_tail() {
-    assert_eq!(split_tail_clusters("abc", 3), (String::new(), "abc".to_owned()));
-    assert_eq!(split_tail_clusters("ab", 3), (String::new(), "ab".to_owned()));
+    assert_eq!(
+        split_tail_clusters("abc", 3),
+        (String::new(), "abc".to_owned())
+    );
+    assert_eq!(
+        split_tail_clusters("ab", 3),
+        (String::new(), "ab".to_owned())
+    );
     assert_eq!(split_tail_clusters("", 3), (String::new(), String::new()));
 }
 
@@ -111,7 +117,10 @@ fn split_tail_clusters_keeps_a_joined_emoji_sequence_together() {
 // Why:      A tail of zero clusters keeps the whole text as the start.
 #[test]
 fn split_tail_clusters_with_a_zero_count_keeps_everything_in_the_head() {
-    assert_eq!(split_tail_clusters("abc", 0), ("abc".to_owned(), String::new()));
+    assert_eq!(
+        split_tail_clusters("abc", 0),
+        ("abc".to_owned(), String::new())
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.

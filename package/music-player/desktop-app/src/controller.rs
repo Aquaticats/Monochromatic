@@ -34,7 +34,10 @@
 /// ```
 use std::collections::HashSet;
 /// Imports the path types that the controller's opened folder and tracks use.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `use std::thread;`.
@@ -72,7 +75,10 @@ use ringbuf::HeapProd;
 /// ```ts
 /// import { Command, Update } from "./command";
 /// ```
-use crate::command::{Command, Update};
+use crate::command::{
+    Command,
+    Update,
+};
 
 /// What:
 ///      `use crate::watch::SourceWatcher;`.
@@ -98,7 +104,10 @@ use crate::watch::SourceWatcher;
 /// ```ts
 /// import { AudioSpec, Source } from "./decode";
 /// ```
-use crate::decode::{AudioSpec, Source};
+use crate::decode::{
+    AudioSpec,
+    Source,
+};
 
 /// What:
 ///      `use crate::measure::spawn_queue_measurement;`.
@@ -116,9 +125,16 @@ use crate::measure::spawn_queue_measurement;
 use crate::sweep_gate::SweepGate;
 /// Imports the sweep job,
 /// the report sink and the sink that drops reports.
-use crate::sweep_report::{SweepJob, SweepSink, noop_sink};
+use crate::sweep_report::{
+    SweepJob,
+    SweepSink,
+    noop_sink,
+};
 /// Imports the shared ownership and lock types that share the cache and the gate with the sweep threads.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// What:
 ///      `use crate::output::Output;`.
@@ -158,8 +174,12 @@ use crate::peakcache::CacheHandle;
 /// import { fallbackTrackGain, prepareTrackGain } from "./peak_swap";
 /// ```
 use crate::peak_swap::{
-    fallback_track_gain, prepare_track_gain, PeakGainResult, PendingPeakMeasurement,
-    PendingPeakStatus, TrackGainResolution,
+    PeakGainResult,
+    PendingPeakMeasurement,
+    PendingPeakStatus,
+    TrackGainResolution,
+    fallback_track_gain,
+    prepare_track_gain,
 };
 
 /// What:
@@ -549,7 +569,7 @@ impl Controller {
             refresh: crate::refresh_coalescer::RefreshCoalescer::default(),
             pending: Vec::new(),
             pending_pos: 0,
-        }
+        };
     }
 
     /// What:
@@ -563,7 +583,10 @@ impl Controller {
     /// ```ts
     /// emit(update) { this.onUpdate(update); }
     /// ```
-    pub(crate) fn emit(&self, update: Update) {
+    pub(crate) fn emit(
+        &self,
+        update: Update,
+    ) {
         // What:     `(self.on_update)(update);`. Call the boxed closure. The parens make it
         //           call the field, not a method.
         // Why:      Deliver the update to the UI.
@@ -578,7 +601,10 @@ impl Controller {
         //           `debug` keeps the default `info` log quiet.
         match &update {
             Update::Position(secs) => tracing::debug!(secs = *secs, "position update emitted"),
-            Update::NowPlaying { name, .. } => tracing::debug!(name = %name, "now playing emitted"),
+            Update::NowPlaying {
+                name,
+                ..
+            } => tracing::debug!(name = %name, "now playing emitted"),
             _ => {}
         }
         (self.on_update)(update);
@@ -597,7 +623,10 @@ impl Controller {
     /// ```ts
     /// preparePeakForPath(path: string): void { ... }
     /// ```
-    pub(crate) fn prepare_peak_for_path(&mut self, path: &Path) {
+    pub(crate) fn prepare_peak_for_path(
+        &mut self,
+        path: &Path,
+    ) {
         // What:     `self.peak_generation = self.peak_generation.wrapping_add(1);`.
         //           Increment the generation with explicit wrap semantics.
         // Why:      Every loaded track gets a different id; wrapping is practically
@@ -666,7 +695,10 @@ impl Controller {
     /// ```ts
     /// applyPeakResult(result: PeakGainResult): boolean { ... }
     /// ```
-    fn apply_peak_result(&mut self, result: PeakGainResult) -> bool {
+    fn apply_peak_result(
+        &mut self,
+        result: PeakGainResult,
+    ) -> bool {
         // What:     `if result.generation != self.peak_generation { return false; }`.
         //           Compare worker generation to the current track generation.
         // Why:      Ignore stale results without disturbing the current fallback or gain.
@@ -693,7 +725,7 @@ impl Controller {
         // ```ts
         // return true;
         // ```
-        return true
+        return true;
     }
 
     /// What:
@@ -706,7 +738,10 @@ impl Controller {
     /// ```ts
     /// handlePeakStatus(status: PendingPeakStatus): boolean { ... }
     /// ```
-    fn handle_peak_status(&mut self, status: PendingPeakStatus) -> bool {
+    fn handle_peak_status(
+        &mut self,
+        status: PendingPeakStatus,
+    ) -> bool {
         // What:     `match status { ... }`. Branch on ready, still pending, or closed.
         // Why:      Each state affects `pending_peak` differently.
         //
@@ -727,7 +762,7 @@ impl Controller {
             PendingPeakStatus::Ready(result) => {
                 self.pending_peak = None;
                 self.publish_decision_measure(&result.path, &result.decision);
-                return self.apply_peak_result(result)
+                return self.apply_peak_result(result);
             }
             // What:     `PendingPeakStatus::Pending => false`. No result yet.
             // Why:      Keep the pending handle and fallback gain unchanged.
@@ -748,7 +783,7 @@ impl Controller {
             // ```
             PendingPeakStatus::Closed => {
                 self.pending_peak = None;
-                return false
+                return false;
             }
         }
     }
@@ -801,7 +836,7 @@ impl Controller {
         // ```ts
         // return this.handlePeakStatus(status);
         // ```
-        return self.handle_peak_status(status)
+        return self.handle_peak_status(status);
     }
 
     /// What:
@@ -814,7 +849,10 @@ impl Controller {
     /// ```ts
     /// setPlaying(on: boolean): void { ... }
     /// ```
-    pub(crate) fn set_playing(&mut self, on: bool) {
+    pub(crate) fn set_playing(
+        &mut self,
+        on: bool,
+    ) {
         // What:     No wait before marking playback on. A pending true-peak measurement
         //           keeps the fallback gain, and the engine loop swaps the exact gain in later.
         // Why:      Play from pause must not add up to a second of silence while the
@@ -979,7 +1017,10 @@ impl Controller {
     /// ```ts
     /// handleCommand(command: Command): void { ... }
     /// ```
-    pub(crate) fn handle_command(&mut self, command: Command) {
+    pub(crate) fn handle_command(
+        &mut self,
+        command: Command,
+    ) {
         // What:     `match command { ... }`. Dispatch on the command variant (exhaustive
         //           over every `Command`).
         // Why:      Each command does a different thing.
@@ -999,7 +1040,11 @@ impl Controller {
             // ```ts
             // case "openPaths": { const { paths, play } = command; ... }
             // ```
-            Command::OpenRoot { root, select, play } => {
+            Command::OpenRoot {
+                root,
+                select,
+                play,
+            } => {
                 // What:     `self.scan_root_into_queue(root);`. Remember `root` as the Source
                 //           Root, re-point the watcher at it, and rebuild the queue by scanning
                 //           it (defined in `controller_audio.rs`). Consumes the owned `root`.
@@ -1489,7 +1534,10 @@ impl Controller {
     /// ```ts
     /// afterMove(moved: number | null): void { ... }
     /// ```
-    pub(crate) fn after_move(&mut self, moved: Option<usize>) {
+    pub(crate) fn after_move(
+        &mut self,
+        moved: Option<usize>,
+    ) {
         // What:     `match moved { ... }`. `Some` = a track to load; `None` = end.
         // Why:      Two outcomes.
         //

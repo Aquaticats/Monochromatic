@@ -365,7 +365,12 @@ mod ui_theme;
 mod main_startup_helpers;
 
 /// Imports the startup lookups and constructors that `main` calls.
-use main_startup_helpers::{color_scheme_from_env, music_dir, start_analysis_notifier, start_unplayable_notifier};
+use main_startup_helpers::{
+    color_scheme_from_env,
+    music_dir,
+    start_analysis_notifier,
+    start_unplayable_notifier,
+};
 
 /// What:
 ///      `mod ui_font_scale;` loads the sibling `ui_font_scale.rs` module.
@@ -495,7 +500,10 @@ use std::rc::Rc;
 /// ```ts
 /// const progressDebouncer = new ProgressDebouncer(); // GC + single thread: no lock
 /// ```
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// What:
 ///      `use std::time::Instant;`.
@@ -534,7 +542,10 @@ use std::time::Instant;
 /// ```ts
 /// import { Command, PlaybackMode, Update } from "music-player/command";
 /// ```
-use music_player::command::{Command, Update};
+use music_player::command::{
+    Command,
+    Update,
+};
 
 /// What:
 ///      `use music_player::cli::Cli;`.
@@ -608,7 +619,10 @@ use music_player::session::Session;
 /// import * as launcher from "music-player/launcher";
 /// import { Launcher } from "music-player/launcher";
 /// ```
-use music_player::launcher::{self, Launcher};
+use music_player::launcher::{
+    self,
+    Launcher,
+};
 
 /// What:
 /// `use music_player::sweep_gate::SweepGate;`.
@@ -740,7 +754,7 @@ pub(crate) fn format_time(secs: f64) -> String {
     // ```ts
     // return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
     // ```
-    return format!("{}:{:02}", whole / 60, whole % 60)
+    return format!("{}:{:02}", whole / 60, whole % 60);
 }
 
 /// What:
@@ -756,10 +770,17 @@ pub(crate) fn format_time(secs: f64) -> String {
 #[cfg(all(windows, debug_assertions))]
 fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
     /// Imports the startup failure injection variable and the helpers that read it.
-    use music_player::startup_failure::{FORCE_STARTUP_FAILURE_ENV, forced_failure_detail, forced_startup_failure};
+    use music_player::startup_failure::{
+        FORCE_STARTUP_FAILURE_ENV,
+        forced_failure_detail,
+        forced_startup_failure,
+    };
     let value = std::env::var(FORCE_STARTUP_FAILURE_ENV).ok();
     if forced_startup_failure(value.as_deref()) == Some(step) {
-        tracing::warn!(?step, "failing a startup step on purpose ({FORCE_STARTUP_FAILURE_ENV})");
+        tracing::warn!(
+            ?step,
+            "failing a startup step on purpose ({FORCE_STARTUP_FAILURE_ENV})"
+        );
         return Err(slint::PlatformError::from(forced_failure_detail(step)));
     }
     return Ok(());
@@ -788,9 +809,15 @@ fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError> {
 ///       A double-click start has no console,
 /// so the error `main` returns would be written nowhere.
 #[cfg(windows)]
-fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error {
+fn startup_failed(
+    step: StartupStep,
+    error: slint::PlatformError,
+) -> anyhow::Error {
     music_player::startup_failure_win32::report_startup_failure(step, &error.to_string());
-    tracing::debug!(?step, "the startup failure was reported; main returns the error and drops its state");
+    tracing::debug!(
+        ?step,
+        "the startup failure was reported; main returns the error and drops its state"
+    );
     return anyhow::Error::from(error);
 }
 
@@ -802,7 +829,10 @@ fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Err
 /// Why:
 ///       Those builds always have a terminal or a session log for stderr.
 #[cfg(not(windows))]
-fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Error {
+fn startup_failed(
+    _step: StartupStep,
+    error: slint::PlatformError,
+) -> anyhow::Error {
     return anyhow::Error::from(error);
 }
 
@@ -816,7 +846,10 @@ fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Er
 /// ```ts
 /// function finishStep<T>(step: StartupStep, outcome: T | PlatformError): T { if (outcome instanceof PlatformError) throw startupFailed(step, outcome); return outcome; }
 /// ```
-fn finish_step<T>(step: StartupStep, outcome: Result<T, slint::PlatformError>) -> Result<T> {
+fn finish_step<T>(
+    step: StartupStep,
+    outcome: Result<T, slint::PlatformError>,
+) -> Result<T> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(startup_failed(step, error)),
@@ -907,7 +940,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     // Windows: the same parse, with clap's colors off when a console refused VT processing.
     #[cfg(windows)]
-    let cli = music_player::cli::parse_with_color(music_player::console_color::cli_color(console_colors));
+    let cli =
+        music_player::cli::parse_with_color(music_player::console_color::cli_color(console_colors));
     // A debug-build test hook: `MUSIC_PLAYER_FORCE_STARTUP_FAILURE=panic` panics here, on the main thread.
     if let Err(error) = forced_failure(StartupStep::Panic) {
         panic!("{error}");
@@ -1054,7 +1088,8 @@ fn main() -> Result<()> {
     // ```ts
     // app.theme.schemeOverride = colorSchemeFromEnv();
     // ```
-    app.global::<Theme>().set_scheme_override(color_scheme_from_env());
+    app.global::<Theme>()
+        .set_scheme_override(color_scheme_from_env());
     // What:     `ui_theme::apply_accent_override_from_env(&app);` then `ui_theme::install_accent_tracking(&app);`.
     //           Apply the optional accent override, derive the theme roles for the current root (the system accent,
     //           or the baseline when none exists), and register the callback that re-derives them on an accent change.
@@ -1170,7 +1205,11 @@ fn main() -> Result<()> {
         // What:     post the sweep's progress to the system indicator before the window sees the update.
         // Why:      D107: the indicator runs on its own thread, so this only queues a message; the window draws no
         //           analysis indicator at all.
-        if let Update::Analysis { done, total } = &update {
+        if let Update::Analysis {
+            done,
+            total,
+        } = &update
+        {
             update_notifier.report(*done, *total);
         }
         // What:     hand the files that cannot be played to the system notification, before the window sees the update.
@@ -1182,7 +1221,11 @@ fn main() -> Result<()> {
         // What:     hand tracks the folder walk has found to the Search index, on the engine thread.
         // Why:      D111: Search works while the library is still being scanned; the window needs no part in it.
         if matches!(update, Update::ScanBatch { .. }) {
-            if let Update::ScanBatch { first_index, names } = update {
+            if let Update::ScanBatch {
+                first_index,
+                names,
+            } = update
+            {
                 scan_service.stream_batch(first_index, names);
             }
             return;
@@ -1393,7 +1436,9 @@ fn main() -> Result<()> {
                 // What:     `engine.send(Command::NoLibrary);`. Say that there is nothing to open.
                 // Why:      The window shows "No folder is open" only when told so (EM1); the engine no longer says it
                 //           at start, before this decision.
-                tracing::info!("no saved folder and no music folder; the window offers to open one");
+                tracing::info!(
+                    "no saved folder and no music folder; the window offers to open one"
+                );
                 engine.send(Command::NoLibrary);
             }
         }
@@ -1424,7 +1469,7 @@ fn main() -> Result<()> {
     unplayable_notifier.shutdown();
     SweepGate::shared().close();
     finish_step(StartupStep::EventLoop, run_result)?;
-    return Ok(())
+    return Ok(());
 }
 
 /// Registers the unit-test scratch root,

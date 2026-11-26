@@ -271,7 +271,7 @@ impl Queue {
         // ```ts
         // return Queue.withRngSeed(seed);
         // ```
-        return Queue::with_rng_seed(seed)
+        return Queue::with_rng_seed(seed);
     }
 
     /// What:
@@ -322,7 +322,7 @@ impl Queue {
             // cycleStart: 0,
             // ```
             cycle_start: 0,
-        }
+        };
     }
 
     /// What:
@@ -392,7 +392,7 @@ impl Queue {
         // ```ts
         // return x;
         // ```
-        return x
+        return x;
     }
 
     /// Number of tracks in the queue.
@@ -413,7 +413,7 @@ impl Queue {
         // ```ts
         // return this.tracks.length;
         // ```
-        return self.tracks.len()
+        return self.tracks.len();
     }
 
     /// Tracks in load order (as opened),
@@ -436,7 +436,7 @@ impl Queue {
         // ```ts
         // return this.tracks;
         // ```
-        return &self.tracks
+        return &self.tracks;
     }
 
     /// Whether the queue has no tracks.
@@ -455,7 +455,7 @@ impl Queue {
         // ```ts
         // return this.tracks.length === 0;
         // ```
-        return self.tracks.is_empty()
+        return self.tracks.is_empty();
     }
 
     /// Current completion and transport mode.
@@ -468,7 +468,7 @@ impl Queue {
     // ```
     pub fn playback_mode(&self) -> PlaybackMode {
         // Return the same enum value used by navigation and persistence.
-        return self.mode
+        return self.mode;
     }
 
     /// What:
@@ -501,7 +501,10 @@ impl Queue {
         // ```ts
         // return relativeDisplayPaths(this.tracks);
         // ```
-        return crate::relpath::relative_display_paths_in(&self.tracks, self.display_root.as_deref())
+        return crate::relpath::relative_display_paths_in(
+            &self.tracks,
+            self.display_root.as_deref(),
+        );
     }
 
     /// What:
@@ -519,7 +522,10 @@ impl Queue {
     /// ```ts
     /// setDisplayRoot(root: string | null): void { this.displayRoot = root; }
     /// ```
-    pub fn set_display_root(&mut self, root: Option<PathBuf>) {
+    pub fn set_display_root(
+        &mut self,
+        root: Option<PathBuf>,
+    ) {
         tracing::debug!(root = ?root, "the queue's display root is set");
         self.display_root = root;
     }
@@ -536,7 +542,10 @@ impl Queue {
     /// ```ts
     /// orderPositionOf(track: number): number | null { const i = this.order.indexOf(track); return i < 0 ? null : i; }
     /// ```
-    fn order_position_of(&self, track: usize) -> Option<usize> {
+    fn order_position_of(
+        &self,
+        track: usize,
+    ) -> Option<usize> {
         for (position, candidate) in self.order.iter().enumerate() {
             if *candidate == track {
                 return Some(position);
@@ -555,7 +564,10 @@ impl Queue {
     /// ```ts
     /// positionOfPath(path: string): number | null { const i = this.tracks.indexOf(path); return i < 0 ? null : i; }
     /// ```
-    pub fn position_of_path(&self, wanted: &std::path::Path) -> Option<usize> {
+    pub fn position_of_path(
+        &self,
+        wanted: &std::path::Path,
+    ) -> Option<usize> {
         for (index, track) in self.tracks.iter().enumerate() {
             if track.as_path() == wanted {
                 return Some(index);
@@ -588,7 +600,7 @@ impl Queue {
         // return this.pos === null ? null : this.order[this.pos];
         // ```
         let position = self.pos?;
-        return Some(self.order[position])
+        return Some(self.order[position]);
     }
 
     /// What:
@@ -620,7 +632,7 @@ impl Queue {
         return match self.current_index() {
             Some(index) => Some(&self.tracks[index]),
             None => None,
-        }
+        };
     }
 
     /// What:
@@ -637,7 +649,10 @@ impl Queue {
     ///   this.rebuildScopeOrder(tracks.length ? 0 : null);
     /// }
     /// ```
-    pub fn set_tracks(&mut self, tracks: Vec<PathBuf>) {
+    pub fn set_tracks(
+        &mut self,
+        tracks: Vec<PathBuf>,
+    ) {
         // What:     with no page selected there is nothing to carry over, so the new list is stored and the order rebuilt.
         // Why:      the carry-over below rebuilds the display names and the pages of the whole list, about a second at one
         //           million tracks, and its result is an empty scope when no page was selected.
@@ -666,7 +681,11 @@ impl Queue {
             (Some(position), _) => Some(position),
             (None, Some(page)) => {
                 let fallback = page.min(rebuilt_pages.page_count().saturating_sub(1));
-                if fallback < rebuilt_pages.page_count() { Some(fallback) } else { None }
+                if fallback < rebuilt_pages.page_count() {
+                    Some(fallback)
+                } else {
+                    None
+                }
             }
             (None, None) => None,
         };
@@ -727,7 +746,10 @@ impl Queue {
     /// ```ts
     /// installEditedTracks(edited: string[]): void { if (this.pageScope.length === 0) this.tracks = edited; else this.setTracks(edited); }
     /// ```
-    pub(crate) fn install_edited_tracks(&mut self, edited: Vec<PathBuf>) {
+    pub(crate) fn install_edited_tracks(
+        &mut self,
+        edited: Vec<PathBuf>,
+    ) {
         if self.page_scope.is_empty() {
             self.tracks = edited;
             return;
@@ -784,7 +806,10 @@ impl Queue {
     ///   this.rebuildScopeOrder(cur);
     /// }
     /// ```
-    pub fn set_playback_mode(&mut self, mode: PlaybackMode) {
+    pub fn set_playback_mode(
+        &mut self,
+        mode: PlaybackMode,
+    ) {
         // What:     `if mode == self.mode { return; }`. Early return when nothing
         //           changes. `==` compares the enum.
         // Why:      Avoid reshuffling (and moving the cursor) on a no-op.
@@ -825,7 +850,10 @@ impl Queue {
     }
 
     /// Updates the displayed page's load-order scope while retaining current audio.
-    pub fn set_page_scope(&mut self, indices: Vec<usize>) {
+    pub fn set_page_scope(
+        &mut self,
+        indices: Vec<usize>,
+    ) {
         let mut valid: Vec<usize> = Vec::new();
         for index in indices {
             if index < self.tracks.len() {
@@ -861,7 +889,10 @@ impl Queue {
     ///   return track;
     /// }
     /// ```
-    pub fn play_index(&mut self, track: usize) -> Option<usize> {
+    pub fn play_index(
+        &mut self,
+        track: usize,
+    ) -> Option<usize> {
         // What:     `if track >= self.tracks.len() { return None; }` bounds check.
         // Why:      Ignore an out-of-range click.
         //
@@ -873,7 +904,11 @@ impl Queue {
             return None;
         }
         if !self.page_scope.contains(&track) {
-            self.page_scope = match crate::relpath::page_scope_for_anchor_in(&self.tracks, track, self.display_root.as_deref()) {
+            self.page_scope = match crate::relpath::page_scope_for_anchor_in(
+                &self.tracks,
+                track,
+                self.display_root.as_deref(),
+            ) {
                 Some(indices) => indices,
                 None => (0..self.tracks.len()).collect(),
             };
@@ -940,18 +975,20 @@ impl Queue {
         // ```ts
         // return track;
         // ```
-        return Some(track)
+        return Some(track);
     }
 
     /// Restores a relocated selected track without replacing the displayed-page scope.
-    pub fn restore_index_preserving_page(&mut self, track: usize) -> Option<usize> {
+    pub fn restore_index_preserving_page(
+        &mut self,
+        track: usize,
+    ) -> Option<usize> {
         if track >= self.tracks.len() {
             return None;
         }
         self.rebuild_scope_order(Some(track));
         return Some(track);
     }
-
 }
 
 /// What:
@@ -984,7 +1021,7 @@ impl Default for Queue {
         // ```ts
         // return Queue.new();
         // ```
-        return Queue::new()
+        return Queue::new();
     }
 }
 

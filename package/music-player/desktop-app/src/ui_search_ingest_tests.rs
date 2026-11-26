@@ -17,20 +17,33 @@
 //! and not move the row the user is about to tap.
 //! A scan that has not finished must not claim "no results".
 
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 use i_slint_backend_testing::init_no_event_loop;
 use music_player::search_feed::feed_library;
 use music_player::search_service::SearchAnswer;
-use slint::{ComponentHandle, Model};
+use slint::{
+    ComponentHandle,
+    Model,
+};
 
 use crate::AppWindow;
 use crate::ui_screen::read_state;
 use crate::ui_screen_view::Route;
-use crate::ui_search::{install, service, wire_route};
+use crate::ui_search::{
+    install,
+    service,
+    wire_route,
+};
 use crate::ui_search_apply::apply_answer;
-use crate::ui_search_model::{SEARCH_SCANNING_TITLE};
+use crate::ui_search_model::SEARCH_SCANNING_TITLE;
 use crate::ui_test_support::logged_by;
 
 /// How long a test waits for the window to show what it expects.
@@ -71,14 +84,20 @@ impl Scan {
         wire_route(&app);
         app.invoke_open_search();
         assert_eq!(app.get_route(), Route::Search.to_int());
-        return Scan { app, inbox };
+        return Scan {
+            app,
+            inbox,
+        };
     }
 
     /// What:
     /// `pump` applies waiting answers until `done` is true.
     /// Why:
     /// it stands in for the event loop that delivers answers in production.
-    fn pump(&self, done: impl Fn(&AppWindow) -> bool) {
+    fn pump(
+        &self,
+        done: impl Fn(&AppWindow) -> bool,
+    ) {
         let deadline: Instant = Instant::now() + PATIENCE;
         loop {
             let waiting: Vec<SearchAnswer> = match self.inbox.lock() {
@@ -91,7 +110,10 @@ impl Scan {
             if done(&self.app) {
                 return;
             }
-            assert!(Instant::now() < deadline, "the window never showed the expected state");
+            assert!(
+                Instant::now() < deadline,
+                "the window never showed the expected state"
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
     }
@@ -100,7 +122,10 @@ impl Scan {
     /// `type_query` types a query through the window's own callback.
     /// Why:
     /// this is the path a keystroke takes.
-    fn type_query(&self, text: &str) {
+    fn type_query(
+        &self,
+        text: &str,
+    ) {
         self.app.invoke_search_query_edited(text.into());
     }
 
@@ -132,7 +157,11 @@ impl Scan {
 /// the plain name is a whole-name match,
 /// which ranks above every numbered name,
 /// so it lands at the top when it arrives.
-fn library(batches: usize, per_batch: usize, best_in: usize) -> Vec<String> {
+fn library(
+    batches: usize,
+    per_batch: usize,
+    best_in: usize,
+) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for number in 0..batches * per_batch {
         if number == best_in * per_batch {
@@ -157,18 +186,37 @@ fn library(batches: usize, per_batch: usize, best_in: usize) -> Vec<String> {
 fn results_grow_in_place_while_a_slow_scan_adds_tracks() {
     let scan: Scan = Scan::new();
     let running = service().expect("the service is installed");
-    feed_library(&running, Arc::new(library(6, 100, 99)), 100, Duration::from_millis(80));
+    feed_library(
+        &running,
+        Arc::new(library(6, 100, 99)),
+        100,
+        Duration::from_millis(80),
+    );
     scan.pump(|_| return running.track_count() > 0);
     scan.type_query("trk");
     scan.pump(|app| return app.get_search_rows().row_count() > 0);
     let early_rows = scan.app.get_search_rows();
     let early_count: usize = early_rows.row_count();
-    assert!(early_count > 0 && early_count < 500, "the first answer showed {early_count} rows");
+    assert!(
+        early_count > 0 && early_count < 500,
+        "the first answer showed {early_count} rows"
+    );
     scan.pump(|app| return app.get_search_rows().row_count() == 500);
-    assert_eq!(early_rows.row_count(), 500, "the same rows model grew; it was updated in place");
-    assert_eq!(scan.app.get_search_query().as_str(), "trk", "the refresh leaves the query alone");
+    assert_eq!(
+        early_rows.row_count(),
+        500,
+        "the same rows model grew; it was updated in place"
+    );
+    assert_eq!(
+        scan.app.get_search_query().as_str(),
+        "trk",
+        "the refresh leaves the query alone"
+    );
     let results = read_state(|state| return state.search_ui.results.len());
-    assert_eq!(results, 500, "the cap of five hundred applies to the grown library");
+    assert_eq!(
+        results, 500,
+        "the cap of five hundred applies to the grown library"
+    );
 }
 
 /// What:
@@ -181,11 +229,21 @@ fn results_grow_in_place_while_a_slow_scan_adds_tracks() {
 fn no_match_is_not_claimed_before_the_scan_is_complete() {
     let scan: Scan = Scan::new();
     let running = service().expect("the service is installed");
-    feed_library(&running, Arc::new(library(5, 100, 99)), 100, Duration::from_millis(100));
+    feed_library(
+        &running,
+        Arc::new(library(5, 100, 99)),
+        100,
+        Duration::from_millis(100),
+    );
     scan.pump(|_| return running.track_count() > 0);
     scan.type_query("zzzz");
     scan.pump(|app| return app.get_search_status_title().as_str() == SEARCH_SCANNING_TITLE);
-    scan.pump(|app| return app.get_search_status_title().as_str().starts_with("No results for"));
+    scan.pump(|app| {
+        return app
+            .get_search_status_title()
+            .as_str()
+            .starts_with("No results for");
+    });
     assert_eq!(scan.titles().len(), 0);
 }
 
@@ -199,7 +257,12 @@ fn no_match_is_not_claimed_before_the_scan_is_complete() {
 fn a_better_match_arriving_does_not_move_the_row_in_view() {
     let scan: Scan = Scan::new();
     let running = service().expect("the service is installed");
-    feed_library(&running, Arc::new(library(4, 100, 3)), 100, Duration::from_millis(150));
+    feed_library(
+        &running,
+        Arc::new(library(4, 100, 3)),
+        100,
+        Duration::from_millis(150),
+    );
     scan.pump(|_| return running.track_count() >= 100);
     scan.type_query("trk");
     scan.pump(|app| return app.get_search_rows().row_count() >= 100);
@@ -207,9 +270,20 @@ fn a_better_match_arriving_does_not_move_the_row_in_view() {
     scan.app.set_search_scroll_y(-144.0);
     let tick_before: i32 = scan.app.get_search_anchor_tick();
     scan.pump(|app| return app.get_search_rows().row_count() == 400);
-    assert_eq!(scan.titles()[0], "Trk", "the whole-name match ranks first once it arrives");
-    assert!(scan.app.get_search_anchor_tick() > tick_before, "the list was anchored after the re-rank");
-    assert_eq!(scan.app.get_search_anchor_offset(), 144.0 + 72.0, "one row was inserted above the first visible row");
+    assert_eq!(
+        scan.titles()[0],
+        "Trk",
+        "the whole-name match ranks first once it arrives"
+    );
+    assert!(
+        scan.app.get_search_anchor_tick() > tick_before,
+        "the list was anchored after the re-rank"
+    );
+    assert_eq!(
+        scan.app.get_search_anchor_offset(),
+        144.0 + 72.0,
+        "one row was inserted above the first visible row"
+    );
 }
 
 /// What:
@@ -251,8 +325,14 @@ fn an_applied_answer_writes_a_state_line_with_the_query_and_the_highlighted_resu
     scan.pump(|_| return running.track_count() >= 50);
     scan.type_query("trk");
     let log: String = logged_by(|| scan.pump(|app| return app.get_search_rows().row_count() > 0));
-    let answered: bool = log
-        .lines()
-        .any(|line| return line.contains("ui_state ") && line.contains("\"reason\":\"search-answer\"") && line.contains("\"search_query\":\"trk\"") && line.contains("\"search_ring\":0"));
-    assert!(answered, "a search-answer state line with the query and ring 0 was logged: {log}");
+    let answered: bool = log.lines().any(|line| {
+        return line.contains("ui_state ")
+            && line.contains("\"reason\":\"search-answer\"")
+            && line.contains("\"search_query\":\"trk\"")
+            && line.contains("\"search_ring\":0");
+    });
+    assert!(
+        answered,
+        "a search-answer state line with the query and ring 0 was logged: {log}"
+    );
 }

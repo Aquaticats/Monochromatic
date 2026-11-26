@@ -19,7 +19,10 @@ fn start() -> Instant {
 /// `ms` is `origin` plus a number of milliseconds.
 /// Why:
 /// it keeps the test bodies readable as a timeline.
-fn ms(origin: Instant, millis: u64) -> Instant {
+fn ms(
+    origin: Instant,
+    millis: u64,
+) -> Instant {
     return origin + Duration::from_millis(millis);
 }
 
@@ -28,7 +31,11 @@ fn ms(origin: Instant, millis: u64) -> Instant {
 /// Why:
 /// asserting whole views shows the percent,
 /// the text and the paused flag together.
-fn view(percent: u32, text: &str, paused: bool) -> IndicatorView {
+fn view(
+    percent: u32,
+    text: &str,
+    paused: bool,
+) -> IndicatorView {
     return IndicatorView {
         percent,
         text: text.to_string(),
@@ -49,7 +56,10 @@ fn count_text_groups_thousands_like_the_former_banner() {
 // Why: wrapping would show a negative count.
 #[test]
 fn count_text_clamps_a_count_above_the_signed_range() {
-    assert_eq!(count_text(usize::MAX, usize::MAX), "2,147,483,647 of 2,147,483,647");
+    assert_eq!(
+        count_text(usize::MAX, usize::MAX),
+        "2,147,483,647 of 2,147,483,647"
+    );
 }
 
 // What: percent rounds down and stays below 100 while work remains.
@@ -61,7 +71,10 @@ fn percent_rounds_down_and_never_reaches_100_while_running() {
     assert_eq!(percent_for(1217, 1218), PERCENT_WHILE_RUNNING_MAX);
     assert_eq!(percent_for(5000, 1218), PERCENT_WHILE_RUNNING_MAX);
     assert_eq!(percent_for(1, 0), 0);
-    assert_eq!(percent_for(usize::MAX, usize::MAX), PERCENT_WHILE_RUNNING_MAX);
+    assert_eq!(
+        percent_for(usize::MAX, usize::MAX),
+        PERCENT_WHILE_RUNNING_MAX
+    );
 }
 
 // What: the first unfinished report opens the indicator with its view.
@@ -151,7 +164,10 @@ fn a_busy_sweep_is_limited_to_two_sends_a_second() {
             if matches!(effect, Effect::Open(_) | Effect::Update(_)) {
                 sends += 1;
                 if let Some(earlier) = previous {
-                    assert!(now - earlier >= MIN_UPDATE_INTERVAL, "two sends closer than the interval");
+                    assert!(
+                        now - earlier >= MIN_UPDATE_INTERVAL,
+                        "two sends closer than the interval"
+                    );
                 }
                 previous = Some(now);
             }
@@ -159,8 +175,14 @@ fn a_busy_sweep_is_limited_to_two_sends_a_second() {
     }
     let interval_ms = MIN_UPDATE_INTERVAL.as_millis();
     let expected_sends = 1 + (60_u128 - 1) * 50 / interval_ms;
-    assert!(u128::from(sends) <= expected_sends, "sent {sends} times in three seconds");
-    assert!(u128::from(sends) + 1 >= expected_sends, "sent only {sends} times in three seconds");
+    assert!(
+        u128::from(sends) <= expected_sends,
+        "sent {sends} times in three seconds"
+    );
+    assert!(
+        u128::from(sends) + 1 >= expected_sends,
+        "sent only {sends} times in three seconds"
+    );
 }
 
 // What: a report that repeats the last sent view sends nothing and drops a held view.
@@ -248,11 +270,17 @@ fn pause_tells_the_engine_and_updates_the_indicator_at_once() {
     machine.progress(origin, 100, 1000);
     assert_eq!(
         machine.set_paused(ms(origin, 10), true),
-        vec![Effect::SetEnginePause(true), Effect::Update(view(10, "100 of 1,000", true))]
+        vec![
+            Effect::SetEnginePause(true),
+            Effect::Update(view(10, "100 of 1,000", true))
+        ]
     );
     assert_eq!(
         machine.set_paused(ms(origin, 20), false),
-        vec![Effect::SetEnginePause(false), Effect::Update(view(10, "100 of 1,000", false))]
+        vec![
+            Effect::SetEnginePause(false),
+            Effect::Update(view(10, "100 of 1,000", false))
+        ]
     );
 }
 
@@ -277,7 +305,10 @@ fn pause_sends_the_newest_known_count() {
     machine.progress(ms(origin, 100), 250, 1000);
     assert_eq!(
         machine.set_paused(ms(origin, 150), true),
-        vec![Effect::SetEnginePause(true), Effect::Update(view(25, "250 of 1,000", true))]
+        vec![
+            Effect::SetEnginePause(true),
+            Effect::Update(view(25, "250 of 1,000", true))
+        ]
     );
     assert_eq!(machine.deadline(), None);
 }
@@ -365,7 +396,9 @@ fn a_failure_closes_with_its_message() {
     machine.progress(origin, 1, 10);
     assert_eq!(
         machine.failed("disk unreadable".to_string()),
-        vec![Effect::Close(Outcome::Failed("disk unreadable".to_string()))]
+        vec![Effect::Close(Outcome::Failed(
+            "disk unreadable".to_string()
+        ))]
     );
     assert_eq!(machine.failed("again".to_string()), Vec::new());
 }

@@ -18,9 +18,22 @@
 /// Why:
 ///  The state builds its previews and edits from them.
 use crate::template_editor::{
-    TEMPLATE_KEPT_EMPTY_NOTE, TEMPLATE_KEPT_NOTE, TEMPLATE_LIBRARY_NOTE, TEMPLATE_PREVIEW_ROW_COUNT, TEMPLATE_SAMPLE_NOTE, TemplateEditorEdit,
-    TemplateEditorFieldEntry, TemplateEditorStateError, TemplatePreviewRow, TemplateTexts, clamp_offset, evaluate_for,
-    inside_formula, splice_text, template_sample_tracks, track_source,
+    TEMPLATE_KEPT_EMPTY_NOTE,
+    TEMPLATE_KEPT_NOTE,
+    TEMPLATE_LIBRARY_NOTE,
+    TEMPLATE_PREVIEW_ROW_COUNT,
+    TEMPLATE_SAMPLE_NOTE,
+    TemplateEditorEdit,
+    TemplateEditorFieldEntry,
+    TemplateEditorStateError,
+    TemplatePreviewRow,
+    TemplateTexts,
+    clamp_offset,
+    evaluate_for,
+    inside_formula,
+    splice_text,
+    template_sample_tracks,
+    track_source,
 };
 /// What:
 ///  imports the UTF-16 length helper.
@@ -31,7 +44,10 @@ use crate::template_format::utf16_length;
 ///  imports the typing help.
 /// Why:
 ///  The state exposes the help for the focused field.
-use crate::template_help::{TemplateHelp, help_at};
+use crate::template_help::{
+    TemplateHelp,
+    help_at,
+};
 /// What:
 ///  imports the track,
 ///  template kind,
@@ -40,7 +56,11 @@ use crate::template_help::{TemplateHelp, help_at};
 /// Why:
 ///  The state stores and evaluates them.
 use crate::template_model::{
-    PlayingTrackFields, TemplateError, TemplateKind, TemplateResult, error_lines,
+    PlayingTrackFields,
+    TemplateError,
+    TemplateKind,
+    TemplateResult,
+    error_lines,
 };
 /// What:
 ///  imports the plain mistake sentences.
@@ -114,7 +134,11 @@ impl TemplateEditorState {
         let preview_tracks = if uses_sample_values {
             template_sample_tracks()
         } else {
-            library.iter().take(TEMPLATE_PREVIEW_ROW_COUNT).cloned().collect()
+            library
+                .iter()
+                .take(TEMPLATE_PREVIEW_ROW_COUNT)
+                .cloned()
+                .collect()
         };
         let defaults = TemplateTexts::defaults();
         let end = utf16_length(TemplateKind::TrackRows.default_template());
@@ -362,7 +386,11 @@ impl TemplateEditorState {
             Ok(line) => line.trim().is_empty(),
             Err(_error) => false,
         };
-        return Some(if shows_nothing { TEMPLATE_KEPT_EMPTY_NOTE } else { TEMPLATE_KEPT_NOTE });
+        return Some(if shows_nothing {
+            TEMPLATE_KEPT_EMPTY_NOTE
+        } else {
+            TEMPLATE_KEPT_NOTE
+        });
     }
 
     /// What:
@@ -449,7 +477,10 @@ impl TemplateEditorState {
     /// ```ts
     /// settingsLine(template: TemplateKind): string { return applied(template, this.previewTracks[0]); }
     /// ```
-    pub fn settings_line(&self, template: TemplateKind) -> Result<String, TemplateEditorStateError> {
+    pub fn settings_line(
+        &self,
+        template: TemplateKind,
+    ) -> Result<String, TemplateEditorStateError> {
         return self.applied_line(template, self.first_track());
     }
 
@@ -463,7 +494,10 @@ impl TemplateEditorState {
     /// ```ts
     /// withEdit(edit: Edit): State { /* draft = text; applied = valid ? text : applied; clamp caret */ }
     /// ```
-    pub fn with_edit(&self, edit: TemplateEditorEdit) -> Self {
+    pub fn with_edit(
+        &self,
+        edit: TemplateEditorEdit,
+    ) -> Self {
         let mut applies = true;
         for result in &self.results_for(self.kind, &edit.text) {
             if !matches!(result, TemplateResult::Shown(_)) {
@@ -498,7 +532,10 @@ impl TemplateEditorState {
     /// ```ts
     /// insertField(mode: string): State { return this.insertCall(`mi(${mode})`, caretInCall); }
     /// ```
-    pub fn insert_field(&self, mode: &str) -> Self {
+    pub fn insert_field(
+        &self,
+        mode: &str,
+    ) -> Self {
         let call = format!("mi({mode})");
         let caret_in_call = utf16_length(&call);
         return self.insert_call(&call, caret_in_call);
@@ -515,7 +552,10 @@ impl TemplateEditorState {
     /// ```ts
     /// insertFunction(name: string): State { return this.insertCall(`${name}()`, name.length + 1); }
     /// ```
-    pub fn insert_function(&self, name: &str) -> Self {
+    pub fn insert_function(
+        &self,
+        name: &str,
+    ) -> Self {
         let call = format!("{name}()");
         return self.insert_call(&call, utf16_length(name) + 1);
     }
@@ -551,7 +591,10 @@ impl TemplateEditorState {
     /// ```ts
     /// open(template: TemplateKind): State { return { ...this, kind: template, fieldFocused: false }; }
     /// ```
-    pub fn open(&self, template: TemplateKind) -> Self {
+    pub fn open(
+        &self,
+        template: TemplateKind,
+    ) -> Self {
         let length = utf16_length(self.drafts.get(template));
         return Self {
             kind: template,
@@ -572,7 +615,10 @@ impl TemplateEditorState {
     /// ```ts
     /// withFocus(focused: boolean): State { return { ...this, fieldFocused: focused }; }
     /// ```
-    pub fn with_focus(&self, focused: bool) -> Self {
+    pub fn with_focus(
+        &self,
+        focused: bool,
+    ) -> Self {
         return Self {
             field_focused: focused,
             ..self.clone()
@@ -590,7 +636,11 @@ impl TemplateEditorState {
     /// ```ts
     /// function insertCall(text, start, end, call, caretInCall) { /* wrap with $ outside a formula */ }
     /// ```
-    fn insert_call(&self, call: &str, caret_in_call: usize) -> Self {
+    fn insert_call(
+        &self,
+        call: &str,
+        caret_in_call: usize,
+    ) -> Self {
         let text = self.text();
         let start = clamp_offset(self.selection_start.min(self.selection_end), text);
         let end = clamp_offset(self.selection_start.max(self.selection_end), text);
@@ -618,7 +668,11 @@ impl TemplateEditorState {
     /// ```ts
     /// function resultsFor(template, text) { return previewTracks.map(t => evaluate(text, t, template.fields)); }
     /// ```
-    fn results_for(&self, kind: TemplateKind, text: &str) -> Vec<TemplateResult> {
+    fn results_for(
+        &self,
+        kind: TemplateKind,
+        text: &str,
+    ) -> Vec<TemplateResult> {
         let mut results: Vec<TemplateResult> = Vec::with_capacity(self.preview_tracks.len());
         for track in &self.preview_tracks {
             results.push(evaluate_for(kind, text, track));
@@ -637,7 +691,11 @@ impl TemplateEditorState {
     /// ```ts
     /// function appliedLine(template, track): string { /* the shown text, or throw */ }
     /// ```
-    fn applied_line(&self, kind: TemplateKind, track: &PlayingTrackFields) -> Result<String, TemplateEditorStateError> {
+    fn applied_line(
+        &self,
+        kind: TemplateKind,
+        track: &PlayingTrackFields,
+    ) -> Result<String, TemplateEditorStateError> {
         let applied = self.last_valid.get(kind);
         return match evaluate_for(kind, applied, track) {
             TemplateResult::Shown(text) => Ok(text),

@@ -90,7 +90,11 @@ use crate::decode::Source;
 /// ```ts
 /// const resumePosition = (pos: number, dur: number, playing: boolean): number => dur <= 0 ? pos : pos < dur ? pos : playing ? dur : 0;
 /// ```
-pub(crate) fn resume_position(position: f64, new_duration: f64, was_playing: bool) -> f64 {
+pub(crate) fn resume_position(
+    position: f64,
+    new_duration: f64,
+    was_playing: bool,
+) -> f64 {
     // What:     `if new_duration <= 0.0 || position < new_duration { ... }` is an ordinary condition. Rust needs no
     //           parentheses around it, and the body must be braces. `0.0` is a float literal; writing `0` here would not
     //           compile because `f64` and integers never mix without a cast.

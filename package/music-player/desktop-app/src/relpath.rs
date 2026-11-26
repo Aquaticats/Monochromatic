@@ -36,7 +36,11 @@
 /// ```ts
 /// // all three are just strings in TS; Component ~ one element of path.split("/")
 /// ```
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `const SEPARATOR: &str = "/";`.
@@ -109,7 +113,10 @@ pub fn relative_display_paths(tracks: &[PathBuf]) -> Vec<String> {
 /// ```ts
 /// const relativeDisplayPathsIn = (tracks: string[], root?: string) => tracks.map((t) => relativeTo(root ?? commonDir(tracks), t));
 /// ```
-pub fn relative_display_paths_in(tracks: &[PathBuf], root: Option<&Path>) -> Vec<String> {
+pub fn relative_display_paths_in(
+    tracks: &[PathBuf],
+    root: Option<&Path>,
+) -> Vec<String> {
     if tracks.is_empty() {
         return Vec::new();
     }
@@ -142,7 +149,10 @@ pub fn relative_display_paths_in(tracks: &[PathBuf], root: Option<&Path>) -> Vec
 /// Why:
 ///       One rule picks the prefix for the names and for the page keys,
 /// so a track's page never disagrees with its name.
-fn display_prefix_len(tracks: &[PathBuf], root: Option<&Path>) -> usize {
+fn display_prefix_len(
+    tracks: &[PathBuf],
+    root: Option<&Path>,
+) -> usize {
     let Some(root_path) = root else {
         return shared_prefix_len(tracks);
     };
@@ -200,7 +210,10 @@ fn shared_prefix_len(tracks: &[PathBuf]) -> usize {
         let mut matching: usize = 0;
         let mut still_matching: bool = true;
         for part in normal_parts(path) {
-            if still_matching && matching < shared && matches!(first_parts.get(length), Some(first) if *first == part) {
+            if still_matching
+                && matching < shared
+                && matches!(first_parts.get(length), Some(first) if *first == part)
+            {
                 matching += 1;
             } else {
                 still_matching = false;
@@ -210,7 +223,11 @@ fn shared_prefix_len(tracks: &[PathBuf]) -> usize {
         shortest = shortest.min(length);
         shared = shared.min(matching);
     }
-    return if shortest == 0 { 0 } else { shared.min(shortest - 1) };
+    return if shortest == 0 {
+        0
+    } else {
+        shared.min(shortest - 1)
+    };
 }
 
 /// What:
@@ -243,7 +260,10 @@ enum PageKey<'a> {
 /// Why:
 ///       It gives the same page as `paginate` gives the display name,
 ///  without building the name.
-fn page_key_of(path: &Path, prefix_len: usize) -> PageKey<'_> {
+fn page_key_of(
+    path: &Path,
+    prefix_len: usize,
+) -> PageKey<'_> {
     let mut parts = normal_parts(path).skip(prefix_len);
     let Some(first) = parts.next() else {
         return PageKey::CatchAll;
@@ -252,7 +272,9 @@ fn page_key_of(path: &Path, prefix_len: usize) -> PageKey<'_> {
         return PageKey::Folder(first);
     }
     return match first.chars().next() {
-        Some(letter) if letter.is_ascii_alphabetic() => PageKey::Letter(letter.to_ascii_uppercase()),
+        Some(letter) if letter.is_ascii_alphabetic() => {
+            PageKey::Letter(letter.to_ascii_uppercase())
+        }
         _ => PageKey::CatchAll,
     };
 }
@@ -270,7 +292,10 @@ fn page_key_of(path: &Path, prefix_len: usize) -> PageKey<'_> {
 /// ```ts
 /// const pageScopeForAnchor = (tracks: string[], anchor: number) => tracks.flatMap((_, i) => pageKey(i) === pageKey(anchor) ? [i] : []);
 /// ```
-pub fn page_scope_for_anchor(tracks: &[PathBuf], anchor: usize) -> Option<Vec<usize>> {
+pub fn page_scope_for_anchor(
+    tracks: &[PathBuf],
+    anchor: usize,
+) -> Option<Vec<usize>> {
     return page_scope_for_anchor_in(tracks, anchor, None);
 }
 
@@ -282,7 +307,11 @@ pub fn page_scope_for_anchor(tracks: &[PathBuf], anchor: usize) -> Option<Vec<us
 /// and the window groups the names
 ///  `relative_display_paths_in` makes,
 /// so both must drop the same prefix.
-pub fn page_scope_for_anchor_in(tracks: &[PathBuf], anchor: usize, root: Option<&Path>) -> Option<Vec<usize>> {
+pub fn page_scope_for_anchor_in(
+    tracks: &[PathBuf],
+    anchor: usize,
+    root: Option<&Path>,
+) -> Option<Vec<usize>> {
     let anchor_path: &PathBuf = tracks.get(anchor)?;
     let prefix_len: usize = display_prefix_len(tracks, root);
     let wanted: PageKey<'_> = page_key_of(anchor_path, prefix_len);
@@ -304,7 +333,9 @@ pub fn page_scope_for_anchor_in(tracks: &[PathBuf], anchor: usize, root: Option<
 ///  borrowing keeps that to the cost of reading the components,
 ///  with no allocation per component.
 fn normal_parts(path: &Path) -> NormalParts<'_> {
-    return NormalParts { components: path.components() };
+    return NormalParts {
+        components: path.components(),
+    };
 }
 
 /// What:

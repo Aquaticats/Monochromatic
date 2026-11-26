@@ -29,7 +29,10 @@ use music_player::unplayable_notification_logic::file_name_text;
 /// when it was playing,
 /// that playback
 /// stopped because of it (PB2).
-pub(crate) fn file_gone_message(path: &Path, was_playing: bool) -> String {
+pub(crate) fn file_gone_message(
+    path: &Path,
+    was_playing: bool,
+) -> String {
     let name: String = file_name_text(path);
     if was_playing {
         return format!("{name} was removed from the folder, so playback stopped.");

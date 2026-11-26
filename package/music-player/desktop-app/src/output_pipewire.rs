@@ -84,7 +84,10 @@ use std::mem::size_of;
 /// ```ts
 /// let playing = false; // a cross-thread boolean flag
 /// ```
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What:
 ///      `use std::sync::Arc;`.
@@ -160,7 +163,10 @@ use pipewire as pw;
 /// ```ts
 /// import { properties, spa } from "pipewire";
 /// ```
-use pw::{properties::properties, spa};
+use pw::{
+    properties::properties,
+    spa,
+};
 
 /// What:
 ///      `use pw::context::ContextRc;`.
@@ -207,7 +213,11 @@ use pw::core::CoreRc;
 /// ```ts
 /// import { Stream, StreamFlags, StreamListener } from "pipewire";
 /// ```
-use pw::stream::{StreamFlags, StreamListener, StreamRc};
+use pw::stream::{
+    StreamFlags,
+    StreamListener,
+    StreamRc,
+};
 
 /// What:
 ///      `use pw::thread_loop::ThreadLoopRc;`.
@@ -236,7 +246,10 @@ use pw::thread_loop::ThreadLoopRc;
 /// ```ts
 /// import { AudioFormat, AudioInfoRaw } from "pipewire/spa";
 /// ```
-use spa::param::audio::{AudioFormat, AudioInfoRaw};
+use spa::param::audio::{
+    AudioFormat,
+    AudioInfoRaw,
+};
 
 /// What:
 ///      `use spa::pod::{serialize::PodSerializer, Object, Pod, Value};`.
@@ -254,7 +267,12 @@ use spa::param::audio::{AudioFormat, AudioInfoRaw};
 /// ```ts
 /// const bytes = encodePod({ type: "Format", ... }); // bespoke binary encoding
 /// ```
-use spa::pod::{serialize::PodSerializer, Object, Pod, Value};
+use spa::pod::{
+    Object,
+    Pod,
+    Value,
+    serialize::PodSerializer,
+};
 
 /// What:
 ///      `use spa::utils::Direction;`.
@@ -286,7 +304,10 @@ use spa::utils::Direction;
 /// ```ts
 /// // no equivalent: importing interfaces to unlock .split()/.popSlice()
 /// ```
-use ringbuf::traits::{Consumer, Split};
+use ringbuf::traits::{
+    Consumer,
+    Split,
+};
 
 /// What:
 ///      `use ringbuf::{HeapCons, HeapProd, HeapRb};`.
@@ -304,8 +325,17 @@ use ringbuf::traits::{Consumer, Split};
 /// ```ts
 /// // a fixed-size lock-free queue split into a writer and a reader
 /// ```
-use ringbuf::{HeapCons, HeapProd, HeapRb};
+use ringbuf::{
+    HeapCons,
+    HeapProd,
+    HeapRb,
+};
 
+/// Imports the underrun meter and its snapshot that the realtime callback feeds.
+use crate::audio_meter::{
+    AudioMeter,
+    MeterSnapshot,
+};
 /// What:
 ///      `use crate::error::PlayerError;`.
 ///  Our one app-wide error type.
@@ -317,8 +347,6 @@ use ringbuf::{HeapCons, HeapProd, HeapRb};
 /// import { PlayerError } from "./error";
 /// ```
 use crate::error::PlayerError;
-/// Imports the underrun meter and its snapshot that the realtime callback feeds.
-use crate::audio_meter::{AudioMeter, MeterSnapshot};
 
 /// What:
 ///      `const F32_BYTES: usize = size_of::<f32>();`.
@@ -367,7 +395,10 @@ trait AtStep<T> {
     /// `at_step` turns a failure into the audio error that names `step`.
     /// Why:
     /// the message shows the step and the debug text of the cause.
-    fn at_step(self, step: &str) -> Result<T, PlayerError>;
+    fn at_step(
+        self,
+        step: &str,
+    ) -> Result<T, PlayerError>;
 }
 
 /// Failures of any debuggable type become audio errors.
@@ -377,7 +408,10 @@ impl<T, E: std::fmt::Debug> AtStep<T> for Result<T, E> {
     /// Why:
     /// one place spells the message,
     /// so the call sites stay one line each.
-    fn at_step(self, step: &str) -> Result<T, PlayerError> {
+    fn at_step(
+        self,
+        step: &str,
+    ) -> Result<T, PlayerError> {
         return match self {
             Ok(value) => Ok(value),
             Err(error) => Err(PlayerError::Audio(format!("{step}: {error:?}"))),
@@ -718,8 +752,7 @@ impl Output {
         // ```ts
         // const context = new Context(threadLoop);
         // ```
-        let context = ContextRc::new(&thread_loop, None)
-            .at_step("context")?;
+        let context = ContextRc::new(&thread_loop, None).at_step("context")?;
 
         // What:     `let core = context.connect_rc(None).at_step("core connect")?`. `connect_rc` opens the session;
         //           `None` = default connection properties; a failure becomes the audio error that names the "core
@@ -730,9 +763,7 @@ impl Output {
         // ```ts
         // const core = context.connect();
         // ```
-        let core = context
-            .connect_rc(None)
-            .at_step("core connect")?;
+        let core = context.connect_rc(None).at_step("core connect")?;
 
         // What:     `thread_loop.start();`. Spawns the loop's OS thread and begins
         //           processing. After this, callbacks can fire on that thread.
@@ -775,7 +806,7 @@ impl Output {
             worker,
             meter: Arc::new(AudioMeter::new()),
             draining: Arc::new(AtomicBool::new(false)),
-        })
+        });
     }
 
     /// What:
@@ -1136,7 +1167,7 @@ impl Output {
         // ```ts
         // return producer;
         // ```
-        return Ok(producer)
+        return Ok(producer);
     }
 
     /// What:
@@ -1153,7 +1184,10 @@ impl Output {
     /// ```ts
     /// setPlaying(on: boolean): void { Atomics.store(playingFlag, 0, on ? 1 : 0); }
     /// ```
-    pub fn set_playing(&self, on: bool) {
+    pub fn set_playing(
+        &self,
+        on: bool,
+    ) {
         // What:     `self.playing.store(on, Ordering::Relaxed);`. The atomic WRITE: store
         //           `on` into the shared flag. `Relaxed` matches the loose ordering used by
         //           the callback's `.load` (a lone flag needs no stronger guarantee).
@@ -1179,7 +1213,10 @@ impl Output {
     /// ```ts
     /// setDraining(on: boolean): void { Atomics.store(drainingFlag, 0, on ? 1 : 0); }
     /// ```
-    pub fn set_draining(&self, on: bool) {
+    pub fn set_draining(
+        &self,
+        on: bool,
+    ) {
         // What:     `self.draining.store(on, Ordering::Relaxed);`. Atomic write of the flag.
         // Why:      Make the new state visible to the audio thread.
         //
@@ -1259,8 +1296,10 @@ impl Drop for Output {
 /// ```ts
 /// const processStreamBuffer = (stream: Stream, pd: ProcessData): void => { /* fill the buffer */ };
 /// ```
-fn process_stream_buffer(stream_ref: &pw::stream::Stream, pd: &mut ProcessData) {
-
+fn process_stream_buffer(
+    stream_ref: &pw::stream::Stream,
+    pd: &mut ProcessData,
+) {
     // What:     `match stream_ref.dequeue_buffer() { ... }`. Ask the stream for a
     //           buffer to fill. Returns `Option<Buffer>`: `Some(buffer)` if one
     //           is available, else `None`.
@@ -1389,11 +1428,10 @@ fn process_stream_buffer(stream_ref: &pw::stream::Stream, pd: &mut ProcessData) 
                     // ```ts
                     // const fillFrames = Math.min(availFrames, Math.max(requestedFrames, FILL_FRAMES_FLOOR));
                     // ```
-                    let wanted_frames =
-                        match usize::try_from(requested_frames) {
-                            Ok(requested) => requested.max(FILL_FRAMES_FLOOR),
-                            Err(_error) => FILL_FRAMES_FLOOR,
-                        };
+                    let wanted_frames = match usize::try_from(requested_frames) {
+                        Ok(requested) => requested.max(FILL_FRAMES_FLOOR),
+                        Err(_error) => FILL_FRAMES_FLOOR,
+                    };
                     let fill_frames = avail_frames.min(wanted_frames);
 
                     // What:     `let want = fill_frames * pd.channels;`.

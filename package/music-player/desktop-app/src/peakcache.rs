@@ -27,7 +27,10 @@
 /// ```ts
 /// // both are just `string` in TS
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `use std::time::UNIX_EPOCH;`.
@@ -75,7 +78,11 @@ use crate::identity;
 /// ```ts
 /// import { CacheIdentity, defaultPolicy, trackFingerprint } from "truepeak-core";
 /// ```
-use truepeak_core::{CacheIdentity, default_policy, track_fingerprint};
+use truepeak_core::{
+    CacheIdentity,
+    default_policy,
+    track_fingerprint,
+};
 
 /// What:
 ///      `#[path = "peakcache_service.rs"] mod service;`.
@@ -197,7 +204,7 @@ pub(crate) fn fingerprint(path: &Path) -> Option<u64> {
     // ```ts
     // return trackFingerprint(pathText, meta.size, mtimeNanos);
     // ```
-    return Some(track_fingerprint(&path_text, meta.len(), mtime_nanos))
+    return Some(track_fingerprint(&path_text, meta.len(), mtime_nanos));
 }
 
 /// What:
@@ -241,7 +248,7 @@ fn decoder_stack_id() -> u64 {
     // ```ts
     // return stackId(DECODER_STACK_DESCRIPTION);
     // ```
-    return truepeak_core::stack_id(DECODER_STACK_DESCRIPTION)
+    return truepeak_core::stack_id(DECODER_STACK_DESCRIPTION);
 }
 
 /// What:
@@ -274,7 +281,7 @@ pub(crate) fn cache_identity() -> CacheIdentity {
     // ```ts
     // return defaultPolicy().cacheIdentity(decoderStackId());
     // ```
-    return default_policy().cache_identity(decoder_stack_id())
+    return default_policy().cache_identity(decoder_stack_id());
 }
 
 /// What:
@@ -316,7 +323,7 @@ fn db_path() -> Option<PathBuf> {
     // return dir ? join(dir, "decisions.db") : null;
     // ```
     let dir = identity::config_dir()?;
-    return Some(dir.join("decisions.db"))
+    return Some(dir.join("decisions.db"));
 }
 
 /// What:

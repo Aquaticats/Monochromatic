@@ -12,7 +12,10 @@ struct FailingSink {
 }
 
 impl Write for FailingSink {
-    fn write(&mut self, _buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        _buffer: &[u8],
+    ) -> std::io::Result<usize> {
         return Err(std::io::Error::from(self.kind));
     }
 
@@ -27,7 +30,11 @@ impl Write for FailingSink {
 fn embedded_text_is_the_notices_or_the_note_about_them() {
     let release = NOTICES.contains("license notices") && NOTICES.contains("Rust crates under");
     let development = NOTICES.contains("MUSIC_PLAYER_THIRD_PARTY_LICENSES");
-    assert!(release || development, "unexpected embedded text: {}", &NOTICES[..NOTICES.len().min(400)]);
+    assert!(
+        release || development,
+        "unexpected embedded text: {}",
+        &NOTICES[..NOTICES.len().min(400)]
+    );
 }
 
 // What:     When the build embedded the release notices, they name the crates the release depends on.
@@ -55,7 +62,9 @@ fn write_notices_writes_the_whole_text() {
 // Why:      `music-player --licenses | head` must exit 0, not report a failure.
 #[test]
 fn write_notices_treats_a_closed_pipe_as_done() {
-    let mut sink = FailingSink { kind: ErrorKind::BrokenPipe };
+    let mut sink = FailingSink {
+        kind: ErrorKind::BrokenPipe,
+    };
     assert!(write_notices(&mut sink).is_ok());
 }
 
@@ -63,7 +72,9 @@ fn write_notices_treats_a_closed_pipe_as_done() {
 // Why:      A full disk or a revoked handle must not look like a successful listing.
 #[test]
 fn write_notices_returns_other_errors() {
-    let mut sink = FailingSink { kind: ErrorKind::PermissionDenied };
+    let mut sink = FailingSink {
+        kind: ErrorKind::PermissionDenied,
+    };
     let error = write_notices(&mut sink).expect_err("a denied write is an error");
     assert_eq!(error.kind(), ErrorKind::PermissionDenied);
 }
@@ -76,10 +87,27 @@ fn release_notices_carry_the_slint_royalty_free_license() {
     if !NOTICES.contains("Rust crates under") {
         return;
     }
-    assert!(NOTICES.contains("Slint Royalty-free Desktop, Mobile, and Web Applications License"), "the Slint license title");
-    assert!(NOTICES.contains("Display the [`AboutSlint`]"), "the attribution condition of section 2");
-    for name in ["\nslint 1.", "\nslint-macros 1.", "\ni-slint-core 1.", "\ni-slint-backend-winit 1."] {
-        assert!(NOTICES.contains(name), "the Slint section does not name{name}");
+    assert!(
+        NOTICES.contains("Slint Royalty-free Desktop, Mobile, and Web Applications License"),
+        "the Slint license title"
+    );
+    assert!(
+        NOTICES.contains("Display the [`AboutSlint`]"),
+        "the attribution condition of section 2"
+    );
+    for name in [
+        "\nslint 1.",
+        "\nslint-macros 1.",
+        "\ni-slint-core 1.",
+        "\ni-slint-backend-winit 1.",
+    ] {
+        assert!(
+            NOTICES.contains(name),
+            "the Slint section does not name{name}"
+        );
     }
-    assert!(!NOTICES.contains("(GPL-3.0-only)"), "the notices no longer say the program is used under GPL-3.0-only");
+    assert!(
+        !NOTICES.contains("(GPL-3.0-only)"),
+        "the notices no longer say the program is used under GPL-3.0-only"
+    );
 }

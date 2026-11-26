@@ -28,10 +28,17 @@
 use std::path::PathBuf;
 /// Imports the channel ends and the module through which the worker takes its inputs.
 #[cfg(target_os = "linux")]
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{
+    self,
+    Receiver,
+    Sender,
+};
 /// Imports the shared ownership and lock types that let every clone of the notifier reach one worker.
 #[cfg(target_os = "linux")]
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 /// Imports the handle through which the last notifier clone joins the worker thread.
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
@@ -44,7 +51,10 @@ use zbus::Connection;
 use crate::analysis_notification::Identity;
 /// Imports the ledger of told files and the notice that the worker sends.
 #[cfg(target_os = "linux")]
-use crate::unplayable_notification_logic::{Ledger, Notice};
+use crate::unplayable_notification_logic::{
+    Ledger,
+    Notice,
+};
 
 /// What:
 /// `UnplayableConfig` is everything the notifier thread needs.
@@ -173,7 +183,10 @@ impl UnplayableNotifier {
         };
         tracing::debug!("unplayable notifier started");
         return UnplayableNotifier {
-            shared: Arc::new(Shared { sender, thread: Mutex::new(thread) }),
+            shared: Arc::new(Shared {
+                sender,
+                thread: Mutex::new(thread),
+            }),
         };
     }
 
@@ -183,9 +196,20 @@ impl UnplayableNotifier {
     /// Why:
     /// this is called on the engine thread for every report,
     /// so it only copies the paths and posts a message.
-    pub fn report(&self, paths: &[PathBuf]) {
-        if self.shared.sender.send(Input::Report(paths.to_vec())).is_err() {
-            tracing::debug!(files = paths.len(), "unplayable report dropped: the notifier thread has stopped");
+    pub fn report(
+        &self,
+        paths: &[PathBuf],
+    ) {
+        if self
+            .shared
+            .sender
+            .send(Input::Report(paths.to_vec()))
+            .is_err()
+        {
+            tracing::debug!(
+                files = paths.len(),
+                "unplayable report dropped: the notifier thread has stopped"
+            );
         }
     }
 
@@ -226,7 +250,10 @@ impl Worker {
     /// Why:
     /// one wait point;
     /// reports are handled in the order they were posted.
-    fn run(mut self, receiver: &Receiver<Input>) {
+    fn run(
+        mut self,
+        receiver: &Receiver<Input>,
+    ) {
         tracing::debug!("unplayable notifier thread running");
         loop {
             match receiver.recv() {
@@ -243,7 +270,10 @@ impl Worker {
     /// Why:
     /// a failed post is logged once and nothing else is shown;
     /// the row mark is the fallback.
-    fn handle(&mut self, paths: &[PathBuf]) {
+    fn handle(
+        &mut self,
+        paths: &[PathBuf],
+    ) {
         let Some(notice) = self.ledger.admit(paths) else {
             return;
         };
@@ -257,7 +287,10 @@ impl Worker {
     /// making the connection on first use.
     /// Why:
     /// a failed connection is dropped from the state so the next report tries again.
-    fn deliver(&mut self, notice: &Notice) -> zbus::Result<()> {
+    fn deliver(
+        &mut self,
+        notice: &Notice,
+    ) -> zbus::Result<()> {
         let connection = match self.connection.as_ref() {
             Some(existing) => existing.clone(),
             None => {
@@ -275,7 +308,10 @@ impl Worker {
     /// `warn_once` logs the first failure as a warning and later ones as debug lines.
     /// Why:
     /// a desktop with no notification service would otherwise repeat the same warning for every report.
-    fn warn_once(&mut self, error: &zbus::Error) {
+    fn warn_once(
+        &mut self,
+        error: &zbus::Error,
+    ) {
         if self.warned {
             tracing::debug!(error = %error, "unplayable-file notification could not be posted again");
             return;
@@ -315,7 +351,11 @@ impl UnplayableNotifier {
     /// `report` does nothing.
     /// Why:
     /// there is no notification off Linux yet.
-    pub fn report(&self, _paths: &[std::path::PathBuf]) {}
+    pub fn report(
+        &self,
+        _paths: &[std::path::PathBuf],
+    ) {
+    }
 
     /// What:
     /// `shutdown` does nothing.

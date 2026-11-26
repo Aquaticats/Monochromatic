@@ -67,7 +67,10 @@ pub enum StdHandleAction {
 /// ```ts
 /// const needsConsoleAttach = (stdout?: number, stderr?: number) => stdout === undefined || stderr === undefined;
 /// ```
-pub fn needs_console_attach(stdout_before: Option<isize>, stderr_before: Option<isize>) -> bool {
+pub fn needs_console_attach(
+    stdout_before: Option<isize>,
+    stderr_before: Option<isize>,
+) -> bool {
     return stdout_before.is_none() || stderr_before.is_none();
 }
 
@@ -87,10 +90,15 @@ pub fn needs_console_attach(stdout_before: Option<isize>, stderr_before: Option<
 ///   return before === after ? "keep" : "restore"; // restore carries `before`
 /// }
 /// ```
-pub fn std_handle_action_after_attach(before: Option<isize>, after: Option<isize>) -> StdHandleAction {
+pub fn std_handle_action_after_attach(
+    before: Option<isize>,
+    after: Option<isize>,
+) -> StdHandleAction {
     return match (before, after) {
         (Some(original), Some(current)) if original == current => StdHandleAction::Keep,
-        (Some(original), _) => StdHandleAction::Restore { original },
+        (Some(original), _) => StdHandleAction::Restore {
+            original,
+        },
         (None, Some(_)) => StdHandleAction::Keep,
         (None, None) => StdHandleAction::OpenConsoleOutput,
     };
@@ -174,11 +182,23 @@ pub fn log_console_attach(outcome: &ConsoleAttachOutcome) {
         ConsoleAttachOutcome::HandlesPassedOn => {
             tracing::debug!("console attach skipped: the parent passed stdout and stderr on");
         }
-        ConsoleAttachOutcome::NoParentConsole { error_code } => {
-            tracing::debug!(error_code, "console attach skipped: the parent process has no console (a double-click start)");
+        ConsoleAttachOutcome::NoParentConsole {
+            error_code,
+        } => {
+            tracing::debug!(
+                error_code,
+                "console attach skipped: the parent process has no console (a double-click start)"
+            );
         }
-        ConsoleAttachOutcome::Attached { stdout, stderr } => {
-            tracing::debug!(?stdout, ?stderr, "attached to the console of the parent process");
+        ConsoleAttachOutcome::Attached {
+            stdout,
+            stderr,
+        } => {
+            tracing::debug!(
+                ?stdout,
+                ?stderr,
+                "attached to the console of the parent process"
+            );
         }
     }
 }

@@ -21,14 +21,22 @@ fn the_wide_form_starts_at_600_like_the_player() {
 fn the_wide_form_gives_the_list_the_default_split_ratio_in_whole_pixels() {
     // The stock panes measure 0.3632 of the window; the list gets LIST_SPLIT_RATIO of it, rounded to a pixel.
     for width in [WIDE_FROM_WIDTH, 850.0, 1200.0] {
-        assert_eq!(list_pane_width(width), (width * LIST_SPLIT_RATIO).round(), "width {width}");
+        assert_eq!(
+            list_pane_width(width),
+            (width * LIST_SPLIT_RATIO).round(),
+            "width {width}"
+        );
     }
 }
 
 #[test]
 fn the_panes_span_the_window_with_no_band_between_them() {
     for width in [WIDE_FROM_WIDTH, 721.0, 850.0, 1200.0, 1920.0] {
-        assert_eq!(list_pane_width(width) + editor_pane_width(width), width, "width {width}");
+        assert_eq!(
+            list_pane_width(width) + editor_pane_width(width),
+            width,
+            "width {width}"
+        );
         assert_eq!(list_pane_width(width).fract(), 0.0, "width {width}");
     }
 }

@@ -22,12 +22,19 @@ use std::time::Duration;
 
 // What:     `use std::time::{SystemTime, UNIX_EPOCH};`. Clock plus 1970 epoch reference.
 // Why:      Build unique disposable cache filenames.
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `use crate::peak_swap::{...};`. Import fallback gain, pending wrapper,
 //           and manual result type from the peak-swap module.
 // Why:      Tests need to seed pending state and assert gain changes.
-use crate::peak_swap::{fallback_track_gain, PeakGainResult, PendingPeakMeasurement};
+use crate::peak_swap::{
+    PeakGainResult,
+    PendingPeakMeasurement,
+    fallback_track_gain,
+};
 
 // What:     `use crate::peakcache;`. Import the peak-cache module. `CacheHandle` arrives via
 //           `use super::*` (the controller re-imports it).
@@ -36,14 +43,17 @@ use crate::peakcache;
 
 // What:     `fn approx_eq(a: f32, b: f32) -> bool`. Float comparison helper.
 // Why:      Peak gains are f32 values, so tests compare with a small tolerance.
-fn approx_eq(a: f32, b: f32) -> bool {
+fn approx_eq(
+    a: f32,
+    b: f32,
+) -> bool {
     // What:     `const TOLERANCE: f32 = 1e-6;`. Small allowed float difference.
     // Why:      Avoid exact equality on floating point values.
     const TOLERANCE: f32 = 1e-6;
     // What:     `(a - b).abs() < TOLERANCE`. Difference-based comparison. Tail
     //           expression returns the boolean.
     // Why:      Values that differ only by f32 rounding count as equal.
-    return (a - b).abs() < TOLERANCE
+    return (a - b).abs() < TOLERANCE;
 }
 
 // What:     `fn test_controller() -> Controller`. Build a controller with no audio
@@ -55,7 +65,7 @@ fn test_controller() -> Controller {
     //           Construct the controller; `Box::new` heap-boxes the callback closure, `None`
     //           means silent mode, and the degraded cache touches no disk.
     // Why:      Give tests a real controller without an audio device or real cache state.
-    return Controller::new(Box::new(|_| {}), None, CacheHandle::open_degraded())
+    return Controller::new(Box::new(|_| {}), None, CacheHandle::open_degraded());
 }
 
 // What:     `fn temp_cache(tag: &str) -> PathBuf`. Build a fresh disposable cache path.
@@ -75,7 +85,7 @@ fn temp_cache(tag: &str) -> PathBuf {
         std::process::id(),
         nanos,
         tag
-    ))
+    ));
 }
 
 // What:     `#[test]` marks the next function as a Rust unit test.
@@ -283,7 +293,9 @@ fn background_sweep_skips_current_track() {
     // What:     `controller.queue.set_tracks(vec![current.clone(), other.clone()]);`.
     //           Replace queue with two owned fixture paths.
     // Why:      Establish current plus non-current tracks.
-    controller.queue.set_tracks(vec![current.clone(), other.clone()]);
+    controller
+        .queue
+        .set_tracks(vec![current.clone(), other.clone()]);
 
     // What:     `controller.start_queue_measurement();`. Launch background sweep.
     // Why:      Exercise its skip-current filtering.
@@ -368,7 +380,12 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
 
     // What:     select `b` by its scanned position.
     // Why:      Establish a Selected Track to preserve across the next rescan.
-    let bi = controller.queue.tracks().iter().position(|p| return *p == b).unwrap();
+    let bi = controller
+        .queue
+        .tracks()
+        .iter()
+        .position(|p| return *p == b)
+        .unwrap();
     controller.queue.play_index(bi);
     assert_eq!(controller.queue.current_path(), Some(&b));
 
@@ -401,8 +418,12 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
 //           the clear skipped that track as "current". A plain open selects nothing, so every track must be measured.
 #[test]
 fn a_plain_open_measures_the_first_track_too() {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).expect("system clock should be after Unix epoch").as_nanos();
-    let root = crate::test_scratch::scratch_root().join(format!("mp-open-sweep-{}-{nanos}", std::process::id()));
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let root = crate::test_scratch::scratch_root()
+        .join(format!("mp-open-sweep-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&root).expect("the scratch library is created");
     let first = root.join("a.flac");
     let second = root.join("b.mp3");
@@ -412,8 +433,16 @@ fn a_plain_open_measures_the_first_track_too() {
     let mut controller = test_controller();
     controller.peaks = CacheHandle::open_at(cache_path.clone());
 
-    controller.handle_command(Command::OpenRoot { root: root.clone(), select: None, play: false });
-    assert_eq!(controller.queue.current_path(), None, "a plain open selects nothing");
+    controller.handle_command(Command::OpenRoot {
+        root: root.clone(),
+        select: None,
+        play: false,
+    });
+    assert_eq!(
+        controller.queue.current_path(),
+        None,
+        "a plain open selects nothing"
+    );
 
     let first_key = peakcache::fingerprint(&first).expect("the first fixture has a fingerprint");
     let second_key = peakcache::fingerprint(&second).expect("the second fixture has a fingerprint");
@@ -425,7 +454,10 @@ fn a_plain_open_measures_the_first_track_too() {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert!(both_found, "the sweep measured the first track as well as the second");
+    assert!(
+        both_found,
+        "the sweep measured the first track as well as the second"
+    );
 
     let _ = std::fs::remove_file(&cache_path);
     std::fs::remove_dir_all(&root).ok();

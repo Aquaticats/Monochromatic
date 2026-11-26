@@ -57,7 +57,10 @@ impl fmt::Display for AccentError {
     /// Writes the sentence that names the rejected value and the accepted forms.
     /// Why:
     /// The startup message and the log show this text.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::Malformed(value) => formatter.write_str(&format!(
                 "MUSIC_PLAYER_ACCENT is \"{value}\", which is not a color. Use six hex digits such as 6060C0 or #6060C0, \
@@ -81,7 +84,11 @@ impl std::error::Error for AccentError {}
 /// ```ts
 /// const hexChannel = (digits: string, text: string, start: number): number => { ...throws Malformed(text) when not hex... };
 /// ```
-fn hex_channel(digits: &str, text: &str, start: usize) -> Result<u8, AccentError> {
+fn hex_channel(
+    digits: &str,
+    text: &str,
+    start: usize,
+) -> Result<u8, AccentError> {
     return match u8::from_str_radix(&digits[start..start + 2], 16) {
         Ok(channel) => Ok(channel),
         Err(error) => {

@@ -39,12 +39,24 @@
 use i_slint_backend_testing::ElementHandle;
 use music_player::command::Update;
 use slint::LogicalPosition;
-use slint::platform::{PointerEventButton, WindowEvent};
-use slint::{ComponentHandle, LogicalSize};
+use slint::platform::{
+    PointerEventButton,
+    WindowEvent,
+};
+use slint::{
+    ComponentHandle,
+    LogicalSize,
+};
 
 use crate::AppWindow;
 use crate::FolderLayout;
-use crate::ui_test_support::{advance, chord, fresh_window_at, logged_by, settle};
+use crate::ui_test_support::{
+    advance,
+    chord,
+    fresh_window_at,
+    logged_by,
+    settle,
+};
 
 /// What:
 /// `Where` is how the test opens the picker.
@@ -77,7 +89,10 @@ fn library(folders: usize) -> Vec<String> {
     for number in 0..folders {
         let letter = char::from(b'A' + u8::try_from(number % 26).unwrap_or(0));
         for track in 1..=2 {
-            names.push(format!("{letter}olk {number:04} {}/{track:02} Song.mp3", "x".repeat(number % 23)));
+            names.push(format!(
+                "{letter}olk {number:04} {}/{track:02} Song.mp3",
+                "x".repeat(number % 23)
+            ));
         }
     }
     for folder in ["かめりあ(Camellia)", "Мир", "音楽", "1999 Mix"] {
@@ -96,12 +111,27 @@ fn library(folders: usize) -> Vec<String> {
 /// the queue and the selected track,
 /// in that order,
 /// before the picker is used.
-fn restored_window(width: f32, height: f32, names: &[String], saved: usize) -> AppWindow {
+fn restored_window(
+    width: f32,
+    height: f32,
+    names: &[String],
+    saved: usize,
+) -> AppWindow {
     let (app, _host) = fresh_window_at(width, height);
-    let paths: Vec<std::path::PathBuf> = names.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();
+    let paths: Vec<std::path::PathBuf> = names
+        .iter()
+        .map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name))
+        .collect();
     crate::ui_screen::apply_update(&app, &Update::Library(paths));
     crate::ui_screen::apply_update(&app, &Update::Queue(names.to_vec()));
-    crate::ui_screen::apply_update(&app, &Update::NowPlaying { index: Some(saved), name: names[saved].clone(), duration: 200.0 });
+    crate::ui_screen::apply_update(
+        &app,
+        &Update::NowPlaying {
+            index: Some(saved),
+            name: names[saved].clone(),
+            duration: 200.0,
+        },
+    );
     settle();
     advance(64);
     return app;
@@ -109,7 +139,10 @@ fn restored_window(width: f32, height: f32, names: &[String], saved: usize) -> A
 
 /// What:
 /// `open_picker` opens the folded picker the given way and lets its timers run.
-fn open_picker(app: &AppWindow, how: Where) {
+fn open_picker(
+    app: &AppWindow,
+    how: Where,
+) {
     match how {
         Where::Trigger => app.invoke_toggle_picker(),
         Where::AltOne => chord(app, &["Alt"], "1"),
@@ -122,8 +155,13 @@ fn open_picker(app: &AppWindow, how: Where) {
 /// Why:
 /// the names are visible when they overlap this box.
 fn pane_box(app: &AppWindow) -> (f32, f32, f32, f32) {
-    let panes: Vec<ElementHandle> = ElementHandle::find_by_element_id(app, "FolderPickerPane::names-flick").collect();
-    assert_eq!(panes.len(), 1, "exactly one names pane is built while the picker is open on the folded layout");
+    let panes: Vec<ElementHandle> =
+        ElementHandle::find_by_element_id(app, "FolderPickerPane::names-flick").collect();
+    assert_eq!(
+        panes.len(),
+        1,
+        "exactly one names pane is built while the picker is open on the folded layout"
+    );
     let position = panes[0].absolute_position();
     let size = panes[0].size();
     return (position.x, position.y, size.width, size.height);
@@ -146,7 +184,11 @@ fn visible_names(app: &AppWindow) -> Vec<String> {
                 && position.y < pane_y + pane_height
                 && position.y + size.height > pane_y;
         })
-        .filter_map(|name| return name.accessible_label().map(|label| return label.to_string()))
+        .filter_map(|name| {
+            return name
+                .accessible_label()
+                .map(|label| return label.to_string());
+        })
         .collect();
 }
 
@@ -158,12 +200,21 @@ fn visible_names(app: &AppWindow) -> Vec<String> {
 /// a names pane with names and no visible row is the empty Folders pane;
 /// a scroll offset above zero would push every
 /// row down and leave a blank band at the top.
-fn assert_not_blank(app: &AppWindow, context: &str) {
+fn assert_not_blank(
+    app: &AppWindow,
+    context: &str,
+) {
     assert!(app.get_picker_open(), "{context}: the picker is open");
     let scroll = app.global::<FolderLayout>().get_scroll_y();
     let shown = visible_names(app);
-    assert!(!shown.is_empty(), "{context}: the picker shows at least one folder name, scroll {scroll}");
-    assert!(scroll <= 0.0, "{context}: the names are never pushed below the top of their pane, scroll {scroll}");
+    assert!(
+        !shown.is_empty(),
+        "{context}: the picker shows at least one folder name, scroll {scroll}"
+    );
+    assert!(
+        scroll <= 0.0,
+        "{context}: the names are never pushed below the top of their pane, scroll {scroll}"
+    );
 }
 
 #[test]
@@ -175,7 +226,10 @@ fn the_folded_picker_is_not_blank_for_any_saved_selection_and_either_way_of_open
             for how in [Where::Trigger, Where::AltOne] {
                 let app = restored_window(443.0, 900.0, &names, saved);
                 open_picker(&app, how);
-                assert_not_blank(&app, &format!("{folders} folders, saved track {saved}, opened by {how:?}"));
+                assert_not_blank(
+                    &app,
+                    &format!("{folders} folders, saved track {saved}, opened by {how:?}"),
+                );
             }
         }
     }
@@ -185,7 +239,13 @@ fn the_folded_picker_is_not_blank_for_any_saved_selection_and_either_way_of_open
 fn the_folded_picker_is_not_blank_in_a_short_window_or_at_the_widest_folded_width() {
     let names = library(60);
     let saved = names.len() / 2;
-    for (width, height) in [(443.0, 600.0), (443.0, 480.0), (599.0, 900.0), (360.0, 700.0), (443.0, 1700.0)] {
+    for (width, height) in [
+        (443.0, 600.0),
+        (443.0, 480.0),
+        (599.0, 900.0),
+        (360.0, 700.0),
+        (443.0, 1700.0),
+    ] {
         let app = restored_window(width, height, &names, saved);
         open_picker(&app, Where::AltOne);
         assert_not_blank(&app, &format!("window {width} x {height}"));
@@ -200,7 +260,16 @@ fn the_folded_picker_stays_filled_when_the_window_is_resized_with_it_open() {
     open_picker(&app, Where::AltOne);
     assert_not_blank(&app, "before any resize");
     // Across the 600 px fold and back: the unfolded layout shows its own picker, and the folded one is built again.
-    for (width, height) in [(850.0, 900.0), (443.0, 900.0), (599.0, 900.0), (443.0, 600.0), (443.0, 1700.0), (443.0, 900.0), (601.0, 480.0), (443.0, 900.0)] {
+    for (width, height) in [
+        (850.0, 900.0),
+        (443.0, 900.0),
+        (599.0, 900.0),
+        (443.0, 600.0),
+        (443.0, 1700.0),
+        (443.0, 900.0),
+        (601.0, 480.0),
+        (443.0, 900.0),
+    ] {
         app.window().set_size(LogicalSize::new(width, height));
         advance(300);
         if width < 600.0 {
@@ -214,11 +283,21 @@ fn closing_and_reopening_the_folded_picker_never_leaves_it_blank() {
     let names = library(120);
     let app = restored_window(443.0, 900.0, &names, names.len() / 2);
     for round in 0..6 {
-        open_picker(&app, if round % 2 == 0 { Where::Trigger } else { Where::AltOne });
+        open_picker(
+            &app,
+            if round % 2 == 0 {
+                Where::Trigger
+            } else {
+                Where::AltOne
+            },
+        );
         assert_not_blank(&app, &format!("opening, round {round}"));
         chord(&app, &["Alt"], "2");
         advance(100);
-        assert!(!app.get_picker_open(), "Alt+2 closes the picker, round {round}");
+        assert!(
+            !app.get_picker_open(),
+            "Alt+2 closes the picker, round {round}"
+        );
     }
 }
 
@@ -232,15 +311,24 @@ fn the_picker_keys_do_not_open_an_empty_picker_before_the_library_has_arrived() 
         advance(64);
         chord(&app, &[modifier], key);
         advance(300);
-        assert!(!app.get_picker_open(), "{modifier}+{key} does not open a picker with nothing to list");
+        assert!(
+            !app.get_picker_open(),
+            "{modifier}+{key} does not open a picker with nothing to list"
+        );
         // When the library arrives the picker stays closed, and the same key then opens it with names in it.
         let names = library(40);
-        let paths: Vec<std::path::PathBuf> = names.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();
+        let paths: Vec<std::path::PathBuf> = names
+            .iter()
+            .map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name))
+            .collect();
         crate::ui_screen::apply_update(&app, &Update::Library(paths));
         crate::ui_screen::apply_update(&app, &Update::Queue(names));
         settle();
         advance(300);
-        assert!(!app.get_picker_open(), "the picker that was refused does not open by itself when the library arrives");
+        assert!(
+            !app.get_picker_open(),
+            "the picker that was refused does not open by itself when the library arrives"
+        );
         chord(&app, &[modifier], key);
         advance(300);
         assert_not_blank(&app, &format!("{modifier}+{key} after the library arrived"));
@@ -254,15 +342,26 @@ fn the_picker_keys_do_not_open_an_empty_picker_before_the_library_has_arrived() 
 /// so the state line it writes is the one a person's
 /// click writes,
 /// and not one a test made up.
-fn click_center(app: &AppWindow, element: &ElementHandle) {
+fn click_center(
+    app: &AppWindow,
+    element: &ElementHandle,
+) {
     let position = {
         let corner = element.absolute_position();
         let size = element.size();
         LogicalPosition::new(corner.x + size.width / 2.0, corner.y + size.height / 2.0)
     };
-    app.window().dispatch_event(WindowEvent::PointerMoved { position });
-    app.window().dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
-    app.window().dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+    app.window().dispatch_event(WindowEvent::PointerMoved {
+        position,
+    });
+    app.window().dispatch_event(WindowEvent::PointerPressed {
+        position,
+        button: PointerEventButton::Left,
+    });
+    app.window().dispatch_event(WindowEvent::PointerReleased {
+        position,
+        button: PointerEventButton::Left,
+    });
 }
 
 /// What:
@@ -270,7 +369,10 @@ fn click_center(app: &AppWindow, element: &ElementHandle) {
 /// Why:
 /// the test clicks the row the way a person does,
 /// through its touch area.
-fn name_row(app: &AppWindow, folder: &str) -> Option<ElementHandle> {
+fn name_row(
+    app: &AppWindow,
+    folder: &str,
+) -> Option<ElementHandle> {
     return ElementHandle::find_by_element_id(app, "FolderPickerPane::name-touch")
         .find(|row| return row.accessible_label().as_deref() == Some(folder));
 }
@@ -302,7 +404,9 @@ fn a_click_on_a_folder_name_writes_a_state_line_naming_the_folder_it_opened() {
         let target = visible_names(&app)
             .into_iter()
             .find(|name| return *name != before)
-            .unwrap_or_else(|| panic!("the {layout} picker shows a folder other than the current one ({before})"));
+            .unwrap_or_else(|| {
+                panic!("the {layout} picker shows a folder other than the current one ({before})")
+            });
         let row = name_row(&app, &target).expect("the name row of the folder to open is built");
         let log = logged_by(|| click_center(&app, &row));
         settle();

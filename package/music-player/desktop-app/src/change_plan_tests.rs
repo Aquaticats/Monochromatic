@@ -6,15 +6,25 @@
 
 use super::*;
 use crate::disk_view::RealDisk;
-use crate::refresh_test_support::{MemoryDisk, Rng, TempTree, pick_stem};
+use crate::refresh_test_support::{
+    MemoryDisk,
+    Rng,
+    TempTree,
+    pick_stem,
+};
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// The name parts:
 /// they collide on case,
 /// digits and leading zeros,
 /// so natural order differs from byte order.
-const STEMS: [&str; 12] = ["a", "A", "b", "a2", "a10", "a02", "Track 2", "Track 10", "é", "1", "01", "z"];
+const STEMS: [&str; 12] = [
+    "a", "A", "b", "a2", "a10", "a02", "Track 2", "Track 10", "é", "1", "01", "z",
+];
 
 /// What:
 /// `World` is a library folder and the queue a controller would hold for it.
@@ -35,20 +45,30 @@ impl World {
     /// Why:
     /// the queue starts as the scan of the folder,
     /// as after an open.
-    fn new(tag: &str, files: &[&str]) -> World {
+    fn new(
+        tag: &str,
+        files: &[&str],
+    ) -> World {
         let tree = TempTree::new(tag);
         for file in files {
             tree.write(file, "first");
         }
         let queue = tree.walk();
-        return World { tree, outside: TempTree::new(&format!("{tag}-outside")), queue };
+        return World {
+            tree,
+            outside: TempTree::new(&format!("{tag}-outside")),
+            queue,
+        };
     }
 
     /// What:
     /// `named` is a change set of the given paths.
     /// Why:
     /// tests name paths by relative strings.
-    fn named(&self, entries: &[(&str, bool)]) -> DirtyPaths {
+    fn named(
+        &self,
+        entries: &[(&str, bool)],
+    ) -> DirtyPaths {
         let mut set = DirtyPaths::default();
         for (relative, structural) in entries {
             set.insert(self.tree.path(relative), *structural);
@@ -61,7 +81,10 @@ impl World {
     /// applies the plan to the queue and returns the plan.
     /// Why:
     /// the step every test repeats.
-    fn refresh(&mut self, dirty: &DirtyPaths) -> Plan {
+    fn refresh(
+        &mut self,
+        dirty: &DirtyPaths,
+    ) -> Plan {
         let plan = plan_changes(&self.queue, &self.tree.root, dirty, &RealDisk);
         self.queue = apply_plan(std::mem::take(&mut self.queue), &self.tree.root, &plan);
         return plan;
@@ -71,14 +94,20 @@ impl World {
     /// `assert_follows_the_disk` compares the queue with the walk of the folder.
     /// Why:
     /// the walk is the definition of the queue.
-    fn assert_follows_the_disk(&self, context: &str) {
+    fn assert_follows_the_disk(
+        &self,
+        context: &str,
+    ) {
         assert_eq!(self.queue, self.tree.walk(), "{context}");
     }
 }
 
 #[test]
 fn a_replaced_file_changes_no_list_and_is_the_only_file_to_look_at() {
-    let mut world = World::new("plan-replace", &["a/one.flac", "a/two.flac", "b/three.flac"]);
+    let mut world = World::new(
+        "plan-replace",
+        &["a/one.flac", "a/two.flac", "b/three.flac"],
+    );
     world.tree.write("a/two.flac", "second and longer");
     let plan = world.refresh(&world.named(&[("a/two.flac", false)]));
     assert!(!plan.changes_the_list());
@@ -88,7 +117,10 @@ fn a_replaced_file_changes_no_list_and_is_the_only_file_to_look_at() {
 
 #[test]
 fn a_new_file_is_added_in_its_place_and_a_deleted_one_is_removed() {
-    let mut world = World::new("plan-add-remove", &["a/one.flac", "a/three.flac", "b/x.flac"]);
+    let mut world = World::new(
+        "plan-add-remove",
+        &["a/one.flac", "a/three.flac", "b/x.flac"],
+    );
     world.tree.write("a/two.flac", "new");
     let plan = world.refresh(&world.named(&[("a/two.flac", true)]));
     assert_eq!(plan.added, vec![world.tree.path("a/two.flac")]);
@@ -103,7 +135,11 @@ fn a_new_file_is_added_in_its_place_and_a_deleted_one_is_removed() {
 fn the_same_path_named_many_times_and_paths_outside_the_folder_do_no_harm() {
     let mut world = World::new("plan-duplicates", &["a/one.flac"]);
     world.tree.write("a/two.flac", "new");
-    let mut dirty = world.named(&[("a/two.flac", true), ("a/two.flac", false), ("a/two.flac", true)]);
+    let mut dirty = world.named(&[
+        ("a/two.flac", true),
+        ("a/two.flac", false),
+        ("a/two.flac", true),
+    ]);
     dirty.insert(PathBuf::from("/definitely/not/in/the/library.flac"), true);
     dirty.insert(world.outside.path("x.flac"), true);
     let plan = world.refresh(&dirty);
@@ -113,19 +149,35 @@ fn the_same_path_named_many_times_and_paths_outside_the_folder_do_no_harm() {
 
 #[test]
 fn a_folder_deleted_and_recreated_with_other_files_is_read_again() {
-    let mut world = World::new("plan-recreate", &["album/old1.flac", "album/old2.flac", "album/deep/old3.flac", "other/keep.flac"]);
+    let mut world = World::new(
+        "plan-recreate",
+        &[
+            "album/old1.flac",
+            "album/old2.flac",
+            "album/deep/old3.flac",
+            "other/keep.flac",
+        ],
+    );
     std::fs::remove_dir_all(world.tree.path("album")).expect("removed");
     world.tree.write("album/new1.flac", "n");
-    world.tree.write("album/old2.flac", "replaced by a longer one");
+    world
+        .tree
+        .write("album/old2.flac", "replaced by a longer one");
     world.tree.write("album/fresh/new2.flac", "n");
     let plan = world.refresh(&world.named(&[("album", true)]));
-    assert!(plan.touched.contains(&world.tree.path("album/old2.flac")), "a file with the same name may hold new content");
+    assert!(
+        plan.touched.contains(&world.tree.path("album/old2.flac")),
+        "a file with the same name may hold new content"
+    );
     world.assert_follows_the_disk("the folder holds what it holds now");
 }
 
 #[test]
 fn a_folder_removed_and_recreated_is_found_even_when_only_the_folder_is_named() {
-    let mut world = World::new("plan-recreate-only-folder", &["album/a.flac", "album/sub/b.flac"]);
+    let mut world = World::new(
+        "plan-recreate-only-folder",
+        &["album/a.flac", "album/sub/b.flac"],
+    );
     std::fs::remove_dir_all(world.tree.path("album")).expect("removed");
     std::fs::create_dir_all(world.tree.path("album")).expect("created");
     world.refresh(&world.named(&[("album", true)]));
@@ -134,7 +186,15 @@ fn a_folder_removed_and_recreated_is_found_even_when_only_the_folder_is_named() 
 
 #[test]
 fn a_folder_moved_out_whole_is_removed_though_only_the_folder_is_named() {
-    let mut world = World::new("plan-move-out", &["a/one.flac", "gone/x.flac", "gone/deep/y.flac", "z/last.flac"]);
+    let mut world = World::new(
+        "plan-move-out",
+        &[
+            "a/one.flac",
+            "gone/x.flac",
+            "gone/deep/y.flac",
+            "z/last.flac",
+        ],
+    );
     std::fs::rename(world.tree.path("gone"), world.outside.path("gone")).expect("moved out");
     let plan = world.refresh(&world.named(&[("gone", true)]));
     assert_eq!(plan.removed.iter().map(Range::len).sum::<usize>(), 2);
@@ -143,11 +203,30 @@ fn a_folder_moved_out_whole_is_removed_though_only_the_folder_is_named() {
 
 #[test]
 fn a_folder_removed_with_all_its_files_named_too_is_one_run_not_overlapping_runs() {
-    let mut world = World::new("plan-one-run", &["a/one.flac", "gone/x.flac", "gone/y.flac", "gone/deep/z.flac", "z/last.flac"]);
+    let mut world = World::new(
+        "plan-one-run",
+        &[
+            "a/one.flac",
+            "gone/x.flac",
+            "gone/y.flac",
+            "gone/deep/z.flac",
+            "z/last.flac",
+        ],
+    );
     std::fs::remove_dir_all(world.tree.path("gone")).expect("removed");
-    let dirty = world.named(&[("gone", true), ("gone/x.flac", true), ("gone/y.flac", true), ("gone/deep", true), ("gone/deep/z.flac", true)]);
+    let dirty = world.named(&[
+        ("gone", true),
+        ("gone/x.flac", true),
+        ("gone/y.flac", true),
+        ("gone/deep", true),
+        ("gone/deep/z.flac", true),
+    ]);
     let plan = world.refresh(&dirty);
-    assert_eq!(plan.removed, vec![1..4], "the folder and its files are one run");
+    assert_eq!(
+        plan.removed,
+        vec![1..4],
+        "the folder and its files are one run"
+    );
     world.assert_follows_the_disk("the whole folder left");
 }
 
@@ -162,7 +241,10 @@ fn a_folder_created_and_filled_before_its_watch_existed_is_read_from_the_folder_
 
 #[test]
 fn a_folder_event_that_only_touched_the_folder_still_finds_entries_that_appeared_without_events() {
-    let mut world = World::new("plan-folder-diff", &["a/one.flac", "a/sub/two.flac", "a/gone.flac"]);
+    let mut world = World::new(
+        "plan-folder-diff",
+        &["a/one.flac", "a/sub/two.flac", "a/gone.flac"],
+    );
     world.tree.write("a/three.flac", "x");
     world.tree.write("a/newsub/four.flac", "x");
     std::fs::remove_file(world.tree.path("a/gone.flac")).expect("removed");
@@ -187,10 +269,18 @@ fn a_file_replaced_by_a_folder_of_the_same_name_and_back() {
 #[test]
 fn a_file_renamed_to_something_that_is_not_audio_leaves_the_list() {
     let mut world = World::new("plan-rename-away", &["a/x.flac", "a/y.flac"]);
-    std::fs::rename(world.tree.path("a/x.flac"), world.tree.path("a/x.flac.part")).expect("renamed");
+    std::fs::rename(
+        world.tree.path("a/x.flac"),
+        world.tree.path("a/x.flac.part"),
+    )
+    .expect("renamed");
     world.refresh(&world.named(&[("a/x.flac", true), ("a/x.flac.part", true)]));
     world.assert_follows_the_disk("the partial file is not listed");
-    std::fs::rename(world.tree.path("a/x.flac.part"), world.tree.path("a/x.flac")).expect("renamed back");
+    std::fs::rename(
+        world.tree.path("a/x.flac.part"),
+        world.tree.path("a/x.flac"),
+    )
+    .expect("renamed back");
     world.refresh(&world.named(&[("a/x.flac", true), ("a/x.flac.part", true)]));
     world.assert_follows_the_disk("and is listed when it is finished");
 }
@@ -199,7 +289,10 @@ fn a_file_renamed_to_something_that_is_not_audio_leaves_the_list() {
 fn random_edits_named_the_way_the_watcher_names_them_keep_the_queue_equal_to_the_walk() {
     for seed in 1..=45_u64 {
         let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
-        let mut world = World::new(&format!("plan-random-{seed}"), &["a/one.flac", "a/b/two.mp3", "z.flac"]);
+        let mut world = World::new(
+            &format!("plan-random-{seed}"),
+            &["a/one.flac", "a/b/two.mp3", "z.flac"],
+        );
         for round in 0..10 {
             let mut dirty = DirtyPaths::default();
             for _ in 0..(1 + rng.below(4)) {
@@ -235,21 +328,39 @@ fn random_name(rng: &mut Rng) -> String {
 /// and a
 /// removed folder by every entry,
 /// so each case is made here.
-fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usize) {
+fn random_edit(
+    world: &World,
+    rng: &mut Rng,
+    dirty: &mut DirtyPaths,
+    round: usize,
+) {
     let listed: Vec<PathBuf> = world.tree.walk();
     let tree = &world.tree;
     match rng.below(9) {
         0 => {
             let name = random_name(rng);
             let path = tree.path(&name);
-            let first_new_ancestor: Option<PathBuf> = path.ancestors().skip(1).take_while(|ancestor| return *ancestor != tree.root).filter(|ancestor| return !ancestor.exists()).last().map(Path::to_path_buf);
+            let first_new_ancestor: Option<PathBuf> = path
+                .ancestors()
+                .skip(1)
+                .take_while(|ancestor| return *ancestor != tree.root)
+                .filter(|ancestor| return !ancestor.exists())
+                .last()
+                .map(Path::to_path_buf);
             if tree.try_write(&name, "created") {
                 dirty.insert(first_new_ancestor.unwrap_or(path), true);
             }
         }
         1 | 2 => {
             if let Some(path) = listed.get(rng.below(listed.len().max(1))) {
-                std::fs::write(path, format!("replaced in round {round} with a different length {}", rng.below(1000))).expect("replaced");
+                std::fs::write(
+                    path,
+                    format!(
+                        "replaced in round {round} with a different length {}",
+                        rng.below(1000)
+                    ),
+                )
+                .expect("replaced");
                 dirty.insert(path.clone(), false);
             }
         }
@@ -262,8 +373,18 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
         4 => {
             let name = format!("{}/{}", pick_stem(&STEMS, rng), random_name(rng));
             let path = tree.path(&name);
-            let first_new_ancestor: Option<PathBuf> = path.ancestors().skip(1).take_while(|ancestor| return *ancestor != tree.root).filter(|ancestor| return !ancestor.exists()).last().map(Path::to_path_buf);
-            let sibling = format!("{}/sibling{round}.flac", name.rsplit_once('/').map_or("", |(parent, _)| return parent));
+            let first_new_ancestor: Option<PathBuf> = path
+                .ancestors()
+                .skip(1)
+                .take_while(|ancestor| return *ancestor != tree.root)
+                .filter(|ancestor| return !ancestor.exists())
+                .last()
+                .map(Path::to_path_buf);
+            let sibling = format!(
+                "{}/sibling{round}.flac",
+                name.rsplit_once('/')
+                    .map_or("", |(parent, _)| return parent)
+            );
             if tree.try_write(&name, "x") && tree.try_write(&sibling, "x") {
                 if let Some(folder) = first_new_ancestor {
                     dirty.insert(folder, true);
@@ -274,11 +395,20 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
             }
         }
         5 => {
-            let folders: BTreeSet<PathBuf> = listed.iter().filter_map(|track| return track.parent().map(Path::to_path_buf)).filter(|folder| return *folder != tree.root).collect();
+            let folders: BTreeSet<PathBuf> = listed
+                .iter()
+                .filter_map(|track| return track.parent().map(Path::to_path_buf))
+                .filter(|folder| return *folder != tree.root)
+                .collect();
             let folder_list: Vec<&PathBuf> = folders.iter().collect();
             if let Some(folder) = folder_list.get(rng.below(folder_list.len().max(1))) {
                 let mut everything: Vec<PathBuf> = vec![(*folder).clone()];
-                everything.extend(listed.iter().filter(|track| return track.starts_with(folder)).cloned());
+                everything.extend(
+                    listed
+                        .iter()
+                        .filter(|track| return track.starts_with(folder))
+                        .cloned(),
+                );
                 std::fs::remove_dir_all(folder).expect("removed");
                 for path in everything {
                     dirty.insert(path, true);
@@ -286,16 +416,26 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
             }
         }
         6 => {
-            let folders: BTreeSet<PathBuf> = listed.iter().filter_map(|track| return track.parent().map(Path::to_path_buf)).filter(|folder| return *folder != tree.root).collect();
+            let folders: BTreeSet<PathBuf> = listed
+                .iter()
+                .filter_map(|track| return track.parent().map(Path::to_path_buf))
+                .filter(|folder| return *folder != tree.root)
+                .collect();
             let folder_list: Vec<&PathBuf> = folders.iter().collect();
             if let Some(folder) = folder_list.get(rng.below(folder_list.len().max(1))) {
-                let target = world.outside.path(&format!("moved-{round}-{}", rng.below(1_000_000)));
+                let target = world
+                    .outside
+                    .path(&format!("moved-{round}-{}", rng.below(1_000_000)));
                 std::fs::rename(folder, target).expect("moved out");
                 dirty.insert((*folder).clone(), true);
             }
         }
         7 => {
-            let folders: BTreeSet<PathBuf> = listed.iter().filter_map(|track| return track.parent().map(Path::to_path_buf)).filter(|folder| return *folder != tree.root).collect();
+            let folders: BTreeSet<PathBuf> = listed
+                .iter()
+                .filter_map(|track| return track.parent().map(Path::to_path_buf))
+                .filter(|folder| return *folder != tree.root)
+                .collect();
             let folder_list: Vec<&PathBuf> = folders.iter().collect();
             if let Some(folder) = folder_list.get(rng.below(folder_list.len().max(1))) {
                 std::fs::remove_dir_all(folder).expect("removed");
@@ -306,7 +446,8 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
         }
         _ => {
             if let Some(path) = listed.get(rng.below(listed.len().max(1))) {
-                let target = path.with_file_name(format!("renamed {round} {}.flac", rng.below(1000)));
+                let target =
+                    path.with_file_name(format!("renamed {round} {}.flac", rng.below(1000)));
                 std::fs::rename(path, &target).expect("renamed");
                 dirty.insert(path.clone(), true);
                 dirty.insert(target, true);
@@ -321,7 +462,11 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
 /// the million-track tests ask the planner about a few paths only,
 /// so the pretend disk need hold only those.
 fn pretend_disk(files: impl IntoIterator<Item = PathBuf>) -> MemoryDisk {
-    return MemoryDisk { files: files.into_iter().collect(), asked: RefCell::new(HashMap::new()), root: PathBuf::from(crate::refresh_scale_support::ROOT) };
+    return MemoryDisk {
+        files: files.into_iter().collect(),
+        asked: RefCell::new(HashMap::new()),
+        root: PathBuf::from(crate::refresh_scale_support::ROOT),
+    };
 }
 
 #[test]
@@ -360,7 +505,13 @@ fn a_hundred_thousand_named_paths_are_planned_and_applied_in_bounded_time() {
     let plan = plan_changes(&library, &root, &dirty, &disk);
     let planned = started.elapsed();
     let next = apply_plan(library.clone(), &root, &plan);
-    println!("REFRESH plan of {} named paths at {} tracks: planned in {:.0} ms, applied in {:.0} ms", dirty.len(), library.len(), planned.as_secs_f64() * 1000.0, (started.elapsed() - planned).as_secs_f64() * 1000.0);
+    println!(
+        "REFRESH plan of {} named paths at {} tracks: planned in {:.0} ms, applied in {:.0} ms",
+        dirty.len(),
+        library.len(),
+        planned.as_secs_f64() * 1000.0,
+        (started.elapsed() - planned).as_secs_f64() * 1000.0
+    );
     assert_eq!(next.len(), library.len() - expected_removed);
     assert_eq!(plan.touched.len(), dirty.len() - expected_removed);
 }

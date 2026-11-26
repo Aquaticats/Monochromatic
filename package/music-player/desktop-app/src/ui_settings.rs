@@ -13,10 +13,10 @@
 use music_player::row_activation::auto_play_on_select_supporting_text;
 /// Imports the session that stores the settings.
 use music_player::session::Session;
-/// Imports the template editor state that the page edits.
-use music_player::template_editor_state::TemplateEditorState;
 /// Imports the edit type that the editor applies.
 use music_player::template_editor::TemplateEditorEdit;
+/// Imports the template editor state that the page edits.
+use music_player::template_editor_state::TemplateEditorState;
 /// Imports the template kind that a row opens.
 use music_player::template_model::TemplateKind;
 /// Imports the lookup of measures by name.
@@ -26,15 +26,38 @@ use slint::ComponentHandle;
 
 /// Imports the model builder,
 /// the projection and the state accessors of the screen.
-use crate::ui_screen::{model_of, project, read_screen, write_screen};
+use crate::ui_screen::{
+    model_of,
+    project,
+    read_screen,
+    write_screen,
+};
 /// Imports the route and the screen state.
-use crate::ui_screen_view::{Route, ScreenState};
+use crate::ui_screen_view::{
+    Route,
+    ScreenState,
+};
 /// Imports the pure rows and editor view and the kind and index conversions.
-use crate::ui_settings_model::{editor_view, index_of_kind, kind_of_index, settings_rows, EditorView, SettingsRow};
+use crate::ui_settings_model::{
+    EditorView,
+    SettingsRow,
+    editor_view,
+    index_of_kind,
+    kind_of_index,
+    settings_rows,
+};
 /// Imports the editor library and the offset conversion.
-use crate::ui_templates::{editor_library, utf16_offset};
+use crate::ui_templates::{
+    editor_library,
+    utf16_offset,
+};
 /// Imports the window and the generated settings row types.
-use crate::{AppWindow, EditorFieldRow, EditorPreviewRow, SettingsTemplateRow};
+use crate::{
+    AppWindow,
+    EditorFieldRow,
+    EditorPreviewRow,
+    SettingsTemplateRow,
+};
 
 /// What:
 /// `SaveTemplates` is the function that persists both template texts.
@@ -108,7 +131,10 @@ pub(crate) fn replace_auto_play_saver(saver: SaveAutoPlay) {
 pub(crate) fn wire(app: &AppWindow) {
     let (track_rows, playing) = Session::load_templates();
     let auto_play_on_select = Session::load_auto_play_on_select();
-    tracing::info!(auto_play_on_select, "loaded the Auto-play on select setting");
+    tracing::info!(
+        auto_play_on_select,
+        "loaded the Auto-play on select setting"
+    );
     crate::ui_text_size::load_into_state();
     {
         let mut state = write_screen();
@@ -177,7 +203,12 @@ fn wire_editor(app: &AppWindow) {
     let text_weak = app.as_weak();
     app.on_editor_text_edited(move |text, start, end| {
         if let Some(window) = text_weak.upgrade() {
-            edit_text(&window, text.as_str(), usize::try_from(start).unwrap_or(0), usize::try_from(end).unwrap_or(0));
+            edit_text(
+                &window,
+                text.as_str(),
+                usize::try_from(start).unwrap_or(0),
+                usize::try_from(end).unwrap_or(0),
+            );
         }
     });
     let focus_weak = app.as_weak();
@@ -218,8 +249,14 @@ pub(crate) fn build_editor(state: &ScreenState) -> TemplateEditorState {
     let measures = lookup_by_name(&state.names, &state.paths, &state.measures);
     let mut editor = TemplateEditorState::initial(&editor_library(&state.names, &measures));
     for (kind, saved) in [
-        (TemplateKind::TrackRows, state.track_rows_template.as_deref()),
-        (TemplateKind::PlayingTrack, state.playing_template.as_deref()),
+        (
+            TemplateKind::TrackRows,
+            state.track_rows_template.as_deref(),
+        ),
+        (
+            TemplateKind::PlayingTrack,
+            state.playing_template.as_deref(),
+        ),
     ] {
         if let Some(text) = saved {
             let length = text.encode_utf16().count();
@@ -232,7 +269,10 @@ pub(crate) fn build_editor(state: &ScreenState) -> TemplateEditorState {
     }
     // A draft that did not apply when the editor was left comes back as the draft; it does not change what is applied.
     let (kept_track_rows, kept_playing) = KEPT_DRAFTS.with(std::cell::RefCell::clone).into_inner();
-    for (kind, kept) in [(TemplateKind::TrackRows, kept_track_rows), (TemplateKind::PlayingTrack, kept_playing)] {
+    for (kind, kept) in [
+        (TemplateKind::TrackRows, kept_track_rows),
+        (TemplateKind::PlayingTrack, kept_playing),
+    ] {
         if let Some(text) = kept {
             let length = text.encode_utf16().count();
             tracing::debug!(?kind, "restoring a draft that did not apply");
@@ -265,7 +305,10 @@ pub(crate) fn open_settings(window: &AppWindow) {
 /// `open_template` opens the editor on the template of Settings row `index`.
 /// Why:
 /// a tap on a Templates row opens that template's editor page.
-fn open_template(window: &AppWindow, index: i32) {
+fn open_template(
+    window: &AppWindow,
+    index: i32,
+) {
     let Some(kind) = usize::try_from(index).ok().and_then(kind_of_index) else {
         return;
     };
@@ -287,9 +330,15 @@ fn open_template(window: &AppWindow, index: i32) {
 /// first,
 /// exactly as leaving its editor page does,
 /// so no draft is lost by choosing the other row.
-fn select_template(window: &AppWindow, index: i32) {
+fn select_template(
+    window: &AppWindow,
+    index: i32,
+) {
     let Some(kind) = usize::try_from(index).ok().and_then(kind_of_index) else {
-        tracing::warn!(index, "ignored a selection of a Settings row that does not exist");
+        tracing::warn!(
+            index,
+            "ignored a selection of a Settings row that does not exist"
+        );
         return;
     };
     let already_selected = match read_screen().editor.as_ref() {
@@ -297,7 +346,10 @@ fn select_template(window: &AppWindow, index: i32) {
         None => false,
     };
     if already_selected {
-        tracing::debug!(?kind, "the selected Settings row was chosen again; nothing changes");
+        tracing::debug!(
+            ?kind,
+            "the selected Settings row was chosen again; nothing changes"
+        );
         return;
     }
     tracing::info!(?kind, "selected a Settings row");
@@ -361,9 +413,19 @@ fn toggle_auto_play_on_select(window: &AppWindow) {
 /// the same editor
 /// continues in the right pane of the two-pane Settings,
 /// so the route becomes Settings and the template stays selected.
-fn layout_changed(window: &AppWindow, wide: bool) {
-    let on_editor_page = { let state = read_screen(); state.route == Route::TemplateEditor };
-    tracing::debug!(wide, on_editor_page, "window crossed the Settings width switch");
+fn layout_changed(
+    window: &AppWindow,
+    wide: bool,
+) {
+    let on_editor_page = {
+        let state = read_screen();
+        state.route == Route::TemplateEditor
+    };
+    tracing::debug!(
+        wide,
+        on_editor_page,
+        "window crossed the Settings width switch"
+    );
     if wide && on_editor_page {
         {
             let mut state = write_screen();
@@ -395,7 +457,12 @@ fn layout_changed(window: &AppWindow, wide: bool) {
 /// and the template state expects UTF-16 code units;
 /// the callback also fires for caret moves,
 /// so a repeated report leaves the state unchanged.
-fn edit_text(window: &AppWindow, text: &str, start_bytes: usize, end_bytes: usize) {
+fn edit_text(
+    window: &AppWindow,
+    text: &str,
+    start_bytes: usize,
+    end_bytes: usize,
+) {
     if let Some(editor) = current_editor() {
         store_editor(editor.with_edit(TemplateEditorEdit {
             text: text.to_string(),
@@ -417,7 +484,10 @@ fn edit_text(window: &AppWindow, text: &str, start_bytes: usize, end_bytes: usiz
 /// ```ts
 /// const fieldModeAt = (state: ScreenState, index: number): string | null => state.editor?.fields[index]?.mode ?? null;
 /// ```
-fn field_mode_at(state: &ScreenState, index: i32) -> Option<&'static str> {
+fn field_mode_at(
+    state: &ScreenState,
+    index: i32,
+) -> Option<&'static str> {
     let position = usize::try_from(index).ok()?;
     let editor = state.editor.as_ref()?;
     return match editor.fields().get(position) {
@@ -430,7 +500,10 @@ fn field_mode_at(state: &ScreenState, index: i32) -> Option<&'static str> {
 /// `insert_field` inserts the call of the field row `index` at the caret.
 /// Why:
 /// a tap on a field row inserts its call (D96).
-fn insert_field(window: &AppWindow, index: i32) {
+fn insert_field(
+    window: &AppWindow,
+    index: i32,
+) {
     let field_mode = field_mode_at(&read_screen(), index);
     if let Some(mode) = field_mode {
         if let Some(editor) = current_editor() {
@@ -493,7 +566,11 @@ mod commit_and_projection;
 pub(crate) use commit_and_projection::project_pages;
 
 /// Imports the commit and the editor update that the callbacks call.
-use commit_and_projection::{commit_templates, current_editor, store_editor};
+use commit_and_projection::{
+    commit_templates,
+    current_editor,
+    store_editor,
+};
 
 /// Unit tests of `ui_settings`,
 /// in the sidecar file `ui_settings_tests.rs`.
