@@ -7752,6 +7752,15 @@ At a terminal the person keeps the progress display,
 Git's colour and a security key's touch notice;
 in a capture the bytes are plain Git's,
 measured byte for byte against plain Git on a successful clone of the same repository.
+The command the sentence offers is read from the remote the way Git reads it
+(`connect.c` at Git 2.56.0),
+so it reaches the same host and port Git's own child reaches:
+a scp-like URL's host ends at its first colon,
+which makes `git@host:2222/repo.git` port 22 with the path `2222/repo.git`,
+a port is written only after a host in a URL that has a scheme,
+a bracketed address is unwrapped because ssh reads the bare address,
+and a password a URL carries is never printed.
+
 A transport ssh does not carry, an `https` or `file` remote for example,
 keeps the process replacement it always had,
 with its bytes and its signals.

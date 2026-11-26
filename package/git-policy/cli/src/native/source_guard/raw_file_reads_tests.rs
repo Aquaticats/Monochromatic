@@ -60,7 +60,9 @@ const KEPT_CLASSES: &[(&str, &str)] = &[
     (
         "own-record",
         "this wrapper wrote the file into a folder of its own, and the worst a pipe at that name does is lose a record \
-         it owns; a later round moves these",
+         it owns; a later round moves these. A record a command's own start reads is never this class: a pipe there \
+         holds every command, so such a read goes through `foundation/plain_file.rs` and \
+         `records_read_without_blocking_tests` refuses a waiting read of those folders",
     ),
     (
         "git-directory",
@@ -121,16 +123,8 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("lock/index_lock_holders.rs", 1, "system"),
     ("lock/single_owner_claim.rs", 1, "system"),
     ("lock/stale_ref_lock_judge.rs", 1, "system"),
-    ("merge/merge_isolation_carry.rs", 1, "own-record"),
-    ("merge/merge_isolation_carry_landed.rs", 1, "own-record"),
     ("merge/merge_isolation_editor.rs", 1, "own-record"),
     ("merge/merge_isolation_kept_copies.rs", 1, "own-record"),
-    (
-        "merge/merge_isolation_kept_copies_decisions.rs",
-        1,
-        "own-record",
-    ),
-    ("merge/merge_isolation_recovery_records.rs", 2, "own-record"),
     ("merge/merge_second_pass_finish.rs", 1, "git-directory"),
     (
         "merge/merge_second_pass_finish_stops.rs",
@@ -154,11 +148,6 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("repair/package_repair_start.rs", 1, "test-stand-in"),
     ("repo_read/repo_read_odb.rs", 1, "git-directory"),
     ("repo_read/sequencer_marker.rs", 1, "git-directory"),
-    (
-        "repository_link_check/repository_link_identity.rs",
-        1,
-        "own-record",
-    ),
     (
         "repository_link_check/repository_move_freeze.rs",
         1,
@@ -200,7 +189,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "git-directory",
     ),
     ("worktree/worktree_dirty_restore.rs", 1, "git-directory"),
-    ("worktree/worktree_ladder_target.rs", 1, "person-path"),
+    (
+        "worktree/worktree_ladder_target_conversion_agreement.rs",
+        1,
+        "person-path",
+    ),
     ("worktree/worktree_process_inside.rs", 2, "system"),
     ("worktree/worktree_snapshot_source.rs", 1, "git-directory"),
     (

@@ -457,6 +457,10 @@ pub fn partial_landed_record_path(
 ///   A merge killed after Git's update has no live reading,
 /// and a reading that cannot be read is the same
 ///  as none.
+///  The reading lies in the merge record folder beside the record it belongs to,
+/// so it is read as a plain file too:
+/// a pipe at its name answers as no reading rather than waiting for a writer (`SPEC.md`,
+///  "Every file this wrapper reads from its own record folders is opened as a plain file").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -466,7 +470,10 @@ pub fn read_landed_record(
     git_dir: &Path,
     transaction_id: &str,
 ) -> Vec<LandedFile> {
-    let Ok(bytes) = std::fs::read(landed_record_path(git_dir, transaction_id).as_path()) else {
+    let Ok(bytes) = crate::plain_file::read_plain_file(
+        landed_record_path(git_dir, transaction_id).as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    ) else {
         return Vec::new();
     };
     return parse_landed_record(bytes.as_slice()).unwrap_or_default();

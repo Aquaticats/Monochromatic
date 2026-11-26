@@ -9835,6 +9835,15 @@ and when that transcript reads as a refused host key it prints one sentence afte
 naming the plain `ssh` command to run
 (`src/native/invocation/typed_network_command_relay/`,
 and the three texts are the proposal's kept files byte for byte).
+The command that sentence offers is built from the remote URL the way Git reads it
+(`parse_connect_url` and `get_host_and_port` in `connect.c` at Git 2.56.0,
+the release `MINIMUM_GIT_VERSION` pins),
+so it reaches the host and the port Git's own child reaches:
+a scp-like URL's host ends at its first colon,
+which makes `git@host:2222/repo.git` port 22 with the path `2222/repo.git`,
+a port is written only after a host in a URL that has a scheme,
+a bracketed address is unwrapped because ssh reads the bare address,
+and a password a URL carries is never printed.
 A command ssh does not carry names no next step and keeps the process replacement it has today.
 Four limits stand with it:
 `kill -9` of the typed process number is not one of the four signals the relay carries:
@@ -17034,9 +17043,13 @@ so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
 A process whose process limit refuses that thread says which limit refused it,
 and writes every line on the thread that says it instead:
-one write, made only where the descriptor reports room,
-so no caller waits for a reader and nothing a command says is lost
-(issue 6476).
+writes of at most one pipe page each,
+made only while the descriptor reports room,
+so no caller waits for a reader,
+and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
+while the rest of it is dropped and counted as a line the queue could not say
+(issue 6476;
+`src/native/foundation/lines_written_by_a_thread.rs`).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -19647,7 +19660,11 @@ Git's own words for a refused form,
 the warning about a committed conflict marker,
 the line about an operation left open,
 the note on a rebuilt commit,
+the note that a branch moved under a build,
 the note about a commit held behind a reference lock,
+the notices the steps before the command show the worktree (the records of failed pushes,
+the commits a reference lock keeps off their branch,
+and the records a removal settled or queued),
 and the hand-off's notices),
 is handed to the thread that writes standard error
 (`foundation/standard_error_off_the_calling_thread.rs`)
@@ -19663,6 +19680,9 @@ which carries Git's summary and the wrapper's summary line as Git writes them.
 A control runs a commit whose standard error is a pipe filled to its capacity and never read,
 and expects the command to return with the commit on the branch and the pipe still full
 (`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
+Every site above has such a control of its own,
+beside the scenario that makes its line
+(`src/native/binary/`).
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
@@ -22501,20 +22521,30 @@ orphan-notice and relink-notice folders,
 the owed index records,
 the service's `<instance>.git-dir` notes and its journal records,
 the kept-reference records,
+the merge intent records and the landed reading beside each of them,
+the repository link identity file,
 and the `.git` pointer that a removal or a snapshot request reads.
 A named pipe at one of those names is a record this command cannot read rather than a wait:
 opening a pipe for reading waits for a writer that may never come,
 which held every wrapped command in such a repository for ever (issue 6415).
+The merge record folder's first read runs on the start of every wrapped command,
+so a pipe at a record's name stops the command with a line naming that record,
+and a pipe at the identity file's name is an identity this command cannot use,
+which it says before the command goes on.
 An entry of the queue that is not a plain file is moved to `failed` with a line naming it,
 where nothing runs it again.
-`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
-and reads with a call that can wait.
+`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders or files
+and reads with a call that can wait,
+so a waiting read this folder gains again fails there.
 
 Every file this wrapper reads from a Git directory is opened as a plain file (`foundation/plain_file.rs`) too:
 opening a pipe for reading waits for a writer that may never come,
 and a person or another program can put one at any name beside a checkout.
 That covers a Git directory's `commondir`
-(read by `foundation/common_directory_of_a_git_directory.rs`, which is the one reader of it),
+(read by `foundation/common_directory_of_a_git_directory.rs`,
+which is the one reader of it,
+and which names the directory by the bytes the file holds,
+so a directory whose name is no UTF-8 text is still the one named),
 its `HEAD`,
 the `.git` pointer file a linked worktree or a partially filled clone holds,
 a fetched-heads list (`FETCH_HEAD`),
@@ -22537,6 +22567,9 @@ a record the wrapper wrote into a folder of its own,
 a file Git wrote in a Git directory,
 a path the person's own project holds,
 or a file a control's stand-in process writes.
+A record a command's own start reads is never the own-record class:
+a pipe at such a name holds every command,
+so it is read through `foundation/plain_file.rs` and named in `records_read_without_blocking_tests` rather than kept here.
 
 Limits:
 machines cloned with one machine ID cannot be told apart,

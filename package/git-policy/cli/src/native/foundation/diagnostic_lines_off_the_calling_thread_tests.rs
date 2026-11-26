@@ -410,3 +410,121 @@ fn a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_line
         },
     );
 }
+
+/// What:
+///  A pipe filled to its capacity and then read from until `pages` whole pages are free,
+///  with the read end a control drains when it wants the words.
+/// Why:
+///   A line written where it is said is bounded by the room a poll reports,
+///  and the room a pipe reports is one free slot,
+///  so a control that wants a partly full stream makes exactly the pages it chooses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [reader, writer] = filledPipe(); reader.readExact(pages * 4096); return [reader, writer];
+/// ```
+#[cfg(target_os = "linux")]
+fn a_pipe_with_whole_pages_free(pages: usize) -> (std::io::PipeReader, std::io::PipeWriter) {
+    let (mut reader, writer) = a_pipe_that_is_full();
+    let mut room: Vec<u8> = vec![
+        0;
+        pages.saturating_mul(
+            crate::lines_written_by_a_thread::THE_MOST_A_PIPE_TAKES_WHEN_IT_SHOWS_ROOM,
+        )
+    ];
+    reader
+        .read_exact(room.as_mut_slice())
+        .expect("the room this control makes");
+    return (reader, writer);
+}
+
+/// What:
+///  A line longer than the stream's free room is settled at once,
+///  and it is counted as a line the stream could not say.
+/// Why:
+///   A process whose process limit refused the queue's thread writes every line where it is said.
+///  `POLLOUT` promises one free pipe page rather than room for any line:
+///  a line of two or three pages written in one call waits inside the kernel for a reader that never reads,
+///  which is the wait the fallback exists to avoid
+///  (issue 6476;
+///  the release pass of 2026-11-26).
+///  So each write is bounded by one page and a line that does not fit costs its tail.
+///  This process's own standard error is the stream under test here,
+///  because a control's stream is memory and the fallback writes it whole:
+///  this child gives its own descriptor 2 the pipe below,
+///  and puts its first standard error back before it judges,
+///  so a failed assertion can still be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inNoThreadChild(() => { const first = dup(2); const [reader, writer] = pipeWithPagesFree(2); dup2(writer.fd, 2); const line = 'x'.repeat(3 * 4096) + '\n'; const began = now(); write(line); const took = now() - began; const dropped = droppedSoFar(); dup2(first, 2); expect(took).toBeLessThan(5s); expect(dropped).toBe(1) })
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_longer_than_the_stream_s_room_is_settled_at_once() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_longer_than_the_stream_s_room_is_settled_at_once",
+        || {
+            crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
+                module_path!(),
+                "a_line_longer_than_the_stream_s_room_is_settled_at_once",
+                || {
+                    let page: usize =
+                        crate::lines_written_by_a_thread::THE_MOST_A_PIPE_TAKES_WHEN_IT_SHOWS_ROOM;
+                    // What: The child's first standard error, kept under a number of its own.
+                    // Why:  A judgement this control makes after the write must be readable, so descriptor 2
+                    //       goes back to this before any assertion.
+                    // SAFETY: `dup` copies one open descriptor of this child and writes no memory here.
+                    let first: libc::c_int = unsafe { libc::dup(libc::STDERR_FILENO) };
+                    assert!(first >= 0, "this child's own standard error is copied");
+                    // What: Two whole pages of room beyond a full pipe, so the refusal's own sentence cannot take it all.
+                    // Why:  The queue says which limit refused its thread before it says the first line.
+                    let (reader, writer) = a_pipe_with_whole_pages_free(2);
+                    // What: This child's standard error becomes the pipe, with `dup2` on descriptor 2.
+                    // Why:  The queue's default stream is this process's standard error descriptor,
+                    //       and a control's own stream is memory the fallback writes whole, so the bounded write
+                    //       is only reached through descriptor 2.
+                    let write_end: std::os::fd::RawFd = std::os::fd::AsRawFd::as_raw_fd(&writer);
+                    // SAFETY: `dup2` copies one open descriptor of this child onto another number it names.
+                    let copied: std::os::fd::RawFd =
+                        unsafe { libc::dup2(write_end, libc::STDERR_FILENO) };
+                    assert_eq!(
+                        copied,
+                        libc::STDERR_FILENO,
+                        "this child's standard error is the pipe of this control"
+                    );
+                    // The pipe stays open at descriptor 2 once this end is dropped, and the read end keeps it
+                    //  a stream nobody takes from.
+                    drop(writer);
+                    // What: A line of three pages, so a write of the whole of it is more than the room a poll reports.
+                    // Why:  The fallback promises that a caller never waits for the reader, and this is the line that
+                    //       broke that promise.
+                    let line: String = format!("{}\n", "x".repeat(3usize.saturating_mul(page)));
+                    let began: Instant = Instant::now();
+                    write(line.as_str());
+                    let took: Duration = began.elapsed();
+                    let dropped: u64 = dropped_so_far();
+                    // SAFETY: `dup2` puts the child's first standard error back on descriptor 2.
+                    let restored: libc::c_int = unsafe { libc::dup2(first, libc::STDERR_FILENO) };
+                    assert_eq!(
+                        restored,
+                        libc::STDERR_FILENO,
+                        "standard error is readable again"
+                    );
+                    // SAFETY: the copy is closed here, and no other call uses its number.
+                    let _closed: libc::c_int = unsafe { libc::close(first) };
+                    drop(reader);
+                    assert!(
+                        took < Duration::from_secs(5),
+                        "a line longer than the stream's room was settled in {took:?}, so the caller waited for a reader"
+                    );
+                    assert_eq!(
+                        dropped, 1,
+                        "the line the stream could not take whole is counted, as a line the queue's bound dropped is"
+                    );
+                },
+            );
+        },
+    );
+}

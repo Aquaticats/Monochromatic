@@ -48,8 +48,18 @@ use super::support::{
     repository,
     wrapper_first_path,
 };
+/// The full pipe nobody drains,
+/// the bytes it still holds and the bounded wait for a command given one.
+use super::support_a_full_standard_error::{
+    PipeNobodyDrains,
+    pending_bytes,
+    started_on_a_full_pipe,
+    wait_bounded,
+};
 use super::support_program_names_and_time_bound::REAL_GIT;
 use std::ffi::OsStr;
+/// The descriptor whose waiting bytes a control counts.
+use std::os::fd::AsRawFd;
 use std::path::{
     Path,
     PathBuf,
@@ -922,5 +932,75 @@ fn a_pathless_only_beside_an_amending_fixup_commits() {
     );
     let _killed = service.kill();
     let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit whose options are a form real Git refuses,
+///  whose standard error is a full pipe nobody drains,
+///  returns with Git's own refusal status and Git's words unread.
+/// Why:
+///   The words are Git's own stderr bytes for that refusal,
+///  and they used to be written on the command's own thread:
+///  a reader that stopped draining held the refusal there for ever (issue 6421).
+///  The bytes go to the thread that writes standard error,
+///  so the command returns.
+///  A refusal the wrapper worded itself would prove nothing here,
+///  and an ending at the command's own bound would look like a refusal,
+///  so this control reads the status real Git answers the same line with and requires it back:
+///  the command's own bound is a quarter of the wait below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('refused', () => { const real = spawnDirect(twin, words); expect(real.code).not.toBe(0); const { child, pipe } = startedOnAFullPipe(wrappedCommit(repo, words)); expect(waitBounded(child).code).toBe(real.code); expect(head(repo)).toBe(before) })
+/// ```
+#[test]
+fn a_refused_form_returns_with_its_standard_error_full() {
+    let fixture: Fixture = fixture("commit-form-refused-stalled");
+    let real_repo: PathBuf = a_staged_change(&fixture, "real");
+    let repo: PathBuf = a_staged_change(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let arguments: [&str; 7] = ["commit", "-i", "-o", "-m", "x", "--", "a.txt"];
+    let real: Output = direct(&fixture)
+        .current_dir(real_repo.as_path())
+        .args(arguments)
+        .output()
+        .expect("real Git runs");
+    assert_ne!(
+        real.status.code(),
+        Some(0),
+        "the row must be one real Git refuses"
+    );
+    let mut command: Command = bounded_for(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(&fixture).as_os_str(),
+        "60",
+    );
+    command.current_dir(repo.as_path()).args(arguments);
+    let (child, pipe): (std::process::Child, PipeNobodyDrains) =
+        started_on_a_full_pipe(&mut command);
+    // The command's own bound is the 60 s above, and a `SIGKILL`ed command is reaped in a grace past
+    //  it, so a control whose note waited for the reader fails with what it waited for.
+    let status: std::process::ExitStatus = wait_bounded(
+        child,
+        std::time::Duration::from_secs(90),
+        "the refused commit",
+    );
+    assert_eq!(
+        status.code(),
+        real.status.code(),
+        "the refusal real Git answers is the one this command returns when nobody reads its words"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
+        head_before.trim(),
+        "a refused form changes nothing"
+    );
+    assert_eq!(
+        pending_bytes(pipe.read_end.as_raw_fd()),
+        pipe.capacity,
+        "the pipe was read by nobody, so every byte this control put in it is still there"
+    );
     remove_settled(&fixture);
 }

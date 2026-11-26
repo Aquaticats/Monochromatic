@@ -127,3 +127,126 @@ fn a_held_commit_ends_the_command_with_success_and_no_landed_commit() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  This child's standard error becomes a pipe filled to its whole capacity,
+///  with the read end kept here and read by nobody,
+///  and the number of bytes the fill put in it.
+/// Why:
+///   The words of a held commit are written on the command's own thread unless they are handed to the
+///  thread that writes standard error,
+///  and a reader that stopped draining then waits in the kernel with no end:
+///  this is the stream that shows which of the two happened (issue 6421).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipeOnStandardError = () => { const [reader, writer] = pipe(); fill(writer); dup2(writer.fd, 2); return [reader, capacity] };
+/// ```
+#[cfg(target_os = "linux")]
+fn a_full_pipe_on_standard_error() -> (std::io::PipeReader, usize) {
+    use std::io::Write;
+    let (reader, writer) = std::io::pipe().expect("a pipe");
+    let mut filler: std::io::PipeWriter = writer.try_clone().expect("a second write end");
+    // The pipe's own capacity, which is how much one fill of it holds.
+    // SAFETY: `fcntl` takes a descriptor this control owns and an integer command, and writes no memory here.
+    let reported: std::ffi::c_int =
+        unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETPIPE_SZ) };
+    assert!(
+        reported > 0,
+        "the kernel did not report what one pipe holds: {reported}"
+    );
+    let capacity: usize = usize::try_from(reported).expect("a positive capacity");
+    filler
+        .write_all(vec![b'p'; capacity].as_slice())
+        .expect("the pipe fills");
+    // What: This child's own standard error becomes the full pipe, with `dup2` on descriptor 2.
+    // Why:  The writing code asks for this process's standard error, and nothing outside this child sees the change.
+    // SAFETY: `dup2` copies one open descriptor of this process onto another number it names; both are this child's own.
+    let copied: std::ffi::c_int = unsafe {
+        libc::dup2(
+            std::os::fd::AsRawFd::as_raw_fd(&writer),
+            libc::STDERR_FILENO,
+        )
+    };
+    assert_eq!(
+        copied,
+        libc::STDERR_FILENO,
+        "this child's standard error is the pipe of this control"
+    );
+    return (reader, capacity);
+}
+
+/// What:
+///  A commit the service made and held behind a reference lock ends the command with success
+///  while nobody drains its standard error.
+/// Why:
+///   The words of the hold are the commit's own last note,
+///  and a reader that stopped draining held them for ever when they were written on the commit's own thread
+///  (issue 6421).
+///  The record of the hold is the whole input of that ending,
+///  so this control needs no service and no command,
+///  and its own standard error is a pipe it fills first.
+///  A child of two runs the body,
+///  because the pipe is this process's standard error and the queue
+///  that writes it belongs to the process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inChild(() => { const [, capacity] = fullPipeOnStandardError(); const held = heldState(); const began = now(); expect(theHeldEnding(held).exitCode).toBe(0); expect(now() - began).toBeLessThan(5s) })
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_held_commit_s_answer_returns_while_nobody_drains_its_standard_error() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_held_commit_s_answer_returns_while_nobody_drains_its_standard_error",
+        || {
+            let (root, repo, _journal, held) = held_state("landed-aftermath-held-stalled");
+            let (pipe, capacity): (std::io::PipeReader, usize) = a_full_pipe_on_standard_error();
+            let context: GitContext = GitContext {
+                real_git: PathBuf::from("/usr/bin/git"),
+                overlay: Vec::new(),
+                global_prefix: Vec::new(),
+                common_dir: Some(held.common_dir.clone()),
+            };
+            let began: std::time::Instant = std::time::Instant::now();
+            let ending: crate::service_commit::ServiceCommit =
+                the_held_ending(&context, repo.as_path(), &held);
+            let took: std::time::Duration = began.elapsed();
+            assert_eq!(
+                ending.result.exit_code, 0,
+                "the commit is made and held, so the command succeeds"
+            );
+            assert_eq!(
+                ending.result.landed_oid, None,
+                "no branch names the commit yet"
+            );
+            assert!(
+                took < std::time::Duration::from_secs(5),
+                "the words of a held commit were said in {took:?}, so the command waited for a reader"
+            );
+            // What: How many bytes the pipe still holds, read without taking any.
+            // Why:  The fill is the proof that nobody read the pipe, so a note that reached it cannot have.
+            let mut waiting: libc::c_int = 0;
+            // SAFETY: `FIONREAD` writes one integer into the buffer it is given, and the descriptor is open.
+            assert_eq!(
+                unsafe {
+                    libc::ioctl(
+                        std::os::fd::AsRawFd::as_raw_fd(&pipe),
+                        libc::FIONREAD,
+                        &mut waiting,
+                    )
+                },
+                0,
+                "how many bytes the pipe holds"
+            );
+            assert_eq!(
+                usize::try_from(waiting).unwrap_or_default(),
+                capacity,
+                "the pipe was read by nobody, so every byte this control put in it is still there"
+            );
+            drop(pipe);
+            remove(root.as_path());
+        },
+    );
+}

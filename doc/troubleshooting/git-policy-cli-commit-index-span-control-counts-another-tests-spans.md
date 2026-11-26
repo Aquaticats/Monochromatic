@@ -250,8 +250,10 @@ and `source_guard/no_control_reads_the_commit_ledgers` `ok. 3 passed; 0 failed`.
 which reads the standard input the test run inherits and printed its `What now>` prompt once without ever
 ending, so the run's own watchdog aborted the whole module run after 120 s with 229 tests passed and no
 `test result` line. That is a second defect: the control needs a process whose standard input is not the run's,
-which the same child helper gives. It is recorded here because it hid the counts above, and it is not fixed by
-this change.
+which the same child helper gives. It is recorded here because it hid the counts above.
+Issue 6510 fixed it by running both selection controls' bodies in that child,
+and `doc/troubleshooting/git-policy-cli-interactive-selection-control-reads-the-run-terminal.md`
+carries the measurements and the guard.
 
 The child that hang left behind is worth its own line: the watchdog aborted the test process, and the
 `git add --interactive` it had started kept the run's output pipe open, so the capped scope around the run stayed
