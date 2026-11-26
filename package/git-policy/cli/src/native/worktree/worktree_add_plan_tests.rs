@@ -6,8 +6,10 @@
 
 use super::*;
 use crate::command_test_support::os_arguments;
+use crate::git_version::parse_git_version;
 use crate::test_support::{
     fixture,
+    fixture_root,
     git,
     remove,
     repository,
@@ -655,4 +657,48 @@ fn a_destination_below_missing_directories_is_read_without_them() {
     assert_eq!(read("."), None);
     assert_eq!(read("a/.."), None);
     remove(root.as_path());
+}
+
+/// What:
+///  The Git installed here,
+///  against the release whose global option table this reading holds.
+/// Why:
+///   A newer Git may accept a global option the copy does not list,
+///  and the reading then cannot tell where that option's value ends,
+///  so a relative destination after it is left unread and a bound slot's removal is
+///  forwarded to Git.
+///  An older Git and the table's own release pass,
+///  and a newer one names the constant to move once the tables are compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [major, minor] = parseGitVersion(runGit(['--version']).stdout);
+/// if ([major, minor] > COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE) throw new Error('the table is behind this Git');
+/// ```
+#[test]
+fn the_installed_git_is_no_newer_than_the_copied_global_option_table() {
+    // What: the `--version` answer of the Git installed here, started with the fixture isolation the other
+    //  controls use, and `Output` is the finished child's status and its two streams.
+    // Why: the release a person's command reaches is the one the copy is judged against.
+    let answer: Output = git(fixture_root().as_path(), &["--version"]);
+    // What: `parse_git_version` reads the three numbers from the line Git printed, and `expect` ends this test
+    //  with its message when the line names none.
+    // Why: the comparison needs the numbers, and a Git that cannot name its release is its own failure.
+    let (major, minor, patch) =
+        parse_git_version(answer.stdout.as_slice()).expect("the installed Git names its release");
+    // What: the release this reading's tables were copied from, taken once so the assertion and its message
+    //  agree.
+    // Why: the failure message has to name the constant a person moves.
+    let copied: (u64, u64) = COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE;
+    // What: `(major, minor) <= copied` compares the two tuples lexicographically, the major number first.
+    // Why: a major or minor newer than the table's is the case that can carry a global option the copy lacks.
+    assert!(
+        (major, minor) <= copied,
+        "the Git installed here is {major}.{minor}.{patch}, newer than \
+         COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE = {}.{}: compare the global option tables in \
+         `worktree_add_plan.rs` with that Git's `handle_options` in `git.c`, and update them, before the \
+         constant moves",
+        copied.0,
+        copied.1,
+    );
 }

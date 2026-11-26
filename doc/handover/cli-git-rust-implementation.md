@@ -248,6 +248,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- Lane 1 (16:18 to 16:30): 6510 as `9ccf38f5b9` (the selection controls read the null device in a child of their own);
+  the alpha.47 notices round as `dde4ad5da9` (pre-command notices leave the command's thread, and a full pipe no longer holds a line's write);
+  the alpha.47 small Lows as `c49cf43483`; the option table check as `0f4621fe96` (a test fails when the installed Git is newer than the table).
 - 6509 as `09a3e73ab5`: six process-wide commit ledgers' controls run in children of their own; `commit::` on `main` failed 11 and 13 of 474 in two runs, the branch 1,
   `native_commit_waiting_notice::tests::a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`, which fails on `main` too (its two-second bound at line 862) and has no issue yet.
 - The alpha.47 ZFS pass's High as `6aeba4328d`: the slot removal and move refusals read Git's whole global option table,
