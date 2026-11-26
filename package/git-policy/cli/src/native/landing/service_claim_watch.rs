@@ -97,23 +97,39 @@
 //! const watch = restored(journalDir, instance); watch.remember(gitDir); for (const dir of watch.directories()) await drain(dir);
 //! ```
 
+// The public names of the files this store was split into stay reachable here,
+// so a caller and a control still name `service_claim_watch` alone.
+pub use super::service_claim_watch_note_format::ReadFile;
+pub use super::service_claim_watch_watched_repositories::{WatchedRepositories, named_repositories, watched_repositories};
+pub use super::service_claim_watch_writing_a_note::note_for_the_next_service;
+
+// The names a control of this store writes and names notes by.
+#[cfg(test)]
+pub(crate) use super::service_claim_watch_note_format::{encode, watch_name};
+#[cfg(test)]
+pub(crate) use super::service_claim_watch_writing_a_note::IN_THE_NEXT_SERVICE_NOTE;
+
+// The note's own format and reading, and the write this store makes of one.
+pub(crate) use super::service_claim_watch_note_format::{NOTE_FILE_LIMIT, WATCH_EXTENSION, decode, read_file};
+pub(crate) use super::service_claim_watch_writing_a_note::write_down;
+
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
-use crate::push_failure_notice::fnv_hex;
+use crate::private_storage::ReadRefusal;
 use crate::service_claim_watch_whose_repository_it_is::{of_another_instance, refused_for_another_instance};
 use crate::service_work::work_directory;
 use crate::work_item::{PENDING, WORK_DIRECTORY, state_directory};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+// A control of this store joins a path holding a byte that is no text,
+// so the trait that makes an owned string of bytes reaches it through this module's glob import.
+#[cfg(test)]
+use std::os::unix::ffi::OsStringExt;
 
 /// Directory,
 /// under the service instance's journal,
 /// that holds one small file per watched Git directory.
 pub const WATCH_DIRECTORY: &str = "claim-watch";
-
-/// The extension of a watch file.
-const WATCH_EXTENSION: &str = "watch";
 
 /// How long a serving service waits between two looks at these notes.
 /// Why:
@@ -164,35 +180,6 @@ const WATCH_EXTENSION: &str = "watch";
 /// (`queued_push_line` in `service_handoff.rs`).
 pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 
-/// The first words of a watch file,
-/// which also say its format.
-const FORMAT_PREFIX: &str = "claim-watch-1 ";
-
-/// The point at which the landing writes its note for the service that starts next,
-/// for a control that holds that write (`service_fault_hooks_test_support.rs`).
-/// The work loop writes the same note through `write_down` and never reaches this point,
-/// so a hold here is the landing's own write and nothing else.
-#[cfg(test)]
-pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
-
-/// The most bytes a path of this system may have,
-/// which bounds every note this store writes.
-const LONGEST_PATH_BYTES: u64 = 4096;
-
-/// The most bytes one note may hold.
-/// Why:
-///   A note is the format words,
-/// the bytes of one Git directory's path in hexadecimal,
-/// and a last newline;
-/// a path of this system's longest is `LONGEST_PATH_BYTES` bytes and its hex is twice that,
-/// so a longer file is not one this store wrote,
-/// and reading it whole would cost the service memory for nothing.
-const NOTE_FILE_LIMIT: u64 = FORMAT_PREFIX.len() as u64 + 2 * LONGEST_PATH_BYTES + 1;
-
-/// How a read of a watch file is done;
-/// a control replaces it to make a read fail.
-pub type ReadFile<'a> = &'a dyn Fn(&Path) -> Result<Vec<u8>, ReadRefusal>;
-
 /// What:
 ///  The Git directories to look at when the service starts,
 /// the ones whose file could not be written yet,
@@ -235,96 +222,6 @@ pub struct ClaimWatch {
     /// How many times in a row the store has failed,
     /// for the growth of the pause.
     failures: u32,
-}
-
-/// What:
-///  The value of one hexadecimal digit,
-/// nothing for a character that is not one.
-/// Why:
-///  `decode` turns the digits of a note into numbers before it pairs them into bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const hexDigitValue = (digit: string) => /[0-9a-f]/i.test(digit) ? parseInt(digit, 16) : undefined;
-/// ```
-fn hex_digit_value(digit: char) -> Option<u32> {
-    return digit.to_digit(16);
-}
-
-/// What:
-///  The byte two hexadecimal digit values make,
-/// nothing when they do not fit one byte.
-/// Why:
-///  `decode` pairs the digits of a note,
-/// high digit first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const byteOfDigitPair = ([high, low]: number[]) => high * 16 + low;
-/// ```
-fn byte_of_digit_pair(pair: &[u32]) -> Option<u8> {
-    return u8::try_from(pair[0] * 16 + pair[1]).ok();
-}
-
-/// What:
-///  Reads one note the way every record of this wrapper is read.
-/// Why:
-///  `restored` and `retry` hand it to the versions that take the reading as a parameter,
-/// so a control can make a read fail,
-/// and `private_storage::read_regular_file` answers a name that holds no regular file at once,
-/// so a pipe at a note's name is never waited on,
-/// a link at it is never read through,
-/// and a file longer than a note can be is never read into memory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const readFile = (path: string) => readRegularFile(path, NOTE_FILE_LIMIT);
-/// ```
-fn read_file(path: &Path) -> Result<Vec<u8>, ReadRefusal> {
-    return read_regular_file(path, NOTE_FILE_LIMIT);
-}
-
-/// What a file holds,
-/// or why it holds nothing.
-fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
-    let text: &str = match std::str::from_utf8(bytes) {
-        Ok(found) => found,
-        Err(_not_text) => return Err(String::from("the file is not text")),
-    };
-    let Some(after_prefix) = text.strip_prefix(FORMAT_PREFIX) else {
-        return Err(String::from("the file does not start with the format words or lacks its last newline"));
-    };
-    let Some(hex) = after_prefix.strip_suffix('\n') else {
-        return Err(String::from("the file does not start with the format words or lacks its last newline"));
-    };
-    if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
-        return Err(String::from("the path is not written in hexadecimal"));
-    }
-    let digits: Vec<u32> = hex.chars().filter_map(hex_digit_value).collect();
-    let raw: Vec<u8> = digits.chunks(2).filter_map(byte_of_digit_pair).collect();
-    let path: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(raw));
-    if !path.is_absolute() || path.as_os_str().as_bytes().contains(&0) {
-        return Err(String::from("the path is not absolute"));
-    }
-    return Ok(path);
-}
-
-/// The text of the file of `git_dir`:
-/// the format words and the bytes of the path in hexadecimal,
-/// so that any path is kept as it is.
-fn encode(git_dir: &Path) -> String {
-    // The crate's one encoder spells the path's bytes (`hexadecimal_of_bytes.rs`).
-    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
-    return format!("{FORMAT_PREFIX}{hex}\n");
-}
-
-/// The file name of the `attempt`th candidate for `git_dir`:
-/// a hash of its bytes,
-/// and the number of the candidate,
-/// which only
-/// differs from zero when another directory's file holds the first name.
-fn watch_name(git_dir: &Path, attempt: u32) -> String {
-    return format!("{}-{attempt}.{WATCH_EXTENSION}", fnv_hex(encode(git_dir).as_str()));
 }
 
 /// Methods over the watch.
@@ -707,252 +604,6 @@ fn a_record_waits(git_dir: &Path) -> bool {
         return false;
     };
     return listing.next().is_some();
-}
-
-/// What:
-///  What the notes of one instance's claim watch say about the repositories they name.
-/// Why:
-///   A note is a pointer, and the work it leads a look to is the named repository's own:
-/// a look lists `<Git directory>/monochromatic-git-policy-cli/work/pending` (`a_record_waits`),
-/// so a note whose repository, or whose work directory, is gone leads a service to nothing.
-/// The cleanup of a stopped instance's journal asks this before it takes the claim watch with the journal,
-/// because after a worktree is removed the only service that read its notes is gone too.
-/// A note that names a repository that still holds a work directory is kept and named:
-/// the store keeps such a note itself and a service of that repository still looks at what waits there.
-/// A name the store does not explain,
-/// and a note it could not read,
-/// is kept as well: nothing is discarded on a guess.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// watchedRepositories(directory) // 'all gone' | { there, note } | { unexplained, entry }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum WatchedRepositories {
-    /// Every note names a repository whose work directory is gone,
-    /// or holds no path at all,
-    /// so no look at them finds a record.
-    AllGone,
-    /// One note names a repository that still holds the work directory a look reads,
-    /// with that repository and the note's own name.
-    StillThere { git_dir: PathBuf, note: String },
-    /// An entry of the folder this release cannot read as a note it wrote,
-    /// with the entry and what stands in the way.
-    Unexplained { entry: String, reason: String },
-}
-
-/// The name of a folder in a line that names it,
-/// as the folder's path says it.
-fn name_of(folder: &Path) -> String {
-    return match folder.file_name() {
-        Some(name) => name.to_string_lossy().into_owned(),
-        None => folder.display().to_string(),
-    };
-}
-
-/// Whether a repository still holds the work directory a look reads:
-/// the same question the store asks before it keeps a note,
-/// and one it answers by removing a note whose work directory is absent or not a directory.
-fn holds_work_a_look_would_read(git_dir: &Path) -> bool {
-    return match std::fs::symlink_metadata(work_directory(git_dir).as_path()) {
-        Ok(metadata) => metadata.is_dir(),
-        Err(_unreachable) => false,
-    };
-}
-
-/// What:
-///  The notes of `directory`,
-///  sorted by name,
-///  and nothing when the folder is not there.
-/// Why:
-///   The answer about a claim watch is read in one listing of its notes,
-/// and the folder sorts so that two readings of it name the same note.
-fn notes_of(directory: &Path) -> Result<Vec<PathBuf>, String> {
-    let listing = match std::fs::read_dir(directory) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("it could not be listed ({error})")),
-    };
-    let mut notes: Vec<PathBuf> = Vec::new();
-    for listed in listing {
-        let entry = match listed {
-            Ok(entry) => entry,
-            Err(error) => return Err(format!("an entry of it could not be listed ({error})")),
-        };
-        notes.push(entry.path());
-    }
-    notes.sort();
-    return Ok(notes);
-}
-
-/// What:
-///  What the notes of `directory` say about the repositories they name,
-///  read in the way `scan` reads them.
-/// Why:
-///   The cleanup of a journal reads this before it removes the watch with it;
-/// see `WatchedRepositories` for what each answer means.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// watchedRepositories(directory) // list, read and decode every note, test each work directory
-/// ```
-pub fn watched_repositories(directory: &Path) -> WatchedRepositories {
-    let notes: Vec<PathBuf> = match notes_of(directory) {
-        Ok(notes) => notes,
-        Err(reason) => {
-            return WatchedRepositories::Unexplained { entry: name_of(directory), reason };
-        }
-    };
-    let mut still_there: Option<(PathBuf, String)> = None;
-    for note in notes {
-        let entry: String = name_of(note.as_path());
-        if note.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
-            return WatchedRepositories::Unexplained { entry, reason: String::from("a file in the claim watch that this release does not explain") };
-        }
-        let bytes: Vec<u8> = match read_file(note.as_path()) {
-            Ok(bytes) => bytes,
-            // Removed between the listing and the read.
-            Err(ReadRefusal::Missing) => continue,
-            Err(ReadRefusal::NotRegular) => {
-                return WatchedRepositories::Unexplained { entry, reason: String::from("a note that is not a regular file, which this release leaves where it is") };
-            }
-            Err(ReadRefusal::TooLarge) => {
-                return WatchedRepositories::Unexplained { entry, reason: String::from("a note that holds more than a note can, which this release leaves where it is") };
-            }
-            Err(ReadRefusal::Io(error)) => {
-                return WatchedRepositories::Unexplained { entry, reason: format!("it could not be read ({error})") };
-            }
-        };
-        // A note that holds no whole path is one the store removes itself (`scan`), so it points at nothing.
-        let Ok(git_dir) = decode(bytes.as_slice()) else { continue };
-        if still_there.is_none() && holds_work_a_look_would_read(git_dir.as_path()) {
-            still_there = Some((git_dir, entry));
-        }
-    }
-    return match still_there {
-        Some((git_dir, note)) => WatchedRepositories::StillThere { git_dir, note },
-        None => WatchedRepositories::AllGone,
-    };
-}
-
-/// What:
-///  The Git directories the notes of `directory` name,
-///  each once,
-///  in the order of the notes' names.
-/// Why:
-///   A note names the Git directory of the repository whose work a look would drain,
-/// and this instance's journal holds notes only for its own repository
-/// (`of_another_instance` refuses every other),
-/// so a note is one more record of whose units these are once the worktree is gone:
-/// the sweep reads it when neither the note beside the socket nor a record of the journal names one.
-/// A note that holds no whole path names nothing and is left out,
-/// because the store removes such a note itself (`scan`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// namedRepositories(directory) // the decoded paths of the notes, each once
-/// ```
-pub fn named_repositories(directory: &Path) -> Vec<PathBuf> {
-    let notes: Vec<PathBuf> = match notes_of(directory) {
-        Ok(notes) => notes,
-        Err(_unreadable) => return Vec::new(),
-    };
-    let mut named: Vec<PathBuf> = Vec::new();
-    for note in notes {
-        if note.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
-            continue;
-        }
-        let Ok(bytes) = read_file(note.as_path()) else { continue };
-        let Ok(git_dir) = decode(bytes.as_slice()) else { continue };
-        if !named.contains(&git_dir) {
-            named.push(git_dir);
-        }
-    }
-    return named;
-}
-
-/// What:
-///  Writes `git_dir` down for the next service of `instance`,
-/// from a thread that does not own the watch.
-/// Why:
-///   The landing thread knows the repository before any client wakes anything,
-/// and a wrapper killed between promoting a landed commit's push and waking the service leaves a `pending` record that
-///  nothing would drain.
-/// The promise that a kill is followed by the work being run with no commit needed rests on the journal naming the
-///  repository,
-/// so the note is written where the landing already records what it owes,
-/// before the client is answered.
-///   It is the same exclusive publish the work loop's `remember` uses,
-/// so the two writers cannot disagree:
-/// a note that is already there and holds this directory is left as it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noteForTheNextService = (store, instance, gitDir) => { if (!ofAnotherInstance(instance, gitDir)) writeDown(store, gitDir); };
-/// ```
-pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: &Path) {
-    // A control holds this write on whichever thread runs it, which `note_for_the_next_service_within` made a thread of its own
-    //  (`service_claim_watch_note_within_a_ceiling.rs`).
-    #[cfg(test)]
-    crate::service_fault::hooks::run_on_any_thread(IN_THE_NEXT_SERVICE_NOTE);
-    if of_another_instance(instance, git_dir) {
-        return;
-    }
-    if let Err(reason) = write_down(store, git_dir) {
-        crate::service_warn!("{} could not be kept for a restart, so a service that starts may not look at it: {reason}", git_dir.display());
-    }
-}
-
-/// Writes the file of `git_dir` under the first name that is free or already holds this directory.
-/// A file that holds no whole path is
-/// replaced;
-/// one that holds another directory's path is left,
-/// and the next name is tried.
-/// What holds a taken name is read the way every record of this wrapper is read,
-/// so a name holding a pipe,
-/// a link,
-/// a directory or more bytes than a note can hold is answered at once,
-/// left where it is,
-/// and passed over for the next name:
-/// no note this store wrote is any of those,
-/// and a plain read of such a name waits in the kernel,
-/// reads a link through,
-/// or costs memory for nothing.
-fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
-    if let Err(error) = create_private_directory_all(directory) {
-        return Err(format!("creating the note directory failed: {error}"));
-    }
-    let text: String = encode(git_dir);
-    let mut attempt: u32 = 0;
-    loop {
-        let path: PathBuf = directory.join(watch_name(git_dir, attempt));
-        match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(format!("writing the note failed: {error}")),
-        }
-        // What holds the taken name decides what this write does with it.
-        let next_name: bool = match read_regular_file(path.as_path(), NOTE_FILE_LIMIT) {
-            Ok(held) if held == text.as_bytes() => return Ok(()),
-            // Another directory's note, which keeps its name.
-            Ok(held) if decode(held.as_slice()).is_ok() => true,
-            // A note of this store that was torn is replaced by the note of this name.
-            Ok(_) => {
-                if let Err(removal) = std::fs::remove_file(path.as_path()) {
-                    return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
-                }
-                false
-            }
-            // A pipe, a link or a directory, and a file longer than a note can hold: left where they are.
-            Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => true,
-            // The name went between the create that found it taken and this read, so the same name is tried again.
-            Err(ReadRefusal::Missing) => false,
-            Err(ReadRefusal::Io(error)) => return Err(format!("reading the note {} failed: {error}", path.display())),
-        };
-        if next_name {
-            attempt = attempt.saturating_add(1);
-        }
-    }
 }
 
 /// Watch controls stay out of the release executable.

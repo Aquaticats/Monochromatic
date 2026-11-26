@@ -5,9 +5,13 @@
 use super::*;
 use crate::test_support::executable;
 use crate::package_repair_request::RepairEnvironment;
-use crate::package_repair_report::{Outcome, Tool};
+use crate::package_repair_report::{Finding, Outcome, Tool};
 use crate::test_support::{fixture, remove};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+/// Import the lock file's name and the record byte bound the controls write at.
+use super::names_and_bounds::{LOCK_FILE, LONGEST_RECORD};
 
 /// The launcher directory of a worktree,
 /// relative to its root.
