@@ -153,6 +153,7 @@ fn extra_link(group: &Path, link: &Link, groups: &BTreeSet<PathBuf>, base: &Path
         line: 0,
         message,
         help: Some(help),
+        key: format!("summary-extra {}", shown(&link.entry, base)),
     };
 }
 
@@ -186,6 +187,11 @@ fn missing_summary(group: &Path, entry: &Path, used: &SummaryUse, base: &Path) -
             "Create the link: {}",
             link_command(group, entry, base)
         )),
+        key: format!(
+            "summary-missing {} {}",
+            shown(group, base),
+            shown(entry, base)
+        ),
     };
 }
 
