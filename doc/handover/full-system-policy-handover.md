@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-26T02:10:24-05:00
+## Status at 2026-11-26T17:27:22-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -229,6 +229,12 @@ Unprofiled development processes remain a residual risk.
   The confined rename-readback-delete probe passed, an unrelated filename remained denied,
   and the owner completed real backups in regular Firefox and ESR.
   See `doc/troubleshooting/firefox-backup-documents-archive-replacement.md`.
+- On 2026-11-26, `update-desktop-database` was denied GLib's six-character temporary files in the
+  user applications directory.
+  `/etc/apparmor.d/local/update-desktop-database` now covers the exact `mimeinfo.cache` and
+  `intent.cache` destination/temporary shapes.
+  The real update exits 0, both caches were replaced, and `palemoon.desktop` is registered.
+  See `doc/troubleshooting/update-desktop-database-user-cache-tempfiles.md`.
 
 ## Current-boot evidence
 
@@ -438,14 +444,14 @@ checked every expected profile artifact and the live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-firefox-backup-fix-2026-11-26T02-09-04-0500.json`.
+The latest such report is `verified-selected-desktop-database-user-cache-fix-2026-11-26T17-26-15-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T02-09-04-0500`.
-All 25
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T17-26-15-0500`.
+All 26
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
