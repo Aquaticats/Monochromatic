@@ -1086,13 +1086,12 @@ mod shared_by_a_run {
     #[test]
     #[ignore = "started by `two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper`, never on its own"]
     fn a_process_makes_one_fixture_in_the_root_it_is_given() {
-        // What: the fixture, which goes when this body ends because the binding is not `_`-prefixed.
-        // Why: a fixture left behind would hold a link to the stored copy, and the control counts files, not links.
-        let made: Fixture = fixture("one-copy-per-run");
+        // What: the fixture, kept in a `_`-prefixed binding so it is removed when this body ends.
+        // Why: a fixture left behind would hold a link to the stored copy for the rest of this process.
+        let _made: Fixture = fixture("one-copy-per-run");
         // What: the line the control reads, naming the folder this process's fixtures were made in.
         // Why: it is the only thing that says the process made a fixture, and where.
         println!("{THE_FIXTURE_ROOT_LINE}{}", fixture_root().display());
-        drop(made);
     }
 
     /// What:
