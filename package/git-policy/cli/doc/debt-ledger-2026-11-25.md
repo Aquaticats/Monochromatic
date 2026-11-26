@@ -675,6 +675,41 @@ issue 6477's shape, and that control guards no child before or after this round)
 and `source_guard::` answered `test result: ok. 144 passed; 0 failed`.
 The measured reds and greens are in
 `doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+
+Round of 2026-11-26,
+issue 6500:
+the service's review runner was reachable through the real handlers,
+which name none of the calls issue 6499's round banned,
+and `landing/service_work_tests.rs`'s two controls that review through `GitHandlers` took it.
+Measured on this host,
+those two controls in one process (`--test-threads=2`)
+answered `test result: FAILED. 1 passed; 1 failed` in each of three runs,
+with the refused control varying between them,
+and the service's own line said
+"the standards review of <oid> was not started because an earlier review, stopped at its ceiling, is still running".
+The module threaded answered `ok. 117 passed; 0 failed` before the change as well,
+which is why the issue had no measured failure:
+its two reviews rarely meet in one moment,
+while a pair of controls run together meets in every run.
+`GitHandlers` now carries the runner a control hands it
+(`with_review_runner`, `#[cfg(test)]`, carried by `for_round` as the review endpoint is),
+and its two review faces run their job in it,
+which is `standards_review_run::RUNNER` for every build that hands none,
+so the one review at a time `SPEC.md` states is unchanged.
+After the change the same pair answered `ok. 2 passed; 0 failed` in each of three runs,
+each control answered `ok. 1 passed` alone with `--exact`,
+and the module answered `ok. 117 passed; 0 failed`.
+The guard sees the route now:
+a test-only source that points the real handlers' review at a gateway must also name `with_review_runner(`.
+With the two controls' runner calls taken out it answered `FAILED. 2 passed; 1 failed`
+and named the four sites of `landing/service_work_tests.rs`,
+and with the route check itself taken out the planted-route control failed on its fixture.
+The measurement is in
+`doc/troubleshooting/git-policy-cli-service-work-controls-share-the-review-runner.md`.
+Status:
+incomplete,
+unapproved and not final.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
