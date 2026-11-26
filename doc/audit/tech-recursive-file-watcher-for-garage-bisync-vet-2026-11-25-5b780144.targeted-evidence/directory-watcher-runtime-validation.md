@@ -161,7 +161,7 @@ podman run --rm --cpus 2 --memory 2g --pids-limit 512 --blkio-weight 10 \
   - `go version` (image probe, recorded as the Go the run used);
   - `go build ./...`;
   - `go vet ./...`;
-  - `DW_E2E_DIAGNOSTICS=/tmp/dw-e2e go test -count=1 -race -v ./...`;
+  - `go test -count=1 -race -v ./...`, with `DW_E2E_DIAGNOSTICS` set (amendment 3 moved it to a mount);
   - `make smoke-example`;
 - each step mounts `<scratch>/source:/work:rw` and the module volume at `/gomod`,
   sets `GOMODCACHE=/gomod`, `GOPROXY=off` and `GOFLAGS=-mod=mod`,
@@ -370,7 +370,7 @@ The container's PID 1 was the `go test` process,
 so the hook processes the harness orphans became zombies that it reaps never,
 and the harness's liveness check (`kill(pid, 0)`) counts a zombie as alive.
 Inspected: `e2e/harness/signal_unix.go:33` and `e2e/harness/process_records.go:167-195`,
-the retained `cleanup.log`, and the project's own `e2e/linux/main.go:49`, which passes `--init`.
+the retained `cleanup.log`, and the project's own `e2e/linux/main.go:54`, which passes `--init`.
 Decision: `--init` joins every test-phase container (declared in the tree 2 manifest above),
 which restores the reaping a virtual machine's own PID 1 provides,
 and the corrected run is the CI-equivalent this file reports.
@@ -483,7 +483,7 @@ The first run kept no test diagnostics (amendment 3), so the diagnosis started b
 the failure with the diagnostics folder mounted out of the container.
 
 1. The eight failing scenario tests alone, same image, same flags, no `--init`:
-   exit 1 after 321.0 seconds, the same eight failed, load `50.86` falling to `59.28`.
+   exit 1 after 321.0 seconds, the same eight failed, load `50.86` at the start and `59.28` at the end.
    27 diagnostic folders survived, because `DW_E2E_DIAGNOSTICS` pointed at the mount.
 2. One retained `cleanup.log` reads `pid=3475 alive=false`, `pid=3482 alive=true`, `pid=3489 alive=false`:
    one recorded hook process still counted as alive after the harness had killed its group
@@ -499,10 +499,10 @@ the failure with the diagnostics folder mounted out of the container.
    A Go program reaps only its own children, so those orphans stayed as zombies for the container's life.
    GitHub's `ubuntu-latest` runner is a virtual machine whose PID 1 is systemd, which reaps them at once,
    and the project's own container runner shows the same need:
-   `e2e/linux/main.go:49` builds its container with `docker create --init`.
+   `e2e/linux/main.go:54` builds its container with `docker create --init`.
    The deviation was mine, not the candidate's.
 5. The decisive check: the same eight tests, same image, same flags, with `--init` added:
-   exit 0 after 77.8 seconds, eight of eight passed, load `72.54` falling to `57.56`.
+   exit 0 after 77.8 seconds, eight of eight passed, load `72.54` at the start and `57.56` at the end.
    So load was not what decided them either: they passed under a heavier load than the failing run.
 6. A stopped experiment, recorded because it was started: with `-parallel 1` and no `--init`,
    `TestConcurrentRunsShutdown` failed again at 16.21 seconds.
@@ -516,7 +516,7 @@ the failure with the diagnostics folder mounted out of the container.
 The CI-equivalent path, rerun with `--init` and nothing else changed:
 `go test -count=1 -race -v ./...`, `--network=none`, 2 CPUs, 2 GiB, 512 processes, block weight 10.
 
-- Exit status 0, elapsed 162.7 seconds, load `60.18` to `54.22`.
+- Exit status 0, elapsed 162.7 seconds, load `60.18` at the start and `54.22` at the end.
 - 663 `=== RUN` lines, 240 top-level tests passed, 421 subtests passed, 0 failed, 2 skipped.
 - Every package green:
   `<mod>` (1.386 s), `<mod>/cmd` (1.333 s), `<mod>/e2e/harness` (1.982 s),
