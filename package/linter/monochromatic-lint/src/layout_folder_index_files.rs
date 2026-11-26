@@ -93,6 +93,12 @@ pub(crate) fn files_by_folder(
 /// `lib.rs`,
 /// else `main.rs`,
 /// for the folder of a crate root.
+///  A `mod.rs` is the folder's index whether or not the module tree could read it:
+///  a folder whose index cannot be read is reported as unreadable,
+///  with one missing entry per file it holds,
+///  rather than as a folder that has no top doc at all.
+///  `lib.rs` and `main.rs` stay tied to the tree's roots,
+///  because a file of that name beside a root is another executable and not an index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,10 +109,16 @@ pub(crate) fn index_file(
     files: &BTreeSet<PathBuf>,
     roots: &BTreeSet<PathBuf>,
 ) -> Option<PathBuf> {
-    for name in ["mod.rs", "lib.rs", "main.rs"] {
-        let candidate: PathBuf = folder.join(name);
-        if files.contains(&candidate) && (name == "mod.rs" || roots.contains(&candidate)) {
-            return Some(candidate);
+    let candidate: PathBuf = folder.join("mod.rs");
+    // What: a `mod.rs` the tree holds, or one on disk that the tree could not read.
+    // Why: an unreadable index still owes its reader a list, and that is the finding the file rule reports.
+    if files.contains(&candidate) || candidate.is_file() {
+        return Some(candidate);
+    }
+    for name in ["lib.rs", "main.rs"] {
+        let root: PathBuf = folder.join(name);
+        if files.contains(&root) && roots.contains(&root) {
+            return Some(root);
         }
     }
     return None;

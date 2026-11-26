@@ -1902,6 +1902,63 @@ fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
     );
 }
 
+/// A folder whose index cannot be read reports the index itself
+///  and one missing entry per file the folder holds,
+///  so the `unreadable-index` line tolerates only its own finding
+///  and a file added to that folder is still reported.
+#[test]
+fn layout_an_unreadable_index_reports_every_file_it_cannot_list() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The folder's files are declared from outside it, so the module tree never reads the index
+    // and the run reaches the file rule's own read of it.
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"a/b.rs\"] mod b;\n#[path = \"a/c.rs\"] mod c;\n",
+    );
+    fixture.write("src/a/b.rs", "\n");
+    fixture.write("src/a/c.rs", "\n");
+    // An index that is not UTF-8 is unreadable to every user, not only to one without a permission bit.
+    std::fs::write(fixture.path.join("src/a/mod.rs"), [0x2f, 0x2f, 0xff, b'\n'])
+        .expect("fixture index");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    // Name the readable files, so the unreadable index is read by the layout rules alone.
+    let found: Run = run(
+        &fixture.path,
+        &["--debug", "src/lib.rs", "src/a/b.rs", "src/a/c.rs"],
+        b"",
+    );
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [
+            String::from("src/a/mod.rs rust/file-order-in-folder 1 1"),
+            String::from("src/a/b.rs rust/file-order-in-folder 1 1"),
+            String::from("src/a/c.rs rust/file-order-in-folder 1 1"),
+        ],
+        "{}",
+        found.stdout
+    );
+    // The index line holds only its own finding; each file it could not list has its own key.
+    for key in [
+        "rust/file-order-in-folder: allow-list key: unreadable-index src/a/mod.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/a/mod.rs b.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/a/mod.rs c.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+}
+
 /// The unit-test scratch root,
 /// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]
