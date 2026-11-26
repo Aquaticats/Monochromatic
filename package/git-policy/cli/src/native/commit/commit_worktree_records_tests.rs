@@ -36,13 +36,9 @@ fn selected_corrections_are_recorded_only_while_the_worktree_holds_the_original(
     // The private index holds the corrected blobs.
     let corrected = |name: &str, bytes: &[u8]| {
         let blob = {
-            let mut child = std::process::Command::new(REAL_GIT)
-                .current_dir(&repo)
-                .args(["hash-object", "-w", "--stdin"])
-                .stdin(std::process::Stdio::piped())
-                .stdout(std::process::Stdio::piped())
-                .spawn()
-                .expect("hash-object");
+            let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+            command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+            let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
             std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), bytes).expect("write");
             String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
         };
@@ -93,13 +89,9 @@ fn a_correction_below_the_top_is_recorded_by_its_repository_relative_name() {
     let index: PathBuf = repo.join(".git/index");
     // The private index holds the corrected bytes, and the worktree copy still holds the original.
     let corrected: String = {
-        let mut child = std::process::Command::new(REAL_GIT)
-            .current_dir(&repo)
-            .args(["hash-object", "-w", "--stdin"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("hash-object");
+        let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
         String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
     };
@@ -134,13 +126,9 @@ fn a_completion_record_reads_its_entry_under_the_callers_conflicting_glob_modes(
     git(repo.as_path(), &["add", "--", "a.txt"]);
     let index: PathBuf = repo.join(".git/index");
     let corrected: String = {
-        let mut child = std::process::Command::new(REAL_GIT)
-            .current_dir(&repo)
-            .args(["hash-object", "-w", "--stdin"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("hash-object");
+        let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
         String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
     };
@@ -187,13 +175,9 @@ fn a_changed_mode_or_an_unchanged_blob_gets_no_completion() {
     git(repo.as_path(), &["add", "--", "same.txt", "moded.txt"]);
     // `same.txt` keeps its bytes in the index; `moded.txt` gets other bytes and an executable mode.
     let blob = |bytes: &[u8]| -> String {
-        let mut child = std::process::Command::new(REAL_GIT)
-            .current_dir(&repo)
-            .args(["hash-object", "-w", "--stdin"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("hash-object");
+        let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), bytes).expect("write");
         return String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string();
     };
@@ -231,13 +215,9 @@ fn a_case_insensitive_lookup_records_the_path_it_asked_about() {
     git(repo.as_path(), &["commit", "--quiet", "--message=both"]);
     let upper: String = String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", ":A.txt"]).stdout.as_slice()).trim().to_string();
     let corrected: String = {
-        let mut child = std::process::Command::new(REAL_GIT)
-            .current_dir(&repo)
-            .args(["hash-object", "-w", "--stdin"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("hash-object");
+        let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
         String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
     };
@@ -276,12 +256,9 @@ fn only_a_stage_zero_entry_is_settled() {
         .trim()
         .to_string();
     let entries: String = format!("100644 {blob} 1\tu.txt\n100644 {blob} 2\tu.txt\n100644 {blob} 3\tu.txt\n");
-    let mut child = std::process::Command::new(REAL_GIT)
-        .current_dir(&repo)
-        .args(["update-index", "--index-info"])
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .expect("update-index");
+    let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+    command.current_dir(&repo).args(["update-index", "--index-info"]).stdin(std::process::Stdio::piped());
+    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("update-index");
     std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), entries.as_bytes()).expect("write");
     assert!(child.wait().expect("wait").success());
     let index: PathBuf = repo.join(".git/index");

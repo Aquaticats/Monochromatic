@@ -9,11 +9,12 @@ use std::time::{Duration, Instant};
 /// How long a control lets its own steps run before it reports that something was not ended.
 const CONTROL_BOUND: Duration = Duration::from_secs(10);
 
-/// A child of a shell command line whose streams go nowhere.
+/// A child of a shell command line whose streams go nowhere,
+/// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn quiet(line: &str) -> Child {
     let mut command = Command::new("/bin/sh");
     command.arg("-c").arg(line).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    return command.spawn().expect("the stand-in starts");
+    return crate::test_support::spawn_owned(&mut command).expect("the stand-in starts");
 }
 
 /// Whether the record of `pid` is in the process table,
