@@ -195,7 +195,12 @@ Unprofiled development processes remain a residual risk.
   and three custom profiles:
   `ivpn` enforcing,
   `ivpn-ui` as a named `flags=(unconfined)` Electron profile,
-  and `ivpn-service` in complain mode as a documented exception.
+  and `ivpn-service`, enforcing since the owner's WireGuard and OpenVPN connect runs
+  (its built-in firewall ran under it only in namespace probes).
+  `local/ip`, `ps`, `nft`, `resolvectl`, `sysctl` and `sync` allow `network netlink dgram`,
+  the socket the IVPN daemon leaks into its children;
+  `local/firefox` and a new `local/firefox-crashreporter` cover Firefox ESR in `/opt/firefox-esr`;
+  `local/aa-install` reads `cpu.max` under the user manager's `app.slice`.
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
 
@@ -453,11 +458,7 @@ pressure writes,
 and fresh profile-sync-daemon mount operations remain explicitly unexercised.
 Unprofiled development and repo processes remain unconfined by design and are disclosed in the
 inventory rather than misreported as universally enforcing.
-`ivpn-service` stays in complain mode until connect,
-disconnect,
-the firewall and split tunneling have run under it with an IVPN account logged in;
-then read its `ALLOWED` lines from `/var/log/audit/audit.log`,
-add them,
-and switch it with `aa-mode --enforce ivpn-service` or by dropping `complain` from its flags.
+IVPN's built-in firewall has not run under the enforcing `ivpn-service` profile on the host,
+only in namespace probes; the owner does not use it.
 
 This handover is not final and not owner-approved.

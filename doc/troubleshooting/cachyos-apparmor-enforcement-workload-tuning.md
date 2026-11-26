@@ -2154,9 +2154,19 @@ so nothing was granted for it.
   (as `ivpn-service//null-/usr/bin/rmdir`, with `dac_override`)
   and the daemon reading desktop-entry icons such as `/usr/share/hplip/data/images/128x128/hp_logo.png`;
   `rmdir` and `png`, `svg`, `svgz` and `xpm` files under `/usr/{,local/}share` and `/opt` were added.
-  It stays in complain mode until connect, disconnect, the firewall and split tunneling
-  have run under it with an account logged in;
-  a missing rule in enforce could strand the firewall half set up.
+  The owner then connected and disconnected with WireGuard (with V2Ray) and with OpenVPN,
+  with inverse split tunneling on and Firefox ESR started through it;
+  complain mode logged nothing further for `ivpn-service`,
+  and `openvpn` and `openvpn//ivpn-client-updown` logged no denial.
+  The built-in firewall was not used,
+  since the owner does not use it;
+  it ran under the profile only in the namespace probes.
+  On 2026-11-26 at 06:55 UTC the profile was switched to enforce
+  (`flags=(complain)` removed, `apparmor_parser --replace`),
+  while the owner's tunnel stayed up:
+  the daemon and its `v2ray` helper then ran as `ivpn-service (enforce)`,
+  the namespace probes (firewall enable, status, disable; `wg-quick` up and down) all exited `0` under it,
+  and the next minute of live use held no `ivpn-service` denial.
 
 ### The daemon's netlink socket leaks into `ip` and `ps`
 
@@ -2182,6 +2192,8 @@ following the owner's rule rather than an apparmor.d-style `deny` silencer:
 
 ```text
 # /etc/apparmor.d/local/ip, /etc/apparmor.d/local/ps
+# and, after the owner's connects at 06:52 UTC met the same denial in them,
+# /etc/apparmor.d/local/nft, local/resolvectl, local/sysctl and local/sync
 network netlink dgram,
 # /etc/apparmor.d/local/aa-install
 @{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/app.slice/*/cpu.max r,
@@ -2195,6 +2207,32 @@ whose apparmor.d hook runs `aa-install` in the caller's cgroup;
 the file belongs to the user,
 so the existing `owner` rule could not match it.
 `sudo aa-install --status` afterwards reported 710 profiles up to date with no denial.
+
+### Firefox ESR started through the split tunnel
+
+The owner then started Firefox ESR (`/opt/firefox-esr`) from the IVPN UI:
+its process carried `IVPN_STARTED_BY_PARENT=IVPN_UI`, its parent was `ivpn-ui`,
+and it ran as `firefox (enforce)`.
+`firefox` was denied the root-owned `/etc/os-release` (four reads),
+and `firefox-crashreporter`, whose `@{lib_dirs}` names `/opt/firefox` only,
+was denied `/opt/firefox-esr/defaults/pref/` and `/opt/firefox-esr/libxul.so`.
+`aa-exec --profile firefox -- head --lines=1 /etc/os-release`
+and the same read of `libxul.so` under `firefox-crashreporter` reproduced both denials first.
+
+```text
+# /etc/apparmor.d/local/firefox (appended)
+/etc/os-release r,
+# /etc/apparmor.d/local/firefox-crashreporter (new)
+/opt/firefox-esr/{,**} r,
+```
+
+These were appended by hand and loaded with
+`apparmor_parser --replace /etc/apparmor.d/firefox.apparmor.d /etc/apparmor.d/firefox-crashreporter`.
+`append-a-batch-of-local-rules-and-load.ts` would have reloaded `/etc/apparmor.d/firefox`,
+the `apparmor` package's unconfined-flag stub that `/etc/apparmor.d/disable/firefox` keeps out of the boot load;
+`apparmor_parser` loads a file named on its command line regardless of that folder,
+so the stub would have replaced the enforcing `firefox` profile.
+Afterwards both profiles were still enforcing and both reads succeeded with no denial.
 
 ### apparmor_parser on drafts in the scratch folder
 

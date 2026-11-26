@@ -208,18 +208,23 @@ so a clean build downloads them again,
 and any registry credentials in the builder's `~/.npmrc` are no longer used.
 Upgrades work unchanged only once the recipe itself carries this.
 
-## Not yet run: remove the `prefix` line from `~/.npmrc`
+### Remove the `prefix` line from `~/.npmrc` (applied 2026-11-26T01:59:51-05:00)
 
-Source-derived:
+On the owner's choice, the line was deleted; the file had no other line and is now empty, mode `0600`.
+A fresh clone of the unmodified recipe then built with `HOME=/home/user` in the harness environment:
+`Now using node v22.12.0 (npm v10.9.0)`, `Built ivpn-ui`, exit `0`.
+That is the reading of the source as well:
 with no `prefix` or `globalconfig` line,
 `nvm_npmrc_bad_news_bears` returns `1` and the check passes,
 so `shelly install aur ivpn-ui` and later upgrades build unchanged.
 Tradeoff:
-`npm install --global` no longer installs into `~/.local`.
-On `2026-11-26T01:41:13-05:00`,
+`npm install --global` no longer installs into `~/.local`;
+with the repo toolchain's node first on `PATH`,
+`npm config get prefix` now prints that node's install folder
+(`~/.local/share/monochromatic-dev/toolchain/node/26.13.1/node-v26.13.1-linux-x64`).
 `~/.local/lib/node_modules` was empty,
-so nothing currently installed depends on the setting.
-This is the owner's npm configuration and was not changed.
+so nothing installed depended on the setting.
+The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-2026-11-26/keep/`.
 
 ## What does not work
 
@@ -284,6 +289,7 @@ AUR comment policy, a clean-runner reproduction repository and a same-day trust-
 So there is no recommendation.
 A comment posted from the owner's AUR account puts that account in front of the maintainer;
 filing is the owner's decision.
+On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 
 ~~~md
 ivpn-ui 3.15.15-1 fails in prepare() when the builder's ~/.npmrc contains a prefix= (or globalconfig=) line:
