@@ -114,6 +114,61 @@ fn what_it_holds(item: &ast::Item) -> String {
 }
 
 /// What:
+///  The name of the item,
+///  such as `function-end_after_the_log`,
+///  which an allow-list entry writes to tolerate this one finding.
+/// Why:
+///  A key has to read the same after the item moves down a file,
+///  and a line number does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function named(item: Item): string;
+/// ```
+fn named(item: &ast::Item) -> String {
+    return match item {
+        ast::Item::Fn(found) => format!("function-{}", name_text(found.name())),
+        ast::Item::Struct(found) => format!("struct-{}", name_text(found.name())),
+        ast::Item::Enum(found) => format!("enum-{}", name_text(found.name())),
+        ast::Item::Union(found) => format!("union-{}", name_text(found.name())),
+        ast::Item::Trait(found) => format!("trait-{}", name_text(found.name())),
+        ast::Item::Const(found) => format!("constant-{}", name_text(found.name())),
+        ast::Item::Static(found) => format!("static-{}", name_text(found.name())),
+        ast::Item::TypeAlias(found) => format!("type-alias-{}", name_text(found.name())),
+        ast::Item::MacroRules(found) => format!("macro-rules-{}", name_text(found.name())),
+        ast::Item::MacroDef(found) => format!("macro-def-{}", name_text(found.name())),
+        ast::Item::Module(found) => format!("inline-module-{}", name_text(found.name())),
+        ast::Item::Impl(_) => String::from("impl-block"),
+        ast::Item::Use(_) => String::from("private-use"),
+        ast::Item::ExternCrate(_) => String::from("extern-crate"),
+        ast::Item::ExternBlock(_) => String::from("extern-block"),
+        ast::Item::AsmExpr(_) => String::from("assembly-block"),
+        ast::Item::MacroCall(found) => match found.path() {
+            Some(path) => format!("macro-call-{}", path.syntax().text()),
+            None => String::from("macro-call"),
+        },
+    };
+}
+
+/// What:
+///  The text of an item's name,
+///  and `anonymous` for an item that declares none.
+/// Why:
+///  A key keeps one shape per item kind,
+///  so an unnamed `impl` or inline module still names itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nameText(name: Name | undefined): string;
+/// ```
+fn name_text(name: Option<ast::Name>) -> String {
+    return match name {
+        Some(found) => found.text().to_string(),
+        None => String::from("anonymous"),
+    };
+}
+
+/// What:
 ///  Whether a function is named `main`.
 /// Why:
 ///  The compiler looks for the entry point by that name in the crate root file.
@@ -244,6 +299,7 @@ pub fn check_index_items(file: &Path, role: IndexRole, base: &Path) -> Vec<Layou
             line,
             message,
             help: Some(help),
+            key: format!("index-item {} {}", shown(file, base), named(&item)),
         });
     }
     return findings;

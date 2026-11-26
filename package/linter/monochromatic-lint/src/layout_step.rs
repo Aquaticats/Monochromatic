@@ -25,6 +25,7 @@
 /// finding and path types.
 use crate::{
     diagnostic::{Diagnostic, Severity, Span},
+    layout_allow_list::{AllowList, read_allow_list},
     layout_crate_roots::crate_root_files,
     layout_file_order::check_file_order,
     layout_finding::LayoutFinding,
@@ -32,6 +33,7 @@ use crate::{
     layout_module_tree::{ModuleTree, build_module_tree},
     layout_module_uses::{ModuleUse, collect_uses},
     layout_path_resolution::link_glob_targets,
+    markdown_lfs_target::lexical_normal,
     run_failure::{file_start, processing_failure},
     run_paths::{Language, display_name},
     run_plan::{FilePlan, RootRules},
@@ -67,20 +69,26 @@ pub struct LayoutOutcome {
 }
 
 /// What:
-///  The severities selected for one package.
+///  The severities selected for one package,
+///  and the allow-list file each selected rule names.
 /// Why:
-///  The first selecting file of the package decides each rule's severity.
+///  The first selecting file of the package decides each rule's severity,
+///  and its configuration decides what `allow` is relative to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Selection = { folder?: Severity; order?: Severity };
+/// type Selection = { folder?: Severity; folderAllow?: Path; order?: Severity; orderAllow?: Path };
 /// ```
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct Selection {
     /// Severity of the folder rule.
     folder: Option<Severity>,
+    /// The allow-list file the folder rule tolerates findings with.
+    folder_allow: Option<PathBuf>,
     /// Severity of the file rule.
     order: Option<Severity>,
+    /// The allow-list file the file rule tolerates findings with.
+    order_allow: Option<PathBuf>,
 }
 
 /// What:
@@ -115,11 +123,21 @@ fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<Path
             }
         };
         let slot: &mut Selection = chosen.entry(manifest).or_default();
-        if slot.folder.is_none() {
-            slot.folder = settings.folder_uses_links;
+        if slot.folder.is_none()
+            && let Some(rule) = &settings.folder_uses_links
+        {
+            slot.folder = Some(rule.severity);
+            slot.folder_allow = rule.allow.as_ref().map(|path| {
+                return lexical_normal(&plan.config.base.join(path));
+            });
         }
-        if slot.order.is_none() {
-            slot.order = settings.file_order_in_folder;
+        if slot.order.is_none()
+            && let Some(rule) = &settings.file_order_in_folder
+        {
+            slot.order = Some(rule.severity);
+            slot.order_allow = rule.allow.as_ref().map(|path| {
+                return lexical_normal(&plan.config.base.join(path));
+            });
         }
     }
     return chosen;
@@ -191,6 +209,62 @@ fn diagnostics(
 }
 
 /// What:
+///  Read one rule's allow list,
+///  or report why the rule cannot run.
+/// Why:
+///  A list that cannot be read would let every finding through unseen,
+///  so the package fails the run instead of being checked without it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listFor(path: Path | undefined, rule: string, cwd: Path, outcome: LayoutOutcome): AllowList | undefined;
+/// ```
+fn list_for(
+    path: &Option<PathBuf>,
+    rule: &str,
+    cwd: &Path,
+    outcome: &mut LayoutOutcome,
+) -> Result<Option<AllowList>, ()> {
+    let Some(named) = path else {
+        return Ok(None);
+    };
+    match read_allow_list(named) {
+        Ok(list) => return Ok(Some(list)),
+        Err(reason) => {
+            outcome.findings.push(processing_failure(
+                display_name(named, cwd).as_str(),
+                file_start(),
+                format!(
+                    "{rule} names an allow list that cannot be read, so the rule was not checked: {reason}"
+                ),
+            ));
+            return Err(());
+        }
+    }
+}
+
+/// What:
+///  Add one `--debug` note per finding that an allow-list entry could record.
+/// Why:
+///  A reader writes an entry by copying the key the rule reports,
+///  and never by guessing its shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function noteKeys(found: LayoutFinding[], rule: string, outcome: LayoutOutcome): void;
+/// ```
+fn note_keys(found: &[LayoutFinding], rule: &str, outcome: &mut LayoutOutcome) {
+    for item in found {
+        if item.key.is_empty() {
+            continue;
+        }
+        outcome
+            .notes
+            .push(format!("{rule}: allow-list key: {}", item.key));
+    }
+}
+
+/// What:
 ///  Check one package.
 /// Why:
 ///  Root discovery and tree problems end the package early with a processing failure.
@@ -199,7 +273,7 @@ fn diagnostics(
 /// ```ts
 /// function checkPackage(manifest: Path, selection: Selection, cwd: Path, outcome: LayoutOutcome): void;
 /// ```
-fn check_package(manifest: &Path, selection: Selection, cwd: &Path, outcome: &mut LayoutOutcome) {
+fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &mut LayoutOutcome) {
     let Some(package) = manifest.parent() else {
         return;
     };
@@ -244,14 +318,22 @@ fn check_package(manifest: &Path, selection: Selection, cwd: &Path, outcome: &mu
         tree.modules.len(),
         uses.len()
     ));
-    if let Some(severity) = selection.folder {
-        let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), package);
+    if let Some(severity) = selection.folder
+        && let Ok(allow) = list_for(&selection.folder_allow, FOLDER_RULE, cwd, outcome)
+    {
+        let found: Vec<LayoutFinding> =
+            check_folder_links(&tree, uses.as_slice(), package, allow.as_ref());
+        note_keys(&found, FOLDER_RULE, outcome);
         outcome
             .findings
             .extend(diagnostics(found, FOLDER_RULE, severity, cwd));
     }
-    if let Some(severity) = selection.order {
-        let found: Vec<LayoutFinding> = check_file_order(&tree, uses.as_slice(), package);
+    if let Some(severity) = selection.order
+        && let Ok(allow) = list_for(&selection.order_allow, FILE_RULE, cwd, outcome)
+    {
+        let found: Vec<LayoutFinding> =
+            check_file_order(&tree, uses.as_slice(), package, allow.as_ref());
+        note_keys(&found, FILE_RULE, outcome);
         outcome
             .findings
             .extend(diagnostics(found, FILE_RULE, severity, cwd));
@@ -273,7 +355,7 @@ pub fn run_layout_step(plans: &[FilePlan], cwd: &Path) -> LayoutOutcome {
     let chosen: BTreeMap<PathBuf, Selection> = select_packages(plans, &mut notes);
     outcome.notes.extend(notes);
     for (manifest, selection) in &chosen {
-        check_package(manifest, *selection, cwd, &mut outcome);
+        check_package(manifest, selection, cwd, &mut outcome);
     }
     return outcome;
 }

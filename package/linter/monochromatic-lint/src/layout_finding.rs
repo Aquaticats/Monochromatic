@@ -4,10 +4,13 @@
 //!  Both layout rules report a file,
 //!  a line and a message,
 //!  and the step that runs them adds the severity and the diagnostic code.
+//!  A finding also carries the key that an allow-list entry writes to tolerate it,
+//!  and a finding of a loop carries none,
+//!  because a loop is tolerated one use at a time and never as a whole.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type LayoutFinding = { file: Path; line: number; message: string; help?: string };
+//! type LayoutFinding = { file: Path; line: number; message: string; help?: string; key: string };
 //! ```
 
 /// Import the native path type.
@@ -36,6 +39,12 @@ pub struct LayoutFinding {
     pub message: String,
     /// What to do about it.
     pub help: Option<String>,
+    /// The stable name of this one finding,
+    ///  which an allow-list entry writes to tolerate it;
+    ///  empty for a finding no list may tolerate,
+    ///  such as a loop,
+    ///  which is tolerated by listing the uses inside it.
+    pub key: String,
 }
 
 /// What:
