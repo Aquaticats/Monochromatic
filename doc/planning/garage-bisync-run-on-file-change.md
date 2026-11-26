@@ -226,6 +226,18 @@ which the fallback would have to clear first:
 - The Mac's failing agent was read, not changed (see the Mac client section).
 - directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
 
+## Watcher recommendation (2026-11-25T19:44:55-05:00)
+
+The vet recommends directory-watcher 3.2.1;
+see the vet report sections "Finalist validation" and "Recommendation".
+Measured on Linux with the design's trigger shape:
+one edit gives one sync about 2 s later (2000 ms batch wait),
+an edit during a sync gives exactly one more,
+a timer-started sync is waited out,
+`touch` and `chmod` start nothing (so the settle pass's mtime stamp starts no extra run),
+and `.partial` downloads start nothing until renamed.
+Not adopted yet.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
