@@ -58,15 +58,22 @@
 //!   the identity comparisons before any move.
 //! - `reattach.rs`:
 //!   the checked move back to the slot.
-//! - `unmount_record.rs`:
-//!   the pre-bind shape checks and the record's write.
 //! - `user_cache_pin.rs`:
 //!   the `user-cache` pin,
 //!   the account's passwd home and the cache descriptor.
+//! - `unmount_turn_answers.rs`:
+//!   what one turn answered and the refusals it builds.
+//! - `unmount_turn_request.rs`:
+//!   the facts and seams one turn reads and acts on.
+//! - `unmount_record.rs`:
+//!   the pre-bind shape checks and the record's write.
 //! - `staged_unmount.rs`:
 //!   the held-descriptor unmount and the later sweep from the record.
 //! - `staging_cleanup.rs`:
 //!   the wrapper's rmdir-only cleanup and the folder's creation.
+//! - `unmount_pair.rs`:
+//!   the topmost read,
+//!   the pair's two unmounts and the move back.
 //! - `unmount_turn.rs`:
 //!   the record,
 //!   bind,
@@ -118,6 +125,16 @@ pub mod unmount_record;
 
 /// One removal's unmount turn.
 pub mod unmount_turn;
+
+/// What one turn answered and the refusals it builds.
+pub mod unmount_turn_answers;
+
+/// The facts and seams one unmount turn reads and acts on.
+pub mod unmount_turn_request;
+
+/// The topmost read,
+/// the pair's two unmounts and the move back.
+pub mod unmount_pair;
 
 /// The held-descriptor unmount and the later sweep from the record.
 pub mod staged_unmount;
