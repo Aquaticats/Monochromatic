@@ -254,6 +254,8 @@ fn a_bound_slots_removal_is_refused_behind_every_global_option() {
         "one",
     );
     let common: String = bound.common.display().to_string();
+    // The attached spelling of `--git-dir`, which Git reads the same way as the separated one.
+    let git_directory: String = format!("--git-dir={common}");
     let spellings: Vec<Vec<OsString>> = vec![
         started_in(
             bound.repository.as_path(),
@@ -275,6 +277,19 @@ fn a_bound_slots_removal_is_refused_behind_every_global_option() {
             bound.repository.as_path(),
             &[
                 "--no-optional-locks",
+                "worktree",
+                "remove",
+                "-f",
+                "-f",
+                "one",
+            ],
+        ),
+        // The neutral options the ladder's own reading always served, which the release pass's controls used.
+        started_in(
+            bound.repository.as_path(),
+            &[
+                "--no-pager",
+                "--no-advice",
                 "worktree",
                 "remove",
                 "-f",
@@ -336,6 +351,15 @@ fn a_bound_slots_removal_is_refused_behind_every_global_option() {
             common.as_str(),
             "--git-dir",
             common.as_str(),
+            "worktree",
+            "remove",
+            "-f",
+            "-f",
+            "one",
+        ]),
+        // The attached spelling of the same option, which Git reads the same way.
+        text(&[
+            git_directory.as_str(),
             "worktree",
             "remove",
             "-f",
