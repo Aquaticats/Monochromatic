@@ -30,7 +30,7 @@ use crate::{
     layout_allow_list::{
         AllowKind, AllowList, dead_entry_findings, tolerated,
     },
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{LayoutFinding, key_path, shown, unique_keys},
     layout_folder_uses::{
         FolderUses, Proof, group_by_folder, loop_membership, record_use, use_loops,
     },
@@ -70,8 +70,8 @@ fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFin
         help: Some(format!("Create the link: {}", link_command(from, to, base))),
         key: format!(
             "missing-link {} -> {}",
-            shown(from, base),
-            shown(to, base)
+            key_path(from, base),
+            key_path(to, base)
         ),
     };
 }
@@ -126,7 +126,7 @@ fn check_one_folder(
             help: Some(String::from(
                 "Remove the link, or use the folder it points to.",
             )),
-            key: format!("unused-link {}", shown(&link.entry, base)),
+            key: format!("unused-link {}", key_path(&link.entry, base)),
         });
     }
     for (target, proof) in needed {
@@ -181,7 +181,7 @@ fn glob_reexports(tree: &ModuleTree, base: &Path) -> Vec<LayoutFinding> {
                 )),
                 key: format!(
                     "glob {} {}",
-                    shown(&module.file, base),
+                    key_path(&module.file, base),
                     reference.raw.segments.join("::")
                 ),
             });
@@ -221,7 +221,7 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
                     shown(folder, base)
                 ),
                 help: None,
-                key: format!("below-uses {}", shown(folder, base)),
+                key: format!("below-uses {}", key_path(folder, base)),
             });
         }
     }
@@ -313,8 +313,8 @@ fn without_tolerated(grouped: &FolderUses, list: &AllowList, base: &Path) -> Fol
         for (to, proof) in targets {
             // The list holds the paths findings show, which are relative to the package folder.
             let tolerated_use: bool = list.covers_use(
-                Path::new(shown(from, base).as_str()),
-                Path::new(shown(to, base).as_str()),
+                Path::new(key_path(from, base).as_str()),
+                Path::new(key_path(to, base).as_str()),
             );
             if tolerated_use {
                 continue;
@@ -347,8 +347,8 @@ fn tolerated_loops(
     for (from, targets) in grouped {
         for to in targets.keys() {
             let listed: bool = list.covers_use(
-                Path::new(shown(from, base).as_str()),
-                Path::new(shown(to, base).as_str()),
+                Path::new(key_path(from, base).as_str()),
+                Path::new(key_path(to, base).as_str()),
             );
             if !listed {
                 continue;
@@ -386,8 +386,8 @@ fn new_loop_uses(
     for (from, targets) in grouped {
         for (to, proof) in targets {
             let tolerated_use: bool = list.covers_use(
-                Path::new(shown(from, base).as_str()),
-                Path::new(shown(to, base).as_str()),
+                Path::new(key_path(from, base).as_str()),
+                Path::new(key_path(to, base).as_str()),
             );
             if tolerated_use {
                 continue;
@@ -522,6 +522,8 @@ pub fn check_folder_links(
     findings.extend(group_loops(&groups, &reported, base));
     findings.extend(glob_reexports(tree, base));
     findings.extend(folder_below_uses(folder_list.as_slice(), base));
+    // Every key names one finding before a line can tolerate it, so a second finding of one shape is reported.
+    unique_keys(&mut findings);
     let Some(list) = allow else {
         return findings;
     };

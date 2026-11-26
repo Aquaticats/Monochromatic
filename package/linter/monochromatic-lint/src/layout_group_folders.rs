@@ -31,7 +31,7 @@
 ///  the index item check,
 ///  the link type and the tree.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{LayoutFinding, key_path, shown},
     layout_folder_index_files::{file_name, files_by_folder},
     layout_folder_uses::{FolderUses, Proof, record_use, use_loops},
     layout_group_entries::{entry_of, owner_of},
@@ -81,7 +81,7 @@ fn shelf_findings(
                     shown(group, base),
                     shown(&outer, base)
                 )),
-                key: format!("nested-group {}", shown(group, base)),
+                key: format!("nested-group {}", key_path(group, base)),
             });
         }
         for file in by_folder.get(group).into_iter().flatten() {
@@ -101,7 +101,7 @@ fn shelf_findings(
                 )),
                 key: format!(
                     "group-file {} {}",
-                    shown(group, base),
+                    key_path(group, base),
                     file_name(file)
                 ),
             });
@@ -137,8 +137,8 @@ fn names_group(from: &Path, group: &Path, proof: &Proof, base: &Path) -> LayoutF
         )),
         key: format!(
             "names-group {} {}",
-            shown(from, base),
-            shown(group, base)
+            key_path(from, base),
+            key_path(group, base)
         ),
     };
 }
@@ -166,7 +166,7 @@ pub fn links_group(link: &Link, base: &Path) -> LayoutFinding {
             "Remove the link, and link the folder inside {} that the code uses.",
             shown(&link.target, base)
         )),
-        key: format!("links-group {}", shown(&link.entry, base)),
+        key: format!("links-group {}", key_path(&link.entry, base)),
     };
 }
 

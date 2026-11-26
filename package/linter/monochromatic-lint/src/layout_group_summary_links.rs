@@ -21,7 +21,7 @@
 ///  the folder uses,
 ///  the group entries and the link reader.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{LayoutFinding, key_path, shown},
     layout_folder_uses::{FolderUses, Proof},
     layout_group_entries::{entry_of, owner_of},
     layout_link_entries::{Link, USES_FOLDER, link_command, read_links},
@@ -153,7 +153,7 @@ fn extra_link(group: &Path, link: &Link, groups: &BTreeSet<PathBuf>, base: &Path
         line: 0,
         message,
         help: Some(help),
-        key: format!("summary-extra {}", shown(&link.entry, base)),
+        key: format!("summary-extra {}", key_path(&link.entry, base)),
     };
 }
 
@@ -189,8 +189,8 @@ fn missing_summary(group: &Path, entry: &Path, used: &SummaryUse, base: &Path) -
         )),
         key: format!(
             "summary-missing {} {}",
-            shown(group, base),
-            shown(entry, base)
+            key_path(group, base),
+            key_path(entry, base)
         ),
     };
 }

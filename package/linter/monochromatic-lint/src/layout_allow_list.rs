@@ -34,6 +34,7 @@ use crate::layout_finding::{LayoutFinding, shown};
 /// Import ordered collections and native paths.
 use std::{
     collections::BTreeSet,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -41,12 +42,17 @@ use std::{
 ///  The largest list file this reader accepts:
 ///  one mebibyte.
 /// Why:
-///  This repository's largest list is the git wrapper's folder list,
-///  about 90 KiB for today's 1,073 tolerated uses,
-///  so a mebibyte leaves a decade of growth and still bounds a file a person controls.
+///  This repository's largest lists are the git wrapper's,
+///  measured on 2026-11-25 from the branch that builds them:
+///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 link lines,
+///  `file-rule.txt` 53,048 bytes with 544 `file-uses` lines and 42 `no-file-list` lines.
+///  A mebibyte is about 18 times the larger one,
+///  so it leaves room for a decade of growth and still bounds a file a person controls.
 ///  The siblings a reader might expect are an unbounded read
 ///  and a per-entry limit;
-///  a bound on the whole file is the one that keeps a mistyped path from reading a disk image.
+///  a bound on the whole file is the one that keeps a mistyped path from reading a disk image,
+///  and the read itself is bounded too,
+///  so a file that grows between the check and the read is refused rather than swallowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,30 +142,54 @@ pub struct AllowList {
 }
 
 /// What:
-///  Whether a path an entry names may be used:
-///  relative, with no component that leaves the package.
+///  Why a path an entry names may not be used,
+///  or nothing when it may.
 /// Why:
 ///  A finding shows paths relative to the package,
 ///  and an absolute path or a `..` would mean a different file on every machine.
+///  Keys hold `/` between segments on every platform,
+///  so an entry written with a backslash would name a path no key matches,
+///  and a file named with a backslash cannot be listed at all:
+///  saying so is better than a line that tolerates nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function usable(path: string): boolean;
+/// function unusableReason(path: string): string | undefined;
 /// ```
-fn usable(path: &str) -> bool {
+fn unusable_reason(path: &str) -> Option<&'static str> {
     if path.is_empty() {
-        return false;
+        return Some("names no folder");
+    }
+    if path.contains('\\') {
+        return Some("holds a backslash, and every path is written with `/` on every machine");
     }
     let parsed: &Path = Path::new(path);
     if parsed.is_absolute() {
-        return false;
+        return Some("is absolute");
     }
     for part in parsed.components() {
         if part.as_os_str() == ".." {
-            return false;
+            return Some("climbs out of the package with `..`");
         }
     }
-    return true;
+    return None;
+}
+
+/// What:
+///  One path as an entry names it:
+///  with `.` segments and a trailing separator gone,
+///  so `./src/a` and `src/a/` name the folder a finding names.
+/// Why:
+///  A use is counted from the path the code makes,
+///  while an entry is read from its own words,
+///  so a spelling difference between them would make a line that records a use tolerate nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listedPath = (text) => lexical_normal(text)
+/// ```
+fn listed_path(text: &str) -> PathBuf {
+    return crate::markdown_lfs_target::lexical_normal(Path::new(text));
 }
 
 /// What:
@@ -181,14 +211,16 @@ fn entry_of(line: usize, text: &str) -> Result<AllowEntry, String> {
                 "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
             ));
         }
-        if !usable(words[1]) || !usable(words[3]) {
-            return Err(format!(
-                "Line {line} names a folder that is absolute or climbs out with `..`. A path is relative to the package folder, as findings show it."
-            ));
+        for path in [words[1], words[3]] {
+            if let Some(reason) = unusable_reason(path) {
+                return Err(format!(
+                    "Line {line} names a folder that {reason}. A path is relative to the package folder, as findings show it."
+                ));
+            }
         }
         AllowKind::FolderUse {
-            from: PathBuf::from(words[1]),
-            to: PathBuf::from(words[3]),
+            from: listed_path(words[1]),
+            to: listed_path(words[3]),
         }
     } else if words.first() == Some(&FILE_USE_WORD) {
         if words.len() != 5 || words[3] != ARROW {
@@ -196,13 +228,13 @@ fn entry_of(line: usize, text: &str) -> Result<AllowEntry, String> {
                 "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`."
             ));
         }
-        if !usable(words[1]) {
+        if let Some(reason) = unusable_reason(words[1]) {
             return Err(format!(
-                "Line {line} names a folder that is absolute or climbs out with `..`. A path is relative to the package folder, as findings show it."
+                "Line {line} names a folder that {reason}. A path is relative to the package folder, as findings show it."
             ));
         }
         AllowKind::FileUse {
-            folder: PathBuf::from(words[1]),
+            folder: listed_path(words[1]),
             from: String::from(words[2]),
             to: String::from(words[4]),
         }
@@ -238,7 +270,7 @@ pub fn parse_allow_list(text: &str, source: &Path) -> Result<AllowList, String> 
             continue;
         }
         let entry: AllowEntry = entry_of(line, trimmed)?;
-        if !seen.insert(entry.text.clone()) {
+        if !seen.insert(entry.identity()) {
             return Err(format!(
                 "Line {line} repeats the entry `{}` that an earlier line already holds.",
                 entry.text
@@ -283,7 +315,28 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
             metadata.len()
         ));
     }
-    let text: String = std::fs::read_to_string(path).map_err(|error| {
+    let file: std::fs::File = std::fs::File::open(path).map_err(|error| {
+        return format!(
+            "The allow-list file {} cannot be read: {error}.",
+            path.display()
+        );
+    })?;
+    // What: at most one byte more than the cap, so the cap is enforced on what was read and not only on what was measured above.
+    // Why: a file that grows between the measurement and the read must be refused, not read whole.
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    file.take(MAX_BYTES + 1).read_to_end(&mut bytes).map_err(|error| {
+        return format!(
+            "The allow-list file {} cannot be read: {error}.",
+            path.display()
+        );
+    })?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err(format!(
+            "The allow-list file {} is longer than the {MAX_BYTES} bytes this reader accepts.",
+            path.display()
+        ));
+    }
+    let text: String = String::from_utf8(bytes).map_err(|error| {
         return format!(
             "The allow-list file {} cannot be read: {error}.",
             path.display()
@@ -302,6 +355,37 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
 /// ```ts
 /// class AllowList { entries: AllowEntry[]; coversUse(from, to): boolean; coversKey(key): boolean }
 /// ```
+/// What:
+///  What one entry tolerates,
+///  written the one way every spelling of it reads.
+/// Why:
+///  No line may repeat another,
+///  and `uses ./src/a/ -> src/b` repeats `uses src/a -> src/b`:
+///  a `.` segment and a trailing separator name the same folder,
+///  so the list must say so rather than hold two lines for one use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entryIdentity(entry): string
+/// ```
+impl AllowEntry {
+    /// The entry's kind in the words the list writes it.
+    pub fn identity(&self) -> String {
+        return match &self.kind {
+            AllowKind::FolderUse { from, to } => format!(
+                "{FOLDER_USE_WORD} {} {ARROW} {}",
+                from.display(),
+                to.display()
+            ),
+            AllowKind::FileUse { folder, from, to } => format!(
+                "{FILE_USE_WORD} {} {from} {ARROW} {to}",
+                folder.display()
+            ),
+            AllowKind::Key(key) => key.clone(),
+        };
+    }
+}
+
 impl AllowList {
     /// The file the entries came from.
     pub fn source(&self) -> &Path {

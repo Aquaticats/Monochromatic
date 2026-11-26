@@ -618,3 +618,38 @@ fn a_listed_doc_key_takes_its_finding_out_of_the_report() {
     let found: Vec<String> = findings_with(&fixture.path, "missing-entry src/a/mod.rs other.rs\n");
     assert_eq!(found.len(), 2, "{found:#?}");
 }
+
+/// Every copy of a name the doc lists twice or more has its own key,
+///  so one line tolerates one extra copy and a third copy is reported.
+#[test]
+fn every_extra_copy_of_a_listed_name_has_its_own_key() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\n//! - `one.rs`: again.\n//! - `one.rs`: a third time.\nmod one;\n",
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let copies: Vec<crate::layout_finding::LayoutFinding> =
+        check_file_order(&tree, uses.as_slice(), &fixture.path, None)
+            .into_iter()
+            .filter(|item| return item.key.starts_with("listed-twice"))
+            .collect::<Vec<crate::layout_finding::LayoutFinding>>();
+    assert_eq!(copies.len(), 2, "{copies:#?}");
+    assert_eq!(copies[0].key, "listed-twice src/a/mod.rs one.rs");
+    // The second extra copy gains a number, so a line for the first one names one finding.
+    assert_eq!(copies[1].key, "listed-twice src/a/mod.rs one.rs#2");
+    let list = crate::layout_allow_list::parse_allow_list(
+        "listed-twice src/a/mod.rs one.rs\n",
+        Path::new("allow-list.txt"),
+    )
+    .expect("the fixture list is valid");
+    let kept: Vec<String> = check_file_order(&tree, uses.as_slice(), &fixture.path, Some(&list))
+        .iter()
+        .map(|item| return item.key.clone())
+        .collect::<Vec<String>>();
+    assert_eq!(kept, ["listed-twice src/a/mod.rs one.rs#2"], "{kept:#?}");
+}

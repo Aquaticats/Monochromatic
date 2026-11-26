@@ -313,3 +313,88 @@ fn a_no_file_list_entry_does_not_hide_a_new_file() {
         output.stdout
     );
 }
+
+/// Configuration turning one layout rule on with a list beside the fixture's configuration file.
+fn allow_config(rule: &str, list: &str) -> String {
+    return format!(
+        r#"[{{ "files": ["**/*.rs"], "rules": {{ "{rule}": {{ "severity": "error", "allow": "{list}" }} }} }}]"#
+    );
+}
+
+/// One line tolerates one finding:
+///  two glob re-exports of one module are two findings, and one line names the first alone.
+///  A line that matched both would let a glob added later slip in unseen.
+#[test]
+fn one_line_tolerates_one_glob_finding() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "mod native;\npub use native::*;\npub use native::*;\n",
+        ),
+        ("src/native/mod.rs", "pub mod saving;\n"),
+        ("src/native/saving.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    write(
+        &fixture.path,
+        "folder.txt",
+        "missing-link src -> src/native\nglob src/lib.rs native\n",
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    let found: Vec<String> = summary(&output);
+    assert_eq!(found.len(), 1, "{}", output.stdout);
+    // The second glob of the module, on its own line, is the one the list does not name.
+    assert_eq!(found[0], "rust/folder-uses-links error src/lib.rs 3", "{}", output.stdout);
+    assert!(
+        output.stdout.contains("re-exports every item"),
+        "{}",
+        output.stdout
+    );
+    assert!(
+        !output.stdout.contains("tolerates nothing any more"),
+        "{}",
+        output.stdout
+    );
+}
+
+/// An `impl` block and a `use` line each carry their own identity in their key,
+///  so one line tolerates one of them and a second one of the same kind is reported.
+#[test]
+fn one_line_tolerates_one_index_item() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `a.rs`: a.\nmod a;\n\nimpl Holder {\n    /// one\n    pub fn one() {}\n}\n\nimpl Holder {\n    /// two\n    pub fn two() {}\n}\n\nuse std::fmt;\nuse std::io;\n",
+        ),
+        ("src/a/mod.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    write(
+        &fixture.path,
+        "file.txt",
+        "index-item src/lib.rs impl-Holder\nindex-item src/lib.rs private-use-std::fmt\nindex-item src/lib.rs private-use-std::io\n",
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    let found: Vec<String> = summary(&output);
+    assert_eq!(found.len(), 1, "{}", output.stdout);
+    // The second block impls the same type, so it is the one the list does not name.
+    assert_eq!(found[0], "rust/file-order-in-folder error src/lib.rs 12", "{}", output.stdout);
+    assert!(
+        output.stdout.contains("it holds an `impl` block"),
+        "{}",
+        output.stdout
+    );
+    assert!(
+        !output.stdout.contains("tolerates nothing any more"),
+        "{}",
+        output.stdout
+    );
+}

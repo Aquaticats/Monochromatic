@@ -22,7 +22,7 @@
 /// Import the finding shape,
 ///  the path display helper and the relative path helper.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{LayoutFinding, key_path, shown},
     markdown_lfs_target::lexical_normal,
     run_paths::relative_from,
 };
@@ -73,21 +73,26 @@ pub struct LinkRead {
 
 /// What:
 ///  Make a finding about an entry,
-///  with the command that writes a correct link.
+///  naming the fault the entry has.
 /// Why:
-///  Every finding says what to do next.
+///  Every finding says what to do next,
+///  and one entry can go wrong in seven ways.
+///  The fault is part of the key,
+///  because one line of a list must not tolerate whichever fault the entry has later:
+///  a broken link fixed into a file is a different finding,
+///  and a line left behind for it must say so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryFinding(entry: Path, message: string): LayoutFinding;
+/// function entryFinding(entry: Path, fault: string, message: string): LayoutFinding;
 /// ```
-fn entry_finding(entry: &Path, base: &Path, message: String) -> LayoutFinding {
+fn entry_finding(entry: &Path, base: &Path, fault: &str, message: String) -> LayoutFinding {
     return LayoutFinding {
         file: entry.to_path_buf(),
         line: 0,
         message,
         help: None,
-        key: format!("link {}", shown(entry, base)),
+        key: format!("link {} {fault}", key_path(entry, base)),
     };
 }
 
@@ -140,6 +145,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "unreadable",
             format!("{shown_entry} cannot be read."),
         ));
     };
@@ -147,6 +153,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "not-a-symbolic-link",
             format!(
                 "{shown_entry} is not a symbolic link; a uses folder holds only links to the folders the code uses."
             ),
@@ -160,6 +167,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "broken",
             format!(
                 "{shown_entry} is a broken link: it points to {written}, which does not exist."
             ),
@@ -169,6 +177,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "points-to-a-file",
             format!(
                 "{shown_entry} points to {written}, which is a file; a link must point to a folder."
             ),
@@ -178,6 +187,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "not-a-source-folder",
             format!(
                 "{shown_entry} points to {written}, which is not a source folder of this package (a folder holding a module file of its production code)."
             ),
@@ -187,6 +197,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "points-to-its-own-folder",
             format!(
                 "{shown_entry} points to the folder it is in; a folder does not link to itself."
             ),
@@ -204,6 +215,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "named-after-another-folder",
             format!(
                 "{shown_entry} points to the folder {wanted}, so the link must be named {wanted}."
             ),
@@ -239,6 +251,7 @@ pub fn read_links(
             read.findings.push(entry_finding(
                 &uses,
                 base,
+                "uses-unreadable",
                 format!("{} cannot be read: {error}.", shown(&uses, base)),
             ));
             return read;
@@ -248,6 +261,7 @@ pub fn read_links(
         read.findings.push(entry_finding(
             &uses,
             base,
+            "uses-is-not-a-folder",
             format!(
                 "{} must be a folder of links, not a file or a link.",
                 shown(&uses, base)
@@ -259,6 +273,7 @@ pub fn read_links(
         read.findings.push(entry_finding(
             &uses,
             base,
+            "uses-unlistable",
             format!("{} cannot be listed.", shown(&uses, base)),
         ));
         return read;

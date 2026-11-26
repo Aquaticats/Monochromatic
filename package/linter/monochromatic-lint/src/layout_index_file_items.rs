@@ -28,7 +28,7 @@
 ///  the test-build detector,
 ///  and the parsed source.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{LayoutFinding, key_path, shown, unique_keys},
     layout_source_facts::is_test_only,
     rust_source::RustSource,
 };
@@ -114,12 +114,58 @@ fn what_it_holds(item: &ast::Item) -> String {
 }
 
 /// What:
+///  The text of a syntax node with every run of whitespace squeezed to one space and both ends trimmed.
+/// Why:
+///  A key is one line of a list file,
+///  so an item written over several lines must not put a line break in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const compact = (node) => node.text().split(/\s+/u).filter(Boolean).join(' ')
+/// ```
+fn compact(node: &SyntaxNode) -> String {
+    return node
+        .text()
+        .to_string()
+        .split_whitespace()
+        .collect::<Vec<&str>>()
+        .join(" ");
+}
+
+/// What:
+///  What an `impl` block implements,
+///  such as `Holder` or `Display for Holder`.
+/// Why:
+///  An `impl` block has no name of its own,
+///  and two blocks of one file must not share a key,
+///  so the key uses the type the block is written for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const implTarget = (block) => block.trait_ ? `${block.trait_} for ${block.selfTy}` : block.selfTy
+/// ```
+fn impl_target(found: &ast::Impl) -> String {
+    let self_ty: String = match found.self_ty() {
+        Some(found) => compact(found.syntax()),
+        None => String::from("anonymous"),
+    };
+    return match found.trait_() {
+        Some(found) => format!("{} for {self_ty}", compact(found.syntax())),
+        None => self_ty,
+    };
+}
+
+/// What:
 ///  The name of the item,
 ///  such as `function-end_after_the_log`,
 ///  which an allow-list entry writes to tolerate this one finding.
 /// Why:
 ///  A key has to read the same after the item moves down a file,
 ///  and a line number does not.
+///  A kind with no name of its own is named by its own text,
+///  because a key must name one finding:
+///  `impl-block` for every block of a file let one entry tolerate a block added later,
+///  and so did `private-use` for every `use` line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,14 +184,34 @@ fn named(item: &ast::Item) -> String {
         ast::Item::MacroRules(found) => format!("macro-rules-{}", name_text(found.name())),
         ast::Item::MacroDef(found) => format!("macro-def-{}", name_text(found.name())),
         ast::Item::Module(found) => format!("inline-module-{}", name_text(found.name())),
-        ast::Item::Impl(_) => String::from("impl-block"),
-        ast::Item::Use(_) => String::from("private-use"),
-        ast::Item::ExternCrate(_) => String::from("extern-crate"),
-        ast::Item::ExternBlock(_) => String::from("extern-block"),
+        ast::Item::Impl(found) => format!("impl-{}", impl_target(found)),
+        ast::Item::Use(found) => match found.use_tree() {
+            Some(tree) => format!("private-use-{}", compact(tree.syntax())),
+            None => String::from("private-use-anonymous"),
+        },
+        ast::Item::ExternCrate(found) => {
+            let name: String = match found.name_ref() {
+                Some(found) => found.text().to_string(),
+                None => String::from("anonymous"),
+            };
+            match found.rename() {
+                Some(found) => format!("extern-crate-{name}-{}", compact(found.syntax())),
+                None => format!("extern-crate-{name}"),
+            }
+        }
+        ast::Item::ExternBlock(found) => match found.abi().and_then(|abi| return abi.string_token()) {
+            // The ABI's own string, such as `"C"`, not the `extern` keyword the node also holds.
+            Some(found) => format!("extern-block-{}", found.text()),
+            None => String::from("extern-block-unstated"),
+        },
         ast::Item::AsmExpr(_) => String::from("assembly-block"),
         ast::Item::MacroCall(found) => match found.path() {
-            Some(path) => format!("macro-call-{}", path.syntax().text()),
-            None => String::from("macro-call"),
+            // The path, the `!` that makes it a call, and the arguments as written.
+            Some(path) => match found.token_tree() {
+                Some(tree) => format!("macro-call-{}!{}", compact(path.syntax()), compact(tree.syntax())),
+                None => format!("macro-call-{}!", compact(path.syntax())),
+            },
+            None => String::from("macro-call-anonymous"),
         },
     };
 }
@@ -299,9 +365,12 @@ pub fn check_index_items(file: &Path, role: IndexRole, base: &Path) -> Vec<Layou
             line,
             message,
             help: Some(help),
-            key: format!("index-item {} {}", shown(file, base), named(&item)),
+            key: format!("index-item {} {}", key_path(file, base), named(&item)),
         });
     }
+    // Two blocks of one type and two calls of one macro would otherwise share a key,
+    // and one list line would tolerate whichever of them a later edit added.
+    unique_keys(&mut findings);
     return findings;
 }
 
