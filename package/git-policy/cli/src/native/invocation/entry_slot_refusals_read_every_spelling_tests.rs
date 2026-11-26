@@ -497,6 +497,54 @@ fn a_prune_started_in_the_git_directory_restores_the_pointer() {
 }
 
 /// What:
+///  The repair report reaches a command line started inside the repository's Git
+///  directory,
+///  and one naming no path prints nothing.
+/// Why:
+///  The slot glue a command meets reads the move,
+///  the repair and the prune words in one place,
+///  so a change that drops the repair report from that place would leave every
+///  control of the report itself green.
+#[test]
+fn a_repair_report_reaches_the_command_line() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-repair-report");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
+    let action: Action = plan_invocation(
+        text(&[
+            "-C",
+            bound.common.to_str().expect("utf-8"),
+            "worktree",
+            "repair",
+            "one",
+        ])
+        .as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    );
+    match action {
+        Action::Forward {
+            stderr,
+            ..
+        } => assert!(
+            stderr.contains("link: damaged, and the registration stands"),
+            "the report a repair prints before Git runs: {stderr}"
+        ),
+        other => panic!("a repair is Git's own command: {other:?}"),
+    }
+    remove(bound.root.as_path());
+}
+
+/// What:
 ///  A command started inside a Git directory whose repository holds no record
 ///  is forwarded unchanged,
 ///  and one whose records name no slot it removes is carried out by Git.
