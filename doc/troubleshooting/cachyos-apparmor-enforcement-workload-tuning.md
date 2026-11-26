@@ -2331,10 +2331,8 @@ so the failure is live there for any datagram or name-resolving transport.
 `torbrowser-tor resolv` and `pluggable transport` returned nothing,
 while a broad `torbrowser` search returned closed issues (#1117, #539, #491, #490, #465, #251),
 so the search itself works.
-Issue #490, "Tor Browser profile should not give access to anything sensitive or identifying",
-is the likely reason for the denies and has to be read in full before any report;
-a transport-only child profile keeps those denies for `tor` itself.
-No draft was written; filing is the owner's decision.
+The diagnosis, an upstream patch and the issue draft the owner asked for are in
+`doc/troubleshooting/apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.md`.
 
 The same reader fault touches this batch's other "no denial" checks;
 re-read the same way,

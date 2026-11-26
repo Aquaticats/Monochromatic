@@ -1,0 +1,49 @@
+--- a/apparmor.d/groups/browsers/torbrowser-tor
++++ b/apparmor.d/groups/browsers/torbrowser-tor
+@@ -22,7 +22,7 @@
+ 
+   @{lib_dirs}/{,**}                                    r,
+   @{lib_dirs}/TorBrowser/Tor/*.so*                     m,
+-  @{lib_dirs}/TorBrowser/Tor/PluggableTransports/**  mix,
++  @{lib_dirs}/TorBrowser/Tor/PluggableTransports/**  rcx -> pluggable-transports,
+ 
+   owner @{data_dirs}/Tor/ rw,
+   owner @{data_dirs}/Tor/** rw,
+@@ -33,6 +33,8 @@
+   @{PROC}/sys/kernel/random/uuid r,
+   @{PROC}/sys/net/core/somaxconn r,
+ 
++  signal receive set=(term kill) peer=torbrowser,
++
+   deny /etc/group r,
+   deny /etc/host.conf r,
+   deny /etc/hosts r,
+@@ -45,6 +47,29 @@
+   deny /etc/services r,
+   deny /var/lib/dbus/machine-id r,
+ 
++  profile pluggable-transports {
++    include <abstractions/base>
++    include <abstractions/golang>
++    include <abstractions/nameservice-strict>
++    include <abstractions/ssl_certs>
++
++    network inet dgram,
++    network inet stream,
++    network inet6 dgram,
++    network inet6 stream,
++    network netlink raw,
++
++    @{lib_dirs}/TorBrowser/Tor/PluggableTransports/** mr,
++
++    owner @{data_dirs}/Tor/pt_state/{,**} rw,
++
++    @{PROC}/sys/net/core/somaxconn r,
++
++    signal receive set=(term kill) peer=torbrowser-tor,
++
++    include if exists <local/torbrowser-tor_pluggable-transports>
++  }
++
+   include if exists <local/torbrowser-tor>
+ }
