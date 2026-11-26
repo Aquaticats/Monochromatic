@@ -45,7 +45,10 @@ use crate::ast::node::Node;
 /// ```ts
 /// import { alt, concat } from "crate/ast/smart";
 /// ```
-use crate::ast::smart::{alt, concat};
+use crate::ast::smart::{
+    alt,
+    concat,
+};
 
 /// What:
 ///     Imports the NFA,
@@ -63,7 +66,11 @@ use crate::ast::smart::{alt, concat};
 /// ```ts
 /// import { CountingNfa, build_nfa, build_product } from "crate/counting";
 /// ```
-use crate::counting::{CountingNfa, build_nfa, build_product};
+use crate::counting::{
+    CountingNfa,
+    build_nfa,
+    build_product,
+};
 
 /// What:
 ///     Imports the seed extractors and leading-seed probes (default and weak floors).
@@ -84,7 +91,12 @@ use crate::counting::{CountingNfa, build_nfa, build_product};
 ///   seeds_from_node_min,
 /// } from "crate/counting";
 /// ```
-use crate::counting::{leading_seeds, leading_seeds_min, seeds_from_node, seeds_from_node_min};
+use crate::counting::{
+    leading_seeds,
+    leading_seeds_min,
+    seeds_from_node,
+    seeds_from_node_min,
+};
 
 /// What:
 ///     Imports the DFA builder and minimizer for the general back-end.
@@ -99,7 +111,10 @@ use crate::counting::{leading_seeds, leading_seeds_min, seeds_from_node, seeds_f
 /// ```ts
 /// import { build_dfa_within, minimize } from "crate/dfa";
 /// ```
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 
 /// What:
 ///     Imports the per-pattern back-end and its kind.
@@ -113,7 +128,10 @@ use crate::dfa::{build_dfa_within, minimize};
 /// ```ts
 /// import { Engine, EngineKind } from "crate/engine";
 /// ```
-use crate::engine::{Engine, EngineKind};
+use crate::engine::{
+    Engine,
+    EngineKind,
+};
 
 /// What:
 ///     Imports the error type.
@@ -198,7 +216,7 @@ const WEAK_INNER_SEED_LEN: usize = 1;
 /// }
 /// ```
 fn search_root(node: Node) -> Node {
-    return concat(vec![Node::Top, node])
+    return concat(vec![Node::Top, node]);
 }
 
 /// Builds a bare anchored DFA engine for a rule,
@@ -223,7 +241,7 @@ fn search_root(node: Node) -> Node {
 fn anchored_engine(node: &Node) -> Option<Engine> {
     return build_dfa_within(node.clone(), ENGINE_DFA_CAP)
         .ok()
-        .map(|dfa| return Engine::new(EngineKind::Table(minimize(&dfa)), Vec::new()))
+        .map(|dfa| return Engine::new(EngineKind::Table(minimize(&dfa)), Vec::new()));
 }
 
 /// Builds the eager-DFA back-end for a seedless node,
@@ -245,7 +263,9 @@ fn anchored_engine(node: &Node) -> Option<Engine> {
 fn build_table_kind(node: Node) -> Result<EngineKind, CompileError> {
     match build_dfa_within(search_root(node.clone()), ENGINE_DFA_CAP) {
         Ok(dfa) => return Ok(EngineKind::Table(minimize(&dfa))),
-        Err(CompileError::StateCap { .. }) => return build_counting_kind(node),
+        Err(CompileError::StateCap {
+            ..
+        }) => return build_counting_kind(node),
         Err(other) => return Err(other),
     }
 }
@@ -284,7 +304,7 @@ fn build_counting_kind(node: Node) -> Result<EngineKind, CompileError> {
     return Ok(EngineKind::Table(minimize(&build_dfa_within(
         search_root(node),
         ENGINE_DFA_CAP,
-    )?)))
+    )?)));
 }
 
 /// Compiles one parsed node into the engine best suited to it.
@@ -313,7 +333,7 @@ pub(crate) fn build_engine(node: Node) -> Result<Engine, CompileError> {
     } else {
         build_counting_kind(node)?
     };
-    return Ok(Engine::new(kind, seeds))
+    return Ok(Engine::new(kind, seeds));
 }
 
 /// How a rule is matched after the fold:
@@ -502,7 +522,7 @@ pub(crate) struct BuiltRule {
 /// }
 /// ```
 fn starts_with_line_anchor(node: &Node) -> bool {
-    return matches!(node, Node::Concat(parts) if parts.first() == Some(&Node::LineStart))
+    return matches!(node, Node::Concat(parts) if parts.first() == Some(&Node::LineStart));
 }
 
 /// Routes a rule seedless at the default floor onto a weak seed.
@@ -537,7 +557,7 @@ fn fold_seedless(node: &Node) -> Routing {
         seeds: seeds_from_node_min(node, WEAK_INNER_SEED_LEN),
         anchored: None,
         line_start: None,
-    }
+    };
 }
 
 /// Chooses how a rule is matched:
@@ -592,7 +612,7 @@ fn route_rule(node: &Node) -> Routing {
             line_start: None,
         };
     }
-    return fold_seedless(node)
+    return fold_seedless(node);
 }
 
 /// Compiles one parsed node into a rule,
@@ -646,7 +666,7 @@ pub(crate) fn build_rule(node: Node) -> Result<BuiltRule, CompileError> {
         seedless,
         node: if seedless { Some(node.clone()) } else { None },
         reference_node: if was_seedless { Some(node) } else { None },
-    })
+    });
 }
 
 /// Builds one counting automaton over every NFA-expressible seedless rule.
@@ -669,7 +689,7 @@ pub(crate) fn build_seedless_union(nodes: &[Node]) -> Option<CountingNfa> {
     if nodes.is_empty() {
         return None;
     }
-    return build_nfa(&alt(nodes.to_vec()))
+    return build_nfa(&alt(nodes.to_vec()));
 }
 
 /// Reports whether a `^`-anchored engine matches at the start of `line`.
@@ -691,8 +711,11 @@ pub(crate) fn build_seedless_union(nodes: &[Node]) -> Option<CountingNfa> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn line_start_match(engine: &Engine, line: &[u8]) -> bool {
-    return engine.is_match(line)
+pub(crate) fn line_start_match(
+    engine: &Engine,
+    line: &[u8],
+) -> bool {
+    return engine.is_match(line);
 }
 
 /// What:

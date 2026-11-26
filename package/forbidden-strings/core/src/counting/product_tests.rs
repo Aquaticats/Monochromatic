@@ -18,7 +18,10 @@
 
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
-use crate::counting::product::{ProductProgram, build_product};
+use crate::counting::product::{
+    ProductProgram,
+    build_product,
+};
 use crate::dfa::build_dfa_within;
 use crate::parse::parse;
 
@@ -35,7 +38,7 @@ use crate::parse::parse;
 fn oracle(pattern: &str) -> impl Fn(&[u8]) -> bool {
     let node = parse(pattern).expect("oracle pattern parses");
     let dfa = build_dfa_within(concat(vec![Node::Top, node]), 200_000).expect("oracle dfa builds");
-    return move |line: &[u8]| return dfa.is_match(line)
+    return move |line: &[u8]| return dfa.is_match(line);
 }
 
 // What:    Builds the product program, asserting the pattern takes the `&`/`~` back-end.
@@ -50,7 +53,7 @@ fn oracle(pattern: &str) -> impl Fn(&[u8]) -> bool {
 // ```
 fn product(pattern: &str) -> ProductProgram {
     let node = parse(pattern).expect("pattern parses");
-    return build_product(&node).expect("pattern is a product")
+    return build_product(&node).expect("pattern is a product");
 }
 
 // What:    Every linear `&`/`~` pattern must agree with the eager DFA on every probe input.
@@ -214,7 +217,10 @@ fn aws_key_complement_is_exact() {
 // ```
 #[test]
 fn validate_rejects_an_unsafe_program() {
-    let empty = ProductProgram { positives: Vec::new(), negatives: Vec::new() };
+    let empty = ProductProgram {
+        positives: Vec::new(),
+        negatives: Vec::new(),
+    };
     assert!(empty.validate().is_err());
 
     let good = product("(?:AKIA[A-Z2-7]{4}) & ~(AKIA2222)");
@@ -237,9 +243,8 @@ fn validate_rejects_an_unsafe_program() {
 // ```
 #[test]
 fn aws_rule_with_alternation_stays_small() {
-    let prog = product(
-        "(?:\\b(?:(?:A3T[A-Z0-9])|(?:AKIA)|(?:ASIA))[A-Z2-7]{16}\\b) & ~(AKIA2{16})",
-    );
+    let prog =
+        product("(?:\\b(?:(?:A3T[A-Z0-9])|(?:AKIA)|(?:ASIA))[A-Z2-7]{16}\\b) & ~(AKIA2{16})");
     let bytes = bincode::serialize(&prog).expect("serializes");
     assert!(
         bytes.len() < 4_000,

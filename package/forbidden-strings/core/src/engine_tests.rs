@@ -11,8 +11,14 @@
 // });
 // ```
 
-use super::{Engine, EngineKind};
-use crate::dfa::{build_dfa_within, minimize};
+use super::{
+    Engine,
+    EngineKind,
+};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 use crate::parse::parse;
 
 // What:    A Table engine over a pattern's anchored DFA, carrying the given seeds.
@@ -25,10 +31,13 @@ use crate::parse::parse;
 //   // Rust body below is the implementation.
 // }
 // ```
-fn table_engine(pattern: &str, seeds: &[&[u8]]) -> Engine {
+fn table_engine(
+    pattern: &str,
+    seeds: &[&[u8]],
+) -> Engine {
     let dfa = minimize(&build_dfa_within(parse(pattern).expect("parses"), 10_000).expect("builds"));
     let owned_seeds = seeds.iter().map(|s| return s.to_vec()).collect();
-    return Engine::new(EngineKind::Table(dfa), owned_seeds)
+    return Engine::new(EngineKind::Table(dfa), owned_seeds);
 }
 
 #[test]
@@ -116,9 +125,17 @@ fn prepare_rebuilds_the_prefilter_dropped_by_decode() {
     let engine = table_engine("AKIA[A-Z2-7]{4}", &[b"AKIA"]);
     let bytes = bincode::serialize(&engine).expect("engine serializes");
     let mut decoded: Engine = bincode::deserialize(&bytes).expect("engine deserializes");
-    assert_eq!(decoded.prefilter.len(), 0, "a decoded engine has no prefilter until prepared");
+    assert_eq!(
+        decoded.prefilter.len(),
+        0,
+        "a decoded engine has no prefilter until prepared"
+    );
     decoded.prepare();
-    assert_eq!(decoded.prefilter.len(), 1, "prepare rebuilds one searcher per seed");
+    assert_eq!(
+        decoded.prefilter.len(),
+        1,
+        "prepare rebuilds one searcher per seed"
+    );
 }
 
 #[test]
